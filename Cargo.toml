@@ -22,9 +22,9 @@ japanese = [
 ]
 
 [dependencies]
-erg_common = { path = "./src/erg_common" }
-erg_parser = { path = "./src/erg_compiler/erg_parser" }
-erg_compiler = { path = "./src/erg_compiler" }
+erg_common = { version = "0.1.0", path = "./src/erg_common" }
+erg_parser = { version = "0.1.0", path = "./src/erg_compiler/erg_parser" }
+erg_compiler = { version = "0.1.0", path = "./src/erg_compiler" }
 # vm = { path = "./src/vm" }
 
 # [workspace]
