@@ -3,11 +3,11 @@ extern crate parser;
 
 use std::process;
 
-use common::config::ErgConfig;
-use common::traits::Runnable;
+use erg_common::config::ErgConfig;
+use erg_common::traits::Runnable;
 
-use parser::lex::LexerRunner;
-use parser::ParserRunner;
+use erg_parser::lex::LexerRunner;
+use erg_parser::ParserRunner;
 
 fn main() {
     let cfg = ErgConfig::parse();

@@ -1,14 +1,14 @@
 //! defines type information for builtin objects (in `SymbolTable`)
 //!
 //! 組み込みオブジェクトの型情報を(記号表に)定義
-use common::{Str};
-use common::{set, debug_power_assert};
-use common::ty::{Type, TyParam, ConstObj};
+use erg_common::{Str};
+use erg_common::{set, debug_power_assert};
+use erg_common::ty::{Type, TyParam, ConstObj};
 use Type::*;
-use common::ty::type_constrs::*;
+use erg_common::ty::type_constrs::*;
 use ParamSpec as PS;
 
-use parser::ast::{VarName};
+use erg_parser::ast::{VarName};
 
 use crate::varinfo::{Mutability, Visibility, VarInfo, VarKind};
 use crate::table::{SymbolTable, ParamSpec, DefaultInfo};

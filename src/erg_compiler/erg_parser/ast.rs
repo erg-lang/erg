@@ -2,8 +2,8 @@
 use std::borrow::Borrow;
 use std::fmt;
 
-use common::{Str};
-use common::{
+use erg_common::{Str};
+use erg_common::{
     impl_display_for_single_struct,
     impl_locational, impl_locational_for_enum,
     impl_displayable_stream_for_wrapper,
@@ -11,11 +11,11 @@ use common::{
     fmt_vec, fmt_option, impl_display_for_enum,
     impl_display_from_nested, impl_nested_display_for_enum
 };
-use common::value::ValueObj;
-use common::error::Location;
-use common::set::Set;
-use common::traits::{Locational, Stream, NestedDisplay};
-use common::ty::SubrKind;
+use erg_common::value::ValueObj;
+use erg_common::error::Location;
+use erg_common::set::Set;
+use erg_common::traits::{Locational, Stream, NestedDisplay};
+use erg_common::ty::SubrKind;
 
 use crate::token::{Token, TokenKind};
 

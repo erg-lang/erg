@@ -9,22 +9,22 @@ edition = "2021"
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
 debug = [
-    "common/debug",
-    "parser/debug",
-    "compiler/debug",
-    #"vm/debug"
+    "erg_common/debug",
+    "erg_parser/debug",
+    "erg_compiler/debug",
+    #"erg_vm/debug"
 ]
 japanese = [
-    "common/japanese",
-    "parser/japanese",
-    "compiler/japanese",
-    #"vm/japanese"
+    "erg_common/japanese",
+    "erg_parser/japanese",
+    "erg_compiler/japanese",
+    #"erg_vm/japanese"
 ]
 
 [dependencies]
-common = { path = "./src/common" }
-parser = { path = "./src/compiler/parser" }
-compiler = { path = "./src/compiler" }
+erg_common = { path = "./src/erg_common" }
+erg_parser = { path = "./src/erg_compiler/erg_parser" }
+erg_compiler = { path = "./src/erg_compiler" }
 # vm = { path = "./src/vm" }
 
 # [workspace]

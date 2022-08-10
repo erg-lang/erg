@@ -4,16 +4,16 @@ extern crate parser;
 mod tests {
     use std::iter::Iterator;
 
-    use common::config::{ErgConfig, Input};
-    use common::error::MultiErrorFmt;
-    use common::traits::Runnable;
+    use erg_common::config::{ErgConfig, Input};
+    use erg_common::error::MultiErrorFmt;
+    use erg_common::traits::Runnable;
 
-    // use compiler::parser;
+    // use erg_compiler::parser;
 
-    use parser::error::*;
-    use parser::lex::Lexer;
-    use parser::token::*;
-    use parser::ParserRunner;
+    use erg_parser::error::*;
+    use erg_parser::lex::Lexer;
+    use erg_parser::token::*;
+    use erg_parser::ParserRunner;
     use TokenKind::*;
 
     const FILE1: &str = "src/compiler/parser/tests/test1_basic_syntax.er";

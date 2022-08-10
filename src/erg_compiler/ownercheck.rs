@@ -1,11 +1,11 @@
-use common::Str;
-use common::{debug_power_assert, log};
-use common::color::{GREEN, RESET};
-use common::dict::Dict;
-use common::error::Location;
-use common::set::Set;
-use common::traits::{Stream, Locational, HasType};
-use common::ty::{Type, ArgsOwnership, Ownership};
+use erg_common::Str;
+use erg_common::{debug_power_assert, log};
+use erg_common::color::{GREEN, RESET};
+use erg_common::dict::Dict;
+use erg_common::error::Location;
+use erg_common::set::Set;
+use erg_common::traits::{Stream, Locational, HasType};
+use erg_common::ty::{Type, ArgsOwnership, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{HIR, Def, Signature, Accessor, Block, Expr};

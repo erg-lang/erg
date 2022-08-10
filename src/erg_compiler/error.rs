@@ -1,15 +1,15 @@
 use std::fmt::Display;
 use std::ops::Add;
 
-use common::color::{GREEN, RED, YELLOW, RESET};
-use common::config::Input;
-use common::error::{ErrorCore, ErrorKind::*, ErrorDisplay, MultiErrorDisplay, Location};
-use common::traits::{Stream, Locational};
-use common::ty::{Type, Predicate};
-use common::{Str, fmt_iter};
-use common::{impl_stream_for_wrapper, switch_lang};
+use erg_common::color::{GREEN, RED, YELLOW, RESET};
+use erg_common::config::Input;
+use erg_common::error::{ErrorCore, ErrorKind::*, ErrorDisplay, MultiErrorDisplay, Location};
+use erg_common::traits::{Stream, Locational};
+use erg_common::ty::{Type, Predicate};
+use erg_common::{Str, fmt_iter};
+use erg_common::{impl_stream_for_wrapper, switch_lang};
 
-use parser::error::{ParserRunnerError, ParserRunnerErrors};
+use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use crate::hir::Expr;
 

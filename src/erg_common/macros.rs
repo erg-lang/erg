@@ -70,14 +70,14 @@ macro_rules! switch_lang {
 #[macro_export]
 macro_rules! enum_unwrap {
     ($ex: expr, $Enum: path $(,)*) => {{
-        if let $Enum(res) = $ex { res } else { common::switch_unreachable!() }
+        if let $Enum(res) = $ex { res } else { erg_common::switch_unreachable!() }
     }};
     ($ex: expr, $Enum: path :( $Cons: path :(_) ) $(,)*) => {{
-        if let $Enum($Cons(res)) = $ex { res } else { common::switch_unreachable!() }
+        if let $Enum($Cons(res)) = $ex { res } else { erg_common::switch_unreachable!() }
     }};
     // X::A{a, b}
     ($ex: expr, $Enum: path {$($fields: ident $(,)*)*}) => {{
-        if let $Enum{$($fields,)*} = $ex { ($($fields,)*) } else { common::switch_unreachable!() }
+        if let $Enum{$($fields,)*} = $ex { ($($fields,)*) } else { erg_common::switch_unreachable!() }
     }};
 }
 
@@ -187,10 +187,10 @@ macro_rules! power_assert {
 #[macro_export]
 macro_rules! debug_power_assert {
     ($l: expr, $op: tt, $r: expr) => {
-        if cfg!(debug_assertions) { common::power_assert!($l, $op, $r) }
+        if cfg!(debug_assertions) { erg_common::power_assert!($l, $op, $r) }
     };
     ($ex: expr) => {
-        if cfg!(debug_assertions) { common::power_assert!($ex) }
+        if cfg!(debug_assertions) { erg_common::power_assert!($ex) }
     };
 }
 

@@ -1,6 +1,6 @@
 //! defines the compiler for Erg (ergc).
-extern crate common;
-pub extern crate parser;
+extern crate erg_common;
+pub extern crate erg_parser;
 
 mod compile;
 pub use compile::*;

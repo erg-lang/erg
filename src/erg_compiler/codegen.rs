@@ -4,21 +4,21 @@
 use std::fmt;
 use std::process;
 
-use common::Str;
-use common::cache::Cache;
-use common::{fn_name_full, enum_unwrap, switch_unreachable, debug_power_assert, log, impl_stream_for_wrapper};
-use common::codeobj::{CodeObj, CodeObjFlags};
-use common::color::{GREEN, RESET};
-use common::config::{ErgConfig, Input};
-use common::error::{Location, MultiErrorDisplay};
-use common::value::ValueObj;
-use common::opcode::Opcode;
+use erg_common::Str;
+use erg_common::cache::Cache;
+use erg_common::{fn_name_full, enum_unwrap, switch_unreachable, debug_power_assert, log, impl_stream_for_wrapper};
+use erg_common::codeobj::{CodeObj, CodeObjFlags};
+use erg_common::color::{GREEN, RESET};
+use erg_common::config::{ErgConfig, Input};
+use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::value::ValueObj;
+use erg_common::opcode::Opcode;
 use Opcode::*;
-use common::traits::{HasType, Locational, Stream};
-use common::ty::{TypeCode, TypePair};
+use erg_common::traits::{HasType, Locational, Stream};
+use erg_common::ty::{TypeCode, TypePair};
 
-use parser::token::{Token, TokenKind, TokenCategory};
-use parser::ast::{VarPattern, ParamPattern, Params};
+use erg_parser::token::{Token, TokenKind, TokenCategory};
+use erg_parser::ast::{VarPattern, ParamPattern, Params};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};

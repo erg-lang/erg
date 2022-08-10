@@ -1,5 +1,5 @@
 [package]
-name = "compiler"
+name = "erg_compiler"
 version = "0.1.0"
 description = "Centimetre: the Erg compiler"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
@@ -8,12 +8,12 @@ edition = "2021"
 
 [features]
 # when "debug" feature is turned on, that of parser will also be turned on.
-debug = [ "common/debug", "parser/debug" ]
-japanese = [ "common/japanese", "parser/japanese" ]
+debug = [ "erg_common/debug", "erg_parser/debug" ]
+japanese = [ "erg_common/japanese", "erg_parser/japanese" ]
 
 [dependencies]
-common = { path = "../common" }
-parser = { path = "parser" }
+erg_common = { path = "../erg_common" }
+erg_parser = { path = "erg_parser" }
 
 [lib]
 path = "lib.rs"

@@ -2,10 +2,10 @@
 //! SideEffectCheckerを実装
 //! 関数や不変型に副作用がないかチェックする
 
-use common::Str;
-use common::color::{GREEN, RESET};
-use common::log;
-use common::traits::Stream;
+use erg_common::Str;
+use erg_common::color::{GREEN, RESET};
+use erg_common::log;
+use erg_common::traits::Stream;
 
 use crate::varinfo::Visibility;
 use Visibility::*;

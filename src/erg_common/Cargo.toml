@@ -1,5 +1,5 @@
 [package]
-name = "common"
+name = "erg_common"
 version = "0.1.0"
 description = "A common components library of Erg"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]

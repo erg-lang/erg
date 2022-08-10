@@ -5,15 +5,15 @@
 use std::fmt::Debug;
 use std::mem;
 
-use common::Str;
-use common::{debug_power_assert, enum_unwrap, fn_name, caused_by, switch_lang, switch_unreachable, log, set};
-use common::color::{GREEN, RED, RESET};
-use common::config::{Input, SEMVER, BUILD_INFO};
-use common::config::ErgConfig;
-use common::error::{Location};
-use common::set::Set;
-use common::traits::Runnable;
-use common::traits::{Locational, Stream};
+use erg_common::Str;
+use erg_common::{debug_power_assert, enum_unwrap, fn_name, caused_by, switch_lang, switch_unreachable, log, set};
+use erg_common::color::{GREEN, RED, RESET};
+use erg_common::config::{Input, SEMVER, BUILD_INFO};
+use erg_common::config::ErgConfig;
+use erg_common::error::{Location};
+use erg_common::set::Set;
+use erg_common::traits::Runnable;
+use erg_common::traits::{Locational, Stream};
 
 use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
 use crate::ast::*;

@@ -1,10 +1,10 @@
 use std::fmt;
 
-use common::Str;
-use common::ty::{Type};
-use common::traits::HasType;
+use erg_common::Str;
+use erg_common::ty::{Type};
+use erg_common::traits::HasType;
 
-use parser::ast::DefId;
+use erg_parser::ast::DefId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]

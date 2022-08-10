@@ -1,15 +1,15 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
-use common::{switch_lang, log, fn_name};
-use common::color::{GREEN, RED, RESET};
-use common::error::Location;
-use common::traits::{Locational, Stream, HasType};
-use common::ty::{Type, ParamTy};
-use common::get_hash;
+use erg_common::{switch_lang, log, fn_name};
+use erg_common::color::{GREEN, RED, RESET};
+use erg_common::error::Location;
+use erg_common::traits::{Locational, Stream, HasType};
+use erg_common::ty::{Type, ParamTy};
+use erg_common::get_hash;
 
-use parser::ast;
-use parser::ast::{AST};
+use erg_parser::ast;
+use erg_parser::ast::{AST};
 
 use crate::hir;
 use crate::hir::{HIR};

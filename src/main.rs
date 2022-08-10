@@ -1,17 +1,17 @@
-extern crate compiler;
-extern crate parser;
+extern crate erg_compiler;
+extern crate erg_parser;
 extern crate erg;
 
 use std::process;
 
-use common::config::{ErgConfig};
-use common::deserialize::Deserializer;
-use common::traits::Runnable;
+use erg_common::config::{ErgConfig};
+use erg_common::deserialize::Deserializer;
+use erg_common::traits::Runnable;
 
-use parser::lex::LexerRunner;
-use parser::ParserRunner;
+use erg_parser::lex::LexerRunner;
+use erg_parser::ParserRunner;
 
-use compiler::Compiler;
+use erg_compiler::Compiler;
 
 use erg::dummy::DummyVM;
 

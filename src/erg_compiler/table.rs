@@ -6,18 +6,18 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 use std::cmp::Ordering;
 
-use common::Str;
-use common::ty::Constraint;
-use common::ty::RefinementType;
-use common::ty::fresh_varname;
-use common::{fn_name, get_hash, log, assume_unreachable, set, try_map, fmt_slice};
-use common::dict::Dict;
-use common::set::Set;
-use common::error::{Location, ErrorCore};
-use common::value::ValueObj;
-use common::levenshtein::levenshtein;
-use common::traits::{HasType, Locational, Stream};
-use common::ty::{
+use erg_common::Str;
+use erg_common::ty::Constraint;
+use erg_common::ty::RefinementType;
+use erg_common::ty::fresh_varname;
+use erg_common::{fn_name, get_hash, log, assume_unreachable, set, try_map, fmt_slice};
+use erg_common::dict::Dict;
+use erg_common::set::Set;
+use erg_common::error::{Location, ErrorCore};
+use erg_common::value::ValueObj;
+use erg_common::levenshtein::levenshtein;
+use erg_common::traits::{HasType, Locational, Stream};
+use erg_common::ty::{
     Type, TyParam, TyParamOrdering, TyBound, ConstObj,
     IntervalOp, FreeKind, HasLevel, SubrKind, SubrType, ParamTy, Predicate,
 };
@@ -26,9 +26,9 @@ use Type::*;
 use Predicate as Pred;
 use ValueObj::{Inf, NegInf};
 
-use parser::ast;
+use erg_parser::ast;
 use ast::{VarName, DefId, TypeSpec, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec, TypeBoundSpecs, ParamSig};
-use parser::token::{Token, TokenKind};
+use erg_parser::token::{Token, TokenKind};
 
 use crate::hir;
 use crate::eval::{Evaluator};
@@ -1725,7 +1725,7 @@ impl SymbolTable {
         // Never or T => T
         let mut union_pat_t = Type::Never;
         for (i, a) in pos_args.iter().skip(1).enumerate() {
-            let lambda = common::enum_unwrap!(&a.expr, hir::Expr::Lambda);
+            let lambda = erg_common::enum_unwrap!(&a.expr, hir::Expr::Lambda);
             if !lambda.params.defaults.is_empty() { todo!() }
             if lambda.params.len() != 1 {
                 return Err(TyCheckError::argument_error(
@@ -1819,7 +1819,7 @@ impl SymbolTable {
     }
 
     pub(crate) fn get_binop_t(&self, op: &Token, args: &[hir::PosArg], namespace: &Str) -> TyCheckResult<Type> {
-        common::debug_power_assert!(args.len() == 2);
+        erg_common::debug_power_assert!(args.len() == 2);
         let symbol = Token::symbol(binop_to_dname(op.inspect()));
         let mut op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
         self.get_call_t(&mut op, args, &[], namespace).map_err(|e| {
@@ -1830,7 +1830,7 @@ impl SymbolTable {
     }
 
     pub(crate) fn get_unaryop_t(&self, op: &Token, args: &[hir::PosArg], namespace: &Str) -> TyCheckResult<Type> {
-        common::debug_power_assert!(args.len() == 1);
+        erg_common::debug_power_assert!(args.len() == 1);
         let symbol = Token::symbol(unaryop_to_dname(op.inspect()));
         let mut op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
         self.get_call_t(&mut op, args, &[], namespace).map_err(|e| {
@@ -2191,7 +2191,7 @@ impl SymbolTable {
             (l, r @ (TyParam::Erased(_) | TyParam::MonoQVar(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l, bounds).map(|ord| ord.reverse()),
             (_l, _r) => {
-                common::fmt_dbg!(_l, _r,);
+                erg_common::fmt_dbg!(_l, _r,);
                 None
             },
         }

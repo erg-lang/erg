@@ -1,10 +1,10 @@
 //! defines and implements `Lexer` (Tokenizer).
-use common::cache::Cache;
-use common::Str;
-use common::{fn_name_full, switch_lang, debug_power_assert, normalize_newline};
-use common::config::Input;
-use common::config::ErgConfig;
-use common::traits::{Locational, Runnable, Stream};
+use erg_common::cache::Cache;
+use erg_common::Str;
+use erg_common::{fn_name_full, switch_lang, debug_power_assert, normalize_newline};
+use erg_common::config::Input;
+use erg_common::config::ErgConfig;
+use erg_common::traits::{Locational, Runnable, Stream};
 
 use crate::error::{LexerRunnerError, LexerRunnerErrors, LexError, LexErrors, LexResult};
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};

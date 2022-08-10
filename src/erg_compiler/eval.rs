@@ -1,17 +1,17 @@
 use std::mem;
 
-use common::Str;
-use common::{fn_name, set};
-use common::value::ValueObj;
-use common::dict::Dict;
-use common::rccell::RcCell;
-use common::set::{Set};
-use common::traits::Stream;
-use common::ty::{OpKind, TyParam, Type, Predicate, TyBound, ConstObj, SubrKind};
+use erg_common::Str;
+use erg_common::{fn_name, set};
+use erg_common::value::ValueObj;
+use erg_common::dict::Dict;
+use erg_common::rccell::RcCell;
+use erg_common::set::{Set};
+use erg_common::traits::Stream;
+use erg_common::ty::{OpKind, TyParam, Type, Predicate, TyBound, ConstObj, SubrKind};
 use OpKind::*;
 
-use parser::ast::*;
-use parser::token::Token;
+use erg_parser::ast::*;
+use erg_parser::token::Token;
 
 use crate::table::{SymbolTable, TyVarTable};
 use crate::error::{EvalError, EvalResult, TyCheckResult};

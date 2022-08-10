@@ -5,10 +5,10 @@
 //! 型チェックなどによる検証は行わない
 #![allow(dead_code)]
 
-use common::{enum_unwrap, set};
-use common::{Str};
-use common::set::{Set};
-use common::traits::{Stream, Locational};
+use erg_common::{enum_unwrap, set};
+use erg_common::{Str};
+use erg_common::set::{Set};
+use erg_common::traits::{Stream, Locational};
 
 use crate::token::{Token, TokenKind};
 use crate::ast::{

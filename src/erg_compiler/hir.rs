@@ -1,19 +1,19 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
-use common::{Str};
-use common::value::ValueObj;
-use common::error::Location;
-use common::traits::{HasType, Locational, Stream, NestedDisplay};
-use common::ty::{Type, TyParam, Constraint};
-use common::{
+use erg_common::{Str};
+use erg_common::value::ValueObj;
+use erg_common::error::Location;
+use erg_common::traits::{HasType, Locational, Stream, NestedDisplay};
+use erg_common::ty::{Type, TyParam, Constraint};
+use erg_common::{
     impl_locational, impl_locational_for_enum,
     impl_stream_for_wrapper, impl_display_for_enum,
     impl_nested_display_for_enum, impl_display_from_nested,
 };
 
-use parser::token::{Token, TokenKind};
-use parser::ast::{VarName, VarPattern, Params, DefId, fmt_lines};
+use erg_parser::token::{Token, TokenKind};
+use erg_parser::ast::{VarName, VarPattern, Params, DefId, fmt_lines};
 
 #[derive(Debug, Clone)]
 pub struct Literal {

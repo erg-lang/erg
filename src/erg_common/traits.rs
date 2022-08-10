@@ -100,7 +100,7 @@ macro_rules! impl_displayable_stream_for_wrapper {
 
         impl std::fmt::Display for $Strc {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "[{}]", common::fmt_iter(self.iter()).replace("\n", "\\n"))
+                write!(f, "[{}]", erg_common::fmt_iter(self.iter()).replace("\n", "\\n"))
             }
         }
 
@@ -111,10 +111,10 @@ macro_rules! impl_displayable_stream_for_wrapper {
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
         }
 
-        impl common::traits::Stream<$Inner> for $Strc {
+        impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> { self.0 }
             #[inline]
@@ -142,10 +142,10 @@ macro_rules! impl_stream_for_wrapper {
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
         }
 
-        impl common::traits::Stream<$Inner> for $Strc {
+        impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> { self.0 }
             #[inline]
@@ -159,7 +159,7 @@ macro_rules! impl_stream_for_wrapper {
 #[macro_export]
 macro_rules! impl_stream {
     ($Strc: ident, $Inner: ident, $field: ident) => {
-        impl common::traits::Stream<$Inner> for $Strc {
+        impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> { self.$field }
             #[inline]
@@ -170,7 +170,7 @@ macro_rules! impl_stream {
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
         }
     }
 }
@@ -320,8 +320,8 @@ pub trait Locational {
 #[macro_export]
 macro_rules! impl_locational_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl common::traits::Locational for $Enum {
-            fn loc(&self) -> common::error::Location {
+        impl erg_common::traits::Locational for $Enum {
+            fn loc(&self) -> erg_common::error::Location {
                 match self {
                     $($Enum::$Variant(v) => v.loc(),)*
                 }
@@ -396,7 +396,7 @@ pub trait HasType {
 #[macro_export]
 macro_rules! impl_t {
     ($T: ty, $t: ident) => {
-        impl common::traits::HasType for $T {
+        impl erg_common::traits::HasType for $T {
             #[inline]
             fn ref_t(&self) -> &common::ty::Type { &common::ty::Type::$t }
         }

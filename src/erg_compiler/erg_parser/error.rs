@@ -1,11 +1,11 @@
 //! defines `ParseError` and others.
 //!
 //! パーサーが出すエラーを定義
-use common::{impl_stream_for_wrapper, switch_lang};
-use common::Str;
-use common::config::Input;
-use common::error::{ErrorCore, ErrorDisplay, MultiErrorDisplay, Location, ErrorKind::*};
-use common::traits::Stream;
+use erg_common::{impl_stream_for_wrapper, switch_lang};
+use erg_common::Str;
+use erg_common::config::Input;
+use erg_common::error::{ErrorCore, ErrorDisplay, MultiErrorDisplay, Location, ErrorKind::*};
+use erg_common::traits::Stream;
 
 #[derive(Debug)]
 pub struct LexError(ErrorCore);

@@ -1,17 +1,17 @@
-extern crate common;
-extern crate compiler;
-extern crate parser;
+extern crate erg_common;
+extern crate erg_compiler;
+extern crate erg_parser;
 
 use std::process;
 
-use common::deserialize::Deserializer;
-use common::config::{ErgConfig};
-use common::traits::Runnable;
+use erg_common::deserialize::Deserializer;
+use erg_common::config::{ErgConfig};
+use erg_common::traits::Runnable;
 
-use compiler::Compiler;
+use erg_compiler::Compiler;
 
-use parser::lex::LexerRunner;
-use parser::ParserRunner;
+use erg_parser::lex::LexerRunner;
+use erg_parser::ParserRunner;
 
 fn main() {
     let cfg = ErgConfig::parse();

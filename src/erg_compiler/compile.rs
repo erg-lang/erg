@@ -3,15 +3,15 @@
 //! コンパイラーを定義する
 use std::path::Path;
 
-use common::Str;
-use common::{log};
-use common::codeobj::{CodeObj, CodeObjFlags};
-use common::color::{GREEN, RESET};
-use common::config::{Input, ErgConfig, SEMVER, BUILD_INFO};
-use common::error::MultiErrorDisplay;
-use common::traits::{Runnable, Stream};
+use erg_common::Str;
+use erg_common::{log};
+use erg_common::codeobj::{CodeObj, CodeObjFlags};
+use erg_common::color::{GREEN, RESET};
+use erg_common::config::{Input, ErgConfig, SEMVER, BUILD_INFO};
+use erg_common::error::MultiErrorDisplay;
+use erg_common::traits::{Runnable, Stream};
 
-use parser::ParserRunner;
+use erg_parser::ParserRunner;
 
 use crate::codegen::CodeGenerator;
 use crate::effectcheck::SideEffectChecker;

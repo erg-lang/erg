@@ -4,12 +4,12 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use common::str::Str;
-use common::error::Location;
-use common::impl_displayable_stream_for_wrapper;
-use common::traits::{Stream, Locational};
-use common::value::ValueObj;
-use common::ty::Type;
+use erg_common::str::Str;
+use erg_common::error::Location;
+use erg_common::impl_displayable_stream_for_wrapper;
+use erg_common::traits::{Stream, Locational};
+use erg_common::value::ValueObj;
+use erg_common::ty::Type;
 
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
