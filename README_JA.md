@@ -7,7 +7,7 @@
 <br>[Erg](https://mtshiba.github.io/TheErgBook)はPython互換の静的型付け言語です。
 
 <p align='center'>
-    <img alt="Build status" src="https://github.com/mtshiba/erg/actions/workflows/rust.yml/badge.svg">
+    <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
     <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: MIT & APACHE 2.0" src="https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue"></a><br>
     <a href='./README.md'>English</a> | 日本語
 </p>
