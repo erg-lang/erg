@@ -159,10 +159,6 @@
 cargo install erg
 ```
 
-### Installing by an installer
-
-You can get an installer from Github releases.
-
 ### Building from source
 
 Building from source code requires the Rust toolchain.
