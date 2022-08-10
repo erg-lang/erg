@@ -1,0 +1,20 @@
+# 基本的な構文をパーサーがパスできるかチェックする
+# Check that a parser can pass the basic syntax
+
+_a = 1_234 + 1113.* 3_000.2e-4 ** 0003 * .4
+a, _, ...b = five_elem_tuple
+f x, y =
+    x + y
+if! True, do!
+    print! "\\hello, world\""
+    10.times! do!
+        if! x.y.z, do!
+            print! ""
+        # illegal indent
+        # do_nothing!
+        Hello = S2c "hello"
+aあ아 =
+    # コメント
+    "aaa"
+x; x;; x;
+10..twelve;

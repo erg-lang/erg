@@ -1,0 +1,57 @@
+@Attach NeImpl
+Eq(R |= Self()) = Trait {
+    .`==` = Self(R).(R) -> Bool
+}
+
+NeImpl R = Patch Eq R
+NeImpl(R).`!=`(self, other: R): Bool = not(self == other)
+
+# Should this return `Ordering`?
+@Attach EqImpl, GeImpl, GtImpl, LtImpl
+Ord(R |= Self()) = Trait {
+    .`<=` = Self(R).(R) -> Bool
+}
+
+EqImpl R = Patch Ord(R), Impl: Eq()
+EqImpl(R).`==`(self, other: R): Bool = self <= other and other <= self
+
+GeImpl = Patch Ord()
+GeImpl.`>=`(self, other: Self): Bool = other <= self
+GtImpl = Patch Ord()
+GtImpl.`>`(self, other: Self): Bool = other < self
+LtImpl = Patch Ord()
+LtImpl.`<`(self, other: Self): Bool = self <= other and self != other
+
+Add(R |= Self(), O |= Self()) = Trait {
+    .`_+_` = Self(R, O).(R) -> O
+}
+Sub(R |= Self(), O |= Self()) = Trait {
+    .`_-_` = Self(R, O).(R) -> O
+}
+Mul(R |= Self(), O |= Self()) = Trait {
+    .`*` = Self(R, O).(R) -> O
+}
+Div(R |= Self(), O |= Self()) = Trait {
+    .`/` = Self(R, O).(R) -> O or Panic
+}
+Num: (R |= Type, O |= Type) -> Type
+Num = Add and Sub and Mul
+
+Seq T = Trait {
+    .__len__ = Ref(Self(T)).() -> Nat
+    .get = Ref(Self(T)).(Nat) -> T
+}
+
+`_+_`: |R, O: Type, A <: Add(R, O)| (A, R) -> O
+`_-_`: |R, O: Type, S <: Add(R, O)| (S, R) -> O
+`*`: |R, O: Type, M <: Add(R, O)| (M, R) -> O
+`/`: |R, O: Type, D <: Add(R, O)| (D, R) -> O
+
+AddForInt = Patch Int, Impl: Add()
+AddForInt.`_+_`: (self: Self, other: Int) -> Int
+
+# TODO: Mul and Div
+NumForInterval M, N, O, P: Int =
+    Patch M..N, Impl: Add(R: O..P, O: M+O..N+P) and Sub(R: O..P, O: M-P..N-O)
+NumForInterval(M, N, O, P).`_+_`: (self: Self, other: O..P) -> M+O..N+P
+NumForInterval(M, N, O, P).`_-_`: (self: Self, other: O..P) -> M-P..N-O

@@ -1,0 +1,6 @@
+v = ![]
+v.push! 1
+
+w = v
+print! w
+print! v # this should cause a MoveError

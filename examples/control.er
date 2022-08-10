@@ -1,0 +1,33 @@
+cond = True
+s = if cond:
+    do "then block"
+    do "else block"
+assert s == "then block"
+
+# else: binary operator
+x = cond.then 1 else 2
+assert x == 1
+
+if! cond:
+    do!:
+        print! "then block"
+    do!:
+        print! "else block"
+
+a = [1, 2, 3]
+sum = match a:
+    [x, y, z] -> x + y + z
+    (x, y, z) -> x + y + z
+    {x; y; z} -> x + y + z
+    i: Int -> i
+    _ -> panic "unknown object"
+
+for! 0.., i =>
+    print! "i = {i}"
+    if i >= 100:
+        do return break()
+
+counter = !100
+while! not counter.is_zero(), do!:
+    print! "counter = {counter}"
+    counter.dec!()

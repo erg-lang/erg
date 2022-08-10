@@ -1,0 +1,16 @@
+immut_arr = [1, 2, 3, 4, 5]
+mut_content_arr = [1, 2, 3, 4, 5].into [Int!; 5]
+telescoping_arr = [1, 2, 3, 4, 5].into [Int; !5]
+mut_arr = [1, 2, 3, 4, 5].into [Int!; !5]
+
+mut_content_arr.map!(x -> x + 1)
+# A mutable array class inherits an immutable array class, so a mutable array can compare with an immutable array
+assert mut_content_arr == [2, 3, 4, 5, 6]
+# This is invalid: telescoping_arr.map!(x -> x + 1)
+telescoping_arr.push!(6)
+assert telescoping_arr == [1, 2, 3, 4, 5, 6]
+# This is invalid: mut_content_arr.push!(6)
+
+# NOTE: `telescoping_arr` can actually do the same thing as `mut_content_arr` or `mut_arr`.
+# `mut_arr[0].inc!()` is the same as `telescoping_arr.insert! 0, telescoping_arr.remove!(0) + 1`.
+# The important thing is that the length of `mut_content_arr` will not change. This gives advantages such as guaranteed success of accessing.

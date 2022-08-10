@@ -1,0 +1,21 @@
+[package]
+name = "parser"
+version = "0.1.0"
+description = "The Erg parser"
+authors = ["mtshiba <sbym1346@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[features]
+debug = [ "common/debug" ]
+japanese = [ "common/japanese" ]
+
+[dependencies]
+common = { path = "../../common" }
+
+[lib]
+path = "lib.rs"
+
+[[bin]]
+name = "ergp"
+path = "main.rs"

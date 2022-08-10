@@ -1,0 +1,42 @@
+[package]
+name = "erg"
+version = "0.1.0"
+description = "The Erg programming language"
+authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[features]
+# when "debug" feature is turned on, that of the following crates will also be turned on.
+debug = [
+    "common/debug",
+    "parser/debug",
+    "compiler/debug",
+    #"vm/debug"
+]
+japanese = [
+    "common/japanese",
+    "parser/japanese",
+    "compiler/japanese",
+    #"vm/japanese"
+]
+
+[dependencies]
+common = { path = "./src/common" }
+parser = { path = "./src/compiler/parser" }
+compiler = { path = "./src/compiler" }
+# vm = { path = "./src/vm" }
+
+# [workspace]
+# member = ["cm", "dyne"]
+
+# [profile.release]
+# panic = 'abort'
+
+# [[bin]]
+# name = "cm"
+# path = "src/compiler/main.rs"
+
+# [[bin]]
+# name = "dyne"
+# path = "src/vm/main.rs"

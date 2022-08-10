@@ -1,0 +1,9 @@
+if True, () -> log "hello"
+if! True, () => print! "hello"
+# if True, () => print! "hello" # this should cause a type error
+if True, () ->
+    _x = "aaa" + input!() # this should cause an effect error
+    print! "hello" # this should cause an effect error
+
+f x: Int = log x
+g x: Int = print! x # this should cause an effect error

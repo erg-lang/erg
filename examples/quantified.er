@@ -1,0 +1,12 @@
+id|T|(x: T): T = x
+assert id(1) == 1
+assert id(True) == True
+assert id("hello") == "hello"
+
+const|T, C|(c: C): C = _: T -> c
+assert const(1)(2) == 1
+assert const(True)(2) == True
+
+print_to_str!|S <: Show|(s: S): Str =
+    print! s
+    s.to_str()

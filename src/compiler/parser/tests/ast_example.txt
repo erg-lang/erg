@@ -1,0 +1,26 @@
+1 + 2 * 3
+
+[1, 2, 3, *, +]
+
+x =
+    y = 1
+    z = 2
+    3
+
+[x  y, 1, =, ;, z, 2, =, ;, 3, =]
+
+f
+    1
+    2
+    3
+
+# 直前が=, :=, ->, =>, do!なら改行はセミコロンと解釈し、それ以外ならコンマと解釈する
+[1, 2, ',', 3, ',', f]
+
+add! x, y =
+    print! x, y
+    print! x + y
+    x + y
+
+add!(x, y) = (print! x, y;print! x + y; x + y)
+[add(x,y), NewBlock, x, y, ',', print!, ;, x, y, +, print!, ;, x, y, +, BlockEnd, =

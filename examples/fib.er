@@ -1,0 +1,6 @@
+fib 0 = 0
+fib 1 = 1
+# a type annotation is required for the recursive function
+fib(n: Nat): Nat = fib(n-1) + fib(n-2)
+
+assert fib(10) == 55

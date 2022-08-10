@@ -1,0 +1,23 @@
+[package]
+name = "compiler"
+version = "0.1.0"
+description = "Centimetre: the Erg compiler"
+authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[features]
+# when "debug" feature is turned on, that of parser will also be turned on.
+debug = [ "common/debug", "parser/debug" ]
+japanese = [ "common/japanese", "parser/japanese" ]
+
+[dependencies]
+common = { path = "../common" }
+parser = { path = "parser" }
+
+[lib]
+path = "lib.rs"
+
+[[bin]]
+name = "cm"
+path = "main.rs"

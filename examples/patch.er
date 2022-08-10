@@ -1,0 +1,12 @@
+Binary = Patch {0, 1}
+Binary.
+    invert self =
+        if self == 0, 1 else 0
+assert 1.invert() == 0
+assert 0.invert() == 1
+
+Nat = Patch {I | I >= 0}
+Nat.times! self, block! =
+    for! 0..<self, _ => block!()
+10.times! do!:
+    print! "!"

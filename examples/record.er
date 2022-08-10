@@ -1,0 +1,21 @@
+# Record is a feature similar to object (literal notation) in JS
+# `.` means the field is public
+john = {
+    .name = "John Smith"
+    .age = !27
+}
+
+assert john.name == "John Smith"
+assert john.age == 27
+john.age.update! old -> old + 1
+assert john.age == 28
+# Record is not Dict, so `john["name"]` is invalid
+
+# A record whose values are all types will also behave as a type
+Person! = {
+    .name = Str
+    .age = Nat!
+}
+
+assert Person!.age == Str
+assert john in Person!

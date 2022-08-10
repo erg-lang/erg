@@ -1,0 +1,7 @@
+immut_dict: {Str: Int} = {"Alice": 1, "Bob": 2, "Charlie": 3}
+# can insert / remove an element
+telescoping_dict = {"Alice": 1, "Bob": 2, "Charlie": 3}.into {Str: Int; !*}
+telescoping_dict.insert!("Dave", 4)
+_ = telescoping_dict.remove!("Alice")
+mut_content_dict: {Str: !Int} = {"Alice": !1, "Bob": !2, "Charlie": !3}
+mut_content_dict["Bob"].update! 0

@@ -1,0 +1,38 @@
+id x = x
+add1 x = x + 1
+
+Reversible = Trait {
+    .reverse = Self.() -> Self.RevReturnType
+    .RevReturnType = Type
+}
+Rev4Bool = Patch Bool, Impl=Reversible
+Rev4Bool
+    .reverse self = not self
+    .RevReturnType = Bool
+# Str already has the 'reverse' method
+Rev4Str = Patch Str, Impl=Reversible
+Rev4Str
+    .RevReturnType = Str
+Rev4Nat = Patch Nat, Impl=Reversible
+Rev4Nat
+    .reverse self = -self
+    .RevReturnType = Neg
+
+reverse x = x.reverse() #  |R <: Reversible| R -> R.RevReturnType
+assert False == reverse True
+assert "olleh" == reverse "hello"
+assert -5 == reverse 5
+
+# rank-1
+# : {(T -> U, (T, T, T)) -> (U, U, U) | T, U: Type}
+triple_map|T| f, (l: T, c: T, r: T) = f(l), f(c), f(r)
+
+assert triple_map(id, (1, 2, 3)) == (1, 2, 3)
+assert triple_map(add1, (1, 2, 3)) == (2, 3, 4)
+
+# rank-2
+# : {(F, (T, U, V)) -> (W, X, Y) | F, T, U, V, W, X, Y: Type; F <: T -> W; F <: U -> X; F <: V -> Y}
+triple_map2|T, U, V| f, (l: T, c: U, r: V) = f(l), f(c), f(r)
+
+assert triple_map2(id, (True, "a", 5)) == (True, "a", 5)
+assert triple_map2(reverse, (True, "hello", 5)) == (False, "olleh", -5)

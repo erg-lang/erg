@@ -1,0 +1,7 @@
+print! "Hello, world!"
+print! "こんにちは、世界！"
+print! "Γειά σου Κόσμε!"
+print! "!مرحبا بالعالم"
+
+greeting = "Hello"
+print! "{greeting}, world!"
