@@ -18,6 +18,7 @@ pub fn which_python() -> String {
     if res == "" {
         panic!("python not found");
     }
+    dbg!(&res);
     res
 }
 
