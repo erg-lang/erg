@@ -7,10 +7,10 @@ use erg_common::color::{GREEN, RESET};
 use erg_common::log;
 use erg_common::traits::Stream;
 
-use crate::varinfo::Visibility;
-use Visibility::*;
 use crate::error::{EffectError, EffectErrors, EffectResult};
 use crate::hir::{HIR, Expr, Def, Accessor, Signature};
+use crate::varinfo::Visibility;
+use Visibility::*;
 
 #[derive(Debug)]
 pub struct SideEffectChecker {
@@ -54,13 +54,14 @@ impl SideEffectChecker {
     }
 
     fn check_def(&mut self, def: &Def, allow_inner_effect: bool) {
-        self.path_stack.push(match &def.sig {
+        let name_and_vis = match &def.sig {
             Signature::Var(var) =>
                 // TODO: visibility
                 if let Some(name) = var.inspect() { (name.clone(), Private) }
                 else { (Str::ever("::<instant>"), Private) },
             Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
-        });
+        };
+        self.path_stack.push(name_and_vis);
         // TODO: support raw identifier (``)
         let is_procedural = def.sig.is_procedural();
         let is_subr = def.sig.is_subr();

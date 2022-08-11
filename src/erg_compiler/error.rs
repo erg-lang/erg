@@ -406,11 +406,11 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"),
         ), None), caused_by.into())
     }
 
-    pub fn move_error(name: &Str, name_loc: Location, moved_loc: Location, caused_by: Str) -> Self {
+    pub fn move_error<S: Into<Str>>(name: &str, name_loc: Location, moved_loc: Location, caused_by: S) -> Self {
         Self::new(ErrorCore::new(0, MoveError, name_loc, switch_lang!(
             format!("{RED}{name}{RESET} was moved in line {}", moved_loc.ln_begin().unwrap()),
             format!("{RED}{name}{RESET}は{}行目ですでに移動されています", moved_loc.ln_begin().unwrap())
-        ), None), caused_by)
+        ), None), caused_by.into())
     }
 }
 

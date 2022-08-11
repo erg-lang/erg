@@ -1,5 +1,5 @@
 use erg_common::Str;
-use erg_common::{debug_power_assert, log};
+use erg_common::{log};
 use erg_common::color::{GREEN, RESET};
 use erg_common::dict::Dict;
 use erg_common::error::Location;
@@ -9,6 +9,8 @@ use erg_common::ty::{Type, ArgsOwnership, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{HIR, Def, Signature, Accessor, Block, Expr};
+use crate::varinfo::Visibility;
+use Visibility::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WrapperKind {
@@ -25,7 +27,7 @@ struct LocalVars {
 
 #[derive(Debug)]
 pub struct OwnershipChecker {
-    current_scope_name: Str,
+    path_stack: Vec<(Str, Visibility)>,
     dict: Dict<Str, LocalVars>,
     errs: OwnershipErrors,
 }
@@ -33,18 +35,24 @@ pub struct OwnershipChecker {
 impl OwnershipChecker {
     pub fn new() -> Self {
         OwnershipChecker {
-            current_scope_name: Str::ever("<dummy>"),
+            path_stack: vec![],
             dict: Dict::new(),
             errs: OwnershipErrors::empty(),
         }
+    }
+
+    fn full_path(&self) -> String {
+        self.path_stack.iter().fold(String::new(), |acc, (path, vis)| {
+            if vis.is_public() { acc + "." + &path[..] } else { acc + "::" + &path[..] }
+        })
     }
 
     // moveされた後の変数が使用されていないかチェックする
     // ProceduralでないメソッドでRefMutが使われているかはSideEffectCheckerでチェックする
     pub fn check(mut self, hir: HIR) -> OwnershipResult<HIR> {
         log!("{GREEN}[DEBUG] the ownership checking process has started.{RESET}");
-        self.current_scope_name = hir.name.clone();
-        self.dict.insert(hir.name.clone(), LocalVars::default());
+        self.path_stack.push((hir.name.clone(), Private));
+        self.dict.insert(Str::from(self.full_path()), LocalVars::default());
         for chunk in hir.module.iter() {
             self.check_expr(chunk, Ownership::Owned);
         }
@@ -62,28 +70,37 @@ impl OwnershipChecker {
         }
     }
 
-    // 参照を取るMethod Call中ならばreferenced: trueとなり、所有権は移動しない
     fn check_expr(&mut self, expr: &Expr, ownership: Ownership) {
         match expr {
             Expr::Def(def) => {
                 self.define(&def);
+                let name_and_vis = match &def.sig {
+                    Signature::Var(var) =>
+                        // TODO: visibility
+                        if let Some(name) = var.inspect() { (name.clone(), Private) }
+                        else { (Str::ever("::<instant>"), Private) },
+                    Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
+                };
+                self.path_stack.push(name_and_vis);
+                self.dict.insert(Str::from(self.full_path()), LocalVars::default());
                 self.check_block(&def.body.block);
+                self.path_stack.pop();
             },
             Expr::Accessor(Accessor::Local(local)) => {
-                // TODO: スコープを再帰的にチェックする
-                if let Some(moved_loc) = self.current_scope().dropped_vars.get(local.inspect()) {
-                    let moved_loc = *moved_loc;
-                    self.errs.push(OwnershipError::move_error(
-                        local.inspect(),
-                        local.loc(),
-                        moved_loc,
-                        Str::from("<dummy>"),
-                    ));
-                } else {
-                    if expr.ref_t().is_mut() && ownership.is_owned() {
-                        log!("dropped: {}", local.inspect());
-                        self.drop(local.inspect(), expr.loc());
+                for n in 0..self.path_stack.len() {
+                    if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(local.inspect()) {
+                        let moved_loc = *moved_loc;
+                        self.errs.push(OwnershipError::move_error(
+                            local.inspect(),
+                            local.loc(),
+                            moved_loc,
+                            self.full_path(),
+                        ));
                     }
+                }
+                if expr.ref_t().is_mut() && ownership.is_owned() {
+                    log!("dropped: {}", local.inspect());
+                    self.drop(local.inspect(), expr.loc());
                 }
             },
             Expr::Accessor(Accessor::Attr(a)) => {
@@ -145,7 +162,11 @@ impl OwnershipChecker {
             },
             // TODO: capturing
             Expr::Lambda(lambda) => {
+                let name_and_vis = (Str::from(format!("<lambda_{}>", lambda.id)), Private);
+                self.path_stack.push(name_and_vis);
+                self.dict.insert(Str::from(self.full_path()), LocalVars::default());
                 self.check_block(&lambda.body);
+                self.path_stack.pop();
             },
             _ => {},
         }
@@ -154,7 +175,17 @@ impl OwnershipChecker {
     /// TODO: このメソッドを呼ぶとき、スコープを再帰的に検索する
     #[inline]
     fn current_scope(&mut self) -> &mut LocalVars {
-        self.dict.get_mut(&self.current_scope_name).unwrap()
+        self.dict.get_mut(&self.full_path()[..]).unwrap()
+    }
+
+    #[inline]
+    fn nth_outer_scope(&mut self, n: usize) -> &mut LocalVars {
+        let path = self.path_stack.iter()
+            .take(self.path_stack.len() - n)
+            .fold(String::new(), |acc, (path, vis)| {
+                if vis.is_public() { acc + "." + &path[..] } else { acc + "::" + &path[..] }
+        });
+        self.dict.get_mut(&path[..]).unwrap()
     }
 
     fn define(&mut self, def: &Def) {
@@ -171,7 +202,12 @@ impl OwnershipChecker {
     }
 
     fn drop(&mut self, name: &Str, moved_loc: Location) {
-        debug_power_assert!(self.current_scope().alive_vars.remove(name), ==, true);
-        self.current_scope().dropped_vars.insert(name.clone(), moved_loc);
+        for n in 0..self.path_stack.len() {
+            if self.nth_outer_scope(n).alive_vars.remove(name) {
+                self.nth_outer_scope(n).dropped_vars.insert(name.clone(), moved_loc);
+                return
+            }
+        }
+        panic!("variable not found: {name}");
     }
 }
