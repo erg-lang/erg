@@ -5,6 +5,9 @@ description = "A common components library of Erg"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/erg-lang/erg/tree/main/src/erg_common"
+documentation = "https://docs.rs/erg_common"
+homepage = "https://erg-lang.github.io/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

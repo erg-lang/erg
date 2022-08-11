@@ -5,6 +5,9 @@ description = "Centimetre: the Erg compiler"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/erg-lang/erg/tree/main/src/erg_compiler"
+documentation = "https://docs.rs/erg_compiler"
+homepage = "https://erg-lang.github.io/"
 
 [features]
 # when "debug" feature is turned on, that of parser will also be turned on.

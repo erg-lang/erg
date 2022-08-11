@@ -5,6 +5,9 @@ description = "The Erg parser"
 authors = ["mtshiba <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/erg-lang/erg/tree/main/src/erg_compiler/erg_parser"
+documentation = "https://docs.rs/erg_parser"
+homepage = "https://erg-lang.github.io/"
 
 [features]
 debug = [ "erg_common/debug" ]
