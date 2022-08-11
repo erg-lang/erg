@@ -11,7 +11,7 @@ debug = [ "erg_common/debug" ]
 japanese = [ "erg_common/japanese" ]
 
 [dependencies]
-erg_common = { version = "0.1.0", path = "../../erg_common" }
+erg_common = { version = "0.1.1", path = "../../erg_common" }
 
 [lib]
 path = "lib.rs"

@@ -12,7 +12,7 @@ debug = [ "erg_common/debug", "erg_parser/debug" ]
 japanese = [ "erg_common/japanese", "erg_parser/japanese" ]
 
 [dependencies]
-erg_common = { version = "0.1.0", path = "../erg_common" }
+erg_common = { version = "0.1.1", path = "../erg_common" }
 erg_parser = { version = "0.1.0", path = "erg_parser" }
 
 [lib]
