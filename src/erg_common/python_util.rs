@@ -24,7 +24,7 @@ pub fn which_python() -> String {
 pub fn detect_magic_number() -> u32 {
     let command = if cfg!(windows) { "cmd" } else { "sh" };
     let arg = if cfg!(windows) { "/C" } else { "-c" };
-    let python_command = format!("\"{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'\"", which_python());
+    let python_command = format!("{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'", which_python());
     let out = Command::new(command)
         .arg(arg)
         .arg(python_command)
@@ -40,10 +40,10 @@ pub fn exec_pyc<S: Into<String>>(file: S) {
     // executes over a shell, cause `python` may not exist as an executable file (like pyenv)
     let command = if cfg!(windows) { "cmd" } else { "sh" };
     let arg = if cfg!(windows) { "/C" } else { "-c" };
+    let python_command = format!("{} {}", which_python(), file.into());
     let mut out = Command::new(command)
         .arg(arg)
-        .arg(which_python())
-        .arg(&file.into())
+        .arg(python_command)
         .spawn()
         .expect("python not found");
     out.wait().expect("python doesn't work");
@@ -53,10 +53,10 @@ pub fn eval_pyc<S: Into<String>>(file: S) -> String {
     // executes over a shell, cause `python` may not exist as an executable file (like pyenv)
     let command = if cfg!(windows) { "cmd" } else { "sh" };
     let arg = if cfg!(windows) { "/C" } else { "-c" };
+    let python_command = format!("{} {}", which_python(), file.into());
     let out = Command::new(command)
         .arg(arg)
-        .arg(which_python())
-        .arg(&file.into())
+        .arg(python_command)
         .spawn()
         .expect("python not found");
     let out = out.wait_with_output().expect("python doesn't work");
