@@ -1,5 +1,5 @@
-extern crate common;
-extern crate parser;
+extern crate erg_common;
+extern crate erg_parser;
 
 use std::process;
 
