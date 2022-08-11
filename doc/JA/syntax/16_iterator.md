@@ -27,7 +27,7 @@ Iterable T = Trait {
 }
 ```
 
-`.Iterator`属性の型`{Iterator}`はいわゆるセットカインドです。
+`.Iterator`属性の型`{Iterator}`はいわゆるセットカインド(カインドは[こちら](./type/advanced/kind.md)で説明されています)です。
 
 ```erg
 assert [1, 2, 3] in Iterable(Int)
@@ -82,7 +82,7 @@ classDiagram
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> このパターンには統一された名前がないようであるが、Rustでは[companion struct pattern](https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80%81%E3%81%9D%E3%81%AE)と呼ばれているおり、それになぞらえて命名した。[↩](#f1) </span>
+<span id="1" style="font-size:x-small"><sup>1</sup> このパターンには統一された名前がないようであるが、Rustでは[companion struct pattern](https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80%81%E3%81%9D%E3%81%AE)と呼ばれており、それになぞらえて命名した。[↩](#f1) </span>
 
 <p align='center'>
     <a href='./15_type.md'>Previous</a> | <a href='./17_mutability.md'>Next</a>

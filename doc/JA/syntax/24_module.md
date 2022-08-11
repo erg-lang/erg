@@ -38,5 +38,5 @@ assert foo.i == 1
 ```
 
 <p align='center'>
-    <a href='./23_scope.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
+    <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
 </p>

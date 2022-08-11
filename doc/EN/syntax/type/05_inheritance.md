@@ -45,7 +45,7 @@ Number.abs(self): Float =
 RealNumber = Inherit Number, Excluding: Complex
 ```
 
-Similarly, [sieve type](. /12_refinement.md) can also be specified.
+Similarly, [refinement type](./12_refinement.md) can also be specified.
 
 ```erg
 Months = Class 0..12

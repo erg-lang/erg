@@ -28,20 +28,20 @@ o2 = D.new {.public = 2} # InitializationError: class 'D' requires attribute 'pr
 All objects in Erg are strongly typed.
 The top-level type is `{=}`, which implements `__repr__`, `__hash__`, `clone`, etc. (not required methods, and these attributes cannot be overridden).
 Erg's type system incorporates structural subtyping (SST). The types typed by this system are called Structural types.
-There are three major types of structural types: Attributive (attribute type), Refinement (sieve type), and Algebraic (algebraic type).
+There are three major types of structural types: Attributive (attribute type), Refinement (refinement type), and Algebraic (algebraic type).
 
-| Record | Enum | Interval | Union | Intersection | Diff |
+|           | Record      | Enum       | Interval       | Union       | Intersection | Diff         |
 | --------- | ----------- | ---------- | -------------- | ----------- | ------------ | ------------ |
-| kind | Attributive | Refinement | Refinement | Algebraic | Algebraic | Algebraic | Algebraic | Algebraic
-| generator | record | set | range operator | or operator | and operator | not operator
+| kind      | Attributive | Refinement | Refinement     | Algebraic   | Algebraic    | Algebraic    |
+| generator | record      | set        | range operator | or operator | and operator | not operator |
 
 Nominal subtyping (NST) can also be used, and the conversion of an SST type to an NST type is called nominalization of the type. The resulting type is called a nominal type.
 In Erg, the nominal types are classes and traits. When we simply say class/trait, we often mean record class/trait.
 
-| Type | Abstraction | Subtyping procedure |
+|     | Type           | Abstraction      | Subtyping procedure |
 | --- | -------------- | ---------------- | ------------------- |
-| NST | NominalType | Trait | Inheritance |
-| SST | StructuralType | Structural Trait | (Implicit)
+| NST | NominalType    | Trait            | Inheritance         |
+| SST | StructuralType | Structural Trait | (Implicit)          |
 
 The type for the entire nominal type (`NominalType`) and the type for the entire structural type (`StructuralType`) are subtypes of the type for the entire type (`Type`).
 

@@ -60,6 +60,8 @@
     * [x] Refinement subtyping
     * [x] Nominal subtyping
   * [ ] Module system
+    * [ ] Load Builtin Module
+    * [ ] Load User Module
     * [ ] Recursive module
     * [ ] Visibility check
   * [x] Patching

@@ -134,7 +134,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
     public self = self::private() # Error
 ```
 
-このようなことを行いたい場合はパッチを定義します。
+このようなことを行いたい場合は[パッチ](./type/07_patch.md)を定義します。
 
 ```erg
 # bar.er

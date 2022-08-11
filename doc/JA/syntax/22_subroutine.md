@@ -31,18 +31,18 @@ some_proc!: (T, U) => V
 ```erg
 T!: Nat -> Type
 # ~>は適用前後の型引数の状態を示す(このときselfは可変参照でなくてはならない)
-T! N.some_method!: (ref! self(N ~> N+X), X: Nat) => ()
+T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ```
 
-注意として、`.some_method`の型は`Ref!(T(N ~> N+X)).({X}) => () | N, X: Nat`となる。
+注意として、`.some_method`の型は`|N, X: Nat| Ref!(T(N ~> N+X)).({X}) => ()`となる。
 `ref!`がついていない、すなわち適用後所有権が奪われるメソッドでは、型引数の遷移(`~>`)を使用できない。
 
 所有権が奪われる場合は以下のようになる。
 
 ```erg
 # Nを使わないなら_で省略可
-# .some_method!: T!(N).({X}) => T!(N+X) | N, X: Nat
-.some_method!(self(N), X: Nat) => T!(N+X) | N, X: Nat
+# .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
+.some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
 ```
 
 ## Operator
