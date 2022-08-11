@@ -22,43 +22,65 @@ pub fn which_python() -> String {
 }
 
 pub fn detect_magic_number() -> u32 {
-    let command = if cfg!(windows) { "cmd" } else { "sh" };
-    let arg = if cfg!(windows) { "/C" } else { "-c" };
-    let python_command = format!("{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'", which_python());
-    let out = Command::new(command)
-        .arg(arg)
-        .arg(python_command)
-        .output()
-        .expect("cannot get the magic number from python");
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(which_python())
+            .arg("-c")
+            .arg("import importlib.util as util;print(util.MAGIC_NUMBER.hex())")
+            .output()
+            .expect("cannot get the magic number from python")
+    } else {
+        let python_command = format!("{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'", which_python());
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
+            .output()
+            .expect("cannot get the magic number from python")
+    };
     let s_hex_magic_num = String::from_utf8(out.stdout).unwrap();
     let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
     get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0])
 }
 
+/// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
 pub fn exec_pyc<S: Into<String>>(file: S) {
-    // executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-    let command = if cfg!(windows) { "cmd" } else { "sh" };
-    let arg = if cfg!(windows) { "/C" } else { "-c" };
-    let python_command = format!("{} {}", which_python(), file.into());
-    let mut out = Command::new(command)
-        .arg(arg)
-        .arg(python_command)
-        .spawn()
-        .expect("python not found");
+    let mut out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(which_python())
+            .arg(&file.into())
+            .spawn()
+            .expect("cannot get the magic number from python")
+    } else {
+        let python_command = format!("{} {}", which_python(), file.into());
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
+            .spawn()
+            .expect("cannot get the magic number from python")
+    };
     out.wait().expect("python doesn't work");
 }
 
+/// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
 pub fn eval_pyc<S: Into<String>>(file: S) -> String {
-    // executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-    let command = if cfg!(windows) { "cmd" } else { "sh" };
-    let arg = if cfg!(windows) { "/C" } else { "-c" };
-    let python_command = format!("{} {}", which_python(), file.into());
-    let out = Command::new(command)
-        .arg(arg)
-        .arg(python_command)
-        .spawn()
-        .expect("python not found");
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(which_python())
+            .arg(&file.into())
+            .spawn()
+            .expect("cannot get the magic number from python")
+    } else {
+        let python_command = format!("{} {}", which_python(), file.into());
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
+            .spawn()
+            .expect("cannot get the magic number from python")
+    };
     let out = out.wait_with_output().expect("python doesn't work");
     String::from_utf8(out.stdout).expect("failed to decode python output")
 }
