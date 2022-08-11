@@ -53,7 +53,6 @@ print! i # 1
 ```erg
 Point = Class {.x = Int; .y = Int}
 
-# 可変型は同名の不変型が存在する場合、互換性がなくてはならない(継承関係にはない)
 # この場合.xは可変化し、yは不変のまま
 Point! = Class {.x = Int!; .y = Int}
 Point!.inc_x! ref! self = self.x.update! x -> x+1

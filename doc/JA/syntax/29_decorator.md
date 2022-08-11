@@ -100,7 +100,7 @@ assert Y in U.attaches
 
 ## Test
 
-テストサブルーチンであることを示します。テストサブルーチンは`erg test`コマンドで実行されます。
+テスト用サブルーチンであることを示します。テスト用サブルーチンは`erg test`コマンドで実行されます。
 
 <p align='center'>
     <a href='./28_spread_syntax.md'>Previous</a> | <a href='./30_error_handling.md'>Next</a>

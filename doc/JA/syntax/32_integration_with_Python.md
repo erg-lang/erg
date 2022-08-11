@@ -41,7 +41,7 @@ assert foo.bar(1) in Int
 これは、実行時に型チェックを行うことで型安全性を担保しています。`declare`関数は概ね以下のように動作します。
 
 ```erg
-declare<S: Subroutine> sub!: S, T =
+declare|S: Subroutine| sub!: S, T =
     # 実は、=>はブロックの副作用がなければ関数にキャストできる
     x =>
         assert x in T.Input

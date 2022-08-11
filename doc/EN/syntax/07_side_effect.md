@@ -28,7 +28,7 @@ C!.
         x
 ```
 
-Procedural methods can also take [ownership]() of `self`. Remove `ref` or `ref!` from the method definition.
+Procedural methods can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
 
 ```erg
 n = 1

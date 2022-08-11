@@ -47,8 +47,8 @@ log s2, s1 # !" HELLO hello"
 ## Freezing
 
 Taking advantage of the fact that immutable objects can be referenced from multiple places, a variable object is converted to an immutable object.
-This is called freezing. Freezing is used to create iterators from variable arrays.
-Since iterators cannot be created directly from variable arrays, they are converted to immutable arrays.
+This is called freezing. Freezing is used to create iterators from mutable arrays.
+Since iterators cannot be created directly from mutable arrays, they are converted to immutable arrays.
 If you do not want to destroy the array, use the [`.freeze_map` method](./type/mut.md), etc.
 
 ```erg

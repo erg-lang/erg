@@ -54,8 +54,7 @@ The behavior of objects marked with `!` can be customized.
 ```erg
 Point = Class {.x = Int; .y = Int}
 
-# Variable types must be compatible (not inherited) if an immutable type of the same name exists
-# In this case .x is made variable and y remains immutable
+# In this case .x is made mutable and .y remains immutable
 Point! = Class {.x = Int!; .y = Int}
 Point!.
     inc_x! ref!(self) = self.x.update! x -> x + 1

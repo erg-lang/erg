@@ -22,8 +22,8 @@ p!(1)
 assert sum == 46
 ```
 
-Note, however, that functions cannot capture variable objects.
-If variable objects could be referenced in a function, the following code could be written.
+Note, however, that functions cannot capture mutable objects.
+If mutable objects could be referenced in a function, the following code could be written.
 
 ```erg
 # !!! This code is actually an error !!!
@@ -37,7 +37,7 @@ assert f 1 == 2
 The function should return the same value for the same argument, but that assumption has been violated.
 Note that ``i`` is evaluated for the first time at call time.
 
-If you want the contents of a variable object at the time of the function definition, `.clone` it.
+If you want the contents of a mutable object at the time of the function definition, `.clone` it.
 
 ```erg
 i = !0
@@ -69,7 +69,7 @@ assert sum == 45
 ```
 
 However, Erg recommends a simpler way of writing.
-Instead of using subroutines and variable objects to carry around state, the style is to localize the state using functions. This is called functional programming.
+Instead of using subroutines and mutable objects to carry around state, the style is to localize the state using functions. This is called functional programming.
 
 ```erg
 # Functional style
