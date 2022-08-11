@@ -28,6 +28,7 @@ pub fn detect_magic_number() -> u32 {
         .output()
         .expect("cannot get the magic number from python");
     let s_hex_magic_num = String::from_utf8(out.stdout).unwrap();
+    dbg!(&s_hex_magic_num);
     let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
     get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0])
