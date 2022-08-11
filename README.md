@@ -151,6 +151,10 @@
     hint: `Array!` has `push!`, see https://erg-lang.github.io/docs/prelude/Array!/##push! for more information
     ```
 
+## Requirements
+
+A [Python3](https://www.python.org/) interpreter is required. If it is already installed on your machine, no setup is required.
+
 ## Installation
 
 ### Installing by cargo (Rust package manager)

@@ -149,6 +149,10 @@
     ヒント: `Array!`は`push!`メソッドを持っています、詳しくは https://erg-lang.github.io/docs/prelude/Array!/##push! を参照してください
     ```
 
+## Requirements
+
+[Python3](https://www.python.org/)インタープリタがインストールされている必要があります。すでにインストールされているならセットアップは不要です。
+
 ## インストール
 
 ### cargo(Rustパッケージマネージャ)によるインストール
