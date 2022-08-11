@@ -18,20 +18,18 @@ pub fn which_python() -> String {
     if res == "" {
         panic!("python not found");
     }
-    dbg!(&res);
     res
 }
 
 pub fn detect_magic_number() -> u32 {
     let command = if cfg!(windows) { "cmd" } else { "sh" };
     let arg = if cfg!(windows) { "/C" } else { "-c" };
-    let python_command = format!("{} -c \"import importlib.util as util;print(util.MAGIC_NUMBER.hex())\"", which_python());
+    let python_command = format!("\"{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'\"", which_python());
     let out = Command::new(command)
         .arg(arg)
         .arg(python_command)
         .output()
         .expect("cannot get the magic number from python");
-    dbg!(&out);
     let s_hex_magic_num = String::from_utf8(out.stdout).unwrap();
     let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
