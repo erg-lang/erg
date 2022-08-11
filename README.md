@@ -172,7 +172,7 @@ cargo build --release
 ## Contribution
 
 Contributions are always welcome!
-If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/tnFTmANNkg).
+If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/zfAAUbgGr4).
 
 ## License
 
