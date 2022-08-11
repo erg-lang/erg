@@ -45,7 +45,7 @@
     - [Mutable Struct](./type/advanced/mut_struct.md)
     - [Phantom Type](./type/advanced/phantom.md)
     - [Projection Type](./type/advanced/projection.md)
-    - [Quantified Dependent Type](./type/advanced/quantified_dependent_type.md)
+    - [Quantified Dependent Type](./type/advanced/quantified_dependent.md)
     - [Shared](./type/advanced/shared.md)
 - [Iterator](./16_iterator.md)
 - [Mutability](./17_mutability.md)
