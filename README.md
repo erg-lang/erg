@@ -147,8 +147,8 @@
              ^^^^^
     AttributeError: Array object has no attribute `.push!`
     hint: in order to update the internal state of an object, make it mutable by using `!` operator
-    hint: `Array` has `push`, see https://erg-lang.org/docs/prelude/Array/##push for more information
-    hint: `Array!` has `push!`, see https://erg-lang.org/docs/prelude/Array!/##push! for more information
+    hint: `Array` has `push`, see https://erg-lang.github.io/docs/prelude/Array/##push for more information
+    hint: `Array!` has `push!`, see https://erg-lang.github.io/docs/prelude/Array!/##push! for more information
     ```
 
 ## Installation
