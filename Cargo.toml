@@ -10,6 +10,13 @@ documentation = "https://docs.rs/erg"
 homepage = "https://erg-lang.github.io/"
 keywords = ["erg", "programming-language"]
 
+[workspace]
+members = [
+    "compiler/erg_common",
+    "compiler/erg_compiler",
+    "compiler/erg_parser",
+]
+
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
 debug = [
