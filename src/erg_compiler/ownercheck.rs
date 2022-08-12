@@ -5,7 +5,7 @@ use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::{Stream, Locational, HasType};
-use erg_common::ty::{Type, ArgsOwnership, Ownership};
+use erg_common::ty::{ArgsOwnership, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{HIR, Def, Signature, Accessor, Block, Expr};
@@ -104,7 +104,7 @@ impl OwnershipChecker {
                 }
             },
             Expr::Accessor(Accessor::Attr(a)) => {
-                if a.ref_t() != &Type::ASTOmitted { todo!("{a}: {}", a.ref_t()) }
+                if a.ref_t().is_mut() { todo!("ownership checking {a}") }
             },
             Expr::Accessor(_a) => todo!(),
             // TODO: referenced
