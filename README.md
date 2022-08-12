@@ -29,7 +29,7 @@
     Erg has a smart & powerful type system. For example, Erg can do null checking (Option type), division by zero and out-of-range addresses in arrays at compile time.
 
     ```python
-    rand = import "random"
+    rand = pyimport "random"
 
     l = [1, 2, 3]
     assert l in [Nat; 3] # type checking
@@ -38,7 +38,7 @@
     assert l2 in [0..10; 4]
     assert l2 + [3, 5, 7] in [0..10; 7]
     # This causes an IndexError, Erg can detect it at compile time
-    l2[10] # IndexError: `l2` has 7 elements but was accessed the 10th element
+    l2[10] # IndexError: `l2` has 7 elements but was accessed the 11th element
 
     2.times! do!:
         print! "hello, ", end: ""

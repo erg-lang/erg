@@ -29,7 +29,7 @@
     Ergは賢くパワフルな型システムを持っています。コンパイル時のnullチェック(Option型)はもちろん可能で、ゼロ除算や配列の範囲外アクセスまでもがコンパイル時に検出できます。
 
     ```python
-    rand = import "random"
+    rand = pyimport "random"
 
     l = [1, 2, 3]
     assert l in [Int; 3] # 型チェック
@@ -38,7 +38,7 @@
     assert l2 in [0..10; 4]
     assert l2 + [3, 5, 7] in [0..10; 7]
     # これはIndexErrorを引き起こしますが、コンパイル時に検出できます
-    l2[10] # IndexError: `l2`は7つの要素を持っていますが、10番目の要素のアクセスしようとしています
+    l2[10] # IndexError: `l2`は7つの要素を持っていますが、11番目の要素のアクセスしようとしています
 
     2.times! do!:
         print! "hello, ", end: ""
