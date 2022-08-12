@@ -170,7 +170,7 @@ impl From<TokenKind> for Type {
         match tok {
             NatLit => Type::Nat,
             IntLit => Type::Int,
-            RatioLit => Type::Float,
+            RatioLit => Type::Ratio,
             StrLit => Type::Str,
             BoolLit => Type::Bool,
             NoneLit => Type::NoneType,
