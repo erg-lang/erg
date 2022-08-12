@@ -31,7 +31,10 @@ pub fn detect_magic_number() -> u32 {
             .output()
             .expect("cannot get the magic number from python")
     } else {
-        let python_command = format!("{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'", which_python());
+        let python_command = format!(
+            "{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'",
+            which_python()
+        );
         Command::new("sh")
             .arg("-c")
             .arg(python_command)

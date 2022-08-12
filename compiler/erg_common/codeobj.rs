@@ -3,15 +3,15 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
-use crate::{Str};
+use crate::deserialize::{DeserializeResult, Deserializer};
 use crate::impl_display_from_debug;
-use crate::value::ValueObj;
 use crate::opcode::Opcode;
 use crate::python_util::detect_magic_number;
 use crate::serialize::*;
 use crate::traits::HasType;
-use crate::ty::{TypePair, Type};
-use crate::deserialize::{Deserializer, DeserializeResult};
+use crate::ty::{Type, TypePair};
+use crate::value::ValueObj;
+use crate::Str;
 
 pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
     let mut tuple = vec![];
@@ -32,30 +32,30 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CodeObjFlags {
-    Optimized =              0x0001,
-    NewLocals =              0x0002,
-    VarArgs =                0x0004,
-    VarKeywords =            0x0008,
-    Nested =                 0x0010,
-    Generator =              0x0020,
-    NoFree =                 0x0040,
-    Coroutine =              0x0080,
-    IterableCoroutine =      0x0100,
-    AsyncGenerator =         0x0200,
+    Optimized = 0x0001,
+    NewLocals = 0x0002,
+    VarArgs = 0x0004,
+    VarKeywords = 0x0008,
+    Nested = 0x0010,
+    Generator = 0x0020,
+    NoFree = 0x0040,
+    Coroutine = 0x0080,
+    IterableCoroutine = 0x0100,
+    AsyncGenerator = 0x0200,
     // CO_GENERATOR_ALLOWED    = 0x0400,
-    FutureDivision =         0x2000,
-    FutureAbsoluteImport =   0x4000,
-    FutureWithStatement =    0x8000,
-    FuturePrintFunction =    0x1_0000,
-    FutureUnicodeLiterals =  0x2_0000,
-    FutureBarryAsBDFL =      0x4_0000,
-    FutureGeneratorStop =    0x8_0000,
-    FutureAnnotations =      0x10_0000,
+    FutureDivision = 0x2000,
+    FutureAbsoluteImport = 0x4000,
+    FutureWithStatement = 0x8000,
+    FuturePrintFunction = 0x1_0000,
+    FutureUnicodeLiterals = 0x2_0000,
+    FutureBarryAsBDFL = 0x4_0000,
+    FutureGeneratorStop = 0x8_0000,
+    FutureAnnotations = 0x10_0000,
     // Erg-specific flags
-    EvmDynParam =            0x1000_0000,
-    EvmDynamic =             0x2000_0000,
-    EvmNoGC =                0x4000_0000,
-    Illegal =                0x0000,
+    EvmDynParam = 0x1000_0000,
+    EvmDynamic = 0x2000_0000,
+    EvmNoGC = 0x4000_0000,
+    Illegal = 0x0000,
 }
 
 impl Into<CodeObjFlags> for u32 {
@@ -108,10 +108,10 @@ pub struct CodeObj {
     pub flags: u32,
     pub code: Vec<u8>,
     pub consts: Vec<ValueObj>, // objects used in the code (literal)
-    pub names: Vec<Str>,      // names used in the code object
-    pub varnames: Vec<Str>,   // names defined in the code object
-    pub freevars: Vec<Str>,   // names captured from the outer scope
-    pub cellvars: Vec<Str>,   // names used in the inner function (closure)
+    pub names: Vec<Str>,       // names used in the code object
+    pub varnames: Vec<Str>,    // names defined in the code object
+    pub freevars: Vec<Str>,    // names captured from the outer scope
+    pub cellvars: Vec<Str>,    // names used in the inner function (closure)
     pub filename: Str,
     pub name: Str,
     pub firstlineno: u32,
@@ -123,8 +123,12 @@ pub struct CodeObj {
 }
 
 impl HasType for CodeObj {
-    fn ref_t(&self) -> &Type { &Type::Code }
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn ref_t(&self) -> &Type {
+        &Type::Code
+    }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl fmt::Debug for CodeObj {
@@ -201,7 +205,12 @@ impl CodeObj {
         }
     }
 
-    pub fn empty<S: Into<Str>, T: Into<Str>>(params: Vec<Str>, filename: S, name: T, firstlineno: u32) -> Self {
+    pub fn empty<S: Into<Str>, T: Into<Str>>(
+        params: Vec<Str>,
+        filename: S,
+        name: T,
+        firstlineno: u32,
+    ) -> Self {
         Self {
             argcount: params.len() as u32,
             posonlyargcount: 0,
@@ -226,8 +235,7 @@ impl CodeObj {
         let mut f = BufReader::new(File::open(path)?);
         let v = &mut Vec::with_capacity(16);
         f.read_to_end(v)?;
-        let python_ver =
-            get_magic_num_from_bytes(&Deserializer::consume::<4>(v));
+        let python_ver = get_magic_num_from_bytes(&Deserializer::consume::<4>(v));
         let _padding = Deserializer::deserialize_u32(v);
         let _timestamp = Deserializer::deserialize_u32(v);
         let _padding = Deserializer::deserialize_u32(v);
@@ -238,16 +246,20 @@ impl CodeObj {
     pub fn from_bytes(v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Self> {
         let mut des = Deserializer::new();
         let argcount = Deserializer::deserialize_u32(v);
-        let posonlyargcount = if python_ver >= 3413 { Deserializer::deserialize_u32(v)} else { 0 };
+        let posonlyargcount = if python_ver >= 3413 {
+            Deserializer::deserialize_u32(v)
+        } else {
+            0
+        };
         let kwonlyargcount = Deserializer::deserialize_u32(v);
         let nlocals = Deserializer::deserialize_u32(v);
-        let stacksize  = Deserializer::deserialize_u32(v);
-        let flags  = Deserializer::deserialize_u32(v);
+        let stacksize = Deserializer::deserialize_u32(v);
+        let flags = Deserializer::deserialize_u32(v);
         let code = des.deserialize_bytes(v)?;
         let consts = des.deserialize_const_vec(v, python_ver)?;
         let names = des.deserialize_str_vec(v, python_ver)?;
         let varnames = des.deserialize_str_vec(v, python_ver)?;
-        let freevars =des.deserialize_str_vec(v, python_ver)?;
+        let freevars = des.deserialize_str_vec(v, python_ver)?;
         let cellvars = des.deserialize_str_vec(v, python_ver)?;
         let filename = des.deserialize_str(v, python_ver)?;
         let name = des.deserialize_str(v, python_ver)?;
@@ -269,7 +281,7 @@ impl CodeObj {
             filename,
             name,
             firstlineno,
-            lnotab
+            lnotab,
         ))
     }
 
@@ -298,7 +310,11 @@ impl CodeObj {
         bytes
     }
 
-    pub fn dump_as_pyc<P: AsRef<Path>>(self, path: P, python_ver: Option<u32>) -> std::io::Result<()> {
+    pub fn dump_as_pyc<P: AsRef<Path>>(
+        self,
+        path: P,
+        python_ver: Option<u32>,
+    ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
         let python_ver = python_ver.unwrap_or_else(|| detect_magic_number());
@@ -406,9 +422,12 @@ impl CodeObj {
                         };
                         instrs += &format!("{} ({})", arg, op);
                     }
-                    Opcode::STORE_NAME | Opcode::LOAD_NAME
-                    | Opcode::STORE_GLOBAL | Opcode::LOAD_GLOBAL
-                    | Opcode::STORE_ATTR | Opcode::LOAD_ATTR
+                    Opcode::STORE_NAME
+                    | Opcode::LOAD_NAME
+                    | Opcode::STORE_GLOBAL
+                    | Opcode::LOAD_GLOBAL
+                    | Opcode::STORE_ATTR
+                    | Opcode::LOAD_ATTR
                     | Opcode::LOAD_METHOD => {
                         instrs += &format!("{} ({})", arg, self.names.get(*arg as usize).unwrap());
                     }
@@ -422,18 +441,18 @@ impl CodeObj {
                     }
                     Opcode::LOAD_CONST => {
                         instrs += &format!("{} ({})", arg, self.consts.get(*arg as usize).unwrap());
-                    },
+                    }
                     Opcode::FOR_ITER => {
-                        instrs += &format!("{} (to {})", arg, idx + arg*2 + 2);
+                        instrs += &format!("{} (to {})", arg, idx + arg * 2 + 2);
                     }
                     Opcode::JUMP_FORWARD => {
-                        instrs += &format!("{} (to {})", arg, idx + arg*2 + 2);
+                        instrs += &format!("{} (to {})", arg, idx + arg * 2 + 2);
                     }
                     Opcode::JUMP_ABSOLUTE => {
-                        instrs += &format!("{} (to {})", arg, arg*2);
+                        instrs += &format!("{} (to {})", arg, arg * 2);
                     }
                     Opcode::POP_JUMP_IF_FALSE | Opcode::POP_JUMP_IF_TRUE => {
-                        instrs += &format!("{} (to {})", arg, arg*2);
+                        instrs += &format!("{} (to {})", arg, arg * 2);
                     }
                     Opcode::MAKE_FUNCTION => {
                         let flag = match arg {
@@ -444,8 +463,10 @@ impl CodeObj {
                         instrs += &format!("{} {}", arg, flag);
                     }
                     // Ergでは引数で型キャストする
-                    Opcode::BINARY_ADD | Opcode::BINARY_SUBTRACT
-                    | Opcode::BINARY_MULTIPLY | Opcode::BINARY_TRUE_DIVIDE => {
+                    Opcode::BINARY_ADD
+                    | Opcode::BINARY_SUBTRACT
+                    | Opcode::BINARY_MULTIPLY
+                    | Opcode::BINARY_TRUE_DIVIDE => {
                         instrs += &format!("{} ({:?})", arg, TypePair::from(*arg));
                     }
                     other if other.take_arg() => {

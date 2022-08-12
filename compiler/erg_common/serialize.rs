@@ -49,17 +49,17 @@ pub enum DataTypePrefix {
     StopIter = 'S' as u8,   // 0x53
     Ref = 'r' as u8,
     /* unsized objects (ref counted) */
-    Long = 'l' as u8,       // 0x6C + len: u32 + payload: 2*len+3byte (~ -2^31-1 && 2^31 ~)
-    Str = 's' as u8,        // 0x73 + len: u32 + payload
+    Long = 'l' as u8, // 0x6C + len: u32 + payload: 2*len+3byte (~ -2^31-1 && 2^31 ~)
+    Str = 's' as u8,  // 0x73 + len: u32 + payload
     ShortAscii = 'z' as u8, // 0x7A + len: u8 + payload
     ShortAsciiInterned = 'Z' as u8, //  0x5A + len: u8 + payload
-    Unicode = 'u' as u8,    // 0x75 + len: u32 + payload
-    Interned = 't' as u8,   // 0x74 + len + payload
+    Unicode = 'u' as u8, // 0x75 + len: u32 + payload
+    Interned = 't' as u8, // 0x74 + len + payload
     SmallTuple = ')' as u8, // 0x29 + len: u8 + payload
-    Tuple = '(' as u8,      // 0x28 + len: u32 + payload
-    Code = 'c' as u8,       // 0x63
+    Tuple = '(' as u8, // 0x28 + len: u32 + payload
+    Code = 'c' as u8, // 0x63
     /* Erg specific prefix */
-    Builtin = 'b' as u8,    // 0x62 + str
+    Builtin = 'b' as u8, // 0x62 + str
     Nat = 'n' as u8,
 }
 

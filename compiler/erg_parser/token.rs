@@ -4,12 +4,12 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use erg_common::str::Str;
 use erg_common::error::Location;
 use erg_common::impl_displayable_stream_for_wrapper;
-use erg_common::traits::{Stream, Locational};
-use erg_common::value::ValueObj;
+use erg_common::str::Str;
+use erg_common::traits::{Locational, Stream};
 use erg_common::ty::Type;
+use erg_common::value::ValueObj;
 
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -243,11 +243,13 @@ impl TokenKind {
     pub const fn category(&self) -> TokenCategory {
         match self {
             Symbol => TokenCategory::Symbol,
-            NatLit | IntLit | RatioLit | StrLit | BoolLit
-            | NoneLit | EllipsisLit | NoImplLit | InfLit => TokenCategory::Literal,
+            NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
+            | InfLit => TokenCategory::Literal,
             PrePlus | PreMinus | PreStar | PreBitNot | Mutate => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
-            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | OrEqual => TokenCategory::SpecialBinOp,
+            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | OrEqual => {
+                TokenCategory::SpecialBinOp
+            }
             Equal => TokenCategory::DefOp,
             FuncArrow | ProcArrow => TokenCategory::LambdaOp,
             Semi | Newline => TokenCategory::Separator,
@@ -266,27 +268,26 @@ impl TokenKind {
 
     pub const fn precedence(&self) -> Option<usize> {
         let prec = match self {
-            Dot | DblColon => 200, // .
-            Pow => 190, // **
-            PrePlus | PreMinus | PreBitNot  => 180, // (unary) + - * ~
+            Dot | DblColon => 200,                                  // .
+            Pow => 190,                                             // **
+            PrePlus | PreMinus | PreBitNot => 180,                  // (unary) + - * ~
             Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170, // * / // % cross dot
-            Plus | Minus => 160, // + -
-            Shl | Shr => 150, // << >>
-            BitAnd => 140, // &&
-            BitXor => 130, // ^^
-            BitOr => 120, // ||
-            Closed | LeftOpen | RightOpen | Open => 100, // range operators
-            Less | Gre | LessEq | GreEq | DblEq | NotEq
-            | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
-            AndOp => 80, // and
-            OrOp => 70, // or
-            FuncArrow | ProcArrow => 60, // -> =>
+            Plus | Minus => 160,                                    // + -
+            Shl | Shr => 150,                                       // << >>
+            BitAnd => 140,                                          // &&
+            BitXor => 130,                                          // ^^
+            BitOr => 120,                                           // ||
+            Closed | LeftOpen | RightOpen | Open => 100,            // range operators
+            Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
+            AndOp => 80,                           // and
+            OrOp => 70,                            // or
+            FuncArrow | ProcArrow => 60,           // -> =>
             Colon | SupertypeOf | SubtypeOf => 50, // : :> <:
-            Comma => 40, // ,
-            Equal | OrEqual => 20, // = |=
-            Newline | Semi => 10, // \n ;
+            Comma => 40,                           // ,
+            Equal | OrEqual => 20,                 // = |=
+            Newline | Semi => 10,                  // \n ;
             LParen | LBrace | LSqBr | Indent => 0, // ( { [ Indent
-            _ => { return None },
+            _ => return None,
         };
         Some(prec)
     }
@@ -302,7 +303,9 @@ impl TokenKind {
 
 impl fmt::Display for TokenKind {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{self:?}") }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
 }
 
 #[derive(Clone, Eq)]
@@ -350,7 +353,9 @@ impl fmt::Display for Token {
 // the values of lineno and col are not relevant for comparison
 impl PartialEq for Token {
     #[inline]
-    fn eq(&self, other: &Self) -> bool { self.is(other.kind) && self.content == other.content }
+    fn eq(&self, other: &Self) -> bool {
+        self.is(other.kind) && self.content == other.content
+    }
 }
 
 impl Hash for Token {
@@ -362,7 +367,9 @@ impl Hash for Token {
 
 impl Locational for Token {
     fn loc(&self) -> Location {
-        if self.lineno == 0 { Location::Unknown } else {
+        if self.lineno == 0 {
+            Location::Unknown
+        } else {
             Location::range(
                 self.lineno,
                 self.col_begin,
@@ -373,43 +380,79 @@ impl Locational for Token {
     }
 
     #[inline]
-    fn col_end(&self) -> Option<usize> { Some(self.col_begin + self.content.len()) }
+    fn col_end(&self) -> Option<usize> {
+        Some(self.col_begin + self.content.len())
+    }
 }
 
 impl Token {
     #[inline]
     pub fn dummy() -> Self {
-        Token{ kind: TokenKind::Illegal, content: "DUMMY".into(), lineno: 1, col_begin: 0 }
+        Token {
+            kind: TokenKind::Illegal,
+            content: "DUMMY".into(),
+            lineno: 1,
+            col_begin: 0,
+        }
     }
 
     #[inline]
     pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: usize, col_begin: usize) -> Self {
-        Token{ kind, content: cont.into(), lineno, col_begin }
+        Token {
+            kind,
+            content: cont.into(),
+            lineno,
+            col_begin,
+        }
     }
 
     #[inline]
     pub fn from_str(kind: TokenKind, cont: &str) -> Self {
-        Token{ kind, content: Str::rc(cont), lineno: 0, col_begin: 0 }
+        Token {
+            kind,
+            content: Str::rc(cont),
+            lineno: 0,
+            col_begin: 0,
+        }
     }
 
     #[inline]
-    pub fn symbol(cont: &str) -> Self { Self::from_str(TokenKind::Symbol, cont) }
-
-    pub const fn static_symbol(s: &'static str) -> Self {
-        Token{ kind: TokenKind::Symbol, content: Str::ever(s), lineno: 0, col_begin: 0 }
+    pub fn symbol(cont: &str) -> Self {
+        Self::from_str(TokenKind::Symbol, cont)
     }
 
-    pub const fn category(&self) -> TokenCategory { self.kind.category() }
+    pub const fn static_symbol(s: &'static str) -> Self {
+        Token {
+            kind: TokenKind::Symbol,
+            content: Str::ever(s),
+            lineno: 0,
+            col_begin: 0,
+        }
+    }
 
-    pub fn category_is(&self, category: TokenCategory) -> bool { self.kind.category() == category }
+    pub const fn category(&self) -> TokenCategory {
+        self.kind.category()
+    }
 
-    pub fn is(&self, kind: TokenKind) -> bool { self.kind == kind }
+    pub fn category_is(&self, category: TokenCategory) -> bool {
+        self.kind.category() == category
+    }
 
-    pub const fn is_block_op(&self) -> bool { self.category().is_block_op() }
+    pub fn is(&self, kind: TokenKind) -> bool {
+        self.kind == kind
+    }
 
-    pub const fn inspect(&self) -> &Str { &self.content }
+    pub const fn is_block_op(&self) -> bool {
+        self.category().is_block_op()
+    }
 
-    pub fn is_procedural(&self) -> bool { self.inspect().ends_with("!") }
+    pub const fn inspect(&self) -> &Str {
+        &self.content
+    }
+
+    pub fn is_procedural(&self) -> bool {
+        self.inspect().ends_with("!")
+    }
 }
 
 #[derive(Debug, Clone)]

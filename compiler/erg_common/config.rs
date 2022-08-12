@@ -3,20 +3,21 @@
 //! コマンドオプション(パーサー)を定義する
 use std::env;
 use std::env::consts::{ARCH, OS};
-use std::process;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufRead, BufReader};
+use std::process;
 
+use crate::lazy::Lazy;
 use crate::stdin;
 use crate::Str;
 use crate::{power_assert, read_file};
-use crate::lazy::Lazy;
 
 pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_HASH_SHORT: &str = env!("GIT_HASH_SHORT");
 pub const BUILD_DATE: &str = env!("BUILD_DATE");
 /// TODO: タグを含める
-pub const BUILD_INFO: Lazy<String> = Lazy::new(|| format!("(tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}"));
+pub const BUILD_INFO: Lazy<String> =
+    Lazy::new(|| format!("(tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}"));
 
 /// 入力はファイルからだけとは限らないので
 /// Inputで操作を一本化する
@@ -36,7 +37,7 @@ impl Input {
     pub fn enclosed_name(&self) -> &str {
         match self {
             Self::File(filename) => &filename[..],
-            Self::REPL | Self::Pipe(_) =>  "<stdin>",
+            Self::REPL | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
         }
@@ -46,7 +47,7 @@ impl Input {
     pub fn filename(&self) -> &str {
         match self {
             Self::File(filename) => &filename[..],
-            Self::REPL | Self::Pipe(_) =>  "stdin",
+            Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
         }
@@ -82,24 +83,22 @@ impl Input {
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<Str> {
         power_assert!(ln_begin, >=, 1);
         match self {
-            Self::File(filename) => {
-                match File::open(&filename[..]) {
-                    Ok(file) => {
-                        let mut codes = vec![];
-                        let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
-                        for _ in ln_begin..=ln_end {
-                            codes.push(Str::from(lines.next().unwrap().unwrap()));
-                        }
-                        codes
+            Self::File(filename) => match File::open(&filename[..]) {
+                Ok(file) => {
+                    let mut codes = vec![];
+                    let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
+                    for _ in ln_begin..=ln_end {
+                        codes.push(Str::from(lines.next().unwrap().unwrap()));
                     }
-                    Err(_) => vec!["<file not found>".into()],
+                    codes
                 }
-            }
-            Self::Pipe(s) | Self::Str(s) => {
-                s.split('\n')
-                    .collect::<Vec<_>>()[ln_begin-1..=ln_end-1]
-                    .into_iter().map(|s| Str::rc(*s)).collect()
-            }
+                Err(_) => vec!["<file not found>".into()],
+            },
+            Self::Pipe(s) | Self::Str(s) => s.split('\n').collect::<Vec<_>>()
+                [ln_begin - 1..=ln_end - 1]
+                .into_iter()
+                .map(|s| Str::rc(*s))
+                .collect(),
             Self::REPL => stdin::reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
@@ -166,7 +165,9 @@ impl ErgConfig {
 
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
-    pub fn copy(&self) -> Self { self.clone() }
+    pub fn copy(&self) -> Self {
+        self.clone()
+    }
 
     pub fn parse() -> Self {
         let mut args = env::args();

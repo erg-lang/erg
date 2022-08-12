@@ -12,7 +12,7 @@ pub mod hir;
 pub mod initialize;
 pub mod lower;
 pub use lower::ASTLowerer;
+pub mod context;
 pub mod optimize;
 pub mod ownercheck;
-pub mod context;
 pub mod varinfo;

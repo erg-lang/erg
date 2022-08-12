@@ -1,8 +1,8 @@
-use std::collections::hash_map::{Keys, Values, ValuesMut, IntoValues, Iter, IntoIter, IterMut};
+use std::borrow::Borrow;
+use std::collections::hash_map::{IntoIter, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
-use std::borrow::Borrow;
 
 use crate::fxhash::FxHashMap;
 
@@ -18,11 +18,13 @@ macro_rules! dict {
 
 #[derive(Debug, Clone)]
 pub struct Dict<K, V> {
-    dict: FxHashMap<K, V>
+    dict: FxHashMap<K, V>,
 }
 
 impl<K: Hash + Eq, V: Hash + Eq> PartialEq for Dict<K, V> {
-    fn eq(&self, other: &Dict<K, V>) -> bool { self.dict == other.dict }
+    fn eq(&self, other: &Dict<K, V>) -> bool {
+        self.dict == other.dict
+    }
 }
 
 impl<K: Hash + Eq, V: Hash + Eq> Eq for Dict<K, V> {}
@@ -58,47 +60,73 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Dict<K, V> {
 }
 
 impl<K, V> Default for Dict<K, V> {
-    fn default() -> Dict<K, V> { Dict::new() }
+    fn default() -> Dict<K, V> {
+        Dict::new()
+    }
 }
 
 impl<K, V> Dict<K, V> {
     #[inline]
     pub fn new() -> Self {
-        Self{ dict: FxHashMap::default() }
+        Self {
+            dict: FxHashMap::default(),
+        }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        Self{ dict: FxHashMap::with_capacity_and_hasher(capacity, Default::default()) }
+        Self {
+            dict: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+        }
     }
 
     #[inline]
-    pub fn len(&self) -> usize { self.dict.len() }
+    pub fn len(&self) -> usize {
+        self.dict.len()
+    }
 
     #[inline]
-    pub fn capacity(&self) -> usize { self.dict.capacity() }
+    pub fn capacity(&self) -> usize {
+        self.dict.capacity()
+    }
 
     #[inline]
-    pub fn keys(&self) -> Keys<K, V> { self.dict.keys() }
+    pub fn keys(&self) -> Keys<K, V> {
+        self.dict.keys()
+    }
 
     #[inline]
-    pub fn values(&self) -> Values<K, V> { self.dict.values() }
+    pub fn values(&self) -> Values<K, V> {
+        self.dict.values()
+    }
 
     #[inline]
-    pub fn values_mut(&mut self) -> ValuesMut<K, V> { self.dict.values_mut() }
+    pub fn values_mut(&mut self) -> ValuesMut<K, V> {
+        self.dict.values_mut()
+    }
 
     #[inline]
-    pub fn into_values(self) -> IntoValues<K, V> { self.dict.into_values() }
+    pub fn into_values(self) -> IntoValues<K, V> {
+        self.dict.into_values()
+    }
 
     #[inline]
-    pub fn iter(&self) -> Iter<K, V> { self.dict.iter() }
+    pub fn iter(&self) -> Iter<K, V> {
+        self.dict.iter()
+    }
 
     #[inline]
-    pub fn into_iter(self) -> IntoIter<K, V> { self.dict.into_iter() }
+    pub fn into_iter(self) -> IntoIter<K, V> {
+        self.dict.into_iter()
+    }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<K, V> { self.dict.iter_mut() }
+    pub fn iter_mut(&mut self) -> IterMut<K, V> {
+        self.dict.iter_mut()
+    }
 
-    pub fn clear(&mut self) { self.dict.clear(); }
+    pub fn clear(&mut self) {
+        self.dict.clear();
+    }
 }
 
 impl<K: Hash + Eq, V> Dict<K, V> {
@@ -106,7 +134,8 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.dict.get(k)
     }
 
@@ -114,7 +143,8 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.dict.get_mut(k)
     }
 
@@ -122,23 +152,29 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.dict.contains_key(k)
     }
 
     #[inline]
-    pub fn insert(&mut self, k: K, v: V) { self.dict.insert(k, v); }
+    pub fn insert(&mut self, k: K, v: V) {
+        self.dict.insert(k, v);
+    }
 
     #[inline]
     pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.dict.remove(k)
     }
 
     #[inline]
-    pub fn extend<I: IntoIterator<Item=(K, V)>>(&mut self, iter: I) { self.dict.extend(iter); }
+    pub fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
+        self.dict.extend(iter);
+    }
 
     #[inline]
     pub fn merge(&mut self, other: Self) {

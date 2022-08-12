@@ -5,21 +5,23 @@
 use std::fmt::Debug;
 use std::mem;
 
-use erg_common::Str;
-use erg_common::{debug_power_assert, enum_unwrap, fn_name, caused_by, switch_lang, switch_unreachable, log, set};
 use erg_common::color::{GREEN, RED, RESET};
-use erg_common::config::{Input, SEMVER, BUILD_INFO};
 use erg_common::config::ErgConfig;
-use erg_common::error::{Location};
+use erg_common::config::{Input, BUILD_INFO, SEMVER};
+use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
+use erg_common::Str;
+use erg_common::{
+    caused_by, debug_power_assert, enum_unwrap, fn_name, log, set, switch_lang, switch_unreachable,
+};
 
-use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
 use crate::ast::*;
-use crate::lex::Lexer;
-use crate::token::{TokenCategory, TokenKind, TokenStream, Token};
 use crate::desugar::Desugarer;
+use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
+use crate::lex::Lexer;
+use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 
 use TokenCategory as TC;
 use TokenKind::*;
@@ -29,7 +31,11 @@ use TokenKind::*;
 /// So it is not possible to lower the level
 macro_rules! debug_call_info {
     ($self: ident) => {
-        log!("[DEBUG] entered {}, cur: {}", fn_name!(), $self.peek().unwrap());
+        log!(
+            "[DEBUG] entered {}, cur: {}",
+            fn_name!(),
+            $self.peek().unwrap()
+        );
     };
 }
 
@@ -65,20 +71,33 @@ pub struct Parser {
 
 impl Parser {
     const fn new(ts: TokenStream) -> Self {
-        Self { counter: DefId(0), tokens: ts, warns: ParseErrors::empty(), errs: ParseErrors::empty() }
+        Self {
+            counter: DefId(0),
+            tokens: ts,
+            warns: ParseErrors::empty(),
+            errs: ParseErrors::empty(),
+        }
     }
 
     #[inline]
-    fn peek(&self) -> Option<&Token> { self.tokens.get(0) }
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(0)
+    }
 
     #[inline]
-    fn nth(&self, idx: usize) -> Option<&Token> { self.tokens.get(idx) }
+    fn nth(&self, idx: usize) -> Option<&Token> {
+        self.tokens.get(idx)
+    }
 
     #[inline]
-    fn skip(&mut self) { self.tokens.remove(0); }
+    fn skip(&mut self) {
+        self.tokens.remove(0);
+    }
 
     #[inline]
-    fn lpop(&mut self) -> Token { self.tokens.remove(0) }
+    fn lpop(&mut self) -> Token {
+        self.tokens.remove(0)
+    }
 
     fn cur_category_is(&self, category: TokenCategory) -> bool {
         self.peek()
@@ -87,15 +106,11 @@ impl Parser {
     }
 
     fn cur_is(&self, kind: TokenKind) -> bool {
-        self.peek()
-            .map(|t| t.is(kind))
-            .unwrap_or(false)
+        self.peek().map(|t| t.is(kind)).unwrap_or(false)
     }
 
     fn nth_is(&self, idx: usize, kind: TokenKind) -> bool {
-        self.nth(idx)
-            .map(|t| t.is(kind))
-            .unwrap_or(false)
+        self.nth(idx).map(|t| t.is(kind)).unwrap_or(false)
     }
 
     fn nth_category(&self, idx: usize) -> Option<TokenCategory> {
@@ -124,20 +139,29 @@ impl Parser {
     /// `(Rhs) (LhsLambda) -> (Rhs);`
     fn cur_side(&self) -> Side {
         // 以降に=, ->などがないならすべて右辺値
-        let opt_equal_pos = self.tokens.iter().skip(1)
-            .position(|t| t.is(Equal));
-        let opt_arrow_pos = self.tokens.iter().skip(1)
+        let opt_equal_pos = self.tokens.iter().skip(1).position(|t| t.is(Equal));
+        let opt_arrow_pos = self
+            .tokens
+            .iter()
+            .skip(1)
             .position(|t| t.category_is(TC::LambdaOp));
-        let opt_sep_pos = self.tokens.iter().skip(1)
+        let opt_sep_pos = self
+            .tokens
+            .iter()
+            .skip(1)
             .position(|t| t.category_is(TC::Separator));
         match (opt_equal_pos, opt_arrow_pos, opt_sep_pos) {
             (Some(equal), Some(arrow), Some(sep)) => {
                 let min = [equal, arrow, sep].into_iter().min().unwrap();
-                if min == sep { Side::Rhs }
-                else if min == equal { Side::LhsAssign }
-                else {
+                if min == sep {
+                    Side::Rhs
+                } else if min == equal {
+                    Side::LhsAssign
+                } else {
                     // (cur) -> ... = ... ;
-                    if equal < sep { Side::LhsAssign }
+                    if equal < sep {
+                        Side::LhsAssign
+                    }
                     // (cur) -> ... ; ... =
                     else {
                         if self.arrow_distance(0, 0) == 1 {
@@ -153,21 +177,35 @@ impl Parser {
             (Some(_eq), Some(_arrow), None) => Side::LhsAssign,
             // (cur) = ... ;
             // (cur) ; ... =
-            (Some(equal), None, Some(sep)) =>
-                if equal < sep { Side::LhsAssign } else { Side::Rhs },
+            (Some(equal), None, Some(sep)) => {
+                if equal < sep {
+                    Side::LhsAssign
+                } else {
+                    Side::Rhs
+                }
+            }
             (None, Some(arrow), Some(sep)) => {
                 // (cur) -> ... ;
                 if arrow < sep {
-                    if self.arrow_distance(0, 0) == 1 { Side::LhsLambda }
-                    else { Side::Rhs }
+                    if self.arrow_distance(0, 0) == 1 {
+                        Side::LhsLambda
+                    } else {
+                        Side::Rhs
+                    }
                 }
                 // (cur) ; ... ->
-                else { Side::Rhs }
+                else {
+                    Side::Rhs
+                }
             }
             (Some(_eq), None, None) => Side::LhsAssign,
-            (None, Some(_arrow), None) =>
-                if self.arrow_distance(0, 0) == 1 { Side::LhsLambda }
-                else { Side::Rhs },
+            (None, Some(_arrow), None) => {
+                if self.arrow_distance(0, 0) == 1 {
+                    Side::LhsLambda
+                } else {
+                    Side::Rhs
+                }
+            }
             (None, None, Some(_)) | (None, None, None) => Side::Rhs,
         }
     }
@@ -184,28 +222,20 @@ impl Parser {
         match self.nth_category(cur).unwrap() {
             TC::LambdaOp => 0,
             TC::LEnclosure => {
-                if self.nth_category(cur+1).unwrap() == TC::REnclosure {
-                    1 + self.arrow_distance(cur+2, enc_nest_level)
+                if self.nth_category(cur + 1).unwrap() == TC::REnclosure {
+                    1 + self.arrow_distance(cur + 2, enc_nest_level)
                 } else {
-                    self.arrow_distance(cur+1, enc_nest_level+1)
+                    self.arrow_distance(cur + 1, enc_nest_level + 1)
                 }
-            },
-            TC::REnclosure => {
-                self.arrow_distance(cur+1, enc_nest_level-1)
             }
-            _ => {
-                match self.nth_category(cur+1).unwrap() {
-                    TC::SpecialBinOp => self.arrow_distance(cur+1, enc_nest_level),
-                    TC::LEnclosure if self.cur_is_in_contact_with_next() => {
-                        self.arrow_distance(cur+2, enc_nest_level+1)
-                    },
-                    _ if enc_nest_level == 0 => {
-                        1 + self.arrow_distance(cur+1, enc_nest_level)
-                    },
-                    _ => {
-                        self.arrow_distance(cur+1, enc_nest_level)
-                    },
+            TC::REnclosure => self.arrow_distance(cur + 1, enc_nest_level - 1),
+            _ => match self.nth_category(cur + 1).unwrap() {
+                TC::SpecialBinOp => self.arrow_distance(cur + 1, enc_nest_level),
+                TC::LEnclosure if self.cur_is_in_contact_with_next() => {
+                    self.arrow_distance(cur + 2, enc_nest_level + 1)
                 }
+                _ if enc_nest_level == 0 => 1 + self.arrow_distance(cur + 1, enc_nest_level),
+                _ => self.arrow_distance(cur + 1, enc_nest_level),
             },
         }
     }
@@ -218,8 +248,12 @@ impl Parser {
                     self.skip();
                     return;
                 }
-                TC::EOF => { return; }
-                _ => { self.skip(); }
+                TC::EOF => {
+                    return;
+                }
+                _ => {
+                    self.skip();
+                }
             }
         }
     }
@@ -232,7 +266,9 @@ impl Parser {
     }
 
     #[inline]
-    fn restore(&mut self, token: Token) { self.tokens.insert(0, token); }
+    fn restore(&mut self, token: Token) {
+        self.tokens.insert(0, token);
+    }
 }
 
 #[derive(Debug)]
@@ -245,13 +281,19 @@ impl Runnable for ParserRunner {
     type Errs = ParserRunnerErrors;
 
     #[inline]
-    fn new(cfg: ErgConfig) -> Self { Self { cfg } }
+    fn new(cfg: ErgConfig) -> Self {
+        Self { cfg }
+    }
 
     #[inline]
-    fn input(&self) -> &Input { &self.cfg.input }
+    fn input(&self) -> &Input {
+        &self.cfg.input
+    }
 
     #[inline]
-    fn start_message(&self) -> String { format!("Erg parser {} {}\n", SEMVER, &*BUILD_INFO) }
+    fn start_message(&self) -> String {
+        format!("Erg parser {} {}\n", SEMVER, &*BUILD_INFO)
+    }
 
     #[inline]
     fn finish(&mut self) {}
@@ -267,12 +309,14 @@ impl Runnable for ParserRunner {
 
 impl ParserRunner {
     pub fn parse(&mut self, ts: TokenStream) -> Result<AST, ParserRunnerErrors> {
-        Parser::new(ts).parse(Str::ever(self.cfg.module))
+        Parser::new(ts)
+            .parse(Str::ever(self.cfg.module))
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 
     pub fn parse_from_str(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
-        let ts = Lexer::from_str(src).lex()
+        let ts = Lexer::from_str(src)
+            .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         self.parse(ts)
     }
@@ -280,20 +324,23 @@ impl ParserRunner {
 
 impl Parser {
     pub fn parse(&mut self, mod_name: Str) -> Result<AST, ParseErrors> {
-        if self.tokens.is_empty() { return Ok(AST::new(mod_name, Module::empty())) }
+        if self.tokens.is_empty() {
+            return Ok(AST::new(mod_name, Module::empty()));
+        }
         log!("{GREEN}[DEBUG] the parsing process has started.");
         log!("token stream: {}", self.tokens);
         let module = match self.try_reduce_module() {
             Ok(module) => module,
             Err(e) => {
                 self.errs.push(e);
-                return Err(mem::take(&mut self.errs))
-            },
+                return Err(mem::take(&mut self.errs));
+            }
         };
         if !self.cur_is(EOF) {
             let loc = self.peek().unwrap().loc();
-            self.errs.push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-            return Err(mem::take(&mut self.errs))
+            self.errs
+                .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
+            return Err(mem::take(&mut self.errs));
         }
         log!("[DEBUG] the parsing process has completed.");
         log!("AST:\n{module}");
@@ -317,18 +364,24 @@ impl Parser {
         let mut chunks = Module::empty();
         loop {
             match self.peek() {
-                Some(t) if t.category_is(TC::Separator) => { self.skip(); }
-                Some(t) if t.is(EOF) => { break; }
+                Some(t) if t.category_is(TC::Separator) => {
+                    self.skip();
+                }
+                Some(t) if t.is(EOF) => {
+                    break;
+                }
                 Some(t) if t.is(Indent) || t.is(Dedent) => {
                     switch_unreachable!()
                 }
-                Some(_) => {
-                    match self.try_reduce_expr() {
-                        Ok(expr) => { chunks.push(expr); }
-                        Err(e) => { self.errs.push(e); }
+                Some(_) => match self.try_reduce_expr() {
+                    Ok(expr) => {
+                        chunks.push(expr);
                     }
-                }
-                _ => switch_unreachable!()
+                    Err(e) => {
+                        self.errs.push(e);
+                    }
+                },
+                _ => switch_unreachable!(),
             }
         }
         Ok(chunks)
@@ -340,11 +393,13 @@ impl Parser {
         // single line block
         if !self.cur_is(Newline) {
             block.push(self.try_reduce_expr()?);
-            return Ok(block)
+            return Ok(block);
         }
         loop {
             match self.peek() {
-                Some(t) if t.category_is(TC::Separator) => { self.skip(); }
+                Some(t) if t.category_is(TC::Separator) => {
+                    self.skip();
+                }
                 Some(t) => {
                     if t.is(Indent) {
                         self.skip();
@@ -354,7 +409,9 @@ impl Parser {
                     } else if self.cur_is(Dedent) {
                         self.skip();
                         break;
-                    } else if t.is(EOF) { break; }
+                    } else if t.is(EOF) {
+                        break;
+                    }
                     match self.try_reduce_expr() {
                         Ok(expr) => {
                             block.push(expr);
@@ -363,18 +420,26 @@ impl Parser {
                                 break;
                             }
                         }
-                        Err(e) => { self.errs.push(e); }
+                        Err(e) => {
+                            self.errs.push(e);
+                        }
                     }
                 }
-                _ => switch_unreachable!()
+                _ => switch_unreachable!(),
             }
         }
         if block.is_empty() {
-            let loc = if let Some(u) = self.peek() { u.loc() } else { Location::Unknown };
-            let err = ParseError::syntax_error(0, loc, switch_lang!(
-                "failed to parse a block",
-                "ブロックの解析に失敗しました"
-            ), None);
+            let loc = if let Some(u) = self.peek() {
+                u.loc()
+            } else {
+                Location::Unknown
+            };
+            let err = ParseError::syntax_error(
+                0,
+                loc,
+                switch_lang!("failed to parse a block", "ブロックの解析に失敗しました"),
+                None,
+            );
             Err(err)
         } else {
             Ok(block)
@@ -386,7 +451,9 @@ impl Parser {
         if self.cur_is(TokenKind::AtSign) {
             self.lpop();
             Ok(Some(Decorator::new(self.try_reduce_expr()?)))
-        } else { Ok(None) }
+        } else {
+            Ok(None)
+        }
     }
 
     #[inline]
@@ -394,8 +461,12 @@ impl Parser {
         let mut decs = set![];
         loop {
             match self.opt_reduce_decorator()? {
-                Some(deco) => { decs.insert(deco); }
-                None => { break; }
+                Some(deco) => {
+                    decs.insert(deco);
+                }
+                None => {
+                    break;
+                }
             }
         }
         Ok(decs)
@@ -405,7 +476,7 @@ impl Parser {
     fn try_reduce_decl(&mut self) -> ParseResult<Signature> {
         debug_call_info!(self);
         if self.peek().unwrap().category_is(TC::LEnclosure) {
-            return Ok(Signature::Var(self.try_reduce_var_sig()?))
+            return Ok(Signature::Var(self.try_reduce_var_sig()?));
         }
         let decorators = self.opt_reduce_decorators()?;
         let name = self.try_reduce_name()?;
@@ -418,16 +489,25 @@ impl Parser {
             let t_spec = if self.cur_is(Colon) {
                 self.skip();
                 Some(self.try_reduce_type_spec()?)
-            } else { None };
-            Ok(Signature::Subr(SubrSignature::new(decorators, name, params, t_spec, bounds)))
+            } else {
+                None
+            };
+            Ok(Signature::Subr(SubrSignature::new(
+                decorators, name, params, t_spec, bounds,
+            )))
         } else {
             if !bounds.is_empty() {
-                let err = ParseError::syntax_error(0, self.peek().unwrap().loc(), switch_lang!(
-                    "Cannot use type bounds in a declaration of a variable",
-                    "変数宣言で型制約は使えません"
-                ), None);
+                let err = ParseError::syntax_error(
+                    0,
+                    self.peek().unwrap().loc(),
+                    switch_lang!(
+                        "Cannot use type bounds in a declaration of a variable",
+                        "変数宣言で型制約は使えません"
+                    ),
+                    None,
+                );
                 self.next_expr();
-                return Err(err)
+                return Err(err);
             }
             let t_spec = if name.is_const() {
                 if self.cur_is(SubtypeOf) {
@@ -450,9 +530,14 @@ impl Parser {
                 if self.cur_is(Colon) {
                     self.skip();
                     Some(self.try_reduce_type_spec()?)
-                } else { None }
+                } else {
+                    None
+                }
             };
-            Ok(Signature::Var(VarSignature::new(VarPattern::VarName(name), t_spec)))
+            Ok(Signature::Var(VarSignature::new(
+                VarPattern::VarName(name),
+                t_spec,
+            )))
         }
     }
 
@@ -463,7 +548,9 @@ impl Parser {
         let t_spec = if self.cur_is(Colon) {
             self.skip();
             Some(self.try_reduce_type_spec()?)
-        } else { None };
+        } else {
+            None
+        };
         if self.cur_is(VBar) {
             todo!()
         }
@@ -477,7 +564,9 @@ impl Parser {
         if self.cur_is(OrEqual) {
             self.skip();
             let val = self.try_reduce_const_expr()?;
-            Ok(ParamSig::Default(DefaultParamSignature::new(lhs.pat, lhs.t_spec, val)))
+            Ok(ParamSig::Default(DefaultParamSignature::new(
+                lhs.pat, lhs.t_spec, val,
+            )))
         } else {
             Ok(ParamSig::NonDefault(lhs))
         }
@@ -490,7 +579,9 @@ impl Parser {
         let t_spec = if self.cur_is(Colon) {
             self.skip();
             Some(self.try_reduce_type_spec()?)
-        } else { None };
+        } else {
+            None
+        };
         Ok(NonDefaultParamSignature::new(pat, t_spec))
     }
 
@@ -503,7 +594,12 @@ impl Parser {
             let val = self.try_reduce_const_expr()?;
             Ok(DefaultParamSignature::new(lhs.pat, lhs.t_spec, val))
         } else {
-            Err(ParseError::syntax_error(0, lhs.loc(), "non-default argument follows default argument", None))
+            Err(ParseError::syntax_error(
+                0,
+                lhs.loc(),
+                "non-default argument follows default argument",
+                None,
+            ))
         }
     }
 
@@ -532,13 +628,9 @@ impl Parser {
     fn try_reduce_acc(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
         let mut acc = match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                Accessor::local(self.lpop())
-            }
+            Some(t) if t.is(Symbol) => Accessor::local(self.lpop()),
             // TODO: SelfDot
-            _ => {
-                return Err(self.skip_and_throw_syntax_err(caused_by!()))
-            }
+            _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
         };
         loop {
             match self.peek() {
@@ -552,17 +644,22 @@ impl Parser {
                 Some(t) if t.is(LSqBr) => {
                     self.skip();
                     let index = self.try_reduce_expr()?;
-                    if self.cur_is(RSqBr) { self.skip(); }
-                    else { return Err(self.skip_and_throw_syntax_err(caused_by!())) }
+                    if self.cur_is(RSqBr) {
+                        self.skip();
+                    } else {
+                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
+                    }
                     acc = Accessor::subscr(Expr::Accessor(acc), index);
                     if self.cur_is(RSqBr) {
                         self.lpop();
                     } else {
                         // TODO: error report: RSqBr not found
-                        return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
                     }
                 }
-                _ => { break; }
+                _ => {
+                    break;
+                }
             }
         }
         Ok(acc)
@@ -572,16 +669,12 @@ impl Parser {
         debug_call_info!(self);
         let mut elems = Vars::empty();
         match self.peek() {
-            Some(t) if t.is_block_op() => {
-                return Ok(Vars::empty())
-            }
+            Some(t) if t.is_block_op() => return Ok(Vars::empty()),
             Some(_) => {
                 let elem = self.try_reduce_var_sig()?;
                 elems.push(elem);
             }
-            _ => {
-                return Err(self.skip_and_throw_syntax_err(caused_by!()))
-            }
+            _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
         loop {
             match self.peek() {
@@ -592,14 +685,21 @@ impl Parser {
                 }
                 Some(t) if t.category_is(TC::BinOp) => {
                     log!("[DEBUG] error caused by: {}", fn_name!());
-                    let err = ParseError::syntax_error(0, t.loc(), switch_lang!(
-                        "Binary operators cannot be used in left-values",
-                        "左辺値の中で中置演算子は使えません"
-                    ), None);
+                    let err = ParseError::syntax_error(
+                        0,
+                        t.loc(),
+                        switch_lang!(
+                            "Binary operators cannot be used in left-values",
+                            "左辺値の中で中置演算子は使えません"
+                        ),
+                        None,
+                    );
                     self.next_expr();
-                    return Err(err)
+                    return Err(err);
                 }
-                _ => { break; }
+                _ => {
+                    break;
+                }
             }
         }
         Ok(elems)
@@ -608,10 +708,16 @@ impl Parser {
     fn opt_reduce_params(&mut self) -> Option<ParseResult<Params>> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if
-                t.category_is(TC::Literal) || t.is(Symbol)
-                || t.category_is(TC::UnaryOp) || t.is(Dot) || t.category_is(TC::Caret)
-                || t.is(LParen) || t.is(LSqBr) || t.is(LBrace) => {
+            Some(t)
+                if t.category_is(TC::Literal)
+                    || t.is(Symbol)
+                    || t.category_is(TC::UnaryOp)
+                    || t.is(Dot)
+                    || t.category_is(TC::Caret)
+                    || t.is(LParen)
+                    || t.is(LSqBr)
+                    || t.is(LBrace) =>
+            {
                 Some(self.try_reduce_params())
             }
             _ => None,
@@ -622,32 +728,38 @@ impl Parser {
         debug_call_info!(self);
         let lp = if self.cur_is(TokenKind::LParen) {
             Some(self.lpop())
-        } else { None };
+        } else {
+            None
+        };
         let mut non_default_params = vec![];
         let mut default_params = vec![];
         match self.peek() {
             Some(t) if t.is(RParen) => {
                 let parens = (lp.unwrap(), self.lpop());
-                return Ok(Params::new(non_default_params, default_params, Some(parens)))
-            },
-            Some(t) if t.is_block_op() => {
-                if lp.is_none() { return Ok(Params::new(non_default_params, default_params, None)) }
-                // TODO: RParen not found
-                else { return Err(self.skip_and_throw_syntax_err(caused_by!())) }
+                return Ok(Params::new(
+                    non_default_params,
+                    default_params,
+                    Some(parens),
+                ));
             }
-            Some(_) => {
-                match self.try_reduce_param_sig()? {
-                    ParamSig::NonDefault(non_default) => {
-                        non_default_params.push(non_default);
-                    }
-                    ParamSig::Default(default) => {
-                        default_params.push(default);
-                    }
+            Some(t) if t.is_block_op() => {
+                if lp.is_none() {
+                    return Ok(Params::new(non_default_params, default_params, None));
+                }
+                // TODO: RParen not found
+                else {
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
                 }
             }
-            _ => {
-                return Err(self.skip_and_throw_syntax_err(caused_by!()))
-            }
+            Some(_) => match self.try_reduce_param_sig()? {
+                ParamSig::NonDefault(non_default) => {
+                    non_default_params.push(non_default);
+                }
+                ParamSig::Default(default) => {
+                    default_params.push(default);
+                }
+            },
+            _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
         loop {
             match self.peek() {
@@ -668,20 +780,29 @@ impl Parser {
                     }
                 }
                 Some(t) if t.category_is(TC::BinOp) => {
-                    let err = ParseError::syntax_error(0, t.loc(), switch_lang!(
-                        "Binary operators cannot be used in parameters",
-                        "仮引数の中で中置演算子は使えません"
-                    ), None);
+                    let err = ParseError::syntax_error(
+                        0,
+                        t.loc(),
+                        switch_lang!(
+                            "Binary operators cannot be used in parameters",
+                            "仮引数の中で中置演算子は使えません"
+                        ),
+                        None,
+                    );
                     self.next_expr();
-                    return Err(err)
+                    return Err(err);
                 }
                 Some(t) if t.is(TokenKind::RParen) => {
                     let rp = self.lpop();
                     if let Some(lp) = lp {
-                        return Ok(Params::new(non_default_params, default_params, Some((lp, rp))))
+                        return Ok(Params::new(
+                            non_default_params,
+                            default_params,
+                            Some((lp, rp)),
+                        ));
                     } else {
                         // LParen not found
-                        return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
                     }
                 }
                 _ if lp.is_none() => {
@@ -689,7 +810,7 @@ impl Parser {
                 }
                 _ => {
                     // TODO: RParen not found
-                    return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
                 }
             }
         }
@@ -698,18 +819,16 @@ impl Parser {
     fn try_reduce_var_pattern(&mut self) -> ParseResult<VarPattern> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                Ok(VarPattern::VarName(self.try_reduce_name()?))
-            }
-            Some(t) if t.is(UBar) => {
-                Ok(VarPattern::Discard(self.lpop()))
-            }
+            Some(t) if t.is(Symbol) => Ok(VarPattern::VarName(self.try_reduce_name()?)),
+            Some(t) if t.is(UBar) => Ok(VarPattern::Discard(self.lpop())),
             Some(t) if t.is(LSqBr) => {
                 let l_sqbr = self.lpop();
                 let elems = self.try_reduce_elems()?;
                 if self.cur_is(RSqBr) {
                     let r_sqbr = self.lpop();
-                    Ok(VarPattern::Array(VarArrayPattern::new(l_sqbr, elems, r_sqbr)))
+                    Ok(VarPattern::Array(VarArrayPattern::new(
+                        l_sqbr, elems, r_sqbr,
+                    )))
                 } else {
                     // TODO: error report: RSqBr not found
                     Err(self.skip_and_throw_syntax_err(caused_by!()))
@@ -733,12 +852,8 @@ impl Parser {
     fn try_reduce_param_pattern(&mut self) -> ParseResult<ParamPattern> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                Ok(ParamPattern::VarName(self.try_reduce_name()?))
-            }
-            Some(t) if t.is(UBar) => {
-                Ok(ParamPattern::Discard(self.lpop()))
-            }
+            Some(t) if t.is(Symbol) => Ok(ParamPattern::VarName(self.try_reduce_name()?)),
+            Some(t) if t.is(UBar) => Ok(ParamPattern::Discard(self.lpop())),
             Some(t) if t.category_is(TC::Literal) => {
                 // TODO: range pattern
                 Ok(ParamPattern::Lit(self.try_reduce_lit()?))
@@ -752,7 +867,9 @@ impl Parser {
                 let elems = self.try_reduce_params()?;
                 if self.cur_is(RSqBr) {
                     let r_sqbr = self.lpop();
-                    Ok(ParamPattern::Array(ParamArrayPattern::new(l_sqbr, elems, r_sqbr)))
+                    Ok(ParamPattern::Array(ParamArrayPattern::new(
+                        l_sqbr, elems, r_sqbr,
+                    )))
                 } else {
                     // TODO: error report: RSqBr not found
                     Err(self.skip_and_throw_syntax_err(caused_by!()))
@@ -783,18 +900,20 @@ impl Parser {
             Some(t) if t.category_is(TC::Literal) => {
                 let lhs = ConstExpr::Lit(self.try_reduce_lit()?);
                 let maybe_op = self.lpop();
-                let op = if
-                    maybe_op.is(Closed) || maybe_op.is(LeftOpen)
-                    || maybe_op.is(RightOpen) || maybe_op.is(Open) { maybe_op } else {
-                    return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                let op = if maybe_op.is(Closed)
+                    || maybe_op.is(LeftOpen)
+                    || maybe_op.is(RightOpen)
+                    || maybe_op.is(Open)
+                {
+                    maybe_op
+                } else {
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
                 };
                 // TODO: maybe Name
                 let rhs = ConstExpr::Lit(self.try_reduce_lit()?);
                 TypeSpec::interval(op, lhs, rhs)
             }
-            Some(t) if t.is(LParen) => {
-                self.try_reduce_func_type()?
-            }
+            Some(t) if t.is(LParen) => self.try_reduce_func_type()?,
             Some(t) if t.is(LSqBr) => {
                 self.skip();
                 let mut tys = vec![self.try_reduce_type_spec()?];
@@ -809,16 +928,12 @@ impl Parser {
                             self.skip();
                             break;
                         }
-                        _ => {
-                            return Err(self.skip_and_throw_syntax_err(caused_by!()))
-                        }
+                        _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
                     }
                 }
                 TypeSpec::Tuple(tys)
             }
-            _ => {
-                return Err(self.skip_and_throw_syntax_err(caused_by!()))
-            }
+            _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
         };
         loop {
             match self.peek() {
@@ -840,7 +955,9 @@ impl Parser {
                         TypeSpec::proc(None, vec![ParamTySpec::anonymous(typ)], vec![], rhs)
                     };
                 }
-                _ => { break; }
+                _ => {
+                    break;
+                }
             }
         }
         Ok(typ)
@@ -873,9 +990,7 @@ impl Parser {
                     self.skip();
                     break;
                 }
-                _ => {
-                    return Err(self.skip_and_throw_syntax_err(caused_by!()))
-                }
+                _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
             }
         }
         match self.peek() {
@@ -889,7 +1004,7 @@ impl Parser {
                     Ok(TypeSpec::proc(lparen, non_defaults, vec![], rhs))
                 }
             }
-            _ => { Err(self.skip_and_throw_syntax_err(caused_by!())) }
+            _ => Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
     }
 
@@ -950,7 +1065,7 @@ impl Parser {
                 Ok(arg) => {
                     const_args.push_pos(arg);
                 }
-                Err(e) => { return Err(e) }
+                Err(e) => return Err(e),
             }
         }
         for arg in kw.into_iter() {
@@ -958,7 +1073,7 @@ impl Parser {
                 Ok(arg) => {
                     const_args.push_kw(arg);
                 }
-                Err(e) => { return Err(e) }
+                Err(e) => return Err(e),
             }
         }
         Ok(const_args)
@@ -967,11 +1082,17 @@ impl Parser {
     fn opt_reduce_args(&mut self) -> Option<ParseResult<Args>> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if t.category_is(TC::Literal)
-            || t.is(Symbol) || t.category_is(TC::UnaryOp)
-            || t.is(Dot) || t.category_is(TC::Caret)
-            || t.is(LParen) || t.is(LSqBr) || t.is(LBrace)
-            || t.is(Colon) => {
+            Some(t)
+                if t.category_is(TC::Literal)
+                    || t.is(Symbol)
+                    || t.category_is(TC::UnaryOp)
+                    || t.is(Dot)
+                    || t.category_is(TC::Caret)
+                    || t.is(LParen)
+                    || t.is(LSqBr)
+                    || t.is(LBrace)
+                    || t.is(Colon) =>
+            {
                 Some(self.try_reduce_args())
             }
             _ => None,
@@ -1009,7 +1130,7 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.is(Colon) && colon_style => {
                     self.skip();
-                    return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
                 }
                 Some(t) if t.is(Colon) => {
                     self.skip();
@@ -1023,22 +1144,30 @@ impl Parser {
                         args.push_kw(self.try_reduce_kw_arg()?);
                     } else {
                         match self.try_reduce_arg()? {
-                            PosOrKwArg::Pos(arg) => { args.push_pos(arg); },
-                            PosOrKwArg::Kw(arg) => { args.push_kw(arg); },
+                            PosOrKwArg::Pos(arg) => {
+                                args.push_pos(arg);
+                            }
+                            PosOrKwArg::Kw(arg) => {
+                                args.push_kw(arg);
+                            }
                         }
                     }
                 }
                 Some(t) if t.is(Comma) => {
                     self.skip();
                     if colon_style || self.cur_is(Comma) {
-                        return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
                     }
                     if !args.kw_is_empty() {
                         args.push_kw(self.try_reduce_kw_arg()?);
                     } else {
                         match self.try_reduce_arg()? {
-                            PosOrKwArg::Pos(arg) => { args.push_pos(arg); },
-                            PosOrKwArg::Kw(arg) => { args.push_kw(arg); },
+                            PosOrKwArg::Pos(arg) => {
+                                args.push_pos(arg);
+                            }
+                            PosOrKwArg::Kw(arg) => {
+                                args.push_kw(arg);
+                            }
                         }
                     }
                 }
@@ -1054,8 +1183,12 @@ impl Parser {
                         args.push_kw(self.try_reduce_kw_arg()?);
                     } else {
                         match self.try_reduce_arg()? {
-                            PosOrKwArg::Pos(arg) => { args.push_pos(arg); },
-                            PosOrKwArg::Kw(arg) => { args.push_kw(arg); },
+                            PosOrKwArg::Pos(arg) => {
+                                args.push_pos(arg);
+                            }
+                            PosOrKwArg::Kw(arg) => {
+                                args.push_kw(arg);
+                            }
                         }
                     }
                 }
@@ -1065,7 +1198,9 @@ impl Parser {
                     args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp.unwrap())));
                     break;
                 }
-                _ => { break; }
+                _ => {
+                    break;
+                }
             }
         }
         Ok(args)
@@ -1078,7 +1213,8 @@ impl Parser {
                 if self.nth_is(1, Colon) {
                     let acc = self.try_reduce_acc()?;
                     debug_power_assert!(self.cur_is(Colon));
-                    if self.nth_is(1, Newline) { // colon style call
+                    if self.nth_is(1, Newline) {
+                        // colon style call
                         Ok(PosOrKwArg::Pos(PosArg::new(Expr::Accessor(acc))))
                     } else {
                         self.skip();
@@ -1086,7 +1222,7 @@ impl Parser {
                             n.symbol
                         } else {
                             self.next_expr();
-                            return Err(ParseError::simple_syntax_error(0, acc.loc()))
+                            return Err(ParseError::simple_syntax_error(0, acc.loc()));
                         };
                         Ok(PosOrKwArg::Kw(KwArg::new(kw, self.try_reduce_expr()?)))
                     }
@@ -1094,9 +1230,7 @@ impl Parser {
                     Ok(PosOrKwArg::Pos(PosArg::new(self.try_reduce_expr()?)))
                 }
             }
-            Some(_) => {
-                Ok(PosOrKwArg::Pos(PosArg::new(self.try_reduce_expr()?)))
-            }
+            Some(_) => Ok(PosOrKwArg::Pos(PosArg::new(self.try_reduce_expr()?))),
             None => switch_unreachable!(),
         }
     }
@@ -1113,16 +1247,14 @@ impl Parser {
                         n.symbol
                     } else {
                         self.next_expr();
-                        return Err(ParseError::simple_syntax_error(0, acc.loc()))
+                        return Err(ParseError::simple_syntax_error(0, acc.loc()));
                     };
                     Ok(KwArg::new(keyword, self.try_reduce_expr()?))
                 } else {
-                    return Err(ParseError::simple_syntax_error(0, t.loc()))
+                    return Err(ParseError::simple_syntax_error(0, t.loc()));
                 }
             }
-            Some(other) => {
-                Err(ParseError::simple_syntax_error(0, other.loc()))
-            }
+            Some(other) => Err(ParseError::simple_syntax_error(0, other.loc())),
             None => switch_unreachable!(),
         }
     }
@@ -1145,12 +1277,10 @@ impl Parser {
                         self.counter.inc();
                         let body = DefBody::new(op, self.try_reduce_block()?, self.counter);
                         Ok(Expr::Def(Def::new(sig, body)))
-                    },
-                    _other => {
-                        Err(self.skip_and_throw_syntax_err(caused_by!()))
                     }
+                    _other => Err(self.skip_and_throw_syntax_err(caused_by!())),
                 }
-            },
+            }
             Side::LhsLambda => {
                 let params = self.try_reduce_params()?;
                 match self.peek() {
@@ -1158,21 +1288,30 @@ impl Parser {
                         let sig = LambdaSignature::new(params, None, TypeBoundSpecs::empty());
                         let op = self.lpop();
                         self.counter.inc();
-                        Ok(Expr::Lambda(Lambda::new(sig, op, self.try_reduce_block()?, self.counter)))
-                    },
+                        Ok(Expr::Lambda(Lambda::new(
+                            sig,
+                            op,
+                            self.try_reduce_block()?,
+                            self.counter,
+                        )))
+                    }
                     Some(t) if t.is(Colon) => {
                         self.lpop();
                         let spec_t = self.try_reduce_type_spec()?;
-                        let sig = LambdaSignature::new(params, Some(spec_t), TypeBoundSpecs::empty());
+                        let sig =
+                            LambdaSignature::new(params, Some(spec_t), TypeBoundSpecs::empty());
                         let op = self.lpop();
                         self.counter.inc();
-                        Ok(Expr::Lambda(Lambda::new(sig, op, self.try_reduce_block()?, self.counter)))
-                    },
-                    _other => {
-                        Err(self.skip_and_throw_syntax_err(caused_by!()))
+                        Ok(Expr::Lambda(Lambda::new(
+                            sig,
+                            op,
+                            self.try_reduce_block()?,
+                            self.counter,
+                        )))
                     }
+                    _other => Err(self.skip_and_throw_syntax_err(caused_by!())),
                 }
-            },
+            }
             Side::Rhs => {
                 stack.push(ExprOrOp::Expr(self.try_reduce_lhs()?));
                 loop {
@@ -1181,11 +1320,15 @@ impl Parser {
                             let op_prec = op.kind.precedence();
                             if stack.len() >= 2 {
                                 while let Some(ExprOrOp::Op(prev_op)) = stack.get(stack.len() - 2) {
-                                    if prev_op.category_is(TC::BinOp) &&
-                                    prev_op.kind.precedence() >= op_prec {
-                                        let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                        let prev_op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                                        let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                    if prev_op.category_is(TC::BinOp)
+                                        && prev_op.kind.precedence() >= op_prec
+                                    {
+                                        let rhs =
+                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                        let prev_op =
+                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                                        let lhs =
+                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                                         let bin = BinOp::new(prev_op, lhs, rhs);
                                         stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
                                     } else {
@@ -1199,7 +1342,9 @@ impl Parser {
                             stack.push(ExprOrOp::Op(self.lpop()));
                             stack.push(ExprOrOp::Expr(self.try_reduce_lhs()?));
                         }
-                        Some(t) if t.category_is(TC::DefOp) => { switch_unreachable!() }
+                        Some(t) if t.category_is(TC::DefOp) => {
+                            switch_unreachable!()
+                        }
                         Some(t) if t.is(Dot) => {
                             self.skip();
                             match self.lpop() {
@@ -1207,7 +1352,7 @@ impl Parser {
                                     let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
                                         expr
                                     } else {
-                                        return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
                                     };
                                     let acc = Accessor::attr(obj, Local::new(symbol));
                                     if let Ok(args) = self.try_reduce_args() {
@@ -1219,7 +1364,7 @@ impl Parser {
                                 }
                                 other => {
                                     self.restore(other);
-                                    return Err(self.skip_and_throw_syntax_err(caused_by!()))
+                                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
                                 }
                             }
                         }
@@ -1248,7 +1393,8 @@ impl Parser {
                             ExprOrOp::Expr(expr) => expr.loc(),
                             ExprOrOp::Op(op) => op.loc(),
                         };
-                        self.warns.push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
+                        self.warns
+                            .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
                         Ok(expr)
                     }
                     Some(ExprOrOp::Op(op)) => {
@@ -1269,12 +1415,8 @@ impl Parser {
                 // TODO: 10.times ...などメソッド呼び出しもある
                 Ok(Expr::Lit(self.try_reduce_lit()?))
             }
-            Some(t) if t.is(Symbol) || t.is(Dot) => {
-                Ok(self.try_reduce_call_or_acc()?)
-            }
-            Some(t) if t.category_is(TC::UnaryOp) => {
-                Ok(Expr::UnaryOp(self.try_reduce_unary()?))
-            }
+            Some(t) if t.is(Symbol) || t.is(Dot) => Ok(self.try_reduce_call_or_acc()?),
+            Some(t) if t.category_is(TC::UnaryOp) => Ok(Expr::UnaryOp(self.try_reduce_unary()?)),
             Some(t) if t.category_is(TC::Caret) => {
                 let lambda = self.try_reduce_lambda()?;
                 Ok(Expr::Lambda(lambda))
@@ -1282,20 +1424,21 @@ impl Parser {
             Some(t) if t.is(LParen) => {
                 self.skip();
                 let expr = self.try_reduce_expr()?;
-                if self.cur_is(RParen) { self.skip(); }
-                else { return Err(self.skip_and_throw_syntax_err(caused_by!())) }
+                if self.cur_is(RParen) {
+                    self.skip();
+                } else {
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
+                }
                 Ok(expr)
             }
-            Some(t) if t.is(LSqBr) => {
-                Ok(Expr::Array(self.try_reduce_array()?))
-            }
+            Some(t) if t.is(LSqBr) => Ok(Expr::Array(self.try_reduce_array()?)),
             Some(t) if t.is(LBrace) => {
                 todo!()
             }
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
                 Err(ParseError::feature_error(0, token.loc(), "discard pattern"))
-            },
+            }
             _ => Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
     }
@@ -1319,7 +1462,7 @@ impl Parser {
         let sig = self.try_reduce_lambda_sig()?;
         let op = self.lpop();
         if op.category() != TC::LambdaOp {
-            return Err(self.skip_and_throw_syntax_err(caused_by!()))
+            return Err(self.skip_and_throw_syntax_err(caused_by!()));
         }
         // REVIEW: この箇所必要か
         while self.cur_is(Newline) {
@@ -1345,7 +1488,7 @@ impl Parser {
         let elems = self.try_reduce_args()?;
         let r_sqbr = self.lpop();
         if !r_sqbr.is(RSqBr) {
-            return Err(ParseError::simple_syntax_error(0, r_sqbr.loc()))
+            return Err(ParseError::simple_syntax_error(0, r_sqbr.loc()));
         }
         let arr = Array::new(l_sqbr, r_sqbr, elems, None);
         Ok(arr)
@@ -1355,9 +1498,7 @@ impl Parser {
     fn try_reduce_name(&mut self) -> ParseResult<VarName> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                Ok(VarName::new(self.lpop()))
-            }
+            Some(t) if t.is(Symbol) => Ok(VarName::new(self.lpop())),
             _ => Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
     }
@@ -1366,9 +1507,7 @@ impl Parser {
     fn try_reduce_lit(&mut self) -> ParseResult<Literal> {
         debug_call_info!(self);
         match self.peek() {
-            Some(t) if t.category_is(TC::Literal) => {
-                Ok(Literal::from(self.lpop()))
-            }
+            Some(t) if t.category_is(TC::Literal) => Ok(Literal::from(self.lpop())),
             _ => Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
     }

@@ -1,7 +1,7 @@
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
-use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct RcCell<T: ?Sized>(Rc<RefCell<T>>);
@@ -28,7 +28,9 @@ impl<T: Hash> Hash for RcCell<T> {
 }
 
 impl<T: Default> Default for RcCell<T> {
-    fn default() -> Self { Self::new(Default::default()) }
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
 }
 
 impl<T: fmt::Display> fmt::Display for RcCell<T> {
@@ -38,7 +40,9 @@ impl<T: fmt::Display> fmt::Display for RcCell<T> {
 }
 
 impl<T> RcCell<T> {
-    pub fn new(t: T) -> Self { Self(Rc::new(RefCell::new(t))) }
+    pub fn new(t: T) -> Self {
+        Self(Rc::new(RefCell::new(t)))
+    }
 
     #[inline]
     pub fn into_inner(self) -> T {
@@ -52,7 +56,9 @@ impl<T> RcCell<T> {
 
 impl<T: ?Sized> RcCell<T> {
     #[inline]
-    pub fn copy(&self) -> Self { Self(self.0.clone()) }
+    pub fn copy(&self) -> Self {
+        Self(self.0.clone())
+    }
 
     #[inline]
     pub fn borrow(&self) -> Ref<'_, T> {
@@ -67,5 +73,7 @@ impl<T: ?Sized> RcCell<T> {
 
 impl<T: Clone> RcCell<T> {
     #[inline]
-    pub fn clone_inner(&self) -> T { self.borrow().clone() }
+    pub fn clone_inner(&self) -> T {
+        self.borrow().clone()
+    }
 }

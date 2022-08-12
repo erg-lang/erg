@@ -1,12 +1,12 @@
 //! defines and implements `Lexer` (Tokenizer).
 use erg_common::cache::Cache;
-use erg_common::Str;
-use erg_common::{fn_name_full, switch_lang, debug_power_assert, normalize_newline};
-use erg_common::config::Input;
 use erg_common::config::ErgConfig;
+use erg_common::config::Input;
 use erg_common::traits::{Locational, Runnable, Stream};
+use erg_common::Str;
+use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
-use crate::error::{LexerRunnerError, LexerRunnerErrors, LexError, LexErrors, LexResult};
+use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunnerErrors};
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
@@ -20,13 +20,19 @@ impl Runnable for LexerRunner {
     type Errs = LexerRunnerErrors;
 
     #[inline]
-    fn new(cfg: ErgConfig) -> Self { Self { cfg } }
+    fn new(cfg: ErgConfig) -> Self {
+        Self { cfg }
+    }
 
     #[inline]
-    fn input(&self) -> &Input { &self.cfg.input }
+    fn input(&self) -> &Input {
+        &self.cfg.input
+    }
 
     #[inline]
-    fn start_message(&self) -> String { "Erg lexer\n".to_string() }
+    fn start_message(&self) -> String {
+        "Erg lexer\n".to_string()
+    }
 
     #[inline]
     fn finish(&mut self) {}
@@ -37,11 +43,16 @@ impl Runnable for LexerRunner {
     fn eval(&mut self, src: Str) -> Result<String, LexerRunnerErrors> {
         let lexer = Lexer::from_str(src);
         if cfg!(feature = "debug") {
-            let ts = lexer.lex().map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+            let ts = lexer
+                .lex()
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
             println!("{ts}");
             Ok(ts.to_string())
         } else {
-            Ok(lexer.lex().map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?.to_string())
+            Ok(lexer
+                .lex()
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
+                .to_string())
         }
     }
 }
@@ -96,18 +107,29 @@ impl Lexer /*<'a>*/ {
         let mut errs = LexErrors::empty();
         for i in self.into_iter() {
             match i {
-                Ok(token) => { result.push(token) }
-                Err(err) => { errs.push(err); }
+                Ok(token) => result.push(token),
+                Err(err) => {
+                    errs.push(err);
+                }
             }
         }
-        if errs.is_empty() { Ok(result) } else { Err(errs) }
+        if errs.is_empty() {
+            Ok(result)
+        } else {
+            Err(errs)
+        }
     }
 
     fn emit_token(&mut self, kind: TokenKind, cont: &str) -> Token {
         let cont = self.str_cache.get(cont);
         // cannot use String::len() for multi-byte characters
         let cont_len = cont.chars().count();
-        let token = Token::new(kind, cont, self.lineno_token_starts + 1, self.col_token_starts);
+        let token = Token::new(
+            kind,
+            cont,
+            self.lineno_token_starts + 1,
+            self.col_token_starts,
+        );
         self.prev_token = token.clone();
         self.col_token_starts += cont_len;
         token
@@ -160,8 +182,7 @@ impl Lexer /*<'a>*/ {
     fn is_definable_operator(s: &str) -> bool {
         match s {
             "+" | "-" | "*" | "/" | "//" | "**" | "%" | ".." | "..=" | "~" | "&&" | "||" | "^^"
-            | ">>" | "<<" | "==" | "!=" | ">" | "<" | ">=" | "<="
-            | "dot" | "cross" => true,
+            | ">>" | "<<" | "==" | "!=" | ">" | "<" | ">=" | "<=" | "dot" | "cross" => true,
             _ => false,
         }
     }
@@ -187,7 +208,9 @@ impl Lexer /*<'a>*/ {
         }
     }
 
-    fn is_zero(s: &str) -> bool { s.replace("-0", "").replace("0", "").is_empty() }
+    fn is_zero(s: &str) -> bool {
+        s.replace("-0", "").replace("0", "").is_empty()
+    }
 
     /// emit_tokenで一気にcol_token_startsを移動させるのでここでは移動させない
     fn consume(&mut self) -> Option<char> {
@@ -220,10 +243,15 @@ impl Lexer /*<'a>*/ {
         while self.peek_cur_ch().map(|cur| cur != '\n').unwrap_or(false) {
             if Self::is_bidi(self.peek_cur_ch().unwrap()) {
                 let comment = self.emit_token(Illegal, &s);
-                return Err(LexError::syntax_error(0, comment.loc(), switch_lang!(
-                    "invalid unicode character (bi-directional override) in comments",
-                    "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています"
-                ), None))
+                return Err(LexError::syntax_error(
+                    0,
+                    comment.loc(),
+                    switch_lang!(
+                        "invalid unicode character (bi-directional override) in comments",
+                        "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています"
+                    ),
+                    None,
+                ));
             }
             s.push(self.consume().unwrap());
         }
@@ -239,7 +267,7 @@ impl Lexer /*<'a>*/ {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
             self.col_token_starts = 0;
-            return Some(Ok(dedent))
+            return Some(Ok(dedent));
         }
         let mut spaces = "".to_string();
         while let Some(' ') = self.peek_cur_ch() {
@@ -248,10 +276,12 @@ impl Lexer /*<'a>*/ {
         // indent in the first line: error
         if !spaces.is_empty() && self.cursor == 0 {
             let space = self.emit_token(Illegal, &spaces);
-            Some(Err(LexError::syntax_error(0, space.loc(), switch_lang!(
-                "invalid indent",
-                "インデントが不正です"
-            ), None)))
+            Some(Err(LexError::syntax_error(
+                0,
+                space.loc(),
+                switch_lang!("invalid indent", "インデントが不正です"),
+                None,
+            )))
         } else if self.prev_token.is(Newline) {
             self.lex_indent_dedent(spaces)
         } else {
@@ -265,21 +295,30 @@ impl Lexer /*<'a>*/ {
         // same as the CPython's limit
         if spaces.len() > 100 {
             let token = self.emit_token(Indent, &spaces);
-            return Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                "indentation is too deep",
-                "インデントが深すぎます"
-            ), Some(switch_lang!(
-                "The code is too complicated. Please split the process.",
-                "コードが複雑すぎます。処理を分割してください"
-            ).into()))))
+            return Some(Err(LexError::syntax_error(
+                0,
+                token.loc(),
+                switch_lang!("indentation is too deep", "インデントが深すぎます"),
+                Some(
+                    switch_lang!(
+                        "The code is too complicated. Please split the process.",
+                        "コードが複雑すぎます。処理を分割してください"
+                    )
+                    .into(),
+                ),
+            )));
         }
         // ignore indents if the current line is a comment
         if let Some('#') = self.peek_cur_ch() {
-            if let Err(e) = self.lex_comment() { return Some(Err(e)) }
+            if let Err(e) = self.lex_comment() {
+                return Some(Err(e));
+            }
         }
         let mut is_valid_dedent = false;
         let calc_indent_and_validate = |sum: usize, x: &usize| {
-            if sum + *x == spaces.len() { is_valid_dedent = true; }
+            if sum + *x == spaces.len() {
+                is_valid_dedent = true;
+            }
             sum + *x
         };
         let sum_indent = self.indent_stack.iter().fold(0, calc_indent_and_validate);
@@ -296,12 +335,16 @@ impl Lexer /*<'a>*/ {
                 Some(Ok(dedent))
             } else {
                 let invalid_dedent = self.emit_token(Dedent, "");
-                Some(Err(LexError::syntax_error(0, invalid_dedent.loc(), switch_lang!(
-                    "invalid indent",
-                    "インデントが不正です"
-                ), None)))
+                Some(Err(LexError::syntax_error(
+                    0,
+                    invalid_dedent.loc(),
+                    switch_lang!("invalid indent", "インデントが不正です"),
+                    None,
+                )))
             }
-        } else /* if indent_sum == space.len() */ {
+        } else
+        /* if indent_sum == space.len() */
+        {
             self.col_token_starts += spaces.len();
             None
         }
@@ -328,19 +371,20 @@ impl Lexer /*<'a>*/ {
         while let Some(ch) = self.peek_cur_ch() {
             match ch {
                 // `.` may be a dot operator, don't consume
-                '.' => { return self.lex_num_dot(num) },
+                '.' => return self.lex_num_dot(num),
                 n if n.is_ascii_digit() || n == '_' => {
                     num.push(self.consume().unwrap());
                 }
                 c if Self::is_valid_symbol_ch(c) => {
                     // exponent (e.g. 10e+3)
                     if c == 'e'
-                        && (self.peek_next_ch() == Some('+') || self.peek_next_ch() == Some('-')) {
-                        return self.lex_exponent(num)
+                        && (self.peek_next_ch() == Some('+') || self.peek_next_ch() == Some('-'))
+                    {
+                        return self.lex_exponent(num);
                     } else {
                         // IntLit * Symbol(e.g. 3x + 1)
                         let token = self.emit_token(Illegal, &(num + &c.to_string()));
-                        return Err(LexError::feature_error(0, token.loc(), "*-less multiply"))
+                        return Err(LexError::feature_error(0, token.loc(), "*-less multiply"));
                     }
                 }
                 _ => {
@@ -348,7 +392,11 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let kind = if num.starts_with('-') && !Self::is_zero(&num) { IntLit } else { NatLit };
+        let kind = if num.starts_with('-') && !Self::is_zero(&num) {
+            IntLit
+        } else {
+            NatLit
+        };
         Ok(self.emit_token(kind, &num))
     }
 
@@ -364,10 +412,14 @@ impl Lexer /*<'a>*/ {
             // method call of IntLit
             // or range operator (e.g. 1..)
             Some(c) if Self::is_valid_symbol_ch(c) || c == '.' => {
-                let kind = if num.starts_with('-') && !Self::is_zero(&num) { IntLit } else { NatLit };
+                let kind = if num.starts_with('-') && !Self::is_zero(&num) {
+                    IntLit
+                } else {
+                    NatLit
+                };
                 Ok(self.emit_token(kind, &num))
-            },
-            Some('_')  => {
+            }
+            Some('_') => {
                 self.consume();
                 let token = self.emit_token(Illegal, &(num + "_"));
                 Err(LexError::simple_syntax_error(0, token.loc()))
@@ -387,7 +439,7 @@ impl Lexer /*<'a>*/ {
             if cur.is_ascii_digit() || cur == '_' {
                 num.push(self.consume().unwrap());
             } else if cur == 'e' {
-                return self.lex_exponent(num)
+                return self.lex_exponent(num);
             } else {
                 break;
             }
@@ -409,7 +461,12 @@ impl Lexer /*<'a>*/ {
         }
         if cont.is_empty() {
             let token = self.emit_token(Illegal, &self.peek_cur_ch().unwrap().to_string());
-            return Err(LexError::compiler_bug(0, token.loc(), fn_name_full!(), line!()))
+            return Err(LexError::compiler_bug(
+                0,
+                token.loc(),
+                fn_name_full!(),
+                line!(),
+            ));
         }
         // dot: scalar product, cross: vector product
         // An alphabetical operator can also declare as a function, so checking is necessary
@@ -441,24 +498,34 @@ impl Lexer /*<'a>*/ {
             if c == '\"' && s.chars().last() != Some('\\') {
                 s.push(self.consume().unwrap());
                 let token = self.emit_token(StrLit, &s);
-                return Ok(token)
+                return Ok(token);
             } else {
                 let c = self.consume().unwrap();
                 s.push(c);
                 if Self::is_bidi(c) {
                     let token = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(0, token.loc(), switch_lang!(
+                    return Err(LexError::syntax_error(
+                        0,
+                        token.loc(),
+                        switch_lang!(
                         "invalid unicode character (bi-directional override) in string literal",
                         "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています"
-                    ), None))
+                    ),
+                        None,
+                    ));
                 }
             }
         }
         let token = self.emit_token(Illegal, &s);
-        Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-            "the string is not closed by \"",
-            "文字列が\"によって閉じられていません"
-        ), None))
+        Err(LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "the string is not closed by \"",
+                "文字列が\"によって閉じられていません"
+            ),
+            None,
+        ))
     }
 }
 
@@ -467,14 +534,16 @@ impl Iterator for Lexer /*<'a>*/ {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.prev_token.is(TokenKind::EOF) {
-            return None
+            return None;
         }
         let indent_dedent = self.lex_space_indent_dedent();
         if indent_dedent.is_some() {
-            return indent_dedent
+            return indent_dedent;
         }
         if let Some('#') = self.peek_cur_ch() {
-            if let Err(e) = self.lex_comment() { return Some(Err(e)) }
+            if let Err(e) = self.lex_comment() {
+                return Some(Err(e));
+            }
         }
         match self.consume() {
             Some('(') => self.accept(LParen, "("),
@@ -497,10 +566,12 @@ impl Iterator for Lexer /*<'a>*/ {
                         }
                     } else {
                         let token = self.emit_token(Illegal, "<.");
-                        Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                            "no such operator: <.",
-                            "<.という演算子はありません"
-                        ), None)))
+                        Some(Err(LexError::syntax_error(
+                            0,
+                            token.loc(),
+                            switch_lang!("no such operator: <.", "<.という演算子はありません"),
+                            None,
+                        )))
                     }
                 }
                 Some('=') => {
@@ -524,30 +595,24 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
                 _ => self.accept(Gre, ">"),
             },
-            Some('.') => {
-                match self.peek_cur_ch() {
-                    Some('.') => {
-                        self.consume();
-                        match self.peek_cur_ch() {
-                            Some('<') => {
-                                self.consume();
-                                self.accept(RightOpen, "..<")
-                            },
-                            Some('.') => {
-                                self.consume();
-                                self.accept(EllipsisLit, "...")
-                            },
-                            _ => {
-                                self.accept(Closed, "..")
-                            }
+            Some('.') => match self.peek_cur_ch() {
+                Some('.') => {
+                    self.consume();
+                    match self.peek_cur_ch() {
+                        Some('<') => {
+                            self.consume();
+                            self.accept(RightOpen, "..<")
                         }
+                        Some('.') => {
+                            self.consume();
+                            self.accept(EllipsisLit, "...")
+                        }
+                        _ => self.accept(Closed, ".."),
                     }
-                    Some(c) if c.is_ascii_digit() => {
-                        Some(self.lex_ratio(".".into()))
-                    }
-                    _ => self.accept(Dot, ".")
                 }
-            }
+                Some(c) if c.is_ascii_digit() => Some(self.lex_ratio(".".into())),
+                _ => self.accept(Dot, "."),
+            },
             Some(',') => self.accept(Comma, ","),
             Some(':') => match self.peek_cur_ch() {
                 Some(':') => {
@@ -570,21 +635,17 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.accept(Amper, "&")
                 }
             }
-            Some('|') => {
-                match self.peek_cur_ch() {
-                    Some('|') => {
-                        self.consume();
-                        self.accept(BitOr, "||")
-                    }
-                    Some('=') => {
-                        self.consume();
-                        self.accept(OrEqual, "|=")
-                    }
-                    _ => {
-                        self.accept(VBar, "|")
-                    }
+            Some('|') => match self.peek_cur_ch() {
+                Some('|') => {
+                    self.consume();
+                    self.accept(BitOr, "||")
                 }
-            }
+                Some('=') => {
+                    self.consume();
+                    self.accept(OrEqual, "|=")
+                }
+                _ => self.accept(VBar, "|"),
+            },
             Some('^') => {
                 if let Some('^') = self.peek_cur_ch() {
                     self.consume();
@@ -596,7 +657,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some('~') => self.accept(PreBitNot, "~"),
             // TODO:
             Some('$') => self.deny_feature("$", "shared variables"),
-            Some('@') =>  self.accept(AtSign, "@"),
+            Some('@') => self.accept(AtSign, "@"),
             Some('=') => match self.peek_cur_ch() {
                 Some('=') => {
                     self.consume();
@@ -635,7 +696,11 @@ impl Iterator for Lexer /*<'a>*/ {
                         self.accept(Minus, "-")
                     } else {
                         // IntLit (negative number)
-                        if self.peek_cur_ch().map(|t| t.is_ascii_digit()).unwrap_or(false) {
+                        if self
+                            .peek_cur_ch()
+                            .map(|t| t.is_ascii_digit())
+                            .unwrap_or(false)
+                        {
                             Some(self.lex_num('-'))
                         } else {
                             self.accept(Minus, "-")
@@ -675,10 +740,12 @@ impl Iterator for Lexer /*<'a>*/ {
             }
             Some('\t') => {
                 let token = self.emit_token(Illegal, "\t");
-                Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                    "cannot use a tab as a space",
-                    "タブ文字は使用できません"
-                ), Some(switch_lang!("use spaces", "スペースを使用してください").into()))))
+                Some(Err(LexError::syntax_error(
+                    0,
+                    token.loc(),
+                    switch_lang!("cannot use a tab as a space", "タブ文字は使用できません"),
+                    Some(switch_lang!("use spaces", "スペースを使用してください").into()),
+                )))
             }
             // TODO:
             Some('\\') => self.deny_feature("\\", "ignoring line break"),
@@ -693,22 +760,32 @@ impl Iterator for Lexer /*<'a>*/ {
                 while let Some(c) = self.consume() {
                     if c == '`' {
                         if Self::is_definable_operator(&op[..]) {
-                            return self.accept(Symbol, &op)
+                            return self.accept(Symbol, &op);
                         } else {
                             let token = self.emit_token(Illegal, &op);
-                            return Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                                format!("`{}` cannot be defined by user", &token.content),
-                                format!("`{}`はユーザー定義できません", &token.content)
-                            ), None)))
+                            return Some(Err(LexError::syntax_error(
+                                0,
+                                token.loc(),
+                                switch_lang!(
+                                    format!("`{}` cannot be defined by user", &token.content),
+                                    format!("`{}`はユーザー定義できません", &token.content)
+                                ),
+                                None,
+                            )));
                         }
                     }
                     op.push(c);
                 }
                 let token = self.emit_token(Illegal, &op);
-                Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                    format!("back quotes (`) not closed"),
-                    format!("バッククォート(`)が閉じられていません")
-                ), None)))
+                Some(Err(LexError::syntax_error(
+                    0,
+                    token.loc(),
+                    switch_lang!(
+                        format!("back quotes (`) not closed"),
+                        format!("バッククォート(`)が閉じられていません")
+                    ),
+                    None,
+                )))
             }
             // IntLit or RatioLit
             Some(n) if n.is_ascii_digit() => Some(self.lex_num(n)),
@@ -717,10 +794,15 @@ impl Iterator for Lexer /*<'a>*/ {
             // Invalid character (e.g. space-like character)
             Some(invalid) => {
                 let token = self.emit_token(Illegal, &invalid.to_string());
-                Some(Err(LexError::syntax_error(0, token.loc(), switch_lang!(
-                    format!("invalid character: '{invalid}'"),
-                    format!("この文字は使用できません: '{invalid}'")
-                ), None)))
+                Some(Err(LexError::syntax_error(
+                    0,
+                    token.loc(),
+                    switch_lang!(
+                        format!("invalid character: '{invalid}'"),
+                        format!("この文字は使用できません: '{invalid}'")
+                    ),
+                    None,
+                )))
             }
             None => {
                 if self.indent_stack.len() == 0 {

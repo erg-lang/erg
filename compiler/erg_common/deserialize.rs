@@ -1,17 +1,17 @@
 //! バイトコードからオブジェクトを復元する
-use std::string::FromUtf8Error;
 use std::process;
+use std::string::FromUtf8Error;
 
-use crate::{Str, RcArray};
 use crate::cache::Cache;
-use crate::{fn_name, switch_lang};
-use crate::serialize::DataTypePrefix;
 use crate::codeobj::CodeObj;
 use crate::config::{ErgConfig, Input};
-use crate::value::ValueObj;
-use crate::error::{ErrorCore, Location, ErrorKind};
+use crate::error::{ErrorCore, ErrorKind, Location};
+use crate::serialize::DataTypePrefix;
 use crate::traits::HasType;
-use crate::ty::{Type, TyParam};
+use crate::ty::{TyParam, Type};
+use crate::value::ValueObj;
+use crate::{fn_name, switch_lang};
+use crate::{RcArray, Str};
 
 #[derive(Debug)]
 pub struct DeserializeError {
@@ -34,24 +34,51 @@ impl From<FromUtf8Error> for DeserializeError {
 
 impl From<DeserializeError> for ErrorCore {
     fn from(err: DeserializeError) -> Self {
-        ErrorCore::new(err.errno, ErrorKind::ImportError, Location::Unknown, err.desc, Option::<Str>::None)
+        ErrorCore::new(
+            err.errno,
+            ErrorKind::ImportError,
+            Location::Unknown,
+            err.desc,
+            Option::<Str>::None,
+        )
     }
 }
 
 impl DeserializeError {
     pub fn new<S: Into<Str>, T: Into<Str>>(errno: usize, caused_by: S, desc: T) -> Self {
-        Self { errno, caused_by: caused_by.into(), desc: desc.into() }
+        Self {
+            errno,
+            caused_by: caused_by.into(),
+            desc: desc.into(),
+        }
     }
 
     pub fn file_broken_error() -> Self {
-        Self::new(0, fn_name!(), switch_lang!("the loaded .pyc file is broken", "読み込んだ.pycファイルは破損しています"))
+        Self::new(
+            0,
+            fn_name!(),
+            switch_lang!(
+                "the loaded .pyc file is broken",
+                "読み込んだ.pycファイルは破損しています"
+            ),
+        )
     }
 
     pub fn type_error(expect: &Type, found: &Type) -> Self {
-        Self::new(0, fn_name!(), switch_lang!(
-            format!("expect a {} object, but the deserialized object is {}", expect, found),
-            format!("{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です", expect, found)
-        ))
+        Self::new(
+            0,
+            fn_name!(),
+            switch_lang!(
+                format!(
+                    "expect a {} object, but the deserialized object is {}",
+                    expect, found
+                ),
+                format!(
+                    "{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です",
+                    expect, found
+                )
+            ),
+        )
     }
 }
 
@@ -73,12 +100,14 @@ impl Deserializer {
     }
 
     pub fn run(cfg: ErgConfig) {
-        let filename = if let Input::File(f) = cfg.input { f } else {
+        let filename = if let Input::File(f) = cfg.input {
+            f
+        } else {
             eprintln!("{:?} is not a filename", cfg.input);
             process::exit(1);
         };
-        let codeobj = CodeObj::from_pyc(&filename[..])
-            .expect(&format!("failed to deserialize {filename}"));
+        let codeobj =
+            CodeObj::from_pyc(&filename[..]).expect(&format!("failed to deserialize {filename}"));
         println!("{}", codeobj.code_info());
     }
 
@@ -111,26 +140,30 @@ impl Deserializer {
         u32::from_le_bytes(Self::consume::<4>(v))
     }
 
-    pub fn deserialize_const(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<ValueObj> {
+    pub fn deserialize_const(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: u32,
+    ) -> DeserializeResult<ValueObj> {
         match DataTypePrefix::from(v.remove(0)) {
             DataTypePrefix::Int32 => {
                 let bytes = Self::consume::<4>(v);
                 Ok(ValueObj::Int(i32::from_le_bytes(bytes)))
-            },
+            }
             DataTypePrefix::BinFloat => {
                 let bytes = Self::consume::<8>(v);
                 Ok(ValueObj::Float(f64::from_le_bytes(bytes)))
-            },
+            }
             DataTypePrefix::ShortAscii | DataTypePrefix::ShortAsciiInterned => {
                 let len = v.remove(0);
                 let bytes = v.drain(..len as usize).collect();
                 Ok(self.get_cached_str(&String::from_utf8(bytes)?))
-            },
-            DataTypePrefix::Str | DataTypePrefix::Unicode  => {
+            }
+            DataTypePrefix::Str | DataTypePrefix::Unicode => {
                 let len = Self::deserialize_u32(v);
                 let bytes = v.drain(..len as usize).collect();
                 Ok(self.get_cached_str(&String::from_utf8(bytes)?))
-            },
+            }
             DataTypePrefix::True => Ok(ValueObj::True),
             DataTypePrefix::False => Ok(ValueObj::False),
             DataTypePrefix::SmallTuple => {
@@ -140,7 +173,7 @@ impl Deserializer {
                     arr.push(self.deserialize_const(v, python_ver)?);
                 }
                 Ok(self.get_cached_arr(&arr))
-            },
+            }
             DataTypePrefix::Tuple => {
                 let len = Self::deserialize_u32(v);
                 let mut arr = Vec::with_capacity(len as usize);
@@ -148,15 +181,18 @@ impl Deserializer {
                     arr.push(self.deserialize_const(v, python_ver)?);
                 }
                 Ok(self.get_cached_arr(&arr))
-            },
+            }
             DataTypePrefix::Code => {
                 let argcount = Self::deserialize_u32(v);
-                let posonlyargcount =
-                    if python_ver >= 3413 { Self::deserialize_u32(v) } else { 0 };
+                let posonlyargcount = if python_ver >= 3413 {
+                    Self::deserialize_u32(v)
+                } else {
+                    0
+                };
                 let kwonlyargcount = Self::deserialize_u32(v);
                 let nlocals = Self::deserialize_u32(v);
-                let stacksize  = Self::deserialize_u32(v);
-                let flags  = Self::deserialize_u32(v);
+                let stacksize = Self::deserialize_u32(v);
+                let flags = Self::deserialize_u32(v);
                 let code = self.deserialize_bytes(v)?;
                 let consts = self.deserialize_const_vec(v, python_ver)?;
                 let names = self.deserialize_str_vec(v, python_ver)?;
@@ -183,30 +219,40 @@ impl Deserializer {
                     filename,
                     name,
                     firstlineno,
-                    lnotab
+                    lnotab,
                 )))
-            },
+            }
             DataTypePrefix::None => Ok(ValueObj::None),
-            other => {
-                Err(DeserializeError::new(0, fn_name!(), switch_lang!(
+            other => Err(DeserializeError::new(
+                0,
+                fn_name!(),
+                switch_lang!(
                     format!("cannot deserialize this object: {}", other),
                     format!("このオブジェクトは復元できません: {}", other)
-                )))
-            },
+                ),
+            )),
         }
     }
 
-    pub fn deserialize_const_vec(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Vec<ValueObj>> {
+    pub fn deserialize_const_vec(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: u32,
+    ) -> DeserializeResult<Vec<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t()))
+            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
         }
     }
 
-    pub fn deserialize_const_array(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<RcArray<ValueObj>> {
+    pub fn deserialize_const_array(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: u32,
+    ) -> DeserializeResult<RcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t()))
+            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
         }
     }
 
@@ -217,11 +263,15 @@ impl Deserializer {
     pub fn try_into_str(&mut self, c: ValueObj) -> DeserializeResult<Str> {
         match c {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t()))
+            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
         }
     }
 
-    pub fn deserialize_str_vec(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Vec<Str>> {
+    pub fn deserialize_str_vec(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: u32,
+    ) -> DeserializeResult<Vec<Str>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => {
                 let mut strs = Vec::with_capacity(arr.len());
@@ -230,14 +280,17 @@ impl Deserializer {
                 }
                 Ok(strs)
             }
-            other => Err(DeserializeError::type_error(&Type::array(Type::Str, TyParam::erased(Type::Nat)), &other.ref_t()))
+            other => Err(DeserializeError::type_error(
+                &Type::array(Type::Str, TyParam::erased(Type::Nat)),
+                &other.ref_t(),
+            )),
         }
     }
 
     pub fn deserialize_str(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Str> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t()))
+            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
         }
     }
 
@@ -247,7 +300,7 @@ impl Deserializer {
                 0,
                 fn_name!(),
                 switch_lang!("failed to load bytes", "バイト列の読み込みに失敗しました"),
-            ))
+            ));
         }
         let len = Self::deserialize_u32(v);
         Ok(v.drain(0..len as usize).collect())

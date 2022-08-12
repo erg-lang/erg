@@ -130,7 +130,11 @@ mod tests {
         let cfg = ErgConfig::new("exec", 1, false, None, input.clone(), "<module>", 2);
         let lexer = Lexer::new(input.clone());
         let mut parser = ParserRunner::new(cfg);
-        match parser.parse(lexer.lex().map_err(|errs| ParserRunnerErrors::convert(&input, errs))?) {
+        match parser.parse(
+            lexer
+                .lex()
+                .map_err(|errs| ParserRunnerErrors::convert(&input, errs))?,
+        ) {
             Ok(module) => {
                 println!("{module}");
                 Ok(())

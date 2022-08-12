@@ -2,13 +2,13 @@
 //! SideEffectCheckerを実装
 //! 関数や不変型に副作用がないかチェックする
 
-use erg_common::Str;
 use erg_common::color::{GREEN, RESET};
 use erg_common::log;
 use erg_common::traits::Stream;
+use erg_common::Str;
 
 use crate::error::{EffectError, EffectErrors, EffectResult};
-use crate::hir::{HIR, Expr, Def, Accessor, Signature};
+use crate::hir::{Accessor, Def, Expr, Signature, HIR};
 use crate::varinfo::Visibility;
 use Visibility::*;
 
@@ -19,12 +19,23 @@ pub struct SideEffectChecker {
 }
 
 impl SideEffectChecker {
-    pub fn new() -> Self { Self { path_stack: vec![], errs: EffectErrors::empty() } }
+    pub fn new() -> Self {
+        Self {
+            path_stack: vec![],
+            errs: EffectErrors::empty(),
+        }
+    }
 
     fn full_path(&self) -> String {
-        self.path_stack.iter().fold(String::new(), |acc, (path, vis)| {
-            if vis.is_public() { acc + "." + &path[..] } else { acc + "::" + &path[..] }
-        })
+        self.path_stack
+            .iter()
+            .fold(String::new(), |acc, (path, vis)| {
+                if vis.is_public() {
+                    acc + "." + &path[..]
+                } else {
+                    acc + "::" + &path[..]
+                }
+            })
     }
 
     pub fn check(mut self, hir: HIR) -> EffectResult<HIR> {
@@ -33,7 +44,9 @@ impl SideEffectChecker {
         // トップレベルでは副作用があっても問題なく、純粋性違反がないかのみチェックする
         for expr in hir.module.iter() {
             match expr {
-                Expr::Def(def) => { self.check_def(def, true); },
+                Expr::Def(def) => {
+                    self.check_def(def, true);
+                }
                 Expr::Call(call) => {
                     for parg in call.args.pos_args().iter() {
                         self.check_expr(&parg.expr, true);
@@ -41,7 +54,7 @@ impl SideEffectChecker {
                     for kwarg in call.args.kw_args().iter() {
                         self.check_expr(&kwarg.expr, true);
                     }
-                },
+                }
                 other => todo!("{other}"),
             }
         }
@@ -56,9 +69,14 @@ impl SideEffectChecker {
     fn check_def(&mut self, def: &Def, allow_inner_effect: bool) {
         let name_and_vis = match &def.sig {
             Signature::Var(var) =>
-                // TODO: visibility
-                if let Some(name) = var.inspect() { (name.clone(), Private) }
-                else { (Str::ever("::<instant>"), Private) },
+            // TODO: visibility
+            {
+                if let Some(name) = var.inspect() {
+                    (name.clone(), Private)
+                } else {
+                    (Str::ever("::<instant>"), Private)
+                }
+            }
             Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
         };
         self.path_stack.push(name_and_vis);
@@ -71,23 +89,28 @@ impl SideEffectChecker {
             (true, _) => {
                 if !allow_inner_effect {
                     let expr = Expr::Def(def.clone());
-                    self.errs.push(
-                        EffectError::has_effect(&expr, self.full_path())
-                    );
+                    self.errs
+                        .push(EffectError::has_effect(&expr, self.full_path()));
                 }
                 for chunk in def.body.block.iter() {
                     self.check_expr(chunk, allow_inner_effect);
                 }
-            },
+            }
             (false, false) => {
                 for chunk in def.body.block.iter() {
                     self.check_expr(chunk, allow_inner_effect);
                 }
-            },
-            (false, true) => { self.check_func(def); },
+            }
+            (false, true) => {
+                self.check_func(def);
+            }
         }
-        if is_const { self.check_const(def); }
-        if !is_procedural && is_type { self.check_immut_type(def); }
+        if is_const {
+            self.check_const(def);
+        }
+        if !is_procedural && is_type {
+            self.check_immut_type(def);
+        }
         self.path_stack.pop();
     }
 
@@ -128,30 +151,31 @@ impl SideEffectChecker {
     /// ```
     fn check_expr(&mut self, expr: &Expr, allow_self_effect: bool) {
         match expr {
-            Expr::Def(def) => { self.check_def(def, allow_self_effect); },
+            Expr::Def(def) => {
+                self.check_def(def, allow_self_effect);
+            }
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
                 if self.is_procedural(&call.obj) && !allow_self_effect {
-                    self.errs.push(
-                        EffectError::has_effect(expr, self.full_path())
-                    );
+                    self.errs
+                        .push(EffectError::has_effect(expr, self.full_path()));
                 }
                 call.args
                     .pos_args()
                     .iter()
-                    .for_each(|parg|self.check_expr(&parg.expr, allow_self_effect));
+                    .for_each(|parg| self.check_expr(&parg.expr, allow_self_effect));
                 call.args
                     .kw_args()
                     .iter()
                     .for_each(|kwarg| self.check_expr(&kwarg.expr, allow_self_effect));
-            },
+            }
             Expr::UnaryOp(unary) => {
                 self.check_expr(&unary.expr, allow_self_effect);
-            },
+            }
             Expr::BinOp(bin) => {
                 self.check_expr(&bin.lhs, allow_self_effect);
                 self.check_expr(&bin.rhs, allow_self_effect);
-            },
+            }
             Expr::Lambda(lambda) => {
                 let is_proc = lambda.is_procedural();
                 if is_proc {
@@ -160,14 +184,16 @@ impl SideEffectChecker {
                     self.path_stack.push((Str::ever("<lambda>"), Private));
                 }
                 if !allow_self_effect && is_proc {
-                    self.errs.push(EffectError::has_effect(expr, self.full_path()));
+                    self.errs
+                        .push(EffectError::has_effect(expr, self.full_path()));
                 }
-                lambda.body
+                lambda
+                    .body
                     .iter()
                     .for_each(|chunk| self.check_expr(chunk, allow_self_effect && is_proc));
                 self.path_stack.pop();
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 

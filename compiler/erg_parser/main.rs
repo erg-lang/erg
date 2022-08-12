@@ -12,8 +12,12 @@ use erg_parser::ParserRunner;
 fn main() {
     let cfg = ErgConfig::parse();
     match cfg.mode {
-        "lex" => { LexerRunner::run(cfg); }
-        "parse" | "exec" => { ParserRunner::run(cfg); }
+        "lex" => {
+            LexerRunner::run(cfg);
+        }
+        "parse" | "exec" => {
+            ParserRunner::run(cfg);
+        }
         other => {
             println!("invalid mode: {other}");
             process::exit(1);

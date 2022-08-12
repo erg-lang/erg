@@ -1,5 +1,5 @@
-use std::io::{stdin, BufReader, BufRead};
 use std::cell::RefCell;
+use std::io::{stdin, BufRead, BufReader};
 
 use crate::Str;
 
@@ -24,7 +24,7 @@ impl StdinReader {
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<Str> {
-        self.buf[ln_begin-1..=ln_end-1].to_vec()
+        self.buf[ln_begin - 1..=ln_end - 1].to_vec()
     }
 }
 

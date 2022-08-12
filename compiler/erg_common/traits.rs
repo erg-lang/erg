@@ -1,18 +1,18 @@
 //! defines common traits used in the compiler.
 //!
 //! コンパイラ等で汎用的に使われるトレイトを定義する
+use std::io::{stdout, BufWriter, Write};
+use std::mem;
+use std::process;
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
-use std::io::{BufWriter, Write, stdout};
-use std::process;
-use std::mem;
 
-use crate::Str;
-use crate::{addr_eq, switch_unreachable, chomp, log};
 use crate::color::{GREEN, RESET};
 use crate::config::{ErgConfig, Input};
-use crate::error::{Location, ErrorDisplay, MultiErrorDisplay};
+use crate::error::{ErrorDisplay, Location, MultiErrorDisplay};
 use crate::ty::Type;
+use crate::Str;
+use crate::{addr_eq, chomp, log, switch_unreachable};
 
 pub trait Stream<T>: Sized {
     fn payload(self) -> Vec<T>;
@@ -20,17 +20,23 @@ pub trait Stream<T>: Sized {
     fn ref_mut_payload(&mut self) -> &mut Vec<T>;
 
     #[inline]
-    fn clear(&mut self) { self.ref_mut_payload().clear(); }
+    fn clear(&mut self) {
+        self.ref_mut_payload().clear();
+    }
 
     #[inline]
-    fn len(&self) -> usize { self.ref_payload().len() }
+    fn len(&self) -> usize {
+        self.ref_payload().len()
+    }
 
     fn size(&self) -> usize {
         std::mem::size_of::<Vec<T>>() + std::mem::size_of::<T>() * self.ref_payload().capacity()
     }
 
     #[inline]
-    fn is_empty(&self) -> bool { self.ref_payload().is_empty() }
+    fn is_empty(&self) -> bool {
+        self.ref_payload().is_empty()
+    }
 
     #[inline]
     fn insert(&mut self, idx: usize, elem: T) {
@@ -38,89 +44,141 @@ pub trait Stream<T>: Sized {
     }
 
     #[inline]
-    fn remove(&mut self, idx: usize) -> T { self.ref_mut_payload().remove(idx) }
-
-    #[inline]
-    fn push(&mut self, elem: T) { self.ref_mut_payload().push(elem); }
-
-    fn append<S: Stream<T>>(&mut self, s: &mut S) { self.ref_mut_payload().append(s.ref_mut_payload()); }
-
-    #[inline]
-    fn pop(&mut self) -> Option<T> { self.ref_mut_payload().pop() }
-
-    fn lpop(&mut self) -> Option<T> {
-        let len = self.len();
-        if len == 0 { None } else { Some(self.ref_mut_payload().remove(0)) }
+    fn remove(&mut self, idx: usize) -> T {
+        self.ref_mut_payload().remove(idx)
     }
 
     #[inline]
-    fn get(&self, idx: usize) -> Option<&T> { self.ref_payload().get(idx) }
+    fn push(&mut self, elem: T) {
+        self.ref_mut_payload().push(elem);
+    }
+
+    fn append<S: Stream<T>>(&mut self, s: &mut S) {
+        self.ref_mut_payload().append(s.ref_mut_payload());
+    }
 
     #[inline]
-    fn get_mut(&mut self, idx: usize) -> Option<&mut T> { self.ref_mut_payload().get_mut(idx) }
+    fn pop(&mut self) -> Option<T> {
+        self.ref_mut_payload().pop()
+    }
+
+    fn lpop(&mut self) -> Option<T> {
+        let len = self.len();
+        if len == 0 {
+            None
+        } else {
+            Some(self.ref_mut_payload().remove(0))
+        }
+    }
 
     #[inline]
-    fn first(&self) -> Option<&T> { self.ref_payload().first() }
+    fn get(&self, idx: usize) -> Option<&T> {
+        self.ref_payload().get(idx)
+    }
 
     #[inline]
-    fn first_mut(&mut self) -> Option<&mut T> { self.ref_mut_payload().first_mut() }
+    fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
+        self.ref_mut_payload().get_mut(idx)
+    }
 
     #[inline]
-    fn last(&self) -> Option<&T> { self.ref_payload().last() }
+    fn first(&self) -> Option<&T> {
+        self.ref_payload().first()
+    }
 
     #[inline]
-    fn last_mut(&mut self) -> Option<&mut T> { self.ref_mut_payload().last_mut() }
+    fn first_mut(&mut self) -> Option<&mut T> {
+        self.ref_mut_payload().first_mut()
+    }
 
     #[inline]
-    fn iter(&self) -> Iter<'_, T> { self.ref_payload().iter() }
+    fn last(&self) -> Option<&T> {
+        self.ref_payload().last()
+    }
 
     #[inline]
-    fn iter_mut(&mut self) -> IterMut<'_, T> { self.ref_mut_payload().iter_mut() }
+    fn last_mut(&mut self) -> Option<&mut T> {
+        self.ref_mut_payload().last_mut()
+    }
 
     #[inline]
-    fn into_iter(self) -> IntoIter<T> { self.payload().into_iter() }
+    fn iter(&self) -> Iter<'_, T> {
+        self.ref_payload().iter()
+    }
 
     #[inline]
-    fn take_all(&mut self) -> Vec<T> { self.ref_mut_payload().drain(..).collect() }
+    fn iter_mut(&mut self) -> IterMut<'_, T> {
+        self.ref_mut_payload().iter_mut()
+    }
+
+    #[inline]
+    fn into_iter(self) -> IntoIter<T> {
+        self.payload().into_iter()
+    }
+
+    #[inline]
+    fn take_all(&mut self) -> Vec<T> {
+        self.ref_mut_payload().drain(..).collect()
+    }
 }
 
 #[macro_export]
 macro_rules! impl_displayable_stream_for_wrapper {
     ($Strc: ident, $Inner: ident) => {
         impl $Strc {
-            pub const fn new(v: Vec<$Inner>) -> $Strc { $Strc(v) }
+            pub const fn new(v: Vec<$Inner>) -> $Strc {
+                $Strc(v)
+            }
             #[inline]
-            pub fn empty() -> $Strc { $Strc(Vec::with_capacity(20)) }
+            pub fn empty() -> $Strc {
+                $Strc(Vec::with_capacity(20))
+            }
         }
 
         impl From<Vec<$Inner>> for $Strc {
             #[inline]
-            fn from(errs: Vec<$Inner>) -> Self { Self(errs) }
+            fn from(errs: Vec<$Inner>) -> Self {
+                Self(errs)
+            }
         }
 
         impl std::fmt::Display for $Strc {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "[{}]", erg_common::fmt_iter(self.iter()).replace("\n", "\\n"))
+                write!(
+                    f,
+                    "[{}]",
+                    erg_common::fmt_iter(self.iter()).replace("\n", "\\n")
+                )
             }
         }
 
         impl Default for $Strc {
             #[inline]
-            fn default() -> Self { Self::empty() }
+            fn default() -> Self {
+                Self::empty()
+            }
         }
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::Stream::get(self, idx).unwrap()
+            }
         }
 
         impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
-            fn payload(self) -> Vec<$Inner> { self.0 }
+            fn payload(self) -> Vec<$Inner> {
+                self.0
+            }
             #[inline]
-            fn ref_payload(&self) -> &Vec<$Inner> { &self.0 }
+            fn ref_payload(&self) -> &Vec<$Inner> {
+                &self.0
+            }
             #[inline]
-            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> { &mut self.0 }
+            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
+                &mut self.0
+            }
         }
     };
 }
@@ -129,31 +187,47 @@ macro_rules! impl_displayable_stream_for_wrapper {
 macro_rules! impl_stream_for_wrapper {
     ($Strc: ident, $Inner: ident) => {
         impl $Strc {
-            pub const fn new(v: Vec<$Inner>) -> $Strc { $Strc(v) }
-            pub const fn empty() -> $Strc { $Strc(Vec::new()) }
+            pub const fn new(v: Vec<$Inner>) -> $Strc {
+                $Strc(v)
+            }
+            pub const fn empty() -> $Strc {
+                $Strc(Vec::new())
+            }
             #[inline]
-            pub fn with_capacity(capacity: usize) -> $Strc { $Strc(Vec::with_capacity(capacity)) }
+            pub fn with_capacity(capacity: usize) -> $Strc {
+                $Strc(Vec::with_capacity(capacity))
+            }
         }
 
         impl Default for $Strc {
             #[inline]
-            fn default() -> $Strc { $Strc::with_capacity(0) }
+            fn default() -> $Strc {
+                $Strc::with_capacity(0)
+            }
         }
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::Stream::get(self, idx).unwrap()
+            }
         }
 
         impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
-            fn payload(self) -> Vec<$Inner> { self.0 }
+            fn payload(self) -> Vec<$Inner> {
+                self.0
+            }
             #[inline]
-            fn ref_payload(&self) -> &Vec<$Inner> { &self.0 }
+            fn ref_payload(&self) -> &Vec<$Inner> {
+                &self.0
+            }
             #[inline]
-            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> { &mut self.0 }
+            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
+                &mut self.0
+            }
         }
-    }
+    };
 }
 
 #[macro_export]
@@ -161,18 +235,26 @@ macro_rules! impl_stream {
     ($Strc: ident, $Inner: ident, $field: ident) => {
         impl erg_common::traits::Stream<$Inner> for $Strc {
             #[inline]
-            fn payload(self) -> Vec<$Inner> { self.$field }
+            fn payload(self) -> Vec<$Inner> {
+                self.$field
+            }
             #[inline]
-            fn ref_payload(&self) -> &Vec<$Inner> { &self.$field }
+            fn ref_payload(&self) -> &Vec<$Inner> {
+                &self.$field
+            }
             #[inline]
-            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> { &mut self.$field }
+            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
+                &mut self.$field
+            }
         }
 
         impl std::ops::Index<usize> for $Strc {
             type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output { erg_common::traits::Stream::get(self, idx).unwrap() }
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::Stream::get(self, idx).unwrap()
+            }
         }
-    }
+    };
 }
 
 pub trait ImmutableStream<T>: Sized {
@@ -180,33 +262,48 @@ pub trait ImmutableStream<T>: Sized {
     fn capacity(&self) -> usize;
 
     #[inline]
-    fn len(&self) -> usize { self.ref_payload().len() }
+    fn len(&self) -> usize {
+        self.ref_payload().len()
+    }
 
     fn size(&self) -> usize {
         std::mem::size_of::<Vec<T>>() + std::mem::size_of::<T>() * self.capacity()
     }
 
     #[inline]
-    fn is_empty(&self) -> bool { self.ref_payload().is_empty() }
+    fn is_empty(&self) -> bool {
+        self.ref_payload().is_empty()
+    }
 
     #[inline]
-    fn get(&self, idx: usize) -> Option<&T> { self.ref_payload().get(idx) }
+    fn get(&self, idx: usize) -> Option<&T> {
+        self.ref_payload().get(idx)
+    }
 
     #[inline]
-    fn first(&self) -> Option<&T> { self.ref_payload().first() }
+    fn first(&self) -> Option<&T> {
+        self.ref_payload().first()
+    }
 
     #[inline]
-    fn last(&self) -> Option<&T> { self.ref_payload().last() }
+    fn last(&self) -> Option<&T> {
+        self.ref_payload().last()
+    }
 
     #[inline]
-    fn iter(&self) -> Iter<'_, T> { self.ref_payload().iter() }
+    fn iter(&self) -> Iter<'_, T> {
+        self.ref_payload().iter()
+    }
 }
 
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
-    src.ends_with(&['=', ':']) || src.ends_with(":=")
-    || src.ends_with("->") || src.ends_with("=>")
-    || src.ends_with("do") || src.ends_with("do!")
+    src.ends_with(&['=', ':'])
+        || src.ends_with(":=")
+        || src.ends_with("->")
+        || src.ends_with("=>")
+        || src.ends_with("do")
+        || src.ends_with("do!")
 }
 
 /// this trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -220,11 +317,17 @@ pub trait Runnable: Sized {
     fn clear(&mut self);
     fn eval(&mut self, src: Str) -> Result<String, Self::Errs>;
 
-    fn ps1(&self) -> String { ">>> ".to_string() } // TODO: &str (VMのせいで参照をとれない)
-    fn ps2(&self) -> String { "... ".to_string() }
+    fn ps1(&self) -> String {
+        ">>> ".to_string()
+    } // TODO: &str (VMのせいで参照をとれない)
+    fn ps2(&self) -> String {
+        "... ".to_string()
+    }
 
     #[inline]
-    fn quit(&self, code: i32) { process::exit(code); }
+    fn quit(&self, code: i32) {
+        process::exit(code);
+    }
 
     fn run(cfg: ErgConfig) {
         let mut instance = Self::new(cfg);
@@ -264,14 +367,16 @@ pub trait Runnable: Sized {
                         Ok(out) => {
                             output.write((out + "\n").as_bytes()).unwrap();
                             output.flush().unwrap();
-                        },
-                        Err(e) => { e.fmt_all_stderr(); }
+                        }
+                        Err(e) => {
+                            e.fmt_all_stderr();
+                        }
                     }
                     output.write(instance.ps1().as_bytes()).unwrap();
                     output.flush().unwrap();
                     instance.clear();
                 }
-            },
+            }
             Input::Dummy => switch_unreachable!(),
         };
         if let Err(e) = res {
@@ -286,8 +391,8 @@ pub trait Locational {
 
     fn ln_begin(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair{ ln_begin, .. }
-            | Location::Range{ ln_begin, .. }
+            Location::RangePair { ln_begin, .. }
+            | Location::Range { ln_begin, .. }
             | Location::LineRange(ln_begin, _) => Some(ln_begin),
             Location::Line(lineno) => Some(lineno),
             Location::Unknown => None,
@@ -296,8 +401,8 @@ pub trait Locational {
 
     fn ln_end(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair{ ln_end, .. }
-            | Location::Range{ ln_end, .. }
+            Location::RangePair { ln_end, .. }
+            | Location::Range { ln_end, .. }
             | Location::LineRange(_, ln_end) => Some(ln_end),
             Location::Line(lineno) => Some(lineno),
             Location::Unknown => None,
@@ -306,14 +411,14 @@ pub trait Locational {
 
     fn col_begin(&self) -> Option<usize> {
         match self.loc() {
-            Location::Range{ col_begin, .. } => Some(col_begin),
+            Location::Range { col_begin, .. } => Some(col_begin),
             _ => None,
         }
     }
 
     fn col_end(&self) -> Option<usize> {
         match self.loc() {
-            Location::Range{ col_end, .. } => Some(col_end),
+            Location::Range { col_end, .. } => Some(col_end),
             _ => None,
         }
     }
@@ -337,7 +442,12 @@ macro_rules! impl_locational {
     ($T: ty, $begin: ident, $end: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {
-                match (self.$begin.ln_begin(), self.$begin.col_begin(), self.$end.ln_end(), self.$end.col_end()) {
+                match (
+                    self.$begin.ln_begin(),
+                    self.$begin.col_begin(),
+                    self.$end.ln_end(),
+                    self.$end.col_end(),
+                ) {
                     (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
                     (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
                     (Some(l), _, _, _) | (_, _, Some(l), _) => Location::Line(l),
@@ -386,13 +496,21 @@ pub trait HasType {
     // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
     fn signature_t(&self) -> Option<&Type>;
     #[inline]
-    fn t(&self) -> Type { self.ref_t().clone() }
+    fn t(&self) -> Type {
+        self.ref_t().clone()
+    }
     #[inline]
-    fn inner_ts(&self) -> Vec<Type> { self.ref_t().inner_ts() }
+    fn inner_ts(&self) -> Vec<Type> {
+        self.ref_t().inner_ts()
+    }
     #[inline]
-    fn lhs_t(&self) -> &Type { &self.ref_t().non_default_params().unwrap()[0].ty }
+    fn lhs_t(&self) -> &Type {
+        &self.ref_t().non_default_params().unwrap()[0].ty
+    }
     #[inline]
-    fn rhs_t(&self) -> &Type { &self.ref_t().non_default_params().unwrap()[1].ty }
+    fn rhs_t(&self) -> &Type {
+        &self.ref_t().non_default_params().unwrap()[1].ty
+    }
 }
 
 #[macro_export]
@@ -400,7 +518,9 @@ macro_rules! impl_t {
     ($T: ty, $t: ident) => {
         impl erg_common::traits::HasType for $T {
             #[inline]
-            fn ref_t(&self) -> &common::ty::Type { &common::ty::Type::$t }
+            fn ref_t(&self) -> &common::ty::Type {
+                &common::ty::Type::$t
+            }
         }
     };
 }
@@ -408,7 +528,9 @@ macro_rules! impl_t {
 /// Pythonではis演算子に相当
 pub trait AddrEq {
     #[inline]
-    fn addr_eq(&self, other: &Self) -> bool { addr_eq!(self, other) }
+    fn addr_eq(&self, other: &Self) -> bool {
+        addr_eq!(self, other)
+    }
 }
 
 pub trait __Str__ {

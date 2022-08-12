@@ -2,9 +2,9 @@
 //! and performs type checking and other optimizations if necessary.
 extern crate erg_common;
 
+pub mod ast;
 pub mod desugar;
 pub mod error;
-pub mod ast;
 pub mod lex;
 pub mod parse;
 pub mod token;

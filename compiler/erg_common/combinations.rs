@@ -26,32 +26,42 @@ pub struct TotalCombinations<I: Iterator> {
 /// ]);
 ///
 pub fn total_combinations<I>(iter: I) -> TotalCombinations<I>
-    where I: Iterator + ExactSizeIterator,
-          I::Item: Clone
+where
+    I: Iterator + ExactSizeIterator,
+    I::Item: Clone,
 {
-    TotalCombinations { len: iter.len(), combinations: combinations(iter, 1) }
+    TotalCombinations {
+        len: iter.len(),
+        combinations: combinations(iter, 1),
+    }
 }
 
 impl<I> Iterator for TotalCombinations<I>
-    where I: Iterator,
-          I::Item: Clone
+where
+    I: Iterator,
+    I::Item: Clone,
 {
     type Item = Vec<I::Item>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(i) = self.combinations.next() { return Some(i) }
-        else {
+        if let Some(i) = self.combinations.next() {
+            return Some(i);
+        } else {
             self.combinations.reset(self.combinations.k() + 1);
             self.len -= 1;
-            if self.len == 0 { return None }
+            if self.len == 0 {
+                return None;
+            }
             self.combinations.next()
         }
     }
 }
 
 impl<I> FusedIterator for TotalCombinations<I>
-    where I: Iterator,
-          I::Item: Clone
-{}
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+}
 
 macro_rules! debug_fmt_fields {
     ($tyname:ident, $($($field:tt/*TODO ideally we would accept ident or tuple element here*/).+),*) => {
@@ -86,22 +96,25 @@ pub struct Combinations<I: Iterator> {
 }
 
 impl<I> Clone for Combinations<I>
-    where I: Clone + Iterator,
-          I::Item: Clone,
+where
+    I: Clone + Iterator,
+    I::Item: Clone,
 {
     clone_fields!(indices, pool, first);
 }
 
 impl<I> fmt::Debug for Combinations<I>
-    where I: Iterator + fmt::Debug,
-          I::Item: fmt::Debug,
+where
+    I: Iterator + fmt::Debug,
+    I::Item: fmt::Debug,
 {
     debug_fmt_fields!(Combinations, indices, pool, first);
 }
 
 /// Create a new `Combinations` from a clonable iterator.
 pub fn combinations<I>(iter: I, k: usize) -> Combinations<I>
-    where I: Iterator
+where
+    I: Iterator,
 {
     let mut pool = LazyBuffer::new(iter);
     pool.prefill(k);
@@ -116,16 +129,22 @@ pub fn combinations<I>(iter: I, k: usize) -> Combinations<I>
 impl<I: Iterator> Combinations<I> {
     /// Returns the length of a combination produced by this iterator.
     #[inline]
-    pub fn k(&self) -> usize { self.indices.len() }
+    pub fn k(&self) -> usize {
+        self.indices.len()
+    }
 
     /// Returns the (current) length of the pool from which combination elements are
     /// selected. This value can change between invocations of [`next`](Combinations::next).
     #[inline]
-    pub fn n(&self) -> usize { self.pool.len() }
+    pub fn n(&self) -> usize {
+        self.pool.len()
+    }
 
     /// Returns a reference to the source iterator.
     #[inline]
-    pub fn src(&self) -> &I { &self.pool.it }
+    pub fn src(&self) -> &I {
+        &self.pool.it
+    }
 
     /// Resets this `Combinations` back to an initial state for combinations of length
     /// `k` over the same pool data source. If `k` is larger than the current length
@@ -139,7 +158,6 @@ impl<I: Iterator> Combinations<I> {
             for i in 0..k {
                 self.indices[i] = i;
             }
-
         } else {
             for i in 0..self.indices.len() {
                 self.indices[i] = i;
@@ -151,8 +169,9 @@ impl<I: Iterator> Combinations<I> {
 }
 
 impl<I> Iterator for Combinations<I>
-    where I: Iterator,
-          I::Item: Clone
+where
+    I: Iterator,
+    I::Item: Clone,
 {
     type Item = Vec<I::Item>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -183,7 +202,7 @@ impl<I> Iterator for Combinations<I>
 
             // Increment index, and reset the ones to its right
             self.indices[i] += 1;
-            for j in i+1..self.indices.len() {
+            for j in i + 1..self.indices.len() {
                 self.indices[j] = self.indices[j - 1] + 1;
             }
         }
@@ -194,6 +213,8 @@ impl<I> Iterator for Combinations<I>
 }
 
 impl<I> FusedIterator for Combinations<I>
-    where I: Iterator,
-          I::Item: Clone
-{}
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+}

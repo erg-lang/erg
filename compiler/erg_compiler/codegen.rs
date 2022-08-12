@@ -4,32 +4,35 @@
 use std::fmt;
 use std::process;
 
-use erg_common::Str;
 use erg_common::cache::Cache;
-use erg_common::{fn_name_full, enum_unwrap, switch_unreachable, debug_power_assert, log, impl_stream_for_wrapper};
 use erg_common::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
-use erg_common::value::ValueObj;
 use erg_common::opcode::Opcode;
-use Opcode::*;
 use erg_common::traits::{HasType, Locational, Stream};
 use erg_common::ty::{TypeCode, TypePair};
+use erg_common::value::ValueObj;
+use erg_common::Str;
+use erg_common::{
+    debug_power_assert, enum_unwrap, fn_name_full, impl_stream_for_wrapper, log, switch_unreachable,
+};
+use Opcode::*;
 
-use erg_parser::token::{Token, TokenKind, TokenCategory};
-use erg_parser::ast::{VarPattern, ParamPattern, Params};
+use erg_parser::ast::{ParamPattern, Params, VarPattern};
+use erg_parser::token::{Token, TokenCategory, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
-use crate::hir::{Args, Expr, Signature, VarSignature, SubrSignature, DefBody, Accessor, Block, HIR};
+use crate::hir::{
+    Accessor, Args, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
+};
 use AccessKind::*;
 
 fn obj_name(obj: &Expr) -> Option<String> {
     match obj {
         Expr::Accessor(Accessor::Local(n)) => Some(n.inspect().to_string()),
-        Expr::Accessor(Accessor::Attr(a)) =>
-            Some(obj_name(&a.obj)? + "." + a.name.inspect()),
+        Expr::Accessor(Accessor::Attr(a)) => Some(obj_name(&a.obj)? + "." + a.name.inspect()),
         Expr::Accessor(Accessor::SelfDot(n)) => Some(format!(".{}", n.inspect())),
         _ => None,
     }
@@ -38,8 +41,8 @@ fn obj_name(obj: &Expr) -> Option<String> {
 fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
     match (class, uniq_obj_name, &name[..]) {
         ("Array!", _, "push!") => Str::ever("append"),
-        ("Complex" | "Real"| "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
-        ("Complex" | "Real"| "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
+        ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
+        ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),
         _ => name,
     }
@@ -92,7 +95,9 @@ pub struct CodeGenUnit {
 
 impl PartialEq for CodeGenUnit {
     #[inline]
-    fn eq(&self, other: &Self) -> bool { self.id == other.id }
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl fmt::Display for CodeGenUnit {
@@ -157,7 +162,9 @@ impl CodeGenerator {
     }
 
     #[inline]
-    fn input(&self) -> &Input { &self.cfg.input }
+    fn input(&self) -> &Input {
+        &self.cfg.input
+    }
 
     fn get_cached(&self, s: &str) -> Str {
         self.str_cache.get(s)
@@ -264,21 +271,30 @@ impl CodeGenerator {
             .cur_block_codeobj()
             .names
             .iter()
-            .position(|n| &**n == name) {
-            if current_is_toplevel || !acc_kind.is_local() { Some(Name::local(idx)) }
-            else { Some(Name::global(idx)) }
+            .position(|n| &**n == name)
+        {
+            if current_is_toplevel || !acc_kind.is_local() {
+                Some(Name::local(idx))
+            } else {
+                Some(Name::global(idx))
+            }
         } else if let Some(idx) = self
             .cur_block_codeobj()
             .varnames
             .iter()
-            .position(|v| &**v == name) {
-            if current_is_toplevel { Some(Name::local(idx)) }
-            else { Some(Name::fast(idx)) }
+            .position(|v| &**v == name)
+        {
+            if current_is_toplevel {
+                Some(Name::local(idx))
+            } else {
+                Some(Name::fast(idx))
+            }
         } else if let Some(idx) = self
             .cur_block_codeobj()
             .freevars
             .iter()
-            .position(|f| &**f == name) {
+            .position(|f| &**f == name)
+        {
             Some(Name::deref(idx))
         } else {
             None
@@ -291,20 +307,20 @@ impl CodeGenerator {
         for (nth_from_toplevel, block) in self.units.iter_mut().enumerate().rev().skip(1) {
             let block_is_toplevel = nth_from_toplevel == 0;
             if let Some(_) = block.codeobj.cellvars.iter().position(|c| &**c == name) {
-                return Some(StoreLoadKind::Deref)
+                return Some(StoreLoadKind::Deref);
             } else if let Some(idx) = block.codeobj.varnames.iter().position(|v| &**v == name) {
                 if block_is_toplevel {
-                    return Some(StoreLoadKind::Global)
+                    return Some(StoreLoadKind::Global);
                 } else {
                     // the outer scope variable
                     let cellvar_name = block.codeobj.varnames.get(idx).unwrap().clone();
                     block.codeobj.cellvars.push(cellvar_name);
-                    return Some(StoreLoadKind::Deref)
+                    return Some(StoreLoadKind::Deref);
                 }
             }
             if block_is_toplevel {
                 if let Some(_) = block.codeobj.names.iter().position(|n| &**n == name) {
-                    return Some(StoreLoadKind::Global)
+                    return Some(StoreLoadKind::Global);
                 }
             }
         }
@@ -317,7 +333,11 @@ impl CodeGenerator {
         let name = escape_name(name);
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
-                let st = if current_is_toplevel { StoreLoadKind::Local } else { st };
+                let st = if current_is_toplevel {
+                    StoreLoadKind::Local
+                } else {
+                    st
+                };
                 self.mut_cur_block_codeobj().names.push(name);
                 Name::new(st, self.cur_block_codeobj().names.len() - 1)
             }
@@ -356,9 +376,9 @@ impl CodeGenerator {
     }
 
     fn emit_load_name_instr(&mut self, name: Str) -> CompileResult<()> {
-        let name = self.local_search(&name, Name).unwrap_or_else(|| {
-            self.register_name(name)
-        });
+        let name = self
+            .local_search(&name, Name)
+            .unwrap_or_else(|| self.register_name(name));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -371,10 +391,15 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_load_attr_instr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> CompileResult<()> {
-        let name = self.local_search(&name, Attr).unwrap_or_else(|| {
-            self.register_attr(class, uniq_obj_name, name)
-        });
+    fn emit_load_attr_instr(
+        &mut self,
+        class: &str,
+        uniq_obj_name: Option<&str>,
+        name: Str,
+    ) -> CompileResult<()> {
+        let name = self
+            .local_search(&name, Attr)
+            .unwrap_or_else(|| self.register_attr(class, uniq_obj_name, name));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -386,10 +411,15 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_load_method_instr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> CompileResult<()> {
-        let name = self.local_search(&name, Method).unwrap_or_else(|| {
-            self.register_method(class, uniq_obj_name, name)
-        });
+    fn emit_load_method_instr(
+        &mut self,
+        class: &str,
+        uniq_obj_name: Option<&str>,
+        name: Str,
+    ) -> CompileResult<()> {
+        let name = self
+            .local_search(&name, Method)
+            .unwrap_or_else(|| self.register_method(class, uniq_obj_name, name));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -402,9 +432,9 @@ impl CodeGenerator {
     }
 
     fn emit_store_instr(&mut self, name: Str, acc_kind: AccessKind) {
-        let name = self.local_search(&name, acc_kind).unwrap_or_else(|| {
-            self.register_name(name)
-        });
+        let name = self
+            .local_search(&name, acc_kind)
+            .unwrap_or_else(|| self.register_name(name));
         let instr = match name.kind {
             StoreLoadKind::Fast => Opcode::STORE_FAST,
             StoreLoadKind::FastConst => Opcode::ERG_STORE_FAST_IMMUT,
@@ -453,8 +483,15 @@ impl CodeGenerator {
 
     fn gen_param_names(&self, params: &Params) -> Vec<Str> {
         params
-            .non_defaults.iter().map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
-            .chain(params.defaults.iter().map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")))
+            .non_defaults
+            .iter()
+            .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
+            .chain(
+                params
+                    .defaults
+                    .iter()
+                    .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
+            )
             .map(|s| self.get_cached(&s))
             .collect()
     }
@@ -504,7 +541,7 @@ impl CodeGenerator {
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
         if body.is_type() {
-            return self.emit_mono_type_def(sig, body)
+            return self.emit_mono_type_def(sig, body);
         }
         if body.block.len() == 1 {
             self.codegen_expr(body.block.remove(0));
@@ -586,7 +623,7 @@ impl CodeGenerator {
         } else {
             // no else block
             let idx_end = self.cur_block().lasti;
-            self.edit_code(idx_pop_jump_if_false + 1,idx_end / 2);
+            self.edit_code(idx_pop_jump_if_false + 1, idx_end / 2);
             self.stack_dec();
         }
         Ok(())
@@ -630,8 +667,8 @@ impl CodeGenerator {
             let mut lambda = enum_unwrap!(expr, Expr::Lambda);
             debug_power_assert!(lambda.params.len(), ==, 1);
             if !lambda.params.defaults.is_empty() {
-                    todo!("default values in match expression are not supported yet")
-                }
+                todo!("default values in match expression are not supported yet")
+            }
             let pat = lambda.params.non_defaults.remove(0).pat;
             let pop_jump_points = self.emit_match_pattern(pat)?;
             self.codegen_frameless_block(lambda.body, Vec::new());
@@ -772,7 +809,7 @@ impl CodeGenerator {
             self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), name)
                 .unwrap_or_else(|err| {
                     self.errs.push(err);
-            });
+                });
             let argc = args.len();
             let mut kws = Vec::with_capacity(args.kw_len());
             while let Some(arg) = args.try_remove_pos(0) {
@@ -879,25 +916,28 @@ impl CodeGenerator {
                 self.emit_load_const(lit.data);
             }
             Expr::Accessor(Accessor::Local(l)) => {
-                self.emit_load_name_instr(l.inspect().clone()).unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
+                self.emit_load_name_instr(l.inspect().clone())
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
             }
             Expr::Accessor(Accessor::Attr(a)) => {
                 let class = Str::rc(a.obj.ref_t().name());
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
                 self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.name.content.clone())
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
+                self.emit_load_attr_instr(
+                    &class,
+                    uniq_obj_name.as_ref().map(|s| &s[..]),
+                    a.name.content.clone(),
+                )
+                .unwrap_or_else(|err| {
+                    self.errs.push(err);
                 });
             }
-            Expr::Def(def) => {
-                match def.sig {
-                    Signature::Subr(sig) => { self.emit_subr_def(sig, def.body) }
-                    Signature::Var(sig) => { self.emit_var_def(sig, def.body) }
-                }
-            }
+            Expr::Def(def) => match def.sig {
+                Signature::Subr(sig) => self.emit_subr_def(sig, def.body),
+                Signature::Var(sig) => self.emit_var_def(sig, def.body),
+            },
             // TODO:
             Expr::Lambda(lambda) => {
                 let params = self.gen_param_names(&lambda.params);
@@ -936,7 +976,9 @@ impl CodeGenerator {
                 // Range operators are not operators in Python
                 match &bin.op.kind {
                     // l..<r == range(l, r)
-                    TokenKind::RightOpen => { self.emit_load_name_instr(Str::ever("range")).unwrap(); },
+                    TokenKind::RightOpen => {
+                        self.emit_load_name_instr(Str::ever("range")).unwrap();
+                    }
                     TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
                     _ => {}
                 }
@@ -958,14 +1000,16 @@ impl CodeGenerator {
                     | TokenKind::NotEq
                     | TokenKind::Gre
                     | TokenKind::GreEq => COMPARE_OP,
-                    TokenKind::LeftOpen | TokenKind::RightOpen
-                    | TokenKind::Closed | TokenKind::Open => CALL_FUNCTION, // ERG_BINARY_RANGE,
+                    TokenKind::LeftOpen
+                    | TokenKind::RightOpen
+                    | TokenKind::Closed
+                    | TokenKind::Open => CALL_FUNCTION, // ERG_BINARY_RANGE,
                     _ => {
                         self.errs.push(CompileError::feature_error(
                             self.cfg.input.clone(),
                             bin.op.loc(),
                             "",
-                            bin.op.content.clone()
+                            bin.op.content.clone(),
                         ));
                         NOT_IMPLEMENTED
                     }
@@ -977,16 +1021,22 @@ impl CodeGenerator {
                     TokenKind::NotEq => 3,
                     TokenKind::Gre => 4,
                     TokenKind::GreEq => 5,
-                    TokenKind::LeftOpen | TokenKind::RightOpen
-                    | TokenKind::Closed | TokenKind::Open => 2,
+                    TokenKind::LeftOpen
+                    | TokenKind::RightOpen
+                    | TokenKind::Closed
+                    | TokenKind::Open => 2,
                     _ => type_pair as u8,
                 };
                 self.write_instr(instr);
                 self.write_arg(arg);
                 self.stack_dec();
                 match &bin.op.kind {
-                    TokenKind::LeftOpen | TokenKind::RightOpen
-                    | TokenKind::Open | TokenKind::Closed => { self.stack_dec(); },
+                    TokenKind::LeftOpen
+                    | TokenKind::RightOpen
+                    | TokenKind::Open
+                    | TokenKind::Closed => {
+                        self.stack_dec();
+                    }
                     _ => {}
                 }
             }
@@ -1005,7 +1055,7 @@ impl CodeGenerator {
                         self.emit_call_callable_obj(obj, call.args);
                     }
                 }
-            },
+            }
             // TODO: list comprehension
             Expr::Array(mut arr) => {
                 let len = arr.elems.len();
@@ -1021,7 +1071,12 @@ impl CodeGenerator {
                 }
             }
             other => {
-                self.errs.push(CompileError::feature_error(self.cfg.input.clone(), other.loc(), "", "".into()));
+                self.errs.push(CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    other.loc(),
+                    "",
+                    "".into(),
+                ));
                 self.crash("cannot compile this expression at this time");
             }
         }
@@ -1076,7 +1131,7 @@ impl CodeGenerator {
                 Location::Unknown,
                 stack_len,
                 block_id,
-                fn_name_full!()
+                fn_name_full!(),
             ));
             self.crash("error in codegen_typedef_block: invalid stack size");
         }
@@ -1089,7 +1144,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| { *l += ld as u8; });
+                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                    *l += ld as u8;
+                });
                 self.mut_cur_block().prev_lineno += ld;
             }
         }
@@ -1098,7 +1155,11 @@ impl CodeGenerator {
 
     fn codegen_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
         self.unit_size += 1;
-        let name = if let Some(name) = opt_name { name } else { "<block>".into() };
+        let name = if let Some(name) = opt_name {
+            name
+        } else {
+            "<block>".into()
+        };
         let firstlineno = block.first().unwrap().ln_begin().unwrap();
         self.units.push(CodeGenUnit::new(
             self.unit_size,
@@ -1127,7 +1188,7 @@ impl CodeGenerator {
                 Location::Unknown,
                 stack_len,
                 block_id,
-                fn_name_full!()
+                fn_name_full!(),
             ));
             self.crash("error in codegen_block: invalid stack size");
         }
@@ -1142,7 +1203,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| { *l += ld as u8; });
+                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                    *l += ld as u8;
+                });
                 self.mut_cur_block().prev_lineno += ld;
             }
         }
@@ -1157,7 +1220,7 @@ impl CodeGenerator {
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",
-            1
+            1,
         ));
         for expr in hir.module.into_iter() {
             self.codegen_expr(expr);
@@ -1177,7 +1240,7 @@ impl CodeGenerator {
                 Location::Unknown,
                 stack_len,
                 block_id,
-                fn_name_full!()
+                fn_name_full!(),
             ));
             self.crash("error in codegen_module: invalid stack size");
         }
@@ -1192,7 +1255,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| { *l += ld as u8; });
+                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                    *l += ld as u8;
+                });
                 self.mut_cur_block().prev_lineno += ld;
             }
         }

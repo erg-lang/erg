@@ -5,18 +5,17 @@
 //! 型チェックなどによる検証は行わない
 #![allow(dead_code)]
 
+use erg_common::set::Set;
+use erg_common::traits::{Locational, Stream};
+use erg_common::Str;
 use erg_common::{enum_unwrap, set};
-use erg_common::{Str};
-use erg_common::set::{Set};
-use erg_common::traits::{Stream, Locational};
 
-use crate::token::{Token, TokenKind};
 use crate::ast::{
-    Module, Expr, Lambda, Call, Def, Accessor,
-    LambdaSignature, PosArg, Signature, SubrSignature, Args,
-    ParamPattern, NonDefaultParamSignature, Params, VarName,
-    TypeBoundSpecs, DefBody, Block, VarPattern
+    Accessor, Args, Block, Call, Def, DefBody, Expr, Lambda, LambdaSignature, Module,
+    NonDefaultParamSignature, ParamPattern, Params, PosArg, Signature, SubrSignature,
+    TypeBoundSpecs, VarName, VarPattern,
 };
+use crate::token::{Token, TokenKind};
 
 #[derive(Debug)]
 pub struct Desugarer {
@@ -24,7 +23,11 @@ pub struct Desugarer {
 }
 
 impl Desugarer {
-    pub fn new() -> Desugarer { Self { desugared: Set::default() } }
+    pub fn new() -> Desugarer {
+        Self {
+            desugared: Set::default(),
+        }
+    }
 
     pub fn desugar(&mut self, module: Module) -> Module {
         self.desugar_multiple_pattern_def(module)
@@ -42,40 +45,66 @@ impl Desugarer {
             match chunk {
                 Expr::Def(def) if def.is_subr() => {
                     if let Some(Expr::Def(previous)) = new.last() {
-                        if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str() {
+                        if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str()
+                        {
                             let mut previous = enum_unwrap!(new.pop().unwrap(), Expr::Def);
                             let name = def.sig.name().unwrap().clone();
                             let op = Token::from_str(TokenKind::FuncArrow, "->");
                             let (call, return_t_spec) = if previous.body.block.len() == 1
-                            && previous.body.block.first().unwrap().is_match_call() {
-                                let mut call = enum_unwrap!(previous.body.block.remove(0), Expr::Call);
+                                && previous.body.block.first().unwrap().is_match_call()
+                            {
+                                let mut call =
+                                    enum_unwrap!(previous.body.block.remove(0), Expr::Call);
                                 let sig = enum_unwrap!(def.sig, Signature::Subr);
                                 let return_t_spec = sig.return_t_spec;
                                 let first_arg = sig.params.non_defaults.first().unwrap();
                                 // 最後の定義の引数名を関数全体の引数名にする
                                 if let Some(name) = first_arg.inspect() {
                                     call.args.remove_pos(0);
-                                    let arg = PosArg::new(Expr::local(name, first_arg.ln_begin().unwrap(), first_arg.col_begin().unwrap()));
+                                    let arg = PosArg::new(Expr::local(
+                                        name,
+                                        first_arg.ln_begin().unwrap(),
+                                        first_arg.col_begin().unwrap(),
+                                    ));
                                     call.args.insert_pos(0, arg);
                                 }
-                                let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
+                                let sig = LambdaSignature::new(
+                                    sig.params,
+                                    return_t_spec.clone(),
+                                    sig.bounds,
+                                );
                                 let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
                                 call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
                                 (call, return_t_spec)
                             } else {
                                 let sig = enum_unwrap!(previous.sig, Signature::Subr);
                                 let match_symbol = Expr::static_local("match");
-                                let sig = LambdaSignature::new(sig.params, sig.return_t_spec, sig.bounds);
-                                let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
+                                let sig =
+                                    LambdaSignature::new(sig.params, sig.return_t_spec, sig.bounds);
+                                let first_branch = Lambda::new(
+                                    sig,
+                                    op.clone(),
+                                    previous.body.block,
+                                    previous.body.id,
+                                );
                                 let sig = enum_unwrap!(def.sig, Signature::Subr);
                                 let return_t_spec = sig.return_t_spec;
-                                let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
-                                let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
-                                let args = Args::new(vec![
-                                    PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
-                                    PosArg::new(Expr::Lambda(first_branch)),
-                                    PosArg::new(Expr::Lambda(second_branch))
-                                ], vec![], None);
+                                let sig = LambdaSignature::new(
+                                    sig.params,
+                                    return_t_spec.clone(),
+                                    sig.bounds,
+                                );
+                                let second_branch =
+                                    Lambda::new(sig, op, def.body.block, def.body.id);
+                                let args = Args::new(
+                                    vec![
+                                        PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
+                                        PosArg::new(Expr::Lambda(first_branch)),
+                                        PosArg::new(Expr::Lambda(second_branch)),
+                                    ],
+                                    vec![],
+                                    None,
+                                );
                                 let call = Call::new(match_symbol, args);
                                 (call, return_t_spec)
                             };
@@ -85,12 +114,23 @@ impl Desugarer {
                                 TokenKind::Symbol,
                                 param_name,
                                 name.ln_begin().unwrap(),
-                                name.col_end().unwrap() + 1 // HACK: `(name) %x = ...`という形を想定
+                                name.col_end().unwrap() + 1, // HACK: `(name) %x = ...`という形を想定
                             ));
-                            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+                            let param =
+                                NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
                             let params = Params::new(vec![param], vec![], None);
-                            let sig = Signature::Subr(SubrSignature::new(set!{}, name, params, return_t_spec, TypeBoundSpecs::empty()));
-                            let body = DefBody::new(def.body.op, Block::new(vec![Expr::Call(call)]), def.body.id);
+                            let sig = Signature::Subr(SubrSignature::new(
+                                set! {},
+                                name,
+                                params,
+                                return_t_spec,
+                                TypeBoundSpecs::empty(),
+                            ));
+                            let body = DefBody::new(
+                                def.body.op,
+                                Block::new(vec![Expr::Call(call)]),
+                                def.body.id,
+                            );
                             let def = Def::new(sig, body);
                             new.push(Expr::Def(def));
                         } else {
@@ -99,8 +139,10 @@ impl Desugarer {
                     } else {
                         new.push(Expr::Def(def));
                     }
-                },
-                other => { new.push(other); },
+                }
+                other => {
+                    new.push(other);
+                }
             }
         }
         new
@@ -123,13 +165,15 @@ impl Desugarer {
                     if let Signature::Var(v) = &def.sig {
                         match &v.pat {
                             VarPattern::Array(_a) => {}
-                            VarPattern::Record(_r) => {},
+                            VarPattern::Record(_r) => {}
                             _ => {}
                         }
                     }
                     new.push(Expr::Def(def));
-                },
-                other => { new.push(other); },
+                }
+                other => {
+                    new.push(other);
+                }
             }
         }
         new

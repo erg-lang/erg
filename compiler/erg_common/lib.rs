@@ -2,33 +2,33 @@
 use std::fmt;
 
 pub mod cache;
+pub mod codeobj;
+pub mod color;
+pub mod combinations;
 pub mod config;
 pub mod datetime;
+pub mod deserialize;
+pub mod dict;
 pub mod error;
+pub mod fxhash;
+pub mod lazy;
 pub mod lazy_buffer;
 pub mod levenshtein;
-pub mod codeobj;
-pub mod combinations;
-pub mod value;
-pub mod color;
 pub mod macros;
 pub mod opcode;
 pub mod python_util;
+pub mod rccell;
 pub mod serialize;
-pub mod deserialize;
+pub mod set;
+pub mod stdin;
+pub mod str;
 pub mod traits;
 pub mod tsort;
 pub mod ty;
-pub mod lazy;
-pub mod rccell;
-pub mod stdin;
-pub mod str;
-pub mod fxhash;
-pub mod set;
-pub mod dict;
+pub mod value;
 
-pub use crate::str::Str;
 use crate::set::Set;
+pub use crate::str::Str;
 
 pub type RcArray<T> = std::rc::Rc<[T]>;
 
@@ -59,21 +59,21 @@ pub fn fmt_set_split_with<T: fmt::Display + std::hash::Hash>(s: &Set<T>, splitte
     fmt_iter_split_with(s.iter(), splitter)
 }
 
-pub fn debug_fmt_iter<T: fmt::Debug, I: Iterator<Item=T>>(iter: I) -> String {
+pub fn debug_fmt_iter<T: fmt::Debug, I: Iterator<Item = T>>(iter: I) -> String {
     let mut s = iter.fold("".to_string(), |sum, elem| format!("{sum}{elem:?}, "));
     s.pop();
     s.pop();
     s
 }
 
-pub fn fmt_iter<T: fmt::Display, I: Iterator<Item=T>>(iter: I) -> String {
+pub fn fmt_iter<T: fmt::Display, I: Iterator<Item = T>>(iter: I) -> String {
     let mut s = iter.fold("".to_string(), |sum, elem| sum + &elem.to_string() + ", ");
     s.pop();
     s.pop();
     s
 }
 
-pub fn fmt_iter_split_with<T: fmt::Display, I: Iterator<Item=T>>(i: I, splitter: &str) -> String {
+pub fn fmt_iter_split_with<T: fmt::Display, I: Iterator<Item = T>>(i: I, splitter: &str) -> String {
     let mut s = i.fold("".to_string(), |sum, elem| {
         sum + &elem.to_string() + splitter
     });
@@ -92,8 +92,11 @@ pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {
     let mut s = fxhash::FxHasher::default();
     t.hash(&mut s);
     let res = std::hash::Hasher::finish(&s);
-    if cfg!(target_pointer_width = "64") { res as usize }
-    else { (res % usize::MAX as u64) as usize }
+    if cfg!(target_pointer_width = "64") {
+        res as usize
+    } else {
+        (res % usize::MAX as u64) as usize
+    }
 }
 
 /// \r\n (Windows), \r (old MacOS) -> \n (Unix)
@@ -111,11 +114,12 @@ pub fn chomp(src: &str) -> String {
 pub fn try_map<T, U, E, F, I>(i: I, f: F) -> Result<Vec<U>, E>
 where
     F: Fn(T) -> Result<U, E>,
-    I: Iterator<Item=T> {
-        let mut v = vec![];
-        for x in i {
-            let y = f(x)?;
-            v.push(y);
-        }
-        Ok(v)
+    I: Iterator<Item = T>,
+{
+    let mut v = vec![];
+    for x in i {
+        let y = f(x)?;
+        v.push(y);
+    }
+    Ok(v)
 }

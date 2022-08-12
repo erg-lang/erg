@@ -21,9 +21,11 @@ macro_rules! impl_display_from_debug {
     ($Name: ident) => {
         impl std::fmt::Display for $Name {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "{self:#?}") }
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{self:#?}")
+            }
         }
-    }
+    };
 }
 
 #[macro_export]
@@ -57,8 +59,12 @@ macro_rules! impl_display_for_enum_with_variant {
 #[macro_export]
 macro_rules! switch_lang {
     ($en: expr, $jp: expr $(,)*) => {{
-        if cfg!(feature = "japanese") { $jp } else { $en }
-    }}
+        if cfg!(feature = "japanese") {
+            $jp
+        } else {
+            $en
+        }
+    }};
 }
 
 /// 2重のunwrapまでサポート
@@ -91,33 +97,58 @@ macro_rules! enum_unwrap {
 #[macro_export]
 macro_rules! fmt_option {
     ($ex: expr $(,)*) => {
-        if let Some(x) = $ex { format!("{}", x) } else { "".to_string() }
+        if let Some(x) = $ex {
+            format!("{}", x)
+        } else {
+            "".to_string()
+        }
     };
     ($ex: expr $(,)*, else $els: expr $(,)*) => {
-        if let Some(x) = $ex { format!("{}", x) } else { $els.to_string() }
+        if let Some(x) = $ex {
+            format!("{}", x)
+        } else {
+            $els.to_string()
+        }
     };
     (pre $prefix: expr, $ex: expr $(,)*) => {
-        if let Some(x) = $ex { format!("{}{}", $prefix, x) } else { "".to_string() }
+        if let Some(x) = $ex {
+            format!("{}{}", $prefix, x)
+        } else {
+            "".to_string()
+        }
     };
     ($ex: expr, post $postfix: expr $(,)*) => {
-        if let Some(x) = $ex { format!("{}{}", x, $postfix) } else { "".to_string() }
+        if let Some(x) = $ex {
+            format!("{}{}", x, $postfix)
+        } else {
+            "".to_string()
+        }
     };
     ($prefix: expr, $ex: expr, $postfix: expr $(,)*) => {
-        if let Some(x) = $ex { format!("{}{}{}", $prefix, x, $postfix) } else { "".to_string() }
+        if let Some(x) = $ex {
+            format!("{}{}{}", $prefix, x, $postfix)
+        } else {
+            "".to_string()
+        }
     };
 }
 
 #[macro_export]
 macro_rules! switch_unreachable {
     () => {{
-        if cfg!(debug_assertions) { unreachable!() }
-        else { unsafe { std::hint::unreachable_unchecked() } }
-    }}
+        if cfg!(debug_assertions) {
+            unreachable!()
+        } else {
+            unsafe { std::hint::unreachable_unchecked() }
+        }
+    }};
 }
 
 #[macro_export]
 macro_rules! assume_unreachable {
-    () => {{ unsafe { std::hint::unreachable_unchecked() } }}
+    () => {{
+        unsafe { std::hint::unreachable_unchecked() }
+    }};
 }
 
 /// indicates the current invoked function.
@@ -125,26 +156,33 @@ macro_rules! assume_unreachable {
 macro_rules! fn_name_full {
     () => {{
         const fn dummy() {}
-        fn type_name_of<T>(_: T) -> &'static str { std::any::type_name::<T>() }
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
         let name = type_name_of(dummy); // "~::dummy"
         &name[..name.len() - 7] // remove "::dummy"
-    }}
+    }};
 }
 
 #[macro_export]
 macro_rules! fn_name {
     () => {{
         const fn dummy() {}
-        fn type_name_of<T>(_: T) -> &'static str { std::any::type_name::<T>() }
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
         let name = type_name_of(dummy).rsplit("::").nth(1).unwrap();
         &name[..]
-    }}
+    }};
 }
 
 // do not break lines (line!() is used)
 #[macro_export]
 macro_rules! caused_by {
-    () => {{ let fn_name = $crate::fn_name!(); &format!("{fn_name} at line {}", line!()) }}
+    () => {{
+        let fn_name = $crate::fn_name!();
+        &format!("{fn_name} at line {}", line!())
+    }};
 }
 
 /// 一度文字列をパースするので
@@ -155,12 +193,14 @@ macro_rules! addr {
         let s = format!("{:p}", &$obj);
         let s = s.trim_start_matches("0x");
         u64::from_str_radix(&s, 16).unwrap()
-    }}
+    }};
 }
 
 #[macro_export]
 macro_rules! addr_eq {
-    ($l: expr, $r: expr $(,)*) => {{ &$l as *const _ == &$r as *const _ }}
+    ($l: expr, $r: expr $(,)*) => {{
+        &$l as *const _ == &$r as *const _
+    }};
 }
 
 #[macro_export]
@@ -187,10 +227,14 @@ macro_rules! power_assert {
 #[macro_export]
 macro_rules! debug_power_assert {
     ($l: expr, $op: tt, $r: expr) => {
-        if cfg!(debug_assertions) { erg_common::power_assert!($l, $op, $r) }
+        if cfg!(debug_assertions) {
+            erg_common::power_assert!($l, $op, $r)
+        }
     };
     ($ex: expr) => {
-        if cfg!(debug_assertions) { erg_common::power_assert!($ex) }
+        if cfg!(debug_assertions) {
+            erg_common::power_assert!($ex)
+        }
     };
 }
 
@@ -204,7 +248,7 @@ macro_rules! debug_enum_assert {
     }};
     ($ex: expr, $TupleCons: ident, $Enum: ident :: $Variant: ident $(,)*) => {{
         debug_assert!(common::enum_is!($ex, $TupleCons, $Enum::$Variant));
-    }}
+    }};
 }
 
 #[macro_export]

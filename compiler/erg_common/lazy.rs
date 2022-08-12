@@ -74,20 +74,24 @@ impl<T: Eq> Eq for OnceCell<T> {}
 
 impl<T> From<T> for OnceCell<T> {
     fn from(value: T) -> Self {
-        OnceCell { inner: UnsafeCell::new(Some(value)) }
+        OnceCell {
+            inner: UnsafeCell::new(Some(value)),
+        }
     }
 }
 
 impl<T> OnceCell<T> {
     /// Creates a new empty cell.
-        pub const fn new() -> OnceCell<T> {
-        OnceCell { inner: UnsafeCell::new(None) }
+    pub const fn new() -> OnceCell<T> {
+        OnceCell {
+            inner: UnsafeCell::new(None),
+        }
     }
 
     /// Gets the reference to the underlying value.
     ///
     /// Returns `None` if the cell is empty.
-        pub fn get(&self) -> Option<&T> {
+    pub fn get(&self) -> Option<&T> {
         // SAFETY: Safe due to `inner`'s invariant
         unsafe { &*self.inner.get() }.as_ref()
     }
@@ -95,7 +99,7 @@ impl<T> OnceCell<T> {
     /// Gets the mutable reference to the underlying value.
     ///
     /// Returns `None` if the cell is empty.
-        pub fn get_mut(&mut self) -> Option<&mut T> {
+    pub fn get_mut(&mut self) -> Option<&mut T> {
         // SAFETY: Safe because we have unique access
         unsafe { &mut *self.inner.get() }.as_mut()
     }
@@ -122,7 +126,7 @@ impl<T> OnceCell<T> {
     ///
     /// assert!(cell.get().is_some());
     /// ```
-        pub fn set(&self, value: T) -> Result<(), T> {
+    pub fn set(&self, value: T) -> Result<(), T> {
         // SAFETY: Safe because we cannot have overlapping mutable borrows
         let slot = unsafe { &*self.inner.get() };
         if slot.is_some() {
@@ -162,7 +166,7 @@ impl<T> OnceCell<T> {
     /// let value = cell.get_or_init(|| unreachable!());
     /// assert_eq!(value, &92);
     /// ```
-        pub fn get_or_init<F>(&self, f: F) -> &T
+    pub fn get_or_init<F>(&self, f: F) -> &T
     where
         F: FnOnce() -> T,
     {
@@ -200,7 +204,7 @@ impl<T> OnceCell<T> {
     /// assert_eq!(value, Ok(&92));
     /// assert_eq!(cell.get(), Some(&92))
     /// ```
-        pub fn get_or_try_init<F, E>(&self, f: F) -> Result<&T, E>
+    pub fn get_or_try_init<F, E>(&self, f: F) -> Result<&T, E>
     where
         F: FnOnce() -> Result<T, E>,
     {
@@ -234,7 +238,7 @@ impl<T> OnceCell<T> {
     /// cell.set("hello".to_string()).unwrap();
     /// assert_eq!(cell.into_inner(), Some("hello".to_string()));
     /// ```
-        pub fn into_inner(self) -> Option<T> {
+    pub fn into_inner(self) -> Option<T> {
         // Because `into_inner` takes `self` by value, the compiler statically verifies
         // that it is not currently borrowed. So it is safe to move out `Option<T>`.
         self.inner.into_inner()
@@ -261,7 +265,7 @@ impl<T> OnceCell<T> {
     /// assert_eq!(cell.take(), Some("hello".to_string()));
     /// assert_eq!(cell.get(), None);
     /// ```
-        pub fn take(&mut self) -> Option<T> {
+    pub fn take(&mut self) -> Option<T> {
         mem::take(self).into_inner()
     }
 }
@@ -296,7 +300,10 @@ pub struct Lazy<T, F = fn() -> T> {
 
 impl<T: fmt::Debug, F> fmt::Debug for Lazy<T, F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Lazy").field("cell", &self.cell).field("init", &"..").finish()
+        f.debug_struct("Lazy")
+            .field("cell", &self.cell)
+            .field("init", &"..")
+            .finish()
     }
 }
 
@@ -319,7 +326,10 @@ impl<T, F> Lazy<T, F> {
     /// # }
     /// ```
     pub const fn new(init: F) -> Lazy<T, F> {
-        Lazy { cell: OnceCell::new(), init: Cell::new(Some(init)) }
+        Lazy {
+            cell: OnceCell::new(),
+            init: Cell::new(Some(init)),
+        }
     }
 }
 

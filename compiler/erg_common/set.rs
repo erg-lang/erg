@@ -1,13 +1,13 @@
 use std::borrow::Borrow;
+use std::collections::hash_set::{IntoIter, Iter};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
-use std::collections::hash_set::{Iter, IntoIter};
 
-use crate::{fmt_iter, debug_fmt_iter};
 use crate::fxhash::FxHashSet;
-use crate::value::ValueObj;
 use crate::ty::Type;
+use crate::value::ValueObj;
+use crate::{debug_fmt_iter, fmt_iter};
 
 #[macro_export]
 macro_rules! set {
@@ -21,18 +21,19 @@ macro_rules! set {
 
 #[derive(Clone)]
 pub struct Set<T> {
-    elems: FxHashSet<T>
+    elems: FxHashSet<T>,
 }
 
 impl<T: Hash + Eq> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
-        self.len() == other.len()
-        && self.iter().all(|key| other.contains(key))
+        self.len() == other.len() && self.iter().all(|key| other.contains(key))
     }
 }
 
 impl<T> Default for Set<T> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: Hash + Eq> Eq for Set<T> {}
@@ -44,7 +45,9 @@ impl<T: Hash> Hash for Set<T> {
 }
 
 impl<T: Hash + Eq> From<Vec<T>> for Set<T> {
-    fn from(vec: Vec<T>) -> Self { vec.into_iter().collect() }
+    fn from(vec: Vec<T>) -> Self {
+        vec.into_iter().collect()
+    }
 }
 
 impl<T: fmt::Debug> fmt::Debug for Set<T> {
@@ -70,45 +73,78 @@ impl<T: Hash + Eq> FromIterator<T> for Set<T> {
 
 impl<T> Set<T> {
     #[inline]
-    pub fn new() -> Self { Self{ elems: FxHashSet::default() } }
+    pub fn new() -> Self {
+        Self {
+            elems: FxHashSet::default(),
+        }
+    }
 }
 
 impl<T: Hash> Set<T> {
     pub fn with_capacity(capacity: usize) -> Self {
-        Self{ elems: FxHashSet::with_capacity_and_hasher(capacity, Default::default()) }
+        Self {
+            elems: FxHashSet::with_capacity_and_hasher(capacity, Default::default()),
+        }
     }
 
     #[inline]
-    pub fn len(&self) -> usize { self.elems.len() }
+    pub fn len(&self) -> usize {
+        self.elems.len()
+    }
 
     #[inline]
-    pub fn is_empty(&self) -> bool { self.elems.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.elems.is_empty()
+    }
 
     #[inline]
-    pub fn iter(&self) -> Iter<'_, T> { self.elems.iter() }
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.elems.iter()
+    }
 
     #[inline]
-    pub fn into_iter(self) -> IntoIter<T> { self.elems.into_iter() }
+    pub fn into_iter(self) -> IntoIter<T> {
+        self.elems.into_iter()
+    }
 }
 
 impl<T: Hash + Eq> Set<T> {
     #[inline]
     pub fn get<Q>(&self, value: &Q) -> Option<&T>
-    where T: Borrow<Q>, Q: ?Sized + Hash + Eq { self.elems.get(value) }
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        self.elems.get(value)
+    }
 
     #[inline]
     pub fn contains<Q>(&self, value: &Q) -> bool
-    where T: Borrow<Q>,  Q: ?Sized + Hash + Eq { self.elems.contains(value) }
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        self.elems.contains(value)
+    }
 
     #[inline]
-    pub fn insert(&mut self, value: T) { self.elems.insert(value); }
+    pub fn insert(&mut self, value: T) {
+        self.elems.insert(value);
+    }
 
     #[inline]
     pub fn remove<Q>(&mut self, value: &Q) -> bool
-    where T: Borrow<Q>, Q: ?Sized + Hash + Eq { self.elems.remove(value) }
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        self.elems.remove(value)
+    }
 
     #[inline]
-    pub fn extend<I: IntoIterator<Item=T>>(&mut self, iter: I) { self.elems.extend(iter); }
+    pub fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.elems.extend(iter);
+    }
 
     #[inline]
     pub fn is_superset(&self, other: &Set<T>) -> bool {
@@ -131,13 +167,17 @@ impl<T: Hash + Eq + Clone> Set<T> {
     #[inline]
     pub fn union(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.union(&other.elems);
-        Self{ elems: u.into_iter().map(|x| x.clone()).collect() }
+        Self {
+            elems: u.into_iter().map(|x| x.clone()).collect(),
+        }
     }
 
     #[inline]
     pub fn intersection(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.intersection(&other.elems);
-        Self{ elems: u.into_iter().map(|x| x.clone()).collect() }
+        Self {
+            elems: u.into_iter().map(|x| x.clone()).collect(),
+        }
     }
 }
 
@@ -163,14 +203,18 @@ impl Set<ValueObj> {
     }
 
     pub fn max(&self) -> Option<ValueObj> {
-        if !self.is_homogeneous() { return None }
+        if !self.is_homogeneous() {
+            return None;
+        }
         self.iter()
             .max_by(|x, y| x.try_cmp(y).unwrap())
             .map(Clone::clone)
     }
 
     pub fn min(&self) -> Option<ValueObj> {
-        if !self.is_homogeneous() { return None }
+        if !self.is_homogeneous() {
+            return None;
+        }
         self.iter()
             .min_by(|x, y| x.try_cmp(y).unwrap())
             .map(Clone::clone)

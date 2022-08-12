@@ -3,13 +3,13 @@
 //! エラー処理に関する汎用的なコンポーネントを提供する
 use std::cmp;
 use std::fmt;
-use std::io::{Write, BufWriter, stderr};
+use std::io::{stderr, BufWriter, Write};
 
-use crate::Str;
-use crate::{fmt_option, switch_lang, impl_display_from_debug};
-use crate::config::Input;
-use crate::traits::{Stream, Locational};
 use crate::color::*;
+use crate::config::Input;
+use crate::traits::{Locational, Stream};
+use crate::Str;
+use crate::{fmt_option, impl_display_from_debug, switch_lang};
 
 /// ErrorKindと言っているが、ErrorだけでなくWarning, Exceptionも含まれる
 /// Numbering of this is not specifically related to ErrFmt.errno().
@@ -17,7 +17,7 @@ use crate::color::*;
 #[repr(u8)]
 pub enum ErrorKind {
     /* compile errors */
-    AssignError =       0,
+    AssignError = 0,
     AttributeError,
     BytecodeError,
     CompilerSystemError,
@@ -36,7 +36,7 @@ pub enum ErrorKind {
     HasEffect,
     MoveError,
     /* compile warnings */
-    AttributeWarning =  60,
+    AttributeWarning = 60,
     CastWarning,
     DeprecationWarning,
     FutureWarning,
@@ -48,7 +48,7 @@ pub enum ErrorKind {
     UnusedWarning,
     Warning,
     /* runtime errors */
-    ArithmeticError =   100,
+    ArithmeticError = 100,
     AssertionError,
     BlockingIOError,
     BrokenPipeError,
@@ -88,13 +88,13 @@ pub enum ErrorKind {
     WindowsError,
     ZeroDivisionError,
     /* runtime warnings */
-    BytesWarning =      180,
+    BytesWarning = 180,
     ResourceWarning,
     RuntimeWarning,
     UnicodeWarning,
     UserWarning,
     /* exceptions */
-    BaseException =     200,
+    BaseException = 200,
     Exception,
     GeneratorExit,
     KeyboardInterrupt,
@@ -200,8 +200,18 @@ impl From<&str> for ErrorKind {
 /// points the location (of an error) in a code
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Location {
-    RangePair{ ln_begin: usize, col_first: (usize, usize), ln_end: usize, col_second: (usize, usize), },
-    Range{ ln_begin: usize, col_begin: usize, ln_end: usize, col_end: usize },
+    RangePair {
+        ln_begin: usize,
+        col_first: (usize, usize),
+        ln_end: usize,
+        col_second: (usize, usize),
+    },
+    Range {
+        ln_begin: usize,
+        col_begin: usize,
+        ln_end: usize,
+        col_end: usize,
+    },
     LineRange(usize, usize),
     Line(usize),
     Unknown,
@@ -210,8 +220,7 @@ pub enum Location {
 impl Location {
     pub fn concat<L: Locational, R: Locational>(l: &L, r: &R) -> Self {
         match (l.ln_begin(), l.col_begin(), r.ln_end(), r.col_end()) {
-            (Some(lb), Some(cb), Some(le), Some(ce)) =>
-                Self::range(lb, cb, le, ce),
+            (Some(lb), Some(cb), Some(le), Some(ce)) => Self::range(lb, cb, le, ce),
             (Some(lb), _, Some(le), _) => Self::LineRange(lb, le),
             (Some(l), _, _, _) | (_, _, Some(l), _) => Self::Line(l),
             _ => Self::Unknown,
@@ -219,11 +228,16 @@ impl Location {
     }
 
     pub const fn range(ln_begin: usize, col_begin: usize, ln_end: usize, col_end: usize) -> Self {
-        Self::Range{ ln_begin, col_begin, ln_end, col_end }
+        Self::Range {
+            ln_begin,
+            col_begin,
+            ln_end,
+            col_end,
+        }
     }
 
     pub fn pair(lhs: Self, rhs: Self) -> Self {
-        Self::RangePair{
+        Self::RangePair {
             ln_begin: lhs.ln_begin().unwrap(),
             col_first: (lhs.col_begin().unwrap(), lhs.col_end().unwrap()),
             ln_end: rhs.ln_end().unwrap(),
@@ -233,8 +247,8 @@ impl Location {
 
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair{ ln_begin, .. }
-            | Self::Range{ ln_begin, .. }
+            Self::RangePair { ln_begin, .. }
+            | Self::Range { ln_begin, .. }
             | Self::LineRange(ln_begin, _)
             | Self::Line(ln_begin) => Some(*ln_begin),
             Self::Unknown => None,
@@ -243,8 +257,8 @@ impl Location {
 
     pub const fn ln_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair{ ln_end, .. }
-            | Self::Range{ ln_end, .. }
+            Self::RangePair { ln_end, .. }
+            | Self::Range { ln_end, .. }
             | Self::LineRange(ln_end, _)
             | Self::Line(ln_end) => Some(*ln_end),
             Self::Unknown => None,
@@ -253,16 +267,22 @@ impl Location {
 
     pub const fn col_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair{ col_first: (col_begin, _), .. }
-            | Self::Range{ col_begin, .. } => Some(*col_begin),
+            Self::RangePair {
+                col_first: (col_begin, _),
+                ..
+            }
+            | Self::Range { col_begin, .. } => Some(*col_begin),
             _ => None,
         }
     }
 
     pub const fn col_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair{ col_second: (_, col_end), .. }
-            | Self::Range{ col_end, .. } => Some(*col_end),
+            Self::RangePair {
+                col_second: (_, col_end),
+                ..
+            }
+            | Self::Range { col_end, .. } => Some(*col_end),
             _ => None,
         }
     }
@@ -280,11 +300,25 @@ pub struct ErrorCore {
 }
 
 impl ErrorCore {
-    pub fn new<S: Into<Str>>(errno: usize, kind: ErrorKind, loc: Location, desc: S, hint: Option<Str>) -> Self {
-        Self { errno, kind, loc, desc: desc.into(), hint }
+    pub fn new<S: Into<Str>>(
+        errno: usize,
+        kind: ErrorKind,
+        loc: Location,
+        desc: S,
+        hint: Option<Str>,
+    ) -> Self {
+        Self {
+            errno,
+            kind,
+            loc,
+            desc: desc.into(),
+            hint,
+        }
     }
 
-    pub fn unreachable(fn_name: &str, line: u32) -> Self { Self::bug(0, Location::Unknown, fn_name, line) }
+    pub fn unreachable(fn_name: &str, line: u32) -> Self {
+        Self::bug(0, Location::Unknown, fn_name, line)
+    }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
         Self::new(errno, CompilerSystemError, loc, switch_lang!(
@@ -324,14 +358,19 @@ pub trait ErrorDisplay {
 
     fn write_to_stderr(&self) {
         let mut writer = BufWriter::new(stderr());
-        writer.write(format!(
-            "{}{}{}: {}{}\n",
-            self.format_header(),
-            self.format_code_and_pointer(),
-            self.core().kind,
-            self.core().desc,
-            fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), &self.core().hint),
-        ).as_bytes()).unwrap();
+        writer
+            .write(
+                format!(
+                    "{}{}{}: {}{}\n",
+                    self.format_header(),
+                    self.format_code_and_pointer(),
+                    self.core().kind,
+                    self.core().desc,
+                    fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), &self.core().hint),
+                )
+                .as_bytes(),
+            )
+            .unwrap();
         writer.flush().unwrap();
         if let Some(inner) = self.ref_inner() {
             inner.write_to_stderr()
@@ -351,27 +390,41 @@ pub trait ErrorDisplay {
         )?;
         if let Some(inner) = self.ref_inner() {
             inner.format(f)
-        } else { Ok(()) }
+        } else {
+            Ok(())
+        }
     }
 
     fn format_header(&self) -> String {
         let kind = self.core().kind as u8;
-        let (color, err_or_warn) =
-            if kind < 100 { (RED, "Error") }
-            else if 100 <= kind && kind < 150 { (YELLOW, "Warning") }
-            else if 150 <= kind && kind < 200 { (DEEP_RED, "Error") }
-            else { ("", "Exception") };
+        let (color, err_or_warn) = if kind < 100 {
+            (RED, "Error")
+        } else if 100 <= kind && kind < 150 {
+            (YELLOW, "Warning")
+        } else if 150 <= kind && kind < 200 {
+            (DEEP_RED, "Error")
+        } else {
+            ("", "Exception")
+        };
         let loc = match self.core().loc {
-            Location::Range{ ln_begin, ln_end, .. } if ln_begin == ln_end => format!(", line {ln_begin}"),
-            Location::RangePair{ ln_begin, ln_end, .. }
-            | Location::Range{ ln_begin, ln_end, .. }
+            Location::Range {
+                ln_begin, ln_end, ..
+            } if ln_begin == ln_end => format!(", line {ln_begin}"),
+            Location::RangePair {
+                ln_begin, ln_end, ..
+            }
+            | Location::Range {
+                ln_begin, ln_end, ..
+            }
             | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
             Location::Line(lineno) => format!(", line {lineno}"),
             Location::Unknown => "".to_string(),
         };
         let caused_by = if self.caused_by() != "" {
             format!(", in {}", self.caused_by())
-        } else { "".to_string() };
+        } else {
+            "".to_string()
+        };
         format!(
             "{color}{err_or_warn}[#{errno:>04}]{RESET}: File {input}{loc}{caused_by}\n",
             errno = self.core().errno,
@@ -381,8 +434,13 @@ pub trait ErrorDisplay {
 
     fn format_code_and_pointer(&self) -> String {
         match self.core().loc {
-            Location::RangePair{ .. } => todo!(),
-            Location::Range { ln_begin, col_begin, ln_end, col_end } => {
+            Location::RangePair { .. } => todo!(),
+            Location::Range {
+                ln_begin,
+                col_begin,
+                ln_end,
+                col_end,
+            } => {
                 let codes = if self.input() == &Input::REPL {
                     vec![self.input().reread()]
                 } else {
@@ -403,13 +461,16 @@ pub trait ErrorDisplay {
                     } else {
                         pointer += &"^".repeat(cmp::max(1, codes[i].len()));
                     }
-                    res += &format!("{lineno}{VBAR_UNICODE} {code}\n{pointer}\n", code = codes[i]);
+                    res += &format!(
+                        "{lineno}{VBAR_UNICODE} {code}\n{pointer}\n",
+                        code = codes[i]
+                    );
                 }
                 res + RESET
-            },
+            }
             Location::LineRange(_begin, _end) => {
                 todo!()
-            },
+            }
             Location::Line(lineno) => {
                 let code = if self.input() == &Input::REPL {
                     self.input().reread()
@@ -417,12 +478,13 @@ pub trait ErrorDisplay {
                     self.input().reread_lines(lineno, lineno).remove(0)
                 };
                 format!("{CYAN}{lineno}{VBAR_UNICODE} {code}\n{RESET}")
-            },
-            Location::Unknown => {
-                match self.input() {
-                    Input::File(_) => "\n".to_string(),
-                    other => format!("{CYAN}?{VBAR_UNICODE} {code}\n{RESET}", code = other.reread()),
-                }
+            }
+            Location::Unknown => match self.input() {
+                Input::File(_) => "\n".to_string(),
+                other => format!(
+                    "{CYAN}?{VBAR_UNICODE} {code}\n{RESET}",
+                    code = other.reread()
+                ),
             },
         }
     }

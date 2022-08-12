@@ -1,32 +1,35 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
-use erg_common::{Str};
-use erg_common::value::ValueObj;
 use erg_common::error::Location;
-use erg_common::traits::{HasType, Locational, Stream, NestedDisplay};
-use erg_common::ty::{Type, TyParam, Constraint};
+use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
+use erg_common::ty::{Constraint, TyParam, Type};
+use erg_common::value::ValueObj;
+use erg_common::Str;
 use erg_common::{
-    impl_locational, impl_locational_for_enum,
-    impl_stream_for_wrapper, impl_display_for_enum,
-    impl_nested_display_for_enum, impl_display_from_nested,
+    impl_display_for_enum, impl_display_from_nested, impl_locational, impl_locational_for_enum,
+    impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
 
+use erg_parser::ast::{fmt_lines, DefId, Params, VarName, VarPattern};
 use erg_parser::token::{Token, TokenKind};
-use erg_parser::ast::{VarName, VarPattern, Params, DefId, fmt_lines};
 
 #[derive(Debug, Clone)]
 pub struct Literal {
     pub data: ValueObj, // for constant folding
-    pub token: Token,      // for Locational
+    pub token: Token,   // for Locational
     t: Type,
 }
 
 impl HasType for Literal {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl NestedDisplay for Literal {
@@ -39,13 +42,19 @@ impl_display_from_nested!(Literal);
 
 impl Locational for Literal {
     #[inline]
-    fn loc(&self) -> Location { self.token.loc() }
+    fn loc(&self) -> Location {
+        self.token.loc()
+    }
 }
 
 impl From<Token> for Literal {
     fn from(token: Token) -> Self {
         let data = ValueObj::from_str(Type::from(token.kind), token.content.clone());
-        Self { t: data.t(), data, token }
+        Self {
+            t: data.t(),
+            data,
+            token,
+        }
     }
 }
 
@@ -53,7 +62,11 @@ impl Literal {
     pub fn new(c: ValueObj, lineno: usize, col: usize) -> Self {
         let kind = TokenKind::from(&c);
         let token = Token::new(kind, c.to_string(), lineno, col);
-        Self { t: c.t(), data: c, token }
+        Self {
+            t: c.t(),
+            data: c,
+            token,
+        }
     }
 
     #[inline]
@@ -76,11 +89,15 @@ impl NestedDisplay for PosArg {
 impl_display_from_nested!(PosArg);
 
 impl Locational for PosArg {
-    fn loc(&self) -> Location { self.expr.loc() }
+    fn loc(&self) -> Location {
+        self.expr.loc()
+    }
 }
 
 impl PosArg {
-    pub const fn new(expr: Expr) -> Self { Self { expr } }
+    pub const fn new(expr: Expr) -> Self {
+        Self { expr }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -105,7 +122,9 @@ impl Locational for KwArg {
 }
 
 impl KwArg {
-    pub const fn new(keyword: Token, expr: Expr) -> Self { Self { keyword, expr } }
+    pub const fn new(keyword: Token, expr: Expr) -> Self {
+        Self { keyword, expr }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -117,8 +136,12 @@ pub struct Args {
 
 impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        if !self.pos_args.is_empty() { fmt_lines(self.pos_args.iter(), f, level)?; }
-        if !self.kw_args.is_empty() { fmt_lines(self.kw_args.iter(), f, level)?; }
+        if !self.pos_args.is_empty() {
+            fmt_lines(self.pos_args.iter(), f, level)?;
+        }
+        if !self.kw_args.is_empty() {
+            fmt_lines(self.kw_args.iter(), f, level)?;
+        }
         Ok(())
     }
 }
@@ -132,7 +155,10 @@ impl Locational for Args {
         } else if !self.kw_args.is_empty() {
             Location::concat(self.kw_args.first().unwrap(), self.kw_args.last().unwrap())
         } else if !self.pos_args.is_empty() {
-            Location::concat(self.pos_args.first().unwrap(), self.pos_args.last().unwrap())
+            Location::concat(
+                self.pos_args.first().unwrap(),
+                self.pos_args.last().unwrap(),
+            )
         } else {
             Location::Unknown
         }
@@ -142,8 +168,16 @@ impl Locational for Args {
 // impl_stream!(Args, KwArg, kw_args);
 
 impl Args {
-    pub const fn new(pos_args: Vec<PosArg>, kw_args: Vec<KwArg>, paren: Option<(Token, Token)>) -> Self {
-        Self { pos_args, kw_args, paren }
+    pub const fn new(
+        pos_args: Vec<PosArg>,
+        kw_args: Vec<KwArg>,
+        paren: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            pos_args,
+            kw_args,
+            paren,
+        }
     }
 
     pub const fn empty() -> Self {
@@ -156,11 +190,17 @@ impl Args {
     }
 
     #[inline]
-    pub fn kw_len(&self) -> usize { self.kw_args.len() }
+    pub fn kw_len(&self) -> usize {
+        self.kw_args.len()
+    }
 
-    pub fn pos_args(&self) -> &[PosArg] { &self.pos_args[..] }
+    pub fn pos_args(&self) -> &[PosArg] {
+        &self.pos_args[..]
+    }
 
-    pub fn kw_args(&self) -> &[KwArg] { &self.kw_args[..] }
+    pub fn kw_args(&self) -> &[KwArg] {
+        &self.kw_args[..]
+    }
 
     pub fn push_pos(&mut self, pos: PosArg) {
         self.pos_args.push(pos);
@@ -174,7 +214,7 @@ impl Args {
         if self.pos_args.get(index).is_some() {
             self.pos_args.remove(index).expr
         } else {
-            self.kw_args.remove(index-self.pos_args.len()).expr
+            self.kw_args.remove(index - self.pos_args.len()).expr
         }
     }
 
@@ -183,8 +223,8 @@ impl Args {
         if self.pos_args.get(index).is_some() {
             Some(self.pos_args.remove(index).expr)
         } else {
-            self.kw_args.get(index-self.pos_args.len())?;
-            Some(self.kw_args.remove(index-self.pos_args.len()).expr)
+            self.kw_args.get(index - self.pos_args.len())?;
+            Some(self.kw_args.remove(index - self.pos_args.len()).expr)
         }
     }
 
@@ -202,7 +242,9 @@ impl Args {
         if self.pos_args.get(index).is_some() {
             self.pos_args.get(index).map(|a| &a.expr)
         } else {
-            self.kw_args.get(index-self.pos_args.len()).map(|a| &a.expr)
+            self.kw_args
+                .get(index - self.pos_args.len())
+                .map(|a| &a.expr)
         }
     }
 }
@@ -220,7 +262,9 @@ impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let __name__ = if let Some(__name__) = self.__name__() {
             format!("(__name__ = {__name__})")
-        } else { "".to_string() };
+        } else {
+            "".to_string()
+        };
         if self.t != Type::ASTOmitted {
             write!(f, "{} (: {}){}", self.name.content, self.t, __name__)
         } else {
@@ -231,31 +275,43 @@ impl fmt::Display for Local {
 
 impl HasType for Local {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl Locational for Local {
     #[inline]
-    fn loc(&self) -> Location { self.name.loc() }
+    fn loc(&self) -> Location {
+        self.name.loc()
+    }
 }
 
 impl Local {
-    pub const fn new(name: Token, __name__: Option<Str>, t: Type) -> Self { Self{ name, __name__, t } }
+    pub const fn new(name: Token, __name__: Option<Str>, t: Type) -> Self {
+        Self { name, __name__, t }
+    }
 
     // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
     #[inline]
-    pub fn inspect(&self) -> &Str { &self.name.content }
+    pub fn inspect(&self) -> &Str {
+        &self.name.content
+    }
 
-    pub const fn __name__(&self) -> Option<&Str> { self.__name__.as_ref() }
+    pub const fn __name__(&self) -> Option<&Str> {
+        self.__name__.as_ref()
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Attribute {
     pub obj: Box<Expr>,
     pub name: Token,
-    t: Type
+    t: Type,
 }
 
 impl fmt::Display for Attribute {
@@ -268,14 +324,22 @@ impl_locational!(Attribute, obj, name);
 
 impl HasType for Attribute {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl Attribute {
     pub fn new(obj: Expr, name: Token, t: Type) -> Self {
-        Self { obj: Box::new(obj), name, t }
+        Self {
+            obj: Box::new(obj),
+            name,
+            t,
+        }
     }
 }
 
@@ -283,7 +347,7 @@ impl Attribute {
 pub struct Subscript {
     obj: Box<Expr>,
     index: Box<Expr>,
-    t: Type
+    t: Type,
 }
 
 impl fmt::Display for Subscript {
@@ -296,14 +360,22 @@ impl_locational!(Subscript, obj, index);
 
 impl HasType for Subscript {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl Subscript {
     pub fn new(obj: Expr, index: Expr, t: Type) -> Self {
-        Self { obj: Box::new(obj), index: Box::new(index), t }
+        Self {
+            obj: Box::new(obj),
+            index: Box::new(index),
+            t,
+        }
     }
 }
 
@@ -339,13 +411,19 @@ impl HasType for Accessor {
         }
     }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl Accessor {
-    pub const fn local(symbol: Token, t: Type) -> Self { Self::Local(Local::new(symbol, None, t)) }
+    pub const fn local(symbol: Token, t: Type) -> Self {
+        Self::Local(Local::new(symbol, None, t))
+    }
 
-    pub const fn self_dot(name: Token, t: Type) -> Self { Self::SelfDot(Local::new(name, None, t)) }
+    pub const fn self_dot(name: Token, t: Type) -> Self {
+        Self::SelfDot(Local::new(name, None, t))
+    }
 
     pub fn attr(obj: Expr, name: Token, t: Type) -> Self {
         Self::Attr(Attribute::new(obj, name, t))
@@ -358,18 +436,18 @@ impl Accessor {
     pub fn var_full_name(&self) -> Option<String> {
         match self {
             Self::Local(local) => Some(local.inspect().to_string()),
-            Self::Attr(attr) =>
-                attr.obj.var_full_name().map(|n| n + "." + attr.name.inspect()),
-            Self::Subscr(_)
-            | Self::SelfDot(_) => todo!(),
+            Self::Attr(attr) => attr
+                .obj
+                .var_full_name()
+                .map(|n| n + "." + attr.name.inspect()),
+            Self::Subscr(_) | Self::SelfDot(_) => todo!(),
         }
     }
 
     // 参照するオブジェクト自体が持っている固有の名前
     pub fn __name__(&self) -> Option<&str> {
         match self {
-            Self::Local(local)
-            | Self::SelfDot(local) => local.__name__().map(|s| &s[..]),
+            Self::Local(local) | Self::SelfDot(local) => local.__name__().map(|s| &s[..]),
             _ => None,
         }
     }
@@ -386,9 +464,13 @@ pub struct Array {
 
 impl HasType for Array {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl NestedDisplay for Array {
@@ -405,12 +487,26 @@ impl_display_from_nested!(Array);
 impl_locational!(Array, l_sqbr, r_sqbr);
 
 impl Array {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, level: usize, elems: Args, guard: Option<Expr>) -> Self {
-        let elem_t = elems.pos_args().first()
+    pub fn new(
+        l_sqbr: Token,
+        r_sqbr: Token,
+        level: usize,
+        elems: Args,
+        guard: Option<Expr>,
+    ) -> Self {
+        let elem_t = elems
+            .pos_args()
+            .first()
             .map(|a| a.expr.t())
             .unwrap_or_else(|| Type::free_var(level, Constraint::TypeOf(Type::Type)));
         let t = Type::array(elem_t, TyParam::value(elems.len()));
-        Self { l_sqbr, r_sqbr, t, elems, guard: guard.map(Box::new) }
+        Self {
+            l_sqbr,
+            r_sqbr,
+            t,
+            elems,
+            guard: guard.map(Box::new),
+        }
     }
 
     pub fn push(&mut self, elem: Expr) {
@@ -426,10 +522,16 @@ pub struct Dict {
 }
 
 impl HasType for Dict {
-    fn ref_t(&self) -> &Type { todo!() }
-    fn t(&self) -> Type { todo!() }
+    fn ref_t(&self) -> &Type {
+        todo!()
+    }
+    fn t(&self) -> Type {
+        todo!()
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl NestedDisplay for Dict {
@@ -443,7 +545,11 @@ impl_locational!(Dict, l_brace, r_brace);
 
 impl Dict {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: Args) -> Self {
-        Self { l_brace, r_brace, attrs }
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+        }
     }
 }
 
@@ -466,13 +572,21 @@ impl NestedDisplay for BinOp {
 
 impl HasType for BinOp {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.sig_t.return_t().unwrap() }
+    fn ref_t(&self) -> &Type {
+        &self.sig_t.return_t().unwrap()
+    }
     #[inline]
-    fn lhs_t(&self) -> &Type { &self.sig_t.lhs_t() }
+    fn lhs_t(&self) -> &Type {
+        &self.sig_t.lhs_t()
+    }
     #[inline]
-    fn rhs_t(&self) -> &Type { &self.sig_t.rhs_t() }
+    fn rhs_t(&self) -> &Type {
+        &self.sig_t.rhs_t()
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { Some(&self.sig_t) }
+    fn signature_t(&self) -> Option<&Type> {
+        Some(&self.sig_t)
+    }
 }
 
 impl_display_from_nested!(BinOp);
@@ -480,7 +594,12 @@ impl_locational!(BinOp, lhs, rhs);
 
 impl BinOp {
     pub fn new(op: Token, lhs: Expr, rhs: Expr, sig_t: Type) -> Self {
-        Self { op, lhs: Box::new(lhs), rhs: Box::new(rhs), sig_t }
+        Self {
+            op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            sig_t,
+        }
     }
 }
 
@@ -493,13 +612,21 @@ pub struct UnaryOp {
 
 impl HasType for UnaryOp {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.sig_t.return_t().unwrap() }
+    fn ref_t(&self) -> &Type {
+        &self.sig_t.return_t().unwrap()
+    }
     #[inline]
-    fn lhs_t(&self) -> &Type { self.expr.ref_t() }
+    fn lhs_t(&self) -> &Type {
+        self.expr.ref_t()
+    }
     #[inline]
-    fn rhs_t(&self) -> &Type { panic!("invalid operation") }
+    fn rhs_t(&self) -> &Type {
+        panic!("invalid operation")
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { Some(&self.sig_t) }
+    fn signature_t(&self) -> Option<&Type> {
+        Some(&self.sig_t)
+    }
 }
 
 impl NestedDisplay for UnaryOp {
@@ -514,7 +641,11 @@ impl_locational!(UnaryOp, op, expr);
 
 impl UnaryOp {
     pub fn new(op: Token, expr: Expr, sig_t: Type) -> Self {
-        Self { op, expr: Box::new(expr), sig_t }
+        Self {
+            op,
+            expr: Box::new(expr),
+            sig_t,
+        }
     }
 }
 
@@ -538,13 +669,21 @@ impl_display_from_nested!(Call);
 
 impl HasType for Call {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.sig_t.return_t().unwrap() }
+    fn ref_t(&self) -> &Type {
+        &self.sig_t.return_t().unwrap()
+    }
     #[inline]
-    fn lhs_t(&self) -> &Type { self.sig_t.lhs_t() }
+    fn lhs_t(&self) -> &Type {
+        self.sig_t.lhs_t()
+    }
     #[inline]
-    fn rhs_t(&self) -> &Type { self.sig_t.rhs_t() }
+    fn rhs_t(&self) -> &Type {
+        self.sig_t.rhs_t()
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { Some(&self.sig_t) }
+    fn signature_t(&self) -> Option<&Type> {
+        Some(&self.sig_t)
+    }
 }
 
 impl Locational for Call {
@@ -555,11 +694,16 @@ impl Locational for Call {
 
 impl Call {
     pub fn new(obj: Expr, args: Args, sig_t: Type) -> Self {
-        Self { obj: Box::new(obj), args, sig_t }
+        Self {
+            obj: Box::new(obj),
+            args,
+            sig_t,
+        }
     }
 
     pub fn is_import_call(&self) -> bool {
-        self.obj.var_full_name()
+        self.obj
+            .var_full_name()
             .map(|s| &s[..] == "import" || &s[..] == "pyimport")
             .unwrap_or(false)
     }
@@ -570,11 +714,17 @@ pub struct Block(Vec<Expr>);
 
 impl HasType for Block {
     #[inline]
-    fn ref_t(&self) -> &Type { self.last().unwrap().ref_t() }
+    fn ref_t(&self) -> &Type {
+        self.last().unwrap().ref_t()
+    }
     #[inline]
-    fn t(&self) -> Type { self.last().unwrap().t() }
+    fn t(&self) -> Type {
+        self.last().unwrap().t()
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { self.last().unwrap().signature_t() }
+    fn signature_t(&self) -> Option<&Type> {
+        self.last().unwrap().signature_t()
+    }
 }
 
 impl NestedDisplay for Block {
@@ -605,13 +755,19 @@ impl fmt::Display for VarSignature {
 }
 
 impl Locational for VarSignature {
-    fn loc(&self) -> Location { self.pat.loc() }
+    fn loc(&self) -> Location {
+        self.pat.loc()
+    }
 }
 
 impl VarSignature {
-    pub const fn new(pat: VarPattern, t: Type) -> Self { Self{ pat, t } }
+    pub const fn new(pat: VarPattern, t: Type) -> Self {
+        Self { pat, t }
+    }
 
-    pub fn inspect(&self) -> Option<&Str> { self.pat.inspect() }
+    pub fn inspect(&self) -> Option<&Str> {
+        self.pat.inspect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -635,10 +791,12 @@ impl Locational for SubrSignature {
 
 impl SubrSignature {
     pub const fn new(name: VarName, params: Params, t: Type) -> Self {
-        Self{ name, params, t }
+        Self { name, params, t }
     }
 
-    pub fn is_procedural(&self) -> bool { self.name.is_procedural() }
+    pub fn is_procedural(&self) -> bool {
+        self.name.is_procedural()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -647,14 +805,18 @@ pub struct Lambda {
     op: Token,
     pub body: Block,
     pub id: usize,
-    t: Type
+    t: Type,
 }
 
 impl HasType for Lambda {
     #[inline]
-    fn ref_t(&self) -> &Type { &self.t }
+    fn ref_t(&self) -> &Type {
+        &self.t
+    }
     #[inline]
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl NestedDisplay for Lambda {
@@ -669,10 +831,18 @@ impl_locational!(Lambda, params, body);
 
 impl Lambda {
     pub const fn new(id: usize, params: Params, op: Token, body: Block, t: Type) -> Self {
-        Self { id, params, op, body, t }
+        Self {
+            id,
+            params,
+            op,
+            body,
+            t,
+        }
     }
 
-    pub fn is_procedural(&self) -> bool { self.op.is(TokenKind::ProcArrow) }
+    pub fn is_procedural(&self) -> bool {
+        self.op.is(TokenKind::ProcArrow)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -685,7 +855,9 @@ impl_display_for_enum!(Signature; Var, Subr,);
 impl_locational_for_enum!(Signature; Var, Subr,);
 
 impl Signature {
-    pub const fn is_subr(&self) -> bool { matches!(self, Self::Subr(_)) }
+    pub const fn is_subr(&self) -> bool {
+        matches!(self, Self::Subr(_))
+    }
 
     pub fn is_const(&self) -> bool {
         match self {
@@ -720,34 +892,44 @@ impl_display_from_nested!(Decl);
 
 impl Locational for Decl {
     #[inline]
-    fn loc(&self) -> Location { self.sig.loc() }
+    fn loc(&self) -> Location {
+        self.sig.loc()
+    }
 }
 
 impl Decl {
-    pub const fn spec_t(&self) -> &Type { &self.t }
+    pub const fn spec_t(&self) -> &Type {
+        &self.t
+    }
 
-    pub const fn is_sub(&self) -> bool { self.sig.is_subr() }
+    pub const fn is_sub(&self) -> bool {
+        self.sig.is_subr()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct DefBody {
     pub op: Token,
     pub block: Block,
-    pub id : DefId,
+    pub id: DefId,
 }
 
 impl_locational!(DefBody, op, block);
 
 impl DefBody {
-    pub const fn new(op: Token, block: Block, id: DefId) -> Self { Self { op, block, id } }
+    pub const fn new(op: Token, block: Block, id: DefId) -> Self {
+        Self { op, block, id }
+    }
 
     pub fn is_type(&self) -> bool {
         match self.block.first().unwrap() {
             Expr::Call(call) => {
                 if let Expr::Accessor(Accessor::Local(local)) = call.obj.as_ref() {
                     &local.inspect()[..] == "Type"
-                } else { false }
-            },
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -770,7 +952,9 @@ impl_display_from_nested!(Def);
 impl_locational!(Def, sig, body);
 
 impl Def {
-    pub const fn new(sig: Signature, body: DefBody) -> Self { Self { sig, body } }
+    pub const fn new(sig: Signature, body: DefBody) -> Self {
+        Self { sig, body }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -872,5 +1056,7 @@ impl std::fmt::Display for HIR {
 }
 
 impl HIR {
-    pub const fn new(name: Str, module: Module) -> Self { Self { name, module } }
+    pub const fn new(name: Str, module: Module) -> Self {
+        Self { name, module }
+    }
 }

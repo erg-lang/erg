@@ -1,14 +1,14 @@
-use erg_common::Str;
-use erg_common::{log};
 use erg_common::color::{GREEN, RESET};
 use erg_common::dict::Dict;
 use erg_common::error::Location;
+use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::{Stream, Locational, HasType};
+use erg_common::traits::{HasType, Locational, Stream};
 use erg_common::ty::{ArgsOwnership, Ownership};
+use erg_common::Str;
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
-use crate::hir::{HIR, Def, Signature, Accessor, Block, Expr};
+use crate::hir::{Accessor, Block, Def, Expr, Signature, HIR};
 use crate::varinfo::Visibility;
 use Visibility::*;
 
@@ -42,9 +42,15 @@ impl OwnershipChecker {
     }
 
     fn full_path(&self) -> String {
-        self.path_stack.iter().fold(String::new(), |acc, (path, vis)| {
-            if vis.is_public() { acc + "." + &path[..] } else { acc + "::" + &path[..] }
-        })
+        self.path_stack
+            .iter()
+            .fold(String::new(), |acc, (path, vis)| {
+                if vis.is_public() {
+                    acc + "." + &path[..]
+                } else {
+                    acc + "::" + &path[..]
+                }
+            })
     }
 
     // moveされた後の変数が使用されていないかチェックする
@@ -52,11 +58,15 @@ impl OwnershipChecker {
     pub fn check(mut self, hir: HIR) -> OwnershipResult<HIR> {
         log!("{GREEN}[DEBUG] the ownership checking process has started.{RESET}");
         self.path_stack.push((hir.name.clone(), Private));
-        self.dict.insert(Str::from(self.full_path()), LocalVars::default());
+        self.dict
+            .insert(Str::from(self.full_path()), LocalVars::default());
         for chunk in hir.module.iter() {
             self.check_expr(chunk, Ownership::Owned);
         }
-        log!("{GREEN}[DEBUG] the ownership checking process has completed, found errors: {}{RESET}", self.errs.len());
+        log!(
+            "{GREEN}[DEBUG] the ownership checking process has completed, found errors: {}{RESET}",
+            self.errs.len()
+        );
         if self.errs.is_empty() {
             Ok(hir)
         } else {
@@ -76,19 +86,27 @@ impl OwnershipChecker {
                 self.define(&def);
                 let name_and_vis = match &def.sig {
                     Signature::Var(var) =>
-                        // TODO: visibility
-                        if let Some(name) = var.inspect() { (name.clone(), Private) }
-                        else { (Str::ever("::<instant>"), Private) },
+                    // TODO: visibility
+                    {
+                        if let Some(name) = var.inspect() {
+                            (name.clone(), Private)
+                        } else {
+                            (Str::ever("::<instant>"), Private)
+                        }
+                    }
                     Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
                 };
                 self.path_stack.push(name_and_vis);
-                self.dict.insert(Str::from(self.full_path()), LocalVars::default());
+                self.dict
+                    .insert(Str::from(self.full_path()), LocalVars::default());
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
-            },
+            }
             Expr::Accessor(Accessor::Local(local)) => {
                 for n in 0..self.path_stack.len() {
-                    if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(local.inspect()) {
+                    if let Some(moved_loc) =
+                        self.nth_outer_scope(n).dropped_vars.get(local.inspect())
+                    {
                         let moved_loc = *moved_loc;
                         self.errs.push(OwnershipError::move_error(
                             local.inspect(),
@@ -102,34 +120,44 @@ impl OwnershipChecker {
                     log!("dropped: {}", local.inspect());
                     self.drop(local.inspect(), expr.loc());
                 }
-            },
+            }
             Expr::Accessor(Accessor::Attr(a)) => {
-                if a.ref_t().is_mut() { todo!("ownership checking {a}") }
-            },
+                if a.ref_t().is_mut() {
+                    todo!("ownership checking {a}")
+                }
+            }
             Expr::Accessor(_a) => todo!(),
             // TODO: referenced
             Expr::Call(call) => {
                 self.check_expr(&call.obj, ownership);
                 let args_ownership = call.signature_t().unwrap().args_ownership();
                 match args_ownership {
-                    ArgsOwnership::Args{ self_, non_defaults, defaults } => {
+                    ArgsOwnership::Args {
+                        self_,
+                        non_defaults,
+                        defaults,
+                    } => {
                         if let Some(ownership) = self_ {
                             self.check_expr(&call.obj, ownership);
                         }
-                        let (nd_ownerships, d_ownerships): (Vec<_>, Vec<_>) = non_defaults.iter()
+                        let (nd_ownerships, d_ownerships): (Vec<_>, Vec<_>) = non_defaults
+                            .iter()
                             .enumerate()
                             .partition(|(i, _)| *i == call.args.pos_args().len());
-                        for (parg, (_, ownership)) in call.args.pos_args()
-                            .iter()
-                            .zip(nd_ownerships.into_iter()) {
-                                self.check_expr(&parg.expr, *ownership);
+                        for (parg, (_, ownership)) in
+                            call.args.pos_args().iter().zip(nd_ownerships.into_iter())
+                        {
+                            self.check_expr(&parg.expr, *ownership);
                         }
-                        for (kwarg, (_, ownership)) in call.args.kw_args()
+                        for (kwarg, (_, ownership)) in call
+                            .args
+                            .kw_args()
                             .iter()
-                            .zip(d_ownerships.into_iter().chain(defaults.iter().enumerate())) {
-                                self.check_expr(&kwarg.expr, *ownership);
+                            .zip(d_ownerships.into_iter().chain(defaults.iter().enumerate()))
+                        {
+                            self.check_expr(&kwarg.expr, *ownership);
                         }
-                    },
+                    }
                     ArgsOwnership::VarArgs(ownership) => {
                         for parg in call.args.pos_args().iter() {
                             self.check_expr(&parg.expr, ownership);
@@ -137,38 +165,39 @@ impl OwnershipChecker {
                         for kwarg in call.args.kw_args().iter() {
                             self.check_expr(&kwarg.expr, ownership);
                         }
-                    },
+                    }
                     other => todo!("{other:?}"),
                 }
-            },
+            }
             // TODO: referenced
             Expr::BinOp(binop) => {
                 self.check_expr(&binop.lhs, ownership);
                 self.check_expr(&binop.rhs, ownership);
-            },
+            }
             Expr::UnaryOp(unary) => {
                 self.check_expr(&unary.expr, ownership);
-            },
+            }
             Expr::Array(arr) => {
                 for a in arr.elems.pos_args().iter() {
                     self.check_expr(&a.expr, ownership);
                 }
-            },
+            }
             Expr::Dict(dict) => {
                 for a in dict.attrs.kw_args().iter() {
                     // self.check_expr(&a.key);
                     self.check_expr(&a.expr, ownership);
                 }
-            },
+            }
             // TODO: capturing
             Expr::Lambda(lambda) => {
                 let name_and_vis = (Str::from(format!("<lambda_{}>", lambda.id)), Private);
                 self.path_stack.push(name_and_vis);
-                self.dict.insert(Str::from(self.full_path()), LocalVars::default());
+                self.dict
+                    .insert(Str::from(self.full_path()), LocalVars::default());
                 self.check_block(&lambda.body);
                 self.path_stack.pop();
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -180,11 +209,16 @@ impl OwnershipChecker {
 
     #[inline]
     fn nth_outer_scope(&mut self, n: usize) -> &mut LocalVars {
-        let path = self.path_stack.iter()
-            .take(self.path_stack.len() - n)
-            .fold(String::new(), |acc, (path, vis)| {
-                if vis.is_public() { acc + "." + &path[..] } else { acc + "::" + &path[..] }
-        });
+        let path = self.path_stack.iter().take(self.path_stack.len() - n).fold(
+            String::new(),
+            |acc, (path, vis)| {
+                if vis.is_public() {
+                    acc + "." + &path[..]
+                } else {
+                    acc + "::" + &path[..]
+                }
+            },
+        );
         self.dict.get_mut(&path[..]).unwrap()
     }
 
@@ -194,18 +228,22 @@ impl OwnershipChecker {
                 for name in sig.pat.inspects() {
                     self.current_scope().alive_vars.insert(name.clone());
                 }
-            },
+            }
             Signature::Subr(sig) => {
-                self.current_scope().alive_vars.insert(sig.name.inspect().clone());
-            },
+                self.current_scope()
+                    .alive_vars
+                    .insert(sig.name.inspect().clone());
+            }
         }
     }
 
     fn drop(&mut self, name: &Str, moved_loc: Location) {
         for n in 0..self.path_stack.len() {
             if self.nth_outer_scope(n).alive_vars.remove(name) {
-                self.nth_outer_scope(n).dropped_vars.insert(name.clone(), moved_loc);
-                return
+                self.nth_outer_scope(n)
+                    .dropped_vars
+                    .insert(name.clone(), moved_loc);
+                return;
             }
         }
         panic!("variable not found: {name}");

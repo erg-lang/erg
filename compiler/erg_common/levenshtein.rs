@@ -26,5 +26,5 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
             .unwrap();
         }
     }
-    return table[l_len][r_len]
+    return table[l_len][r_len];
 }

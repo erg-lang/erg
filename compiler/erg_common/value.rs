@@ -1,19 +1,19 @@
 //! defines `ValueObj` (used in the compiler, VM).
 //!
 //! コンパイラ、VM等で使われる(データも保持した)値オブジェクトを定義する
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Neg;
 use std::rc::Rc;
-use std::cmp::Ordering;
 
-use crate::{Str, RcArray};
-use crate::set;
-use crate::{fmt_iter, switch_lang, impl_display_from_debug};
 use crate::codeobj::CodeObj;
 use crate::serialize::*;
+use crate::set;
 use crate::traits::HasType;
-use crate::ty::{Type, TyParam, Predicate, ConstObj, fresh_varname};
+use crate::ty::{fresh_varname, ConstObj, Predicate, TyParam, Type};
+use crate::{fmt_iter, impl_display_from_debug, switch_lang};
+use crate::{RcArray, Str};
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
@@ -43,9 +43,12 @@ impl fmt::Debug for ValueObj {
             Self::Nat(n) => write!(f, "{n}"),
             Self::Float(fl) => {
                 // In Rust, .0 is shown omitted.
-                if fl.fract() < 1e-10 { write!(f, "{fl:.1}") }
-                else { write!(f, "{fl}") }
-            },
+                if fl.fract() < 1e-10 {
+                    write!(f, "{fl:.1}")
+                } else {
+                    write!(f, "{fl}")
+                }
+            }
             Self::Str(s) => write!(f, "\"{s}\""),
             Self::True => write!(f, "True"),
             Self::False => write!(f, "False"),
@@ -58,7 +61,7 @@ impl fmt::Debug for ValueObj {
                 s.pop();
                 s.pop();
                 write!(f, "[{s}]")
-            },
+            }
             Self::Code(code) => write!(f, "{code}"),
             Self::None => write!(f, "None"),
             Self::Ellipsis => write!(f, "Ellipsis"),
@@ -132,39 +135,61 @@ impl Hash for ValueObj {
 }
 
 impl From<i32> for ValueObj {
-    fn from(item: i32) -> Self { ValueObj::Int(item) }
+    fn from(item: i32) -> Self {
+        ValueObj::Int(item)
+    }
 }
 
 impl From<u64> for ValueObj {
-    fn from(item: u64) -> Self { ValueObj::Nat(item) }
+    fn from(item: u64) -> Self {
+        ValueObj::Nat(item)
+    }
 }
 
 impl From<usize> for ValueObj {
-    fn from(item: usize) -> Self { ValueObj::Nat(item as u64) }
+    fn from(item: usize) -> Self {
+        ValueObj::Nat(item as u64)
+    }
 }
 
 impl From<f64> for ValueObj {
-    fn from(item: f64) -> Self { ValueObj::Float(item) }
+    fn from(item: f64) -> Self {
+        ValueObj::Float(item)
+    }
 }
 
 impl From<&str> for ValueObj {
-    fn from(item: &str) -> Self { ValueObj::Str(Str::rc(item)) }
+    fn from(item: &str) -> Self {
+        ValueObj::Str(Str::rc(item))
+    }
 }
 
 impl From<Str> for ValueObj {
-    fn from(item: Str) -> Self { ValueObj::Str(item) }
+    fn from(item: Str) -> Self {
+        ValueObj::Str(item)
+    }
 }
 
 impl From<bool> for ValueObj {
-    fn from(item: bool) -> Self { if item { ValueObj::True } else { ValueObj::False } }
+    fn from(item: bool) -> Self {
+        if item {
+            ValueObj::True
+        } else {
+            ValueObj::False
+        }
+    }
 }
 
 impl From<CodeObj> for ValueObj {
-    fn from(item: CodeObj) -> Self { ValueObj::Code(Box::new(item)) }
+    fn from(item: CodeObj) -> Self {
+        ValueObj::Code(Box::new(item))
+    }
 }
 
 impl From<Vec<ValueObj>> for ValueObj {
-    fn from(item: Vec<ValueObj>) -> Self { ValueObj::Array(RcArray::from(&item[..])) }
+    fn from(item: Vec<ValueObj>) -> Self {
+        ValueObj::Array(RcArray::from(&item[..]))
+    }
 }
 
 impl TryFrom<&ValueObj> for f64 {
@@ -182,15 +207,22 @@ impl TryFrom<&ValueObj> for f64 {
 }
 
 impl HasType for ValueObj {
-    fn ref_t(&self) -> &Type { panic!("cannot get reference of the const") }
+    fn ref_t(&self) -> &Type {
+        panic!("cannot get reference of the const")
+    }
     /// その要素だけの集合型を返す、クラスが欲しい場合は.classで
     #[inline]
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
-        let pred = Predicate::eq(name.clone(), TyParam::ConstObj(ConstObj::Value(self.clone())));
-        Type::refinement(name, self.class(), set!{pred})
+        let pred = Predicate::eq(
+            name.clone(),
+            TyParam::ConstObj(ConstObj::Value(self.clone())),
+        );
+        Type::refinement(name, self.class(), set! {pred})
     }
-    fn signature_t(&self) -> Option<&Type> { None }
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
 }
 
 impl ValueObj {
@@ -210,10 +242,14 @@ impl ValueObj {
                     let replaced = content.trim_start_matches('\"').trim_end_matches('\"');
                     Self::Str(Str::rc(replaced))
                 }
-            },
+            }
             Type::Bool => {
-                if &content[..] == "True" { Self::True } else { Self::False }
-            },
+                if &content[..] == "True" {
+                    Self::True
+                } else {
+                    Self::False
+                }
+            }
             Type::NoneType => Self::None,
             Type::Ellipsis => Self::Ellipsis,
             Type::NotImplemented => Self::NotImplemented,
@@ -225,17 +261,23 @@ impl ValueObj {
 
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
-            Self::Int(i) => {
-                [vec![DataTypePrefix::Int32 as u8], i32::from(i).to_le_bytes().to_vec()].concat()
-            },
+            Self::Int(i) => [
+                vec![DataTypePrefix::Int32 as u8],
+                i32::from(i).to_le_bytes().to_vec(),
+            ]
+            .concat(),
             // TODO: Natとしてシリアライズ
-            Self::Nat(n) => {
-                [vec![DataTypePrefix::Int32 as u8], i32::from(n as i32).to_le_bytes().to_vec()].concat()
-            },
-            Self::Float(f) => {
-                [vec![DataTypePrefix::BinFloat as u8], f64::from(f).to_le_bytes().to_vec()].concat()
-            },
-            Self::Str(s) => { str_into_bytes(s, false) },
+            Self::Nat(n) => [
+                vec![DataTypePrefix::Int32 as u8],
+                i32::from(n as i32).to_le_bytes().to_vec(),
+            ]
+            .concat(),
+            Self::Float(f) => [
+                vec![DataTypePrefix::BinFloat as u8],
+                f64::from(f).to_le_bytes().to_vec(),
+            ]
+            .concat(),
+            Self::Str(s) => str_into_bytes(s, false),
             Self::True => vec![DataTypePrefix::True as u8],
             Self::False => vec![DataTypePrefix::False as u8],
             // TODO: SmallTuple
@@ -247,14 +289,21 @@ impl ValueObj {
                     bytes.append(&mut obj.into_bytes());
                 }
                 bytes
-            },
-            Self::None => { vec![DataTypePrefix::None as u8] },
+            }
+            Self::None => {
+                vec![DataTypePrefix::None as u8]
+            }
             Self::Code(c) => c.into_bytes(3425),
             // Dict
-            other => { panic!("{}", switch_lang!(
-                format!("this object cannot be serialized: {other}"),
-                format!("このオブジェクトはシリアライズできません: {other}")
-            )) },
+            other => {
+                panic!(
+                    "{}",
+                    switch_lang!(
+                        format!("this object cannot be serialized: {other}"),
+                        format!("このオブジェクトはシリアライズできません: {other}")
+                    )
+                )
+            }
         }
     }
 
@@ -266,9 +315,9 @@ impl ValueObj {
             Self::Str(_) => Type::Str,
             Self::True | Self::False => Type::Bool,
             // TODO:
-            Self::Array(arr) =>Type::array(
+            Self::Array(arr) => Type::array(
                 arr.iter().next().unwrap().class(),
-                TyParam::value(arr.len())
+                TyParam::value(arr.len()),
             ),
             Self::Dict(_dict) => todo!(),
             Self::Code(_) => Type::Code,
@@ -283,13 +332,11 @@ impl ValueObj {
 
     pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (l, r) if l.is_num() && r.is_num() => {
-                f64::try_from(l).unwrap().partial_cmp(&f64::try_from(r).unwrap())
-            }
-            (Self::Inf, n)
-            | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
-            (n, Self::Inf)
-            | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
+            (l, r) if l.is_num() && r.is_num() => f64::try_from(l)
+                .unwrap()
+                .partial_cmp(&f64::try_from(r).unwrap()),
+            (Self::Inf, n) | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
+            (n, Self::Inf) | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
             (Self::NegInf, Self::Inf) => Some(Ordering::Less),
             (Self::Inf, Self::NegInf) => Some(Ordering::Greater),
             // REVIEW: 等しいとみなしてよいのか?
@@ -317,8 +364,9 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l + r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 + r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{}{}", l, r)))),
-            (inf @ (Self::Inf | Self::NegInf), _)
-            | (_, inf @ (Self::Inf | Self::NegInf)) => Some(inf),
+            (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
+                Some(inf)
+            }
             _ => None,
         }
     }
@@ -336,7 +384,10 @@ impl ValueObj {
             (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
             (inf @ (Self::Inf | Self::NegInf), other)
             | (other, inf @ (Self::Inf | Self::NegInf))
-            if other != Self::Inf && other != Self::NegInf => Some(inf),
+                if other != Self::Inf && other != Self::NegInf =>
+            {
+                Some(inf)
+            }
             _ => None,
         }
     }
@@ -353,8 +404,9 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l * r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 * r)),
             (Self::Str(l), Self::Nat(r)) => Some(Self::Str(Str::from(l.repeat(r as usize)))),
-            (inf @ (Self::Inf | Self::NegInf), _)
-            | (_, inf @ (Self::Inf | Self::NegInf)) => Some(inf),
+            (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
+                Some(inf)
+            }
             _ => None,
         }
     }
@@ -417,10 +469,8 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l == r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 == r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
-            (Self::True, Self::True) |
-            (Self::False, Self::False) => Some(Self::True),
-            (Self::True, Self::False) |
-            (Self::False, Self::True) => Some(Self::False),
+            (Self::True, Self::True) | (Self::False, Self::False) => Some(Self::True),
+            (Self::True, Self::False) | (Self::False, Self::True) => Some(Self::False),
             // TODO:
             _ => None,
         }
@@ -438,10 +488,8 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l != r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 != r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
-            (Self::True, Self::True) |
-            (Self::False, Self::False) => Some(Self::False),
-            (Self::True, Self::False) |
-            (Self::False, Self::True) => Some(Self::True),
+            (Self::True, Self::True) | (Self::False, Self::False) => Some(Self::False),
+            (Self::True, Self::False) | (Self::False, Self::True) => Some(Self::True),
             _ => None,
         }
     }
