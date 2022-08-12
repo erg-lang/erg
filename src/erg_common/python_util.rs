@@ -52,14 +52,14 @@ pub fn exec_pyc<S: Into<String>>(file: S) {
             .arg(which_python())
             .arg(&file.into())
             .spawn()
-            .expect("cannot get the magic number from python")
+            .expect("cannot execute python")
     } else {
         let python_command = format!("{} {}", which_python(), file.into());
         Command::new("sh")
             .arg("-c")
             .arg(python_command)
             .spawn()
-            .expect("cannot get the magic number from python")
+            .expect("cannot execute python")
     };
     out.wait().expect("python doesn't work");
 }
@@ -72,15 +72,30 @@ pub fn eval_pyc<S: Into<String>>(file: S) -> String {
             .arg(which_python())
             .arg(&file.into())
             .spawn()
-            .expect("cannot get the magic number from python")
+            .expect("cannot execute python")
     } else {
         let python_command = format!("{} {}", which_python(), file.into());
         Command::new("sh")
             .arg("-c")
             .arg(python_command)
             .spawn()
-            .expect("cannot get the magic number from python")
+            .expect("cannot execute python")
     };
     let out = out.wait_with_output().expect("python doesn't work");
     String::from_utf8(out.stdout).expect("failed to decode python output")
+}
+
+pub fn exec_py(code: &str) {
+    if cfg!(windows) {
+        Command::new(which_python())
+            .arg("-c")
+            .arg(code)
+            .spawn()
+            .expect("cannot execute python");
+    } else {
+        let python_command = format!("{} -c \"{}\"", which_python(), code);
+        Command::new(python_command)
+            .spawn()
+            .expect("cannot execute python");
+    }
 }
