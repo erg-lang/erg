@@ -349,7 +349,7 @@ impl ConstObj {
 
 /// 型引数
 /// データのみ、その評価結果は別に持つ
-/// __Info__: 連携型パラメータがあるので、比較には`deep_eq`を使うこと
+/// __Info__: 連携型パラメータがあるので、比較には`rec_eq`を使うこと
 /// * Literal: 1, "aa", True, None, ... (don't use container literals, they can only hold literals)
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...
@@ -561,35 +561,35 @@ impl TyParam {
     // if self: Ratio, Pred(self) => self-ε
     pub fn pred(self) -> Self { Self::app("Pred", vec![self]) }
 
-    /// 型変数の内容を考慮した比較を行う
-    pub fn deep_eq(&self, other: &Self) -> bool {
+    /// 型変数の内容を考慮した再帰的(Recursive)比較を行う
+    pub fn rec_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Type(l), Self::Type(r)) => l.deep_eq(r),
+            (Self::Type(l), Self::Type(r)) => l.rec_eq(r),
             (Self::FreeVar(fv), o)
             | (o, Self::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(tp) => tp.deep_eq(o),
+                FreeKind::Linked(tp) => tp.rec_eq(o),
                 _ => self == o,
             },
             (
                 Self::MonoProj{ obj: lo, attr: la },
                 Self::MonoProj{ obj: ro, attr: ra}
-            ) => lo.deep_eq(ro) && la == ra,
+            ) => lo.rec_eq(ro) && la == ra,
             (Self::Array(l), Self::Array(r))
             | (Self::Tuple(l), Self::Tuple(r)) =>
-                l.iter().zip(r.iter()).all(|(l, r)| l.deep_eq(r)),
+                l.iter().zip(r.iter()).all(|(l, r)| l.rec_eq(r)),
             (
                 Self::App{ name: ln, args: lps },
                 Self::App{ name: rn, args: rps}
-            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.deep_eq(r)),
+            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.rec_eq(r)),
             (
                 Self::UnaryOp{ op: lop, val: lv },
                 Self::UnaryOp{ op: rop, val: rv }
-            ) => lop == rop && lv.deep_eq(rv),
+            ) => lop == rop && lv.rec_eq(rv),
             (
                 Self::BinOp{ op: lop, lhs: ll, rhs: lr },
                 Self::BinOp{ op: rop, lhs: rl, rhs: rr }
-            ) => lop == rop && ll.deep_eq(rl) && lr.deep_eq(rr),
-            (Self::Erased(l), Self::Erased(r)) => l.deep_eq(r),
+            ) => lop == rop && ll.rec_eq(rl) && lr.rec_eq(rr),
+            (Self::Erased(l), Self::Erased(r)) => l.rec_eq(r),
             _ => self == other,
         }
     }
@@ -598,7 +598,7 @@ impl TyParam {
     pub fn cheap_cmp(&self, r: &TyParam) -> Option<TyParamOrdering> {
         match (self, r) {
             (Self::Type(l), Self::Type(r)) =>
-                if l.deep_eq(r) { Some(TyParamOrdering::Equal) } else { Some(TyParamOrdering::NotEqual) },
+                if l.rec_eq(r) { Some(TyParamOrdering::Equal) } else { Some(TyParamOrdering::NotEqual) },
             (Self::ConstObj(l), Self::ConstObj(r)) =>
                 l.try_cmp(r).map(Into::into),
             (Self::FreeVar(fv), p) if fv.is_linked() =>
@@ -1948,11 +1948,11 @@ impl Type {
         }
     }
 
-    pub fn deep_eq(&self, other: &Self) -> bool {
+    pub fn rec_eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::FreeVar(v), other)
             | (other, Self::FreeVar(v)) => match &*v.borrow() {
-                FreeKind::Linked(t) => t.deep_eq(other),
+                FreeKind::Linked(t) => t.rec_eq(other),
                 _ => self == other,
             },
             (Self::Range(l), Self::Range(r))
@@ -1960,24 +1960,24 @@ impl Type {
             | (Self::Ref(l), Self::Ref(r))
             | (Self::RefMut(l), Self::RefMut(r))
             | (Self::Option(l), Self::Option(r))
-            | (Self::OptionMut(l), Self::OptionMut(r)) => l.deep_eq(r),
+            | (Self::OptionMut(l), Self::OptionMut(r)) => l.rec_eq(r),
             (Self::Subr(l), Self::Subr(r)) => {
                 match (&l.kind, &r.kind) {
                     (SubrKind::Func, SubrKind::Func)
                     | (SubrKind::Proc, SubrKind::Proc) => {},
-                    (SubrKind::FuncMethod(l), SubrKind::FuncMethod(r)) if !l.deep_eq(r.as_ref()) => { return false },
+                    (SubrKind::FuncMethod(l), SubrKind::FuncMethod(r)) if !l.rec_eq(r.as_ref()) => { return false },
                     (SubrKind::ProcMethod{ before, after }, SubrKind::ProcMethod{ before: rbefore, after: rafter })
-                        if !before.deep_eq(rbefore.as_ref())
-                        || !after.as_ref().zip(rafter.as_ref()).map(|(l, r)| l.deep_eq(r)).unwrap_or(false) => { return false },
+                        if !before.rec_eq(rbefore.as_ref())
+                        || !after.as_ref().zip(rafter.as_ref()).map(|(l, r)| l.rec_eq(r)).unwrap_or(false) => { return false },
                     _ => { return false },
                 }
                 if !l.default_params.iter().zip(r.default_params.iter()).all(|(l, r)| {
-                    l.name == r.name && l.ty.deep_eq(&r.ty)
+                    l.name == r.name && l.ty.rec_eq(&r.ty)
                 }) { return false }
                 if !l.non_default_params.iter().zip(r.non_default_params.iter()).all(|(l, r)| {
-                    l.name == r.name && l.ty.deep_eq(&r.ty)
+                    l.name == r.name && l.ty.rec_eq(&r.ty)
                 }) { return false }
-                l.return_t.deep_eq(&r.return_t)
+                l.return_t.rec_eq(&r.return_t)
             },
             (
                 Self::Callable{ param_ts: _lps, return_t: _lr },
@@ -1986,29 +1986,29 @@ impl Type {
             (
                 Self::Array{ t: lt, len: ll},
                 Self::Array{ t: rt, len: rl }
-            ) => lt.deep_eq(rt) && ll.deep_eq(rl),
+            ) => lt.rec_eq(rt) && ll.rec_eq(rl),
             (
                 Self::Dict{ k: lk, v: lv },
                 Self::Dict{ k: rk, v: rv }
-            ) => lk.deep_eq(rk) && lv.deep_eq(rv),
+            ) => lk.rec_eq(rk) && lv.rec_eq(rv),
             (Self::Record(_l), Self::Record(_r)) => todo!(),
             (Self::Refinement(l), Self::Refinement(r)) => {
-                l.t.deep_eq(&r.t) && &l.preds == &r.preds
+                l.t.rec_eq(&r.t) && &l.preds == &r.preds
             },
             (Self::Quantified(l), Self::Quantified(r)) => {
-                l.unbound_callable.deep_eq(&r.unbound_callable) && &l.bounds == &r.bounds
+                l.unbound_callable.rec_eq(&r.unbound_callable) && &l.bounds == &r.bounds
             },
             (Self::Tuple(l), Self::Tuple(r))
             | (Self::And(l), Self::And(r))
             | (Self::Not(l), Self::Not(r))
-            | (Self::Or(l), Self::Or(r)) => l.iter().zip(r.iter()).all(|(l, r)| l.deep_eq(r)),
-            (Self::VarArgs(l), Self::VarArgs(r)) => l.deep_eq(r),
+            | (Self::Or(l), Self::Or(r)) => l.iter().zip(r.iter()).all(|(l, r)| l.rec_eq(r)),
+            (Self::VarArgs(l), Self::VarArgs(r)) => l.rec_eq(r),
             (
                 Self::Poly{ name: ln, params: lps } | Self::PolyQVar{ name: ln, params: lps },
                 Self::Poly{ name: rn, params: rps } | Self::PolyQVar{ name: rn, params: rps },
-            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.deep_eq(r)),
+            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.rec_eq(r)),
             (Self::MonoProj{ lhs, rhs }, Self::MonoProj{ lhs: rlhs, rhs: rrhs }) => {
-                lhs.deep_eq(rlhs) && rhs == rrhs
+                lhs.rec_eq(rlhs) && rhs == rrhs
             },
             _ => self == other,
         }
