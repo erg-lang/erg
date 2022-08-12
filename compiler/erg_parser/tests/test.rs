@@ -1,11 +1,11 @@
-extern crate common;
-extern crate parser;
+extern crate erg_common;
+extern crate erg_parser;
 
 mod tests {
     use std::iter::Iterator;
 
     use erg_common::config::{ErgConfig, Input};
-    use erg_common::error::MultiErrorFmt;
+    use erg_common::error::MultiErrorDisplay;
     use erg_common::traits::Runnable;
 
     // use erg_compiler::parser;
@@ -20,9 +20,7 @@ mod tests {
 
     #[test]
     fn test_lexer() -> ParseResult<()> {
-        let mut cfg = ErgConfig::default();
-        cfg.set_input(Input::File(FILE1));
-        let mut lexer = Lexer::new(cfg);
+        let mut lexer = Lexer::new(Input::File(FILE1.into()));
         let newline = "\n";
         let /*mut*/ token_array = vec![
             (Symbol, "_a"),
@@ -40,7 +38,7 @@ mod tests {
             (Comma, ","),
             (Spread, "..."),
             (Symbol, "b"),
-            (Let, "="),
+            (Equal, "="),
             (Symbol, "five_elem_tuple"),
             (Newline, newline),
             (Symbol, "if!"),
@@ -78,7 +76,7 @@ mod tests {
             (Newline, newline),
             (Newline, newline),
             (Symbol, "Hello"),
-            (Let, "="),
+            (Equal, "="),
             (Symbol, "S2c"),
             // (LParen, "("),
             (StrLit, "hello"),
@@ -87,7 +85,7 @@ mod tests {
             (Dedent, ""),
             (Dedent, ""),
             (Symbol, "aあ아"),
-            (Let, "="),
+            (Equal, "="),
             (Newline, newline),
             (Indent, "    "),
             (Newline, newline),
@@ -103,7 +101,7 @@ mod tests {
             (Semi, ";"),
             (Newline, newline),
             (IntLit, "10"),
-            (Range, ".."),
+            (Closed, ".."),
             (Symbol, "twelve"),
             (Semi, ";"),
             (Newline, newline),
@@ -113,7 +111,7 @@ mod tests {
         let mut tok: Token;
         for i in token_array.into_iter() {
             tok = lexer.next().unwrap().unwrap();
-            assert_eq!(tok, Token::without_loc(i.0, i.1));
+            assert_eq!(tok, Token::from_str(i.0, i.1));
             println!("{tok}");
         }
         Ok(())
@@ -127,12 +125,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parser1() -> Result<(), ParseErrors> {
-        let mut cfg = ErgConfig::default();
-        cfg.input = Input::File(FILE1);
-        let lexer = Lexer::new(cfg);
-        let mut parser = ParserRunner::new(&cfg);
-        match parser.parse(lexer.lex()?) {
+    fn test_parser1() -> Result<(), ParserRunnerErrors> {
+        let input = Input::File(FILE1.into());
+        let cfg = ErgConfig::new("exec", 1, false, None, input.clone(), "<module>", 2);
+        let lexer = Lexer::new(input.clone());
+        let mut parser = ParserRunner::new(cfg);
+        match parser.parse(lexer.lex().map_err(|errs| ParserRunnerErrors::convert(&input, errs))?) {
             Ok(module) => {
                 println!("{module}");
                 Ok(())
