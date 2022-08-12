@@ -29,3 +29,9 @@ However, having multiple libraries for even such basic features not only takes t
 Even in Haskell, a purely functional language, there are libraries that support OOP.
 If programmers don't have some stuffs, they will create them on their own. So, we think it would be better to provide them as a standard.
 This also fits with Python's "Battery included" concept.
+
+## What is the origin of the name Erg?
+
+It is named after the unit of energy erg in the cgs unit system. It is a double meaning: an ergonomic language that gives programmers energy.
+
+There were several other candidates, but this was chosen because it is the shortest (according to Matz, the developer of Ruby, the shorter the better for a language name) and has a reasonably high googlability.
