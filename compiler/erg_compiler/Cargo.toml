@@ -16,7 +16,7 @@ japanese = [ "erg_common/japanese", "erg_parser/japanese" ]
 
 [dependencies]
 erg_common = { version = "0.1.4", path = "../erg_common" }
-erg_parser = { version = "0.1.1", path = "erg_parser" }
+erg_parser = { version = "0.1.1", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"

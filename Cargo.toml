@@ -1,6 +1,6 @@
 [package]
 name = "erg"
-version = "0.2.0"
+version = "0.2.1"
 description = "The Erg programming language"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -9,7 +9,6 @@ repository = "https://github.com/erg-lang/erg"
 documentation = "https://docs.rs/erg"
 homepage = "https://erg-lang.github.io/"
 keywords = ["erg", "programming-language"]
-categories = ["programming-language", "application"]
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
@@ -17,20 +16,17 @@ debug = [
     "erg_common/debug",
     "erg_parser/debug",
     "erg_compiler/debug",
-    #"erg_vm/debug"
 ]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
     "erg_compiler/japanese",
-    #"erg_vm/japanese"
 ]
 
 [dependencies]
-erg_common = { version = "0.1.4", path = "./src/erg_common" }
-erg_parser = { version = "0.1.0", path = "./src/erg_compiler/erg_parser" }
-erg_compiler = { version = "0.2.0", path = "./src/erg_compiler" }
-# vm = { path = "./src/vm" }
+erg_common = { version = "0.1.4", path = "./compiler/erg_common" }
+erg_parser = { version = "0.1.0", path = "./compiler/erg_parser" }
+erg_compiler = { version = "0.2.0", path = "./compiler/erg_compiler" }
 
 # [workspace]
 # member = ["cm", "dyne"]
@@ -41,7 +37,3 @@ erg_compiler = { version = "0.2.0", path = "./src/erg_compiler" }
 # [[bin]]
 # name = "cm"
 # path = "src/compiler/main.rs"
-
-# [[bin]]
-# name = "dyne"
-# path = "src/vm/main.rs"
