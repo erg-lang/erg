@@ -250,7 +250,7 @@ impl Context {
         bool_.register_impl("__and__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_impl("__or__",  fn1_met(Bool, Bool, Bool), Const, Public);
         let mut str_ = Self::mono_class("Str", vec![Obj], vec![
-            mono("Eq"), mono("Seq"), mono("Mutate"),
+            mono("Eq"), mono("Mutate"), poly("Seq", vec![ty_tp(Str)]),
         ], Self::TOP_LEVEL);
         str_.register_impl("__add__", fn1_met(Str, Str, Str), Const, Public);
         str_.register_impl("replace", Type::fn_met(
@@ -262,7 +262,8 @@ impl Context {
         );
         str_.super_traits.push(poly("Add", vec![ty_tp(Str), ty_tp(Str)]));
         let mut array = Self::poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], vec![Obj], vec![
-            mono("Eq"), mono("Seq"), mono("Mutate"), poly("Output", vec![ty_tp(mono_q("T"))])
+            mono("Eq"), mono("Mutate"),
+            poly("Seq", vec![ty_tp(mono_q("T"))]), poly("Output", vec![ty_tp(mono_q("T"))])
         ], Self::TOP_LEVEL);
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
@@ -285,7 +286,7 @@ impl Context {
         type_.register_impl("mro", Type::array(Type, TyParam::erased(Nat)), Immutable, Public);
         let array_mut_t = Type::poly("Array!", vec![TyParam::t(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class("Array!", vec![PS::t_nd("T"), PS::named_nd("N", NatMut)], vec![Obj], vec![
-            mono("Eq"), mono("Seq"), mono("Mutate"),
+            mono("Eq"), mono("Mutate"), poly("Seq", vec![ty_tp(mono_q("T"))])
         ], Self::TOP_LEVEL);
         let t = Type::pr_met(
             Type::ref_mut(array_mut_t.clone()),
@@ -296,6 +297,11 @@ impl Context {
         );
         let t = quant(t, set!{static_instance("T", Type), static_instance("N", NatMut)});
         array_mut.register_impl("push!", t, Immutable, Public);
+        let range_t = Type::poly("Range", vec![TyParam::t(mono_q("T"))]);
+        let range = Self::poly_class("Range", vec![PS::t_nd("T")], vec![Obj], vec![
+            mono("Eq"), mono("Mutate"),
+            poly("Seq", vec![ty_tp(mono_q("T"))]), poly("Output", vec![ty_tp(mono_q("T"))])
+        ], Self::TOP_LEVEL);
         self.register_type(Obj, obj, Const);
         // self.register_type(Type::mono("Record"), vec![], record, Const);
         // self.register_type(Type::mono("Class"), vec![], class, Const);
@@ -305,9 +311,10 @@ impl Context {
         self.register_type(Nat, nat, Const);
         self.register_type(Bool, bool_, Const);
         self.register_type(Str, str_, Const);
-        self.register_type(array_t, array, Const);
-        self.register_type(array_mut_t, array_mut, Const);
         self.register_type(Type, type_, Const);
+        self.register_type(array_t, array, Const);
+        self.register_type(range_t, range, Const);
+        self.register_type(array_mut_t, array_mut, Const);
     }
 
     fn init_builtin_funcs(&mut self) {
@@ -422,7 +429,7 @@ impl Context {
         self.register_decl("__pos__", op_t.clone(), Private);
         self.register_decl("__neg__", op_t,         Private);
         let t = mono_q("T");
-        let op_t = fn1_met(t.clone(), t.clone(), Type::range(t.clone()));
+        let op_t = Type::func2(t.clone(), t.clone(), Type::range(t.clone()));
         let op_t = quant(op_t, set!{subtype(t, mono("Ord"))});
         self.register_decl("__rng__", op_t, Private);
         let op_t = Type::func1(mono_q("T"), Type::mono_proj(mono_q("T"), "MutType!"));
@@ -481,6 +488,9 @@ impl Context {
             param_t("version", Type::Int),
         ], NoneType), Immutable, Public);
         random.register_impl("randint!", nd_proc(vec![param_t("a", Int), param_t("b", Int)], Int), Immutable, Public);
+        let t = nd_proc(vec![param_t("seq", Type::poly("Seq", vec![ty_tp(mono_q("T"))]))], mono_q("T"));
+        let t = quant(t, set!{static_instance("T", Type)});
+        random.register_impl("choice!", t, Immutable, Public);
         random
     }
 
