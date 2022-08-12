@@ -1495,7 +1495,9 @@ impl Context {
 
     /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption
     /// ```
-    /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (Ord :> ?T :> {I: Int | I == 0})
+    /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
+    /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
+    /// sub_unify(Nat, ?T(:> Int)): (/* OK */)
     /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
@@ -1516,9 +1518,32 @@ impl Context {
             ))
         }
         match (maybe_sub, maybe_sup) {
-            (_l, Type::FreeVar(fv)) if fv.is_unbound() => {
-                todo!()
+            (l, Type::FreeVar(fv)) if fv.is_unbound() => {
+                match &mut *fv.borrow_mut() {
+                    FreeKind::NamedUnbound{ constraint, .. }
+                    | FreeKind::Unbound{ constraint, .. } => match constraint {
+                        // sub_unify(Nat, ?T(:> Int)): (/* OK */)
+                        // sub_unify(Int, ?T(:> Nat)): (?T :> Int)
+                        Constraint::SupertypeOf(sub) if self.rec_supertype_of(l, sub) => {
+                            *constraint = Constraint::SupertypeOf(l.clone());
+                        },
+                        // sub_unify(Nat, ?T(<: Int)): (/* OK */)
+                        // sub_unify(Int, ?T(<: Nat)): Error!
+                        Constraint::SubtypeOf(sup) if self.rec_supertype_of(l, sup) => {
+                            return Err(TyCheckError::subtyping_error(l, sup, sub_loc, sup_loc, self.caused_by()))
+                        },
+                        // sub_unify(Nat, (Ratio :> ?T :> Int)): (/* OK */)
+                        // sub_unify(Int, (Ratio :> ?T :> Nat)): (Ratio :> ?T :> Int)
+                        Constraint::Sandwiched{ sub, sup } if self.rec_supertype_of(l, sub) => {
+                            *constraint = Constraint::Sandwiched{ sub: l.clone(), sup: mem::take(sup) };
+                        },
+                        _ => {}
+                    },
+                    _ => {},
+                }
+                return Ok(())
             },
+            (Type::FreeVar(fv), _r) if fv.is_linked() => todo!(),
             (l @ Refinement(_), r @ Refinement(_)) => {
                 return self.unify(l ,r, sub_loc, sup_loc)
             },
@@ -2434,13 +2459,19 @@ impl Context {
     fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
             // |T <: Nat| <: |T <: Int|
-            // |T :> Nat| <: |T :> Int|
             // |I: Nat| <: |I: Int|
             (Constraint::SubtypeOf(lhs), Constraint::SubtypeOf(rhs))
-            | (Constraint::SupertypeOf(lhs), Constraint::SupertypeOf(rhs))
             | (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) =>
                 self.rec_subtype_of(lhs, rhs),
+            // |Int <: T| <: |Nat <: T|
+            (Constraint::SupertypeOf(lhs), Constraint::SupertypeOf(rhs)) =>
+                self.rec_supertype_of(lhs, rhs),
             (Constraint::SubtypeOf(_), Constraint::TypeOf(Type)) => true,
+            // |Int <: T <: Ratio| <: |Nat <: T <: Complex|
+            (
+                Constraint::Sandwiched{ sub: lsub, sup: lsup },
+                Constraint::Sandwiched{ sub: rsub, sup: rsup },
+            ) => self.rec_supertype_of(lsub, rsub) && self.rec_subtype_of(lsup, rsup),
             _ => false,
         }
     }

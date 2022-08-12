@@ -317,6 +317,7 @@ impl CodeGenerator {
         let name = escape_name(name);
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
+                let st = if current_is_toplevel { StoreLoadKind::Local } else { st };
                 self.mut_cur_block_codeobj().names.push(name);
                 Name::new(st, self.cur_block_codeobj().names.len() - 1)
             }
@@ -932,6 +933,13 @@ impl CodeGenerator {
             }
             Expr::BinOp(bin) => {
                 // TODO: and/orのプリミティブ命令の実装
+                // Range operators are not operators in Python
+                match &bin.op.kind {
+                    // l..<r == range(l, r)
+                    TokenKind::RightOpen => { self.emit_load_name_instr(Str::ever("range")).unwrap(); },
+                    TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
+                    _ => {}
+                }
                 let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
                 self.codegen_expr(*bin.lhs);
                 self.codegen_expr(*bin.rhs);
@@ -950,7 +958,8 @@ impl CodeGenerator {
                     | TokenKind::NotEq
                     | TokenKind::Gre
                     | TokenKind::GreEq => COMPARE_OP,
-                    TokenKind::Closed => ERG_BINARY_RANGE,
+                    TokenKind::LeftOpen | TokenKind::RightOpen
+                    | TokenKind::Closed | TokenKind::Open => CALL_FUNCTION, // ERG_BINARY_RANGE,
                     _ => {
                         self.errs.push(CompileError::feature_error(
                             self.cfg.input.clone(),
@@ -968,11 +977,18 @@ impl CodeGenerator {
                     TokenKind::NotEq => 3,
                     TokenKind::Gre => 4,
                     TokenKind::GreEq => 5,
+                    TokenKind::LeftOpen | TokenKind::RightOpen
+                    | TokenKind::Closed | TokenKind::Open => 2,
                     _ => type_pair as u8,
                 };
                 self.write_instr(instr);
                 self.write_arg(arg);
                 self.stack_dec();
+                match &bin.op.kind {
+                    TokenKind::LeftOpen | TokenKind::RightOpen
+                    | TokenKind::Open | TokenKind::Closed => { self.stack_dec(); },
+                    _ => {}
+                }
             }
             Expr::Call(call) => {
                 // TODO: unwrap

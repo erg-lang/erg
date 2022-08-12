@@ -392,6 +392,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"),
         ), None), caused_by)
     }
 
+    pub fn subtyping_error(sub_t: &Type, sup_t: &Type, sub_loc: Option<Location>, sup_loc: Option<Location>, caused_by: Str) -> Self {
+        let loc = match (sub_loc, sup_loc) {
+            (Some(l), Some(r)) => Location::pair(l, r),
+            (Some(l), None) => l,
+            (None, Some(r)) => r,
+            (None, None) => Location::Unknown,
+        };
+        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
+            format!("subtype constraints cannot be satisfied:\nsubtype: {YELLOW}{sub_t}{RESET}\nsupertype: {YELLOW}{sup_t}{RESET}"),
+            format!("部分型制約を満たせません:\nサブタイプ: {YELLOW}{sub_t}{RESET}\nスーパータイプ: {YELLOW}{sup_t}{RESET}")
+        ), None), caused_by)
+    }
+
     pub fn pred_unification_error(lhs: &Predicate, rhs: &Predicate, caused_by: Str) -> Self {
         Self::new(ErrorCore::new(0, TypeError, Location::Unknown, switch_lang!(
             format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
