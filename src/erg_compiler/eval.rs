@@ -13,78 +13,78 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::Token;
 
-use crate::table::{SymbolTable, TyVarTable};
+use crate::context::{Context, TyVarContext};
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
-/// SubstTable::new([?T; 0], SymbolTable(Array(T, N))) => SubstTable{ params: { T: ?T; N: 0 } }
-/// SubstTable::substitute([T; !N], SymbolTable(Array(T, N))): [?T; !0]
+/// SubstContext::new([?T; 0], Context(Array(T, N))) => SubstContext{ params: { T: ?T; N: 0 } }
+/// SubstContext::substitute([T; !N], Context(Array(T, N))): [?T; !0]
 #[derive(Debug)]
-struct SubstTable {
+struct SubstContext {
     params: Dict<Str, TyParam>,
 }
 
-impl SubstTable {
-    pub fn new(substituted: &Type, ty_table: &SymbolTable) -> Self {
-        let param_names = ty_table.impls.iter()
+impl SubstContext {
+    pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
+        let param_names = ty_ctx.impls.iter()
             .filter(|(_, vi)| vi.kind.is_parameter())
             .map(|(name, _)| name.inspect().clone());
-        let self_ = SubstTable{
+        let self_ = SubstContext{
             params: param_names.zip(substituted.typarams().into_iter()).collect(),
         };
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
         self_
     }
 
-    fn substitute(&self, quant_t: Type, ty_table: &SymbolTable, level: usize) -> TyCheckResult<Type> {
-        let bounds = ty_table.bounds();
-        let tvtab = TyVarTable::new(level, bounds);
-        let (inst, _) = SymbolTable::instantiate_t(quant_t, tvtab);
+    fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize) -> TyCheckResult<Type> {
+        let bounds = ty_ctx.bounds();
+        let tv_ctx = TyVarContext::new(level, bounds);
+        let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
         for param in inst.typarams() {
-            self.substitute_tp(&param, ty_table)?;
+            self.substitute_tp(&param, ty_ctx)?;
         }
         Ok(inst)
     }
 
-    fn substitute_tp(&self, param: &TyParam, ty_table: &SymbolTable) -> TyCheckResult<()> {
+    fn substitute_tp(&self, param: &TyParam, ty_ctx: &Context) -> TyCheckResult<()> {
         match param {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ty_table.unify_tp(param, v, None, false)?;
+                        ty_ctx.unify_tp(param, v, None, false)?;
                     }
                 } else {
                     if fv.is_unbound() { panic!() }
                 }
             }
             TyParam::BinOp{ lhs, rhs, .. } => {
-                self.substitute_tp(lhs, ty_table)?;
-                self.substitute_tp(rhs, ty_table)?;
+                self.substitute_tp(lhs, ty_ctx)?;
+                self.substitute_tp(rhs, ty_ctx)?;
             }
             TyParam::UnaryOp{ val, .. } => {
-                self.substitute_tp(val, ty_table)?;
+                self.substitute_tp(val, ty_ctx)?;
             }
             TyParam::Array(args)
             | TyParam::Tuple(args)
             | TyParam::App{ args, .. }
             | TyParam::PolyQVar{ args, .. } => {
                 for arg in args.iter() {
-                    self.substitute_tp(arg, ty_table)?;
+                    self.substitute_tp(arg, ty_ctx)?;
                 }
             }
-            TyParam::Type(t) => { self.substitute_t(t, ty_table)?; },
+            TyParam::Type(t) => { self.substitute_t(t, ty_ctx)?; },
             TyParam::MonoProj{ obj, attr } => todo!("{obj}.{attr}"),
             _ => {}
         }
         Ok(())
     }
 
-    fn substitute_t(&self, t: &Type, ty_table: &SymbolTable) -> TyCheckResult<()> {
+    fn substitute_t(&self, t: &Type, ty_ctx: &Context) -> TyCheckResult<()> {
         match t {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
                         if let TyParam::Type(v) = v {
-                            ty_table.unify(t, v, None, None)?;
+                            ty_ctx.unify(t, v, None, None)?;
                         } else {
                             panic!()
                         }
@@ -125,11 +125,11 @@ impl Evaluator {
         todo!()
     }
 
-    fn eval_const_call(&self, call: &Call, table: &SymbolTable) -> Option<ValueObj> {
+    fn eval_const_call(&self, call: &Call, ctx: &Context) -> Option<ValueObj> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Local(name) if name.is_const() => {
-                    if let Some(ConstObj::Subr(subr)) = table.consts.get(name.inspect()) {
+                    if let Some(ConstObj::Subr(subr)) = ctx.consts.get(name.inspect()) {
                         let args = self.eval_args(&call.args)?;
                         Some(subr.call(args))
                     } else {
@@ -154,23 +154,23 @@ impl Evaluator {
 
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
-    pub(crate) fn eval_const_expr(&self, expr: &Expr, table: &SymbolTable) -> Option<ValueObj> {
+    pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
         match expr {
             Expr::Lit(lit) => Some(self.eval_const_lit(lit)),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
-            Expr::Call(call) => self.eval_const_call(call, table),
+            Expr::Call(call) => self.eval_const_call(call, ctx),
             Expr::Def(def) => self.eval_const_def(def),
             other => todo!("{other}"),
         }
     }
 
-    pub(crate) fn eval_const_block(&self, block: &Block, table: &SymbolTable) -> Option<ValueObj> {
+    pub(crate) fn eval_const_block(&self, block: &Block, ctx: &Context) -> Option<ValueObj> {
         for chunk in block.iter().rev().skip(1).rev() {
-            self.eval_const_expr(chunk, table)?;
+            self.eval_const_expr(chunk, ctx)?;
         }
-        self.eval_const_expr(block.last().unwrap(), table)
+        self.eval_const_expr(block.last().unwrap(), ctx)
     }
 
     fn eval_bin_lit(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
@@ -244,12 +244,12 @@ impl Evaluator {
     }
 
     /// 量化変数などはそのまま返す
-    pub(crate) fn eval_tp(&self, p: &TyParam, table: &SymbolTable) -> EvalResult<TyParam> {
+    pub(crate) fn eval_tp(&self, p: &TyParam, ctx: &Context) -> EvalResult<TyParam> {
         match p {
             TyParam::FreeVar(fv) if fv.is_linked() =>
-                self.eval_tp(&fv.crack(), table),
+                self.eval_tp(&fv.crack(), ctx),
             TyParam::Mono(name) =>
-                table.consts.get(name)
+                ctx.consts.get(name)
                     .and_then(|c| match c {
                         ConstObj::Value(v) => Some(TyParam::value(v.clone())),
                         _ => None,
@@ -267,19 +267,19 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn eval_t(&self, substituted: Type, table: &SymbolTable, level: usize) -> EvalResult<Type> {
+    pub(crate) fn eval_t(&self, substituted: Type, ctx: &Context, level: usize) -> EvalResult<Type> {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() =>
-                self.eval_t(fv.crack().clone(), table, level),
+                self.eval_t(fv.crack().clone(), ctx, level),
             Type::Subr(mut subr) => {
                 let kind = match subr.kind {
                     SubrKind::FuncMethod(self_t) => {
-                        SubrKind::fn_met(self.eval_t(*self_t, table, level)?)
+                        SubrKind::fn_met(self.eval_t(*self_t, ctx, level)?)
                     }
                     SubrKind::ProcMethod{ before, after } => {
-                        let before = self.eval_t(*before, table, level)?;
+                        let before = self.eval_t(*before, ctx, level)?;
                         if let Some(after) = after {
-                            let after = self.eval_t(*after, table, level)?;
+                            let after = self.eval_t(*after, ctx, level)?;
                             SubrKind::pr_met(before, Some(after))
                         } else {
                             SubrKind::pr_met(before, None)
@@ -288,50 +288,50 @@ impl Evaluator {
                     other => other,
                 };
                 for p in subr.non_default_params.iter_mut() {
-                    p.ty = self.eval_t(mem::take(&mut p.ty), table, level)?;
+                    p.ty = self.eval_t(mem::take(&mut p.ty), ctx, level)?;
                 }
                 for p in subr.default_params.iter_mut() {
-                    p.ty = self.eval_t(mem::take(&mut p.ty), table, level)?;
+                    p.ty = self.eval_t(mem::take(&mut p.ty), ctx, level)?;
                 }
-                let return_t = self.eval_t(*subr.return_t, table, level)?;
+                let return_t = self.eval_t(*subr.return_t, ctx, level)?;
                 Ok(Type::subr(kind, subr.non_default_params, subr.default_params, return_t))
             },
             Type::Array{ t, len } => {
-                let t = self.eval_t(*t, table, level)?;
-                let len = self.eval_tp(&len, table)?;
+                let t = self.eval_t(*t, ctx, level)?;
+                let len = self.eval_tp(&len, ctx)?;
                 Ok(Type::array(t, len))
             },
             Type::Refinement(refine) => {
                 let mut preds = Set::with_capacity(refine.preds.len());
                 for pred in refine.preds.into_iter() {
-                    preds.insert(self.eval_pred(pred, table)?);
+                    preds.insert(self.eval_pred(pred, ctx)?);
                 }
                 Ok(Type::refinement(refine.var, *refine.t, preds))
             },
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj{ lhs, rhs } => {
-                for ty_table in table.get_sorted_supertype_tables(&lhs) {
-                    if let Ok(obj) = ty_table.get_local(&Token::symbol(&rhs), &table.name) {
+                for ty_ctx in ctx.get_sorted_supertypes(&lhs) {
+                    if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ConstObj::Type(quant_t) = obj {
-                            let subst_tab = SubstTable::new(&lhs, ty_table);
-                            let t = subst_tab.substitute(*quant_t, ty_table, level)?;
-                            let t = self.eval_t(t, &table, level)?;
+                            let subst_ctx = SubstContext::new(&lhs, ty_ctx);
+                            let t = subst_ctx.substitute(*quant_t, ty_ctx, level)?;
+                            let t = self.eval_t(t, ctx, level)?;
                             return Ok(t)
                         } else { todo!() }
                     }
                 }
                 todo!()
             },
-            Type::Range(l) => Ok(Type::range(self.eval_t(*l, table, level)?)),
-            Type::Iter(l) => Ok(Type::iter(self.eval_t(*l, table, level)?)),
-            Type::Ref(l) => Ok(Type::refer(self.eval_t(*l, table, level)?)),
-            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t(*l, table, level)?)),
-            Type::Option(l) => Ok(Type::option_mut(self.eval_t(*l, table, level)?)),
-            Type::OptionMut(l) => Ok(Type::option_mut(self.eval_t(*l, table, level)?)),
-            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t(*l, table, level)?)),
+            Type::Range(l) => Ok(Type::range(self.eval_t(*l, ctx, level)?)),
+            Type::Iter(l) => Ok(Type::iter(self.eval_t(*l, ctx, level)?)),
+            Type::Ref(l) => Ok(Type::refer(self.eval_t(*l, ctx, level)?)),
+            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t(*l, ctx, level)?)),
+            Type::Option(l) => Ok(Type::option_mut(self.eval_t(*l, ctx, level)?)),
+            Type::OptionMut(l) => Ok(Type::option_mut(self.eval_t(*l, ctx, level)?)),
+            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t(*l, ctx, level)?)),
             Type::Poly{ name, mut params } => {
                 for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p), table)?;
+                    *p = self.eval_tp(&mem::take(p), ctx)?;
                 }
                 Ok(Type::poly(name, params))
             },
@@ -340,40 +340,40 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn _eval_bound(&self, bound: TyBound, table: &SymbolTable, level: usize) -> EvalResult<TyBound> {
+    pub(crate) fn _eval_bound(&self, bound: TyBound, ctx: &Context, level: usize) -> EvalResult<TyBound> {
         match bound {
             TyBound::Subtype{ sub, sup } =>
                 Ok(TyBound::subtype(
-                    self.eval_t(sub, table, level)?,
-                    self.eval_t(sup, table, level)?
+                    self.eval_t(sub, ctx, level)?,
+                    self.eval_t(sup, ctx, level)?
                 )),
             TyBound::Instance{ name: inst, t } =>
-                Ok(TyBound::instance(inst, self.eval_t(t, table, level)?)),
+                Ok(TyBound::instance(inst, self.eval_t(t, ctx, level)?)),
         }
     }
 
-    pub(crate) fn eval_pred(&self, p: Predicate, table: &SymbolTable) -> EvalResult<Predicate> {
+    pub(crate) fn eval_pred(&self, p: Predicate, ctx: &Context) -> EvalResult<Predicate> {
         match p {
             Predicate::Value(_) | Predicate::Const(_) => Ok(p),
             Predicate::Equal{ lhs, rhs } =>
-                Ok(Predicate::eq(lhs, self.eval_tp(&rhs, table)?)),
+                Ok(Predicate::eq(lhs, self.eval_tp(&rhs, ctx)?)),
             Predicate::NotEqual{ lhs, rhs } =>
-                Ok(Predicate::ne(lhs, self.eval_tp(&rhs, table)?)),
+                Ok(Predicate::ne(lhs, self.eval_tp(&rhs, ctx)?)),
             Predicate::LessEqual{ lhs, rhs } =>
-                Ok(Predicate::le(lhs, self.eval_tp(&rhs, table)?)),
+                Ok(Predicate::le(lhs, self.eval_tp(&rhs, ctx)?)),
             Predicate::GreaterEqual{ lhs, rhs } =>
-                Ok(Predicate::ge(lhs, self.eval_tp(&rhs, table)?)),
+                Ok(Predicate::ge(lhs, self.eval_tp(&rhs, ctx)?)),
             Predicate::And(l, r) =>
-                Ok(Predicate::and(self.eval_pred(*l, table)?, self.eval_pred(*r, table)?)),
+                Ok(Predicate::and(self.eval_pred(*l, ctx)?, self.eval_pred(*r, ctx)?)),
             Predicate::Or(l, r) =>
-                Ok(Predicate::or(self.eval_pred(*l, table)?, self.eval_pred(*r, table)?)),
+                Ok(Predicate::or(self.eval_pred(*l, ctx)?, self.eval_pred(*r, ctx)?)),
             Predicate::Not(l, r) =>
-                Ok(Predicate::not(self.eval_pred(*l, table)?, self.eval_pred(*r, table)?)),
+                Ok(Predicate::not(self.eval_pred(*l, ctx)?, self.eval_pred(*r, ctx)?)),
         }
     }
 
-    pub(crate) fn get_tp_t(&self, p: &TyParam, bounds: Option<&Set<TyBound>>, table: &SymbolTable) -> EvalResult<Type> {
-        let p = self.eval_tp(p, table)?;
+    pub(crate) fn get_tp_t(&self, p: &TyParam, bounds: Option<&Set<TyBound>>, ctx: &Context) -> EvalResult<Type> {
+        let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::ConstObj(ConstObj::Value(v)) => Ok(Type::enum_t(set![v])),
             TyParam::ConstObj(ConstObj::MutValue(v)) => Ok(v.borrow().class().mutate()),
@@ -382,7 +382,7 @@ impl Evaluator {
                 if let Some(t) = fv.type_of() { Ok(t) } else { todo!() },
             TyParam::Type(_) => Ok(Type::Type),
             TyParam::Mono(name) =>
-                table.consts.get(&name)
+                ctx.consts.get(&name)
                     .and_then(|c| match c {
                         ConstObj::Value(v) => Some(Type::enum_t(set![v.clone()])),
                         _ => None,
@@ -396,7 +396,7 @@ impl Evaluator {
             },
             TyParam::UnaryOp{ op, val } => {
                 match op {
-                    OpKind::Mutate => Ok(self.get_tp_t(&val, bounds, table)?.mutate()),
+                    OpKind::Mutate => Ok(self.get_tp_t(&val, bounds, ctx)?.mutate()),
                     _ => todo!(),
                 }
             },
@@ -404,8 +404,8 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn _get_tp_class(&self, p: &TyParam, table: &SymbolTable) -> EvalResult<Type> {
-        let p = self.eval_tp(p, table)?;
+    pub(crate) fn _get_tp_class(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
+        let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::ConstObj(ConstObj::Value(v)) => Ok(v.class()),
             TyParam::Erased(t) => Ok((&*t).clone()),
@@ -413,7 +413,7 @@ impl Evaluator {
                 if let Some(t) = fv.type_of() { Ok(t) } else { todo!() },
             TyParam::Type(_) => Ok(Type::Type),
             TyParam::Mono(name) =>
-                table.consts.get(&name)
+                ctx.consts.get(&name)
                     .and_then(|c| match c {
                         ConstObj::Value(v) => Some(v.class()),
                         _ => None,
@@ -422,8 +422,8 @@ impl Evaluator {
         }
     }
 
-    /// NOTE: lとrが型の場合はSymbolTableの方で判定する
-    pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam, table: &SymbolTable) -> bool {
+    /// NOTE: lとrが型の場合はContextの方で判定する
+    pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam, ctx: &Context) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::ConstObj(l), TyParam::ConstObj(r)) => l == r,
@@ -431,7 +431,7 @@ impl Evaluator {
             (TyParam::FreeVar{ .. }, TyParam::FreeVar{ .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if l == r { true }
-                else if let (Some(l), Some(r)) = (table.consts.get(l), table.consts.get(r)) { l == r }
+                else if let (Some(l), Some(r)) = (ctx.consts.get(l), ctx.consts.get(r)) { l == r }
                 else {
                     // lとrが型の場合は...
                     false
@@ -442,7 +442,7 @@ impl Evaluator {
             (TyParam::App{ .. }, TyParam::App{ .. }) => todo!(),
             (TyParam::Mono(m), TyParam::ConstObj(l))
             | (TyParam::ConstObj(l), TyParam::Mono(m)) =>
-                if let Some(o) = table.consts.get(m) { o == l } else { true },
+                if let Some(o) = ctx.consts.get(m) { o == l } else { true },
             (TyParam::MonoQVar(_), _) | (_, TyParam::MonoQVar(_)) => false,
             (l, r) => todo!("l: {l}, r: {r}"),
         }

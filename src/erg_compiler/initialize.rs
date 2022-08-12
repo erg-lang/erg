@@ -1,6 +1,6 @@
-//! defines type information for builtin objects (in `SymbolTable`)
+//! defines type information for builtin objects (in `Context`)
 //!
-//! 組み込みオブジェクトの型情報を(記号表に)定義
+//! 組み込みオブジェクトの型情報を(Contextに)定義
 use erg_common::{Str};
 use erg_common::{set, debug_power_assert};
 use erg_common::ty::{Type, TyParam, ConstObj};
@@ -11,14 +11,14 @@ use ParamSpec as PS;
 use erg_parser::ast::{VarName};
 
 use crate::varinfo::{Mutability, Visibility, VarInfo, VarKind};
-use crate::table::{SymbolTable, ParamSpec, DefaultInfo};
+use crate::context::{Context, ParamSpec, DefaultInfo};
 use Visibility::*;
 use Mutability::*;
 use VarKind::*;
 use DefaultInfo::*;
 
 // NOTE: TyParam::MonoQuantVarは生成時に型を指定する必要があるが、逆にそちらがあれば型境界を指定しなくてもよい
-impl SymbolTable {
+impl Context {
     fn register_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
         let name = VarName::from_static(name);
         if self.decls.get(&name).is_some() {
@@ -45,38 +45,38 @@ impl SymbolTable {
         }
     }
 
-    fn register_type(&mut self, t: Type, table: Self, muty: Mutability) {
+    fn register_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         if self.types.contains_key(&t) {
             panic!("{} has already been registered", t.name());
         } else {
             let name = VarName::from_str(Str::rc(t.name()));
             self.impls.insert(name, VarInfo::new(Type, muty, Private, Builtin));
-            self.types.insert(t, table);
+            self.types.insert(t, ctx);
         }
     }
 
-    fn register_patch(&mut self, name: &'static str, table: Self, muty: Mutability) {
+    fn register_patch(&mut self, name: &'static str, ctx: Self, muty: Mutability) {
         if self.patches.contains_key(name) {
             panic!("{} has already been registered", name);
         } else {
             let name = VarName::from_static(name);
             self.impls.insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-            for method_name in table.impls.keys() {
+            for method_name in ctx.impls.keys() {
                 if let Some(patches) = self._method_impl_patches.get_mut(method_name) {
                     patches.push(name.clone());
                 } else {
                     self._method_impl_patches.insert(method_name.clone(), vec![name.clone()]);
                 }
             }
-            debug_power_assert!(table.super_classes.len(), ==, 1);
-            if let Some(target_type) = table.super_classes.first() {
-                for impl_trait in table.super_traits.iter() {
+            debug_power_assert!(ctx.super_classes.len(), ==, 1);
+            if let Some(target_type) = ctx.super_classes.first() {
+                for impl_trait in ctx.super_traits.iter() {
                     self.glue_patch_and_types.push(
-                        (VarName::from_str(table.name.clone()), target_type.clone(), impl_trait.clone())
+                        (VarName::from_str(ctx.name.clone()), target_type.clone(), impl_trait.clone())
                     );
                 }
             }
-            self.patches.insert(name, table);
+            self.patches.insert(name, ctx);
         }
     }
 
@@ -451,13 +451,13 @@ impl SymbolTable {
 
     pub(crate) fn init_builtins() -> Self {
         // TODO: capacityを正確に把握する
-        let mut table = SymbolTable::module("<builtins>".into(), 40);
-        table.init_builtin_funcs();
-        table.init_builtin_procs();
-        table.init_builtin_operators();
-        table.init_builtin_traits();
-        table.init_builtin_classes();
-        table.init_builtin_patches();
-        table
+        let mut ctx = Context::module("<builtins>".into(), 40);
+        ctx.init_builtin_funcs();
+        ctx.init_builtin_procs();
+        ctx.init_builtin_operators();
+        ctx.init_builtin_traits();
+        ctx.init_builtin_classes();
+        ctx.init_builtin_patches();
+        ctx
     }
 }

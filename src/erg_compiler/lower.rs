@@ -14,14 +14,14 @@ use erg_parser::ast::{AST};
 use crate::hir;
 use crate::hir::{HIR};
 use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
-use crate::table::{SymbolTable, TableKind, RegistrationMode};
+use crate::context::{Context, ContextKind, RegistrationMode};
 use crate::varinfo::{Visibility};
 use Visibility::*;
 
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
-    pub(crate) table: SymbolTable,
+    pub(crate) mod_ctx: Context,
     errs: LowerErrors,
     warns: LowerWarnings,
 }
@@ -29,11 +29,11 @@ pub struct ASTLowerer {
 impl ASTLowerer {
     pub fn new() -> Self {
         Self {
-            table: SymbolTable::new(
+            mod_ctx: Context::new(
                 "<module>".into(),
-                TableKind::Module,
+                ContextKind::Module,
                 vec![],
-                Some(SymbolTable::init_builtins()),
+                Some(Context::init_builtins()),
                 vec![],
                 vec![],
                 0
@@ -44,11 +44,11 @@ impl ASTLowerer {
     }
 
     fn return_t_check(&self, loc: Location, name: &str, expect: &Type, found: &Type) -> LowerResult<()> {
-        self.table
+        self.mod_ctx
             .unify(expect, found, Some(loc), None)
             .or_else(|_| Err(LowerError::type_mismatch_error(
             loc,
-            self.table.caused_by(),
+            self.mod_ctx.caused_by(),
             name,
             expect,
             found,
@@ -60,7 +60,7 @@ impl ASTLowerer {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),
-                self.table.name.clone(),
+                self.mod_ctx.name.clone(),
                 switch_lang!(
                     "the evaluation result of the expression is not used",
                     "式の評価結果が使われていません",
@@ -76,14 +76,14 @@ impl ASTLowerer {
     }
 
     fn pop_append_errs(&mut self) {
-        if let Err(mut errs) = self.table.pop() {
+        if let Err(mut errs) = self.mod_ctx.pop() {
             self.errs.append(&mut errs);
         }
     }
 
     fn lower_array(&mut self, array: ast::Array, check: bool) -> LowerResult<hir::Array> {
         log!("[DEBUG] entered {}({array})", fn_name!());
-        let mut hir_array = hir::Array::new(array.l_sqbr, array.r_sqbr, self.table.level, hir::Args::empty(), None);
+        let mut hir_array = hir::Array::new(array.l_sqbr, array.r_sqbr, self.mod_ctx.level, hir::Args::empty(), None);
         for elem in array.elems.into_iters().0 {
             hir_array.push(self.lower_expr(elem.expr, check)?);
         }
@@ -96,7 +96,7 @@ impl ASTLowerer {
         match acc {
             ast::Accessor::Local(n) => {
                 let t = if check {
-                    self.table.get_local_t(&n.symbol, &self.table.name)?
+                    self.mod_ctx.get_local_t(&n.symbol, &self.mod_ctx.name)?
                 } else { Type::ASTOmitted };
                 let acc = hir::Accessor::Local(hir::Local::new(n.symbol, t));
                 Ok(acc)
@@ -104,7 +104,7 @@ impl ASTLowerer {
             ast::Accessor::Attr(a) => {
                 let obj = self.lower_expr(*a.obj, true)?;
                 let t = if check {
-                    self.table.get_attr_t(&obj, &a.name.symbol, &self.table.name)?
+                    self.mod_ctx.get_attr_t(&obj, &a.name.symbol, &self.mod_ctx.name)?
                 } else { Type::ASTOmitted };
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, a.name.symbol, t));
                 Ok(acc)
@@ -119,7 +119,7 @@ impl ASTLowerer {
         let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [lhs, rhs];
-        let t = self.table.get_binop_t(&bin.op, &args, &self.table.name)?;
+        let t = self.mod_ctx.get_binop_t(&bin.op, &args, &self.mod_ctx.name)?;
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
@@ -131,7 +131,7 @@ impl ASTLowerer {
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [arg];
-        let t = self.table.get_unaryop_t(&unary.op, &args, &self.table.name)?;
+        let t = self.mod_ctx.get_unaryop_t(&unary.op, &args, &self.mod_ctx.name)?;
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         Ok(hir::UnaryOp::new(unary.op, expr, t))
@@ -148,7 +148,7 @@ impl ASTLowerer {
             hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr, true)?));
         }
         let mut obj = self.lower_expr(*call.obj, false)?;
-        let t = self.table.get_call_t(&mut obj, hir_args.pos_args(), hir_args.kw_args(), &self.table.name)?;
+        let t = self.mod_ctx.get_call_t(&mut obj, hir_args.pos_args(), hir_args.kw_args(), &self.mod_ctx.name)?;
         Ok(hir::Call::new(obj, hir_args, t))
     }
 
@@ -157,11 +157,11 @@ impl ASTLowerer {
         let is_procedural = lambda.is_procedural();
         let id = get_hash(&lambda.sig);
         let name = format!("<lambda_{id}>");
-        let kind = if is_procedural { TableKind::Proc } else { TableKind::Func };
-        self.table.grow(&name, kind, Private)?;
-        self.table.assign_params(&lambda.sig.params, None)
+        let kind = if is_procedural { ContextKind::Proc } else { ContextKind::Func };
+        self.mod_ctx.grow(&name, kind, Private)?;
+        self.mod_ctx.assign_params(&lambda.sig.params, None)
             .map_err(|e| { self.pop_append_errs(); e })?;
-        self.table.preregister(lambda.body.ref_payload())
+        self.mod_ctx.preregister(lambda.body.ref_payload())
             .map_err(|e| { self.pop_append_errs(); e })?;
         let body = self.lower_block(lambda.body)
             .map_err(|e| { self.pop_append_errs(); e })?;
@@ -170,7 +170,7 @@ impl ASTLowerer {
         // non default params = [unnamed non-default params + unnamed default params].sorted() // sort by pos
         // default params = [unnamed default params, named default params].sorted()
         let (named_non_default_params, named_default_params) = {
-                let (named_default_params, named_non_default_params_and_embeddeds): (Vec<_>, Vec<_>) = self.table.impls.iter()
+                let (named_default_params, named_non_default_params_and_embeddeds): (Vec<_>, Vec<_>) = self.mod_ctx.impls.iter()
                     .filter(|(_, v)| v.kind.is_parameter())
                     .partition(|(_, v)| v.kind.has_default());
                 let (_, named_non_default_params): (Vec<_>, Vec<_>)= named_non_default_params_and_embeddeds.into_iter()
@@ -185,7 +185,7 @@ impl ASTLowerer {
                 )
         };
         let (unnamed_non_default_params, unnamed_default_params) = {
-            let (unnamed_default_params, unnamed_non_default_params): (Vec<_>, Vec<_>) = self.table.unnamed_params.iter()
+            let (unnamed_default_params, unnamed_non_default_params): (Vec<_>, Vec<_>) = self.mod_ctx.unnamed_params.iter()
                 .map(|v| (v, ParamTy::anonymous(v.t())))
                 .partition(|(v, _)| v.kind.has_default());
             (
@@ -205,7 +205,7 @@ impl ASTLowerer {
             a.sort_by(|(l, _), (r, _)| l.cmp(r));
             a.into_iter().map(|(_, p)| p).collect::<Vec<_>>()
         };
-        let bounds = self.table.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
+        let bounds = self.mod_ctx.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
             .map_err(|e| { self.pop_append_errs(); e })?;
         self.pop_append_errs();
         let t = if is_procedural {
@@ -220,23 +220,22 @@ impl ASTLowerer {
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({})", fn_name!(), def.sig);
         // FIXME: Instant
-        self.table.grow(def.sig.name_as_str(), TableKind::Instant, Private)?;
+        self.mod_ctx.grow(def.sig.name_as_str(), ContextKind::Instant, Private)?;
         let res = match def.sig {
             ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
             ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
         };
-        // TODO: SymbolTable上の関数に型境界情報を追加
-        // let bounds = self.table.bounds;
+        // TODO: Context上の関数に型境界情報を追加
         self.pop_append_errs();
         res
     }
 
     fn lower_var_def(&mut self, sig: ast::VarSignature, body: ast::DefBody) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({sig})", fn_name!());
-        self.table.preregister(body.block.ref_payload())?;
+        self.mod_ctx.preregister(body.block.ref_payload())?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
-        let opt_expect_body_t = self.table
+        let opt_expect_body_t = self.mod_ctx
             .outer.as_ref().unwrap()
             .get_current_scope_local_var(sig.inspect().unwrap())
             .map(|vi| vi.t.clone());
@@ -248,7 +247,7 @@ impl ASTLowerer {
         }
         let id = body.id;
         // TODO: cover all VarPatterns
-        self.table.outer.as_mut().unwrap().assign_var(&sig, id, found_body_t)?;
+        self.mod_ctx.outer.as_mut().unwrap().assign_var(&sig, id, found_body_t)?;
         let sig = hir::VarSignature::new(sig.pat, found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
@@ -257,17 +256,17 @@ impl ASTLowerer {
     // NOTE: 呼ばれている間はinner scopeなので注意
     fn lower_subr_def(&mut self, sig: ast::SubrSignature, body: ast::DefBody) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({sig})", fn_name!());
-        let t = self.table
+        let t = self.mod_ctx
             .outer.as_ref().unwrap()
             .get_current_scope_local_var(sig.name.inspect())
             .unwrap_or_else(|| {
                 log!("{}\n", sig.name.inspect());
-                log!("{}\n", self.table.outer.as_ref().unwrap());
+                log!("{}\n", self.mod_ctx.outer.as_ref().unwrap());
                 panic!()
             }) // FIXME: or instantiate
             .t.clone();
-        self.table.assign_params(&sig.params, None)?;
-        self.table.preregister(body.block.ref_payload())?;
+        self.mod_ctx.assign_params(&sig.params, None)?;
+        self.mod_ctx.preregister(body.block.ref_payload())?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
@@ -275,7 +274,7 @@ impl ASTLowerer {
             self.errs.push(e);
         }
         let id = body.id;
-        self.table.outer.as_mut().unwrap().assign_subr(&sig, id, found_body_t)?;
+        self.mod_ctx.outer.as_mut().unwrap().assign_subr(&sig, id, found_body_t)?;
         let sig = hir::SubrSignature::new(sig.name, sig.params, t);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
@@ -327,7 +326,7 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
         log!("{GREEN}[DEBUG] the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
-        self.table.preregister(ast.module.ref_payload())?;
+        self.mod_ctx.preregister(ast.module.ref_payload())?;
         for expr in ast.module.into_iter() {
             match self.lower_expr(expr, true)
                 .and_then(|e| self.use_check(e, mode)) {

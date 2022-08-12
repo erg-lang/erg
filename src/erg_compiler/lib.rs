@@ -14,5 +14,5 @@ pub mod lower;
 pub use lower::ASTLowerer;
 pub mod optimize;
 pub mod ownercheck;
-pub mod table;
+pub mod context;
 pub mod varinfo;

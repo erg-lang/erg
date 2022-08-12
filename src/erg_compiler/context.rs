@@ -1,6 +1,5 @@
-//! defines `SymbolTable`.
-//!
-//! SymbolTable(記号表)を定義する
+//! Defines `Context`.
+//! `Context` is used for type inference and type checking.
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
@@ -73,7 +72,7 @@ impl ParamSpec {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TableKind {
+pub enum ContextKind {
     Func,
     Proc,
     Tuple,
@@ -99,17 +98,16 @@ pub enum RegistrationMode {
 
 use RegistrationMode::*;
 
-/// Symbol table for instantiating a quantified type
-/// 量化型をインスタンス化するための記号表
+/// Context for instantiating a quantified type
+/// 量化型をインスタンス化するための文脈
 #[derive(Debug, Clone)]
-pub struct TyVarTable {
+pub struct TyVarContext {
     level: usize,
-    // instances (stores free vars)
     pub(crate) tyvar_instances: Dict<Str, Type>,
     pub(crate) typaram_instances: Dict<Str, TyParam>,
 }
 
-impl TyVarTable {
+impl TyVarContext {
     pub fn new(level: usize, bounds: Set<TyBound>) -> Self {
         let mut self_ = Self{ level, tyvar_instances: Dict::new(), typaram_instances: Dict::new() };
         for bound in bounds.into_iter() {
@@ -211,16 +209,17 @@ impl TyVarTable {
     }
 }
 
+/// Represents the context of the current scope
 #[derive(Debug)]
-pub struct SymbolTable {
+pub struct Context {
     pub(crate) name: Str,
-    pub(crate) kind: TableKind,
-    // Type bounds & Predicates (if the table type is Subroutine)
+    pub(crate) kind: ContextKind,
+    // Type bounds & Predicates (if the context kind is Subroutine)
     // ユーザー定義APIでのみ使う
     pub(crate) bounds: Vec<TyBound>,
     pub(crate) preds: Vec<Predicate>,
     // for looking up the parent scope
-    pub(crate) outer: Option<Box<SymbolTable>>,
+    pub(crate) outer: Option<Box<Context>>,
     // patchによってsuper class/traitになったものはここに含まれない
     pub(crate) super_classes: Vec<Type>, // if self is a patch, means patch classes
     pub(crate) super_traits: Vec<Type>, // if self is not a trait, means implemented traits
@@ -239,23 +238,23 @@ pub struct SymbolTable {
     pub(crate) unnamed_params: Vec<VarInfo>,
     // FIXME: Compilerが持つ
     pub(crate) eval: Evaluator,
-    // stores user-defined type tables
-    pub(crate) types: Dict<Type, SymbolTable>,
-    pub(crate) patches: Dict<VarName, SymbolTable>,
+    // stores user-defined type context
+    pub(crate) types: Dict<Type, Context>,
+    pub(crate) patches: Dict<VarName, Context>,
     pub(crate) _nlocals: usize, // necessary for CodeObj.nlocals
     pub(crate) level: usize,
 }
 
-impl Default for SymbolTable {
+impl Default for Context {
     #[inline]
     fn default() -> Self {
-        Self::new("<dummy>".into(), TableKind::Dummy, vec![], None, vec![], vec![], Self::TOP_LEVEL)
+        Self::new("<dummy>".into(), ContextKind::Dummy, vec![], None, vec![], vec![], Self::TOP_LEVEL)
     }
 }
 
-impl fmt::Display for SymbolTable {
+impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SymbolTable")
+        f.debug_struct("Context")
             .field("name", &self.name)
             .field("bounds", &self.bounds)
             .field("preds", &self.preds)
@@ -269,13 +268,13 @@ impl fmt::Display for SymbolTable {
     }
 }
 
-impl SymbolTable {
+impl Context {
     #[inline]
     pub fn new(
         name: Str,
-        kind: TableKind,
+        kind: ContextKind,
         params: Vec<ParamSpec>,
-        outer: Option<SymbolTable>,
+        outer: Option<Context>,
         super_classes: Vec<Type>,
         super_traits: Vec<Type>,
         level: usize
@@ -285,9 +284,9 @@ impl SymbolTable {
 
     pub fn with_capacity(
         name: Str,
-        kind: TableKind,
+        kind: ContextKind,
         params: Vec<ParamSpec>,
-        outer: Option<SymbolTable>,
+        outer: Option<Context>,
         super_classes: Vec<Type>,
         super_traits: Vec<Type>,
         capacity: usize,
@@ -339,8 +338,8 @@ impl SymbolTable {
     #[inline]
     pub fn mono(
         name: Str,
-        kind: TableKind,
-        outer: Option<SymbolTable>,
+        kind: ContextKind,
+        outer: Option<Context>,
         super_classes: Vec<Type>,
         super_traits: Vec<Type>,
         level: usize
@@ -351,9 +350,9 @@ impl SymbolTable {
     #[inline]
     pub fn poly(
         name: Str,
-        kind: TableKind,
+        kind: ContextKind,
         params: Vec<ParamSpec>,
-        outer: Option<SymbolTable>,
+        outer: Option<Context>,
         super_classes: Vec<Type>,
         super_traits: Vec<Type>,
         level: usize
@@ -363,12 +362,12 @@ impl SymbolTable {
 
     pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<ParamSpec>, supers: Vec<Type>, level: usize) -> Self {
         let name = name.into();
-        Self::poly(name, TableKind::Trait, params, None, vec![], supers, level)
+        Self::poly(name, ContextKind::Trait, params, None, vec![], supers, level)
     }
 
     pub fn poly_class<S: Into<Str>>(name: S, params: Vec<ParamSpec>, super_classes: Vec<Type>, impl_traits: Vec<Type>, level: usize) -> Self {
         let name = name.into();
-        Self::poly(name, TableKind::Class, params, None, super_classes, impl_traits, level)
+        Self::poly(name, ContextKind::Class, params, None, super_classes, impl_traits, level)
     }
 
     #[inline]
@@ -383,12 +382,12 @@ impl SymbolTable {
 
     #[inline]
     pub fn poly_patch<S: Into<Str>>(name: S, params: Vec<ParamSpec>, patch_classes: Vec<Type>, impl_traits: Vec<Type>, level: usize) -> Self {
-        Self::poly(name.into(), TableKind::Trait, params, None, patch_classes, impl_traits, level)
+        Self::poly(name.into(), ContextKind::Trait, params, None, patch_classes, impl_traits, level)
     }
 
     #[inline]
     pub fn module(name: Str, capacity: usize) -> Self {
-        Self::with_capacity(name, TableKind::Module, vec![], None, vec![], vec![], capacity, Self::TOP_LEVEL)
+        Self::with_capacity(name, ContextKind::Module, vec![], None, vec![], vec![], capacity, Self::TOP_LEVEL)
     }
 
     #[inline]
@@ -406,7 +405,7 @@ impl SymbolTable {
 }
 
 // setters
-impl SymbolTable {
+impl Context {
     pub(crate) fn declare_var(&mut self, sig: &ast::VarSignature, opt_t: Option<Type>, id: Option<DefId>) -> TyCheckResult<()> {
         self.declare_var_pat(sig, opt_t, id)
     }
@@ -674,7 +673,7 @@ impl SymbolTable {
 }
 
 // type variable related operations
-impl SymbolTable {
+impl Context {
     pub const TOP_LEVEL: usize = 1;
     // HACK: see doc/compiler/inference.md for details
     pub const GENERIC_LEVEL: usize = usize::MAX;
@@ -806,42 +805,42 @@ impl SymbolTable {
         .collect()
     }
 
-    fn instantiate_tp(quantified: TyParam, tvtab: TyVarTable) -> (TyParam, TyVarTable) {
+    fn instantiate_tp(quantified: TyParam, tv_ctx: TyVarContext) -> (TyParam, TyVarContext) {
         match quantified {
             TyParam::MonoQVar(n) => {
-                if let Some(t) = tvtab.get_typaram(&n) {
-                    (t.clone(), tvtab)
-                } else if let Some(_t) = tvtab.get_tyvar(&n) {
+                if let Some(t) = tv_ctx.get_typaram(&n) {
+                    (t.clone(), tv_ctx)
+                } else if let Some(_t) = tv_ctx.get_tyvar(&n) {
                     todo!()
                 } else {
                     panic!("type parameter {n} is not defined")
                 }
             },
             TyParam::UnaryOp{ op, val } => {
-                let (res, tvtab) = Self::instantiate_tp(*val, tvtab);
-                (TyParam::unary(op, res), tvtab)
+                let (res, tv_ctx) = Self::instantiate_tp(*val, tv_ctx);
+                (TyParam::unary(op, res), tv_ctx)
             },
             TyParam::BinOp{ op, lhs, rhs } => {
-                let (lhs, tvtab) = Self::instantiate_tp(*lhs, tvtab);
-                let (rhs, tvtab) = Self::instantiate_tp(*rhs, tvtab);
-                (TyParam::bin(op, lhs, rhs), tvtab)
+                let (lhs, tv_ctx) = Self::instantiate_tp(*lhs, tv_ctx);
+                let (rhs, tv_ctx) = Self::instantiate_tp(*rhs, tv_ctx);
+                (TyParam::bin(op, lhs, rhs), tv_ctx)
             },
             TyParam::Type(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (TyParam::t(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (TyParam::t(t), tv_ctx)
             },
-            p @ (TyParam::ConstObj(_) | TyParam::Mono(_)) => (p, tvtab),
+            p @ (TyParam::ConstObj(_) | TyParam::Mono(_)) => (p, tv_ctx),
             other => todo!("{other}"),
         }
     }
 
     /// 'T -> ?T (quantified to free)
-    pub(crate) fn instantiate_t(quantified: Type, mut tvtab: TyVarTable) -> (Type, TyVarTable) {
+    pub(crate) fn instantiate_t(quantified: Type, mut tv_ctx: TyVarContext) -> (Type, TyVarContext) {
         match quantified {
             MonoQVar(n) => {
-                if let Some(t) = tvtab.get_tyvar(&n) {
-                    (t.clone(), tvtab)
-                } else if let Some(_t) = tvtab.get_typaram(&n) {
+                if let Some(t) = tv_ctx.get_tyvar(&n) {
+                    (t.clone(), tv_ctx)
+                } else if let Some(_t) = tv_ctx.get_typaram(&n) {
                     todo!()
                 } else {
                     panic!("the type variable {n} is not defined")
@@ -849,109 +848,109 @@ impl SymbolTable {
             },
             PolyQVar{ name, mut params } => {
                 for param in params.iter_mut() {
-                    (*param, tvtab) = Self::instantiate_tp(mem::take(param), tvtab);
+                    (*param, tv_ctx) = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                (Type::poly_q(name, params), tvtab)
+                (Type::poly_q(name, params), tv_ctx)
             },
             Refinement(mut refine) => {
                 refine.preds = refine.preds.into_iter().map(|mut pred| {
                     for tp in pred.typarams_mut() {
-                        (*tp, tvtab) = Self::instantiate_tp(mem::take(tp), tvtab.clone());
+                        (*tp, tv_ctx) = Self::instantiate_tp(mem::take(tp), tv_ctx.clone());
                     }
                     pred
                 }).collect();
-                (Type::Refinement(refine), tvtab)
+                (Type::Refinement(refine), tv_ctx)
             },
             Subr(mut subr) => {
                 let kind = match subr.kind {
                     SubrKind::FuncMethod(self_t)  => {
-                        let (res, _tvtab) = Self::instantiate_t(*self_t, tvtab);
-                        tvtab = _tvtab;
+                        let (res, _tv_ctx) = Self::instantiate_t(*self_t, tv_ctx);
+                        tv_ctx = _tv_ctx;
                         SubrKind::FuncMethod(Box::new(res))
                     }
                     SubrKind::ProcMethod{ before, after } => {
-                        let (before, _tvtab) = Self::instantiate_t(*before, tvtab);
-                        let (after, _tvtab) = if let Some(after) = after {
-                            let (after, _tvtab) = Self::instantiate_t(*after, _tvtab);
-                            (Some(after), _tvtab)
+                        let (before, _tv_ctx) = Self::instantiate_t(*before, tv_ctx);
+                        let (after, _tv_ctx) = if let Some(after) = after {
+                            let (after, _tv_ctx) = Self::instantiate_t(*after, _tv_ctx);
+                            (Some(after), _tv_ctx)
                         } else {
-                            (None, _tvtab)
+                            (None, _tv_ctx)
                         };
-                        tvtab = _tvtab;
+                        tv_ctx = _tv_ctx;
                         SubrKind::pr_met(before, after)
                     }
                     other => other,
                 };
                 for p in subr.non_default_params.iter_mut() {
-                    (p.ty, tvtab) = Self::instantiate_t(mem::take(&mut p.ty), tvtab);
+                    (p.ty, tv_ctx) = Self::instantiate_t(mem::take(&mut p.ty), tv_ctx);
                 }
                 for p in subr.default_params.iter_mut() {
-                    (p.ty, tvtab) = Self::instantiate_t(mem::take(&mut p.ty), tvtab);
+                    (p.ty, tv_ctx) = Self::instantiate_t(mem::take(&mut p.ty), tv_ctx);
                 }
-                let (return_t, tvtab) = Self::instantiate_t(*subr.return_t, tvtab);
-                (Type::subr(kind, subr.non_default_params, subr.default_params, return_t), tvtab)
+                let (return_t, tv_ctx) = Self::instantiate_t(*subr.return_t, tv_ctx);
+                (Type::subr(kind, subr.non_default_params, subr.default_params, return_t), tv_ctx)
             },
             Type::Array{ t, len } => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                let (len, tvtab) = Self::instantiate_tp(len, tvtab);
-                (Type::array(t, len), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                let (len, tv_ctx) = Self::instantiate_tp(len, tv_ctx);
+                (Type::array(t, len), tv_ctx)
             },
             Type::Dict{ k, v } => {
-                let (k, tvtab) = Self::instantiate_t(*k, tvtab);
-                let (v, tvtab) = Self::instantiate_t(*v, tvtab);
-                (Type::dict(k, v), tvtab)
+                let (k, tv_ctx) = Self::instantiate_t(*k, tv_ctx);
+                let (v, tv_ctx) = Self::instantiate_t(*v, tv_ctx);
+                (Type::dict(k, v), tv_ctx)
             },
             Tuple(mut ts) => {
                 for t in ts.iter_mut() {
-                    (*t, tvtab) = Self::instantiate_t(mem::take(t), tvtab);
+                    (*t, tv_ctx) = Self::instantiate_t(mem::take(t), tv_ctx);
                 }
-                (Type::Tuple(ts), tvtab)
+                (Type::Tuple(ts), tv_ctx)
             },
             Record(mut dict) => {
                 for v in dict.values_mut() {
-                    (*v, tvtab) = Self::instantiate_t(mem::take(v), tvtab);
+                    (*v, tv_ctx) = Self::instantiate_t(mem::take(v), tv_ctx);
                 }
-                (Type::Record(dict), tvtab)
+                (Type::Record(dict), tv_ctx)
             },
             Range(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::range(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::range(t), tv_ctx)
             },
             Iter(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::iter(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::iter(t), tv_ctx)
             },
             Option(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::option(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::option(t), tv_ctx)
             },
             OptionMut(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::option_mut(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::option_mut(t), tv_ctx)
             },
             Ref(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::refer(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::refer(t), tv_ctx)
             },
             RefMut(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::ref_mut(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::ref_mut(t), tv_ctx)
             },
             VarArgs(t) => {
-                let (t, tvtab) = Self::instantiate_t(*t, tvtab);
-                (Type::var_args(t), tvtab)
+                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
+                (Type::var_args(t), tv_ctx)
             }
             MonoProj{ lhs, rhs } => {
-                let (lhs, tvtab) = Self::instantiate_t(*lhs, tvtab);
-                (Type::mono_proj(lhs, rhs), tvtab)
+                let (lhs, tv_ctx) = Self::instantiate_t(*lhs, tv_ctx);
+                (Type::mono_proj(lhs, rhs), tv_ctx)
             }
             Poly{ name, mut params } => {
                 for param in params.iter_mut() {
-                    (*param, tvtab) = Self::instantiate_tp(mem::take(param), tvtab);
+                    (*param, tv_ctx) = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                (Type::poly(name, params), tvtab)
+                (Type::poly(name, params), tv_ctx)
             }
-            other if other.is_monomorphic() => (other, tvtab),
+            other if other.is_monomorphic() => (other, tv_ctx),
             other => todo!("{other}"),
         }
     }
@@ -959,8 +958,8 @@ impl SymbolTable {
     fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
-                let tvtab = TyVarTable::new(self.level, quant.bounds);
-                let (t, _) = Self::instantiate_t(*quant.unbound_callable, tvtab);
+                let tv_ctx = TyVarContext::new(self.level, quant.bounds);
+                let (t, _) = Self::instantiate_t(*quant.unbound_callable, tv_ctx);
                 match &t {
                     Type::Subr(subr) => {
                         match (subr.kind.self_t(), callee.receiver_t()) {
@@ -1431,9 +1430,9 @@ impl SymbolTable {
             _ => {}
         }
         let mut opt_smallest = None;
-        for table in self.get_sorted_supertype_tables(sub) {
-            let instances = table.super_classes.iter()
-                .chain(table.super_traits.iter())
+        for ctx in self.get_sorted_supertypes(sub) {
+            let instances = ctx.super_classes.iter()
+                .chain(ctx.super_traits.iter())
                 .filter(|t| self.supertype_of(sup, t, None));
             // instanceが複数ある場合、経験的に最も小さい型を選ぶのが良い
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
@@ -1448,9 +1447,9 @@ impl SymbolTable {
                 let bounds = patch.bounds();
                 if self.supertype_of(l, sub, Some(&bounds))
                 && self.supertype_of(r, sup, Some(&bounds)) {
-                    let tvtab = TyVarTable::new(self.level, bounds);
-                    let (l, _) = Self::instantiate_t(l.clone(), tvtab.clone());
-                    let (r, _) = Self::instantiate_t(r.clone(), tvtab);
+                    let tv_ctx = TyVarContext::new(self.level, bounds);
+                    let (l, _) = Self::instantiate_t(l.clone(), tv_ctx.clone());
+                    let (r, _) = Self::instantiate_t(r.clone(), tv_ctx);
                     Some((l, r))
                 } else { None }
             });
@@ -1481,7 +1480,7 @@ impl SymbolTable {
 }
 
 // (type) getters & validators
-impl SymbolTable {
+impl Context {
     fn validate_var_sig_t(&self, sig: &ast::VarSignature, body_t: &Type, mode: RegistrationMode) -> TyCheckResult<()> {
         let spec_t = self.instantiate_var_sig_t(sig, None, mode)?;
         match &sig.pat {
@@ -1784,8 +1783,8 @@ impl SymbolTable {
     pub(crate) fn get_attr_t(&self, obj: &hir::Expr, name: &Token, namespace: &Str) -> TyCheckResult<Type> {
         let self_t = obj.t();
         if self_t == ASTOmitted { panic!() }
-        for table in self.get_sorted_supertype_tables(&self_t) {
-            if let Ok(t) = table.get_local_t(name, namespace) {
+        for ctx in self.get_sorted_supertypes(&self_t) {
+            if let Ok(t) = ctx.get_local_t(name, namespace) {
                 return Ok(t)
             }
         }
@@ -1869,7 +1868,7 @@ impl SymbolTable {
 
     pub(crate) fn deep_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         if self.supertype_of(lhs, rhs, None) { return true }
-        for sup_rhs in self.get_sorted_supertype_tables(rhs) {
+        for sup_rhs in self.get_sorted_supertypes(rhs) {
             let bounds = sup_rhs.bounds();
             if sup_rhs.super_classes.iter().any(|sup| self.supertype_of(lhs, sup, Some(&bounds)))
             || sup_rhs.super_traits.iter().any(|sup| self.supertype_of(lhs, sup, Some(&bounds))) { return true }
@@ -2405,8 +2404,8 @@ impl SymbolTable {
 
     pub(crate) fn _get_attr(&self, obj: &hir::Expr, name: &Token, namespace: &Str) -> TyCheckResult<ConstObj> {
         let self_t = obj.t();
-        for table in self.get_sorted_supertype_tables(&self_t) {
-            if let Ok(t) = table.get_local(name, namespace) {
+        for ctx in self.get_sorted_supertypes(&self_t) {
+            if let Ok(t) = ctx.get_local(name, namespace) {
                 return Ok(t)
             }
         }
@@ -2436,15 +2435,15 @@ impl SymbolTable {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for table in self.get_sorted_supertype_tables(self_t) {
-            if let Some(name) = table.get_similar_name(name) { return Some(name) }
+        for ctx in self.get_sorted_supertypes(self_t) {
+            if let Some(name) = ctx.get_similar_name(name) { return Some(name) }
         }
         None
     }
 }
 
-impl SymbolTable {
-    pub(crate) fn grow(&mut self, name: &str, kind: TableKind, vis: Visibility) -> TyCheckResult<()> {
+impl Context {
+    pub(crate) fn grow(&mut self, name: &str, kind: ContextKind, vis: Visibility) -> TyCheckResult<()> {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
         } else { format!("{parent}::{name}", parent = self.name) };
@@ -2475,29 +2474,29 @@ impl SymbolTable {
         }
     }
 
-    pub(crate) fn get_sorted_supertype_tables<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=&'a SymbolTable> {
-        let mut tables = self._deep_get_supertype_tables(t).collect::<Vec<_>>();
-        tables.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs));
-        tables.into_iter().map(|(_, table)| table)
+    pub(crate) fn get_sorted_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=&'a Context> {
+        let mut ctxs = self._deep_get_supertypes(t).collect::<Vec<_>>();
+        ctxs.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs));
+        ctxs.into_iter().map(|(_, ctx)| ctx)
     }
 
-    /// this method is for `get_sorted_supertype_tables` only
-    fn _deep_get_supertype_tables<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a SymbolTable)> {
-        let i = self._get_supertype_tables(t);
+    /// this method is for `get_sorted_supertypes` only
+    fn _deep_get_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a Context)> {
+        let i = self._get_supertypes(t);
         if i.size_hint().1 == Some(0) {
             if let Some(outer) = &self.outer {
-                return outer._deep_get_supertype_tables(t)
+                return outer._deep_get_supertypes(t)
             }
         }
         i
     }
 
-    /// this method is for `deep_get_supertype_tables` only
-    fn _get_supertype_tables<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a SymbolTable)> {
+    /// this method is for `deep_get_supertypes` only
+    fn _get_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a Context)> {
         self.types.iter()
-            .filter_map(|(maybe_sup, table)| {
-                let bounds = table.bounds();
-                if self.supertype_of(maybe_sup, t, Some(&bounds)) { Some((maybe_sup, table)) } else { None }
+            .filter_map(|(maybe_sup, ctx)| {
+                let bounds = ctx.bounds();
+                if self.supertype_of(maybe_sup, t, Some(&bounds)) { Some((maybe_sup, ctx)) } else { None }
             })
     }
 
@@ -2509,8 +2508,8 @@ impl SymbolTable {
         }
     }
 
-    /// this method is for `get_sorted_supertype_tables` only
-    fn deep_get_patch(&self, name: &VarName) -> Option<&SymbolTable> {
+    /// this method is for `get_sorted_supertypes` only
+    fn deep_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
             return Some(patch)
         } else {

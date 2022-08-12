@@ -594,7 +594,7 @@ impl TyParam {
         }
     }
 
-    // 定数の比較など環境が必要な場合はSymbolTable::try_cmpを使う
+    // 定数の比較など環境が必要な場合はContext::try_cmpを使う
     pub fn cheap_cmp(&self, r: &TyParam) -> Option<TyParamOrdering> {
         match (self, r) {
             (Self::Type(l), Self::Type(r)) =>
