@@ -181,8 +181,21 @@ impl Context {
         float.register_impl("__sub__", op_t.clone(), Const, Public);
         float.register_impl("__mul__", op_t.clone(), Const, Public);
         float.register_impl("__div__", op_t        , Const, Public);
-        float.register_impl("Real", Int, Const, Public);
-        float.register_impl("Imag", Int, Const, Public);
+        float.register_impl("Real", Float, Const, Public);
+        float.register_impl("Imag", Float, Const, Public);
+        let mut ratio = Self::mono_class("Ratio", vec![Obj], vec![
+            mono("Num"),
+            mono("Ord"), mono("Eq"),
+            mono("Add"), mono("Sub"), mono("Mul"), mono("Div"),
+            mono("Mutate"),
+        ], Self::TOP_LEVEL);
+        let op_t = fn1_met(Ratio, Ratio, Ratio);
+        ratio.register_impl("__add__", op_t.clone(), Const, Public);
+        ratio.register_impl("__sub__", op_t.clone(), Const, Public);
+        ratio.register_impl("__mul__", op_t.clone(), Const, Public);
+        ratio.register_impl("__div__", op_t        , Const, Public);
+        ratio.register_impl("Real", Ratio, Const, Public);
+        ratio.register_impl("Imag", Ratio, Const, Public);
         let mut int = Self::mono_class("Int", vec![Obj], vec![
             mono("Num"),
             mono("Rational"), mono("Integral"),
@@ -220,8 +233,8 @@ impl Context {
             Immutable,
             Public
         );
-        nat.register_impl("Real", Int, Const, Public);
-        nat.register_impl("Imag", Int, Const, Public);
+        nat.register_impl("Real", Nat, Const, Public);
+        nat.register_impl("Imag", Nat, Const, Public);
         nat.super_traits.push(poly("Add", vec![ty_tp(Nat), ty_tp(Nat)]));
         nat.super_traits.push(poly("Sub", vec![ty_tp(Nat), ty_tp(Nat)]));
         nat.super_traits.push(poly("Mul", vec![ty_tp(Nat), ty_tp(Nat)]));
@@ -287,6 +300,7 @@ impl Context {
         // self.register_type(Type::mono("Record"), vec![], record, Const);
         // self.register_type(Type::mono("Class"), vec![], class, Const);
         self.register_type(Float, float, Const);
+        self.register_type(Ratio, ratio, Const);
         self.register_type(Int, int, Const);
         self.register_type(Nat, nat, Const);
         self.register_type(Bool, bool_, Const);
@@ -447,6 +461,27 @@ impl Context {
         // ord.register_impl("__le__", op_t.clone(), Const, Public);
         // ord.register_impl("__gt__", op_t.clone(), Const, Public);
         // ord.register_impl("__ge__", op_t,         Const, Public);
+    }
+
+    pub(crate) fn init_py_math_mod() -> Self {
+        let mut math = Context::module("math".into(), 10);
+        math.register_impl("pi", Type::Float, Immutable, Public);
+        math.register_impl("tau", Type::Float, Immutable, Public);
+        math.register_impl("e", Type::Float, Immutable, Public);
+        math.register_impl("sin", Type::func1(Float, Float), Immutable, Public);
+        math.register_impl("cos", Type::func1(Float, Float), Immutable, Public);
+        math.register_impl("tan", Type::func1(Float, Float), Immutable, Public);
+        math
+    }
+
+    pub(crate) fn init_py_random_mod() -> Self {
+        let mut random = Context::module("random".into(), 10);
+        random.register_impl("seed!", Type::proc(vec![], vec![
+            param_t("a", Type::mono("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
+            param_t("version", Type::Int),
+        ], NoneType), Immutable, Public);
+        random.register_impl("randint!", nd_proc(vec![param_t("a", Int), param_t("b", Int)], Int), Immutable, Public);
+        random
     }
 
     pub(crate) fn init_builtins() -> Self {
