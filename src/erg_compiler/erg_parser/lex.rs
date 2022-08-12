@@ -363,7 +363,10 @@ impl Lexer /*<'a>*/ {
             }
             // method call of IntLit
             // or range operator (e.g. 1..)
-            Some(c) if Self::is_valid_symbol_ch(c) || c == '.' => Ok(self.emit_token(IntLit, &num)),
+            Some(c) if Self::is_valid_symbol_ch(c) || c == '.' => {
+                let kind = if num.starts_with('-') && !Self::is_zero(&num) { IntLit } else { NatLit };
+                Ok(self.emit_token(kind, &num))
+            },
             Some('_')  => {
                 self.consume();
                 let token = self.emit_token(Illegal, &(num + "_"));
