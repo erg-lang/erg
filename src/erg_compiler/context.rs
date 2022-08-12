@@ -3,7 +3,6 @@
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
-use std::cmp::Ordering;
 
 use erg_common::Str;
 use erg_common::ty::Constraint;
@@ -131,6 +130,20 @@ impl TyVarContext {
                 };
                 let constraint = Constraint::SubtypeOf(sup);
                 self.push_tyvar(Str::rc(sub.name()), Type::free_var(self.level, constraint));
+            },
+            TyBound::Supertype{ sup, sub } => {
+                let sub = match sub {
+                    Type::Poly{ name, params } => {
+                        let sub = Type::poly(name, params.into_iter().map(|p| self.instantiate_tp(p)).collect());
+                        sub
+                    },
+                    Type::MonoProj{ lhs, rhs } => {
+                        Type::mono_proj(self.instantiate_t(*lhs), rhs)
+                    }
+                    sub => sub,
+                };
+                let constraint = Constraint::SupertypeOf(sub);
+                self.push_tyvar(Str::rc(sup.name()), Type::free_var(self.level, constraint));
             },
             TyBound::Instance{ name, t } => {
                 let t = match t {
@@ -715,7 +728,6 @@ impl Context {
 
     fn _generalize_tp(&self, free: TyParam) -> (TyParam, Set<TyBound>) {
         match free {
-            // unwrapは後回し
             TyParam::FreeVar(v) if v.is_linked() => {
                 let bounds: Set<TyBound>;
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
@@ -723,13 +735,14 @@ impl Context {
                 } else { assume_unreachable!() }
                 (TyParam::FreeVar(v), bounds)
             },
-            // TODO: 多相汎化
+            // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level)  => {
                 match &*fv.borrow() {
                     FreeKind::Unbound{ id, constraint, .. } => {
                         let name = id.to_string();
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
+                            Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (TyParam::mono_q(&name), set!{bound})
@@ -737,6 +750,7 @@ impl Context {
                     FreeKind::NamedUnbound{ name, constraint, .. } => {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
+                            Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (TyParam::mono_q(name), set!{bound})
@@ -757,7 +771,6 @@ impl Context {
     /// ```
     fn generalize_t(&self, free: Type) -> (Type, Set<TyBound>) {
         match free {
-            // unwrapは後回し
             FreeVar(v) if v.is_linked() => {
                 let bounds: Set<TyBound>;
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
@@ -765,13 +778,14 @@ impl Context {
                 } else { assume_unreachable!() }
                 (Type::FreeVar(v), bounds)
             },
-            // TODO: 多相汎化
+            // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level() > Some(self.level)  => {
                 match &*fv.borrow() {
                     FreeKind::Unbound{ id, constraint, .. } => {
                         let name = id.to_string();
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
+                            Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (Type::mono_q(&name), set!{bound})
@@ -779,6 +793,7 @@ impl Context {
                     FreeKind::NamedUnbound{ name, constraint, .. } => {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
+                            Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (Type::mono_q(name), set!{bound})
@@ -997,7 +1012,7 @@ impl Context {
                                 self.unify(l, r, None, Some(callee.loc()))?;
                             },
                             (None, None) => {},
-                            _ => todo!(),
+                            (l, r) => todo!("{l:?}, {r:?}"),
                         }
                     }
                     _ => unreachable!(),
@@ -1450,14 +1465,17 @@ impl Context {
 
     /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption
     /// ```
+    /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (Ord :> ?T :> {I: Int | I == 0})
     /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
-    /// sub_unify([?T; 0], Mutate): ()
+    /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type, sub_loc: Option<Location>, sup_loc: Option<Location>) -> TyCheckResult<()> {
+        erg_common::fmt_dbg!(maybe_sub, maybe_sup,);
+        let maybe_sub_is_sub = self.rec_subtype_of(maybe_sub, maybe_sup);
         if maybe_sub.has_no_unbound_var()
         && maybe_sup.has_no_unbound_var()
-        && self.rec_subtype_of(maybe_sub, maybe_sup) { return Ok(()) }
-        if !self.rec_subtype_of(maybe_sub, maybe_sup) {
+        && maybe_sub_is_sub { return Ok(()) }
+        if !maybe_sub_is_sub {
             let loc = sub_loc.or(sup_loc).unwrap_or(Location::Unknown);
             return Err(TyCheckError::type_mismatch_error(
                 loc,
@@ -2083,11 +2101,13 @@ impl Context {
                     FreeKind::Linked(t) => self.supertype_of(t, rhs, bounds),
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound{ constraint, .. } => match constraint {
-                        // (?T <: Int) :> Nat == true, (?T <: Nat) :> Int == false
+                        // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
                         Constraint::SubtypeOf(sup) => self.supertype_of(sup, rhs, bounds),
-                        // (?v: Type, rhs)ならOK
-                        // (?v: Nat, rhs)なら何かがおかしい
-                        // Class <: TypeだがNat <!: Type (Nat: Type)
+                        // `(?T :> X) :> Y` is true,
+                        Constraint::SupertypeOf(_) => true,
+                        // (?v: Type, rhs): OK
+                        // (?v: Nat, rhs): Something wrong
+                        // Class <: Type, but Nat <!: Type (Nat: Type)
                         Constraint::TypeOf(t) =>
                             if self.supertype_of(&Type, t, bounds) { true } else { panic!() },
                     },
@@ -2098,8 +2118,10 @@ impl Context {
                     FreeKind::Linked(t) => self.supertype_of(lhs, t, bounds),
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound{ constraint, .. } => match constraint {
-                        // Nat :> (?T <: Int) == true, Int :> (?T <: Nat) == true
-                        Constraint::SubtypeOf(_) => true,
+                        // `Nat :> (?T <: Int)` can be true => `X :> (?T <: Y)` can be true
+                        Constraint::SubtypeOf(_sup) => true,
+                        // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
+                        Constraint::SupertypeOf(sub) => self.supertype_of(lhs, sub, bounds),
                         Constraint::TypeOf(t) =>
                             if self.supertype_of(&Type, t, bounds) { true } else { panic!() },
                     },
@@ -2446,26 +2468,29 @@ impl Context {
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
     fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        if self.rec_supertype_of(lhs, rhs) { Some(rhs) }
-        else if self.rec_subtype_of(lhs, rhs) { Some(rhs) }
-        else { None }
+        // 同じならどちらを返しても良い
+        match (self.rec_supertype_of(lhs, rhs), self.rec_subtype_of(lhs, rhs)) {
+            (true, true) | (true, false) => Some(rhs),
+            (false, true) => Some(lhs),
+            _ => None,
+        }
     }
 
-    fn cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Ordering {
+    fn cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> TyParamOrdering {
         match self.min(lhs, rhs) {
-            Some(l) if l == lhs => Ordering::Less,
-            Some(_) => Ordering::Greater,
+            Some(l) if l == lhs => TyParamOrdering::Less,
+            Some(_) => TyParamOrdering::Greater,
             None => todo!(),
         }
     }
 
     // TODO:
     fn smallest_pair<I: Iterator<Item=(Type, Type)>>(&self, ts: I) -> Option<(Type, Type)> {
-        ts.min_by(|(_, lhs), (_, rhs)| self.cmp_t(lhs, rhs))
+        ts.min_by(|(_, lhs), (_, rhs)| self.cmp_t(lhs, rhs).try_into().unwrap())
     }
 
     fn smallest_ref_t<'t, I: Iterator<Item=&'t Type>>(&self, ts: I) -> Option<&'t Type> {
-        ts.min_by(|lhs, rhs| self.cmp_t(lhs, rhs))
+        ts.min_by(|lhs, rhs| self.cmp_t(lhs, rhs).try_into().unwrap())
     }
 
     pub(crate) fn get_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ConstObj> {
@@ -2558,7 +2583,7 @@ impl Context {
 
     pub(crate) fn get_sorted_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=&'a Context> {
         let mut ctxs = self._rec_get_supertypes(t).collect::<Vec<_>>();
-        ctxs.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs));
+        ctxs.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs).try_into().unwrap());
         ctxs.into_iter().map(|(_, ctx)| ctx)
     }
 

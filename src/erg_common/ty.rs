@@ -89,6 +89,7 @@ pub trait HasLevel {
 // REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
+    SupertypeOf(Type),
     SubtypeOf(Type),
     TypeOf(Type),
 }
@@ -96,6 +97,7 @@ pub enum Constraint {
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SupertypeOf(ty) => write!(f, ":> {}", ty),
             Self::SubtypeOf(ty) => write!(f, "<: {}", ty),
             Self::TypeOf(ty) => write!(f, ": {}", ty),
         }
@@ -685,6 +687,18 @@ impl From<Ordering> for TyParamOrdering {
     }
 }
 
+impl TryFrom<TyParamOrdering> for Ordering {
+    type Error = ();
+    fn try_from(o: TyParamOrdering) -> Result<Self, Self::Error> {
+        match o {
+            Less => Ok(Ordering::Less),
+            Equal => Ok(Ordering::Equal),
+            Greater => Ok(Ordering::Greater),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TyParamOrdering {
     pub const fn is_lt(&self) -> bool { matches!(self, Less | LessEqual | Any) }
     pub const fn is_le(&self) -> bool { matches!(self, Less | Equal | LessEqual | Any) }
@@ -709,7 +723,7 @@ impl TyParamOrdering {
 pub enum TyBound {
     // e.g. A <: Add => Subtype{sub: A, sup: Add}, A <: {a: Int} => Subtype{sub: A, sup: {a: Int}}
     Subtype{ sub: Type, sup: Type },
-    // TODO: Supertype{ sup: Type, sub: Type },
+    Supertype{ sup: Type, sub: Type },
     // TyParam::MonoQuantVarに型の情報が含まれているので、boundsからは除去される
     // e.g. N: Nat => Instance{name: N, t: Nat}
     Instance{ name: Str, t: Type },
@@ -719,6 +733,7 @@ impl fmt::Display for TyBound {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Subtype{ sub, sup } => write!(f, "{sub} <: {sup}"),
+            Self::Supertype{ sup, sub } => write!(f, "{sup} :> {sub}"),
             Self::Instance{ name, t } => write!(f, "'{name}: {t}"),
         }
     }
@@ -731,7 +746,8 @@ impl HasLevel for TyBound {
 
     fn update_level(&self, level: usize) {
         match self {
-            Self::Subtype{ sub, sup } => {
+            Self::Subtype{ sub, sup }
+            | Self::Supertype { sup, sub } => {
                 sub.update_level(level);
                 sup.update_level(level);
             }
@@ -741,7 +757,8 @@ impl HasLevel for TyBound {
 
     fn lift(&self) {
         match self {
-            Self::Subtype{ sub, sup } => {
+            Self::Subtype{ sub, sup }
+            | Self::Supertype { sup, sub } => {
                 sub.lift();
                 sup.lift();
             }
@@ -752,6 +769,7 @@ impl HasLevel for TyBound {
 
 impl TyBound {
     pub const fn subtype(sub: Type, sup: Type) -> Self { Self::Subtype{ sub, sup } }
+    pub const fn supertype(sup: Type, sub: Type) -> Self { Self::Supertype{ sup, sub } }
 
     pub const fn static_instance(name: &'static str, t: Type) -> Self {
         Self::Instance{ name: Str::ever(name), t }
@@ -769,7 +787,8 @@ impl TyBound {
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::Subtype{ sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
+            Self::Subtype{ sub, sup }
+            | Self::Supertype{ sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
             Self::Instance{ t, .. } => t.has_unbound_var(),
         }
     }
@@ -777,6 +796,7 @@ impl TyBound {
     pub const fn t(&self) -> &Type {
         match self {
             Self::Subtype{ sup, .. } => sup,
+            | Self::Supertype{ sub, .. } => sub,
             Self::Instance{ t, .. } => t,
         }
     }

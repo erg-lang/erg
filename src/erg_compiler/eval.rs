@@ -347,6 +347,11 @@ impl Evaluator {
                     self.eval_t(sub, ctx, level)?,
                     self.eval_t(sup, ctx, level)?
                 )),
+            TyBound::Supertype{ sup, sub } =>
+                Ok(TyBound::supertype(
+                    self.eval_t(sup, ctx, level)?,
+                    self.eval_t(sub, ctx, level)?
+                )),
             TyBound::Instance{ name: inst, t } =>
                 Ok(TyBound::instance(inst, self.eval_t(t, ctx, level)?)),
         }
