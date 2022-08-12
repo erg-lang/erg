@@ -94,7 +94,9 @@ pub fn exec_py(code: &str) {
             .expect("cannot execute python");
     } else {
         let python_command = format!("{} -c \"{}\"", which_python(), code);
-        Command::new(python_command)
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
             .spawn()
             .expect("cannot execute python");
     }
