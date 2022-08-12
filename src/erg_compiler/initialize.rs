@@ -282,8 +282,9 @@ impl Context {
         ]));
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         array.register_const("MutType!", mut_type);
-        let mut type_ = Self::mono_class("Type", vec![Obj], vec![mono("Eq")], Self::TOP_LEVEL);
+        let mut type_ = Self::mono_class("Type", vec![Obj], vec![mono("Eq"), mono("Named")], Self::TOP_LEVEL);
         type_.register_impl("mro", Type::array(Type, TyParam::erased(Nat)), Immutable, Public);
+        let module = Self::mono_class("Module", vec![Obj], vec![mono("Eq"), mono("Named")], Self::TOP_LEVEL);
         let array_mut_t = Type::poly("Array!", vec![TyParam::t(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class("Array!", vec![PS::t_nd("T"), PS::named_nd("N", NatMut)], vec![Obj], vec![
             mono("Eq"), mono("Mutate"), poly("Seq", vec![ty_tp(mono_q("T"))])
@@ -312,6 +313,7 @@ impl Context {
         self.register_type(Bool, bool_, Const);
         self.register_type(Str, str_, Const);
         self.register_type(Type, type_, Const);
+        self.register_type(Module, module, Const);
         self.register_type(array_t, array, Const);
         self.register_type(range_t, range, Const);
         self.register_type(array_mut_t, array_mut, Const);
@@ -431,7 +433,10 @@ impl Context {
         let t = mono_q("T");
         let op_t = Type::func2(t.clone(), t.clone(), Type::range(t.clone()));
         let op_t = quant(op_t, set!{subtype(t, mono("Ord"))});
-        self.register_decl("__rng__", op_t, Private);
+        self.register_decl("__rng__", op_t.clone(), Private);
+        self.register_decl("__lorng__", op_t.clone(), Private);
+        self.register_decl("__rorng__", op_t.clone(), Private);
+        self.register_decl("__orng__", op_t, Private);
         let op_t = Type::func1(mono_q("T"), Type::mono_proj(mono_q("T"), "MutType!"));
         let op_t = quant(op_t, set!{subtype(mono_q("T"), mono("Mutate"))});
         self.register_impl("__mutate__", op_t, Const, Private);
