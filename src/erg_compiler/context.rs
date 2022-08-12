@@ -1041,6 +1041,8 @@ impl Context {
                             (Some(l), Some(r)) => {
                                 self.unify(l, r, None, Some(callee.loc()))?;
                             },
+                            // if callee is a Module object or some named one
+                            (None, Some(r)) if self.rec_subtype_of(r, &Type::mono("Named")) => {},
                             (None, None) => {},
                             (l, r) => todo!("{l:?}, {r:?}"),
                         }
@@ -1081,10 +1083,13 @@ impl Context {
                 let params = subr.non_default_params.iter().chain(subr.default_params.iter());
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     self.sub_unify(pos_arg.expr.ref_t(), &param_ty.ty, None, Some(pos_arg.loc())).map_err(|e| {
+                        // REVIEW:
+                        let name = callee.var_full_name().unwrap_or("".to_string());
+                        let name = name + "::" + param_ty.name.as_ref().map(|s| &s[..]).unwrap_or("");
                         TyCheckError::type_mismatch_error(
                             e.core.loc,
                             e.caused_by,
-                            param_ty.name.as_ref().map(|s| &s[..]).unwrap_or(""),
+                            &name[..],
                             &param_ty.ty,
                             pos_arg.expr.ref_t()
                         )

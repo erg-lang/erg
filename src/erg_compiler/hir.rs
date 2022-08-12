@@ -355,11 +355,13 @@ impl Accessor {
         Self::Subscr(Subscript::new(obj, index, t))
     }
 
-    pub fn name(&self) -> Option<&Str> {
+    pub fn var_full_name(&self) -> Option<String> {
         match self {
-            Self::Local(local)
-            | Self::SelfDot(local) => Some(local.inspect()),
-            _ => None,
+            Self::Local(local) => Some(local.inspect().to_string()),
+            Self::Attr(attr) =>
+                attr.obj.var_full_name().map(|n| n + "." + attr.name.inspect()),
+            Self::Subscr(_)
+            | Self::SelfDot(_) => todo!(),
         }
     }
 
@@ -557,7 +559,7 @@ impl Call {
     }
 
     pub fn is_import_call(&self) -> bool {
-        self.obj.get_name()
+        self.obj.var_full_name()
             .map(|s| &s[..] == "import" || &s[..] == "pyimport")
             .unwrap_or(false)
     }
@@ -823,9 +825,9 @@ impl Expr {
         }
     }
 
-    pub fn get_name(&self) -> Option<&Str> {
+    pub fn var_full_name(&self) -> Option<String> {
         match self {
-            Expr::Accessor(acc) => acc.name(),
+            Expr::Accessor(acc) => acc.var_full_name(),
             _ => None,
         }
     }
