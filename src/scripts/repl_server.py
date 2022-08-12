@@ -20,13 +20,16 @@ while True:
         break
     elif __order == 'load':
         __sys.stdout = __io.StringIO()
-        if __already_loaded:
-            __res = str(exec('__importlib.reload(o)'))
-        else:
-            __res = str(exec('import o'))
+        try:
+            if __already_loaded:
+                __res = str(exec('__importlib.reload(o)'))
+            else:
+                __res = str(exec('import o'))
+        except e:
+            __res = str(e)
         __already_loaded = True
         __out = __sys.stdout.getvalue().strip()
-        __res = __out + "\n" + __res
+        __res = __out + '\n' + __res
         __client_socket.send(__res.encode())
     else:
         __client_socket.send('unknown operation'.encode())
