@@ -317,7 +317,7 @@ impl CodeObj {
     ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
-        let python_ver = python_ver.unwrap_or_else(|| detect_magic_number());
+        let python_ver = python_ver.unwrap_or_else(detect_magic_number);
         bytes.append(&mut get_magic_num_bytes(python_ver).to_vec());
         bytes.append(&mut vec![0; 4]); // padding
         bytes.append(&mut get_timestamp_bytes().to_vec());

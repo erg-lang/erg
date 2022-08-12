@@ -84,6 +84,7 @@ impl DeserializeError {
 
 pub type DeserializeResult<T> = Result<T, DeserializeError>;
 
+#[derive(Default)]
 pub struct Deserializer {
     str_cache: Cache<str>,
     arr_cache: Cache<[ValueObj]>,
@@ -107,7 +108,7 @@ impl Deserializer {
             process::exit(1);
         };
         let codeobj =
-            CodeObj::from_pyc(&filename[..]).expect(&format!("failed to deserialize {filename}"));
+            CodeObj::from_pyc(&filename[..]).unwrap_or_else(|_| panic!("failed to deserialize {filename}"));
         println!("{}", codeobj.code_info());
     }
 
@@ -241,7 +242,7 @@ impl Deserializer {
     ) -> DeserializeResult<Vec<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
+            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
         }
     }
 
@@ -252,18 +253,18 @@ impl Deserializer {
     ) -> DeserializeResult<RcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
+            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
         }
     }
 
     pub fn array_into_const(&mut self, arr: &[ValueObj]) -> ValueObj {
-        self.get_cached_arr(&arr)
+        self.get_cached_arr(arr)
     }
 
     pub fn try_into_str(&mut self, c: ValueObj) -> DeserializeResult<Str> {
         match c {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
+            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
         }
     }
 
@@ -275,14 +276,14 @@ impl Deserializer {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => {
                 let mut strs = Vec::with_capacity(arr.len());
-                for c in arr.to_vec().into_iter() {
+                for c in arr.iter().cloned() {
                     strs.push(self.try_into_str(c)?);
                 }
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
                 &Type::array(Type::Str, TyParam::erased(Type::Nat)),
-                &other.ref_t(),
+                other.ref_t(),
             )),
         }
     }
@@ -290,7 +291,7 @@ impl Deserializer {
     pub fn deserialize_str(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Str> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, &other.ref_t())),
+            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
         }
     }
 

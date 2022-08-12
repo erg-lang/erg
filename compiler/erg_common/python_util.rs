@@ -13,9 +13,9 @@ pub fn which_python() -> String {
         .expect("python not found");
     let res = String::from_utf8(out.stdout)
         .unwrap()
-        .replace("\n", "")
-        .replace("\r", "");
-    if res == "" {
+        .replace('\n', "")
+        .replace('\r', "");
+    if res.is_empty() {
         panic!("python not found");
     }
     res

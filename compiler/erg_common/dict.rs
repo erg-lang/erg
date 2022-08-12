@@ -85,6 +85,11 @@ impl<K, V> Dict<K, V> {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.dict.is_empty()
+    }
+
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.dict.capacity()
     }

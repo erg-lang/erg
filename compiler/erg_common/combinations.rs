@@ -44,7 +44,7 @@ where
     type Item = Vec<I::Item>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(i) = self.combinations.next() {
-            return Some(i);
+            Some(i)
         } else {
             self.combinations.reset(self.combinations.k() + 1);
             self.len -= 1;

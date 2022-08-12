@@ -345,8 +345,8 @@ pub trait Runnable: Sized {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 log!(f output, "{GREEN}[DEBUG] The REPL has started.{RESET}\n");
-                output.write(instance.start_message().as_bytes()).unwrap();
-                output.write(instance.ps1().as_bytes()).unwrap();
+                output.write_all(instance.start_message().as_bytes()).unwrap();
+                output.write_all(instance.ps1().as_bytes()).unwrap();
                 output.flush().unwrap();
                 let mut lines = String::new();
                 loop {
@@ -359,20 +359,20 @@ pub trait Runnable: Sized {
                     lines.push_str(&line);
                     if expect_block(&line) || line.starts_with(' ') {
                         lines += "\n";
-                        output.write(instance.ps2().as_bytes()).unwrap();
+                        output.write_all(instance.ps2().as_bytes()).unwrap();
                         output.flush().unwrap();
                         continue;
                     }
                     match instance.eval(mem::take(&mut lines).into()) {
                         Ok(out) => {
-                            output.write((out + "\n").as_bytes()).unwrap();
+                            output.write_all((out + "\n").as_bytes()).unwrap();
                             output.flush().unwrap();
                         }
                         Err(e) => {
                             e.fmt_all_stderr();
                         }
                     }
-                    output.write(instance.ps1().as_bytes()).unwrap();
+                    output.write_all(instance.ps1().as_bytes()).unwrap();
                     output.flush().unwrap();
                     instance.clear();
                 }

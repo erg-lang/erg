@@ -359,7 +359,7 @@ pub trait ErrorDisplay {
     fn write_to_stderr(&self) {
         let mut writer = BufWriter::new(stderr());
         writer
-            .write(
+            .write_all(
                 format!(
                     "{}{}{}: {}{}\n",
                     self.format_header(),
@@ -379,9 +379,9 @@ pub trait ErrorDisplay {
 
     /// fmt::Display実装用
     fn format(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
+        writeln!(
             f,
-            "{}{}{}: {}{}\n",
+            "{}{}{}: {}{}",
             self.format_header(),
             self.format_code_and_pointer(),
             self.core().kind,

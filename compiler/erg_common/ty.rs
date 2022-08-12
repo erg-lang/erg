@@ -293,14 +293,14 @@ impl<T: Clone + HasLevel> Free<T> {
         self.0
             .borrow()
             .constraint()
-            .and_then(|c| c.typ().map(|t| t.clone()))
+            .and_then(|c| c.typ().cloned())
     }
 
     pub fn subtype_of(&self) -> Option<Type> {
         self.0
             .borrow()
             .constraint()
-            .and_then(|c| c.super_type().map(|t| t.clone()))
+            .and_then(|c| c.super_type().cloned())
     }
 
     pub fn is_unbound(&self) -> bool {

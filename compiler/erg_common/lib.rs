@@ -85,7 +85,7 @@ pub fn fmt_iter_split_with<T: fmt::Display, I: Iterator<Item = T>>(i: I, splitte
 
 pub fn fmt_indent(s: String, depth: usize) -> String {
     let indent = " ".repeat(depth);
-    s.split("\n").map(|s| indent.clone() + s).collect()
+    s.split('\n').map(|s| indent.clone() + s).collect()
 }
 
 pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {

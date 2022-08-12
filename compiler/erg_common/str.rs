@@ -17,7 +17,7 @@ pub enum Str {
 impl PartialEq for Str {
     #[inline]
     fn eq(&self, other: &Str) -> bool {
-        &self[..] == &other[..]
+        self[..] == other[..]
     }
 }
 

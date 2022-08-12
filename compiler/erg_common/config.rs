@@ -96,7 +96,7 @@ impl Input {
             },
             Self::Pipe(s) | Self::Str(s) => s.split('\n').collect::<Vec<_>>()
                 [ln_begin - 1..=ln_end - 1]
-                .into_iter()
+                .iter()
                 .map(|s| Str::rc(*s))
                 .collect(),
             Self::REPL => stdin::reread_lines(ln_begin, ln_end),

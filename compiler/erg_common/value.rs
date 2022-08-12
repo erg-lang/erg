@@ -17,7 +17,7 @@ use crate::{RcArray, Str};
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum ValueObj {
     Int(i32),
     Nat(u64),
@@ -88,6 +88,29 @@ impl Neg for ValueObj {
             Self::Inf => Self::NegInf,
             Self::NegInf => Self::Inf,
             other => panic!("cannot negate {other}"),
+        }
+    }
+}
+
+impl PartialEq for ValueObj {
+    fn eq(&self, other: &ValueObj) -> bool {
+        match (self, other) {
+            (Self::Int(i), Self::Int(j)) => i == j,
+            (Self::Nat(n), Self::Nat(m)) => n == m,
+            (Self::Float(fl), Self::Float(fr)) => fl == fr,
+            (Self::Str(s), Self::Str(t)) => s == t,
+            (Self::True, Self::True) => true,
+            (Self::False, Self::False) => true,
+            (Self::Array(arr), Self::Array(arr2)) => arr == arr2,
+            (Self::Dict(dict), Self::Dict(dict2)) => dict == dict2,
+            (Self::Code(code), Self::Code(code2)) => code == code2,
+            (Self::None, Self::None) => true,
+            (Self::Ellipsis, Self::Ellipsis) => true,
+            (Self::NotImplemented, Self::NotImplemented) => true,
+            (Self::NegInf, Self::NegInf) => true,
+            (Self::Inf, Self::Inf) => true,
+            (Self::Illegal, Self::Illegal) => true,
+            _ => false,
         }
     }
 }
