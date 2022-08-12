@@ -145,6 +145,30 @@ impl TyVarContext {
                 let constraint = Constraint::SupertypeOf(sub);
                 self.push_tyvar(Str::rc(sup.name()), Type::free_var(self.level, constraint));
             },
+            TyBound::Sandwiched{ sub, mid, sup } => {
+                let sub = match sub {
+                    Type::Poly{ name, params } => {
+                        let sub = Type::poly(name, params.into_iter().map(|p| self.instantiate_tp(p)).collect());
+                        sub
+                    },
+                    Type::MonoProj{ lhs, rhs } => {
+                        Type::mono_proj(self.instantiate_t(*lhs), rhs)
+                    }
+                    sub => sub,
+                };
+                let sup = match sup {
+                    Type::Poly{ name, params } => {
+                        let sup = Type::poly(name, params.into_iter().map(|p| self.instantiate_tp(p)).collect());
+                        sup
+                    },
+                    Type::MonoProj{ lhs, rhs } => {
+                        Type::mono_proj(self.instantiate_t(*lhs), rhs)
+                    }
+                    sup => sup,
+                };
+                let constraint = Constraint::Sandwiched{sub, sup};
+                self.push_tyvar(Str::rc(mid.name()), Type::free_var(self.level, constraint));
+            },
             TyBound::Instance{ name, t } => {
                 let t = match t {
                     Type::Poly{ name, params } => {
@@ -743,6 +767,7 @@ impl Context {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
                             Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
+                            Constraint::Sandwiched{ sub, sup } => TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (TyParam::mono_q(&name), set!{bound})
@@ -751,6 +776,7 @@ impl Context {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
                             Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
+                            Constraint::Sandwiched{ sub, sup } => TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (TyParam::mono_q(name), set!{bound})
@@ -786,6 +812,8 @@ impl Context {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
                             Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
+                            Constraint::Sandwiched{ sub, sup } =>
+                                TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (Type::mono_q(&name), set!{bound})
@@ -794,6 +822,8 @@ impl Context {
                         let bound = match constraint {
                             Constraint::SubtypeOf(sup) => TyBound::subtype(Type::mono(name.clone()), sup.clone()),
                             Constraint::SupertypeOf(sub) => TyBound::supertype(Type::mono(name.clone()), sub.clone()),
+                            Constraint::Sandwiched{ sub, sup } =>
+                                TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone()),
                             Constraint::TypeOf(t) => TyBound::instance(Str::rc(&name[..]), t.clone()),
                         };
                         (Type::mono_q(name), set!{bound})
@@ -1486,6 +1516,9 @@ impl Context {
             ))
         }
         match (maybe_sub, maybe_sup) {
+            (_l, Type::FreeVar(fv)) if fv.is_unbound() => {
+                todo!()
+            },
             (l @ Refinement(_), r @ Refinement(_)) => {
                 return self.unify(l ,r, sub_loc, sup_loc)
             },
@@ -2105,6 +2138,8 @@ impl Context {
                         Constraint::SubtypeOf(sup) => self.supertype_of(sup, rhs, bounds),
                         // `(?T :> X) :> Y` is true,
                         Constraint::SupertypeOf(_) => true,
+                        // `(Nat <: ?T <: Ratio) :> Nat` can be true
+                        Constraint::Sandwiched{ sup, .. } => self.supertype_of(sup, rhs, bounds),
                         // (?v: Type, rhs): OK
                         // (?v: Nat, rhs): Something wrong
                         // Class <: Type, but Nat <!: Type (Nat: Type)
@@ -2122,6 +2157,8 @@ impl Context {
                         Constraint::SubtypeOf(_sup) => true,
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         Constraint::SupertypeOf(sub) => self.supertype_of(lhs, sub, bounds),
+                        // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
+                        Constraint::Sandwiched{ sub, .. } => self.supertype_of(lhs, sub, bounds),
                         Constraint::TypeOf(t) =>
                             if self.supertype_of(&Type, t, bounds) { true } else { panic!() },
                     },
@@ -2397,8 +2434,10 @@ impl Context {
     fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
             // |T <: Nat| <: |T <: Int|
+            // |T :> Nat| <: |T :> Int|
             // |I: Nat| <: |I: Int|
             (Constraint::SubtypeOf(lhs), Constraint::SubtypeOf(rhs))
+            | (Constraint::SupertypeOf(lhs), Constraint::SupertypeOf(rhs))
             | (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) =>
                 self.rec_subtype_of(lhs, rhs),
             (Constraint::SubtypeOf(_), Constraint::TypeOf(Type)) => true,

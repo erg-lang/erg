@@ -352,6 +352,12 @@ impl Evaluator {
                     self.eval_t(sup, ctx, level)?,
                     self.eval_t(sub, ctx, level)?
                 )),
+            TyBound::Sandwiched { sub, mid, sup } => {
+                let sub = self.eval_t(sub, ctx, level)?;
+                let mid = self.eval_t(mid, ctx, level)?;
+                let sup = self.eval_t(sup, ctx, level)?;
+                Ok(TyBound::sandwiched(sub, mid, sup))
+            },
             TyBound::Instance{ name: inst, t } =>
                 Ok(TyBound::instance(inst, self.eval_t(t, ctx, level)?)),
         }

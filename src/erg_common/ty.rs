@@ -91,14 +91,16 @@ pub trait HasLevel {
 pub enum Constraint {
     SupertypeOf(Type),
     SubtypeOf(Type),
+    Sandwiched{ sub: Type, sup: Type },
     TypeOf(Type),
 }
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SupertypeOf(ty) => write!(f, ":> {}", ty),
-            Self::SubtypeOf(ty) => write!(f, "<: {}", ty),
+            Self::SupertypeOf(sub) => write!(f, ":> {sub}"),
+            Self::SubtypeOf(sup) => write!(f, "<: {sup}"),
+            Self::Sandwiched{ sub, sup } => write!(f, ":> {sub}, <: {sup}"),
             Self::TypeOf(ty) => write!(f, ": {}", ty),
         }
     }
@@ -724,6 +726,7 @@ pub enum TyBound {
     // e.g. A <: Add => Subtype{sub: A, sup: Add}, A <: {a: Int} => Subtype{sub: A, sup: {a: Int}}
     Subtype{ sub: Type, sup: Type },
     Supertype{ sup: Type, sub: Type },
+    Sandwiched{ sub: Type, mid: Type, sup: Type },
     // TyParam::MonoQuantVarに型の情報が含まれているので、boundsからは除去される
     // e.g. N: Nat => Instance{name: N, t: Nat}
     Instance{ name: Str, t: Type },
@@ -734,6 +737,7 @@ impl fmt::Display for TyBound {
         match self {
             Self::Subtype{ sub, sup } => write!(f, "{sub} <: {sup}"),
             Self::Supertype{ sup, sub } => write!(f, "{sup} :> {sub}"),
+            Self::Sandwiched{ sub, mid, sup } => write!(f, "{sub} <: {mid} <: {sup}"),
             Self::Instance{ name, t } => write!(f, "'{name}: {t}"),
         }
     }
@@ -751,6 +755,11 @@ impl HasLevel for TyBound {
                 sub.update_level(level);
                 sup.update_level(level);
             }
+            Self::Sandwiched{ sub, mid, sup } => {
+                sub.update_level(level);
+                mid.update_level(level);
+                sup.update_level(level);
+            }
             Self::Instance{ t, .. } => { t.update_level(level); },
         }
     }
@@ -762,6 +771,11 @@ impl HasLevel for TyBound {
                 sub.lift();
                 sup.lift();
             }
+            Self::Sandwiched{ sub, mid, sup } => {
+                sub.lift();
+                mid.lift();
+                sup.lift();
+            }
             Self::Instance{ t, .. } => { t.lift(); },
         }
     }
@@ -770,6 +784,7 @@ impl HasLevel for TyBound {
 impl TyBound {
     pub const fn subtype(sub: Type, sup: Type) -> Self { Self::Subtype{ sub, sup } }
     pub const fn supertype(sup: Type, sub: Type) -> Self { Self::Supertype{ sup, sub } }
+    pub const fn sandwiched(sub: Type, mid: Type, sup: Type) -> Self { Self::Sandwiched{ sub, mid, sup } }
 
     pub const fn static_instance(name: &'static str, t: Type) -> Self {
         Self::Instance{ name: Str::ever(name), t }
@@ -789,6 +804,8 @@ impl TyBound {
         match self {
             Self::Subtype{ sub, sup }
             | Self::Supertype{ sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
+            Self::Sandwiched{ sub, mid, sup } =>
+                sub.has_unbound_var() || mid.has_unbound_var() || sup.has_unbound_var(),
             Self::Instance{ t, .. } => t.has_unbound_var(),
         }
     }
@@ -797,6 +814,7 @@ impl TyBound {
         match self {
             Self::Subtype{ sup, .. } => sup,
             | Self::Supertype{ sub, .. } => sub,
+            Self::Sandwiched{ .. } => todo!(),
             Self::Instance{ t, .. } => t,
         }
     }
