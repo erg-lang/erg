@@ -21,3 +21,8 @@ A: `Never` is an "impossible" type. A subroutine that produces a runtime error h
 `NotImplemented` is also from Python. It is used as a marker for not implemented, but Erg prefers the `todo` function which produces an error.
 `None` is an instance of `NoneType`. It is often used with the `Option` type.
 `()` is a unit type and an instance of itself. It is used when you want to return a "meaningless value" such as the return value of a procedure.
+
+## Why is `x = p!()` valid but `f() = p!()` causes an EffectError?
+
+`!` is not a marker for the product of a side-effect, but for an object that can cause a side-effect.
+Procedure `p!` and mutable type `T!` can cause side effects, but if the return value of `p!()`, for example, is of type `Int`, it itself no longer causes side effects.
