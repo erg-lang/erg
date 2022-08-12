@@ -11,6 +11,7 @@ use erg_common::traits::Runnable;
 use erg_compiler::Compiler;
 use erg_compiler::error::{CompileError, CompileErrors};
 
+/// Pythonインタープリタをサーバーとして開き、通信を仲介することでErgインタープリタとして振る舞う
 #[derive(Debug)]
 pub struct DummyVM {
     cfg: ErgConfig,
