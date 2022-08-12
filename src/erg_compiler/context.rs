@@ -9,7 +9,7 @@ use erg_common::Str;
 use erg_common::ty::Constraint;
 use erg_common::ty::RefinementType;
 use erg_common::ty::fresh_varname;
-use erg_common::{fn_name, get_hash, log, assume_unreachable, set, try_map, fmt_slice};
+use erg_common::{fn_name, get_hash, log, assume_unreachable, set, try_map, fmt_slice, enum_unwrap};
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::error::{Location, ErrorCore};
@@ -241,6 +241,7 @@ pub struct Context {
     // stores user-defined type context
     pub(crate) types: Dict<Type, Context>,
     pub(crate) patches: Dict<VarName, Context>,
+    pub(crate) mods: Dict<VarName, Context>,
     pub(crate) _nlocals: usize, // necessary for CodeObj.nlocals
     pub(crate) level: usize,
 }
@@ -264,6 +265,7 @@ impl fmt::Display for Context {
             .field("eval", &self.eval)
             .field("types", &self.types)
             .field("patches", &self.patches)
+            .field("mods", &self.mods)
             .finish()
     }
 }
@@ -329,6 +331,7 @@ impl Context {
             unnamed_params,
             eval: Evaluator::default(),
             types: Dict::default(),
+            mods: Dict::default(),
             patches: Dict::default(),
             _nlocals: 0,
             level,
@@ -470,7 +473,7 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         let (generalized, bounds) = self.generalize_t(body_t.clone());
         let generalized = if !bounds.is_empty() {
-            if self.deep_supertype_of(&Type::CallableCommon, &generalized) {
+            if self.rec_supertype_of(&Type::CallableCommon, &generalized) {
                 Type::quantified(generalized, bounds)
             } else { panic!() }
         } else { generalized };
@@ -627,7 +630,7 @@ impl Context {
             sub_t.lift();
             let (generalized, bounds) = self.generalize_t(sub_t);
             let found_t = if !bounds.is_empty() {
-                if self.deep_supertype_of(&Type::CallableCommon, &generalized) {
+                if self.rec_supertype_of(&Type::CallableCommon, &generalized) {
                     Type::quantified(generalized, bounds)
                 } else { panic!() }
             } else { generalized };
@@ -636,7 +639,7 @@ impl Context {
                     vi.t.lift();
                     let (generalized, bounds) = self.generalize_t(vi.t.clone());
                     let generalized = if !bounds.is_empty() {
-                        if self.deep_supertype_of(&Type::CallableCommon, &generalized) {
+                        if self.rec_supertype_of(&Type::CallableCommon, &generalized) {
                             Type::quantified(generalized, bounds)
                         } else { panic!() }
                     } else { generalized };
@@ -645,7 +648,7 @@ impl Context {
                 self.decls.insert(name.clone(), vi);
             }
             if let Some(vi) = self.decls.remove(name) {
-                if !self.deep_supertype_of(&vi.t, &found_t) {
+                if !self.rec_supertype_of(&vi.t, &found_t) {
                     return Err(TyCheckError::violate_decl_error(
                         sig.loc(),
                         self.caused_by(),
@@ -663,11 +666,38 @@ impl Context {
         }
     }
 
-    pub fn push_subtype_bound(&mut self, sub: Type, sup: Type) {
+    pub(crate) fn import_mod(&mut self, var_name: &VarName, mod_name: &hir::Expr) -> TyCheckResult<()> {
+        match mod_name {
+            hir::Expr::Lit(lit) => {
+                if self.rec_subtype_of(&lit.data.class(), &Str) {
+                    let name = enum_unwrap!(lit.data.clone(), ValueObj::Str);
+                    match &name[..] {
+                        "math" => { self.mods.insert(var_name.clone(), Self::init_py_math_mod()); },
+                        "random" => { self.mods.insert(var_name.clone(), Self::init_py_random_mod()); },
+                        other => todo!("importing {other}"),
+                    }
+                } else {
+                    return Err(TyCheckError::type_mismatch_error(
+                        mod_name.loc(),
+                        self.caused_by(),
+                        "import::name",
+                        &Str,
+                        mod_name.ref_t()
+                    ))
+                }
+            },
+            _ => {
+                return Err(TyCheckError::feature_error(mod_name.loc(), "non-literal importing", self.caused_by()))
+            },
+        }
+        Ok(())
+    }
+
+    pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {
         self.bounds.push(TyBound::subtype(sub, sup));
     }
 
-    pub fn push_instance_bound(&mut self, name: Str, t: Type) {
+    pub(crate) fn _push_instance_bound(&mut self, name: Str, t: Type) {
         self.bounds.push(TyBound::instance(name, t));
     }
 }
@@ -1005,7 +1035,7 @@ impl Context {
                 let mut passed_params = set!{};
                 let params = subr.non_default_params.iter().chain(subr.default_params.iter());
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
-                    self.unify(&param_ty.ty, pos_arg.expr.ref_t(), None, Some(pos_arg.loc())).map_err(|e| {
+                    self.sub_unify(pos_arg.expr.ref_t(), &param_ty.ty, None, Some(pos_arg.loc())).map_err(|e| {
                         TyCheckError::type_mismatch_error(
                             e.core.loc,
                             e.caused_by,
@@ -1037,8 +1067,8 @@ impl Context {
                     param_ts
                 };
                 for kw_arg in kw_args.iter() {
-                    if let Some(ty) = param_ts.get(kw_arg.keyword.inspect()) {
-                        self.unify(ty, kw_arg.expr.ref_t(), None, Some(kw_arg.loc()))?;
+                    if let Some(param_ty) = param_ts.get(kw_arg.keyword.inspect()) {
+                        self.sub_unify(kw_arg.expr.ref_t(), param_ty, None, Some(kw_arg.loc()))?;
                     } else {
                         return Err(TyCheckError::unexpected_kw_arg_error(
                             kw_arg.keyword.loc(),
@@ -1132,7 +1162,7 @@ impl Context {
 
     /// allow_divergence = trueにすると、Num型変数と±Infの単一化を許す
     pub(crate) fn unify_tp(&self, l: &TyParam, r: &TyParam, bounds: Option<&Set<TyBound>>, allow_divergence: bool) -> TyCheckResult<()> {
-        if l.has_no_unbound_var() && r.has_no_unbound_var() && l.deep_eq(r) { return Ok(()) }
+        if l.has_no_unbound_var() && r.has_no_unbound_var() && l.rec_eq(r) { return Ok(()) }
         match (l, r) {
             (TyParam::Type(l), TyParam::Type(r)) =>
                 self.unify(&l, &r, None, None),
@@ -1155,7 +1185,7 @@ impl Context {
                     .unwrap().typ()
                     .unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.eval.get_tp_t(tp, bounds, &self)?;
-                if self.deep_supertype_of(&fv_t, &tp_t) {
+                if self.rec_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
                         let new_constraint = Constraint::SubtypeOf(tp_t.clone());
@@ -1172,7 +1202,7 @@ impl Context {
                     && (
                         self.eq_tp(&tp, &TyParam::value(Inf), None)
                         || self.eq_tp(&tp, &TyParam::value(NegInf), None)
-                    ) && self.deep_subtype_of(&fv_t, &Type::mono("Num")) {
+                    ) && self.rec_subtype_of(&fv_t, &Type::mono("Num")) {
                         fv.link(tp);
                         Ok(())
                     } else {
@@ -1279,7 +1309,9 @@ impl Context {
     /// So `unify(?T, Int); unify(?T, Bool)` will causes an error
     /// To bypass the constraint, you need to specify `'T: Structural` in the type bounds
     pub(crate) fn unify(&self, lhs_t: &Type, rhs_t: &Type, lhs_loc: Option<Location>, rhs_loc: Option<Location>) -> TyCheckResult<()> {
-        if lhs_t.has_no_unbound_var() && rhs_t.has_no_unbound_var() && self.deep_supertype_of(lhs_t, rhs_t) { return Ok(()) }
+        if lhs_t.has_no_unbound_var()
+        && rhs_t.has_no_unbound_var()
+        && self.rec_supertype_of(lhs_t, rhs_t) { return Ok(()) }
         match (lhs_t, rhs_t) {
             // unify(?T[2], ?U[3]): ?U[3] => ?T[2]
             // bind the higher level var to lower one
@@ -1302,7 +1334,7 @@ impl Context {
                         if let Some(sup) = constraint.super_type_mut() {
                             // 下のような場合は制約を弱化する
                             // unify(?T(<: Nat), Int): (?T(<: Int))
-                            if self.deep_subtype_of(sup, t) {
+                            if self.rec_subtype_of(sup, t) {
                                 *sup = t.clone();
                             } else {
                                 self.sub_unify(t, sup, rhs_loc, lhs_loc)?;
@@ -1421,32 +1453,44 @@ impl Context {
     /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
     /// sub_unify([?T; 0], Mutate): ()
     /// ```
-    fn sub_unify(&self, sub: &Type, sup: &Type, sub_loc: Option<Location>, sup_loc: Option<Location>) -> TyCheckResult<()> {
-        if sub.has_no_unbound_var() && sup.has_no_unbound_var() { return Ok(()) }
-        match (sub, sup) {
+    fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type, sub_loc: Option<Location>, sup_loc: Option<Location>) -> TyCheckResult<()> {
+        if maybe_sub.has_no_unbound_var()
+        && maybe_sup.has_no_unbound_var()
+        && self.rec_subtype_of(maybe_sub, maybe_sup) { return Ok(()) }
+        if !self.rec_subtype_of(maybe_sub, maybe_sup) {
+            let loc = sub_loc.or(sup_loc).unwrap_or(Location::Unknown);
+            return Err(TyCheckError::type_mismatch_error(
+                loc,
+                self.caused_by(),
+                "<???>",
+                maybe_sup,
+                maybe_sub,
+            ))
+        }
+        match (maybe_sub, maybe_sup) {
             (l @ Refinement(_), r @ Refinement(_)) => {
                 return self.unify(l ,r, sub_loc, sup_loc)
             },
             _ => {}
         }
         let mut opt_smallest = None;
-        for ctx in self.get_sorted_supertypes(sub) {
+        for ctx in self.get_sorted_supertypes(maybe_sub) {
             let instances = ctx.super_classes.iter()
                 .chain(ctx.super_traits.iter())
-                .filter(|t| self.supertype_of(sup, t, None));
+                .filter(|t| self.supertype_of(maybe_sup, t, None));
             // instanceが複数ある場合、経験的に最も小さい型を選ぶのが良い
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
             if let Some(t) = self.smallest_ref_t(instances) {
                 opt_smallest = if let Some(small) = opt_smallest { self.min(small, t) } else { Some(t) };
             }
         }
-        let glue_patch_and_types = self.deep_get_glue_patch_and_types();
+        let glue_patch_and_types = self.rec_get_glue_patch_and_types();
         let patch_instances = glue_patch_and_types.iter()
             .filter_map(|(patch_name, l, r)| {
-                let patch = self.deep_get_patch(patch_name).unwrap();
+                let patch = self.rec_get_patch(patch_name).unwrap();
                 let bounds = patch.bounds();
-                if self.supertype_of(l, sub, Some(&bounds))
-                && self.supertype_of(r, sup, Some(&bounds)) {
+                if self.supertype_of(l, maybe_sub, Some(&bounds))
+                && self.supertype_of(r, maybe_sup, Some(&bounds)) {
                     let tv_ctx = TyVarContext::new(self.level, bounds);
                     let (l, _) = Self::instantiate_t(l.clone(), tv_ctx.clone());
                     let (r, _) = Self::instantiate_t(r.clone(), tv_ctx);
@@ -1457,22 +1501,22 @@ impl Context {
         match (opt_smallest, opt_smallest_pair) {
             (Some(smallest), Some((l, r))) => {
                 if self.min(smallest, &r) == Some(&r) {
-                    self.unify(sub, &l, sub_loc, None)?;
-                    self.unify(sup, &r, sup_loc, None)
+                    self.unify(maybe_sub, &l, sub_loc, None)?;
+                    self.unify(maybe_sup, &r, sup_loc, None)
                 } else {
-                    self.unify(sup, smallest, sup_loc, None)
+                    self.unify(maybe_sup, smallest, sup_loc, None)
                 }
             },
             (Some(smallest), None) => {
-                self.unify(sup, smallest, sup_loc, None)
+                self.unify(maybe_sup, smallest, sup_loc, None)
             },
             (None, Some((l, r))) => {
-                self.unify(sub, &l, sub_loc, None)?;
-                self.unify(sup, &r, sup_loc, None)?;
+                self.unify(maybe_sub, &l, sub_loc, None)?;
+                self.unify(maybe_sup, &r, sup_loc, None)?;
                 Ok(())
             },
             (None, None) => {
-                log!("{sub}, {sup}");
+                log!("{maybe_sub}, {maybe_sup}");
                 todo!()
             }
         }
@@ -1706,6 +1750,26 @@ impl Context {
         self.impls.get(name).or_else(|| self.decls.get(name))
     }
 
+    fn get_context(&self, obj: &hir::Expr, kind: Option<ContextKind>, namespace: &Str) -> TyCheckResult<&Context> {
+        match obj {
+            hir::Expr::Accessor(hir::Accessor::Local(name)) => {
+                if kind == Some(ContextKind::Module) {
+                    if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+                        Ok(ctx)
+                    } else {
+                        Err(TyCheckError::no_var_error(
+                            obj.loc(),
+                            namespace.clone(),
+                            name.inspect(),
+                            self.get_similar_name(name.inspect()),
+                        ))
+                    }
+                } else { todo!() }
+            },
+            _ => todo!(),
+        }
+    }
+
     fn get_match_call_t(&self, pos_args: &[hir::PosArg], kw_args: &[hir::KwArg]) -> TyCheckResult<Type> {
         if !kw_args.is_empty() { todo!() }
         for pos_arg in pos_args.iter().skip(1) {
@@ -1763,6 +1827,14 @@ impl Context {
         Ok(t)
     }
 
+    pub(crate) fn get_local_uniq_obj_name(&self, name: &Token) -> Option<Str> {
+        // TODO: types, functions, patches
+        if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+                return Some(ctx.name.clone())
+        }
+        None
+    }
+
     pub(crate) fn get_local_t(&self, name: &Token, namespace: &Str) -> TyCheckResult<Type> {
         if let Some(vi) = self.impls.get(name.inspect())
             .or_else(|| self.decls.get(name.inspect())) {
@@ -1782,7 +1854,17 @@ impl Context {
 
     pub(crate) fn get_attr_t(&self, obj: &hir::Expr, name: &Token, namespace: &Str) -> TyCheckResult<Type> {
         let self_t = obj.t();
-        if self_t == ASTOmitted { panic!() }
+        match self_t {
+            ASTOmitted => panic!(),
+            Type => todo!(),
+            Type::Record(_) => todo!(),
+            Module => {
+                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
+                let t = mod_ctx.get_local_t(name, namespace)?;
+                return Ok(t)
+            },
+            _ => {}
+        }
         for ctx in self.get_sorted_supertypes(&self_t) {
             if let Ok(t) = ctx.get_local_t(name, namespace) {
                 return Ok(t)
@@ -1866,7 +1948,7 @@ impl Context {
         Ok(res)
     }
 
-    pub(crate) fn deep_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+    pub(crate) fn rec_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         if self.supertype_of(lhs, rhs, None) { return true }
         for sup_rhs in self.get_sorted_supertypes(rhs) {
             let bounds = sup_rhs.bounds();
@@ -1874,23 +1956,23 @@ impl Context {
             || sup_rhs.super_traits.iter().any(|sup| self.supertype_of(lhs, sup, Some(&bounds))) { return true }
         }
         for (patch_name, sub, sup) in self.glue_patch_and_types.iter() {
-            let patch = self.deep_get_patch(patch_name).unwrap();
+            let patch = self.rec_get_patch(patch_name).unwrap();
             let bounds = patch.bounds();
             if self.supertype_of(sub, rhs, Some(&bounds))
             && self.supertype_of(sup, lhs, Some(&bounds)) { return true }
         }
         if let Some(outer) = &self.outer {
-            if outer.deep_supertype_of(lhs, rhs) { return true }
+            if outer.rec_supertype_of(lhs, rhs) { return true }
         }
         false
     }
 
-    pub(crate) fn deep_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.deep_supertype_of(rhs, lhs)
+    pub(crate) fn rec_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.rec_supertype_of(rhs, lhs)
     }
 
-    pub(crate) fn _deep_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.deep_supertype_of(lhs, rhs) && self.deep_subtype_of(lhs, rhs)
+    pub(crate) fn _rec_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.rec_supertype_of(lhs, rhs) && self.rec_subtype_of(lhs, rhs)
     }
 
     fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam, bounds: Option<&Set<TyBound>>) -> bool {
@@ -1946,7 +2028,7 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type, bounds: Option<&Set<TyBound>>) -> bool {
-        if lhs.deep_eq(rhs) { return true }
+        if lhs.rec_eq(rhs) { return true }
         match (lhs, rhs) {
             // FIXME: Obj/Neverはクラス、Top/Bottomは構造型
             (Obj, _) | (_, Never) => true,
@@ -2136,7 +2218,7 @@ impl Context {
             ) /* if v.is_unbound() */ => {
                 let l_t = self.eval.get_tp_t(l, bounds, self).unwrap();
                 let r_t = self.eval.get_tp_t(r, bounds, self).unwrap();
-                if self.deep_supertype_of(&l_t, &r_t) || self.deep_subtype_of(&l_t, &r_t) {
+                if self.rec_supertype_of(&l_t, &r_t) || self.rec_subtype_of(&l_t, &r_t) {
                     Some(Any)
                 } else { Some(NotEqual) }
             },
@@ -2212,7 +2294,7 @@ impl Context {
 
     /// 和集合(A or B)を返す
     fn union(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (self.deep_supertype_of(lhs, rhs), self.deep_subtype_of(lhs, rhs)) {
+        match (self.rec_supertype_of(lhs, rhs), self.rec_subtype_of(lhs, rhs)) {
             (true, true) => return lhs.clone(), // lhs = rhs
             (true, false) => return lhs.clone(), // lhs :> rhs
             (false, true) => return rhs.clone(),
@@ -2296,7 +2378,7 @@ impl Context {
             // |I: Nat| <: |I: Int|
             (Constraint::SubtypeOf(lhs), Constraint::SubtypeOf(rhs))
             | (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) =>
-                self.deep_subtype_of(lhs, rhs),
+                self.rec_subtype_of(lhs, rhs),
             (Constraint::SubtypeOf(_), Constraint::TypeOf(Type)) => true,
             _ => false,
         }
@@ -2364,8 +2446,8 @@ impl Context {
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
     fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        if self.deep_supertype_of(lhs, rhs) { Some(rhs) }
-        else if self.deep_subtype_of(lhs, rhs) { Some(rhs) }
+        if self.rec_supertype_of(lhs, rhs) { Some(rhs) }
+        else if self.rec_subtype_of(lhs, rhs) { Some(rhs) }
         else { None }
     }
 
@@ -2475,23 +2557,23 @@ impl Context {
     }
 
     pub(crate) fn get_sorted_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=&'a Context> {
-        let mut ctxs = self._deep_get_supertypes(t).collect::<Vec<_>>();
+        let mut ctxs = self._rec_get_supertypes(t).collect::<Vec<_>>();
         ctxs.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs));
         ctxs.into_iter().map(|(_, ctx)| ctx)
     }
 
     /// this method is for `get_sorted_supertypes` only
-    fn _deep_get_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a Context)> {
+    fn _rec_get_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a Context)> {
         let i = self._get_supertypes(t);
         if i.size_hint().1 == Some(0) {
             if let Some(outer) = &self.outer {
-                return outer._deep_get_supertypes(t)
+                return outer._rec_get_supertypes(t)
             }
         }
         i
     }
 
-    /// this method is for `deep_get_supertypes` only
+    /// this method is for `rec_get_supertypes` only
     fn _get_supertypes<'a>(&'a self, t: &'a Type) -> impl Iterator<Item=(&'a Type, &'a Context)> {
         self.types.iter()
             .filter_map(|(maybe_sup, ctx)| {
@@ -2500,21 +2582,31 @@ impl Context {
             })
     }
 
-    fn deep_get_glue_patch_and_types(&self) -> Vec<(VarName, Type, Type)> {
+    fn rec_get_glue_patch_and_types(&self) -> Vec<(VarName, Type, Type)> {
         if let Some(outer) = &self.outer {
-            [&self.glue_patch_and_types[..], &outer.deep_get_glue_patch_and_types()].concat()
+            [&self.glue_patch_and_types[..], &outer.rec_get_glue_patch_and_types()].concat()
         } else {
             self.glue_patch_and_types.clone()
         }
     }
 
-    /// this method is for `get_sorted_supertypes` only
-    fn deep_get_patch(&self, name: &VarName) -> Option<&Context> {
+    fn rec_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
             return Some(patch)
         } else {
             if let Some(outer) = &self.outer {
-                return outer.deep_get_patch(name)
+                return outer.rec_get_patch(name)
+            }
+        }
+        None
+    }
+
+    fn rec_get_mod(&self, name: &str) -> Option<&Context> {
+        if let Some(mod_) = self.mods.get(name) {
+            return Some(mod_)
+        } else {
+            if let Some(outer) = &self.outer {
+                return outer.rec_get_mod(name)
             }
         }
         None

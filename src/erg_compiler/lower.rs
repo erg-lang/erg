@@ -95,10 +95,13 @@ impl ASTLowerer {
         log!("[DEBUG] entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Local(n) => {
-                let t = if check {
-                    self.mod_ctx.get_local_t(&n.symbol, &self.mod_ctx.name)?
-                } else { Type::ASTOmitted };
-                let acc = hir::Accessor::Local(hir::Local::new(n.symbol, t));
+                let (t, __name__) = if check {
+                    (
+                        self.mod_ctx.get_local_t(&n.symbol, &self.mod_ctx.name)?,
+                        self.mod_ctx.get_local_uniq_obj_name(&n.symbol),
+                    )
+                } else { (Type::ASTOmitted, None) };
+                let acc = hir::Accessor::Local(hir::Local::new(n.symbol, __name__, t));
                 Ok(acc)
             }
             ast::Accessor::Attr(a) => {
@@ -248,6 +251,18 @@ impl ASTLowerer {
         let id = body.id;
         // TODO: cover all VarPatterns
         self.mod_ctx.outer.as_mut().unwrap().assign_var(&sig, id, found_body_t)?;
+        match block.first().unwrap() {
+            hir::Expr::Call(call) => {
+                if let ast::VarPattern::VarName(name) = &sig.pat {
+                    if call.is_import_call() {
+                        self.mod_ctx.outer.as_mut()
+                            .unwrap()
+                            .import_mod(name, &call.args.pos_args().first().unwrap().expr)?;
+                    }
+                } else { todo!() }
+            },
+            _other => {}
+        }
         let sig = hir::VarSignature::new(sig.pat, found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))

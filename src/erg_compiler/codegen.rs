@@ -35,17 +35,18 @@ fn obj_name(obj: &Expr) -> Option<String> {
     }
 }
 
-fn convert_to_python_attr(class: &str, name: Str) -> Str {
-    match (class, &name[..]) {
-        ("Array!", "push!") => Str::ever("append"),
-        ("Complex" | "Real"| "Int" | "Nat" | "Float", "Real") => Str::ever("real"),
-        ("Complex" | "Real"| "Int" | "Nat" | "Float", "Imag") => Str::ever("imag"),
+fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
+    match (class, uniq_obj_name, &name[..]) {
+        ("Array!", _, "push!") => Str::ever("append"),
+        ("Complex" | "Real"| "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
+        ("Complex" | "Real"| "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
+        ("Module", Some("random"), "randint!") => Str::ever("randint"),
         _ => name,
     }
 }
 
-fn escape_attr(class: &str, name: Str) -> Str {
-    let mut name = convert_to_python_attr(class, name).to_string();
+fn escape_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
+    let mut name = convert_to_python_attr(class, uniq_obj_name, name).to_string();
     name = name.replace("!", "__erg_proc__");
     name = name.replace("$", "__erg_shared__");
     Str::rc(&name)
@@ -285,7 +286,7 @@ impl CodeGenerator {
     }
 
     // local_searchで見つからなかった変数を探索する
-    fn deep_search(&mut self, name: &str) -> Option<StoreLoadKind> {
+    fn rec_search(&mut self, name: &str) -> Option<StoreLoadKind> {
         // search_name()を実行した後なのでcur_blockはskipする
         for (nth_from_toplevel, block) in self.units.iter_mut().enumerate().rev().skip(1) {
             let block_is_toplevel = nth_from_toplevel == 0;
@@ -314,7 +315,7 @@ impl CodeGenerator {
     fn register_name(&mut self, name: Str) -> Name {
         let current_is_toplevel = self.cur_block() == self.toplevel_block();
         let name = escape_name(name);
-        match self.deep_search(&name) {
+        match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
                 self.mut_cur_block_codeobj().names.push(name);
                 Name::new(st, self.cur_block_codeobj().names.len() - 1)
@@ -339,16 +340,16 @@ impl CodeGenerator {
         }
     }
 
-    fn register_attr(&mut self, class: &str, name: Str) -> Name {
+    fn register_attr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
         let name = Str::rc(name.split(".").last().unwrap());
-        let name = escape_attr(class, name);
+        let name = escape_attr(class, uniq_obj_name, name);
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
-    fn register_method(&mut self, class: &str, name: Str) -> Name {
+    fn register_method(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
         let name = Str::rc(name.split(".").last().unwrap());
-        let name = escape_attr(class, name);
+        let name = escape_attr(class, uniq_obj_name, name);
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
@@ -369,9 +370,9 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_load_attr_instr(&mut self, class: &str, name: Str) -> CompileResult<()> {
+    fn emit_load_attr_instr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> CompileResult<()> {
         let name = self.local_search(&name, Attr).unwrap_or_else(|| {
-            self.register_attr(class, name)
+            self.register_attr(class, uniq_obj_name, name)
         });
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
@@ -384,9 +385,9 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_load_method_instr(&mut self, class: &str, name: Str) -> CompileResult<()> {
+    fn emit_load_method_instr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> CompileResult<()> {
         let name = self.local_search(&name, Method).unwrap_or_else(|| {
-            self.register_method(class, name)
+            self.register_method(class, uniq_obj_name, name)
         });
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
@@ -765,9 +766,11 @@ impl CodeGenerator {
             self.stack_dec_n((1 + 1 + argc + kwsc) - 1);
         } else {
             let class = Str::rc(obj.ref_t().name());
+            let uniq_obj_name = obj.__name__().map(Str::rc);
             self.codegen_expr(obj);
-            self.emit_load_method_instr(&class, name).unwrap_or_else(|err| {
-                self.errs.push(err);
+            self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), name)
+                .unwrap_or_else(|err| {
+                    self.errs.push(err);
             });
             let argc = args.len();
             let mut kws = Vec::with_capacity(args.kw_len());
@@ -881,9 +884,11 @@ impl CodeGenerator {
             }
             Expr::Accessor(Accessor::Attr(a)) => {
                 let class = Str::rc(a.obj.ref_t().name());
+                let uniq_obj_name = a.obj.__name__().map(Str::rc);
                 self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(&class, a.name.content.clone()).unwrap_or_else(|err| {
-                    self.errs.push(err);
+                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.name.content.clone())
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
                 });
             }
             Expr::Def(def) => {

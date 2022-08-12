@@ -211,15 +211,20 @@ impl Args {
 #[derive(Debug, Clone)]
 pub struct Local {
     pub name: Token,
+    /// オブジェクト自身の名前
+    __name__: Option<Str>,
     t: Type,
 }
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let __name__ = if let Some(__name__) = self.__name__() {
+            format!("(__name__ = {__name__})")
+        } else { "".to_string() };
         if self.t != Type::ASTOmitted {
-            write!(f, "{} (: {})", self.name.content, self.t)
+            write!(f, "{} (: {}){}", self.name.content, self.t, __name__)
         } else {
-            write!(f, "{}", self.name.content)
+            write!(f, "{}{}", self.name.content, __name__)
         }
     }
 }
@@ -237,11 +242,13 @@ impl Locational for Local {
 }
 
 impl Local {
-    pub const fn new(name: Token, t: Type) -> Self { Self{ name, t } }
+    pub const fn new(name: Token, __name__: Option<Str>, t: Type) -> Self { Self{ name, __name__, t } }
 
     // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
     #[inline]
     pub fn inspect(&self) -> &Str { &self.name.content }
+
+    pub const fn __name__(&self) -> Option<&Str> { self.__name__.as_ref() }
 }
 
 #[derive(Debug, Clone)]
@@ -312,7 +319,7 @@ impl NestedDisplay for Accessor {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Local(name) => write!(f, "{}", name),
-            Self::SelfDot(attr) => write!(f, "self.{}", attr),
+            Self::SelfDot(attr) => write!(f, ".{}", attr),
             Self::Attr(attr) => write!(f, "{}", attr),
             Self::Subscr(subscr) => write!(f, "{}", subscr),
         }
@@ -336,9 +343,9 @@ impl HasType for Accessor {
 }
 
 impl Accessor {
-    pub const fn local(symbol: Token, t: Type) -> Self { Self::Local(Local::new(symbol, t)) }
+    pub const fn local(symbol: Token, t: Type) -> Self { Self::Local(Local::new(symbol, None, t)) }
 
-    pub const fn self_dot(name: Token, t: Type) -> Self { Self::SelfDot(Local::new(name, t)) }
+    pub const fn self_dot(name: Token, t: Type) -> Self { Self::SelfDot(Local::new(name, None, t)) }
 
     pub fn attr(obj: Expr, name: Token, t: Type) -> Self {
         Self::Attr(Attribute::new(obj, name, t))
@@ -346,6 +353,23 @@ impl Accessor {
 
     pub fn subscr(obj: Expr, index: Expr, t: Type) -> Self {
         Self::Subscr(Subscript::new(obj, index, t))
+    }
+
+    pub fn name(&self) -> Option<&Str> {
+        match self {
+            Self::Local(local)
+            | Self::SelfDot(local) => Some(local.inspect()),
+            _ => None,
+        }
+    }
+
+    // 参照するオブジェクト自体が持っている固有の名前
+    pub fn __name__(&self) -> Option<&str> {
+        match self {
+            Self::Local(local)
+            | Self::SelfDot(local) => local.__name__().map(|s| &s[..]),
+            _ => None,
+        }
     }
 }
 
@@ -530,6 +554,12 @@ impl Locational for Call {
 impl Call {
     pub fn new(obj: Expr, args: Args, sig_t: Type) -> Self {
         Self { obj: Box::new(obj), args, sig_t }
+    }
+
+    pub fn is_import_call(&self) -> bool {
+        self.obj.get_name()
+            .map(|s| &s[..] == "import" || &s[..] == "pyimport")
+            .unwrap_or(false)
     }
 }
 
@@ -790,6 +820,21 @@ impl Expr {
         match self {
             Self::Accessor(Accessor::Attr(attr)) => Some(attr.obj.ref_t()),
             _other => None,
+        }
+    }
+
+    pub fn get_name(&self) -> Option<&Str> {
+        match self {
+            Expr::Accessor(acc) => acc.name(),
+            _ => None,
+        }
+    }
+
+    /// 参照するオブジェクト自体が持っている名前(e.g. Int.__name__ == Some("int"))
+    pub fn __name__(&self) -> Option<&str> {
+        match self {
+            Expr::Accessor(acc) => acc.__name__(),
+            _ => todo!(),
         }
     }
 }
