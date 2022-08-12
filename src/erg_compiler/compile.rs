@@ -91,6 +91,9 @@ impl Runnable for Compiler {
     #[inline]
     fn start_message(&self) -> String { format!("Erg compiler {} {}\n", SEMVER, &*BUILD_INFO) }
 
+    #[inline]
+    fn finish(&mut self) {}
+
     fn clear(&mut self) {
         self.code_generator.clear();
     }

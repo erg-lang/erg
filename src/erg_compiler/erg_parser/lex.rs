@@ -29,6 +29,9 @@ impl Runnable for LexerRunner {
     fn start_message(&self) -> String { "Erg lexer\n".to_string() }
 
     #[inline]
+    fn finish(&mut self) {}
+
+    #[inline]
     fn clear(&mut self) {}
 
     fn eval(&mut self, src: Str) -> Result<String, LexerRunnerErrors> {

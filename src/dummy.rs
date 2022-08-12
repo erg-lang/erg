@@ -54,6 +54,22 @@ impl Runnable for DummyVM {
     #[inline]
     fn start_message(&self) -> String { format!("Erg interpreter {} {}\n", SEMVER, &*BUILD_INFO) }
 
+    fn finish(&mut self) {
+        self.stream.write("exit".as_bytes()).unwrap();
+        let mut buf = [0; 1024];
+        match self.stream.read(&mut buf) {
+            Result::Ok(n) => {
+                let s = std::str::from_utf8(&buf[..n]).unwrap();
+                if s.contains("closed") {
+                    println!("The REPL server is closed.");
+                }
+            }
+            Result::Err(e) => {
+                panic!("{}", format!("Read error: {e}"));
+            }
+        }
+    }
+
     fn clear(&mut self) {
         self.compiler.clear();
     }

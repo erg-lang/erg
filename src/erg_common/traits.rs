@@ -216,6 +216,7 @@ pub trait Runnable: Sized {
     fn new(cfg: ErgConfig) -> Self;
     fn input(&self) -> &Input;
     fn start_message(&self) -> String;
+    fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
     fn eval(&mut self, src: Str) -> Result<String, Self::Errs>;
 
@@ -248,6 +249,7 @@ pub trait Runnable: Sized {
                 loop {
                     let line = chomp(&instance.input().read());
                     if &line[..] == ":quit" || &line[..] == ":exit" {
+                        instance.finish();
                         log!(f output, "{GREEN}[DEBUG] The REPL has finished successfully.{RESET}\n");
                         process::exit(0);
                     }

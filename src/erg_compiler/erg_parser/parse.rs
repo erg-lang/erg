@@ -254,6 +254,9 @@ impl Runnable for ParserRunner {
     fn start_message(&self) -> String { format!("Erg parser {} {}\n", SEMVER, &*BUILD_INFO) }
 
     #[inline]
+    fn finish(&mut self) {}
+
+    #[inline]
     fn clear(&mut self) {}
 
     fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
