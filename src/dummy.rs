@@ -59,7 +59,7 @@ impl Runnable for DummyVM {
     }
 
     fn finish(&mut self) {
-        self.stream.write("exit".as_bytes()).unwrap();
+        self.stream.write_all("exit".as_bytes()).unwrap();
         let mut buf = [0; 1024];
         match self.stream.read(&mut buf) {
             Result::Ok(n) => {
