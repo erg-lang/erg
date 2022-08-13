@@ -18,7 +18,7 @@ If a `Ratio` literal has an integer or decimal part of `0`, you can omit the `0`
 
 ```erg
 assert 1.0 == 1.
-assert 0.5 == 0.5
+assert 0.5 == .5
 ```
 
 > __Note__: This function `assert` was used to show that `1.0` and `1.` are equal.
