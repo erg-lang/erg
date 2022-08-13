@@ -55,6 +55,15 @@ impl SideEffectChecker {
                         self.check_expr(&kwarg.expr, true);
                     }
                 }
+                Expr::BinOp(bin) => {
+                    self.check_expr(&bin.lhs, true);
+                    self.check_expr(&bin.rhs, true);
+                },
+                Expr::UnaryOp(unary) => {
+                    self.check_expr(&unary.expr, true);
+                },
+                Expr::Accessor(_)
+                | Expr::Lit(_) => {},
                 other => todo!("{other}"),
             }
         }
