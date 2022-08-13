@@ -148,8 +148,9 @@ impl Compiler {
         &mut self,
         src: Str,
         path: P,
+        mode: &str,
     ) -> Result<(), CompileErrors> {
-        let code = self.compile(src, "exec")?;
+        let code = self.compile(src, mode)?;
         code.dump_as_pyc(path, self.cfg.python_ver)
             .expect("failed to dump a .pyc file");
         Ok(())
