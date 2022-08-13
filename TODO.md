@@ -87,6 +87,7 @@
   * [ ] Multiple error points indication
   * [ ] Support for languages other than English
     * [x] Japanese
+* [ ] Create a playground (uses [pyodide](https://github.com/pyodide/pyodide))
 * [ ] Develop the development environment
   * [ ] Implement LSP (Language Server Protocol)
   * [ ] Implement a syntax highlighter (REPL/debugger built-in)
