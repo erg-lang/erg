@@ -1807,6 +1807,14 @@ impl From<&str> for Type {
     }
 }
 
+fn get_t_from_tp(tp: &TyParam) -> Option<Type> {
+    match tp {
+        TyParam::FreeVar(fv) if fv.is_linked() => get_t_from_tp(&fv.crack()),
+        TyParam::Type(t) => Some(*t.clone()),
+        _ => None,
+    }
+}
+
 impl HasType for Type {
     #[inline]
     fn ref_t(&self) -> &Type {
@@ -1827,8 +1835,8 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } | Self::Tuple(param_ts) => param_ts.clone(),
-            Self::Poly { .. } => {
-                todo!()
+            Self::Poly { params, .. } => {
+                params.iter().filter_map(get_t_from_tp).collect()
             }
             _ => vec![],
         }
