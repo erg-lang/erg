@@ -258,6 +258,8 @@ impl ValueObj {
             Type::Int => Self::Int(content.replace("_", "").parse::<i32>().unwrap()),
             Type::Nat => Self::Nat(content.replace("_", "").parse::<u64>().unwrap()),
             Type::Float => Self::Float(content.replace("_", "").parse::<f64>().unwrap()),
+            // TODO:
+            Type::Ratio => Self::Float(content.replace("_", "").parse::<f64>().unwrap()),
             Type::Str => {
                 if &content[..] == "\"\"" {
                     Self::Str(Str::from(""))
