@@ -14,7 +14,7 @@ use crate::set::Set;
 use crate::traits::HasType;
 use crate::ty::ValueObj::{Inf, NegInf};
 use crate::value::ValueObj;
-use crate::{fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str, enum_unwrap};
+use crate::{enum_unwrap, fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -290,10 +290,7 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn type_of(&self) -> Option<Type> {
-        self.0
-            .borrow()
-            .constraint()
-            .and_then(|c| c.typ().cloned())
+        self.0.borrow().constraint().and_then(|c| c.typ().cloned())
     }
 
     pub fn subtype_of(&self) -> Option<Type> {
@@ -1813,16 +1810,13 @@ impl HasType for Type {
     fn inner_ts(&self) -> Vec<Type> {
         match self {
             Self::Dict { k, v } => vec![k.as_ref().clone(), v.as_ref().clone()],
-            Self::Ref(t)
-            | Self::RefMut(t)
-            | Self::Array { t, .. }
-            | Self::VarArgs(t) => vec![t.as_ref().clone()],
+            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => {
+                vec![t.as_ref().clone()]
+            }
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } | Self::Tuple(param_ts) => param_ts.clone(),
-            Self::Poly { params, .. } => {
-                params.iter().filter_map(get_t_from_tp).collect()
-            }
+            Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
     }
@@ -1843,10 +1837,9 @@ impl HasLevel for Type {
     fn update_level(&self, level: Level) {
         match self {
             Self::FreeVar(v) => v.update_level(level),
-            Self::Ref(t)
-            | Self::RefMut(t)
-            | Self::Array { t, .. }
-            | Self::VarArgs(t) => t.update_level(level),
+            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => {
+                t.update_level(level)
+            }
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.update_level(level);
@@ -1905,10 +1898,7 @@ impl HasLevel for Type {
     fn lift(&self) {
         match self {
             Self::FreeVar(v) => v.lift(),
-            Self::Ref(t)
-            | Self::RefMut(t)
-            | Self::Array { t, .. }
-            | Self::VarArgs(t) => t.lift(),
+            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => t.lift(),
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.lift();
@@ -2385,10 +2375,10 @@ impl Type {
     pub fn is_nonelike(&self) -> bool {
         match self {
             Self::NoneType => true,
-            Self::Poly{ name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
+            Self::Poly { name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
                 inner_t.is_nonelike()
-            },
+            }
             Self::Tuple(ts) => ts.len() == 0,
             _ => false,
         }
@@ -2438,8 +2428,7 @@ impl Type {
                 FreeKind::Linked(t) => t.rec_eq(other),
                 _ => self == other,
             },
-            | (Self::Ref(l), Self::Ref(r))
-            | (Self::RefMut(l), Self::RefMut(r)) => l.rec_eq(r),
+            (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l.rec_eq(r),
             (Self::Subr(l), Self::Subr(r)) => {
                 match (&l.kind, &r.kind) {
                     (SubrKind::Func, SubrKind::Func) | (SubrKind::Proc, SubrKind::Proc) => {}
@@ -2652,9 +2641,7 @@ impl Type {
                     fv.crack().has_unbound_var()
                 }
             }
-            | Self::Ref(t)
-            | Self::RefMut(t)
-            | Self::VarArgs(t) => t.has_unbound_var(),
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.has_unbound_var(),
             Self::And(param_ts) | Self::Not(param_ts) | Self::Or(param_ts) => {
                 param_ts.iter().any(|t| t.has_unbound_var())
             }
@@ -2714,8 +2701,7 @@ impl Type {
         match self {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => todo!(),
-            | Self::Ref(t)
-            | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
+            Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
             Self::Array { t, len } => vec![TyParam::t(*t.clone()), len.clone()],
             Self::Dict { k, v } => vec![TyParam::t(*k.clone()), TyParam::t(*v.clone())],
             Self::And(param_ts)

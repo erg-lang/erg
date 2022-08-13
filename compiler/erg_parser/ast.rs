@@ -1738,7 +1738,13 @@ pub struct ParamSignature {
 impl NestedDisplay for ParamSignature {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         if let Some(default_val) = &self.opt_default_val {
-            write!(f, "{}{} |= {}", self.pat, fmt_option!(pre ": ", &self.t_spec), default_val)
+            write!(
+                f,
+                "{}{} |= {}",
+                self.pat,
+                fmt_option!(pre ": ", &self.t_spec),
+                default_val
+            )
         } else {
             write!(f, "{}{}", self.pat, fmt_option!(pre ": ", &self.t_spec),)
         }
@@ -1758,8 +1764,16 @@ impl Locational for ParamSignature {
 }
 
 impl ParamSignature {
-    pub const fn new(pat: ParamPattern, t_spec: Option<TypeSpec>, opt_default_val: Option<ConstExpr>) -> Self {
-        Self { pat, t_spec, opt_default_val }
+    pub const fn new(
+        pat: ParamPattern,
+        t_spec: Option<TypeSpec>,
+        opt_default_val: Option<ConstExpr>,
+    ) -> Self {
+        Self {
+            pat,
+            t_spec,
+            opt_default_val,
+        }
     }
 
     pub const fn inspect(&self) -> Option<&Str> {

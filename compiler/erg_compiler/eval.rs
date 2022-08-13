@@ -25,10 +25,13 @@ struct SubstContext {
 
 impl SubstContext {
     pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
-        let param_names = ty_ctx
-            .params
-            .iter()
-            .map(|(opt_name, _)| opt_name.as_ref().map(|n| n.inspect().clone()).unwrap_or(Str::ever("_")).clone());
+        let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
+            opt_name
+                .as_ref()
+                .map(|n| n.inspect().clone())
+                .unwrap_or(Str::ever("_"))
+                .clone()
+        });
         let self_ = SubstContext {
             params: param_names
                 .zip(substituted.typarams().into_iter())

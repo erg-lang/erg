@@ -79,7 +79,8 @@ impl Runnable for DummyVM {
     }
 
     fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
-        self.compiler.compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
+        self.compiler
+            .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
         let mut res = match self.stream.write("load".as_bytes()) {
             Result::Ok(_) => {
                 let mut buf = [0; 1024];

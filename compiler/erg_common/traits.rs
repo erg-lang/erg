@@ -345,7 +345,9 @@ pub trait Runnable: Sized {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 log!(f output, "{GREEN}[DEBUG] The REPL has started.{RESET}\n");
-                output.write_all(instance.start_message().as_bytes()).unwrap();
+                output
+                    .write_all(instance.start_message().as_bytes())
+                    .unwrap();
                 output.write_all(instance.ps1().as_bytes()).unwrap();
                 output.flush().unwrap();
                 let mut lines = String::new();

@@ -559,9 +559,7 @@ impl Parser {
         if self.cur_is(OrEqual) {
             self.skip();
             let val = self.try_reduce_const_expr()?;
-            Ok(ParamSignature::new(
-                lhs.pat, lhs.t_spec, Some(val),
-            ))
+            Ok(ParamSignature::new(lhs.pat, lhs.t_spec, Some(val)))
         } else {
             Ok(ParamSignature::new(lhs.pat, lhs.t_spec, None))
         }
@@ -737,7 +735,7 @@ impl Parser {
                 } else {
                     non_default_params.push(param);
                 }
-            },
+            }
             _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
         loop {
@@ -746,17 +744,21 @@ impl Parser {
                     self.skip();
                     let param = self.try_reduce_param_sig()?;
                     match (param.has_default(), default_appeared) {
-                        (true, true) => { default_params.push(param); },
+                        (true, true) => {
+                            default_params.push(param);
+                        }
                         (true, false) => {
                             default_appeared = true;
                             default_params.push(param);
-                        },
-                        (false, true) => return Err(ParseError::syntax_error(
-                            0,
-                            param.loc(),
-                            "non-default argument follows default argument",
-                            None,
-                        )),
+                        }
+                        (false, true) => {
+                            return Err(ParseError::syntax_error(
+                                0,
+                                param.loc(),
+                                "non-default argument follows default argument",
+                                None,
+                            ))
+                        }
                         (false, false) => {
                             non_default_params.push(param);
                         }

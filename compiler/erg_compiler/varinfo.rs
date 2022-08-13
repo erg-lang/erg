@@ -75,7 +75,11 @@ impl ParamIdx {
 pub enum VarKind {
     Defined(DefId),
     Declared,
-    Parameter { def_id: DefId, idx: ParamIdx, default: DefaultInfo },
+    Parameter {
+        def_id: DefId,
+        idx: ParamIdx,
+        default: DefaultInfo,
+    },
     Generated,
     DoesNotExist,
     Builtin,
@@ -83,7 +87,11 @@ pub enum VarKind {
 
 impl VarKind {
     pub const fn parameter(def_id: DefId, idx: ParamIdx, default: DefaultInfo) -> Self {
-        Self::Parameter { def_id, idx, default }
+        Self::Parameter {
+            def_id,
+            idx,
+            default,
+        }
     }
 
     pub const fn idx(&self) -> Option<&ParamIdx> {

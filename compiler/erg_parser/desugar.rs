@@ -11,9 +11,8 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, set};
 
 use crate::ast::{
-    Accessor, Args, Block, Call, Def, DefBody, Expr, Lambda, LambdaSignature, Module,
-    ParamSignature, ParamPattern, Params, PosArg, Signature, SubrSignature,
-    TypeBoundSpecs, VarName, VarPattern,
+    Accessor, Args, Block, Call, Def, DefBody, Expr, Lambda, LambdaSignature, Module, ParamPattern,
+    ParamSignature, Params, PosArg, Signature, SubrSignature, TypeBoundSpecs, VarName, VarPattern,
 };
 use crate::token::{Token, TokenKind};
 

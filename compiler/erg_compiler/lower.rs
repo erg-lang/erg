@@ -50,17 +50,15 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
-        self.ctx
-            .unify(expect, found, Some(loc), None)
-            .or_else(|_| {
-                Err(LowerError::type_mismatch_error(
-                    loc,
-                    self.ctx.caused_by(),
-                    name,
-                    expect,
-                    found,
-                ))
-            })
+        self.ctx.unify(expect, found, Some(loc), None).or_else(|_| {
+            Err(LowerError::type_mismatch_error(
+                loc,
+                self.ctx.caused_by(),
+                name,
+                expect,
+                found,
+            ))
+        })
     }
 
     fn use_check(&self, expr: hir::Expr, mode: &str) -> LowerResult<hir::Expr> {
@@ -126,8 +124,7 @@ impl ASTLowerer {
             ast::Accessor::Attr(a) => {
                 let obj = self.lower_expr(*a.obj, true)?;
                 let t = if check {
-                    self.ctx
-                        .get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?
+                    self.ctx.get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?
                 } else {
                     Type::ASTOmitted
                 };
@@ -144,9 +141,7 @@ impl ASTLowerer {
         let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [lhs, rhs];
-        let t = self
-            .ctx
-            .get_binop_t(&bin.op, &args, &self.ctx.name)?;
+        let t = self.ctx.get_binop_t(&bin.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
@@ -158,9 +153,7 @@ impl ASTLowerer {
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [arg];
-        let t = self
-            .ctx
-            .get_unaryop_t(&unary.op, &args, &self.ctx.name)?;
+        let t = self.ctx.get_unaryop_t(&unary.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         Ok(hir::UnaryOp::new(unary.op, expr, t))
@@ -220,15 +213,23 @@ impl ASTLowerer {
             self.pop_append_errs();
             e
         })?;
-        let (non_default_params, default_params): (Vec<_>, Vec<_>) =
-            self.ctx
-                .params
-                .iter()
-                .partition(|(_, v)| v.kind.has_default());
+        let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
+            .ctx
+            .params
+            .iter()
+            .partition(|(_, v)| v.kind.has_default());
         let non_default_params = non_default_params
-            .into_iter().map(|(name, vi)| ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())).collect();
+            .into_iter()
+            .map(|(name, vi)| {
+                ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
+            })
+            .collect();
         let default_params = default_params
-            .into_iter().map(|(name, vi)| ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())).collect();
+            .into_iter()
+            .map(|(name, vi)| {
+                ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
+            })
+            .collect();
         let bounds = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)

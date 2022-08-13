@@ -34,7 +34,8 @@ impl Context {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.locals.insert(name, VarInfo::new(t, muty, vis, Builtin));
+            self.locals
+                .insert(name, VarInfo::new(t, muty, vis, Builtin));
         }
     }
 
@@ -111,8 +112,12 @@ impl Context {
             set! {subtype(mono_q("Self"), mono("Ord")), subtype(mono_q("R"), poly("Ord", vec![]))},
         );
         ord.register_decl("__lt__", op_t.clone(), Public);
-        let mut seq =
-            Self::poly_trait("Seq", vec![PS::t("T", NonDefault)], vec![poly("Output", vec![ty_tp(mono_q("T"))])], Self::TOP_LEVEL);
+        let mut seq = Self::poly_trait(
+            "Seq",
+            vec![PS::t("T", NonDefault)],
+            vec![poly("Output", vec![ty_tp(mono_q("T"))])],
+            Self::TOP_LEVEL,
+        );
         let self_t = poly_q("Self", vec![TyParam::t(mono_q("T"))]);
         let t = fn0_met(self_t.clone(), Nat);
         let t = quant(t, set! {subtype(self_t.clone(), mono("Seq"))});

@@ -107,8 +107,8 @@ impl Deserializer {
             eprintln!("{:?} is not a filename", cfg.input);
             process::exit(1);
         };
-        let codeobj =
-            CodeObj::from_pyc(&filename[..]).unwrap_or_else(|_| panic!("failed to deserialize {filename}"));
+        let codeobj = CodeObj::from_pyc(&filename[..])
+            .unwrap_or_else(|_| panic!("failed to deserialize {filename}"));
         println!("{}", codeobj.code_info());
     }
 
