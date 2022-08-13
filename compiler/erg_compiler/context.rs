@@ -257,9 +257,20 @@ impl TyVarContext {
                 } else if let Some(t) = self.get_tyvar(&n) {
                     return TyParam::t(t.clone());
                 } else {
-                    todo!()
+                    panic!("Type parameter {n} is not found. This is a bug.")
                 }
             }
+            TyParam::Type(t) => {
+                if let Type::MonoQVar(n) = *t {
+                    if let Some(t) = self.get_typaram(&n) {
+                        return t.clone();
+                    } else if let Some(t) = self.get_tyvar(&n) {
+                        return TyParam::t(t.clone());
+                    } else {
+                        panic!("Type variable {n} is not found. This is a bug.")
+                    }
+                } else { todo!("{t}") }
+            },
             TyParam::UnaryOp { op, val } => {
                 let res = self.instantiate_tp(*val);
                 TyParam::unary(op, res)
