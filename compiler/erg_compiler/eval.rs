@@ -26,10 +26,9 @@ struct SubstContext {
 impl SubstContext {
     pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
         let param_names = ty_ctx
-            .impls
+            .params
             .iter()
-            .filter(|(_, vi)| vi.kind.is_parameter())
-            .map(|(name, _)| name.inspect().clone());
+            .map(|(opt_name, _)| opt_name.as_ref().map(|n| n.inspect().clone()).unwrap_or(Str::ever("_")).clone());
         let self_ = SubstContext {
             params: param_names
                 .zip(substituted.typarams().into_iter())
@@ -40,7 +39,7 @@ impl SubstContext {
     }
 
     fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize) -> TyCheckResult<Type> {
-        let bounds = ty_ctx.bounds();
+        let bounds = ty_ctx.type_params_bounds();
         let tv_ctx = TyVarContext::new(level, bounds);
         let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
         for param in inst.typarams() {
@@ -54,7 +53,7 @@ impl SubstContext {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ty_ctx.unify_tp(param, v, None, false)?;
+                        ty_ctx.unify_tp(param, v, None, None, false)?;
                     }
                 } else {
                     if fv.is_unbound() {
@@ -357,7 +356,7 @@ impl Evaluator {
             }
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj { lhs, rhs } => {
-                for ty_ctx in ctx.get_sorted_supertypes(&lhs) {
+                for ty_ctx in ctx.rec_sorted_type_ctxs(&lhs) {
                     if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ConstObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
@@ -371,12 +370,8 @@ impl Evaluator {
                 }
                 todo!()
             }
-            Type::Range(l) => Ok(Type::range(self.eval_t(*l, ctx, level)?)),
-            Type::Iter(l) => Ok(Type::iter(self.eval_t(*l, ctx, level)?)),
             Type::Ref(l) => Ok(Type::refer(self.eval_t(*l, ctx, level)?)),
             Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t(*l, ctx, level)?)),
-            Type::Option(l) => Ok(Type::option_mut(self.eval_t(*l, ctx, level)?)),
-            Type::OptionMut(l) => Ok(Type::option_mut(self.eval_t(*l, ctx, level)?)),
             Type::VarArgs(l) => Ok(Type::var_args(self.eval_t(*l, ctx, level)?)),
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {

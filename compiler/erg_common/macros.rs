@@ -76,14 +76,14 @@ macro_rules! switch_lang {
 #[macro_export]
 macro_rules! enum_unwrap {
     ($ex: expr, $Enum: path $(,)*) => {{
-        if let $Enum(res) = $ex { res } else { erg_common::switch_unreachable!() }
+        if let $Enum(res) = $ex { res } else { $crate::switch_unreachable!() }
     }};
     ($ex: expr, $Enum: path :( $Cons: path :(_) ) $(,)*) => {{
-        if let $Enum($Cons(res)) = $ex { res } else { erg_common::switch_unreachable!() }
+        if let $Enum($Cons(res)) = $ex { res } else { $crate::switch_unreachable!() }
     }};
     // X::A{a, b}
     ($ex: expr, $Enum: path {$($fields: ident $(,)*)*}) => {{
-        if let $Enum{$($fields,)*} = $ex { ($($fields,)*) } else { erg_common::switch_unreachable!() }
+        if let $Enum{$($fields,)*} = $ex { ($($fields,)*) } else { $crate::switch_unreachable!() }
     }};
 }
 

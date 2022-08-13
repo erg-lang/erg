@@ -21,7 +21,7 @@ use Visibility::*;
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
-    pub(crate) mod_ctx: Context,
+    pub(crate) ctx: Context,
     errs: LowerErrors,
     warns: LowerWarnings,
 }
@@ -29,7 +29,7 @@ pub struct ASTLowerer {
 impl ASTLowerer {
     pub fn new() -> Self {
         Self {
-            mod_ctx: Context::new(
+            ctx: Context::new(
                 "<module>".into(),
                 ContextKind::Module,
                 vec![],
@@ -50,12 +50,12 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
-        self.mod_ctx
+        self.ctx
             .unify(expect, found, Some(loc), None)
             .or_else(|_| {
                 Err(LowerError::type_mismatch_error(
                     loc,
-                    self.mod_ctx.caused_by(),
+                    self.ctx.caused_by(),
                     name,
                     expect,
                     found,
@@ -68,7 +68,7 @@ impl ASTLowerer {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),
-                self.mod_ctx.name.clone(),
+                self.ctx.name.clone(),
                 switch_lang!(
                     "the evaluation result of the expression is not used",
                     "式の評価結果が使われていません",
@@ -87,7 +87,7 @@ impl ASTLowerer {
     }
 
     fn pop_append_errs(&mut self) {
-        if let Err(mut errs) = self.mod_ctx.pop() {
+        if let Err(mut errs) = self.ctx.pop() {
             self.errs.append(&mut errs);
         }
     }
@@ -97,7 +97,7 @@ impl ASTLowerer {
         let mut hir_array = hir::Array::new(
             array.l_sqbr,
             array.r_sqbr,
-            self.mod_ctx.level,
+            self.ctx.level,
             hir::Args::empty(),
             None,
         );
@@ -114,8 +114,8 @@ impl ASTLowerer {
             ast::Accessor::Local(n) => {
                 let (t, __name__) = if check {
                     (
-                        self.mod_ctx.get_local_t(&n.symbol, &self.mod_ctx.name)?,
-                        self.mod_ctx.get_local_uniq_obj_name(&n.symbol),
+                        self.ctx.get_var_t(&n.symbol, &self.ctx.name)?,
+                        self.ctx.get_local_uniq_obj_name(&n.symbol),
                     )
                 } else {
                     (Type::ASTOmitted, None)
@@ -126,8 +126,8 @@ impl ASTLowerer {
             ast::Accessor::Attr(a) => {
                 let obj = self.lower_expr(*a.obj, true)?;
                 let t = if check {
-                    self.mod_ctx
-                        .get_attr_t(&obj, &a.name.symbol, &self.mod_ctx.name)?
+                    self.ctx
+                        .get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?
                 } else {
                     Type::ASTOmitted
                 };
@@ -145,8 +145,8 @@ impl ASTLowerer {
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [lhs, rhs];
         let t = self
-            .mod_ctx
-            .get_binop_t(&bin.op, &args, &self.mod_ctx.name)?;
+            .ctx
+            .get_binop_t(&bin.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
@@ -159,8 +159,8 @@ impl ASTLowerer {
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
         let args = [arg];
         let t = self
-            .mod_ctx
-            .get_unaryop_t(&unary.op, &args, &self.mod_ctx.name)?;
+            .ctx
+            .get_unaryop_t(&unary.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         Ok(hir::UnaryOp::new(unary.op, expr, t))
@@ -184,11 +184,11 @@ impl ASTLowerer {
             ));
         }
         let mut obj = self.lower_expr(*call.obj, false)?;
-        let t = self.mod_ctx.get_call_t(
+        let t = self.ctx.get_call_t(
             &mut obj,
             hir_args.pos_args(),
             hir_args.kw_args(),
-            &self.mod_ctx.name,
+            &self.ctx.name,
         )?;
         Ok(hir::Call::new(obj, hir_args, t))
     }
@@ -203,14 +203,14 @@ impl ASTLowerer {
         } else {
             ContextKind::Func
         };
-        self.mod_ctx.grow(&name, kind, Private)?;
-        self.mod_ctx
+        self.ctx.grow(&name, kind, Private)?;
+        self.ctx
             .assign_params(&lambda.sig.params, None)
             .map_err(|e| {
                 self.pop_append_errs();
                 e
             })?;
-        self.mod_ctx
+        self.ctx
             .preregister(lambda.body.ref_payload())
             .map_err(|e| {
                 self.pop_append_errs();
@@ -220,72 +220,17 @@ impl ASTLowerer {
             self.pop_append_errs();
             e
         })?;
-        // impls => named non-default params + named default params + embedded params (will be discarded)
-        // unnnamed_params => unnamed non-default params + unnamed default params
-        // non default params = [unnamed non-default params + unnamed default params].sorted() // sort by pos
-        // default params = [unnamed default params, named default params].sorted()
-        let (named_non_default_params, named_default_params) = {
-            let (named_default_params, named_non_default_params_and_embeddeds): (Vec<_>, Vec<_>) =
-                self.mod_ctx
-                    .impls
-                    .iter()
-                    .filter(|(_, v)| v.kind.is_parameter())
-                    .partition(|(_, v)| v.kind.has_default());
-            let (_, named_non_default_params): (Vec<_>, Vec<_>) =
-                named_non_default_params_and_embeddeds
-                    .into_iter()
-                    .partition(|(_, v)| v.kind.is_embedded_param());
-            (
-                named_non_default_params
-                    .into_iter()
-                    .map(|(n, v)| {
-                        (
-                            v.kind.pos_as_param().unwrap(),
-                            ParamTy::new(Some(n.inspect().clone()), v.t()),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-                named_default_params
-                    .into_iter()
-                    .map(|(n, v)| {
-                        (
-                            v.kind.pos_as_param().unwrap(),
-                            ParamTy::new(Some(n.inspect().clone()), v.t()),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        };
-        let (unnamed_non_default_params, unnamed_default_params) = {
-            let (unnamed_default_params, unnamed_non_default_params): (Vec<_>, Vec<_>) = self
-                .mod_ctx
-                .unnamed_params
+        let (non_default_params, default_params): (Vec<_>, Vec<_>) =
+            self.ctx
+                .params
                 .iter()
-                .map(|v| (v, ParamTy::anonymous(v.t())))
-                .partition(|(v, _)| v.kind.has_default());
-            (
-                unnamed_non_default_params
-                    .into_iter()
-                    .map(|(v, pt)| (v.kind.pos_as_param().unwrap(), pt))
-                    .collect(),
-                unnamed_default_params
-                    .into_iter()
-                    .map(|(v, pt)| (v.kind.pos_as_param().unwrap(), pt))
-                    .collect(),
-            )
-        };
-        let non_default_params = {
-            let mut a = [unnamed_non_default_params, named_non_default_params].concat();
-            a.sort_by(|(l, _), (r, _)| l.cmp(r));
-            a.into_iter().map(|(_, p)| p).collect::<Vec<_>>()
-        };
-        let default_params = {
-            let mut a = [unnamed_default_params, named_default_params].concat();
-            a.sort_by(|(l, _), (r, _)| l.cmp(r));
-            a.into_iter().map(|(_, p)| p).collect::<Vec<_>>()
-        };
+                .partition(|(_, v)| v.kind.has_default());
+        let non_default_params = non_default_params
+            .into_iter().map(|(name, vi)| ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())).collect();
+        let default_params = default_params
+            .into_iter().map(|(name, vi)| ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())).collect();
         let bounds = self
-            .mod_ctx
+            .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
             .map_err(|e| {
                 self.pop_append_errs();
@@ -308,7 +253,7 @@ impl ASTLowerer {
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({})", fn_name!(), def.sig);
         // FIXME: Instant
-        self.mod_ctx
+        self.ctx
             .grow(def.sig.name_as_str(), ContextKind::Instant, Private)?;
         let res = match def.sig {
             ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
@@ -325,15 +270,15 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({sig})", fn_name!());
-        self.mod_ctx.preregister(body.block.ref_payload())?;
+        self.ctx.preregister(body.block.ref_payload())?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let opt_expect_body_t = self
-            .mod_ctx
+            .ctx
             .outer
             .as_ref()
             .unwrap()
-            .get_current_scope_local_var(sig.inspect().unwrap())
+            .get_current_scope_var(sig.inspect().unwrap())
             .map(|vi| vi.t.clone());
         let name = sig.pat.inspect().unwrap();
         if let Some(expect_body_t) = opt_expect_body_t {
@@ -343,7 +288,7 @@ impl ASTLowerer {
         }
         let id = body.id;
         // TODO: cover all VarPatterns
-        self.mod_ctx
+        self.ctx
             .outer
             .as_mut()
             .unwrap()
@@ -352,7 +297,7 @@ impl ASTLowerer {
             hir::Expr::Call(call) => {
                 if let ast::VarPattern::VarName(name) = &sig.pat {
                     if call.is_import_call() {
-                        self.mod_ctx
+                        self.ctx
                             .outer
                             .as_mut()
                             .unwrap()
@@ -377,20 +322,20 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({sig})", fn_name!());
         let t = self
-            .mod_ctx
+            .ctx
             .outer
             .as_ref()
             .unwrap()
-            .get_current_scope_local_var(sig.name.inspect())
+            .get_current_scope_var(sig.name.inspect())
             .unwrap_or_else(|| {
                 log!("{}\n", sig.name.inspect());
-                log!("{}\n", self.mod_ctx.outer.as_ref().unwrap());
+                log!("{}\n", self.ctx.outer.as_ref().unwrap());
                 panic!()
             }) // FIXME: or instantiate
             .t
             .clone();
-        self.mod_ctx.assign_params(&sig.params, None)?;
-        self.mod_ctx.preregister(body.block.ref_payload())?;
+        self.ctx.assign_params(&sig.params, None)?;
+        self.ctx.preregister(body.block.ref_payload())?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
@@ -400,7 +345,7 @@ impl ASTLowerer {
             self.errs.push(e);
         }
         let id = body.id;
-        self.mod_ctx
+        self.ctx
             .outer
             .as_mut()
             .unwrap()
@@ -440,7 +385,7 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
         log!("{GREEN}[DEBUG] the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
-        self.mod_ctx.preregister(ast.module.ref_payload())?;
+        self.ctx.preregister(ast.module.ref_payload())?;
         for expr in ast.module.into_iter() {
             match self
                 .lower_expr(expr, true)

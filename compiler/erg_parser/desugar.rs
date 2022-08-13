@@ -12,7 +12,7 @@ use erg_common::{enum_unwrap, set};
 
 use crate::ast::{
     Accessor, Args, Block, Call, Def, DefBody, Expr, Lambda, LambdaSignature, Module,
-    NonDefaultParamSignature, ParamPattern, Params, PosArg, Signature, SubrSignature,
+    ParamSignature, ParamPattern, Params, PosArg, Signature, SubrSignature,
     TypeBoundSpecs, VarName, VarPattern,
 };
 use crate::token::{Token, TokenKind};
@@ -117,7 +117,7 @@ impl Desugarer {
                                 name.col_end().unwrap() + 1, // HACK: `(name) %x = ...`という形を想定
                             ));
                             let param =
-                                NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+                                ParamSignature::new(ParamPattern::VarName(param), None, None);
                             let params = Params::new(vec![param], vec![], None);
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},

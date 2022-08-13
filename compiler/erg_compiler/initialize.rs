@@ -31,10 +31,10 @@ impl Context {
 
     fn register_impl(&mut self, name: &'static str, t: Type, muty: Mutability, vis: Visibility) {
         let name = VarName::from_static(name);
-        if self.impls.get(&name).is_some() {
+        if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.impls.insert(name, VarInfo::new(t, muty, vis, Builtin));
+            self.locals.insert(name, VarInfo::new(t, muty, vis, Builtin));
         }
     }
 
@@ -51,7 +51,7 @@ impl Context {
             panic!("{} has already been registered", t.name());
         } else {
             let name = VarName::from_str(Str::rc(t.name()));
-            self.impls
+            self.locals
                 .insert(name, VarInfo::new(Type, muty, Private, Builtin));
             self.types.insert(t, ctx);
         }
@@ -62,9 +62,9 @@ impl Context {
             panic!("{} has already been registered", name);
         } else {
             let name = VarName::from_static(name);
-            self.impls
+            self.locals
                 .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-            for method_name in ctx.impls.keys() {
+            for method_name in ctx.locals.keys() {
                 if let Some(patches) = self._method_impl_patches.get_mut(method_name) {
                     patches.push(name.clone());
                 } else {
@@ -90,9 +90,10 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
+        let named = Self::mono_trait("Named", vec![], Self::TOP_LEVEL);
         let mut eq = Self::poly_trait("Eq", vec![PS::t("R", WithDefault)], vec![], Self::TOP_LEVEL);
         // __eq__: |Self <: Eq; R <: Eq()| Self(R).(R) -> Bool
-        let op_t = fn1_met(poly("Self", vec![mono_q_tp("R")]), mono_q("R"), Bool);
+        let op_t = fn1_met(poly("Self", vec![ty_tp(mono_q("R"))]), mono_q("R"), Bool);
         let op_t = quant(
             op_t,
             set! {subtype(mono_q("Self"), mono("Eq")), subtype(mono_q("R"), poly("Eq", vec![]))},
@@ -104,14 +105,14 @@ impl Context {
             vec![mono("Eq")],
             Self::TOP_LEVEL,
         );
-        let op_t = fn1_met(poly("Self", vec![mono_q_tp("R")]), mono_q("R"), Bool);
+        let op_t = fn1_met(poly("Self", vec![ty_tp(mono_q("R"))]), mono_q("R"), Bool);
         let op_t = quant(
             op_t,
             set! {subtype(mono_q("Self"), mono("Ord")), subtype(mono_q("R"), poly("Ord", vec![]))},
         );
         ord.register_decl("__lt__", op_t.clone(), Public);
         let mut seq =
-            Self::poly_trait("Seq", vec![PS::t("T", NonDefault)], vec![], Self::TOP_LEVEL);
+            Self::poly_trait("Seq", vec![PS::t("T", NonDefault)], vec![poly("Output", vec![ty_tp(mono_q("T"))])], Self::TOP_LEVEL);
         let self_t = poly_q("Self", vec![TyParam::t(mono_q("T"))]);
         let t = fn0_met(self_t.clone(), Nat);
         let t = quant(t, set! {subtype(self_t.clone(), mono("Seq"))});
@@ -122,6 +123,9 @@ impl Context {
             set! {subtype(self_t, mono("Seq")), static_instance("T", Type)},
         );
         seq.register_decl("get", t, Public);
+        let params = vec![PS::t("T", NonDefault)];
+        let input = Self::poly_trait("Input", params.clone(), vec![], Self::TOP_LEVEL);
+        let output = Self::poly_trait("Output", params.clone(), vec![], Self::TOP_LEVEL);
         let (r, o) = (mono_q("R"), mono_q("O"));
         let (r_bound, o_bound) = (static_instance("R", Type), static_instance("O", Type));
         let params = vec![PS::t("R", WithDefault), PS::t("O", WithDefault)];
@@ -184,19 +188,17 @@ impl Context {
         );
         let mut div = Self::mono_trait("Div", vec![sup], Self::TOP_LEVEL);
         div.register_decl("DivO", Type, Public);
-        let num = Self::mono_trait(
-            "Num",
-            vec![mono("Eq"), mono("Add"), mono("Sub"), mono("Mul")],
-            Self::TOP_LEVEL,
-        );
-        self.register_type(mono("Eq"), eq, Const);
-        self.register_type(mono("Ord"), ord, Const);
-        self.register_type(mono("Seq"), seq, Const);
+        self.register_type(mono("Named"), named, Const);
+        self.register_type(poly("Eq", vec![ty_tp(mono_q("R"))]), eq, Const);
+        self.register_type(poly("Ord", vec![ty_tp(mono_q("R"))]), ord, Const);
+        self.register_type(poly("Seq", vec![ty_tp(mono_q("T"))]), seq, Const);
+        self.register_type(poly("Input", vec![ty_tp(mono_q("T"))]), input, Const);
+        self.register_type(poly("Output", vec![ty_tp(mono_q("T"))]), output, Const);
         self.register_type(poly("Add", ty_params.clone()), add_ro, Const);
         self.register_type(poly("Sub", ty_params.clone()), sub_ro, Const);
         self.register_type(poly("Mul", ty_params.clone()), mul_ro, Const);
         self.register_type(poly("Div", ty_params), div_ro, Const);
-        self.register_type(mono("Num"), num, Const);
+        // self.register_type(mono("Num"), num, Const);
     }
 
     fn init_builtin_classes(&mut self) {
@@ -533,6 +535,9 @@ impl Context {
         self.register_impl("if", t_if, Const, Private);
         self.register_impl("log", t_log, Const, Private);
         self.register_impl("import", t_import, Const, Private);
+        if cfg!(feature = "debug") {
+            self.register_impl("py", t_pyimport.clone(), Const, Private);
+        }
         self.register_impl("pyimport", t_pyimport, Const, Private);
         self.register_impl("quit", t_quit, Const, Private);
     }
@@ -567,6 +572,9 @@ impl Context {
             ],
             NoneType,
         );
+        if cfg!(feature = "debug") {
+            self.register_impl("p!", t_print.clone(), Const, Private);
+        }
         self.register_impl("print!", t_print, Const, Private);
         self.register_impl("input!", t_input, Const, Private);
         self.register_impl("if!", t_if, Const, Private);

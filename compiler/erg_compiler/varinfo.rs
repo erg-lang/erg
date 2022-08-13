@@ -2,9 +2,10 @@ use std::fmt;
 
 use erg_common::traits::HasType;
 use erg_common::ty::Type;
-use erg_common::Str;
 
 use erg_parser::ast::DefId;
+
+use crate::context::DefaultInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -49,48 +50,24 @@ impl Visibility {
 
 use Visibility::*;
 
+/// e.g.
+/// ```
+/// K(T, [U, V]) = ...
+/// U.idx == Nested(Just(1), 0)
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ParamId {
-    /// 変数でないパターン
-    /// e.g. `[x, y]` of `f [x, y], z = ...`
-    PatNonDefault(usize),
-    /// e.g. `[x, y]` of `f [x, y] |= [0, 1] = ...`
-    PatWithDefault(usize),
-    /// 変数パターン
-    /// e.g. `z` of `f [x, y], z = ...`
-    VarNonDefault { keyword: Str, pos: usize },
-    /// e.g. `z` of `f [x, y], z |= 0 = ...`
-    VarWithDefault { keyword: Str, pos: usize },
-    /// パターンに埋め込まれた変数パターン
-    /// この場合デフォルト値はない
-    /// e.g. `x` or `y` of `f [x, y], z = ...`
-    Embedded(Str),
+pub enum ParamIdx {
+    Nth(usize),
+    Nested(Box<ParamIdx>, usize),
 }
 
-impl ParamId {
-    pub const fn var_default(keyword: Str, pos: usize) -> Self {
-        Self::VarWithDefault { keyword, pos }
-    }
-    pub const fn var_non_default(keyword: Str, pos: usize) -> Self {
-        Self::VarNonDefault { keyword, pos }
+impl ParamIdx {
+    pub fn nested(outer: ParamIdx, nth: usize) -> Self {
+        Self::Nested(Box::new(outer), nth)
     }
 
-    pub const fn pos(&self) -> Option<usize> {
-        match self {
-            Self::PatNonDefault(pos)
-            | Self::PatWithDefault(pos)
-            | Self::VarNonDefault { pos, .. }
-            | Self::VarWithDefault { pos, .. } => Some(*pos),
-            _ => None,
-        }
-    }
-
-    pub const fn has_default(&self) -> bool {
-        matches!(self, Self::PatWithDefault(_) | Self::VarWithDefault { .. })
-    }
-
-    pub const fn is_embedded(&self) -> bool {
-        matches!(self, Self::Embedded(_))
+    pub const fn is_nested(&self) -> bool {
+        matches!(self, Self::Nested(_, _))
     }
 }
 
@@ -98,27 +75,27 @@ impl ParamId {
 pub enum VarKind {
     Defined(DefId),
     Declared,
-    Parameter { def_id: DefId, param_id: ParamId },
+    Parameter { def_id: DefId, idx: ParamIdx, default: DefaultInfo },
     Generated,
     DoesNotExist,
     Builtin,
 }
 
 impl VarKind {
-    pub const fn parameter(def_id: DefId, param_id: ParamId) -> Self {
-        Self::Parameter { def_id, param_id }
+    pub const fn parameter(def_id: DefId, idx: ParamIdx, default: DefaultInfo) -> Self {
+        Self::Parameter { def_id, idx, default }
     }
 
-    pub const fn pos_as_param(&self) -> Option<usize> {
+    pub const fn idx(&self) -> Option<&ParamIdx> {
         match self {
-            Self::Parameter { param_id, .. } => param_id.pos(),
+            Self::Parameter { idx, .. } => Some(idx),
             _ => None,
         }
     }
 
     pub const fn has_default(&self) -> bool {
         match self {
-            Self::Parameter { param_id, .. } => param_id.has_default(),
+            Self::Parameter { default, .. } => default.has_default(),
             _ => false,
         }
     }
@@ -127,11 +104,12 @@ impl VarKind {
         matches!(self, Self::Parameter { .. })
     }
 
-    pub const fn is_embedded_param(&self) -> bool {
-        matches!(self, Self::Parameter{ param_id, .. } if param_id.is_embedded())
+    pub const fn is_nested_param(&self) -> bool {
+        matches!(self, Self::Parameter{ idx, .. } if idx.is_nested())
     }
 }
 
+/// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarInfo {
     pub t: Type,
@@ -144,7 +122,7 @@ impl fmt::Display for VarInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "VarInfo{{t: {}, muty: {:?}, vis: {:?} kind: {:?}}}",
+            "VarInfo{{t: {}, muty: {:?}, vis: {:?}, kind: {:?}}}",
             self.t, self.muty, self.vis, self.kind
         )
     }

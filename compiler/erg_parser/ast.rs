@@ -1727,21 +1727,27 @@ impl ParamPattern {
     }
 }
 
+/// Once the default_value is set to Some, all subsequent values must be Some
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct NonDefaultParamSignature {
+pub struct ParamSignature {
     pub pat: ParamPattern,
     pub t_spec: Option<TypeSpec>,
+    pub opt_default_val: Option<ConstExpr>,
 }
 
-impl NestedDisplay for NonDefaultParamSignature {
+impl NestedDisplay for ParamSignature {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}{}", self.pat, fmt_option!(pre ": ", &self.t_spec))
+        if let Some(default_val) = &self.opt_default_val {
+            write!(f, "{}{} |= {}", self.pat, fmt_option!(pre ": ", &self.t_spec), default_val)
+        } else {
+            write!(f, "{}{}", self.pat, fmt_option!(pre ": ", &self.t_spec),)
+        }
     }
 }
 
-impl_display_from_nested!(NonDefaultParamSignature);
+impl_display_from_nested!(ParamSignature);
 
-impl Locational for NonDefaultParamSignature {
+impl Locational for ParamSignature {
     fn loc(&self) -> Location {
         if let Some(t_spec) = &self.t_spec {
             Location::concat(&self.pat, t_spec)
@@ -1751,98 +1757,24 @@ impl Locational for NonDefaultParamSignature {
     }
 }
 
-impl NonDefaultParamSignature {
-    pub const fn new(pat: ParamPattern, t_spec: Option<TypeSpec>) -> Self {
-        Self { pat, t_spec }
+impl ParamSignature {
+    pub const fn new(pat: ParamPattern, t_spec: Option<TypeSpec>, opt_default_val: Option<ConstExpr>) -> Self {
+        Self { pat, t_spec, opt_default_val }
     }
 
     pub const fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
     }
-}
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DefaultParamSignature {
-    pub pat: ParamPattern,
-    pub t_spec: Option<TypeSpec>,
-    pub val: ConstExpr,
-}
-
-impl NestedDisplay for DefaultParamSignature {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{} |= {}",
-            self.pat,
-            fmt_option!(pre ": ", &self.t_spec),
-            self.val
-        )
-    }
-}
-
-impl_display_from_nested!(DefaultParamSignature);
-
-impl Locational for DefaultParamSignature {
-    fn loc(&self) -> Location {
-        Location::concat(&self.pat, &self.val)
-    }
-}
-
-impl DefaultParamSignature {
-    pub const fn new(pat: ParamPattern, t_spec: Option<TypeSpec>, val: ConstExpr) -> Self {
-        Self { pat, t_spec, val }
-    }
-
-    pub const fn inspect(&self) -> Option<&Str> {
-        self.pat.inspect()
-    }
-}
-
-pub trait ParamSig {
-    fn pat(&self) -> &ParamPattern;
-    fn t_spec(&self) -> Option<&TypeSpec>;
-}
-
-impl ParamSig for NonDefaultParamSignature {
-    fn pat(&self) -> &ParamPattern {
-        &self.pat
-    }
-    fn t_spec(&self) -> Option<&TypeSpec> {
-        self.t_spec.as_ref()
-    }
-}
-
-impl ParamSig for DefaultParamSignature {
-    fn pat(&self) -> &ParamPattern {
-        &self.pat
-    }
-    fn t_spec(&self) -> Option<&TypeSpec> {
-        self.t_spec.as_ref()
-    }
-}
-
-impl ParamSig for &NonDefaultParamSignature {
-    fn pat(&self) -> &ParamPattern {
-        &self.pat
-    }
-    fn t_spec(&self) -> Option<&TypeSpec> {
-        self.t_spec.as_ref()
-    }
-}
-
-impl ParamSig for &DefaultParamSignature {
-    fn pat(&self) -> &ParamPattern {
-        &self.pat
-    }
-    fn t_spec(&self) -> Option<&TypeSpec> {
-        self.t_spec.as_ref()
+    pub fn has_default(&self) -> bool {
+        self.opt_default_val.is_some()
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
-    pub non_defaults: Vec<NonDefaultParamSignature>,
-    pub defaults: Vec<DefaultParamSignature>,
+    pub non_defaults: Vec<ParamSignature>,
+    pub defaults: Vec<ParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -1873,8 +1805,8 @@ impl Locational for Params {
 
 impl Params {
     pub const fn new(
-        non_defaults: Vec<NonDefaultParamSignature>,
-        defaults: Vec<DefaultParamSignature>,
+        non_defaults: Vec<ParamSignature>,
+        defaults: Vec<ParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
@@ -1887,8 +1819,8 @@ impl Params {
     pub fn deconstruct(
         self,
     ) -> (
-        Vec<NonDefaultParamSignature>,
-        Vec<DefaultParamSignature>,
+        Vec<ParamSignature>,
+        Vec<ParamSignature>,
         Option<(Token, Token)>,
     ) {
         (self.non_defaults, self.defaults, self.parens)

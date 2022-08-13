@@ -704,7 +704,7 @@ impl Call {
     pub fn is_import_call(&self) -> bool {
         self.obj
             .var_full_name()
-            .map(|s| &s[..] == "import" || &s[..] == "pyimport")
+            .map(|s| &s[..] == "import" || &s[..] == "pyimport" || &s[..] == "py")
             .unwrap_or(false)
     }
 }

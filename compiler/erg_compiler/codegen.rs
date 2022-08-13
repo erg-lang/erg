@@ -44,6 +44,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),
+        ("Module", Some("random"), "choice!") => Str::ever("choice"),
         _ => name,
     }
 }
@@ -68,8 +69,8 @@ fn convert_to_python_name(name: Str) -> Str {
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
         "log" => Str::ever("print"), // TODO: log != print (prints after executing)
-        "print!" => Str::ever("print"),
-        "pyimport" => Str::ever("__import__"),
+        "p!" | "print!" => Str::ever("print"),
+        "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
         _ => name,
     }

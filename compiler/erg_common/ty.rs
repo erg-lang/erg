@@ -14,7 +14,7 @@ use crate::set::Set;
 use crate::traits::HasType;
 use crate::ty::ValueObj::{Inf, NegInf};
 use crate::value::ValueObj;
-use crate::{fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str};
+use crate::{fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str, enum_unwrap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -1635,7 +1635,6 @@ pub enum Type {
     Class,
     Trait,
     Patch,
-    RangeCommon,
     FuncCommon,
     ProcCommon,
     FuncMethodCommon,
@@ -1648,12 +1647,8 @@ pub enum Type {
     Never,     // {}
     Mono(Str), // others
     /* Polymorphic types */
-    Range(Box<Type>),
-    Iter(Box<Type>),
     Ref(Box<Type>),
     RefMut(Box<Type>),
-    Option(Box<Type>),
-    OptionMut(Box<Type>),
     Subr(SubrType),
     // CallableはProcの上位型なので、変数に!をつける
     Callable {
@@ -1708,13 +1703,8 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Mono(name) => write!(f, "{name}"),
-            Self::Range(t) => write!(f, "Range({t})"),
-            Self::RangeCommon => write!(f, "Range(Int)"),
-            Self::Iter(t) => write!(f, "Iter({t})"),
             Self::Ref(t) => write!(f, "Ref({t})"),
             Self::RefMut(t) => write!(f, "Ref!({t})"),
-            Self::Option(t) => write!(f, "Option({t})"),
-            Self::OptionMut(t) => write!(f, "Option!({t})"),
             Self::Subr(sub) => write!(f, "{sub}"),
             Self::Callable { param_ts, return_t } => {
                 write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
@@ -1822,14 +1812,9 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
-            Self::RangeCommon => vec![Type::Int],
             Self::Dict { k, v } => vec![k.as_ref().clone(), v.as_ref().clone()],
             Self::Ref(t)
             | Self::RefMut(t)
-            | Self::Option(t)
-            | Self::OptionMut(t)
-            | Self::Range(t)
-            | Self::Iter(t)
             | Self::Array { t, .. }
             | Self::VarArgs(t) => vec![t.as_ref().clone()],
             // Self::And(ts) | Self::Or(ts) => ,
@@ -1860,10 +1845,6 @@ impl HasLevel for Type {
             Self::FreeVar(v) => v.update_level(level),
             Self::Ref(t)
             | Self::RefMut(t)
-            | Self::Option(t)
-            | Self::OptionMut(t)
-            | Self::Range(t)
-            | Self::Iter(t)
             | Self::Array { t, .. }
             | Self::VarArgs(t) => t.update_level(level),
             Self::Callable { param_ts, return_t } => {
@@ -1926,10 +1907,6 @@ impl HasLevel for Type {
             Self::FreeVar(v) => v.lift(),
             Self::Ref(t)
             | Self::RefMut(t)
-            | Self::Option(t)
-            | Self::OptionMut(t)
-            | Self::Range(t)
-            | Self::Iter(t)
             | Self::Array { t, .. }
             | Self::VarArgs(t) => t.lift(),
             Self::Callable { param_ts, return_t } => {
@@ -2042,7 +2019,7 @@ impl Type {
 
     #[inline]
     pub fn range(t: Type) -> Self {
-        Self::Range(Box::new(t))
+        Self::poly("Range", vec![TyParam::t(t)])
     }
 
     pub fn enum_t(s: Set<ValueObj>) -> Self {
@@ -2094,7 +2071,7 @@ impl Type {
     }
 
     pub fn iter(t: Type) -> Self {
-        Self::Iter(Box::new(t))
+        Self::poly("Iter", vec![TyParam::t(t)])
     }
 
     pub fn refer(t: Type) -> Self {
@@ -2106,11 +2083,11 @@ impl Type {
     }
 
     pub fn option(t: Type) -> Self {
-        Self::Option(Box::new(t))
+        Self::poly("Option", vec![TyParam::t(t)])
     }
 
     pub fn option_mut(t: Type) -> Self {
-        Self::OptionMut(Box::new(t))
+        Self::poly("Option!", vec![TyParam::t(t)])
     }
 
     pub fn subr(
@@ -2376,7 +2353,6 @@ impl Type {
             Self::Float => Self::FloatMut,
             Self::Bool => Self::BoolMut,
             Self::Str => Self::StrMut,
-            Self::Option(t) => Self::OptionMut(t),
             Self::Array { t, len } => Self::poly("Array!", vec![TyParam::t(*t), len.mutate()]),
             _ => todo!(),
         }
@@ -2396,8 +2372,7 @@ impl Type {
             | Self::RatioMut
             | Self::FloatMut
             | Self::BoolMut
-            | Self::StrMut
-            | Self::OptionMut(_) => true,
+            | Self::StrMut => true,
             Self::Mono(name)
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
@@ -2410,7 +2385,10 @@ impl Type {
     pub fn is_nonelike(&self) -> bool {
         match self {
             Self::NoneType => true,
-            Self::Option(t) | Self::OptionMut(t) => t.is_nonelike(),
+            Self::Poly{ name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
+                let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
+                inner_t.is_nonelike()
+            },
             Self::Tuple(ts) => ts.len() == 0,
             _ => false,
         }
@@ -2460,12 +2438,8 @@ impl Type {
                 FreeKind::Linked(t) => t.rec_eq(other),
                 _ => self == other,
             },
-            (Self::Range(l), Self::Range(r))
-            | (Self::Iter(l), Self::Iter(r))
             | (Self::Ref(l), Self::Ref(r))
-            | (Self::RefMut(l), Self::RefMut(r))
-            | (Self::Option(l), Self::Option(r))
-            | (Self::OptionMut(l), Self::OptionMut(r)) => l.rec_eq(r),
+            | (Self::RefMut(l), Self::RefMut(r)) => l.rec_eq(r),
             (Self::Subr(l), Self::Subr(r)) => {
                 match (&l.kind, &r.kind) {
                     (SubrKind::Func, SubrKind::Func) | (SubrKind::Proc, SubrKind::Proc) => {}
@@ -2608,15 +2582,11 @@ impl Type {
             Self::Inf => "Inf",
             Self::NegInf => "NegInf",
             Self::Mono(name) | Self::MonoQVar(name) => name,
-            Self::Range(_) | Self::RangeCommon => "Range",
-            Self::Iter(_) => "Iter",
             Self::And(_) => "And",
             Self::Not(_) => "Not",
             Self::Or(_) => "Or",
             Self::Ref(_) => "Ref",
             Self::RefMut(_) => "Ref!",
-            Self::Option(_) => "Option",
-            Self::OptionMut(_) => "Option!",
             Self::Subr(SubrType {
                 kind: SubrKind::Func,
                 ..
@@ -2682,12 +2652,8 @@ impl Type {
                     fv.crack().has_unbound_var()
                 }
             }
-            Self::Range(t)
-            | Self::Iter(t)
             | Self::Ref(t)
             | Self::RefMut(t)
-            | Self::Option(t)
-            | Self::OptionMut(t)
             | Self::VarArgs(t) => t.has_unbound_var(),
             Self::And(param_ts) | Self::Not(param_ts) | Self::Or(param_ts) => {
                 param_ts.iter().any(|t| t.has_unbound_var())
@@ -2728,7 +2694,8 @@ impl Type {
 
     pub fn typaram_len(&self) -> usize {
         match self {
-            Self::Range(_) | Self::Iter(_) | Self::Option(_) | Self::OptionMut(_) => 1,
+            // REVIEw:
+            Self::Ref(_) | Self::RefMut(_) => 1,
             Self::Array { .. } | Self::Dict { .. } => 2,
             Self::And(param_ts) | Self::Or(param_ts) | Self::Tuple(param_ts) => param_ts.len() + 1,
             Self::Subr(subr) => {
@@ -2747,12 +2714,8 @@ impl Type {
         match self {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => todo!(),
-            Self::Range(t)
-            | Self::Iter(t)
             | Self::Ref(t)
-            | Self::RefMut(t)
-            | Self::Option(t)
-            | Self::OptionMut(t) => vec![TyParam::t(*t.clone())],
+            | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
             Self::Array { t, len } => vec![TyParam::t(*t.clone()), len.clone()],
             Self::Dict { k, v } => vec![TyParam::t(*k.clone()), TyParam::t(*v.clone())],
             Self::And(param_ts)

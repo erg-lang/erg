@@ -44,11 +44,6 @@ enum ExprOrOp {
     Op(Token),
 }
 
-enum ParamSig {
-    NonDefault(NonDefaultParamSignature),
-    Default(DefaultParamSignature),
-}
-
 enum PosOrKwArg {
     Pos(PosArg),
     Kw(KwArg),
@@ -557,23 +552,23 @@ impl Parser {
         Ok(VarSignature::new(pat, t_spec))
     }
 
-    /// default_param ::= non_default_param `=` const_expr
-    fn try_reduce_param_sig(&mut self) -> ParseResult<ParamSig> {
+    /// default_param ::= non_default_param `|=` const_expr
+    fn try_reduce_param_sig(&mut self) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         let lhs = self.try_reduce_non_default_param_sig()?;
         if self.cur_is(OrEqual) {
             self.skip();
             let val = self.try_reduce_const_expr()?;
-            Ok(ParamSig::Default(DefaultParamSignature::new(
-                lhs.pat, lhs.t_spec, val,
-            )))
+            Ok(ParamSignature::new(
+                lhs.pat, lhs.t_spec, Some(val),
+            ))
         } else {
-            Ok(ParamSig::NonDefault(lhs))
+            Ok(ParamSignature::new(lhs.pat, lhs.t_spec, None))
         }
     }
 
     #[inline]
-    fn try_reduce_non_default_param_sig(&mut self) -> ParseResult<NonDefaultParamSignature> {
+    fn try_reduce_non_default_param_sig(&mut self) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         let pat = self.try_reduce_param_pattern()?;
         let t_spec = if self.cur_is(Colon) {
@@ -582,25 +577,7 @@ impl Parser {
         } else {
             None
         };
-        Ok(NonDefaultParamSignature::new(pat, t_spec))
-    }
-
-    #[inline]
-    fn try_reduce_default_param_sig(&mut self) -> ParseResult<DefaultParamSignature> {
-        debug_call_info!(self);
-        let lhs = self.try_reduce_non_default_param_sig()?;
-        if self.cur_is(OrEqual) {
-            self.skip();
-            let val = self.try_reduce_const_expr()?;
-            Ok(DefaultParamSignature::new(lhs.pat, lhs.t_spec, val))
-        } else {
-            Err(ParseError::syntax_error(
-                0,
-                lhs.loc(),
-                "non-default argument follows default argument",
-                None,
-            ))
-        }
+        Ok(ParamSignature::new(pat, t_spec, None))
     }
 
     #[inline]
@@ -733,6 +710,7 @@ impl Parser {
         };
         let mut non_default_params = vec![];
         let mut default_params = vec![];
+        let mut default_appeared = false;
         match self.peek() {
             Some(t) if t.is(RParen) => {
                 let parens = (lp.unwrap(), self.lpop());
@@ -751,12 +729,13 @@ impl Parser {
                     return Err(self.skip_and_throw_syntax_err(caused_by!()));
                 }
             }
-            Some(_) => match self.try_reduce_param_sig()? {
-                ParamSig::NonDefault(non_default) => {
-                    non_default_params.push(non_default);
-                }
-                ParamSig::Default(default) => {
-                    default_params.push(default);
+            Some(_) => {
+                let param = self.try_reduce_param_sig()?;
+                if param.has_default() {
+                    default_appeared = true;
+                    default_params.push(param);
+                } else {
+                    non_default_params.push(param);
                 }
             },
             _ => return Err(self.skip_and_throw_syntax_err(caused_by!())),
@@ -765,18 +744,22 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.is(Comma) => {
                     self.skip();
-                    if default_params.is_empty() {
-                        match self.try_reduce_param_sig()? {
-                            ParamSig::NonDefault(non_default) => {
-                                non_default_params.push(non_default);
-                            }
-                            ParamSig::Default(default) => {
-                                default_params.push(default);
-                            }
+                    let param = self.try_reduce_param_sig()?;
+                    match (param.has_default(), default_appeared) {
+                        (true, true) => { default_params.push(param); },
+                        (true, false) => {
+                            default_appeared = true;
+                            default_params.push(param);
+                        },
+                        (false, true) => return Err(ParseError::syntax_error(
+                            0,
+                            param.loc(),
+                            "non-default argument follows default argument",
+                            None,
+                        )),
+                        (false, false) => {
+                            non_default_params.push(param);
                         }
-                    } else {
-                        let default = self.try_reduce_default_param_sig()?;
-                        default_params.push(default);
                     }
                 }
                 Some(t) if t.category_is(TC::BinOp) => {
