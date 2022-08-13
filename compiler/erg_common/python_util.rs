@@ -6,11 +6,11 @@ use std::process::Command;
 use crate::serialize::get_magic_num_from_bytes;
 
 pub fn which_python() -> String {
-    let python = if cfg!(windows) { "python" } else { "python3" };
-    let out = Command::new("which")
-        .arg(python)
-        .output()
-        .expect("python not found");
+    let (cmd, python) = if cfg!(windows) { ("where", "python") } else { ("which", "python3") };
+    let out = Command::new(cmd)
+            .arg(python)
+            .output()
+            .expect("python not found");
     let res = String::from_utf8(out.stdout)
         .unwrap()
         .replace('\n', "")
