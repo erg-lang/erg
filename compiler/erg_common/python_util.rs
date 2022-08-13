@@ -6,19 +6,21 @@ use std::process::Command;
 use crate::serialize::get_magic_num_from_bytes;
 
 pub fn which_python() -> String {
-    let python = if cfg!(windows) { "python" } else { "python3" };
-    let out = Command::new("which")
+    let (cmd, python) = if cfg!(windows) {
+        ("where", "python")
+    } else {
+        ("which", "python3")
+    };
+    let out = Command::new(cmd)
         .arg(python)
         .output()
         .expect("python not found");
-    let res = String::from_utf8(out.stdout)
-        .unwrap()
-        .replace('\n', "")
-        .replace('\r', "");
+    let res = String::from_utf8(out.stdout).unwrap();
+    let res = res.split('\n').next().unwrap_or("");
     if res.is_empty() {
         panic!("python not found");
     }
-    res
+    res.to_string()
 }
 
 pub fn detect_magic_number() -> u32 {
