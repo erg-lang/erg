@@ -1,6 +1,6 @@
 [package]
 name = "erg_compiler"
-version = "0.2.0"
+version = "0.2.2"
 description = "Centimetre: the Erg compiler"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -15,8 +15,8 @@ debug = [ "erg_common/debug", "erg_parser/debug" ]
 japanese = [ "erg_common/japanese", "erg_parser/japanese" ]
 
 [dependencies]
-erg_common = { version = "0.1.4", path = "../erg_common" }
-erg_parser = { version = "0.1.1", path = "../erg_parser" }
+erg_common = { version = "0.2.2", path = "../erg_common" }
+erg_parser = { version = "0.2.2", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"
