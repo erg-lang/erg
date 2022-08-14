@@ -34,6 +34,10 @@ pub enum Input {
 }
 
 impl Input {
+    pub fn is_repl(&self) -> bool {
+        matches!(self, Input::REPL)
+    }
+
     pub fn enclosed_name(&self) -> &str {
         match self {
             Self::File(filename) => &filename[..],

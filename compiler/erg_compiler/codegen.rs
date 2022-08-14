@@ -69,7 +69,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
         "log" => Str::ever("print"), // TODO: log != print (prints after executing)
-        "p!" | "print!" => Str::ever("print"),
+        "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
         _ => name,
@@ -1223,6 +1223,9 @@ impl CodeGenerator {
             "<module>",
             1,
         ));
+        if self.input().is_repl() {
+            self.emit_load_name_instr(Str::ever("print")).unwrap();
+        }
         for expr in hir.module.into_iter() {
             self.codegen_expr(expr);
             // TODO: discard
@@ -1231,6 +1234,11 @@ impl CodeGenerator {
             }
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
+        if self.input().is_repl() {
+            self.write_instr(CALL_FUNCTION);
+            self.write_arg(1 as u8);
+            self.stack_dec();
+        }
         if self.cur_block().stack_len == 0 {
             self.emit_load_const(ValueObj::None);
         } else if self.cur_block().stack_len > 1 {
@@ -1243,7 +1251,7 @@ impl CodeGenerator {
                 block_id,
                 fn_name_full!(),
             ));
-            self.crash("error in codegen_module: invalid stack size");
+            self.crash("error in codegen: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
         self.write_arg(0u8);

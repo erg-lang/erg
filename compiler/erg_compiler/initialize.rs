@@ -577,9 +577,6 @@ impl Context {
             ],
             NoneType,
         );
-        if cfg!(feature = "debug") {
-            self.register_impl("p!", t_print.clone(), Const, Private);
-        }
         self.register_impl("print!", t_print, Const, Private);
         self.register_impl("input!", t_input, Const, Private);
         self.register_impl("if!", t_if, Const, Private);
