@@ -90,5 +90,5 @@ id = |T| x: T -> x
 ```
 
 <p align='center'>
-    <a href='. /20_naming_rule.md'>Previous</a> | <a href='. /22_subroutine.md'>Next</a>
+    <a href='./20_naming_rule.md'>Previous</a> | <a href='./22_subroutine.md'>Next</a>
 </p>

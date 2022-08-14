@@ -92,5 +92,5 @@ assert sum == 45
 Erg is designed to be a natural and concise description of programming with invariant objects.
 
 <p align='center'>
-    <a href='. /22_subroutine.md'>Previous</a> | <a href='. /24_module.md'>Next</a>
+    <a href='./22_subroutine.md'>Previous</a> | <a href='./24_module.md'>Next</a>
 </p>

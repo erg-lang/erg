@@ -103,5 +103,5 @@ Indicates that the variable is outdated and deprecated.
 Indicates a subroutine for tests. Test subroutines are executed with the `erg test` command.
 
 <p align='center'>
-    <a href='. /28_spread_syntax.md'>Previous</a> | <a href='. /30_error_handling.md'>Next</a>
+    <a href='./28_spread_syntax.md'>Previous</a> | <a href='./30_error_handling.md'>Next</a>
 </p>

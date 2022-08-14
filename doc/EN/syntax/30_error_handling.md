@@ -106,5 +106,5 @@ panic "something went wrong!"
 ```
 
 <p align='center'>
-    <a href='. /29_decorator.md'>Previous</a> | <a href='. /31_pipeline.md'>Next</a>
+    <a href='./29_decorator.md'>Previous</a> | <a href='./31_pipeline.md'>Next</a>
 </p>

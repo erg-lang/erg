@@ -183,3 +183,7 @@ The non-unique form is non-trivial, whether it works correctly or is equivalent 
 
 There is no pattern for sets. There is no pattern for sets because there is no way to retrieve elements uniquely.
 They can be retrieved with an iterator, but the order is not guaranteed.
+
+<p align='center'>
+    <a href='./25_object_system.md'>Previous</a> | <a href='./27_comprehension.md'>Next</a>
+</p>

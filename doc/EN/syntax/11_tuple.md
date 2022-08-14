@@ -113,5 +113,5 @@ f(0)
 ```
 
 <p align='center'>
-    <a href='. /10_array.md'>Previous</a> | <a href='. /12_dict.md'>Next</a>
+    <a href='./10_array.md'>Previous</a> | <a href='./12_dict.md'>Next</a>
 </p>

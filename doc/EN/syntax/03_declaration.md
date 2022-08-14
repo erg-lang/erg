@@ -45,5 +45,5 @@ C.f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: In
 ```
 
 <p align='center'>
-    <a href='. /02_name.md'>Previous</a> | <a href='. /04_function.md'>Next</a>
+    <a href='./02_name.md'>Previous</a> | <a href='./04_function.md'>Next</a>
 </p>
