@@ -54,5 +54,5 @@ declare|S: Subroutine| sub!: S, T =
 Since this is a runtime overhead, a project is planned to statically type analyze Python scripts with Erg's type system.
 
 <p align='center'>
-    <a href='./31_pipeline.md'></a> | <a href='./33_package_system.md'>Next</a>
+    <a href='./31_pipeline.md'>Previous</a> | <a href='./33_package_system.md'>Next</a>
 </p>

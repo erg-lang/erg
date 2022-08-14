@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://mtshiba.github.io/TheErgBook) is a statically typed language that is Python compatible.
+<br>[Erg](https://erg-lang.github.io/) is a statically typed language that is Python compatible.
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
