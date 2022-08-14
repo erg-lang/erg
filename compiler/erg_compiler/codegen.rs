@@ -1223,7 +1223,9 @@ impl CodeGenerator {
             "<module>",
             1,
         ));
+        let mut print_point = 0;
         if self.input().is_repl() {
+            print_point = self.cur_block().lasti;
             self.emit_load_name_instr(Str::ever("print")).unwrap();
         }
         for expr in hir.module.into_iter() {
@@ -1235,8 +1237,12 @@ impl CodeGenerator {
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
         if self.input().is_repl() {
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1 as u8);
+            if self.cur_block().stack_len == 1 { // remains `print`, nothing to be printed
+                self.edit_code(print_point, Opcode::NOP as usize);
+            } else {
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(1 as u8);
+            }
             self.stack_dec();
         }
         if self.cur_block().stack_len == 0 {
