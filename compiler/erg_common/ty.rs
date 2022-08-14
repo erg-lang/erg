@@ -994,6 +994,15 @@ impl TyBound {
             Self::Instance { t, .. } => t,
         }
     }
+
+    pub fn lhs(&self) -> &str {
+        match self {
+            Self::Subtype { sub, .. } => sub.name(),
+            Self::Supertype { sup, .. } => sup.name(),
+            Self::Sandwiched { mid, .. } => mid.name(),
+            Self::Instance { name, .. } => name,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1552,6 +1561,13 @@ impl SubrKind {
             _ => None,
         }
     }
+
+    pub fn self_t_mut(&mut self) -> Option<&mut SelfType> {
+        match self {
+            Self::FuncMethod(t) | Self::ProcMethod { before: t, .. } => Some(t),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1632,13 +1648,6 @@ pub enum Type {
     Class,
     Trait,
     Patch,
-    FuncCommon,
-    ProcCommon,
-    FuncMethodCommon,
-    ProcMethodCommon,
-    CallableCommon,
-    ArrayCommon,
-    DictCommon,
     NotImplemented,
     Ellipsis,  // これはクラスのほうで型推論用のマーカーではない
     Never,     // {}
@@ -1652,17 +1661,6 @@ pub enum Type {
         param_ts: Vec<Type>,
         return_t: Box<Type>,
     },
-    // e.g.  [Int] == Array{ t: Int, len: _ }, [Int; 3] == Array { t: Int, len: 3 }
-    Array {
-        t: Box<Type>,
-        len: TyParam,
-    },
-    // TODO: heterogeneous dict
-    Dict {
-        k: Box<Type>,
-        v: Box<Type>,
-    },
-    Tuple(Vec<Type>),
     Record(Dict<Str, Type>), // e.g. {x = Int}
     // e.g. {T -> T | T: Type}, {I: Int | I > 0}, {S | N: Nat; S: Str N; N > 1}
     // 区間型と列挙型は篩型に変換される
@@ -1706,9 +1704,6 @@ impl fmt::Display for Type {
             Self::Callable { param_ts, return_t } => {
                 write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
             }
-            Self::Array { t, len } => write!(f, "[{t}; {len}]"),
-            Self::Dict { k, v } => write!(f, "{{{k}: {v}}}"),
-            Self::Tuple(ts) => write!(f, "({})", fmt_vec(ts)),
             Self::Record(attrs) => write!(f, "{{{attrs}}}"),
             Self::Refinement(refinement) => write!(f, "{}", refinement),
             Self::Quantified(quantified) => write!(f, "{}", quantified),
@@ -1809,13 +1804,12 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
-            Self::Dict { k, v } => vec![k.as_ref().clone(), v.as_ref().clone()],
-            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => {
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => {
                 vec![t.as_ref().clone()]
             }
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
-            Self::Callable { param_ts, .. } | Self::Tuple(param_ts) => param_ts.clone(),
+            Self::Callable { param_ts, .. } => param_ts.clone(),
             Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
@@ -1837,9 +1831,7 @@ impl HasLevel for Type {
     fn update_level(&self, level: Level) {
         match self {
             Self::FreeVar(v) => v.update_level(level),
-            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => {
-                t.update_level(level)
-            }
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.update_level(level),
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.update_level(level);
@@ -1857,14 +1849,10 @@ impl HasLevel for Type {
                 }
                 subr.return_t.update_level(level);
             }
-            Self::And(ts) | Self::Or(ts) | Self::Not(ts) | Self::Tuple(ts) => {
+            Self::And(ts) | Self::Or(ts) | Self::Not(ts) => {
                 for t in ts.iter() {
                     t.update_level(level);
                 }
-            }
-            Self::Dict { k, v } => {
-                k.update_level(level);
-                v.update_level(level);
             }
             Self::Record(attrs) => {
                 for t in attrs.values() {
@@ -1898,7 +1886,7 @@ impl HasLevel for Type {
     fn lift(&self) {
         match self {
             Self::FreeVar(v) => v.lift(),
-            Self::Ref(t) | Self::RefMut(t) | Self::Array { t, .. } | Self::VarArgs(t) => t.lift(),
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.lift(),
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.lift();
@@ -1916,14 +1904,10 @@ impl HasLevel for Type {
                 }
                 subr.return_t.lift();
             }
-            Self::And(ts) | Self::Or(ts) | Self::Not(ts) | Self::Tuple(ts) => {
+            Self::And(ts) | Self::Or(ts) | Self::Not(ts) => {
                 for t in ts.iter() {
                     t.lift();
                 }
-            }
-            Self::Dict { k, v } => {
-                k.lift();
-                v.lift();
             }
             Self::Record(attrs) => {
                 for t in attrs.values() {
@@ -1986,20 +1970,16 @@ impl Type {
         Self::FreeVar(Free::new_named_unbound(name, level, constraint))
     }
 
-    #[inline]
     pub fn array(elem_t: Type, len: TyParam) -> Self {
-        Self::Array {
-            t: Box::new(elem_t),
-            len,
-        }
+        Self::poly("Array", vec![TyParam::t(elem_t), len])
     }
 
-    #[inline]
     pub fn dict(k_t: Type, v_t: Type) -> Self {
-        Self::Dict {
-            k: Box::new(k_t),
-            v: Box::new(v_t),
-        }
+        Self::poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+    }
+
+    pub fn tuple(args: Vec<Type>) -> Self {
+        Self::poly("Tuple", args.into_iter().map(TyParam::t).collect())
     }
 
     #[inline]
@@ -2343,7 +2323,6 @@ impl Type {
             Self::Float => Self::FloatMut,
             Self::Bool => Self::BoolMut,
             Self::Str => Self::StrMut,
-            Self::Array { t, len } => Self::poly("Array!", vec![TyParam::t(*t), len.mutate()]),
             _ => todo!(),
         }
     }
@@ -2379,7 +2358,7 @@ impl Type {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
                 inner_t.is_nonelike()
             }
-            Self::Tuple(ts) => ts.len() == 0,
+            Self::Poly { name, params } if &name[..] == "Tuple" => params.is_empty(),
             _ => false,
         }
     }
@@ -2480,19 +2459,12 @@ impl Type {
                     return_t: _rr,
                 },
             ) => todo!(),
-            (Self::Array { t: lt, len: ll }, Self::Array { t: rt, len: rl }) => {
-                lt.rec_eq(rt) && ll.rec_eq(rl)
-            }
-            (Self::Dict { k: lk, v: lv }, Self::Dict { k: rk, v: rv }) => {
-                lk.rec_eq(rk) && lv.rec_eq(rv)
-            }
             (Self::Record(_l), Self::Record(_r)) => todo!(),
             (Self::Refinement(l), Self::Refinement(r)) => l.t.rec_eq(&r.t) && &l.preds == &r.preds,
             (Self::Quantified(l), Self::Quantified(r)) => {
                 l.unbound_callable.rec_eq(&r.unbound_callable) && &l.bounds == &r.bounds
             }
-            (Self::Tuple(l), Self::Tuple(r))
-            | (Self::And(l), Self::And(r))
+            (Self::And(l), Self::And(r))
             | (Self::Not(l), Self::Not(r))
             | (Self::Or(l), Self::Or(r)) => l.iter().zip(r.iter()).all(|(l, r)| l.rec_eq(r)),
             (Self::VarArgs(l), Self::VarArgs(r)) => l.rec_eq(r),
@@ -2579,27 +2551,20 @@ impl Type {
             Self::Subr(SubrType {
                 kind: SubrKind::Func,
                 ..
-            })
-            | Self::FuncCommon => "Func",
+            }) => "Func",
             Self::Subr(SubrType {
                 kind: SubrKind::Proc,
                 ..
-            })
-            | Self::ProcCommon => "Proc",
+            }) => "Proc",
             Self::Subr(SubrType {
                 kind: SubrKind::FuncMethod(_),
                 ..
-            })
-            | Self::FuncMethodCommon => "FuncMethod",
+            }) => "FuncMethod",
             Self::Subr(SubrType {
                 kind: SubrKind::ProcMethod { .. },
                 ..
-            })
-            | Self::ProcMethodCommon => "ProcMethod",
-            Self::Callable { .. } | Self::CallableCommon => "Callable",
-            Self::Array { .. } | Self::ArrayCommon => "Array",
-            Self::Dict { .. } | Self::DictCommon => "Dict",
-            Self::Tuple(..) => "Tuple",
+            }) => "ProcMethod",
+            Self::Callable { .. } => "Callable",
             Self::Record(_) => "Record",
             Self::VarArgs(_) => "VarArgs",
             Self::Poly { name, .. } | Self::PolyQVar { name, .. } => &*name,
@@ -2625,7 +2590,7 @@ impl Type {
     }
 
     pub fn is_monomorphic(&self) -> bool {
-        self.typaram_len() == 0
+        self.typarams_len() == 0
     }
 
     pub const fn is_callable(&self) -> bool {
@@ -2645,8 +2610,6 @@ impl Type {
             Self::And(param_ts) | Self::Not(param_ts) | Self::Or(param_ts) => {
                 param_ts.iter().any(|t| t.has_unbound_var())
             }
-            Self::Array { t, len } => t.has_unbound_var() || len.has_unbound_var(),
-            Self::Dict { k, v } => k.has_unbound_var() || v.has_unbound_var(),
             Self::Callable { param_ts, return_t } => {
                 param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
             }
@@ -2679,12 +2642,11 @@ impl Type {
         !self.has_unbound_var()
     }
 
-    pub fn typaram_len(&self) -> usize {
+    pub fn typarams_len(&self) -> usize {
         match self {
             // REVIEw:
             Self::Ref(_) | Self::RefMut(_) => 1,
-            Self::Array { .. } | Self::Dict { .. } => 2,
-            Self::And(param_ts) | Self::Or(param_ts) | Self::Tuple(param_ts) => param_ts.len() + 1,
+            Self::And(param_ts) | Self::Or(param_ts) => param_ts.len(),
             Self::Subr(subr) => {
                 subr.kind.inner_len()
                     + subr.non_default_params.len()
@@ -2702,12 +2664,9 @@ impl Type {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => todo!(),
             Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
-            Self::Array { t, len } => vec![TyParam::t(*t.clone()), len.clone()],
-            Self::Dict { k, v } => vec![TyParam::t(*k.clone()), TyParam::t(*v.clone())],
-            Self::And(param_ts)
-            | Self::Or(param_ts)
-            | Self::Not(param_ts)
-            | Self::Tuple(param_ts) => param_ts.iter().map(|t| TyParam::t(t.clone())).collect(),
+            Self::And(param_ts) | Self::Or(param_ts) | Self::Not(param_ts) => {
+                param_ts.iter().map(|t| TyParam::t(t.clone())).collect()
+            }
             Self::Subr(subr) => {
                 if let Some(self_t) = subr.kind.self_t() {
                     [
@@ -2920,14 +2879,17 @@ pub enum TypeCode {
 impl From<&Type> for TypeCode {
     fn from(arg: &Type) -> Self {
         match arg {
-            Type::Int => Self::Int32,
-            Type::Nat => Self::Nat64,
-            Type::Float => Self::Float64,
-            Type::Bool => Self::Bool,
-            Type::Str => Self::Str,
-            Type::Array { .. } => Self::Array,
-            Type::FuncCommon => Self::Func,
-            Type::ProcCommon => Self::Proc,
+            Type::Int | Type::IntMut => Self::Int32,
+            Type::Nat | Type::NatMut => Self::Nat64,
+            Type::Float | Type::FloatMut => Self::Float64,
+            Type::Bool | Type::BoolMut => Self::Bool,
+            Type::Str | Type::StrMut => Self::Str,
+            Type::Poly { name, .. } => match &name[..] {
+                "Array" | "Array!" => Self::Array,
+                "Func" => Self::Func,
+                "Proc" => Self::Proc,
+                _ => Self::Other,
+            },
             _ => Self::Other,
         }
     }
@@ -3002,6 +2964,7 @@ pub enum TypePair {
     ProcStr,
     ProcBool,
     ProcArray,
+    ProcFunc,
     ProcProc,
     Others,
     Illegals,
@@ -3089,65 +3052,102 @@ impl TypePair {
             (Type::Int, Type::Float) => Self::IntFloat,
             (Type::Int, Type::Str) => Self::IntStr,
             (Type::Int, Type::Bool) => Self::IntBool,
-            (Type::Int, Type::Array { .. }) => Self::IntArray,
-            (Type::Int, Type::FuncCommon) => Self::IntFunc,
-            (Type::Int, Type::ProcCommon) => Self::IntProc,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Array" => Self::IntArray,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Func" => Self::IntFunc,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::IntProc,
             (Type::Nat, Type::Int) => Self::NatInt,
             (Type::Nat, Type::Nat) => Self::NatNat,
             (Type::Nat, Type::Float) => Self::NatFloat,
             (Type::Nat, Type::Str) => Self::NatStr,
             (Type::Nat, Type::Bool) => Self::NatBool,
-            (Type::Nat, Type::Array { .. }) => Self::NatArray,
-            (Type::Nat, Type::FuncCommon) => Self::NatFunc,
-            (Type::Nat, Type::ProcCommon) => Self::NatProc,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Array" => Self::NatArray,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Func" => Self::NatFunc,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::NatProc,
             (Type::Float, Type::Int) => Self::FloatInt,
             (Type::Float, Type::Nat) => Self::FloatNat,
             (Type::Float, Type::Float) => Self::FloatFloat,
             (Type::Float, Type::Str) => Self::FloatStr,
             (Type::Float, Type::Bool) => Self::FloatBool,
-            (Type::Float, Type::Array { .. }) => Self::FloatArray,
-            (Type::Float, Type::FuncCommon) => Self::FloatFunc,
-            (Type::Float, Type::ProcCommon) => Self::FloatProc,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Array" => Self::FloatArray,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Func" => Self::FloatFunc,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::FloatProc,
             (Type::Bool, Type::Int) => Self::BoolInt,
             (Type::Bool, Type::Nat) => Self::BoolNat,
             (Type::Bool, Type::Float) => Self::BoolFloat,
             (Type::Bool, Type::Str) => Self::BoolStr,
             (Type::Bool, Type::Bool) => Self::BoolBool,
-            (Type::Bool, Type::Array { .. }) => Self::BoolArray,
-            (Type::Bool, Type::FuncCommon) => Self::BoolFunc,
-            (Type::Bool, Type::ProcCommon) => Self::BoolProc,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Array" => Self::BoolArray,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Func" => Self::BoolFunc,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::BoolProc,
             (Type::Str, Type::Int) => Self::StrInt,
             (Type::Str, Type::Nat) => Self::StrNat,
             (Type::Str, Type::Float) => Self::StrFloat,
             (Type::Str, Type::Bool) => Self::StrBool,
             (Type::Str, Type::Str) => Self::StrStr,
-            (Type::Str, Type::Array { .. }) => Self::StrArray,
-            (Type::Str, Type::FuncCommon) => Self::StrFunc,
-            (Type::Str, Type::ProcCommon) => Self::StrProc,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Array" => Self::StrArray,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Func" => Self::StrFunc,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::StrProc,
             // 要素数は検査済みなので、気にする必要はない
-            (Type::Array { .. }, Type::Int) => Self::ArrayInt,
-            (Type::Array { .. }, Type::Nat) => Self::ArrayNat,
-            (Type::Array { .. }, Type::Float) => Self::ArrayFloat,
-            (Type::Array { .. }, Type::Str) => Self::ArrayStr,
-            (Type::Array { .. }, Type::Bool) => Self::ArrayBool,
-            (Type::Array { .. }, Type::Array { .. }) => Self::ArrayArray,
-            (Type::Array { .. }, Type::FuncCommon) => Self::ArrayFunc,
-            (Type::Array { .. }, Type::ProcCommon) => Self::ArrayProc,
-            (Type::FuncCommon, Type::Int) => Self::FuncInt,
-            (Type::FuncCommon, Type::Nat) => Self::FuncNat,
-            (Type::FuncCommon, Type::Float) => Self::FuncFloat,
-            (Type::FuncCommon, Type::Str) => Self::FuncStr,
-            (Type::FuncCommon, Type::Bool) => Self::FuncBool,
-            (Type::FuncCommon, Type::Array { .. }) => Self::FuncArray,
-            (Type::FuncCommon, Type::FuncCommon) => Self::FuncFunc,
-            (Type::FuncCommon, Type::ProcCommon) => Self::FuncProc,
-            (Type::ProcCommon, Type::Int) => Self::ProcInt,
-            (Type::ProcCommon, Type::Nat) => Self::ProcNat,
-            (Type::ProcCommon, Type::Float) => Self::ProcFloat,
-            (Type::ProcCommon, Type::Str) => Self::ProcStr,
-            (Type::ProcCommon, Type::Bool) => Self::ProcBool,
-            (Type::ProcCommon, Type::Array { .. }) => Self::ProcArray,
-            (Type::ProcCommon, Type::ProcCommon) => Self::ProcProc,
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Array" => Self::ArrayInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Array" => Self::ArrayNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Array" => Self::ArrayFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Array" => Self::ArrayStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Array" => Self::ArrayBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Array" && &rn[..] == "Array" =>
+            {
+                Self::ArrayArray
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Array" && &rn[..] == "Func" =>
+            {
+                Self::ArrayFunc
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Array" && &rn[..] == "Proc" =>
+            {
+                Self::ArrayProc
+            }
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Func" => Self::FuncInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Func" => Self::FuncNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Func" => Self::FuncFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Func" => Self::FuncStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Func" => Self::FuncBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Func" && &rn[..] == "Array" =>
+            {
+                Self::FuncArray
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Func" && &rn[..] == "Func" =>
+            {
+                Self::FuncFunc
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Func" && &rn[..] == "Proc" =>
+            {
+                Self::FuncProc
+            }
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Proc" => Self::ProcInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Proc" => Self::ProcNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Proc" => Self::ProcFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Proc" => Self::ProcStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Proc" => Self::ProcBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Proc" && &rn[..] == "Array" =>
+            {
+                Self::ProcArray
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Proc" && &rn[..] == "Func" =>
+            {
+                Self::ProcFunc
+            }
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
+                if &ln[..] == "Proc" && &rn[..] == "Proc" =>
+            {
+                Self::ProcProc
+            }
             (_, _) => Self::Others,
         }
     }

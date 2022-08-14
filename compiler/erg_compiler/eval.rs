@@ -307,23 +307,23 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn eval_t(
+    pub(crate) fn eval_t_params(
         &self,
         substituted: Type,
         ctx: &Context,
         level: usize,
     ) -> EvalResult<Type> {
         match substituted {
-            Type::FreeVar(fv) if fv.is_linked() => self.eval_t(fv.crack().clone(), ctx, level),
+            Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), ctx, level),
             Type::Subr(mut subr) => {
                 let kind = match subr.kind {
                     SubrKind::FuncMethod(self_t) => {
-                        SubrKind::fn_met(self.eval_t(*self_t, ctx, level)?)
+                        SubrKind::fn_met(self.eval_t_params(*self_t, ctx, level)?)
                     }
                     SubrKind::ProcMethod { before, after } => {
-                        let before = self.eval_t(*before, ctx, level)?;
+                        let before = self.eval_t_params(*before, ctx, level)?;
                         if let Some(after) = after {
-                            let after = self.eval_t(*after, ctx, level)?;
+                            let after = self.eval_t_params(*after, ctx, level)?;
                             SubrKind::pr_met(before, Some(after))
                         } else {
                             SubrKind::pr_met(before, None)
@@ -332,23 +332,18 @@ impl Evaluator {
                     other => other,
                 };
                 for p in subr.non_default_params.iter_mut() {
-                    p.ty = self.eval_t(mem::take(&mut p.ty), ctx, level)?;
+                    p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
                 }
                 for p in subr.default_params.iter_mut() {
-                    p.ty = self.eval_t(mem::take(&mut p.ty), ctx, level)?;
+                    p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
                 }
-                let return_t = self.eval_t(*subr.return_t, ctx, level)?;
+                let return_t = self.eval_t_params(*subr.return_t, ctx, level)?;
                 Ok(Type::subr(
                     kind,
                     subr.non_default_params,
                     subr.default_params,
                     return_t,
                 ))
-            }
-            Type::Array { t, len } => {
-                let t = self.eval_t(*t, ctx, level)?;
-                let len = self.eval_tp(&len, ctx)?;
-                Ok(Type::array(t, len))
             }
             Type::Refinement(refine) => {
                 let mut preds = Set::with_capacity(refine.preds.len());
@@ -364,7 +359,7 @@ impl Evaluator {
                         if let ConstObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
                             let t = subst_ctx.substitute(*quant_t, ty_ctx, level)?;
-                            let t = self.eval_t(t, ctx, level)?;
+                            let t = self.eval_t_params(t, ctx, level)?;
                             return Ok(t);
                         } else {
                             todo!()
@@ -373,9 +368,9 @@ impl Evaluator {
                 }
                 todo!()
             }
-            Type::Ref(l) => Ok(Type::refer(self.eval_t(*l, ctx, level)?)),
-            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t(*l, ctx, level)?)),
-            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t(*l, ctx, level)?)),
+            Type::Ref(l) => Ok(Type::refer(self.eval_t_params(*l, ctx, level)?)),
+            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t_params(*l, ctx, level)?)),
+            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t_params(*l, ctx, level)?)),
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p), ctx)?;
@@ -395,21 +390,21 @@ impl Evaluator {
     ) -> EvalResult<TyBound> {
         match bound {
             TyBound::Subtype { sub, sup } => Ok(TyBound::subtype(
-                self.eval_t(sub, ctx, level)?,
-                self.eval_t(sup, ctx, level)?,
+                self.eval_t_params(sub, ctx, level)?,
+                self.eval_t_params(sup, ctx, level)?,
             )),
             TyBound::Supertype { sup, sub } => Ok(TyBound::supertype(
-                self.eval_t(sup, ctx, level)?,
-                self.eval_t(sub, ctx, level)?,
+                self.eval_t_params(sup, ctx, level)?,
+                self.eval_t_params(sub, ctx, level)?,
             )),
             TyBound::Sandwiched { sub, mid, sup } => {
-                let sub = self.eval_t(sub, ctx, level)?;
-                let mid = self.eval_t(mid, ctx, level)?;
-                let sup = self.eval_t(sup, ctx, level)?;
+                let sub = self.eval_t_params(sub, ctx, level)?;
+                let mid = self.eval_t_params(mid, ctx, level)?;
+                let sup = self.eval_t_params(sup, ctx, level)?;
                 Ok(TyBound::sandwiched(sub, mid, sup))
             }
             TyBound::Instance { name: inst, t } => {
-                Ok(TyBound::instance(inst, self.eval_t(t, ctx, level)?))
+                Ok(TyBound::instance(inst, self.eval_t_params(t, ctx, level)?))
             }
         }
     }

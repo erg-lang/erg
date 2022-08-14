@@ -1237,7 +1237,8 @@ impl CodeGenerator {
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
         if self.input().is_repl() {
-            if self.cur_block().stack_len == 1 { // remains `print`, nothing to be printed
+            if self.cur_block().stack_len == 1 {
+                // remains `print`, nothing to be printed
                 self.edit_code(print_point, Opcode::NOP as usize);
             } else {
                 self.write_instr(CALL_FUNCTION);

@@ -1,25 +1,28 @@
 use crate::dict::Dict;
+use crate::set::Set;
 
-type NodeIdx = usize;
+use std::hash::Hash;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Node<T> {
-    _id: T,
-    depends_on: Vec<NodeIdx>,
+pub struct Node<T, U> {
+    id: T,
+    pub data: U,
+    depends_on: Vec<T>,
 }
 
-impl<T> Node<T> {
-    pub const fn new(id: T, depends_on: Vec<NodeIdx>) -> Self {
+impl<T, U> Node<T, U> {
+    pub const fn new(id: T, data: U, depends_on: Vec<T>) -> Self {
         Node {
-            _id: id,
+            id,
+            data,
             depends_on,
         }
     }
 }
 
-pub type Graph<T> = Vec<Node<T>>;
+pub type Graph<T, U> = Vec<Node<T, U>>;
 
-fn reorder_by_idx<T>(mut v: Vec<T>, idx: Vec<NodeIdx>) -> Vec<T> {
+fn _reorder_by_idx<T>(mut v: Vec<T>, idx: Vec<usize>) -> Vec<T> {
     let mut swap_table = Dict::new();
     for (node_id, mut sort_i) in idx.into_iter().enumerate() {
         if node_id == sort_i {
@@ -34,39 +37,44 @@ fn reorder_by_idx<T>(mut v: Vec<T>, idx: Vec<NodeIdx>) -> Vec<T> {
     v
 }
 
-fn dfs<T>(g: &Graph<T>, v: NodeIdx, used: &mut Vec<bool>, idx: &mut Vec<NodeIdx>) {
-    used[v] = true;
-    for &node_id in g[v].depends_on.iter() {
-        if !used[node_id] {
-            dfs(g, node_id, used, idx);
+fn reorder_by_key<T: Eq, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
+    g.sort_by_key(|node| idx.iter().position(|k| k == &node.id).unwrap());
+    g
+}
+
+fn dfs<T: Eq + Hash + Clone, U>(g: &Graph<T, U>, v: T, used: &mut Set<T>, idx: &mut Vec<T>) {
+    used.insert(v.clone());
+    for node_id in g.iter().find(|n| &n.id == &v).unwrap().depends_on.iter() {
+        if !used.contains(node_id) {
+            dfs(g, node_id.clone(), used, idx);
         }
     }
     idx.push(v);
 }
 
 /// perform topological sort on a graph
-pub fn tsort<T>(g: Graph<T>) -> Graph<T> {
+pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Graph<T, U> {
     let n = g.len();
     let mut idx = Vec::with_capacity(n);
-    let mut used = vec![false; n];
-    for v in 0..n {
-        if !used[v] {
-            dfs(&g, v, &mut used, &mut idx);
+    let mut used = Set::new();
+    for v in g.iter() {
+        if !used.contains(&v.id) {
+            dfs(&g, v.id.clone(), &mut used, &mut idx);
         }
     }
-    reorder_by_idx(g, idx)
+    reorder_by_key(g, idx)
 }
 
 fn _test() {
     let v = vec!["e", "d", "b", "a", "c"];
     let idx = vec![3, 2, 4, 1, 0];
-    assert_eq!(vec!["a", "b", "c", "d", "e"], reorder_by_idx(v, idx));
+    assert_eq!(vec!["a", "b", "c", "d", "e"], _reorder_by_idx(v, idx));
 
-    let en_0 = Node::new("even n", vec![4, 1]);
-    let o0_1 = Node::new("odd 0", vec![]);
-    let on_2 = Node::new("odd n", vec![3, 0]);
-    let e0_3 = Node::new("even 0", vec![]);
-    let ond_4 = Node::new("odd n (decl)", vec![]);
+    let en_0 = Node::new("even n", (), vec!["odd n (decl)", "odd 0"]);
+    let o0_1 = Node::new("odd 0", (), vec![]);
+    let on_2 = Node::new("odd n", (), vec!["even 0", "even n"]);
+    let e0_3 = Node::new("even 0", (), vec![]);
+    let ond_4 = Node::new("odd n (decl)", (), vec![]);
     let sorted = vec![
         ond_4.clone(),
         o0_1.clone(),

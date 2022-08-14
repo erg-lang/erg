@@ -9,17 +9,17 @@ use erg_common::error::{ErrorCore, Location};
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{HasType, Locational, Stream};
+use erg_common::tsort::tsort;
+use erg_common::tsort::{Graph, Node};
 use erg_common::ty::fresh_varname;
-use erg_common::ty::Constraint;
-use erg_common::ty::RefinementType;
 use erg_common::ty::{
-    ConstObj, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, SubrKind, SubrType, TyBound,
-    TyParam, TyParamOrdering, Type,
+    ConstObj, Constraint, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, RefinementType,
+    SubrKind, SubrType, TyBound, TyParam, TyParamOrdering, Type,
 };
 use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{
-    assume_unreachable, enum_unwrap, fmt_slice, fn_name, get_hash, log, set, try_map,
+    assume_unreachable, enum_unwrap, fmt_slice, fmt_vec, fn_name, get_hash, log, set, try_map,
 };
 use Predicate as Pred;
 use TyParamOrdering::*;
@@ -52,13 +52,14 @@ impl DefaultInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Variance {
     /// Output(T)
-    Covariant,
+    Covariant, // 共変
     /// Input(T)
-    Contravariant,
-    Invariant,
+    Contravariant, // 反変
+    #[default]
+    Invariant, // 不変
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -121,6 +122,8 @@ pub enum RegistrationMode {
 
 use RegistrationMode::*;
 
+type TyBoundGraph = Graph<Str, TyBound>;
+
 /// Context for instantiating a quantified type
 /// 量化型をインスタンス化するための文脈
 #[derive(Debug, Clone)]
@@ -137,10 +140,69 @@ impl TyVarContext {
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
         };
-        for bound in bounds.into_iter() {
+        for bound in Self::sort_bounds(bounds) {
             self_.instantiate_bound(bound);
         }
         self_
+    }
+
+    fn sort_bounds(_bounds: Set<TyBound>) -> impl Iterator<Item = TyBound> {
+        let mut graph = TyBoundGraph::new();
+        for bound in _bounds.into_iter() {
+            let depends_on = Self::bound_dependencies(&bound);
+            graph.push(Node::new(Str::rc(bound.lhs()), bound, depends_on));
+        }
+        let graph = tsort(graph);
+        graph.into_iter().map(|node| node.data)
+    }
+
+    fn bound_dependencies(_bound: &TyBound) -> Vec<Str> {
+        // TODO: Polymorphic lhs
+        match _bound {
+            TyBound::Subtype { sup, .. } => Self::rec_t_inner_qvars(sup, vec![]),
+            TyBound::Supertype { sub, .. } => Self::rec_t_inner_qvars(sub, vec![]),
+            TyBound::Sandwiched { mid, .. } => Self::rec_t_inner_qvars(mid, vec![]),
+            TyBound::Instance { t, .. } => Self::rec_t_inner_qvars(t, vec![]),
+        }
+    }
+
+    fn rec_t_inner_qvars(t: &Type, dep: Vec<Str>) -> Vec<Str> {
+        match t {
+            Type::MonoQVar(name) | Type::PolyQVar { name, .. } => {
+                [dep, vec![name.clone()]].concat()
+            }
+            Type::FreeVar(fv) if fv.is_linked() => Self::rec_t_inner_qvars(&fv.crack(), dep),
+            Type::Ref(t) | Type::RefMut(t) => Self::rec_t_inner_qvars(t, dep),
+            Type::Poly { params, .. } => params.iter().fold(dep, |acc, arg| {
+                [acc, Self::rec_tp_inner_qvars(arg, vec![])].concat()
+            }),
+            Type::VarArgs(t) => Self::rec_t_inner_qvars(&t, dep),
+            Type::Subr(_subr) => todo!(),
+            Type::Callable { param_ts: _, return_t: _ } => todo!(),
+            Type::And(_) | Type::Or(_) | Type::Not(_) => todo!(),
+            Type::Record(_) => todo!(),
+            Type::Quantified(_) => todo!(),
+            Type::Refinement(_) => todo!(),
+            _ => dep,
+        }
+    }
+
+    fn rec_tp_inner_qvars(tp: &TyParam, dep: Vec<Str>) -> Vec<Str> {
+        match tp {
+            TyParam::MonoQVar(name) | TyParam::PolyQVar { name, .. } => {
+                [dep, vec![name.clone()]].concat()
+            }
+            TyParam::FreeVar(fv) if fv.is_linked() => Self::rec_tp_inner_qvars(&fv.crack(), dep),
+            TyParam::Type(t) => Self::rec_t_inner_qvars(t, dep),
+            TyParam::App { args, .. } | TyParam::Array(args) | TyParam::Tuple(args) => {
+                args.iter().fold(dep, |acc, arg| {
+                    [acc, Self::rec_tp_inner_qvars(arg, vec![])].concat()
+                })
+            }
+            TyParam::UnaryOp { .. } => todo!(),
+            TyParam::BinOp { .. } => todo!(),
+            _ => dep,
+        }
     }
 
     fn instantiate_bound(&mut self, bound: TyBound) {
@@ -158,7 +220,8 @@ impl TyVarContext {
                     sup => sup,
                 };
                 let constraint = Constraint::SubtypeOf(sup);
-                self.push_tyvar(Str::rc(sub.name()), Type::free_var(self.level, constraint));
+                let name = Str::rc(sub.name());
+                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
             }
             TyBound::Supertype { sup, sub } => {
                 let sub = match sub {
@@ -173,7 +236,8 @@ impl TyVarContext {
                     sub => sub,
                 };
                 let constraint = Constraint::SupertypeOf(sub);
-                self.push_tyvar(Str::rc(sup.name()), Type::free_var(self.level, constraint));
+                let name = Str::rc(sup.name());
+                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
             }
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub = match sub {
@@ -199,7 +263,8 @@ impl TyVarContext {
                     sup => sup,
                 };
                 let constraint = Constraint::Sandwiched { sub, sup };
-                self.push_tyvar(Str::rc(mid.name()), Type::free_var(self.level, constraint));
+                let name = Str::rc(mid.name());
+                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
@@ -321,6 +386,9 @@ pub struct Context {
     // K: メソッド名, V: それを実装するパッチたち
     // 提供メソッドはスコープごとに実装を切り替えることができる
     pub(crate) _method_impl_patches: Dict<VarName, Vec<VarName>>,
+    // K: 多相トレイトの名前, V: 実装(小さい順)
+    // e.g. { "Add": [Add(Nat, Nat), Add(Int, Int), ...], ... }
+    pub(crate) poly_trait_impls: Dict<Str, Vec<Type>>,
     // .0: 関係付けるパッチ(glue patch), .1: サブタイプになる型, .2: スーパータイプになるトレイト
     // 一つの型ペアを接着パッチは同時に一つまでしか存在しないが、付け替えは可能
     pub(crate) glue_patch_and_types: Vec<(VarName, Type, Type)>,
@@ -437,6 +505,7 @@ impl Context {
             super_classes,
             super_traits,
             _method_impl_patches: Dict::default(),
+            poly_trait_impls: Dict::default(),
             glue_patch_and_types: Vec::default(),
             params: params_,
             decls: Dict::default(),
@@ -718,7 +787,7 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         let (generalized, bounds) = self.generalize_t(body_t.clone());
         let generalized = if !bounds.is_empty() {
-            if self.rec_full_supertype_of(&Type::CallableCommon, &generalized) {
+            if self.rec_full_supertype_of(&Type::mono("GenericCallable"), &generalized) {
                 Type::quantified(generalized, bounds)
             } else {
                 panic!()
@@ -928,7 +997,7 @@ impl Context {
             sub_t.lift();
             let (generalized, bounds) = self.generalize_t(sub_t);
             let found_t = if !bounds.is_empty() {
-                if self.rec_full_supertype_of(&Type::CallableCommon, &generalized) {
+                if self.rec_full_supertype_of(&Type::mono("GenericCallable"), &generalized) {
                     Type::quantified(generalized, bounds)
                 } else {
                     panic!()
@@ -941,7 +1010,8 @@ impl Context {
                     vi.t.lift();
                     let (generalized, bounds) = self.generalize_t(vi.t.clone());
                     let generalized = if !bounds.is_empty() {
-                        if self.rec_full_supertype_of(&Type::CallableCommon, &generalized) {
+                        if self.rec_full_supertype_of(&Type::mono("GenericCallable"), &generalized)
+                        {
                             Type::quantified(generalized, bounds)
                         } else {
                             panic!()
@@ -1319,22 +1389,6 @@ impl Context {
                     tv_ctx,
                 )
             }
-            Type::Array { t, len } => {
-                let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
-                let (len, tv_ctx) = Self::instantiate_tp(len, tv_ctx);
-                (Type::array(t, len), tv_ctx)
-            }
-            Type::Dict { k, v } => {
-                let (k, tv_ctx) = Self::instantiate_t(*k, tv_ctx);
-                let (v, tv_ctx) = Self::instantiate_t(*v, tv_ctx);
-                (Type::dict(k, v), tv_ctx)
-            }
-            Tuple(mut ts) => {
-                for t in ts.iter_mut() {
-                    (*t, tv_ctx) = Self::instantiate_t(mem::take(t), tv_ctx);
-                }
-                (Type::Tuple(ts), tv_ctx)
-            }
             Record(mut dict) => {
                 for v in dict.values_mut() {
                     (*v, tv_ctx) = Self::instantiate_t(mem::take(v), tv_ctx);
@@ -1488,13 +1542,13 @@ impl Context {
     }
 
     // FIXME:
-    fn deref_tp(tp: TyParam) -> TyCheckResult<TyParam> {
+    fn deref_tp(&self, tp: TyParam) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => Ok(fv.unwrap()),
-            TyParam::Type(t) => Ok(TyParam::t(Self::deref_tyvar(*t)?)),
+            TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
-                    *param = Self::deref_tp(mem::take(param))?;
+                    *param = self.deref_tp(mem::take(param))?;
                 }
                 Ok(TyParam::App { name, args })
             }
@@ -1502,33 +1556,42 @@ impl Context {
         }
     }
 
-    // FIXME:
-    fn deref_tyvar(t: Type) -> TyCheckResult<Type> {
+    fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
         match t {
+            // in toplevel: ?T(<: Int)[n] should replaced to Int (if n > 0)
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                match fv.borrow().constraint().unwrap() {
+                    Constraint::SubtypeOf(sup)
+                    | Constraint::Sandwiched { sup, .. } if self.level <= fv.level().unwrap() => {
+                        return Ok(sup.clone());
+                    },
+                    // REVIEW: really?
+                    Constraint::SupertypeOf(sub) if self.level <= fv.level().unwrap() => {
+                        return Ok(sub.clone());
+                    },
+                    _ => {},
+                }
+                Ok(Type::FreeVar(fv))
+            },
             Type::FreeVar(fv) if fv.is_linked() => Ok(fv.unwrap()),
             // 未連携型変数のチェックはモジュール全体の型検査が終わった後にやる
             // Type::FreeVar(_) =>
             //    Err(TyCheckError::checker_bug(0, Location::Unknown, fn_name!(), line!())),
             Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
-                    *param = Self::deref_tp(mem::take(param))?;
+                    *param = self.deref_tp(mem::take(param))?;
                 }
                 Ok(Type::poly(name, params))
-            }
-            Type::Array { mut t, mut len } => {
-                let t = Self::deref_tyvar(mem::take(&mut t))?;
-                let len = Self::deref_tp(mem::take(&mut len))?;
-                Ok(Type::array(t, len))
             }
             Type::Subr(mut subr) => {
                 match &mut subr.kind {
                     SubrKind::FuncMethod(t) => {
-                        *t = Box::new(Self::deref_tyvar(mem::take(t))?);
+                        *t = Box::new(self.deref_tyvar(mem::take(t))?);
                     }
                     SubrKind::ProcMethod { before, after } => {
-                        *before = Box::new(Self::deref_tyvar(mem::take(before))?);
+                        *before = Box::new(self.deref_tyvar(mem::take(before))?);
                         if let Some(after) = after {
-                            *after = Box::new(Self::deref_tyvar(mem::take(after))?);
+                            *after = Box::new(self.deref_tyvar(mem::take(after))?);
                         }
                     }
                     _ => {}
@@ -1538,12 +1601,49 @@ impl Context {
                     .iter_mut()
                     .chain(subr.default_params.iter_mut());
                 for param in params {
-                    param.ty = Self::deref_tyvar(mem::take(&mut param.ty))?;
+                    param.ty = self.deref_tyvar(mem::take(&mut param.ty))?;
                 }
-                subr.return_t = Box::new(Self::deref_tyvar(mem::take(&mut subr.return_t))?);
+                subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
                 Ok(Type::Subr(subr))
             }
             t => Ok(t),
+        }
+    }
+
+    /// e.g.
+    /// monomorphise_t(Add(Nat, Nat)): (Add(Nat, Nat) => Nat)
+    /// monomorphise_t(Add(Nat, ?O)): (?O => Nat, Add(Nat, Nat) => Nat)
+    pub(crate) fn monomorphise(&self, maybe_poly: Type) -> TyCheckResult<Type> {
+        match maybe_poly {
+            Type::Subr(mut subr) => {
+                if let Some(self_t) = subr.kind.self_t_mut() {
+                    *self_t = self.monomorphise(mem::take(self_t))?;
+                }
+                for param_t in subr.non_default_params.iter_mut() {
+                    param_t.ty = self.monomorphise(mem::take(&mut param_t.ty))?;
+                }
+                for param_t in subr.default_params.iter_mut() {
+                    param_t.ty = self.monomorphise(mem::take(&mut param_t.ty))?;
+                }
+                subr.return_t = Box::new(self.monomorphise(mem::take(&mut subr.return_t))?);
+                Ok(Type::Subr(subr))
+            }
+            Type::Poly{ name, params } => {
+                let impls = self.rec_get_trait_impls(&name);
+                if impls.is_empty() {
+                    panic!("{} is not implemented", name);
+                }
+                let min = self.smallest_t(impls.clone().into_iter()).unwrap_or_else(move || {
+                    panic!("cannot determine the smallest type: {}", fmt_vec(&impls))
+                });
+                dbg!(&min);
+                for (param, min_param) in params.iter().zip(min.typarams()) {
+                    self.unify_tp(param, &min_param, None, None, false)?;
+                }
+                dbg!(&params);
+                Ok(min)
+            },
+            _ => Ok(maybe_poly),
         }
     }
 
@@ -2035,6 +2135,9 @@ impl Context {
                                 sup: mem::take(sup),
                             };
                         }
+                        Constraint::TypeOf(_t) => {
+                            *constraint = Constraint::SupertypeOf(l.clone());
+                        },
                         _ => {}
                     },
                     _ => {}
@@ -2284,7 +2387,7 @@ impl Context {
                     let len = self.instantiate_const_expr(&len.expr);
                     Ok(Type::array(t, len))
                 } else {
-                    Ok(Type::ArrayCommon)
+                    Ok(Type::mono("GenericArray"))
                 }
             }
             other if simple.args.is_empty() => Ok(Type::mono(Str::rc(other))),
@@ -2361,7 +2464,7 @@ impl Context {
             ])),
             TypeSpec::Array { .. } => todo!(),
             // FIXME: unwrap
-            TypeSpec::Tuple(tys) => Ok(Type::Tuple(
+            TypeSpec::Tuple(tys) => Ok(Type::tuple(
                 tys.iter()
                     .map(|spec| self.instantiate_typespec(spec, mode).unwrap())
                     .collect(),
@@ -2521,7 +2624,7 @@ impl Context {
                     pos_args[i + 1].loc(),
                     self.caused_by(),
                     1,
-                    pos_args[i + 1].expr.ref_t().typaram_len(),
+                    pos_args[i + 1].expr.ref_t().typarams_len(),
                 ));
             }
             let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
@@ -2704,10 +2807,14 @@ impl Context {
         );
         self.substitute_call(callee, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
-        let res = self.eval.eval_t(instance, &self, self.level)?;
-        log!("Evaluated:\nres: {res}\n");
-        let res = Self::deref_tyvar(res)?;
+        let res = self.deref_tyvar(instance)?;
         log!("Eliminated:\nres: {res}\n");
+        let res = self.eval.eval_t_params(res, &self, self.level)?;
+        log!("Params Evaluated:\nres: {res}\n");
+        let res = self.deref_tyvar(res)?;
+        log!("Eliminated (2):\nres: {res}\n");
+        let res = self.monomorphise(res)?;
+        log!("Monomorphised:\nres: {res}\n");
         self.propagate(&res, callee)?;
         log!("Propagated:\nres: {res}\n");
         Ok(res)
@@ -2818,7 +2925,7 @@ impl Context {
             }
         }
         for (patch_name, sub, sup) in self.glue_patch_and_types.iter() {
-            let patch = self.rec_get_patch(patch_name).unwrap();
+            let patch = self.rec_get_patch(patch_name).unwrap_or_else(|| panic!("{patch_name} not found"));
             let bounds = patch.type_params_bounds();
             let variance = patch.type_params_variance();
             if self.formal_supertype_of(sub, rhs, Some(&bounds), Some(&variance))
@@ -2859,39 +2966,53 @@ impl Context {
             | (Float | Ratio, Ratio)
             | (Float, Float) => true,
             (
-                FuncCommon,
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Func,
                     ..
                 }),
-            )
-            | (
-                ProcCommon,
+            ) if &n[..] == "GenericFunc" => true,
+            (
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Proc,
                     ..
                 }),
-            )
-            | (
-                FuncMethodCommon,
+            ) if &n[..] == "GenericProc" => true,
+            (
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::FuncMethod(_),
                     ..
                 }),
-            )
-            | (
-                ProcMethodCommon,
+            ) if &n[..] == "GenericFuncMethod" => true,
+            (
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::ProcMethod { .. },
                     ..
                 }),
-            )
-            | (ArrayCommon, Type::Array { .. })
-            | (DictCommon, Type::Dict { .. }) => true,
-            (
-                CallableCommon,
-                Subr(_) | FuncCommon | ProcCommon | FuncMethodCommon | ProcMethodCommon,
-            ) => true,
+            ) if &n[..] == "GenericProcMethod" => true,
+            (Type::Mono(l), Type::Poly { name: r, .. })
+                if &l[..] == "GenericArray" && &r[..] == "Array" =>
+            {
+                true
+            }
+            (Type::Mono(l), Type::Poly { name: r, .. })
+                if &l[..] == "GenericDict" && &r[..] == "Dict" =>
+            {
+                true
+            }
+            (Type::Mono(l), Type::Mono(r))
+                if &l[..] == "GenericCallable"
+                    && (&r[..] == "GenericFunc"
+                        || &r[..] == "GenericProc"
+                        || &r[..] == "GenericFuncMethod"
+                        || &r[..] == "GenericProcMethod") =>
+            {
+                true
+            }
+            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => true,
             (Subr(ls), Subr(rs))
                 if ls.kind.same_kind_as(&rs.kind)
                     && (ls.kind == SubrKind::Func || ls.kind == SubrKind::Proc) =>
@@ -2908,17 +3029,6 @@ impl Context {
                     .zip(rs.default_params.iter())
                     .all(|(l, r)| self.subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
                 // contravariant
-            }
-            (Type::Array { t: lhs, len: llen }, Type::Array { t: rhs, len: rlen }) => {
-                self.eq_tp(llen, rlen, bounds, lhs_variance)
-                    && self.formal_supertype_of(lhs, rhs, bounds, lhs_variance)
-            }
-            (Tuple(lhs), Tuple(rhs)) => {
-                lhs.len() == rhs.len()
-                    && lhs
-                        .iter()
-                        .zip(rhs.iter())
-                        .all(|(l, r)| self.formal_supertype_of(l, r, bounds, lhs_variance))
             }
             // RefMut, OptionMut are invariant
             (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => {
@@ -3445,7 +3555,7 @@ impl Context {
         ) {
             (true, true) | (true, false) => Some(rhs),
             (false, true) => Some(lhs),
-            _ => None,
+            (false, false) => None,
         }
     }
 
@@ -3453,13 +3563,20 @@ impl Context {
         match self.min(lhs, rhs) {
             Some(l) if l == lhs => TyParamOrdering::Less,
             Some(_) => TyParamOrdering::Greater,
-            None => todo!(),
+            None => todo!("{lhs}, {rhs}"),
         }
     }
 
     // TODO:
     fn smallest_pair<I: Iterator<Item = (Type, Type)>>(&self, ts: I) -> Option<(Type, Type)> {
         ts.min_by(|(_, lhs), (_, rhs)| self.cmp_t(lhs, rhs).try_into().unwrap())
+    }
+
+    fn smallest_t<I: Iterator<Item = Type>>(&self, ts: I) -> Option<Type> {
+        ts.min_by(|lhs, rhs| {
+            let cmp = self.cmp_t(lhs, rhs);
+            cmp.try_into().unwrap_or_else(|_| panic!("{cmp:?}"))
+        })
     }
 
     fn smallest_ref_t<'t, I: Iterator<Item = &'t Type>>(&self, ts: I) -> Option<&'t Type> {
@@ -3654,6 +3771,17 @@ impl Context {
             }
         }
         None
+    }
+
+    fn rec_get_trait_impls(&self, name: &Str) -> Vec<Type> {
+        let impls = if let Some(impls) = self.poly_trait_impls.get(name) {
+            impls.clone()
+        } else { vec![] };
+        if let Some(outer) = &self.outer {
+            [impls, outer.rec_get_trait_impls(name)].concat()
+        } else {
+            impls
+        }
     }
 
     // 再帰サブルーチン/型の推論を可能にするため、予め登録しておく
