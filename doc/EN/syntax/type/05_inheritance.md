@@ -127,7 +127,7 @@ Int = Class ... , Impl: Add() and ...
 ```
 
 But in fact `Add()` in `Real` stands for `Add(Real, Real)`, and in `Int` it is just overwritten by `Add(Int, Int)`.
-They are two different traits (`Add` is a [covariate](. /advanced/variance.md), so `Add(Real, Real) :> Add(Int, Int)`).
+They are two different traits (`Add` is a [covariate](./advanced/variance.md), so `Add(Real, Real) :> Add(Int, Int)`).
 
 ## Multiple Inheritance
 
@@ -249,5 +249,5 @@ greet! max # TypeError:
 ```
 
 <p align='center'>
-    <a href='. /04_class.md'>Previous</a> | <a href='. /06_nst_vs_sst.md'>Next</a>
+    <a href='./04_class.md'>Previous</a> | <a href='./06_nst_vs_sst.md'>Next</a>
 </p>

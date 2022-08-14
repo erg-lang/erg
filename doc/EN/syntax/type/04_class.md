@@ -272,5 +272,5 @@ T.foo # AttributeError
 ```
 
 <p align='center'>
-    <a href='. /03_trait.md'>Previous</a> | <a href='. /05_inheritance.md'>Next</a>
+    <a href='./03_trait.md'>Previous</a> | <a href='./05_inheritance.md'>Next</a>
 </p>
