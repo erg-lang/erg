@@ -18,7 +18,7 @@ assert l[[]] == "empty"
 ```
 
 Order does not matter for Dict. It also cannot have duplicate elements. In this respect, Dict is similar to Set.
-You could say that a Dict is a Set with a key.
+You could say that a Dict is a Set with values.
 
 ```erg
 {"Alice": 145, "Bob": 214, "Charlie": 301} == {"Alice": 145, "Charlie": 301, "Bob": 214}
