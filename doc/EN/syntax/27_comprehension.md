@@ -52,5 +52,5 @@ Nat2D = {(I, J): (Int, Int) | I >= 0 and J >= 0}
 ```
 
 <p align='center'>
-    <a href='. /26_pattern_matching.md'>Previous</a> | <a href='. /28_spread_syntax.md'>Next</a>
+    <a href='./26_pattern_matching.md'>Previous</a> | <a href='./28_spread_syntax.md'>Next</a>
 </p>

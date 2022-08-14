@@ -45,5 +45,5 @@ match_s(ss: Iterator(Str), pat: Pattern): Option Str =
 ```
 
 <p align='center'>
-    <a href='. /04_function.md'>Previous</a> | <a href='. /06_operator.md'>Next</a>
+    <a href='./04_function.md'>Previous</a> | <a href='./06_operator.md'>Next</a>
 </p>

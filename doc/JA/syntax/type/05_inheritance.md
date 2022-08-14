@@ -248,5 +248,5 @@ greet! max # TypeError:
 ```
 
 <p align='center'>
-    <a href='. /04_class.md'>Previous</a> | <a href='. /06_nst_vs_sst.md'>Next</a>
+    <a href='./04_class.md'>Previous</a> | <a href='./06_nst_vs_sst.md'>Next</a>
 </p>

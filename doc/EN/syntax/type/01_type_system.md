@@ -223,5 +223,5 @@ Also, the types `A` and `B` below are not considered the same type. However, the
 ```
 
 <p align='center'>
-    Previous | <a href='. /02_basic.md'>Next</a>
+    Previous | <a href='./02_basic.md'>Next</a>
 </p>

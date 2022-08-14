@@ -217,5 +217,5 @@ assert Point3D.new({x = 1; y = 2; z = 3}).norm() == 14 # AssertionError:
 ```
 
 <p align='center'>
-    <a href='. /06_nst_vs_sst.md'>Previous</a> | <a href='. /08_value.md'>Next</a>
+    <a href='./06_nst_vs_sst.md'>Previous</a> | <a href='./08_value.md'>Next</a>
 </p>

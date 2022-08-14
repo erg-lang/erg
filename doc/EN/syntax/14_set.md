@@ -43,5 +43,5 @@ mut_set.insert!(4)
 ```
 
 <p align='center'>
-    <a href='. /13_record.md'>Previous</a> | <a href='. /15_type.md'>Next</a>
+    <a href='./13_record.md'>Previous</a> | <a href='./15_type.md'>Next</a>
 </p>

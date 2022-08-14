@@ -12,7 +12,7 @@ This is similar to Python's `__init__.py`, but unlike `__init__.py`, it is place
 As an example, consider the following directory structure.
 
 ```console
-└─┬ . /src
+└─┬ ./src
   ├─ app.er
   ├─ foo.er
   ├─ bar.er
@@ -41,11 +41,11 @@ Such filenames are discouraged, since the `.er` prefix is meaningful in Erg.
 For example, a module for testing. A file ending with `.test.er` is a (white box) test module, which executes a subroutine decorated with `@Test` when the test is run.
 
 ```console
-└─┬ . /src
+└─┬ ./src
   ├─ app.er
   ├─ foo.er
   └─ foo.test.er
-. /src
+./src
 
 ```erg
 # app.er
@@ -79,5 +79,5 @@ baz = import "baz"
 ```
 
 <p align='center'>
-    <a href='. /32_integration_with_Python.md'>Previous</a> | <a href='. /34_generator.md'>Next</a>
+    <a href='./32_integration_with_Python.md'>Previous</a> | <a href='./34_generator.md'>Next</a>
 </p>
