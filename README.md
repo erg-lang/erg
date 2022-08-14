@@ -85,7 +85,7 @@
     Erg requires some kinds of markers to be placed on code that causes side effects or changes internal state, which can localize the complexity of code. This will greatly improve the maintainability of your code.
 
     ```python
-    # Functional style (immutable), same as `.sorted()` in Python
+    # Functional style (immutable), same as `sorted(list)` in Python
     immut_arr = [1, 3, 2]
     assert immut_arr.sort() == [1, 2, 3]
     # Object-oriented style (mutable)
