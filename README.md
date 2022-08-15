@@ -102,6 +102,7 @@
     # SyntaxError: cannot call a procedural method in a function
     # hint: only methods of mutable types can change the state of objects
 
+    # Code that uses a lot of side effects is redundant, so you will naturally write pure code
     Counter! = Inherit Int!
     Counter!.
         new i: Int = Self!::__new__ !i
