@@ -6,7 +6,7 @@ If you are thinking of contributing to Erg, or are interested in the internal st
 
 ## Bug reports
 
-If you find any behavior that you think is a bug in Erg, I would appreciate it if you would [report](https://github.com/erg-lang/erg/issues/new/choose) it to us. Please make sure that the same bug has not already been reported as an issue.
+If you find any behavior that you think is a bug in Erg, I would appreciate it if you would [report](https://github.com/erg-lang/erg/issues/new/choose) it. Please make sure that the same bug has not already been reported as an issue.
 
 If you type `cargo run --features debug`, Erg will be built in debug mode. This mode may dump information that may be useful for investigating bugs. I would appreciate it if you could report error logs in this mode.
 
