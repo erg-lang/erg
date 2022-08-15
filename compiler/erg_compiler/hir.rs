@@ -108,7 +108,7 @@ pub struct KwArg {
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "{}:\n", self.keyword)?;
+        writeln!(f, "{}:", self.keyword)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -187,6 +187,11 @@ impl Args {
     #[inline]
     pub fn len(&self) -> usize {
         self.pos_args.len() + self.kw_args.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.pos_args.is_empty() && self.kw_args.is_empty()
     }
 
     #[inline]
@@ -563,9 +568,9 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`:\n", self.op.content)?;
+        writeln!(f, "`{}`:", self.op.content)?;
         self.lhs.fmt_nest(f, level + 1)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
     }
 }
@@ -573,15 +578,15 @@ impl NestedDisplay for BinOp {
 impl HasType for BinOp {
     #[inline]
     fn ref_t(&self) -> &Type {
-        &self.sig_t.return_t().unwrap()
+        self.sig_t.return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
-        &self.sig_t.lhs_t()
+        self.sig_t.lhs_t()
     }
     #[inline]
     fn rhs_t(&self) -> &Type {
-        &self.sig_t.rhs_t()
+        self.sig_t.rhs_t()
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -613,7 +618,7 @@ pub struct UnaryOp {
 impl HasType for UnaryOp {
     #[inline]
     fn ref_t(&self) -> &Type {
-        &self.sig_t.return_t().unwrap()
+        self.sig_t.return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -631,7 +636,7 @@ impl HasType for UnaryOp {
 
 impl NestedDisplay for UnaryOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`: {}:\n", self.op, self.sig_t)?;
+        writeln!(f, "`{}`: {}:", self.op, self.sig_t)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -660,7 +665,7 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "({}): {}:\n", self.obj, self.sig_t)?;
+        writeln!(f, "({}): {}:", self.obj, self.sig_t)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -670,7 +675,7 @@ impl_display_from_nested!(Call);
 impl HasType for Call {
     #[inline]
     fn ref_t(&self) -> &Type {
-        &self.sig_t.return_t().unwrap()
+        self.sig_t.return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -821,7 +826,7 @@ impl HasType for Lambda {
 
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.params, self.op.content)?;
+        writeln!(f, "{} {}", self.params, self.op.content)?;
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -943,7 +948,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.sig, self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

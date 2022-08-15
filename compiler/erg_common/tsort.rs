@@ -44,7 +44,7 @@ fn reorder_by_key<T: Eq, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
 
 fn dfs<T: Eq + Hash + Clone, U>(g: &Graph<T, U>, v: T, used: &mut Set<T>, idx: &mut Vec<T>) {
     used.insert(v.clone());
-    for node_id in g.iter().find(|n| &n.id == &v).unwrap().depends_on.iter() {
+    for node_id in g.iter().find(|n| n.id == v).unwrap().depends_on.iter() {
         if !used.contains(node_id) {
             dfs(g, node_id.clone(), used, idx);
         }

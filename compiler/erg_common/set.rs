@@ -168,7 +168,7 @@ impl<T: Hash + Eq + Clone> Set<T> {
     pub fn union(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.union(&other.elems);
         Self {
-            elems: u.into_iter().map(|x| x.clone()).collect(),
+            elems: u.into_iter().cloned().collect(),
         }
     }
 
@@ -176,7 +176,7 @@ impl<T: Hash + Eq + Clone> Set<T> {
     pub fn intersection(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.intersection(&other.elems);
         Self {
-            elems: u.into_iter().map(|x| x.clone()).collect(),
+            elems: u.into_iter().cloned().collect(),
         }
     }
 }

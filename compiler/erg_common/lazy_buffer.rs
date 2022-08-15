@@ -27,6 +27,10 @@ where
         self.buffer.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn get_next(&mut self) -> bool {
         if self.done {
             return false;

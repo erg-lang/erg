@@ -111,7 +111,7 @@ impl Context {
             op_t,
             set! {subtype(mono_q("Self"), mono("Eq")), subtype(mono_q("R"), poly("Eq", vec![]))},
         );
-        eq.register_decl("__eq__", op_t.clone(), Public);
+        eq.register_decl("__eq__", op_t, Public);
         let mut ord = Self::poly_trait(
             "Ord",
             vec![PS::t("R", WithDefault)],
@@ -123,7 +123,7 @@ impl Context {
             op_t,
             set! {subtype(mono_q("Self"), mono("Ord")), subtype(mono_q("R"), poly("Ord", vec![]))},
         );
-        ord.register_decl("__lt__", op_t.clone(), Public);
+        ord.register_decl("__lt__", op_t, Public);
         let mut seq = Self::poly_trait(
             "Seq",
             vec![PS::t("T", NonDefault)],
@@ -142,7 +142,7 @@ impl Context {
         seq.register_decl("get", t, Public);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::poly_trait("Input", params.clone(), vec![], Self::TOP_LEVEL);
-        let output = Self::poly_trait("Output", params.clone(), vec![], Self::TOP_LEVEL);
+        let output = Self::poly_trait("Output", params, vec![], Self::TOP_LEVEL);
         let (r, o) = (mono_q("R"), mono_q("O"));
         let (r_bound, o_bound) = (static_instance("R", Type), static_instance("O", Type));
         let params = vec![PS::t("R", WithDefault), PS::t("O", WithDefault)];
@@ -167,7 +167,7 @@ impl Context {
             poly("Sub", ty_params.clone()),
         );
         let op_t = fn1_met(poly_q("Self", ty_params.clone()), r.clone(), o.clone());
-        let op_t = quant(op_t, set! {r_bound.clone(), o_bound.clone(), self_bound});
+        let op_t = quant(op_t, set! {r_bound, o_bound, self_bound});
         sub.register_decl("__sub__", op_t, Public);
         let mut mul = Self::poly_trait("Mul", params.clone(), vec![
             poly("Output", vec![ty_tp(mono_q("R"))]),
@@ -175,7 +175,7 @@ impl Context {
         ], Self::TOP_LEVEL);
         let op_t = fn1_met(poly("Mul", ty_params.clone()), r.clone(), o.clone());
         mul.register_decl("__mul__", op_t, Public);
-        let mut div = Self::poly_trait("Div", params.clone(), vec![
+        let mut div = Self::poly_trait("Div", params, vec![
             poly("Output", vec![ty_tp(mono_q("R"))]),
             poly("Output", vec![ty_tp(mono_q("O"))]),
         ], Self::TOP_LEVEL);
@@ -618,8 +618,8 @@ impl Context {
         let op_t = Type::func2(l.clone(), r.clone(), o.clone());
         let op_t = quant(op_t, set! {subtype(l.clone(), poly("Mul", params.clone()))});
         self.register_impl("__mul__", op_t, Const, Private);
-        let op_t = Type::func2(l.clone(), r.clone(), o.clone());
-        let op_t = quant(op_t, set! {subtype(l, poly("Mul", params.clone()))});
+        let op_t = Type::func2(l.clone(), r, o);
+        let op_t = quant(op_t, set! {subtype(l, poly("Mul", params))});
         self.register_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
         let op_t = Type::func2(m.clone(), m.clone(), m.clone());

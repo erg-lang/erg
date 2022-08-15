@@ -176,7 +176,7 @@ impl TyVarContext {
             Type::Poly { params, .. } => params.iter().fold(dep, |acc, arg| {
                 [acc, Self::rec_tp_inner_qvars(arg, vec![])].concat()
             }),
-            Type::VarArgs(t) => Self::rec_t_inner_qvars(&t, dep),
+            Type::VarArgs(t) => Self::rec_t_inner_qvars(t, dep),
             Type::Subr(_subr) => todo!(),
             Type::Callable { param_ts: _, return_t: _ } => todo!(),
             Type::And(_) | Type::Or(_) | Type::Not(_) => todo!(),
@@ -210,11 +210,10 @@ impl TyVarContext {
             TyBound::Subtype { sub, sup } => {
                 let sup = match sup {
                     Type::Poly { name, params } => {
-                        let sup = Type::poly(
+                        Type::poly(
                             name,
                             params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        );
-                        sup
+                        )
                     }
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sup => sup,
@@ -226,11 +225,10 @@ impl TyVarContext {
             TyBound::Supertype { sup, sub } => {
                 let sub = match sub {
                     Type::Poly { name, params } => {
-                        let sub = Type::poly(
+                        Type::poly(
                             name,
                             params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        );
-                        sub
+                        )
                     }
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sub => sub,
@@ -242,22 +240,20 @@ impl TyVarContext {
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub = match sub {
                     Type::Poly { name, params } => {
-                        let sub = Type::poly(
+                        Type::poly(
                             name,
                             params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        );
-                        sub
+                        )
                     }
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sub => sub,
                 };
                 let sup = match sup {
                     Type::Poly { name, params } => {
-                        let sup = Type::poly(
+                        Type::poly(
                             name,
                             params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        );
-                        sup
+                        )
                     }
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sup => sup,
@@ -269,16 +265,15 @@ impl TyVarContext {
             TyBound::Instance { name, t } => {
                 let t = match t {
                     Type::Poly { name, params } => {
-                        let t = Type::poly(
+                        Type::poly(
                             name,
                             params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        );
-                        t
+                        )
                     }
                     t => t,
                 };
                 // TODO: type-like types
-                if &t == &Type {
+                if t == Type {
                     let constraint = Constraint::TypeOf(t);
                     self.push_tyvar(
                         name.clone(),
@@ -299,10 +294,10 @@ impl TyVarContext {
         match quantified {
             Type::MonoQVar(n) => {
                 if let Some(t) = self.get_tyvar(&n) {
-                    return t.clone();
+                    t.clone()
                 } else if let Some(t) = self.get_typaram(&n) {
                     if let TyParam::Type(t) = t {
-                        return *t.clone();
+                        *t.clone()
                     } else {
                         todo!()
                     }
@@ -318,9 +313,9 @@ impl TyVarContext {
         match quantified {
             TyParam::MonoQVar(n) => {
                 if let Some(t) = self.get_typaram(&n) {
-                    return t.clone();
+                    t.clone()
                 } else if let Some(t) = self.get_tyvar(&n) {
-                    return TyParam::t(t.clone());
+                    TyParam::t(t.clone())
                 } else {
                     panic!("Type parameter {n} is not found. This is a bug.")
                 }
@@ -328,9 +323,9 @@ impl TyVarContext {
             TyParam::Type(t) => {
                 if let Type::MonoQVar(n) = *t {
                     if let Some(t) = self.get_typaram(&n) {
-                        return t.clone();
+                        t.clone()
                     } else if let Some(t) = self.get_tyvar(&n) {
-                        return TyParam::t(t.clone());
+                        TyParam::t(t.clone())
                     } else {
                         panic!("Type variable {n} is not found. This is a bug.")
                     }
@@ -710,9 +705,7 @@ impl Context {
                             v.inspect(),
                         ));
                     }
-                    let kind = id
-                        .map(|id| VarKind::Defined(id))
-                        .unwrap_or(VarKind::Declared);
+                    let kind = id.map_or(VarKind::Declared, VarKind::Defined);
                     let sig_t = self.instantiate_var_sig_t(sig, opt_t, PreRegister)?;
                     self.decls
                         .insert(v.clone(), VarInfo::new(sig_t, muty, vis, kind));
@@ -743,9 +736,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let name = sig.name.inspect();
         let muty = Mutability::from(&name[..]);
-        let kind = id
-            .map(|id| VarKind::Defined(id))
-            .unwrap_or(VarKind::Declared);
+        let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         if self.registered(name, name.is_uppercase()) {
             return Err(TyCheckError::duplicate_decl_error(
                 sig.loc(),
@@ -805,7 +796,7 @@ impl Context {
                         v.inspect(),
                     ))
                 } else {
-                    if let Some(_) = self.decls.remove(v.inspect()) {
+                    if self.decls.remove(v.inspect()).is_some() {
                         // something to do?
                     }
                     let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
@@ -957,7 +948,7 @@ impl Context {
         let name = &sig.name;
         // FIXME: constでない関数
         let t = self
-            .get_current_scope_var(&name.inspect())
+            .get_current_scope_var(name.inspect())
             .map(|v| &v.t)
             .unwrap();
         let non_default_params = t.non_default_params().unwrap();
@@ -1490,7 +1481,7 @@ impl Context {
                     )
                     .map_err(|e| {
                         // REVIEW:
-                        let name = callee.var_full_name().unwrap_or("".to_string());
+                        let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
                         let name =
                             name + "::" + param_ty.name.as_ref().map(|s| &s[..]).unwrap_or("");
                         TyCheckError::type_mismatch_error(
@@ -1649,18 +1640,12 @@ impl Context {
 
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
-        match t {
-            Type::Subr(subr) => match &subr.kind {
-                SubrKind::ProcMethod {
-                    before: _,
-                    after: Some(after),
-                } => {
-                    let receiver_t = callee.receiver_t().unwrap();
-                    self.reunify(receiver_t, after, Some(callee.loc()), None)?;
-                }
-                _ => {}
-            },
-            _ => {}
+        if let Type::Subr(SubrType {
+            kind: SubrKind::ProcMethod { after: Some(after), .. },
+            ..
+        }) = t {
+            let receiver_t = callee.receiver_t().unwrap();
+            self.reunify(receiver_t, after, Some(callee.loc()), None)?;
         }
         Ok(())
     }
@@ -1682,7 +1667,7 @@ impl Context {
             return Ok(());
         }
         match (l, r) {
-            (TyParam::Type(l), TyParam::Type(r)) => self.unify(&l, &r, None, None),
+            (TyParam::Type(l), TyParam::Type(r)) => self.unify(l, r, None, None),
             (ltp @ TyParam::FreeVar(lfv), rtp @ TyParam::FreeVar(rfv))
                 if lfv.is_unbound() && rfv.is_unbound() =>
             {
@@ -1701,11 +1686,11 @@ impl Context {
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
                 let fv_t = fv.borrow().constraint().unwrap().typ().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
-                let tp_t = self.eval.get_tp_t(tp, bounds, &self)?;
+                let tp_t = self.eval.get_tp_t(tp, bounds, self)?;
                 if self.rec_full_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::SubtypeOf(tp_t.clone());
+                        let new_constraint = Constraint::SubtypeOf(tp_t);
                         if self.is_sub_constraint_of(
                             fv.borrow().constraint().unwrap(),
                             &new_constraint,
@@ -1717,17 +1702,15 @@ impl Context {
                         fv.link(tp);
                     }
                     Ok(())
+                } else if allow_divergence
+                    && (self.eq_tp(tp, &TyParam::value(Inf), None, None)
+                        || self.eq_tp(tp, &TyParam::value(NegInf), None, None))
+                    && self.rec_full_subtype_of(&fv_t, &Type::mono("Num"))
+                {
+                    fv.link(tp);
+                    Ok(())
                 } else {
-                    if allow_divergence
-                        && (self.eq_tp(&tp, &TyParam::value(Inf), None, None)
-                            || self.eq_tp(&tp, &TyParam::value(NegInf), None, None))
-                        && self.rec_full_subtype_of(&fv_t, &Type::mono("Num"))
-                    {
-                        fv.link(tp);
-                        Ok(())
-                    } else {
-                        Err(TyCheckError::unreachable(fn_name!(), line!()))
-                    }
+                    Err(TyCheckError::unreachable(fn_name!(), line!()))
                 }
             }
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
@@ -1769,7 +1752,7 @@ impl Context {
                 *l.borrow_mut() = r.borrow().clone();
                 Ok(())
             }
-            (TyParam::Type(l), TyParam::Type(r)) => self.reunify(&l, &r, None, None),
+            (TyParam::Type(l), TyParam::Type(r)) => self.reunify(l, r, None, None),
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
             {
@@ -2333,7 +2316,7 @@ impl Context {
             self.instantiate_typespec(spec, mode)?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => Type::enum_t(set![self.eval.eval_const_lit(&lit)]),
+                ast::ParamPattern::Lit(lit) => Type::enum_t(set![self.eval.eval_const_lit(lit)]),
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -2607,7 +2590,7 @@ impl Context {
                     self.caused_by(),
                     "match",
                     &Type::mono("LambdaFunc"),
-                    &t,
+                    t,
                 ));
             }
         }
@@ -2633,13 +2616,13 @@ impl Context {
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} | 'T
         if expr_t.has_no_unbound_var()
-            && self.formal_supertype_of(&expr_t, &union_pat_t, None, None)
-            && !self.formal_supertype_of(&union_pat_t, &expr_t, None, None)
+            && self.formal_supertype_of(expr_t, &union_pat_t, None, None)
+            && !self.formal_supertype_of(&union_pat_t, expr_t, None, None)
         {
             return Err(TyCheckError::match_error(
                 pos_args[0].loc(),
                 self.caused_by(),
-                &expr_t,
+                expr_t,
             ));
         }
         let branch_ts = pos_args
@@ -2658,7 +2641,7 @@ impl Context {
         };
         let param_ts = [
             vec![ParamTy::anonymous(expr_t)],
-            branch_ts.iter().map(|pt| pt.clone()).collect(),
+            branch_ts.to_vec(),
         ]
         .concat();
         let t = Type::func(param_ts, vec![], return_t);
@@ -2749,8 +2732,8 @@ impl Context {
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 2);
         let symbol = Token::symbol(binop_to_dname(op.inspect()));
-        let mut op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
-        self.get_call_t(&mut op, args, &[], namespace).map_err(|e| {
+        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
+        self.get_call_t(&op, args, &[], namespace).map_err(|e| {
             // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
             let core = ErrorCore::new(
                 e.core.errno,
@@ -2771,8 +2754,8 @@ impl Context {
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 1);
         let symbol = Token::symbol(unaryop_to_dname(op.inspect()));
-        let mut op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
-        self.get_call_t(&mut op, args, &[], namespace).map_err(|e| {
+        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
+        self.get_call_t(&op, args, &[], namespace).map_err(|e| {
             let core = ErrorCore::new(
                 e.core.errno,
                 e.core.kind,
@@ -2809,7 +2792,7 @@ impl Context {
         log!("Substituted:\ninstance: {instance}");
         let res = self.deref_tyvar(instance)?;
         log!("Eliminated:\nres: {res}\n");
-        let res = self.eval.eval_t_params(res, &self, self.level)?;
+        let res = self.eval.eval_t_params(res, self, self.level)?;
         log!("Params Evaluated:\nres: {res}\n");
         let res = self.deref_tyvar(res)?;
         log!("Eliminated (2):\nres: {res}\n");
@@ -2873,13 +2856,13 @@ impl Context {
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.typ().unwrap();
                     let other_t = self.type_of(other, bounds);
-                    return self.formal_supertype_of(&t, &other_t, bounds, lhs_variance);
+                    return self.formal_supertype_of(t, &other_t, bounds, lhs_variance);
                 }
             },
             (l, r) if l == r => return true,
             _ => {}
         }
-        self.eval.shallow_eq_tp(lhs, rhs, &self)
+        self.eval.shallow_eq_tp(lhs, rhs, self)
     }
 
     /// e.g.
@@ -3292,7 +3275,7 @@ impl Context {
             // try_cmp((n: 2.._), 1) -> Some(Greater)
             // try_cmp((n: -1.._), 1) -> Some(Any)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
-                let t = self.eval.get_tp_t(l, bounds, &self).unwrap();
+                let t = self.eval.get_tp_t(l, bounds, self).unwrap();
                 let inf = self.inf(&t);
                 let sup = self.sup(&t);
                 if let (Some(inf), Some(sup)) = (inf, sup) {
@@ -3355,7 +3338,7 @@ impl Context {
             Refinement(r) => r,
             t => {
                 let var = Str::from(fresh_varname());
-                RefinementType::new(var.clone(), t, set! {})
+                RefinementType::new(var, t, set! {})
             }
         }
     }
@@ -3486,7 +3469,7 @@ impl Context {
 
     #[inline]
     fn type_of(&self, p: &TyParam, bounds: Option<&Set<TyBound>>) -> Type {
-        self.eval.get_tp_t(p, bounds, &self).unwrap()
+        self.eval.get_tp_t(p, bounds, self).unwrap()
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
@@ -3501,7 +3484,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(max) = &maybe_max {
-                                if self.try_cmp(rhs, &max, None).unwrap() == Greater {
+                                if self.try_cmp(rhs, max, None).unwrap() == Greater {
                                     maybe_max = Some(rhs.clone());
                                 }
                             } else {
@@ -3529,7 +3512,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(min) = &maybe_min {
-                                if self.try_cmp(rhs, &min, None).unwrap() == Less {
+                                if self.try_cmp(rhs, min, None).unwrap() == Less {
                                     maybe_min = Some(rhs.clone());
                                 }
                             } else {
@@ -3753,24 +3736,22 @@ impl Context {
 
     fn rec_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
-            return Some(patch);
+            Some(patch)
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_patch(name)
         } else {
-            if let Some(outer) = &self.outer {
-                return outer.rec_get_patch(name);
-            }
+            None
         }
-        None
     }
 
     fn rec_get_mod(&self, name: &str) -> Option<&Context> {
         if let Some(mod_) = self.mods.get(name) {
-            return Some(mod_);
+            Some(mod_)
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_mod(name)
         } else {
-            if let Some(outer) = &self.outer {
-                return outer.rec_get_mod(name);
-            }
+            None
         }
-        None
     }
 
     fn rec_get_trait_impls(&self, name: &Str) -> Vec<Type> {
@@ -3785,37 +3766,34 @@ impl Context {
     }
 
     // 再帰サブルーチン/型の推論を可能にするため、予め登録しておく
-    pub(crate) fn preregister(&mut self, block: &Vec<ast::Expr>) -> TyCheckResult<()> {
+    pub(crate) fn preregister(&mut self, block: &[ast::Expr]) -> TyCheckResult<()> {
         for expr in block.iter() {
-            match expr {
-                ast::Expr::Def(def) => {
-                    let id = Some(def.body.id);
-                    let eval_body_t = || {
-                        self.eval
-                            .eval_const_block(&def.body.block, &self)
-                            .map(|c| Type::enum_t(set![c]))
-                    };
-                    match &def.sig {
-                        ast::Signature::Subr(sig) => {
-                            let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
-                                Some(self.instantiate_typespec(spec, PreRegister)?)
-                            } else {
-                                eval_body_t()
-                            };
-                            self.declare_sub(&sig, opt_ret_t, id)?;
-                        }
-                        ast::Signature::Var(sig) if sig.is_const() => {
-                            let t = if let Some(spec) = sig.t_spec.as_ref() {
-                                Some(self.instantiate_typespec(spec, PreRegister)?)
-                            } else {
-                                eval_body_t()
-                            };
-                            self.declare_var(&sig, t, id)?;
-                        }
-                        _ => {}
+            if let ast::Expr::Def(def) = expr {
+                let id = Some(def.body.id);
+                let eval_body_t = || {
+                    self.eval
+                        .eval_const_block(&def.body.block, self)
+                        .map(|c| Type::enum_t(set![c]))
+                };
+                match &def.sig {
+                    ast::Signature::Subr(sig) => {
+                        let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
+                            Some(self.instantiate_typespec(spec, PreRegister)?)
+                        } else {
+                            eval_body_t()
+                        };
+                        self.declare_sub(sig, opt_ret_t, id)?;
                     }
+                    ast::Signature::Var(sig) if sig.is_const() => {
+                        let t = if let Some(spec) = sig.t_spec.as_ref() {
+                            Some(self.instantiate_typespec(spec, PreRegister)?)
+                        } else {
+                            eval_body_t()
+                        };
+                        self.declare_var(sig, t, id)?;
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         Ok(())

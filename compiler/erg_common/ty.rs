@@ -67,7 +67,7 @@ thread_local! {
 pub fn fresh_varname() -> String {
     REFINEMENT_VAR_ID.with(|id| {
         *id.borrow_mut() += 1;
-        let i = id.borrow().clone();
+        let i = *id.borrow();
         format!("%v{i}")
     })
 }
@@ -75,7 +75,7 @@ pub fn fresh_varname() -> String {
 pub fn fresh_param_name() -> String {
     REFINEMENT_VAR_ID.with(|id| {
         *id.borrow_mut() += 1;
-        let i = id.borrow().clone();
+        let i = *id.borrow();
         format!("%p{i}")
     })
 }
@@ -1472,9 +1472,9 @@ impl HasLevel for SubrKind {
             Self::FuncMethod(t) => t.update_level(level),
             Self::ProcMethod { before, after } => {
                 before.update_level(level);
-                after.as_ref().map(|t| {
+                if let Some(t) = after.as_ref() {
                     t.update_level(level);
-                });
+                }
             }
             _ => {}
         }
@@ -1485,9 +1485,9 @@ impl HasLevel for SubrKind {
             Self::FuncMethod(t) => t.lift(),
             Self::ProcMethod { before, after } => {
                 before.lift();
-                after.as_ref().map(|t| {
+                if let Some(t) = after.as_ref() {
                     t.lift();
-                });
+                }
             }
             _ => {}
         }
@@ -1546,13 +1546,11 @@ impl SubrKind {
     }
 
     pub fn same_kind_as(&self, other: &Self) -> bool {
-        match (self, other) {
+        matches!((self, other),
             (Self::Func, Self::Func)
             | (Self::Proc, Self::Proc)
             | (Self::FuncMethod(_), Self::FuncMethod(_))
-            | (Self::ProcMethod { .. }, Self::ProcMethod { .. }) => true,
-            _ => false,
-        }
+            | (Self::ProcMethod { .. }, Self::ProcMethod { .. }))
     }
 
     pub fn self_t(&self) -> Option<&SelfType> {
@@ -2029,7 +2027,7 @@ impl Type {
                 Predicate::le(name.clone(), r),
             ),
             IntervalOp::Open if l == TyParam::value(NegInf) && r == TyParam::value(Inf) => {
-                return Type::refinement(name.clone(), Type::Int, set! {})
+                return Type::refinement(name, Type::Int, set! {})
             }
             // l<..<r => {I: classof(l) | I >= l+ε and I <= r-ε}
             IntervalOp::Open => Predicate::and(
@@ -2037,7 +2035,7 @@ impl Type {
                 Predicate::le(name.clone(), TyParam::pred(r)),
             ),
         };
-        Type::refinement(name.clone(), Type::Int, set! {pred})
+        Type::refinement(name, Type::Int, set! {pred})
     }
 
     pub fn iter(t: Type) -> Self {
@@ -2333,7 +2331,7 @@ impl Type {
                 if fv.is_linked() {
                     fv.crack().is_mut()
                 } else {
-                    fv.unbound_name().unwrap().ends_with("!")
+                    fv.unbound_name().unwrap().ends_with('!')
                 }
             }
             Self::IntMut
@@ -2346,7 +2344,7 @@ impl Type {
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
             | Self::PolyQVar { name, .. }
-            | Self::MonoProj { rhs: name, .. } => name.ends_with("!"),
+            | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
             _ => false,
         }
     }
@@ -2460,9 +2458,9 @@ impl Type {
                 },
             ) => todo!(),
             (Self::Record(_l), Self::Record(_r)) => todo!(),
-            (Self::Refinement(l), Self::Refinement(r)) => l.t.rec_eq(&r.t) && &l.preds == &r.preds,
+            (Self::Refinement(l), Self::Refinement(r)) => l.t.rec_eq(&r.t) && l.preds == r.preds,
             (Self::Quantified(l), Self::Quantified(r)) => {
-                l.unbound_callable.rec_eq(&r.unbound_callable) && &l.bounds == &r.bounds
+                l.unbound_callable.rec_eq(&r.unbound_callable) && l.bounds == r.bounds
             }
             (Self::And(l), Self::And(r))
             | (Self::Not(l), Self::Not(r))
@@ -2567,7 +2565,7 @@ impl Type {
             Self::Callable { .. } => "Callable",
             Self::Record(_) => "Record",
             Self::VarArgs(_) => "VarArgs",
-            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => &*name,
+            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name,
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.name(),
             Self::Quantified(_) => "Quantified",
@@ -3038,7 +3036,7 @@ impl From<u8> for TypePair {
             62 => Self::ProcArray,
             63 => Self::ProcProc,
             64 => Self::Others,
-            65 | _ => Self::Illegals,
+            _ => Self::Illegals,
         }
     }
 }

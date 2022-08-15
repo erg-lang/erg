@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 use std::collections::hash_map::{IntoIter, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
-use std::fmt;
+use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 
@@ -42,7 +42,7 @@ impl<K: fmt::Display, V: fmt::Display> fmt::Display for Dict<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = "".to_string();
         for (k, v) in self.dict.iter() {
-            s += &format!("{k}: {v}, ");
+            write!(s, "{k}: {v}, ")?;
         }
         s.pop();
         s.pop();

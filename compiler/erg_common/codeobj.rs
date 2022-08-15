@@ -58,33 +58,33 @@ pub enum CodeObjFlags {
     Illegal = 0x0000,
 }
 
-impl Into<CodeObjFlags> for u32 {
-    fn into(self) -> CodeObjFlags {
-        match self {
-            0x0001 => CodeObjFlags::Optimized,
-            0x0002 => CodeObjFlags::NewLocals,
-            0x0004 => CodeObjFlags::VarArgs,
-            0x0008 => CodeObjFlags::VarKeywords,
-            0x0010 => CodeObjFlags::Nested,
-            0x0020 => CodeObjFlags::Generator,
-            0x0040 => CodeObjFlags::NoFree,
-            0x0080 => CodeObjFlags::Coroutine,
-            0x0100 => CodeObjFlags::IterableCoroutine,
-            0x0200 => CodeObjFlags::AsyncGenerator,
+impl From<u32> for CodeObjFlags {
+    fn from(flags: u32) -> Self {
+        match flags {
+            0x0001 => Self::Optimized,
+            0x0002 => Self::NewLocals,
+            0x0004 => Self::VarArgs,
+            0x0008 => Self::VarKeywords,
+            0x0010 => Self::Nested,
+            0x0020 => Self::Generator,
+            0x0040 => Self::NoFree,
+            0x0080 => Self::Coroutine,
+            0x0100 => Self::IterableCoroutine,
+            0x0200 => Self::AsyncGenerator,
             // CO_GENERATOR_ALLOWED,
-            0x2000 => CodeObjFlags::FutureDivision,
-            0x4000 => CodeObjFlags::FutureAbsoluteImport,
-            0x8000 => CodeObjFlags::FutureWithStatement,
-            0x1_0000 => CodeObjFlags::FuturePrintFunction,
-            0x2_0000 => CodeObjFlags::FutureUnicodeLiterals,
-            0x4_0000 => CodeObjFlags::FutureBarryAsBDFL,
-            0x8_0000 => CodeObjFlags::FutureGeneratorStop,
-            0x10_0000 => CodeObjFlags::FutureAnnotations,
+            0x2000 => Self::FutureDivision,
+            0x4000 => Self::FutureAbsoluteImport,
+            0x8000 => Self::FutureWithStatement,
+            0x1_0000 => Self::FuturePrintFunction,
+            0x2_0000 => Self::FutureUnicodeLiterals,
+            0x4_0000 => Self::FutureBarryAsBDFL,
+            0x8_0000 => Self::FutureGeneratorStop,
+            0x10_0000 => Self::FutureAnnotations,
             // EVM flags
-            0x1000_0000 => CodeObjFlags::EvmDynParam,
-            0x2000_0000 => CodeObjFlags::EvmDynamic,
-            0x4000_0000 => CodeObjFlags::EvmNoGC,
-            _ => CodeObjFlags::Illegal,
+            0x1000_0000 => Self::EvmDynParam,
+            0x2000_0000 => Self::EvmDynamic,
+            0x4000_0000 => Self::EvmNoGC,
+            _ => Self::Illegal,
         }
     }
 }
@@ -330,31 +330,31 @@ impl CodeObj {
     fn tables_info(&self) -> String {
         let mut tables = "".to_string();
         if !self.consts.is_empty() {
-            tables += &format!("Constants:\n");
+            tables += "Constants:\n";
         }
         for (i, obj) in self.consts.iter().enumerate() {
             tables += &format!("   {}: {}\n", i, obj);
         }
         if !self.names.is_empty() {
-            tables += &format!("Names:\n");
+            tables += "Names:\n";
         }
         for (i, name) in self.names.iter().enumerate() {
             tables += &format!("   {}: {}\n", i, name);
         }
         if !self.varnames.is_empty() {
-            tables += &format!("Varnames:\n");
+            tables += "Varnames:\n";
         }
         for (i, varname) in self.varnames.iter().enumerate() {
             tables += &format!("   {}: {}\n", i, varname);
         }
         if !self.cellvars.is_empty() {
-            tables += &format!("Cellvars:\n");
+            tables += "Cellvars:\n";
         }
         for (i, cellvar) in self.cellvars.iter().enumerate() {
             tables += &format!("   {}: {}\n", i, cellvar);
         }
         if !self.freevars.is_empty() {
-            tables += &format!("Freevars:\n");
+            tables += "Freevars:\n";
         }
         for (i, freevar) in self.freevars.iter().enumerate() {
             tables += &format!("   {}: {}\n", i, freevar);

@@ -2,7 +2,7 @@
 //!
 //! コンパイラ、VM等で使われる(データも保持した)値オブジェクトを定義する
 use std::cmp::Ordering;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::ops::Neg;
 use std::rc::Rc;
@@ -56,7 +56,7 @@ impl fmt::Debug for ValueObj {
             Self::Dict(dict) => {
                 let mut s = "".to_string();
                 for (k, v) in dict.iter() {
-                    s += &format!("{k}: {v}, ");
+                    write!(s, "{k}: {v}, ")?;
                 }
                 s.pop();
                 s.pop();
@@ -255,11 +255,11 @@ impl ValueObj {
 
     pub fn from_str(t: Type, content: Str) -> Self {
         match t {
-            Type::Int => Self::Int(content.replace("_", "").parse::<i32>().unwrap()),
-            Type::Nat => Self::Nat(content.replace("_", "").parse::<u64>().unwrap()),
-            Type::Float => Self::Float(content.replace("_", "").parse::<f64>().unwrap()),
+            Type::Int => Self::Int(content.replace('_', "").parse::<i32>().unwrap()),
+            Type::Nat => Self::Nat(content.replace('_', "").parse::<u64>().unwrap()),
+            Type::Float => Self::Float(content.replace('_', "").parse::<f64>().unwrap()),
             // TODO:
-            Type::Ratio => Self::Float(content.replace("_", "").parse::<f64>().unwrap()),
+            Type::Ratio => Self::Float(content.replace('_', "").parse::<f64>().unwrap()),
             Type::Str => {
                 if &content[..] == "\"\"" {
                     Self::Str(Str::from(""))
@@ -288,18 +288,18 @@ impl ValueObj {
         match self {
             Self::Int(i) => [
                 vec![DataTypePrefix::Int32 as u8],
-                i32::from(i).to_le_bytes().to_vec(),
+                i.to_le_bytes().to_vec(),
             ]
             .concat(),
             // TODO: Natとしてシリアライズ
             Self::Nat(n) => [
                 vec![DataTypePrefix::Int32 as u8],
-                i32::from(n as i32).to_le_bytes().to_vec(),
+                (n as i32).to_le_bytes().to_vec(),
             ]
             .concat(),
             Self::Float(f) => [
                 vec![DataTypePrefix::BinFloat as u8],
-                f64::from(f).to_le_bytes().to_vec(),
+                f.to_le_bytes().to_vec(),
             ]
             .concat(),
             Self::Str(s) => str_into_bytes(s, false),
@@ -310,7 +310,7 @@ impl ValueObj {
                 let mut bytes = Vec::with_capacity(arr.len());
                 bytes.push(DataTypePrefix::Tuple as u8);
                 bytes.append(&mut (arr.len() as u32).to_le_bytes().to_vec());
-                for obj in arr.to_vec().into_iter() {
+                for obj in arr.iter().cloned() {
                     bytes.append(&mut obj.into_bytes());
                 }
                 bytes

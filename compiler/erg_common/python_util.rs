@@ -20,7 +20,7 @@ pub fn which_python() -> String {
     if res.is_empty() {
         panic!("python not found");
     }
-    res.to_string()
+    res
 }
 
 pub fn detect_magic_number() -> u32 {

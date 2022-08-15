@@ -158,12 +158,10 @@ impl Parser {
                         Side::LhsAssign
                     }
                     // (cur) -> ... ; ... =
-                    else {
-                        if self.arrow_distance(0, 0) == 1 {
-                            Side::LhsLambda
-                        } else {
-                            Side::Rhs
-                        }
+                    else if self.arrow_distance(0, 0) == 1 {
+                        Side::LhsLambda
+                    } else {
+                        Side::Rhs
                     }
                 }
             }
@@ -454,15 +452,8 @@ impl Parser {
     #[inline]
     fn opt_reduce_decorators(&mut self) -> ParseResult<Set<Decorator>> {
         let mut decs = set![];
-        loop {
-            match self.opt_reduce_decorator()? {
-                Some(deco) => {
-                    decs.insert(deco);
-                }
-                None => {
-                    break;
-                }
-            }
+        while let Some(deco) = self.opt_reduce_decorator()? {
+            decs.insert(deco);
         }
         Ok(decs)
     }
@@ -521,14 +512,13 @@ impl Parser {
                     }
                     None
                 }
+            } else if self.cur_is(Colon) {
+                self.skip();
+                Some(self.try_reduce_type_spec()?)
             } else {
-                if self.cur_is(Colon) {
-                    self.skip();
-                    Some(self.try_reduce_type_spec()?)
-                } else {
-                    None
-                }
+                None
             };
+
             Ok(Signature::Var(VarSignature::new(
                 VarPattern::VarName(name),
                 t_spec,
@@ -1236,7 +1226,7 @@ impl Parser {
                     };
                     Ok(KwArg::new(keyword, self.try_reduce_expr()?))
                 } else {
-                    return Err(ParseError::simple_syntax_error(0, t.loc()));
+                    Err(ParseError::simple_syntax_error(0, t.loc()))
                 }
             }
             Some(other) => Err(ParseError::simple_syntax_error(0, other.loc())),

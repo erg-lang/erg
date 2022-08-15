@@ -293,11 +293,7 @@ impl TokenKind {
     }
 
     pub const fn is_right_associative(&self) -> bool {
-        match self {
-            FuncArrow | ProcArrow | Equal => true,
-            // PreDollar | PreAt => true,
-            _ => false,
-        }
+        matches!(self, FuncArrow | ProcArrow | Equal /* | PreDollar | PreAt */)
     }
 }
 
@@ -337,7 +333,7 @@ impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Token")
             .field("kind", &self.kind)
-            .field("content", &self.content.replace("\n", "\\n"))
+            .field("content", &self.content.replace('\n', "\\n"))
             .field("lineno", &self.lineno)
             .field("col_begin", &self.col_begin)
             .finish()
@@ -346,7 +342,7 @@ impl fmt::Debug for Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {}", self.kind, self.content.replace("\n", "\\n"))
+        write!(f, "{:?} {}", self.kind, self.content.replace('\n', "\\n"))
     }
 }
 
@@ -451,7 +447,7 @@ impl Token {
     }
 
     pub fn is_procedural(&self) -> bool {
-        self.inspect().ends_with("!")
+        self.inspect().ends_with('!')
     }
 }
 
