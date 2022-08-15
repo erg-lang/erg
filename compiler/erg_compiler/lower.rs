@@ -51,13 +51,7 @@ impl ASTLowerer {
         found: &Type,
     ) -> LowerResult<()> {
         self.ctx.unify(expect, found, Some(loc), None).map_err(|_| {
-            LowerError::type_mismatch_error(
-                loc,
-                self.ctx.caused_by(),
-                name,
-                expect,
-                found,
-            )
+            LowerError::type_mismatch_error(loc, self.ctx.caused_by(), name, expect, found)
         })
     }
 

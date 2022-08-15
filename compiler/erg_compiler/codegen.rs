@@ -290,12 +290,12 @@ impl CodeGenerator {
             } else {
                 Some(Name::fast(idx))
             }
-        } else { self
-            .cur_block_codeobj()
-            .freevars
-            .iter()
-            .position(|f| &**f == name)
-            .map(Name::deref)
+        } else {
+            self.cur_block_codeobj()
+                .freevars
+                .iter()
+                .position(|f| &**f == name)
+                .map(Name::deref)
         }
     }
 

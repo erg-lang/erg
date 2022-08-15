@@ -293,7 +293,10 @@ impl TokenKind {
     }
 
     pub const fn is_right_associative(&self) -> bool {
-        matches!(self, FuncArrow | ProcArrow | Equal /* | PreDollar | PreAt */)
+        matches!(
+            self,
+            FuncArrow | ProcArrow | Equal /* | PreDollar | PreAt */
+        )
     }
 }
 

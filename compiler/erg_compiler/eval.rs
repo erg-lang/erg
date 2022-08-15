@@ -309,7 +309,9 @@ impl Evaluator {
         level: usize,
     ) -> EvalResult<Type> {
         match substituted {
-            Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), ctx, level),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.eval_t_params(fv.crack().clone(), ctx, level)
+            }
             Type::Subr(mut subr) => {
                 let kind = match subr.kind {
                     SubrKind::FuncMethod(self_t) => {

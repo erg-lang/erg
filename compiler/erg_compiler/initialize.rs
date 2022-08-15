@@ -59,10 +59,8 @@ impl Context {
                     if let Some(impls) = self.poly_trait_impls.get_mut(impl_trait.name()) {
                         impls.push(impl_trait.clone());
                     } else {
-                        self.poly_trait_impls.insert(
-                            Str::rc(impl_trait.name()),
-                            vec![impl_trait.clone()],
-                        );
+                        self.poly_trait_impls
+                            .insert(Str::rc(impl_trait.name()), vec![impl_trait.clone()]);
                     }
                 }
             }
@@ -147,10 +145,15 @@ impl Context {
         let (r_bound, o_bound) = (static_instance("R", Type), static_instance("O", Type));
         let params = vec![PS::t("R", WithDefault), PS::t("O", WithDefault)];
         let ty_params = vec![mono_q_tp("R"), mono_q_tp("O")];
-        let mut add = Self::poly_trait("Add", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-            poly("Output", vec![ty_tp(mono_q("O"))]),
-        ], Self::TOP_LEVEL);
+        let mut add = Self::poly_trait(
+            "Add",
+            params.clone(),
+            vec![
+                poly("Output", vec![ty_tp(mono_q("R"))]),
+                poly("Output", vec![ty_tp(mono_q("O"))]),
+            ],
+            Self::TOP_LEVEL,
+        );
         let self_bound = subtype(
             poly_q("Self", ty_params.clone()),
             poly("Add", ty_params.clone()),
@@ -158,10 +161,15 @@ impl Context {
         let op_t = fn1_met(poly_q("Self", ty_params.clone()), r.clone(), o.clone());
         let op_t = quant(op_t, set! {r_bound.clone(), o_bound.clone(), self_bound});
         add.register_decl("__add__", op_t, Public);
-        let mut sub = Self::poly_trait("Sub", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-            poly("Output", vec![ty_tp(mono_q("O"))]),
-        ], Self::TOP_LEVEL);
+        let mut sub = Self::poly_trait(
+            "Sub",
+            params.clone(),
+            vec![
+                poly("Output", vec![ty_tp(mono_q("R"))]),
+                poly("Output", vec![ty_tp(mono_q("O"))]),
+            ],
+            Self::TOP_LEVEL,
+        );
         let self_bound = subtype(
             poly_q("Self", ty_params.clone()),
             poly("Sub", ty_params.clone()),
@@ -169,16 +177,26 @@ impl Context {
         let op_t = fn1_met(poly_q("Self", ty_params.clone()), r.clone(), o.clone());
         let op_t = quant(op_t, set! {r_bound, o_bound, self_bound});
         sub.register_decl("__sub__", op_t, Public);
-        let mut mul = Self::poly_trait("Mul", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-            poly("Output", vec![ty_tp(mono_q("O"))]),
-        ], Self::TOP_LEVEL);
+        let mut mul = Self::poly_trait(
+            "Mul",
+            params.clone(),
+            vec![
+                poly("Output", vec![ty_tp(mono_q("R"))]),
+                poly("Output", vec![ty_tp(mono_q("O"))]),
+            ],
+            Self::TOP_LEVEL,
+        );
         let op_t = fn1_met(poly("Mul", ty_params.clone()), r.clone(), o.clone());
         mul.register_decl("__mul__", op_t, Public);
-        let mut div = Self::poly_trait("Div", params, vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-            poly("Output", vec![ty_tp(mono_q("O"))]),
-        ], Self::TOP_LEVEL);
+        let mut div = Self::poly_trait(
+            "Div",
+            params,
+            vec![
+                poly("Output", vec![ty_tp(mono_q("R"))]),
+                poly("Output", vec![ty_tp(mono_q("O"))]),
+            ],
+            Self::TOP_LEVEL,
+        );
         let op_t = fn1_met(poly("Div", ty_params.clone()), r, o);
         div.register_decl("__div__", op_t, Public);
         /*let sup = poly(
@@ -380,7 +398,12 @@ impl Context {
         let mut str_ = Self::mono_class(
             "Str",
             vec![Obj],
-            vec![mono("Eq"), mono("Mutate"), poly("Seq", vec![ty_tp(Str)]), poly("Add", vec![ty_tp(Str), ty_tp(Str)])],
+            vec![
+                mono("Eq"),
+                mono("Mutate"),
+                poly("Seq", vec![ty_tp(Str)]),
+                poly("Add", vec![ty_tp(Str), ty_tp(Str)]),
+            ],
             Self::TOP_LEVEL,
         );
         str_.register_impl("__add__", fn1_met(Str, Str, Str), Const, Public);

@@ -286,11 +286,7 @@ impl ValueObj {
 
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
-            Self::Int(i) => [
-                vec![DataTypePrefix::Int32 as u8],
-                i.to_le_bytes().to_vec(),
-            ]
-            .concat(),
+            Self::Int(i) => [vec![DataTypePrefix::Int32 as u8], i.to_le_bytes().to_vec()].concat(),
             // TODO: Natとしてシリアライズ
             Self::Nat(n) => [
                 vec![DataTypePrefix::Int32 as u8],

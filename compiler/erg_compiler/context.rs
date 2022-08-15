@@ -178,7 +178,10 @@ impl TyVarContext {
             }),
             Type::VarArgs(t) => Self::rec_t_inner_qvars(t, dep),
             Type::Subr(_subr) => todo!(),
-            Type::Callable { param_ts: _, return_t: _ } => todo!(),
+            Type::Callable {
+                param_ts: _,
+                return_t: _,
+            } => todo!(),
             Type::And(_) | Type::Or(_) | Type::Not(_) => todo!(),
             Type::Record(_) => todo!(),
             Type::Quantified(_) => todo!(),
@@ -209,67 +212,66 @@ impl TyVarContext {
         match bound {
             TyBound::Subtype { sub, sup } => {
                 let sup = match sup {
-                    Type::Poly { name, params } => {
-                        Type::poly(
-                            name,
-                            params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        )
-                    }
+                    Type::Poly { name, params } => Type::poly(
+                        name,
+                        params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
+                    ),
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sup => sup,
                 };
                 let constraint = Constraint::SubtypeOf(sup);
                 let name = Str::rc(sub.name());
-                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                self.push_tyvar(
+                    name.clone(),
+                    Type::named_free_var(name, self.level, constraint),
+                );
             }
             TyBound::Supertype { sup, sub } => {
                 let sub = match sub {
-                    Type::Poly { name, params } => {
-                        Type::poly(
-                            name,
-                            params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        )
-                    }
+                    Type::Poly { name, params } => Type::poly(
+                        name,
+                        params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
+                    ),
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sub => sub,
                 };
                 let constraint = Constraint::SupertypeOf(sub);
                 let name = Str::rc(sup.name());
-                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                self.push_tyvar(
+                    name.clone(),
+                    Type::named_free_var(name, self.level, constraint),
+                );
             }
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub = match sub {
-                    Type::Poly { name, params } => {
-                        Type::poly(
-                            name,
-                            params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        )
-                    }
+                    Type::Poly { name, params } => Type::poly(
+                        name,
+                        params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
+                    ),
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sub => sub,
                 };
                 let sup = match sup {
-                    Type::Poly { name, params } => {
-                        Type::poly(
-                            name,
-                            params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        )
-                    }
+                    Type::Poly { name, params } => Type::poly(
+                        name,
+                        params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
+                    ),
                     Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
                     sup => sup,
                 };
                 let constraint = Constraint::Sandwiched { sub, sup };
                 let name = Str::rc(mid.name());
-                self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                self.push_tyvar(
+                    name.clone(),
+                    Type::named_free_var(name, self.level, constraint),
+                );
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
-                    Type::Poly { name, params } => {
-                        Type::poly(
-                            name,
-                            params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
-                        )
-                    }
+                    Type::Poly { name, params } => Type::poly(
+                        name,
+                        params.into_iter().map(|p| self.instantiate_tp(p)).collect(),
+                    ),
                     t => t,
                 };
                 // TODO: type-like types
@@ -1552,18 +1554,19 @@ impl Context {
             // in toplevel: ?T(<: Int)[n] should replaced to Int (if n > 0)
             Type::FreeVar(fv) if fv.is_unbound() => {
                 match fv.borrow().constraint().unwrap() {
-                    Constraint::SubtypeOf(sup)
-                    | Constraint::Sandwiched { sup, .. } if self.level <= fv.level().unwrap() => {
+                    Constraint::SubtypeOf(sup) | Constraint::Sandwiched { sup, .. }
+                        if self.level <= fv.level().unwrap() =>
+                    {
                         return Ok(sup.clone());
-                    },
+                    }
                     // REVIEW: really?
                     Constraint::SupertypeOf(sub) if self.level <= fv.level().unwrap() => {
                         return Ok(sub.clone());
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
                 Ok(Type::FreeVar(fv))
-            },
+            }
             Type::FreeVar(fv) if fv.is_linked() => Ok(fv.unwrap()),
             // 未連携型変数のチェックはモジュール全体の型検査が終わった後にやる
             // Type::FreeVar(_) =>
@@ -1619,21 +1622,23 @@ impl Context {
                 subr.return_t = Box::new(self.monomorphise(mem::take(&mut subr.return_t))?);
                 Ok(Type::Subr(subr))
             }
-            Type::Poly{ name, params } => {
+            Type::Poly { name, params } => {
                 let impls = self.rec_get_trait_impls(&name);
                 if impls.is_empty() {
                     panic!("{} is not implemented", name);
                 }
-                let min = self.smallest_t(impls.clone().into_iter()).unwrap_or_else(move || {
-                    panic!("cannot determine the smallest type: {}", fmt_vec(&impls))
-                });
+                let min = self
+                    .smallest_t(impls.clone().into_iter())
+                    .unwrap_or_else(move || {
+                        panic!("cannot determine the smallest type: {}", fmt_vec(&impls))
+                    });
                 dbg!(&min);
                 for (param, min_param) in params.iter().zip(min.typarams()) {
                     self.unify_tp(param, &min_param, None, None, false)?;
                 }
                 dbg!(&params);
                 Ok(min)
-            },
+            }
             _ => Ok(maybe_poly),
         }
     }
@@ -1641,9 +1646,12 @@ impl Context {
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
         if let Type::Subr(SubrType {
-            kind: SubrKind::ProcMethod { after: Some(after), .. },
+            kind: SubrKind::ProcMethod {
+                after: Some(after), ..
+            },
             ..
-        }) = t {
+        }) = t
+        {
             let receiver_t = callee.receiver_t().unwrap();
             self.reunify(receiver_t, after, Some(callee.loc()), None)?;
         }
@@ -2120,7 +2128,7 @@ impl Context {
                         }
                         Constraint::TypeOf(_t) => {
                             *constraint = Constraint::SupertypeOf(l.clone());
-                        },
+                        }
                         _ => {}
                     },
                     _ => {}
@@ -2639,11 +2647,7 @@ impl Context {
         } else {
             expr_t.clone()
         };
-        let param_ts = [
-            vec![ParamTy::anonymous(expr_t)],
-            branch_ts.to_vec(),
-        ]
-        .concat();
+        let param_ts = [vec![ParamTy::anonymous(expr_t)], branch_ts.to_vec()].concat();
         let t = Type::func(param_ts, vec![], return_t);
         Ok(t)
     }
@@ -2908,7 +2912,9 @@ impl Context {
             }
         }
         for (patch_name, sub, sup) in self.glue_patch_and_types.iter() {
-            let patch = self.rec_get_patch(patch_name).unwrap_or_else(|| panic!("{patch_name} not found"));
+            let patch = self
+                .rec_get_patch(patch_name)
+                .unwrap_or_else(|| panic!("{patch_name} not found"));
             let bounds = patch.type_params_bounds();
             let variance = patch.type_params_variance();
             if self.formal_supertype_of(sub, rhs, Some(&bounds), Some(&variance))
@@ -3757,7 +3763,9 @@ impl Context {
     fn rec_get_trait_impls(&self, name: &Str) -> Vec<Type> {
         let impls = if let Some(impls) = self.poly_trait_impls.get(name) {
             impls.clone()
-        } else { vec![] };
+        } else {
+            vec![]
+        };
         if let Some(outer) = &self.outer {
             [impls, outer.rec_get_trait_impls(name)].concat()
         } else {

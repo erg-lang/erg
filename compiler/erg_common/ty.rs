@@ -1546,11 +1546,13 @@ impl SubrKind {
     }
 
     pub fn same_kind_as(&self, other: &Self) -> bool {
-        matches!((self, other),
+        matches!(
+            (self, other),
             (Self::Func, Self::Func)
-            | (Self::Proc, Self::Proc)
-            | (Self::FuncMethod(_), Self::FuncMethod(_))
-            | (Self::ProcMethod { .. }, Self::ProcMethod { .. }))
+                | (Self::Proc, Self::Proc)
+                | (Self::FuncMethod(_), Self::FuncMethod(_))
+                | (Self::ProcMethod { .. }, Self::ProcMethod { .. })
+        )
     }
 
     pub fn self_t(&self) -> Option<&SelfType> {
