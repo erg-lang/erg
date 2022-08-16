@@ -12,7 +12,7 @@ use erg_parser::ast;
 use erg_parser::ast::AST;
 
 use crate::context::{Context, ContextKind, RegistrationMode};
-use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
+use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings, readable_name};
 use crate::hir;
 use crate::hir::HIR;
 use crate::varinfo::Visibility;
@@ -36,7 +36,7 @@ impl ASTLowerer {
                 Some(Context::init_builtins()),
                 vec![],
                 vec![],
-                0,
+                Context::TOP_LEVEL,
             ),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
@@ -54,7 +54,7 @@ impl ASTLowerer {
             Err(LowerError::type_mismatch_error(
                 loc,
                 self.ctx.caused_by(),
-                name,
+                readable_name(name),
                 expect,
                 found,
             ))
@@ -179,8 +179,8 @@ impl ASTLowerer {
         let mut obj = self.lower_expr(*call.obj, false)?;
         let t = self.ctx.get_call_t(
             &mut obj,
-            hir_args.pos_args(),
-            hir_args.kw_args(),
+            &hir_args.pos_args,
+            &hir_args.kw_args,
             &self.ctx.name,
         )?;
         Ok(hir::Call::new(obj, hir_args, t))
@@ -302,7 +302,7 @@ impl ASTLowerer {
                             .outer
                             .as_mut()
                             .unwrap()
-                            .import_mod(name, &call.args.pos_args().first().unwrap().expr)?;
+                            .import_mod(name, &call.args.pos_args.first().unwrap().expr)?;
                     }
                 } else {
                     todo!()
@@ -401,6 +401,7 @@ impl ASTLowerer {
             }
         }
         let hir = HIR::new(ast.name, module);
+        let hir = self.ctx.deref_toplevel(hir)?;
         log!(
             "[DEBUG] {}() has completed, found errors: {}",
             fn_name!(),

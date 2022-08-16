@@ -64,9 +64,9 @@ pub fn readable_name(name: &str) -> &str {
         "__pow__" => "`**`",
         "__mod__" => "`%`",
         "__rng__" => "`..`",
-        "__lrng__" => "`<..`",
-        "__rrng__" => "`..<`",
-        "__lrrng__" => "`<..<`",
+        "__lorng__" => "`<..`",
+        "__rorng__" => "`..<`",
+        "__orng__" => "`<..<`",
         "__and__" => "`and`",
         "__or__" => "`or`",
         "__in__" => "`in`",
@@ -373,7 +373,6 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        let name = readable_name(name);
         Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
             format!("the type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
             format!("{name}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}")
@@ -387,7 +386,6 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        let name = readable_name(name);
         Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
             format!("the return type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
             format!("{name}の戻り値の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}")
@@ -395,7 +393,6 @@ impl TyCheckError {
     }
 
     pub fn uninitialized_error(loc: Location, caused_by: Str, name: &str, t: &Type) -> Self {
-        let name = readable_name(name);
         Self::new(
             ErrorCore::new(
                 0,
@@ -449,6 +446,15 @@ impl TyCheckError {
             caused_by,
         )
     }
+
+    pub fn dummy_infer_error(fn_name: &str, line: u32) -> Self {
+        Self::new(ErrorCore::unreachable(fn_name, line), "".into())
+    }
+
+    pub fn not_relation(fn_name: &str, line: u32) -> Self {
+        Self::new(ErrorCore::unreachable(fn_name, line), "".into())
+    }
+
 
     pub fn reassign_error(loc: Location, caused_by: Str, name: &str) -> Self {
         let name = readable_name(name);

@@ -317,7 +317,7 @@ impl ErrorCore {
     }
 
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::bug(0, Location::Unknown, fn_name, line)
+        Self::bug(line as usize, Location::Unknown, fn_name, line)
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {

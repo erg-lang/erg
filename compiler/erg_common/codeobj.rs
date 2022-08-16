@@ -126,7 +126,13 @@ impl HasType for CodeObj {
     fn ref_t(&self) -> &Type {
         &Type::Code
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }

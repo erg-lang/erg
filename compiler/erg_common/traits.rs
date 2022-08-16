@@ -299,11 +299,8 @@ pub trait ImmutableStream<T>: Sized {
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
     src.ends_with(&['=', ':'])
-        || src.ends_with(":=")
         || src.ends_with("->")
         || src.ends_with("=>")
-        || src.ends_with("do")
-        || src.ends_with("do!")
 }
 
 /// this trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -497,6 +494,9 @@ pub trait HasType {
     fn ref_t(&self) -> &Type;
     // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
     fn signature_t(&self) -> Option<&Type>;
+    // 最後にHIR全体の型変数を消すために使う
+    fn ref_mut_t(&mut self) -> &mut Type;
+    fn signature_mut_t(&mut self) -> Option<&mut Type>;
     #[inline]
     fn t(&self) -> Type {
         self.ref_t().clone()
