@@ -1,10 +1,11 @@
+use std::fs::remove_file;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::{ErgConfig, Input, BUILD_INFO, SEMVER};
-use erg_common::python_util::exec_py;
+use erg_common::python_util::{exec_py, exec_pyc};
 use erg_common::str::Str;
 use erg_common::traits::Runnable;
 
@@ -80,6 +81,15 @@ impl Runnable for DummyVM {
 
     fn clear(&mut self) {
         self.compiler.clear();
+    }
+
+    fn exec(&mut self) -> Result<(), Self::Errs> {
+        let src = self.input().read();
+        self.compiler
+            .compile_and_dump_as_pyc(src, "o.pyc", "exec")?;
+        exec_pyc("o.pyc");
+        remove_file("o.pyc").unwrap();
+        Ok(())
     }
 
     fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
