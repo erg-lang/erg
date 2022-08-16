@@ -55,6 +55,10 @@ impl Runnable for LexerRunner {
                 .to_string())
         }
     }
+
+    fn exec(&mut self, _src: Str) -> Result<String, Self::Errs> {
+        unimplemented!("exec is not implemented for LexerRunner")
+    }
 }
 
 /// Lexes a source code and iterates tokens.

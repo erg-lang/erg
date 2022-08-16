@@ -300,6 +300,10 @@ impl Runnable for ParserRunner {
         let ast = self.parse_from_str(src)?;
         Ok(format!("{ast}"))
     }
+
+    fn exec(&mut self, _src: Str) -> Result<String, Self::Errs> {
+        unimplemented!("exec is not implemented for ParserRunner")
+    }
 }
 
 impl ParserRunner {

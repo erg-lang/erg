@@ -134,6 +134,10 @@ impl Runnable for Compiler {
         let codeobj = self.compile(src, "eval")?;
         Ok(codeobj.code_info())
     }
+
+    fn exec(&mut self, _src: Str) -> Result<String, CompileErrors> {
+        unimplemented!("exec is not implemented for CompilerRunner")
+    }
 }
 
 impl Compiler {

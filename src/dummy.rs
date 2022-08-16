@@ -4,7 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::{ErgConfig, Input, BUILD_INFO, SEMVER};
-use erg_common::python_util::exec_py;
+use erg_common::python_util::{eval_pyc, exec_py};
 use erg_common::str::Str;
 use erg_common::traits::Runnable;
 
@@ -42,7 +42,9 @@ impl Runnable for DummyVM {
                     }
                 }
             }
-        } else { None };
+        } else {
+            None
+        };
         Self {
             compiler: Compiler::new(cfg.copy()),
             cfg,
@@ -104,5 +106,11 @@ impl Runnable for DummyVM {
             res.truncate(res.len() - 5);
         }
         Ok(res)
+    }
+
+    fn exec(&mut self, src: Str) -> Result<String, CompileErrors> {
+        self.compiler
+            .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
+        Ok(eval_pyc("o.pyc"))
     }
 }
