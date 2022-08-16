@@ -42,8 +42,11 @@
             gcc
             rustc
             cargo
-            rustfmt
+            # Dev
+            treefmt # cli to run all formatters
             alejandra # Nix formatter
+            # rustfmt # Rust Formatter
+            # taplo-cli # TOML formatter
           ];
         };
       }
