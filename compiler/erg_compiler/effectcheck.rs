@@ -48,10 +48,10 @@ impl SideEffectChecker {
                     self.check_def(def, true);
                 }
                 Expr::Call(call) => {
-                    for parg in call.args.pos_args().iter() {
+                    for parg in call.args.pos_args.iter() {
                         self.check_expr(&parg.expr, true);
                     }
-                    for kwarg in call.args.kw_args().iter() {
+                    for kwarg in call.args.kw_args.iter() {
                         self.check_expr(&kwarg.expr, true);
                     }
                 }
@@ -169,11 +169,11 @@ impl SideEffectChecker {
                         .push(EffectError::has_effect(expr, self.full_path()));
                 }
                 call.args
-                    .pos_args()
+                    .pos_args
                     .iter()
                     .for_each(|parg| self.check_expr(&parg.expr, allow_self_effect));
                 call.args
-                    .kw_args()
+                    .kw_args
                     .iter()
                     .for_each(|kwarg| self.check_expr(&kwarg.expr, allow_self_effect));
             }

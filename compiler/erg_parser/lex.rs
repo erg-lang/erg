@@ -42,6 +42,10 @@ impl Runnable for LexerRunner {
     #[inline]
     fn clear(&mut self) {}
 
+    fn exec(&mut self) -> Result<(), Self::Errs> {
+        todo!()
+    }
+
     fn eval(&mut self, src: Str) -> Result<String, LexerRunnerErrors> {
         let lexer = Lexer::from_str(src);
         if cfg!(feature = "debug") {

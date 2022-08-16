@@ -89,10 +89,15 @@ pub trait HasLevel {
 // REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
+    /// :> T
     SupertypeOf(Type),
+    /// <: T
     SubtypeOf(Type),
+    /// :> Sub, <: Sup
     Sandwiched { sub: Type, sup: Type },
+    /// : T
     TypeOf(Type),
+    Uninited,
 }
 
 impl fmt::Display for Constraint {
@@ -102,14 +107,30 @@ impl fmt::Display for Constraint {
             Self::SubtypeOf(sup) => write!(f, "<: {sup}"),
             Self::Sandwiched { sub, sup } => write!(f, ":> {sub}, <: {sup}"),
             Self::TypeOf(ty) => write!(f, ": {}", ty),
+            Self::Uninited => write!(f, "<uninited>"),
         }
     }
 }
 
 impl Constraint {
+    pub const fn sandwiched(sub: Type, sup: Type) -> Self {
+        Self::Sandwiched { sub, sup }
+    }
+
+    pub const fn is_uninited(&self) -> bool {
+        matches!(self, Self::Uninited)
+    }
+
     pub fn typ(&self) -> Option<&Type> {
         match self {
             Self::TypeOf(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    pub fn sub_type(&self) -> Option<&Type> {
+        match self {
+            Self::SupertypeOf(ty) => Some(ty),
             _ => None,
         }
     }
@@ -269,7 +290,23 @@ impl<T: Clone + HasLevel> Free<T> {
         }
     }
 
-    pub fn unwrap(self) -> T {
+    pub fn get_name(&self) -> Option<Str> {
+        match self.0.clone_inner() {
+            FreeKind::Linked(_) => panic!("the value is linked"),
+            FreeKind::Unbound { .. } => None,
+            FreeKind::NamedUnbound { name, .. } => Some(name),
+        }
+    }
+
+    pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
+        match self.0.clone_inner() {
+            FreeKind::Linked(_) => panic!("the value is linked"),
+            FreeKind::Unbound { constraint, lev, .. } => (None, lev, constraint),
+            | FreeKind::NamedUnbound { name, lev, constraint } => (Some(name), lev, constraint),
+        }
+    }
+
+    pub fn unwrap_linked(self) -> T {
         match self.0.clone_inner() {
             FreeKind::Linked(t) => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
@@ -289,6 +326,14 @@ impl<T: Clone + HasLevel> Free<T> {
         })
     }
 
+    pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
+        Ref::map(self.0.borrow(), |f| match f {
+            FreeKind::Linked(_) => panic!("the value is linked"),
+            FreeKind::Unbound { constraint, .. }
+            | FreeKind::NamedUnbound { constraint, .. } => constraint,
+        })
+    }
+
     pub fn type_of(&self) -> Option<Type> {
         self.0.borrow().constraint().and_then(|c| c.typ().cloned())
     }
@@ -304,6 +349,30 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.0.borrow(),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. }
+        )
+    }
+
+    pub fn constraint_is_typeof(&self) -> bool {
+        matches!(
+            &*self.0.borrow(),
+            FreeKind::Unbound { constraint, .. }
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.typ().is_some()
+        )
+    }
+
+    pub fn constraint_is_supertypeof(&self) -> bool {
+        matches!(
+            &*self.0.borrow(),
+            FreeKind::Unbound { constraint, .. }
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.sub_type().is_some()
+        )
+    }
+
+    pub fn constraint_is_subtypeof(&self) -> bool {
+        matches!(
+            &*self.0.borrow(),
+            FreeKind::Unbound { constraint, .. }
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.super_type().is_some()
         )
     }
 
@@ -812,6 +881,13 @@ impl TyParam {
             _ => true,
         }
     }
+
+    pub fn update_constraint(&self, new_constraint: Constraint) {
+        match self {
+            Self::Type(t) => { t.update_constraint(new_constraint) },
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -824,6 +900,7 @@ pub enum TyParamOrdering {
     NotEqual,     // Less or Greater
     GreaterEqual, // Greater or Equal
     Any,
+    NoRelation,
 }
 
 use TyParamOrdering::*;
@@ -877,7 +954,7 @@ impl TyParamOrdering {
             GreaterEqual => LessEqual,
             Equal => NotEqual,
             NotEqual => Equal,
-            Any => Any,
+            Any | NoRelation => Any,
         }
     }
 }
@@ -1692,6 +1769,8 @@ pub enum Type {
     }, // e.g. T.U
     ASTOmitted,         // call中のcalleeの型など、不要な部分に付ける
     Failure,            // when failed to infer
+    /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
+    Uninited,
 }
 
 impl fmt::Display for Type {
@@ -1802,6 +1881,10 @@ impl HasType for Type {
     fn ref_t(&self) -> &Type {
         self
     }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self
+    }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
             Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => {
@@ -1815,6 +1898,9 @@ impl HasType for Type {
         }
     }
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -2044,7 +2130,7 @@ impl Type {
         Self::poly("Iter", vec![TyParam::t(t)])
     }
 
-    pub fn refer(t: Type) -> Self {
+    pub fn ref_(t: Type) -> Self {
         Self::Ref(Box::new(t))
     }
 
@@ -2315,6 +2401,14 @@ impl Type {
         Self::Quantified(QuantifiedType::new(unbound_t, bounds))
     }
 
+    pub fn is_mono_q(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_q(),
+            Self::MonoQVar(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn mutate(self) -> Self {
         match self {
             Self::Int => Self::IntMut,
@@ -2403,9 +2497,13 @@ impl Type {
 
     pub fn rec_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::FreeVar(v), other) | (other, Self::FreeVar(v)) => match &*v.borrow() {
+            (Self::FreeVar(v), other) => match &*v.borrow() {
                 FreeKind::Linked(t) => t.rec_eq(other),
                 _ => self == other,
+            },
+            (self_, Self::FreeVar(v)) => match &*v.borrow() {
+                FreeKind::Linked(t) => t.rec_eq(self_),
+                _ => self_ == other,
             },
             (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l.rec_eq(r),
             (Self::Subr(l), Self::Subr(r)) => {
@@ -2578,6 +2676,7 @@ impl Type {
             Self::MonoProj { .. } => "MonoProj",
             Self::ASTOmitted => "ASTOmitted",
             Self::Failure => "<Failure>",
+            Self::Uninited => "<Uninited>",
         }
     }
 
@@ -2662,7 +2761,7 @@ impl Type {
     pub fn typarams(&self) -> Vec<TyParam> {
         match self {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
-            Self::FreeVar(_unbound) => todo!(),
+            Self::FreeVar(_unbound) => vec![],
             Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
             Self::And(param_ts) | Self::Or(param_ts) | Self::Not(param_ts) => {
                 param_ts.iter().map(|t| TyParam::t(t.clone())).collect()
@@ -2745,6 +2844,13 @@ impl Type {
             _ => None,
         }
     }
+
+    pub fn update_constraint(&self, new_constraint: Constraint) {
+        match self {
+            Self::FreeVar(fv) => { fv.update_constraint(new_constraint); },
+            _ => {},
+        }
+    }
 }
 
 pub mod type_constrs {
@@ -2768,6 +2874,11 @@ pub mod type_constrs {
     #[inline]
     pub fn mono_q<S: Into<Str>>(name: S) -> Type {
         Type::mono_q(name)
+    }
+
+    #[inline]
+    pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
+        Type::mono_proj(lhs, rhs)
     }
 
     #[inline]
@@ -2890,6 +3001,7 @@ impl From<&Type> for TypeCode {
                 "Proc" => Self::Proc,
                 _ => Self::Other,
             },
+            Type::Refinement(refine) => Self::from(&*refine.t),
             _ => Self::Other,
         }
     }
@@ -3148,6 +3260,8 @@ impl TypePair {
             {
                 Self::ProcProc
             }
+            (Type::Refinement(refine), r) => Self::new(&*refine.t, r),
+            (l, Type::Refinement(refine)) => Self::new(l, &*refine.t),
             (_, _) => Self::Others,
         }
     }

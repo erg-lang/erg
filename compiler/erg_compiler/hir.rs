@@ -14,6 +14,8 @@ use erg_common::{
 use erg_parser::ast::{fmt_lines, DefId, Params, VarName, VarPattern};
 use erg_parser::token::{Token, TokenKind};
 
+use crate::error::readable_name;
+
 #[derive(Debug, Clone)]
 pub struct Literal {
     pub data: ValueObj, // for constant folding
@@ -26,8 +28,15 @@ impl HasType for Literal {
     fn ref_t(&self) -> &Type {
         &self.t
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -129,8 +138,8 @@ impl KwArg {
 
 #[derive(Debug, Clone)]
 pub struct Args {
-    pos_args: Vec<PosArg>,
-    kw_args: Vec<KwArg>,
+    pub pos_args: Vec<PosArg>,
+    pub kw_args: Vec<KwArg>,
     paren: Option<(Token, Token)>,
 }
 
@@ -197,14 +206,6 @@ impl Args {
     #[inline]
     pub fn kw_len(&self) -> usize {
         self.kw_args.len()
-    }
-
-    pub fn pos_args(&self) -> &[PosArg] {
-        &self.pos_args[..]
-    }
-
-    pub fn kw_args(&self) -> &[KwArg] {
-        &self.kw_args[..]
     }
 
     pub fn push_pos(&mut self, pos: PosArg) {
@@ -284,7 +285,15 @@ impl HasType for Local {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -333,7 +342,15 @@ impl HasType for Attribute {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -369,7 +386,15 @@ impl HasType for Subscript {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -416,7 +441,19 @@ impl HasType for Accessor {
         }
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        match self {
+            Self::Local(n) | Self::SelfDot(n) => n.ref_mut_t(),
+            Self::Attr(a) => a.ref_mut_t(),
+            Self::Subscr(s) => s.ref_mut_t(),
+        }
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -440,11 +477,11 @@ impl Accessor {
 
     pub fn var_full_name(&self) -> Option<String> {
         match self {
-            Self::Local(local) => Some(local.inspect().to_string()),
+            Self::Local(local) => Some(readable_name(local.inspect()).to_string()),
             Self::Attr(attr) => attr
                 .obj
                 .var_full_name()
-                .map(|n| n + "." + attr.name.inspect()),
+                .map(|n| n + "." + readable_name(attr.name.inspect())),
             Self::Subscr(_) | Self::SelfDot(_) => todo!(),
         }
     }
@@ -473,7 +510,15 @@ impl HasType for Array {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -500,7 +545,7 @@ impl Array {
         guard: Option<Expr>,
     ) -> Self {
         let elem_t = elems
-            .pos_args()
+            .pos_args
             .first()
             .map(|a| a.expr.t())
             .unwrap_or_else(|| Type::free_var(level, Constraint::TypeOf(Type::Type)));
@@ -530,11 +575,18 @@ impl HasType for Dict {
     fn ref_t(&self) -> &Type {
         todo!()
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
     fn t(&self) -> Type {
         todo!()
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -568,7 +620,7 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`:", self.op.content)?;
+        write!(f, "`{}`: {}:\n", self.op.content, self.sig_t)?;
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
@@ -579,6 +631,9 @@ impl HasType for BinOp {
     #[inline]
     fn ref_t(&self) -> &Type {
         self.sig_t.return_t().unwrap()
+    }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.sig_t.mut_return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -591,6 +646,10 @@ impl HasType for BinOp {
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
         Some(&self.sig_t)
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        Some(&mut self.sig_t)
     }
 }
 
@@ -620,6 +679,9 @@ impl HasType for UnaryOp {
     fn ref_t(&self) -> &Type {
         self.sig_t.return_t().unwrap()
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.sig_t.mut_return_t().unwrap()
+    }
     #[inline]
     fn lhs_t(&self) -> &Type {
         self.expr.ref_t()
@@ -631,6 +693,10 @@ impl HasType for UnaryOp {
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
         Some(&self.sig_t)
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        Some(&mut self.sig_t)
     }
 }
 
@@ -678,6 +744,10 @@ impl HasType for Call {
         self.sig_t.return_t().unwrap()
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.sig_t.mut_return_t().unwrap()
+    }
+    #[inline]
     fn lhs_t(&self) -> &Type {
         self.sig_t.lhs_t()
     }
@@ -688,6 +758,10 @@ impl HasType for Call {
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
         Some(&self.sig_t)
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        Some(&mut self.sig_t)
     }
 }
 
@@ -723,12 +797,20 @@ impl HasType for Block {
         self.last().unwrap().ref_t()
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.last_mut().unwrap().ref_mut_t()
+    }
+    #[inline]
     fn t(&self) -> Type {
         self.last().unwrap().t()
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
         self.last().unwrap().signature_t()
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        self.last_mut().unwrap().signature_mut_t()
     }
 }
 
@@ -810,7 +892,7 @@ pub struct Lambda {
     op: Token,
     pub body: Block,
     pub id: usize,
-    t: Type,
+    pub t: Type,
 }
 
 impl HasType for Lambda {
@@ -819,7 +901,15 @@ impl HasType for Lambda {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
@@ -884,7 +974,7 @@ impl Signature {
 #[derive(Debug, Clone)]
 pub struct Decl {
     pub sig: Signature,
-    t: Type,
+    pub t: Type,
 }
 
 impl NestedDisplay for Decl {
@@ -996,11 +1086,32 @@ impl HasType for Expr {
             _ => &Type::NoneType,
         }
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        match self {
+            Expr::Lit(lit) => lit.ref_mut_t(),
+            Expr::Accessor(accessor) => accessor.ref_mut_t(),
+            Expr::Array(array) => array.ref_mut_t(),
+            Expr::Dict(dict) => dict.ref_mut_t(),
+            Expr::BinOp(bin) => bin.ref_mut_t(),
+            Expr::UnaryOp(unary) => unary.ref_mut_t(),
+            Expr::Call(call) => call.ref_mut_t(),
+            Expr::Lambda(lambda) => lambda.ref_mut_t(),
+            _ => todo!(),
+        }
+    }
     fn signature_t(&self) -> Option<&Type> {
         match self {
             Expr::BinOp(bin) => bin.signature_t(),
             Expr::UnaryOp(unary) => unary.signature_t(),
             Expr::Call(call) => call.signature_t(),
+            _ => None,
+        }
+    }
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        match self {
+            Expr::BinOp(bin) => bin.signature_mut_t(),
+            Expr::UnaryOp(unary) => unary.signature_mut_t(),
+            Expr::Call(call) => call.signature_mut_t(),
             _ => None,
         }
     }

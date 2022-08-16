@@ -299,14 +299,12 @@ pub trait ImmutableStream<T>: Sized {
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
     src.ends_with(&['=', ':'])
-        || src.ends_with(":=")
         || src.ends_with("->")
         || src.ends_with("=>")
-        || src.ends_with("do")
-        || src.ends_with("do!")
 }
 
-/// this trait implements REPL (Read-Eval-Print-Loop) automatically
+/// This trait implements REPL (Read-Eval-Print-Loop) automatically
+/// The `exec` method is called for file input, etc.
 pub trait Runnable: Sized {
     type Err: ErrorDisplay;
     type Errs: MultiErrorDisplay<Self::Err>;
@@ -316,6 +314,7 @@ pub trait Runnable: Sized {
     fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
     fn eval(&mut self, src: Str) -> Result<String, Self::Errs>;
+    fn exec(&mut self) -> Result<(), Self::Errs>;
 
     fn ps1(&self) -> String {
         ">>> ".to_string()
@@ -333,13 +332,7 @@ pub trait Runnable: Sized {
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => {
-                match instance.eval(instance.input().read()) {
-                    Ok(s) => {
-                        println!("{s}");
-                        Ok(())
-                    }
-                    Err(e) => Err(e),
-                }
+                instance.exec()
             }
             Input::REPL => {
                 let output = stdout();
@@ -497,6 +490,9 @@ pub trait HasType {
     fn ref_t(&self) -> &Type;
     // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
     fn signature_t(&self) -> Option<&Type>;
+    // 最後にHIR全体の型変数を消すために使う
+    fn ref_mut_t(&mut self) -> &mut Type;
+    fn signature_mut_t(&mut self) -> Option<&mut Type>;
     #[inline]
     fn t(&self) -> Type {
         self.ref_t().clone()

@@ -38,9 +38,9 @@ impl SubstContext {
         }
     }
 
-    fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize) -> TyCheckResult<Type> {
+    fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize, ctx: &Context) -> TyCheckResult<Type> {
         let bounds = ty_ctx.type_params_bounds();
-        let tv_ctx = TyVarContext::new(level, bounds);
+        let tv_ctx = TyVarContext::new(level, bounds, ctx);
         let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
         for param in inst.typarams() {
             self.substitute_tp(&param, ty_ctx)?;
@@ -355,7 +355,7 @@ impl Evaluator {
                     if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ConstObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                            let t = subst_ctx.substitute(*quant_t, ty_ctx, level)?;
+                            let t = subst_ctx.substitute(*quant_t, ty_ctx, level, ctx)?;
                             let t = self.eval_t_params(t, ctx, level)?;
                             return Ok(t);
                         } else {
@@ -363,9 +363,13 @@ impl Evaluator {
                         }
                     }
                 }
-                todo!()
+                if let Some(outer) = &ctx.outer {
+                    self.eval_t_params(Type::MonoProj { lhs, rhs }, outer, level)
+                } else {
+                    todo!("{lhs}.{rhs} not found in {}", erg_common::fmt_iter(ctx.rec_sorted_type_ctxs(&lhs)))
+                }
             }
-            Type::Ref(l) => Ok(Type::refer(self.eval_t_params(*l, ctx, level)?)),
+            Type::Ref(l) => Ok(Type::ref_(self.eval_t_params(*l, ctx, level)?)),
             Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t_params(*l, ctx, level)?)),
             Type::VarArgs(l) => Ok(Type::var_args(self.eval_t_params(*l, ctx, level)?)),
             Type::Poly { name, mut params } => {

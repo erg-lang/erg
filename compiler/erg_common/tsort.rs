@@ -42,30 +42,35 @@ fn reorder_by_key<T: Eq, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
     g
 }
 
-fn dfs<T: Eq + Hash + Clone, U>(g: &Graph<T, U>, v: T, used: &mut Set<T>, idx: &mut Vec<T>) {
+fn dfs<T: Eq + Hash + Clone, U>(g: &Graph<T, U>, v: T, used: &mut Set<T>, idx: &mut Vec<T>) -> Result<(), ()> {
     used.insert(v.clone());
     for node_id in g.iter().find(|n| n.id == v).unwrap().depends_on.iter() {
+        // detecting cycles
+        if used.contains(node_id) && !idx.contains(node_id) {
+            return Err(());
+        }
         if !used.contains(node_id) {
-            dfs(g, node_id.clone(), used, idx);
+            dfs(g, node_id.clone(), used, idx)?;
         }
     }
     idx.push(v);
+    Ok(())
 }
 
 /// perform topological sort on a graph
-pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Graph<T, U> {
+pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, ()> {
     let n = g.len();
     let mut idx = Vec::with_capacity(n);
     let mut used = Set::new();
     for v in g.iter() {
         if !used.contains(&v.id) {
-            dfs(&g, v.id.clone(), &mut used, &mut idx);
+            dfs(&g, v.id.clone(), &mut used, &mut idx)?;
         }
     }
-    reorder_by_key(g, idx)
+    Ok(reorder_by_key(g, idx))
 }
 
-fn _test() {
+fn _test() -> Result<(), ()> {
     let v = vec!["e", "d", "b", "a", "c"];
     let idx = vec![3, 2, 4, 1, 0];
     assert_eq!(vec!["a", "b", "c", "d", "e"], _reorder_by_idx(v, idx));
@@ -83,5 +88,6 @@ fn _test() {
         on_2.clone(),
     ];
     let dag = vec![en_0, o0_1, on_2, e0_3, ond_4];
-    assert_eq!(sorted, tsort(dag));
+    assert_eq!(sorted, tsort(dag)?);
+    Ok(())
 }

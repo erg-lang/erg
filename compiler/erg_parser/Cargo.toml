@@ -1,6 +1,6 @@
 [package]
 name = "erg_parser"
-version = "0.2.2"
+version = "0.2.4"
 description = "The Erg parser"
 authors = ["mtshiba <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -14,7 +14,7 @@ debug = [ "erg_common/debug" ]
 japanese = [ "erg_common/japanese" ]
 
 [dependencies]
-erg_common = { version = "0.2.2", path = "../erg_common" }
+erg_common = { version = "0.2.4", path = "../erg_common" }
 
 [lib]
 path = "lib.rs"

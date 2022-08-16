@@ -143,15 +143,15 @@ impl OwnershipChecker {
                         let (nd_ownerships, d_ownerships): (Vec<_>, Vec<_>) = non_defaults
                             .iter()
                             .enumerate()
-                            .partition(|(i, _)| *i == call.args.pos_args().len());
+                            .partition(|(i, _)| *i == call.args.pos_args.len());
                         for (parg, (_, ownership)) in
-                            call.args.pos_args().iter().zip(nd_ownerships.into_iter())
+                            call.args.pos_args.iter().zip(nd_ownerships.into_iter())
                         {
                             self.check_expr(&parg.expr, *ownership);
                         }
                         for (kwarg, (_, ownership)) in call
                             .args
-                            .kw_args()
+                            .kw_args
                             .iter()
                             .zip(d_ownerships.into_iter().chain(defaults.iter().enumerate()))
                         {
@@ -159,10 +159,10 @@ impl OwnershipChecker {
                         }
                     }
                     ArgsOwnership::VarArgs(ownership) => {
-                        for parg in call.args.pos_args().iter() {
+                        for parg in call.args.pos_args.iter() {
                             self.check_expr(&parg.expr, ownership);
                         }
-                        for kwarg in call.args.kw_args().iter() {
+                        for kwarg in call.args.kw_args.iter() {
                             self.check_expr(&kwarg.expr, ownership);
                         }
                     }
@@ -178,12 +178,12 @@ impl OwnershipChecker {
                 self.check_expr(&unary.expr, ownership);
             }
             Expr::Array(arr) => {
-                for a in arr.elems.pos_args().iter() {
+                for a in arr.elems.pos_args.iter() {
                     self.check_expr(&a.expr, ownership);
                 }
             }
             Expr::Dict(dict) => {
-                for a in dict.attrs.kw_args().iter() {
+                for a in dict.attrs.kw_args.iter() {
                     // self.check_expr(&a.key);
                     self.check_expr(&a.expr, ownership);
                 }

@@ -233,6 +233,9 @@ impl HasType for ValueObj {
     fn ref_t(&self) -> &Type {
         panic!("cannot get reference of the const")
     }
+    fn ref_mut_t(&mut self) -> &mut Type {
+        panic!("cannot get mutable reference of the const")
+    }
     /// その要素だけの集合型を返す、クラスが欲しい場合は.classで
     #[inline]
     fn t(&self) -> Type {
@@ -244,6 +247,9 @@ impl HasType for ValueObj {
         Type::refinement(name, self.class(), set! {pred})
     }
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }

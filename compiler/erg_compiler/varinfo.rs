@@ -142,7 +142,15 @@ impl HasType for VarInfo {
         &self.t
     }
     #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.t
+    }
+    #[inline]
     fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
         None
     }
 }
