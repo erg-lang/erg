@@ -130,6 +130,10 @@ impl Runnable for Compiler {
         self.code_generator.clear();
     }
 
+    fn exec(&mut self) -> Result<(), Self::Errs> {
+        todo!()
+    }
+
     fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
         let codeobj = self.compile(src, "eval")?;
         Ok(codeobj.code_info())
