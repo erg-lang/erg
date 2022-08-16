@@ -55,7 +55,7 @@
   * [ ] Mutable type
     * [x] Dependent mutable method
   * [x] Projection type
-    * [ ] Polymorphic projection type
+    * [ ] Polymorphic projection-type
   * [x] Subtyping
     * [x] Refinement subtyping
     * [x] Nominal subtyping
@@ -70,13 +70,13 @@
   * [x] procedure call
   * [ ] mutable type
 * [x] Implement reference types (for methods)
-* [ ] Implement a ownership checker
+* [ ] Implement an ownership checker
   * [x] Implement a move checker
   * [x] Implement a borrow checker
   * [ ] Implement a cycle-reference detector
-* [ ] Implement a compiletime evaluator
+* [ ] Implement a compile-time evaluator
   * [ ] Compiletime operator
-  * [ ] Compiletime function
+  * [ ] Compile-time function
 * [ ] Maintain unit tests
 * [ ] Implement a Python parser
 * [ ] Make code readable
