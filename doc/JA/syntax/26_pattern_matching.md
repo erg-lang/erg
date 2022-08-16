@@ -11,6 +11,7 @@ i = 1
 i: Int = 1
 # with anonymous type
 i: {1, 2, 3} = 2
+
 # function
 fn x = x + 1
 # equals
@@ -18,6 +19,7 @@ fn x: Add(Int) = x + 1
 # (anonymous) function
 fn = x -> x + 1
 fn: Int -> Int = x -> x + 1
+
 # higher-order type
 a: [Int; 4] = [0, 1, 2, 3]
 # or
@@ -27,14 +29,16 @@ a: Array Int, 4 = [0, 1, 2, 3]
 ### リテラルパターン
 
 ```erg
-# if `i` cannot be determined to be 1 at compile time, TypeError occurs.
-# short hand of `_: {1} = i`
+# もし`i`がコンパイル時に1と判断できない場合は、TypeErrorが発生する。
+# `_: {1} = i`を省略したもの
 1 = i
+
 # simple pattern matching
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
+
 # fibonacci function
 fib 0 = 0
 fib 1 = 1
@@ -61,8 +65,8 @@ name = match num:
 ### 篩パターン
 
 ```erg
+# この２つは同じ
 Array(T, N: {N | N >= 3})
-# ==
 Array(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
@@ -80,7 +84,7 @@ right(_, r) = r
 
 ### 可変長パターン
 
-後述するタプル/配列/レコードパターンと組み合わせて使う。
+後述するタプル/配列/レコードパターンと組み合わせて使います。
 
 ```erg
 [i, ...j] = [1, 2, 3, 4]
