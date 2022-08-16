@@ -67,7 +67,7 @@ impl Context {
                         impls.push((t.clone(), impl_trait.clone()));
                     } else {
                         self.poly_trait_impls
-                            .insert(Str::rc(impl_trait.name()), vec![impl_trait.clone()]);
+                            .insert(Str::rc(impl_trait.name()), vec![(t.clone(), impl_trait.clone())]);
                     }
                 }
             }
