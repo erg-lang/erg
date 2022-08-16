@@ -27,15 +27,22 @@
             devshell.overlay
           ];
         };
+        cargoToml = with builtins; (fromTOML (readFile ./Cargo.toml));
+
+        inherit (pkgs) lib;
       in {
-        packages.default = let
-          cargoToml = with builtins; (fromTOML (readFile ./Cargo.toml));
-        in
-          pkgs.rustPlatform.buildRustPackage {
-            inherit (cargoToml.package) name version;
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
+        packages.erg = pkgs.rustPlatform.buildRustPackage {
+          inherit (cargoToml.package) name version;
+          src = builtins.path {
+            path = ./.;
+            filter = name: type:
+              (name == toString ./Cargo.toml)
+              || (name == toString ./Cargo.lock)
+              || (lib.hasPrefix (toString ./compiler) name)
+              || (lib.hasPrefix (toString ./src) name);
           };
+          cargoLock.lockFile = ./Cargo.lock;
+        };
 
         devShells.default = pkgs.devshell.mkShell {
           packages = with pkgs; [
