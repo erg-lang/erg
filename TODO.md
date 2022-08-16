@@ -32,8 +32,9 @@
   * [ ] Dict literal
   * [ ] Tuple literal
   * [ ] Variable visibility
+  * [ ] Raw identifier
   * [x] Lambda function
-    * lambda function with indentation
+    * [ ] lambda function with indentation
   * [ ] do/do!
   * [x] Function definition
   * [x] Procedure definition
@@ -108,4 +109,5 @@
   * [ ] I18n
   * [ ] Write educational materials to learn Erg while creating applications (e.g. CLI chess game -> GUI chess game, calculator -> toy language)
 * [ ] Develop Dyne (CPython compatible VM)
-* [ ] Develop WebAssembly backend
+* [ ] Develop Kayser (WebAssembly backend)
+* [ ] Develop Barye (LLVM backend)
