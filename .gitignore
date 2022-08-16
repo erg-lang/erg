@@ -16,3 +16,7 @@
 /*/.DS_Store
 /.idea/
 /timeit.dat
+
+# Nix
+.direnv
+result
