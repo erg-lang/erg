@@ -172,6 +172,24 @@ cd erg
 cargo build --release
 ```
 
+### Nixによるビルド
+
+[Nix](https://nixos.org/)をインストールしているなら，次のコマンドでプロジェクト直下の`result/bin/erg`にバイナリが生成されます．
+
+```sh
+git clone https://github.com/erg-lang/erg.git
+cd erg
+nix-build
+```
+
+[Nix Flakes](https://nixos.wiki/wiki/Flakes)を有効化している場合は次のコマンドでも良いです. 
+
+```sh
+git clone https://github.com/erg-lang/erg.git
+cd erg
+nix build
+```
+
 ## コントリビューション
 
 コントリビューション(プロジェクトへの貢献、協力)はいつでも歓迎しています！
