@@ -15,6 +15,7 @@
     * [x] % (modulo)
     * [x] comparison
     * [x] ! (mutation)
+    * [x] ..< (right-open range)
   * [ ] Pattern-matching
     * [x] Variable Pattern
     * [x] Literal Pattern
@@ -23,13 +24,20 @@
     * [ ] Record Pattern
     * [ ] Data Type Pattern
     * [ ] Refinement Pattern
+  * [x] Function call
+    * [ ] Keyword arguments
   * [x] Array literal
   * [ ] Record literal
   * [ ] Set literal
   * [ ] Dict literal
   * [ ] Tuple literal
+  * [ ] Variable visibility
+  * [x] Lambda function
+    * lambda function with indentation
+  * [ ] do/do!
   * [x] Function definition
   * [x] Procedure definition
+  * [ ] Method definition
   * [ ] Type definition
     * [ ] Class definition
     * [ ] Trait definition
@@ -37,6 +45,7 @@
   * [ ] Patch definition
     * [ ] Glue Patch definition
   * [ ] Range object
+    * [x] Right-open range object (only for Int)
   * [ ] Decorator
   * [ ] Comprehension
     * [ ] Array
