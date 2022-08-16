@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) is a statically typed language that is Python compatible.
+<br>[Erg](https://erg-lang.github.io/) is a statically typed language that is Python-compatible.
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
@@ -14,7 +14,7 @@
 
 ## Erg can be recommended to a person that&colon;
 
-* uses Python, but want Rust-like robustness and comfortable compiler support.
+* uses Python, but wants Rust-like robustness and comfortable compiler support.
 * and yet, doesn't need the verbose type specifications & memory management model like Rust.
 * wants a simple and consistent language like ML.
 * wants a practical general-purpose language with dependent/refinement types.
@@ -26,7 +26,7 @@
 
 1. Robustness
 
-    Erg has a smart & powerful type system. For example, Erg can do null checking (Option type), division by zero and out-of-range addresses in arrays at compile time.
+    Erg has a smart & powerful type system. For example, Erg can do null checking (Option type), division by zero, and out-of-range addresses in arrays at compile time.
 
     ```python
     rand = pyimport "random"
@@ -147,7 +147,7 @@
     3│     l.push!(x)
              ^^^^^
     AttributeError: Array object has no attribute `.push!`
-    hint: in order to update the internal state of an object, make it mutable by using `!` operator
+    hint: to update the internal state of an object, make it mutable by using `!` operator
     hint: `Array` has `push`, see https://erg-lang.github.io/docs/prelude/Array/##push for more information
     hint: `Array!` has `push!`, see https://erg-lang.github.io/docs/prelude/Array!/##push! for more information
     ```
