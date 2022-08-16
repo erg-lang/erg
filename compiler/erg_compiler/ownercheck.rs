@@ -83,7 +83,7 @@ impl OwnershipChecker {
     fn check_expr(&mut self, expr: &Expr, ownership: Ownership) {
         match expr {
             Expr::Def(def) => {
-                self.define(&def);
+                self.define(def);
                 let name_and_vis = match &def.sig {
                     Signature::Var(var) =>
                     // TODO: visibility
@@ -247,5 +247,11 @@ impl OwnershipChecker {
             }
         }
         panic!("variable not found: {name}");
+    }
+}
+
+impl Default for OwnershipChecker {
+    fn default() -> Self {
+        Self::new()
     }
 }

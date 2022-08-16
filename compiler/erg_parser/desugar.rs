@@ -193,3 +193,9 @@ impl Desugarer {
         todo!()
     }
 }
+
+impl Default for Desugarer {
+    fn default() -> Self {
+        Self::new()
+    }
+}

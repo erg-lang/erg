@@ -51,8 +51,8 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
 
 fn escape_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
     let mut name = convert_to_python_attr(class, uniq_obj_name, name).to_string();
-    name = name.replace("!", "__erg_proc__");
-    name = name.replace("$", "__erg_shared__");
+    name = name.replace('!', "__erg_proc__");
+    name = name.replace('$', "__erg_shared__");
     Str::rc(&name)
 }
 
@@ -78,8 +78,8 @@ fn convert_to_python_name(name: Str) -> Str {
 
 fn escape_name(name: Str) -> Str {
     let mut name = convert_to_python_name(name).to_string();
-    name = name.replace("!", "__erg_proc__");
-    name = name.replace("$", "__erg_shared__");
+    name = name.replace('!', "__erg_proc__");
+    name = name.replace('$', "__erg_shared__");
     Str::rc(&name)
 }
 
@@ -290,15 +290,12 @@ impl CodeGenerator {
             } else {
                 Some(Name::fast(idx))
             }
-        } else if let Some(idx) = self
-            .cur_block_codeobj()
-            .freevars
-            .iter()
-            .position(|f| &**f == name)
-        {
-            Some(Name::deref(idx))
         } else {
-            None
+            self.cur_block_codeobj()
+                .freevars
+                .iter()
+                .position(|f| &**f == name)
+                .map(Name::deref)
         }
     }
 
@@ -307,7 +304,7 @@ impl CodeGenerator {
         // search_name()を実行した後なのでcur_blockはskipする
         for (nth_from_toplevel, block) in self.units.iter_mut().enumerate().rev().skip(1) {
             let block_is_toplevel = nth_from_toplevel == 0;
-            if let Some(_) = block.codeobj.cellvars.iter().position(|c| &**c == name) {
+            if block.codeobj.cellvars.iter().any(|c| &**c == name) {
                 return Some(StoreLoadKind::Deref);
             } else if let Some(idx) = block.codeobj.varnames.iter().position(|v| &**v == name) {
                 if block_is_toplevel {
@@ -319,10 +316,8 @@ impl CodeGenerator {
                     return Some(StoreLoadKind::Deref);
                 }
             }
-            if block_is_toplevel {
-                if let Some(_) = block.codeobj.names.iter().position(|n| &**n == name) {
-                    return Some(StoreLoadKind::Global);
-                }
+            if block_is_toplevel && block.codeobj.names.iter().any(|n| &**n == name) {
+                return Some(StoreLoadKind::Global);
             }
         }
         // 見つからなかった変数(前方参照変数など)はグローバル
@@ -363,14 +358,14 @@ impl CodeGenerator {
     }
 
     fn register_attr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
-        let name = Str::rc(name.split(".").last().unwrap());
+        let name = Str::rc(name.split('.').last().unwrap());
         let name = escape_attr(class, uniq_obj_name, name);
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
     fn register_method(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
-        let name = Str::rc(name.split(".").last().unwrap());
+        let name = Str::rc(name.split('.').last().unwrap());
         let name = escape_attr(class, uniq_obj_name, name);
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
@@ -493,7 +488,7 @@ impl CodeGenerator {
                     .iter()
                     .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
             )
-            .map(|s| self.get_cached(&s))
+            .map(|s| self.get_cached(s))
             .collect()
     }
 
@@ -590,7 +585,7 @@ impl CodeGenerator {
         let idx_pop_jump_if_false = self.cur_block().lasti;
         self.write_instr(POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
-        self.write_arg(0 as u8);
+        self.write_arg(0_u8);
         match args.remove(0) {
             // then block
             Expr::Lambda(lambda) => {
@@ -603,7 +598,7 @@ impl CodeGenerator {
         }
         if args.get(0).is_some() {
             self.write_instr(JUMP_FORWARD); // jump to end
-            self.write_arg(0 as u8);
+            self.write_arg(0_u8);
             // else block
             let idx_else_begin = self.cur_block().lasti;
             self.edit_code(idx_pop_jump_if_false + 1, idx_else_begin / 2);
@@ -659,7 +654,7 @@ impl CodeGenerator {
         let mut absolute_jump_points = vec![];
         while let Some(expr) = args.try_remove(0) {
             // パターンが複数ある場合引数を複製する、ただし最後はしない
-            if len > 1 && args.len() > 0 {
+            if len > 1 && !args.is_empty() {
                 self.write_instr(Opcode::DUP_TOP);
                 self.write_arg(0);
                 self.stack_inc();
@@ -1145,9 +1140,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
                     *l += ld as u8;
-                });
+                }
                 self.mut_cur_block().prev_lineno += ld;
             }
         }
@@ -1204,9 +1199,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
                     *l += ld as u8;
-                });
+                }
                 self.mut_cur_block().prev_lineno += ld;
             }
         }
@@ -1242,7 +1237,7 @@ impl CodeGenerator {
                 self.edit_code(print_point, Opcode::NOP as usize);
             } else {
                 self.write_instr(CALL_FUNCTION);
-                self.write_arg(1 as u8);
+                self.write_arg(1_u8);
             }
             self.stack_dec();
         }
@@ -1271,9 +1266,9 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
-                self.mut_cur_block_codeobj().lnotab.last_mut().map(|l| {
+                if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
                     *l += ld as u8;
-                });
+                }
                 self.mut_cur_block().prev_lineno += ld;
             }
         }

@@ -28,17 +28,14 @@ impl SubstContext {
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
             opt_name
                 .as_ref()
-                .map(|n| n.inspect().clone())
-                .unwrap_or(Str::ever("_"))
-                .clone()
+                .map_or_else(|| Str::ever("_"), |n| n.inspect().clone())
         });
-        let self_ = SubstContext {
+        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
+        SubstContext {
             params: param_names
                 .zip(substituted.typarams().into_iter())
                 .collect(),
-        };
-        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
-        self_
+        }
     }
 
     fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize, ctx: &Context) -> TyCheckResult<Type> {
@@ -58,10 +55,8 @@ impl SubstContext {
                     if let Some(v) = self.params.get(&name) {
                         ty_ctx.unify_tp(param, v, None, None, false)?;
                     }
-                } else {
-                    if fv.is_unbound() {
-                        panic!()
-                    }
+                } else if fv.is_unbound() {
+                    panic!()
                 }
             }
             TyParam::BinOp { lhs, rhs, .. } => {
@@ -192,28 +187,28 @@ impl Evaluator {
         match op {
             Add => lhs
                 .try_add(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Sub => lhs
                 .try_sub(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Mul => lhs
                 .try_mul(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Div => lhs
                 .try_div(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Gt => lhs
                 .try_gt(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Ge => lhs
                 .try_ge(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Eq => lhs
                 .try_eq(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             Ne => lhs
                 .try_ne(rhs)
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             other => todo!("{other}"),
         }
     }
@@ -227,7 +222,7 @@ impl Evaluator {
         match (lhs, rhs) {
             (TyParam::ConstObj(ConstObj::Value(lhs)), TyParam::ConstObj(ConstObj::Value(rhs))) => {
                 self.eval_bin_lit(op, lhs.clone(), rhs.clone())
-                    .map(|v| TyParam::value(v))
+                    .map(TyParam::value)
             }
             (
                 TyParam::ConstObj(ConstObj::MutValue(lhs)),
@@ -272,14 +267,14 @@ impl Evaluator {
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::ConstObj(c) => self.eval_unary_lit(op, c.clone()).map(|c| TyParam::cons(c)),
+            TyParam::ConstObj(c) => self.eval_unary_lit(op, c.clone()).map(TyParam::cons),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),
         }
     }
 
-    fn eval_app(&self, _name: &Str, _args: &Vec<TyParam>) -> EvalResult<TyParam> {
+    fn eval_app(&self, _name: &Str, _args: &[TyParam]) -> EvalResult<TyParam> {
         todo!()
     }
 
@@ -294,7 +289,7 @@ impl Evaluator {
                     ConstObj::Value(v) => Some(TyParam::value(v.clone())),
                     _ => None,
                 })
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(*op, val),
             TyParam::App { name, args } => self.eval_app(name, args),
@@ -314,7 +309,9 @@ impl Evaluator {
         level: usize,
     ) -> EvalResult<Type> {
         match substituted {
-            Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), ctx, level),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.eval_t_params(fv.crack().clone(), ctx, level)
+            }
             Type::Subr(mut subr) => {
                 let kind = match subr.kind {
                     SubrKind::FuncMethod(self_t) => {
@@ -447,7 +444,7 @@ impl Evaluator {
         match p {
             TyParam::ConstObj(ConstObj::Value(v)) => Ok(Type::enum_t(set![v])),
             TyParam::ConstObj(ConstObj::MutValue(v)) => Ok(v.borrow().class().mutate()),
-            TyParam::Erased(t) => Ok((&*t).clone()),
+            TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
                     Ok(t)
@@ -463,7 +460,7 @@ impl Evaluator {
                     ConstObj::Value(v) => Some(Type::enum_t(set![v.clone()])),
                     _ => None,
                 })
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
                 if let Some(bs) = bounds {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(&name)) {
@@ -487,7 +484,7 @@ impl Evaluator {
         let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::ConstObj(ConstObj::Value(v)) => Ok(v.class()),
-            TyParam::Erased(t) => Ok((&*t).clone()),
+            TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
                     Ok(t)
@@ -503,7 +500,7 @@ impl Evaluator {
                     ConstObj::Value(v) => Some(v.class()),
                     _ => None,
                 })
-                .ok_or(EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             other => todo!("{other}"),
         }
     }

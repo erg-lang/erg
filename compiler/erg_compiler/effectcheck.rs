@@ -219,3 +219,9 @@ impl SideEffectChecker {
         }
     }
 }
+
+impl Default for SideEffectChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}

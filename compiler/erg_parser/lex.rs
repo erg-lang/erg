@@ -1,4 +1,6 @@
 //! defines and implements `Lexer` (Tokenizer).
+use std::cmp::Ordering;
+
 use erg_common::cache::Cache;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
@@ -109,7 +111,7 @@ impl Lexer /*<'a>*/ {
     pub fn lex(self) -> Result<TokenStream, LexErrors> {
         let mut result = TokenStream::empty();
         let mut errs = LexErrors::empty();
-        for i in self.into_iter() {
+        for i in self {
             match i {
                 Ok(token) => result.push(token),
                 Err(err) => {
@@ -176,19 +178,36 @@ impl Lexer /*<'a>*/ {
     /// Detect `c` is a bidirectional overriding character.
     /// [CVE-2021-42574: homoglyph atack](https://blog.rust-lang.org/2021/11/01/cve-2021-42574.html) countermeasures.
     pub fn is_bidi(c: char) -> bool {
-        match c {
-            '\u{200F}' | '\u{202B}' | '\u{202E}' | '\u{2067}' => true,
-            _ => false,
-        }
+        matches!(c, '\u{200F}' | '\u{202B}' | '\u{202E}' | '\u{2067}')
     }
 
     #[inline]
     fn is_definable_operator(s: &str) -> bool {
-        match s {
-            "+" | "-" | "*" | "/" | "//" | "**" | "%" | ".." | "..=" | "~" | "&&" | "||" | "^^"
-            | ">>" | "<<" | "==" | "!=" | ">" | "<" | ">=" | "<=" | "dot" | "cross" => true,
-            _ => false,
-        }
+        matches!(
+            s,
+            "+" | "-"
+                | "*"
+                | "/"
+                | "//"
+                | "**"
+                | "%"
+                | ".."
+                | "..="
+                | "~"
+                | "&&"
+                | "||"
+                | "^^"
+                | ">>"
+                | "<<"
+                | "=="
+                | "!="
+                | ">"
+                | "<"
+                | ">="
+                | "<="
+                | "dot"
+                | "cross"
+        )
     }
 
     // +, -, * etc. may be pre/bin
@@ -213,32 +232,32 @@ impl Lexer /*<'a>*/ {
     }
 
     fn is_zero(s: &str) -> bool {
-        s.replace("-0", "").replace("0", "").is_empty()
+        s.replace("-0", "").replace('0', "").is_empty()
     }
 
     /// emit_tokenで一気にcol_token_startsを移動させるのでここでは移動させない
     fn consume(&mut self) -> Option<char> {
         let now = self.cursor;
         self.cursor += 1;
-        self.chars.get(now).map(|x| *x)
+        self.chars.get(now).copied()
     }
 
     fn peek_prev_ch(&self) -> Option<char> {
         if self.cursor == 0 {
             None
         } else {
-            self.chars.get(self.cursor - 1).map(|x| *x)
+            self.chars.get(self.cursor - 1).copied()
         }
     }
 
     #[inline]
     fn peek_cur_ch(&self) -> Option<char> {
-        self.chars.get(self.cursor).map(|x| *x)
+        self.chars.get(self.cursor).copied()
     }
 
     #[inline]
     fn peek_next_ch(&self) -> Option<char> {
-        self.chars.get(self.cursor + 1).map(|x| *x)
+        self.chars.get(self.cursor + 1).copied()
     }
 
     fn lex_comment(&mut self) -> LexResult<()> {
@@ -326,31 +345,33 @@ impl Lexer /*<'a>*/ {
             sum + *x
         };
         let sum_indent = self.indent_stack.iter().fold(0, calc_indent_and_validate);
-        if sum_indent < spaces.len() {
-            let indent_len = spaces.len() - sum_indent;
-            self.col_token_starts += sum_indent;
-            let indent = self.emit_token(Indent, &" ".repeat(indent_len));
-            self.indent_stack.push(indent_len);
-            Some(Ok(indent))
-        } else if sum_indent > spaces.len() {
-            if is_valid_dedent {
-                let dedent = self.emit_token(Dedent, "");
-                self.indent_stack.pop();
-                Some(Ok(dedent))
-            } else {
-                let invalid_dedent = self.emit_token(Dedent, "");
-                Some(Err(LexError::syntax_error(
-                    0,
-                    invalid_dedent.loc(),
-                    switch_lang!("invalid indent", "インデントが不正です"),
-                    None,
-                )))
+        match sum_indent.cmp(&spaces.len()) {
+            Ordering::Less => {
+                let indent_len = spaces.len() - sum_indent;
+                self.col_token_starts += sum_indent;
+                let indent = self.emit_token(Indent, &" ".repeat(indent_len));
+                self.indent_stack.push(indent_len);
+                Some(Ok(indent))
             }
-        } else
-        /* if indent_sum == space.len() */
-        {
-            self.col_token_starts += spaces.len();
-            None
+            Ordering::Greater => {
+                if is_valid_dedent {
+                    let dedent = self.emit_token(Dedent, "");
+                    self.indent_stack.pop();
+                    Some(Ok(dedent))
+                } else {
+                    let invalid_dedent = self.emit_token(Dedent, "");
+                    Some(Err(LexError::syntax_error(
+                        0,
+                        invalid_dedent.loc(),
+                        switch_lang!("invalid indent", "インデントが不正です"),
+                        None,
+                    )))
+                }
+            }
+            Ordering::Equal /* if indent_sum == space.len() */ => {
+                self.col_token_starts += spaces.len();
+                None
+            }
         }
     }
 
@@ -499,7 +520,7 @@ impl Lexer /*<'a>*/ {
     fn lex_str(&mut self) -> LexResult<Token> {
         let mut s = "\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if c == '\"' && s.chars().last() != Some('\\') {
+            if c == '\"' && !s.ends_with('\\') {
                 s.push(self.consume().unwrap());
                 let token = self.emit_token(StrLit, &s);
                 return Ok(token);
@@ -809,7 +830,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 )))
             }
             None => {
-                if self.indent_stack.len() == 0 {
+                if self.indent_stack.is_empty() {
                     self.accept(EOF, "")
                 } else {
                     self.indent_stack.pop();

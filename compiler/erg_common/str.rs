@@ -32,7 +32,7 @@ impl Add<&str> for Str {
 impl Hash for Str {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Str::Rc(s) => (&s[..]).hash(state),
+            Str::Rc(s) => (s[..]).hash(state),
             Str::Static(s) => s.hash(state),
         }
     }
@@ -59,14 +59,14 @@ impl From<&'static str> for Str {
 impl From<&String> for Str {
     #[inline]
     fn from(s: &String) -> Self {
-        Str::Rc((&s[..]).into())
+        Str::Rc((s[..]).into())
     }
 }
 
 impl From<String> for Str {
     #[inline]
     fn from(s: String) -> Self {
-        Str::Rc((&s[..]).into())
+        Str::Rc((s[..]).into())
     }
 }
 

@@ -43,7 +43,7 @@ pub fn read_file(mut f: std::fs::File) -> std::io::Result<String> {
     Ok(s)
 }
 
-pub fn fmt_vec<T: fmt::Display>(v: &Vec<T>) -> String {
+pub fn fmt_vec<T: fmt::Display>(v: &[T]) -> String {
     fmt_iter(v.iter())
 }
 
@@ -51,7 +51,7 @@ pub fn fmt_slice<T: fmt::Display>(v: &[T]) -> String {
     fmt_iter(v.iter())
 }
 
-pub fn fmt_vec_split_with<T: fmt::Display>(v: &Vec<T>, splitter: &str) -> String {
+pub fn fmt_vec_split_with<T: fmt::Display>(v: &[T], splitter: &str) -> String {
     fmt_iter_split_with(v.iter(), splitter)
 }
 
@@ -102,13 +102,13 @@ pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {
 /// \r\n (Windows), \r (old MacOS) -> \n (Unix)
 #[inline]
 pub fn normalize_newline(src: &str) -> String {
-    src.replace("\r\n", "\n").replace("\r", "\n")
+    src.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 /// cut \n
 #[inline]
 pub fn chomp(src: &str) -> String {
-    normalize_newline(src).replace("\n", "")
+    normalize_newline(src).replace('\n', "")
 }
 
 pub fn try_map<T, U, E, F, I>(i: I, f: F) -> Result<Vec<U>, E>

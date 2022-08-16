@@ -117,7 +117,7 @@ pub struct KwArg {
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "{}:\n", self.keyword)?;
+        writeln!(f, "{}:", self.keyword)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -196,6 +196,11 @@ impl Args {
     #[inline]
     pub fn len(&self) -> usize {
         self.pos_args.len() + self.kw_args.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.pos_args.is_empty() && self.kw_args.is_empty()
     }
 
     #[inline]
@@ -617,7 +622,7 @@ impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         write!(f, "`{}`: {}:\n", self.op.content, self.sig_t)?;
         self.lhs.fmt_nest(f, level + 1)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
     }
 }
@@ -697,7 +702,7 @@ impl HasType for UnaryOp {
 
 impl NestedDisplay for UnaryOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`: {}:\n", self.op, self.sig_t)?;
+        writeln!(f, "`{}`: {}:", self.op, self.sig_t)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -726,7 +731,7 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "({}): {}:\n", self.obj, self.sig_t)?;
+        writeln!(f, "({}): {}:", self.obj, self.sig_t)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -911,7 +916,7 @@ impl HasType for Lambda {
 
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.params, self.op.content)?;
+        writeln!(f, "{} {}", self.params, self.op.content)?;
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -1033,7 +1038,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.sig, self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

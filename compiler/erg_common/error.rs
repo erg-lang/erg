@@ -328,8 +328,8 @@ impl ErrorCore {
     }
 }
 
-pub const VBAR_UNICODE: &'static str = "│";
-pub const VBAR_BREAK_UNICODE: &'static str = "·";
+pub const VBAR_UNICODE: &str = "│";
+pub const VBAR_BREAK_UNICODE: &str = "·";
 
 /// format:
 /// ```console
@@ -399,9 +399,9 @@ pub trait ErrorDisplay {
         let kind = self.core().kind as u8;
         let (color, err_or_warn) = if kind < 100 {
             (RED, "Error")
-        } else if 100 <= kind && kind < 150 {
+        } else if (100..150).contains(&kind) {
             (YELLOW, "Warning")
-        } else if 150 <= kind && kind < 200 {
+        } else if (150..200).contains(&kind) {
             (DEEP_RED, "Error")
         } else {
             ("", "Exception")

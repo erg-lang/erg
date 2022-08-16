@@ -50,14 +50,8 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
-        self.ctx.unify(expect, found, Some(loc), None).or_else(|_| {
-            Err(LowerError::type_mismatch_error(
-                loc,
-                self.ctx.caused_by(),
-                readable_name(name),
-                expect,
-                found,
-            ))
+        self.ctx.unify(expect, found, Some(loc), None).map_err(|_| {
+            LowerError::type_mismatch_error(loc, self.ctx.caused_by(), name, expect, found)
         })
     }
 
@@ -176,9 +170,9 @@ impl ASTLowerer {
                 self.lower_expr(arg.expr, true)?,
             ));
         }
-        let mut obj = self.lower_expr(*call.obj, false)?;
+        let obj = self.lower_expr(*call.obj, false)?;
         let t = self.ctx.get_call_t(
-            &mut obj,
+            &obj,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.ctx.name,
@@ -283,7 +277,7 @@ impl ASTLowerer {
             .map(|vi| vi.t.clone());
         let name = sig.pat.inspect().unwrap();
         if let Some(expect_body_t) = opt_expect_body_t {
-            if let Err(e) = self.return_t_check(sig.loc(), name, &expect_body_t, &found_body_t) {
+            if let Err(e) = self.return_t_check(sig.loc(), name, &expect_body_t, found_body_t) {
                 self.errs.push(e);
             }
         }
@@ -415,5 +409,11 @@ impl ASTLowerer {
             log!("{RED}[DEBUG] the type-checking process has failed.{RESET}");
             Err(LowerErrors::from(self.errs.take_all()))
         }
+    }
+}
+
+impl Default for ASTLowerer {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -25,7 +25,7 @@ pub fn fmt_lines<'a, T: NestedDisplay + 'a>(
         line.fmt_nest(f, level)?;
     }
     for arg in iter {
-        write!(f, "\n")?;
+        writeln!(f)?;
         arg.fmt_nest(f, level)?;
     }
     Ok(())
@@ -107,7 +107,7 @@ pub struct KwArg {
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "{}:\n", self.keyword)?;
+        writeln!(f, "{}:", self.keyword)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -453,9 +453,9 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`:\n", self.op.content)?;
+        writeln!(f, "`{}`:", self.op.content)?;
         self.args[0].fmt_nest(f, level + 1)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
         self.args[1].fmt_nest(f, level + 1)
     }
 }
@@ -485,7 +485,7 @@ pub struct UnaryOp {
 
 impl NestedDisplay for UnaryOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`:\n", self.op.content)?;
+        writeln!(f, "`{}`:", self.op.content)?;
         self.args[0].fmt_nest(f, level + 1)
     }
 }
@@ -515,7 +515,7 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "({}):\n", self.obj)?;
+        writeln!(f, "({}):", self.obj)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -1186,7 +1186,7 @@ impl fmt::Display for TypeSpec {
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array { t, len } => write!(f, "[{t}; {len}]"),
-            Self::Tuple(tys) => write!(f, "({})", fmt_vec(&tys)),
+            Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Enum(elems) => write!(f, "{{{elems}}}"),
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
@@ -1537,7 +1537,7 @@ impl VarPattern {
             Self::Array(VarArrayPattern { elems, .. })
             | Self::Tuple(VarTuplePattern { elems, .. })
             | Self::Record(VarRecordPattern { elems, .. }) => {
-                elems.iter().map(|s| s.pat.inspects()).flatten().collect()
+                elems.iter().flat_map(|s| s.pat.inspects()).collect()
             }
             _ => vec![],
         }
@@ -1992,7 +1992,7 @@ pub struct Lambda {
 
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.sig, self.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.op.content)?;
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -2026,7 +2026,7 @@ impl Signature {
     pub fn name_as_str(&self) -> &Str {
         match self {
             Self::Var(v) => v.pat.inspect().unwrap(),
-            Self::Subr(s) => &s.name.inspect(),
+            Self::Subr(s) => s.name.inspect(),
         }
     }
 
@@ -2083,7 +2083,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "{} {}\n", self.sig, self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

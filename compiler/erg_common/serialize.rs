@@ -37,30 +37,30 @@ pub fn get_timestamp_bytes() -> [u8; 4] {
 pub enum DataTypePrefix {
     /* sized objects */
     Illegal = 0,
-    Int32 = 'i' as u8,      // 0x69
-    Int64 = 'I' as u8,      // 0x49
-    Float = 'f' as u8,      // 0x66 (float32, not generated anymore?)
-    BinFloat = 'g' as u8,   // 0x67 (float64)
-    Complex = 'x' as u8,    // 0x78
-    BinComplex = 'y' as u8, // 0x79
-    True = 'T' as u8,       // 0x54
-    False = 'F' as u8,      // 0x46
-    None = 'N' as u8,       // 0x4E
-    StopIter = 'S' as u8,   // 0x53
-    Ref = 'r' as u8,
+    Int32 = b'i',      // 0x69
+    Int64 = b'I',      // 0x49
+    Float = b'f',      // 0x66 (float32, not generated anymore?)
+    BinFloat = b'g',   // 0x67 (float64)
+    Complex = b'x',    // 0x78
+    BinComplex = b'y', // 0x79
+    True = b'T',       // 0x54
+    False = b'F',      // 0x46
+    None = b'N',       // 0x4E
+    StopIter = b'S',   // 0x53
+    Ref = b'r',
     /* unsized objects (ref counted) */
-    Long = 'l' as u8, // 0x6C + len: u32 + payload: 2*len+3byte (~ -2^31-1 && 2^31 ~)
-    Str = 's' as u8,  // 0x73 + len: u32 + payload
-    ShortAscii = 'z' as u8, // 0x7A + len: u8 + payload
-    ShortAsciiInterned = 'Z' as u8, //  0x5A + len: u8 + payload
-    Unicode = 'u' as u8, // 0x75 + len: u32 + payload
-    Interned = 't' as u8, // 0x74 + len + payload
-    SmallTuple = ')' as u8, // 0x29 + len: u8 + payload
-    Tuple = '(' as u8, // 0x28 + len: u32 + payload
-    Code = 'c' as u8, // 0x63
+    Long = b'l',       // 0x6C + len: u32 + payload: 2*len+3byte (~ -2^31-1 && 2^31 ~)
+    Str = b's',        // 0x73 + len: u32 + payload
+    ShortAscii = b'z', // 0x7A + len: u8 + payload
+    ShortAsciiInterned = b'Z', //  0x5A + len: u8 + payload
+    Unicode = b'u',    // 0x75 + len: u32 + payload
+    Interned = b't',   // 0x74 + len + payload
+    SmallTuple = b')', // 0x29 + len: u8 + payload
+    Tuple = b'(',      // 0x28 + len: u32 + payload
+    Code = b'c',       // 0x63
     /* Erg specific prefix */
-    Builtin = 'b' as u8, // 0x62 + str
-    Nat = 'n' as u8,
+    Builtin = b'b', // 0x62 + str
+    Nat = b'n',
 }
 
 impl_display_from_debug!(DataTypePrefix);
@@ -103,19 +103,19 @@ impl From<u8> for DataTypePrefix {
 
 impl DataTypePrefix {
     pub const fn is_sized(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::Long
-            | Self::Str
-            | Self::ShortAscii
-            | Self::ShortAsciiInterned
-            | Self::Unicode
-            | Self::Interned
-            | Self::SmallTuple
-            | Self::Tuple
-            | Self::Code
-            | Self::Builtin => false,
-            _ => true,
-        }
+                | Self::Str
+                | Self::ShortAscii
+                | Self::ShortAsciiInterned
+                | Self::Unicode
+                | Self::Interned
+                | Self::SmallTuple
+                | Self::Tuple
+                | Self::Code
+                | Self::Builtin
+        )
     }
 }
 
