@@ -43,6 +43,7 @@
             rustc
             cargo
             # Dev
+            python3
             treefmt # cli to run all formatters
             alejandra # Nix formatter
             # rustfmt # Rust Formatter
