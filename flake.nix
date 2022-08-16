@@ -43,6 +43,7 @@
           };
           cargoLock.lockFile = ./Cargo.lock;
         };
+        packages.default = self.packages.${system}.erg;
 
         devShells.default = pkgs.devshell.mkShell {
           packages = with pkgs; [
@@ -56,6 +57,10 @@
             # rustfmt # Rust Formatter
             # taplo-cli # TOML formatter
           ];
+        };
+
+        checks = {
+          erg = self.packages.${system}.erg;
         };
       }
     );
