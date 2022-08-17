@@ -1,5 +1,7 @@
 # Contributing to Erg
 
+Beginners should read the instructions [here](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198).
+
 ## Documents
 
 If you are thinking of contributing to Erg, or are interested in the internal structure of Erg, you can take a look at the documents under [doc/dev_guide](./doc/JA/dev_guide/) (currently only Japanese).
