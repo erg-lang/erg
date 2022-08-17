@@ -20,6 +20,7 @@ pub struct LexerRunner {
 impl Runnable for LexerRunner {
     type Err = LexerRunnerError;
     type Errs = LexerRunnerErrors;
+    const NAME: &'static str = "Erg lexer";
 
     #[inline]
     fn new(cfg: ErgConfig) -> Self {
@@ -29,11 +30,6 @@ impl Runnable for LexerRunner {
     #[inline]
     fn input(&self) -> &Input {
         &self.cfg.input
-    }
-
-    #[inline]
-    fn start_message(&self) -> String {
-        "Erg lexer\n".to_string()
     }
 
     #[inline]

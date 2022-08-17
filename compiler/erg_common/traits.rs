@@ -1,6 +1,7 @@
 //! defines common traits used in the compiler.
 //!
 //! コンパイラ等で汎用的に使われるトレイトを定義する
+use std::env::consts::{ARCH, OS};
 use std::io::{stdout, BufWriter, Write};
 use std::mem;
 use std::process;
@@ -8,7 +9,7 @@ use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
 use crate::color::{GREEN, RESET};
-use crate::config::{ErgConfig, Input};
+use crate::config::{ErgConfig, Input, SEMVER, GIT_HASH_SHORT, BUILD_DATE};
 use crate::error::{ErrorDisplay, Location, MultiErrorDisplay};
 use crate::ty::Type;
 use crate::Str;
@@ -308,9 +309,12 @@ fn expect_block(src: &str) -> bool {
 pub trait Runnable: Sized {
     type Err: ErrorDisplay;
     type Errs: MultiErrorDisplay<Self::Err>;
+    const NAME: &'static str;
     fn new(cfg: ErgConfig) -> Self;
     fn input(&self) -> &Input;
-    fn start_message(&self) -> String;
+    fn start_message(&self) -> String {
+        format!("{} {SEMVER} tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n", Self::NAME)
+    }
     fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
     fn eval(&mut self, src: Str) -> Result<String, Self::Errs>;

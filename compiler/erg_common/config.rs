@@ -2,12 +2,12 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
-use std::env::consts::{ARCH, OS};
+// use std::env::consts::{ARCH, OS};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, stdin};
 use std::process;
 
-use crate::lazy::Lazy;
+// use crate::lazy::Lazy;
 use crate::stdin;
 use crate::Str;
 use crate::{power_assert, read_file};
@@ -15,9 +15,6 @@ use crate::{power_assert, read_file};
 pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_HASH_SHORT: &str = env!("GIT_HASH_SHORT");
 pub const BUILD_DATE: &str = env!("BUILD_DATE");
-/// TODO: タグを含める
-pub const BUILD_INFO: Lazy<String> =
-    Lazy::new(|| format!("(tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}"));
 
 /// 入力はファイルからだけとは限らないので
 /// Inputで操作を一本化する

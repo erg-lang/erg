@@ -5,7 +5,7 @@ use std::path::Path;
 
 use erg_common::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::color::{GREEN, RESET};
-use erg_common::config::{ErgConfig, Input, BUILD_INFO, SEMVER};
+use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
@@ -104,6 +104,7 @@ pub struct Compiler {
 impl Runnable for Compiler {
     type Err = CompileError;
     type Errs = CompileErrors;
+    const NAME: &'static str = "Erg compiler";
 
     fn new(cfg: ErgConfig) -> Self {
         Self {
@@ -116,11 +117,6 @@ impl Runnable for Compiler {
     #[inline]
     fn input(&self) -> &Input {
         &self.cfg.input
-    }
-
-    #[inline]
-    fn start_message(&self) -> String {
-        format!("Erg compiler {} {}\n", SEMVER, &*BUILD_INFO)
     }
 
     #[inline]

@@ -4,7 +4,7 @@ use std::net::TcpStream;
 use std::thread::sleep;
 use std::time::Duration;
 
-use erg_common::config::{ErgConfig, Input, BUILD_INFO, SEMVER};
+use erg_common::config::{ErgConfig, Input};
 use erg_common::python_util::{exec_py, exec_pyc};
 use erg_common::str::Str;
 use erg_common::traits::Runnable;
@@ -23,6 +23,7 @@ pub struct DummyVM {
 impl Runnable for DummyVM {
     type Err = CompileError;
     type Errs = CompileErrors;
+    const NAME: &'static str = "Erg interpreter";
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
@@ -57,11 +58,6 @@ impl Runnable for DummyVM {
     #[inline]
     fn input(&self) -> &Input {
         &self.cfg.input
-    }
-
-    #[inline]
-    fn start_message(&self) -> String {
-        format!("Erg interpreter {} {}\n", SEMVER, &*BUILD_INFO)
     }
 
     fn finish(&mut self) {

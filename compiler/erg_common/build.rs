@@ -1,5 +1,4 @@
 use std::process::Command;
-// use std::io::Write;
 
 mod datetime;
 
