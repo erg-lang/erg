@@ -1,0 +1,12 @@
+[formatter.alejandra]
+command = "alejandra"
+includes = ["*.nix"]
+
+# [formatter.taplo]
+# command = "taplo"
+# options = ["format"]
+# includes = ["*.toml"]
+
+# [formatter.rustfmt]
+# command = "rustfmt"
+# includes = ["*.rs"]
