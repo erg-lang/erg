@@ -8,7 +8,7 @@ fn main() -> std::io::Result<()> {
         .args(&["rev-parse", "--short", "HEAD"])
         .output()
         .expect("failed to get the git hash");
-    let git_hash_short = String::from_utf8(output.stdout).unwrap();
+    let git_hash_short = String::from_utf8_lossy(&output.stdout);
     let now = datetime::now();
     println!("cargo:rustc-env=GIT_HASH_SHORT={git_hash_short}");
     println!("cargo:rustc-env=BUILD_DATE={now}");

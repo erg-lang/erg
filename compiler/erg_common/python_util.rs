@@ -87,7 +87,7 @@ pub fn eval_pyc<S: Into<String>>(file: S) -> String {
             .expect("cannot execute python")
     };
     let out = out.wait_with_output().expect("python doesn't work");
-    String::from_utf8(out.stdout).expect("failed to decode python output")
+    String::from_utf8_lossy(&out.stdout).to_string()
 }
 
 pub fn exec_py(code: &str) {

@@ -13,8 +13,7 @@ pub fn now() -> String {
             .output()
             .expect("failed to execute process to get current time")
     };
-    String::from_utf8(output.stdout.clone())
-        .unwrap_or_else(|_| String::from_utf8_lossy(&output.stdout[..]).to_string())
+    String::from_utf8_lossy(&output.stdout[..])
         .trim_end()
         .to_string()
 }
