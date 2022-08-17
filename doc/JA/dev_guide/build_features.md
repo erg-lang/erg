@@ -1,9 +1,9 @@
-# `erg` build feature
+# `erg` build features
 
 ## debug
 
 デバッグモードにする。これにより、Erg内部での挙動が逐次ログ表示される。
-Rustのdebug_assertionsフラグとは独立。
+Rustの`debug_assertions`フラグとは独立。
 
 ## japanese
 
