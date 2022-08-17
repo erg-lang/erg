@@ -175,7 +175,7 @@ cargo build --release
 
 ### 使用Nix构建
 
-如果你已经安装了 [Nix](https://nixos.org/), 则一下命令将在项目文件夹下 `result/bin/erg` 生成二进制文件
+如果你已经安装了 [Nix](https://nixos.org/), 则以下命令将在项目文件夹 `result/bin/erg` 下生成二进制文件
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
@@ -193,7 +193,8 @@ nix build
 
 ## 贡献
 
-贡献永远收到欢迎
+贡献永远受到欢迎
+
 想要开始贡献，请查看 [CONTRIBUTING.md](https://github.com/erg-lang/erg/blob/main/CONTRIBUTING.md)
 
 如果您有任何疑问，请随时在 [Discord channel](https://discord.gg/zfAAUbgGr4) 上提问
@@ -201,4 +202,5 @@ nix build
 ## 许可证
 
 Erg 根据 MIT 许可证和 Apache 许可证（版本 2.0）的条款分发
+
 有关详细信息，请参阅： [LICENSE-APACHE](./LICENSE-APACHE), [LICENSE-MIT](./LICENSE-MIT)
