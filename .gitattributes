@@ -2,3 +2,5 @@
 * text=auto
 
 flake.lock linguist-generated=true
+
+*.er linguist-language=Python
