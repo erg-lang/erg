@@ -4,7 +4,7 @@
 use std::env;
 use std::env::consts::{ARCH, OS};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, stdin};
 use std::process;
 
 use crate::lazy::Lazy;
@@ -145,10 +145,8 @@ impl Default for ErgConfig {
     fn default() -> Self {
         let is_stdin_piped: bool = atty::isnt(atty::Stream::Stdin);
         let input = if is_stdin_piped {
-            use std::io::Read;
-
             let mut buffer = String::new();
-            std::io::stdin().read_to_string(&mut buffer).unwrap();
+            stdin().read_to_string(&mut buffer).unwrap();
             Input::Pipe(Str::from(buffer))
         } else {
             Input::REPL
