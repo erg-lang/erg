@@ -17,3 +17,5 @@ Also, the environment in which the bug occurred need not be reported if it is cl
 ## Asking questions
 
 If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/zfAAUbgGr4).
+
+## [Code of conduct](./CODE_OF_CONDUCT.md)
