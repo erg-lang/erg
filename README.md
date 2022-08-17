@@ -172,7 +172,7 @@ Building from source code requires the Rust toolchain.
 git clone https://github.com/erg-lang/erg.git
 cd erg
 cargo build --release
-``` 
+```
 
 ### Building by Nix
 
@@ -184,7 +184,7 @@ cd erg
 nix-build
 ```
 
-If you've been enabled [Nix Flakes](https://nixos.wiki/wiki/Flakes). 
+If you've been enabled [Nix Flakes](https://nixos.wiki/wiki/Flakes).
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
