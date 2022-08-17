@@ -203,7 +203,7 @@ impl ErgConfig {
                 "-p" | "--py-ver" | "--python-version" => {
                     cfg.python_ver = Some(args.next().unwrap().parse::<u32>().unwrap());
                 }
-                "--verbose\n" => {
+                "--verbose" => {
                     cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();
                 }
                 "-V" | "--version" => {
