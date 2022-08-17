@@ -24,16 +24,14 @@ i: Int # this will pass
 i: Nat # this will not pass (-1 is not an element of Nat)
 ```
 
-Functions can be declared in four different ways. None of them can omit the return type.
+Functions can be declared in 2 different ways.
 
 ```erg
-f(x: Int, y: Int): Int
-f(Int, Int): Int
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
-If you declare the argument names explicitly, a type error will result if the names are different at definition time. If you want to give the argument names arbitrary names, you can declare them in the second or fourth way. In that case, only the method name and its type will be seen by type checking.
+If you declare the argument names explicitly, a type error will result if the names are different at definition time. If you want to give the argument names arbitrary names, you can declare them in the second way. In that case, only the method name and its type will be seen by type checking.
 
 ```erg
 T = Trait {
