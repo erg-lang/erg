@@ -38,6 +38,34 @@ print! f(x, g y, z) # NG, can be taken to mean either `print!(x, g(y), z)` or `p
 
 Erg code is called a script. Scripts can be saved and executed in file format (.er).
 
+## REPL/File Execution
+
+To start REPL, simply type:
+
+```sh
+> erg
+```
+
+`>` mark is a prompt, just type `erg`.
+Then the REPL should start.
+
+```sh
+> erg
+Starting the REPL server...
+Connecting to the REPL server...
+Erg interpreter 0.2.4 (tags/?:, 2022/08/17  0:55:12.95) on x86_64/windows
+>>>
+```
+
+Or you can compile from a file.
+
+```sh
+> 'print! "hello, world!"' >> hello.er
+
+> erg hello.er
+hello, world!
+```
+
 ## Comments
 
 The code after `#` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
