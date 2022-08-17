@@ -1,26 +1,28 @@
 @Attach NeImpl
-Eq(R |= Self()) = Trait {
-    .`==` = Self(R).(R) -> Bool
+Eq(R |= Self) = Trait {
+    .`==` = Self.(R) -> Bool
 }
 
 NeImpl R = Patch Eq R
 NeImpl(R).`!=`(self, other: R): Bool = not(self == other)
 
-# Should this return `Ordering`?
-@Attach EqImpl, GeImpl, GtImpl, LtImpl
-Ord(R |= Self()) = Trait {
-    .`<=` = Self(R).(R) -> Bool
+@Attach EqImpl, LeImpl, LtImpl, GeImpl, GtImpl
+PartialOrd(R |= Self) = Trait {
+    .cmp = Self.(R) -> Option Ordering
 }
+Ord = Subsume PartialOrd()
 
-EqImpl R = Patch Ord(R), Impl: Eq()
-EqImpl(R).`==`(self, other: R): Bool = self <= other and other <= self
+EqForOrd R = Patch Ord, Impl: Eq()
+EqForOrd(R).`==`(self, other: R): Bool = self.cmp(other) == Ordering.Equal
 
-GeImpl = Patch Ord()
-GeImpl.`>=`(self, other: Self): Bool = other <= self
-GtImpl = Patch Ord()
-GtImpl.`>`(self, other: Self): Bool = other < self
-LtImpl = Patch Ord()
-LtImpl.`<`(self, other: Self): Bool = self <= other and self != other
+LeForOrd = Patch Ord
+LeForOrd.`<=`(self, other: Self): Bool = self.cmp(other) == Ordering.Less or self == other
+LtForOrd = Patch Ord
+LtForOrd.`<`(self, other: Self): Bool = self.cmp(other) == Ordering.Less
+GeForOrd = Patch Ord
+GeForOrd.`>=`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater or self == other
+GtForOrd = Patch Ord
+GtForOrd.`>`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater
 
 Add(R |= Self) = Trait {
     .AddO = Type
@@ -52,7 +54,8 @@ Seq T = Trait {
 `/`: |R, O: Type, D <: Add(R)| (D, R) -> D.DivO
 
 AddForInt = Patch Int, Impl: Add()
-AddForInt.`_+_`: (self: Self, other: Int) -> Int
+AddForInt.AddO = Int
+AddForInt.`_+_`: (self: Self).(other: Int) -> Int
 
 # TODO: Mul and Div
 NumForInterval M, N, O, P: Int =
