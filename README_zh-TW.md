@@ -175,7 +175,7 @@ cargo build --release
 
 ### 使用Nix構建
 
-如果你已經安裝了 [Nix](https://nixos.org/), 則一下命令將在項目文件夾下 `result/bin/erg` 生成二進製文件
+如果你已經安裝了 [Nix](https://nixos.org/), 則以下命令將在項目文件夾 `result/bin/erg` 下生成二進製文件
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
