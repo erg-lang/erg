@@ -1623,10 +1623,15 @@ impl Context {
         }
     }
 
-    // FIXME:
     fn deref_tp(&self, tp: TyParam) -> TyCheckResult<TyParam> {
         match tp {
-            TyParam::FreeVar(fv) if fv.is_linked() => Ok(fv.unwrap_linked()),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let inner = fv.unwrap_linked();
+                self.deref_tp(inner)
+            },
+            TyParam::FreeVar(_fv) if self.level == 0 => {
+                Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
+            },
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
@@ -1637,6 +1642,10 @@ impl Context {
             TyParam::BinOp { .. } => todo!(),
             TyParam::UnaryOp { .. } => todo!(),
             TyParam::Array(_) | TyParam::Tuple(_) => todo!(),
+            TyParam::MonoProj { .. }
+            | TyParam::MonoQVar(_)
+            | TyParam::PolyQVar { .. }
+            | TyParam::Failure if self.level == 0 => Err(TyCheckError::dummy_infer_error(fn_name!(), line!())),
             t => Ok(t),
         }
     }
@@ -1666,9 +1675,8 @@ impl Context {
     /// ```
     fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
         match t {
-            Type::FreeVar(fv) if fv.constraint_is_typeof() => Ok(Type::FreeVar(fv)),
             // ?T(<: Int)[n] => Int
-            Type::FreeVar(fv) if fv.constraint_is_subtypeof() => {
+            Type::FreeVar(fv) if fv.constraint_is_subtypeof() || fv.constraint_is_sandwiched() => {
                 if self.level <= fv.level().unwrap() {
                     Ok(fv.crack_constraint().super_type().unwrap().clone())
                 } else {
@@ -1683,7 +1691,7 @@ impl Context {
                         | Constraint::SubtypeOf(t) => Ok(t.clone()),
                         Constraint::Sandwiched { sub, .. } => Ok(sub.clone()),
                         Constraint::TypeOf(_) => {
-                            Err(TyCheckError::unreachable(fn_name!(), line!()))
+                            Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
                         },
                         _ => unreachable!(),
                     }
@@ -1698,9 +1706,6 @@ impl Context {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             },
-            // 未連携型変数が残っているかのチェックはモジュール全体の型検査が終わった後にやる
-            // Type::FreeVar(_) =>
-            //    Err(TyCheckError::checker_bug(0, Location::Unknown, fn_name!(), line!())),
             Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.deref_tp(mem::take(param))?;
@@ -1757,8 +1762,12 @@ impl Context {
                 }
                 Ok(())
             },
-            hir::Expr::Array(_array) => {
-                todo!()
+            hir::Expr::Array(array) => {
+                array.t = self.deref_tyvar(mem::take(&mut array.t))?;
+                for elem in array.elems.pos_args.iter_mut() {
+                    self.deref_expr_t(&mut elem.expr)?;
+                }
+                Ok(())
             },
             hir::Expr::Dict(_dict) => {
                 todo!()

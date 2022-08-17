@@ -131,6 +131,7 @@ impl Constraint {
     pub fn sub_type(&self) -> Option<&Type> {
         match self {
             Self::SupertypeOf(ty) => Some(ty),
+            Self::Sandwiched { sub, .. } => Some(sub),
             _ => None,
         }
     }
@@ -138,6 +139,14 @@ impl Constraint {
     pub fn super_type(&self) -> Option<&Type> {
         match self {
             Self::SubtypeOf(ty) => Some(ty),
+            Self::Sandwiched { sup, .. } => Some(sup),
+            _ => None,
+        }
+    }
+
+    pub fn sub_sup_type(&self) -> Option<(&Type, &Type)> {
+        match self {
+            Self::Sandwiched { sub, sup } => Some((sub, sup)),
             _ => None,
         }
     }
@@ -145,6 +154,7 @@ impl Constraint {
     pub fn super_type_mut(&mut self) -> Option<&mut Type> {
         match self {
             Self::SubtypeOf(ty) => Some(ty),
+            Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
     }
@@ -373,6 +383,14 @@ impl<T: Clone + HasLevel> Free<T> {
             &*self.0.borrow(),
             FreeKind::Unbound { constraint, .. }
             | FreeKind::NamedUnbound { constraint, .. } if constraint.super_type().is_some()
+        )
+    }
+
+    pub fn constraint_is_sandwiched(&self) -> bool {
+        matches!(
+            &*self.0.borrow(),
+            FreeKind::Unbound { constraint, .. }
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.sub_sup_type().is_some()
         )
     }
 
@@ -1692,10 +1710,6 @@ impl ArgsOwnership {
 }
 
 /// NOTE: 連携型変数があるので、比較には`ref_eq`を使うこと
-/// Commonが付く型は多相だが中の型をなんでも受け入れるバージョン
-/// TODO: MonoArray Int, 3 == PolyArray Int, Int, Int
-/// Mut型を作ろうとすると、name() -> &strがうまくいかないので
-/// 組み込みMut型は全て書き下す
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /* Monomorphic (builtin) types */

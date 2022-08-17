@@ -499,7 +499,7 @@ impl Accessor {
 pub struct Array {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
-    t: Type,
+    pub t: Type,
     pub elems: Args,
     pub guard: Option<Box<Expr>>,
 }

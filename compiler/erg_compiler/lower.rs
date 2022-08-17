@@ -395,6 +395,7 @@ impl ASTLowerer {
             }
         }
         let hir = HIR::new(ast.name, module);
+        log!("HIR (not derefed):\n{hir}");
         let hir = self.ctx.deref_toplevel(hir)?;
         log!(
             "[DEBUG] {}() has completed, found errors: {}",
