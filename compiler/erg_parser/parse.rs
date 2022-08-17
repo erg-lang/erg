@@ -295,7 +295,7 @@ impl Runnable for ParserRunner {
     }
 
     fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
-        let ast = self.parse_from_str(src)?;
+        let ast = Self::parse_from_str(src)?;
         Ok(format!("{ast}"))
     }
 }
@@ -307,15 +307,18 @@ impl ParserRunner {
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 
-    pub fn parse_from(&mut self, input: Input) -> Result<AST, ParserRunnerErrors> {
-        let ts = Lexer::new(input)
+    pub fn parse(&mut self) -> Result<AST, ParserRunnerErrors> {
+        let ts = Lexer::new(self.input().clone())
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         self.parse_token_stream(ts)
     }
 
-    pub fn parse_from_str(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
-        self.parse_from(Input::Str(src))
+    pub fn parse_from_str(src: Str) -> Result<AST, ParserRunnerErrors> {
+        let mut cfg = ErgConfig::default();
+        cfg.input = Input::Str(src);
+        let mut self_ = Self::new(cfg);
+        self_.parse()
     }
 }
 
