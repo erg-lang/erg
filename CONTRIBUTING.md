@@ -15,6 +15,12 @@ If you type `cargo run --features debug`, Erg will be built in debug mode. This 
 
 Also, the environment in which the bug occurred need not be reported if it is clear that the bug was not caused by the environment.
 
+## Document Translation
+
+We are always looking for people to translate our documents into various language versions.
+
+We also welcome people who find that the documentation is outdated compared to other languages and would like to update the content (see [here](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362) for how to do this).
+
 ## Asking questions
 
 If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/zfAAUbgGr4).
