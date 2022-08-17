@@ -195,6 +195,7 @@ nix build
 ## Contribution
 
 Contributions are always welcome!
+To start contributing, please see [CONTRIBUTING.md](https://github.com/erg-lang/erg/blob/main/CONTRIBUTING.md)
 If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/zfAAUbgGr4).
 
 ## License
