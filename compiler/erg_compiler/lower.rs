@@ -171,12 +171,9 @@ impl ASTLowerer {
             ));
         }
         let obj = self.lower_expr(*call.obj, false)?;
-        let t = self.ctx.get_call_t(
-            &obj,
-            &hir_args.pos_args,
-            &hir_args.kw_args,
-            &self.ctx.name,
-        )?;
+        let t = self
+            .ctx
+            .get_call_t(&obj, &hir_args.pos_args, &hir_args.kw_args, &self.ctx.name)?;
         Ok(hir::Call::new(obj, hir_args, t))
     }
 

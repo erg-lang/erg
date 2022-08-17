@@ -37,9 +37,11 @@ impl Runnable for DummyVM {
             loop {
                 match TcpStream::connect(&addr) {
                     Ok(stream) => {
-                        stream.set_read_timeout(Some(Duration::from_secs(cfg.py_server_timeout))).unwrap();
-                        break Some(stream)
-                    },
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(cfg.py_server_timeout)))
+                            .unwrap();
+                        break Some(stream);
+                    }
                     Err(_) => {
                         println!("Retrying to connect to the REPL server...");
                         sleep(Duration::from_millis(500));
@@ -47,7 +49,9 @@ impl Runnable for DummyVM {
                     }
                 }
             }
-        } else { None };
+        } else {
+            None
+        };
         Self {
             compiler: Compiler::new(cfg.copy()),
             cfg,
@@ -111,7 +115,7 @@ impl Runnable for DummyVM {
             Result::Err(e) => {
                 self.finish();
                 panic!("{}", format!("Sending error: {e}"))
-            },
+            }
         };
         if res.ends_with("None") {
             res.truncate(res.len() - 5);

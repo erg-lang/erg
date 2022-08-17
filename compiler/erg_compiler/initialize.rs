@@ -10,7 +10,7 @@ use Type::*;
 
 use erg_parser::ast::VarName;
 
-use crate::context::{Context, DefaultInfo, ParamSpec, ConstTemplate};
+use crate::context::{ConstTemplate, Context, DefaultInfo, ParamSpec};
 use crate::varinfo::{Mutability, VarInfo, VarKind, Visibility};
 use DefaultInfo::*;
 use Mutability::*;
@@ -66,8 +66,10 @@ impl Context {
                     if let Some(impls) = self.poly_trait_impls.get_mut(impl_trait.name()) {
                         impls.push((t.clone(), impl_trait.clone()));
                     } else {
-                        self.poly_trait_impls
-                            .insert(Str::rc(impl_trait.name()), vec![(t.clone(), impl_trait.clone())]);
+                        self.poly_trait_impls.insert(
+                            Str::rc(impl_trait.name()),
+                            vec![(t.clone(), impl_trait.clone())],
+                        );
                     }
                 }
             }
@@ -153,7 +155,10 @@ impl Context {
         );
         let self_t = mono_q("Self");
         let t = fn0_met(self_t.clone(), Nat);
-        let t = quant(t, set! {subtype(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))});
+        let t = quant(
+            t,
+            set! {subtype(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))},
+        );
         seq.register_decl("__len__", t, Public);
         let t = Type::fn1_met(self_t.clone(), Nat, mono_q("T"));
         let t = quant(
@@ -169,43 +174,69 @@ impl Context {
         let r_bound = static_instance("R", Type);
         let params = vec![PS::t("R", WithDefault)];
         let ty_params = vec![ty_tp(mono_q("R"))];
-        let mut add = Self::poly_trait("Add", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-        ], Self::TOP_LEVEL);
-        let self_bound = subtype(
-            mono_q("Self"),
-            poly("Add", ty_params.clone()),
+        let mut add = Self::poly_trait(
+            "Add",
+            params.clone(),
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            Self::TOP_LEVEL,
         );
-        let op_t = fn1_met(poly_q("Self", ty_params.clone()), r.clone(), mono_proj(mono_q("Self"), "AddO"));
+        let self_bound = subtype(mono_q("Self"), poly("Add", ty_params.clone()));
+        let op_t = fn1_met(
+            poly_q("Self", ty_params.clone()),
+            r.clone(),
+            mono_proj(mono_q("Self"), "AddO"),
+        );
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         add.register_decl("__add__", op_t, Public);
         add.register_decl("AddO", Type, Public);
-        let mut sub = Self::poly_trait("Sub", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-        ], Self::TOP_LEVEL);
-        let self_bound = subtype(
-            mono_q("Self"),
-            poly("Sub", ty_params.clone()),
+        let mut sub = Self::poly_trait(
+            "Sub",
+            params.clone(),
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            Self::TOP_LEVEL,
         );
-        let op_t = fn1_met(poly_q("Self", ty_params.clone()), r.clone(), mono_proj(mono_q("Self"), "SubO"));
+        let self_bound = subtype(mono_q("Self"), poly("Sub", ty_params.clone()));
+        let op_t = fn1_met(
+            poly_q("Self", ty_params.clone()),
+            r.clone(),
+            mono_proj(mono_q("Self"), "SubO"),
+        );
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         sub.register_decl("__sub__", op_t, Public);
         sub.register_decl("SubO", Type, Public);
-        let mut mul = Self::poly_trait("Mul", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-        ], Self::TOP_LEVEL);
-        let op_t = fn1_met(poly("Mul", ty_params.clone()), r.clone(), mono_proj(mono_q("Self"), "MulO"));
+        let mut mul = Self::poly_trait(
+            "Mul",
+            params.clone(),
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            Self::TOP_LEVEL,
+        );
+        let op_t = fn1_met(
+            poly("Mul", ty_params.clone()),
+            r.clone(),
+            mono_proj(mono_q("Self"), "MulO"),
+        );
         mul.register_decl("__mul__", op_t, Public);
         mul.register_decl("MulO", Type, Public);
-        let mut div = Self::poly_trait("Div", params.clone(), vec![
-            poly("Output", vec![ty_tp(mono_q("R"))]),
-        ], Self::TOP_LEVEL);
-        let op_t = fn1_met(poly("Div", ty_params.clone()), r, mono_proj(mono_q("Self"), "DivO"));
+        let mut div = Self::poly_trait(
+            "Div",
+            params.clone(),
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            Self::TOP_LEVEL,
+        );
+        let op_t = fn1_met(
+            poly("Div", ty_params.clone()),
+            r,
+            mono_proj(mono_q("Self"), "DivO"),
+        );
         div.register_decl("__div__", op_t, Public);
         div.register_decl("DivO", Type, Public);
         self.register_type(mono("Named"), named, Const);
         self.register_type(poly("Eq", vec![ty_tp(mono_q("R"))]), eq, Const);
-        self.register_type(poly("PartialOrd", vec![ty_tp(mono_q("R"))]), partial_ord, Const);
+        self.register_type(
+            poly("PartialOrd", vec![ty_tp(mono_q("R"))]),
+            partial_ord,
+            Const,
+        );
         self.register_type(mono("Ord"), ord, Const);
         self.register_type(poly("Seq", vec![ty_tp(mono_q("T"))]), seq, Const);
         self.register_type(poly("Input", vec![ty_tp(mono_q("T"))]), input, Const);
@@ -215,12 +246,30 @@ impl Context {
         self.register_type(poly("Mul", ty_params.clone()), mul, Const);
         self.register_type(poly("Div", ty_params), div, Const);
         // self.register_type(mono("Num"), num, Const);
-        self.register_const_param_defaults("Eq", vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))]);
-        self.register_const_param_defaults("PartialOrd", vec![ConstTemplate::app("Self", vec![], vec![])]);
-        self.register_const_param_defaults("Add", vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))]);
-        self.register_const_param_defaults("Sub", vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))]);
-        self.register_const_param_defaults("Mul", vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))]);
-        self.register_const_param_defaults("Div", vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))]);
+        self.register_const_param_defaults(
+            "Eq",
+            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+        );
+        self.register_const_param_defaults(
+            "PartialOrd",
+            vec![ConstTemplate::app("Self", vec![], vec![])],
+        );
+        self.register_const_param_defaults(
+            "Add",
+            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+        );
+        self.register_const_param_defaults(
+            "Sub",
+            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+        );
+        self.register_const_param_defaults(
+            "Mul",
+            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+        );
+        self.register_const_param_defaults(
+            "Div",
+            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+        );
     }
 
     fn init_builtin_classes(&mut self) {
@@ -394,7 +443,7 @@ impl Context {
                 mono("Mutate"),
                 poly("Seq", vec![ty_tp(Str)]),
                 poly("Add", vec![ty_tp(Str)]),
-                poly("Mul", vec![ty_tp(Nat)])
+                poly("Mul", vec![ty_tp(Nat)]),
             ],
             Self::TOP_LEVEL,
         );
@@ -417,7 +466,13 @@ impl Context {
             vec![PS::t_nd("T"), PS::named_nd("N", Nat)],
             vec![Obj],
             vec![
-                poly("Eq", vec![ty_tp(Type::poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]))]),
+                poly(
+                    "Eq",
+                    vec![ty_tp(Type::poly(
+                        "Array",
+                        vec![ty_tp(mono_q("T")), mono_q_tp("N")],
+                    ))],
+                ),
                 mono("Mutate"),
                 poly("Seq", vec![ty_tp(mono_q("T"))]),
                 poly("Output", vec![ty_tp(mono_q("T"))]),
@@ -447,10 +502,7 @@ impl Context {
         let mut type_ = Self::mono_class(
             "Type",
             vec![Obj],
-            vec![
-                poly("Eq", vec![ty_tp(Type)]),
-                mono("Named")
-            ],
+            vec![poly("Eq", vec![ty_tp(Type)]), mono("Named")],
             Self::TOP_LEVEL,
         );
         type_.register_impl(
@@ -462,10 +514,7 @@ impl Context {
         let module = Self::mono_class(
             "Module",
             vec![Obj],
-            vec![
-                poly("Eq", vec![ty_tp(Module)]),
-                mono("Named")
-            ],
+            vec![poly("Eq", vec![ty_tp(Module)]), mono("Named")],
             Self::TOP_LEVEL,
         );
         let array_mut_t = Type::poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
@@ -473,10 +522,7 @@ impl Context {
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", NatMut)],
             vec![poly("Range", vec![ty_tp(mono_q("T")), mono_q_tp("N")]), Obj],
-            vec![
-                mono("Mutate"),
-                poly("Seq", vec![ty_tp(mono_q("T"))]),
-            ],
+            vec![mono("Mutate"), poly("Seq", vec![ty_tp(mono_q("T"))])],
             Self::TOP_LEVEL,
         );
         let t = Type::pr_met(
@@ -500,7 +546,10 @@ impl Context {
             vec![PS::t_nd("T")],
             vec![Obj],
             vec![
-                poly("Eq", vec![ty_tp(Type::poly("Range", vec![ty_tp(mono_q("T"))]))]),
+                poly(
+                    "Eq",
+                    vec![ty_tp(Type::poly("Range", vec![ty_tp(mono_q("T"))]))],
+                ),
                 mono("Mutate"),
                 poly("Seq", vec![ty_tp(mono_q("T"))]),
                 poly("Output", vec![ty_tp(mono_q("T"))]),
@@ -635,16 +684,22 @@ impl Context {
         );
         self.register_impl("__sub__", op_t, Const, Private);
         let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "MulO"));
-        let op_t = quant(op_t, set! {
-            static_instance("R", Type),
-            subtype(l.clone(), poly("Mul", params.clone()))
-        });
+        let op_t = quant(
+            op_t,
+            set! {
+                static_instance("R", Type),
+                subtype(l.clone(), poly("Mul", params.clone()))
+            },
+        );
         self.register_impl("__mul__", op_t, Const, Private);
         let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
-        let op_t = quant(op_t, set! {
-            static_instance("R", Type),
-            subtype(l, poly("Mul", params.clone()))
-        });
+        let op_t = quant(
+            op_t,
+            set! {
+                static_instance("R", Type),
+                subtype(l, poly("Mul", params.clone()))
+            },
+        );
         self.register_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
         let op_t = Type::func2(m.clone(), m.clone(), m.clone());
@@ -705,14 +760,8 @@ impl Context {
             params,
             vec![Type::from(&m..=&n)],
             vec![
-                poly(
-                    "Add",
-                    vec![TyParam::from(&o..=&p)],
-                ),
-                poly(
-                    "Sub",
-                    vec![TyParam::from(&o..=&p)],
-                ),
+                poly("Add", vec![TyParam::from(&o..=&p)]),
+                poly("Sub", vec![TyParam::from(&o..=&p)]),
             ],
             Self::TOP_LEVEL,
         );
@@ -728,7 +777,10 @@ impl Context {
             Type::from(m.clone() - p.clone()..=n.clone() - o.clone()),
         );
         interval.register_impl("__sub__", op_t, Const, Public);
-        interval.register_const("AddO", ConstObj::t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())));
+        interval.register_const(
+            "AddO",
+            ConstObj::t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
+        );
         interval.register_const("SubO", ConstObj::t(Type::from(m - p..=n - o)));
         self.register_patch("Interval", interval, Const);
         // eq.register_impl("__ne__", op_t,         Const, Public);
