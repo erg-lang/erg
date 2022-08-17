@@ -1,6 +1,8 @@
+# Code of Conduct
+
 For other language versions, see [CODE_OF_CONDUCT](./CODE_OF_CONDUCT) Folder.
 
-# General
+## General
 
 Respect others.
 
@@ -14,7 +16,7 @@ Do not post anything that is severely offensive to others.
 
 Do not spam, fish or troll.
 
-If you see someone who you think is violating this Code of Conduct, please contact the [administrator](https://moderation.erglang@gmail.com) immediately. We will take appropriate action.
+If you see someone who you think is violating this Code of Conduct, please contact the [administrator](mailto:moderation.erglang@gmail.com) immediately. We will take appropriate action.
 
 ## Development
 
