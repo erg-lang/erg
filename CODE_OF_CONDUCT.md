@@ -1,3 +1,5 @@
+For other language versions, see [CODE_OF_CONDUCT](./CODE_OF_CONDUCT) Folder.
+
 # General
 
 Respect others.
