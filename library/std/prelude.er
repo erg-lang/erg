@@ -22,36 +22,50 @@ GtImpl.`>`(self, other: Self): Bool = other < self
 LtImpl = Patch Ord()
 LtImpl.`<`(self, other: Self): Bool = self <= other and self != other
 
-Add(R |= Self(), O |= Self()) = Trait {
-    .`_+_` = Self(R, O).(R) -> O
+Add(R |= Self) = Trait {
+    .AddO = Type
+    .`_+_` = Self.(R) -> Self.AddO
 }
-Sub(R |= Self(), O |= Self()) = Trait {
-    .`_-_` = Self(R, O).(R) -> O
+Sub(R |= Self) = Trait {
+    .SubO = Type
+    .`_-_` = Self.(R) -> Self.SubO
 }
-Mul(R |= Self(), O |= Self()) = Trait {
-    .`*` = Self(R, O).(R) -> O
+Mul(R |= Self()) = Trait {
+    .MulO = Type
+    .`*` = Self.(R) -> Self.MulO
 }
-Div(R |= Self(), O |= Self()) = Trait {
-    .`/` = Self(R, O).(R) -> O or Panic
+Div(R |= Self) = Trait {
+    .DivO = Type
+    .`/` = Self.(R) -> Self.DivO or Panic
 }
-Num: (R |= Type, O |= Type) -> Type
+Num: (R |= Type) -> Type
 Num = Add and Sub and Mul
 
 Seq T = Trait {
-    .__len__ = Ref(Self(T)).() -> Nat
-    .get = Ref(Self(T)).(Nat) -> T
+    .__len__ = Ref(Self).() -> Nat
+    .get = Ref(Self).(Nat) -> T
 }
 
-`_+_`: |R, O: Type, A <: Add(R, O)| (A, R) -> O
-`_-_`: |R, O: Type, S <: Add(R, O)| (S, R) -> O
-`*`: |R, O: Type, M <: Add(R, O)| (M, R) -> O
-`/`: |R, O: Type, D <: Add(R, O)| (D, R) -> O
+`_+_`: |R: Type, A <: Add(R)| (A, R) -> A.AddO
+`_-_`: |R: Type, S <: Add(R)| (S, R) -> S.SubO
+`*`: |R, O: Type, M <: Add(R)| (M, R) -> M.MulO
+`/`: |R, O: Type, D <: Add(R)| (D, R) -> D.DivO
 
 AddForInt = Patch Int, Impl: Add()
 AddForInt.`_+_`: (self: Self, other: Int) -> Int
 
 # TODO: Mul and Div
 NumForInterval M, N, O, P: Int =
-    Patch M..N, Impl: Add(R: O..P, O: M+O..N+P) and Sub(R: O..P, O: M-P..N-O)
+    Patch M..N, Impl: Add(R: O..P) and Sub(R: O..P)
 NumForInterval(M, N, O, P).`_+_`: (self: Self, other: O..P) -> M+O..N+P
 NumForInterval(M, N, O, P).`_-_`: (self: Self, other: O..P) -> M-P..N-O
+
+Read = Trait {
+    .read = Ref(Self).() -> Str
+}
+Read! = Trait {
+    .read! = Ref!(Self).() => Str
+}
+Write! = Trait {
+    .write! = Ref!(Self).(Str) => ()
+}
