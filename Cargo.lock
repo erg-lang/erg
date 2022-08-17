@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "erg"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -13,11 +13,11 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.2.4"
+version = "0.2.5"
 
 [[package]]
 name = "erg_compiler"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "erg_common",
 ]
