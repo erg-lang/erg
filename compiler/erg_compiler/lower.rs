@@ -12,7 +12,7 @@ use erg_parser::ast;
 use erg_parser::ast::AST;
 
 use crate::context::{Context, ContextKind, RegistrationMode};
-use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings, readable_name};
+use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
 use crate::hir;
 use crate::hir::HIR;
 use crate::varinfo::Visibility;
