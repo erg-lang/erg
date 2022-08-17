@@ -298,9 +298,7 @@ pub trait ImmutableStream<T>: Sized {
 
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
-    src.ends_with(&['=', ':'])
-        || src.ends_with("->")
-        || src.ends_with("=>")
+    src.ends_with(&['=', ':']) || src.ends_with("->") || src.ends_with("=>")
 }
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -331,9 +329,7 @@ pub trait Runnable: Sized {
     fn run(cfg: ErgConfig) {
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
-            Input::File(_) | Input::Pipe(_) | Input::Str(_) => {
-                instance.exec()
-            }
+            Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
             Input::REPL => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());

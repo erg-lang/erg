@@ -55,16 +55,16 @@ pub enum TyParamIdx {
 impl TyParamIdx {
     pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
         match search_from {
-            Type::Poly{ params, .. } => {
+            Type::Poly { params, .. } => {
                 for (i, tp) in params.iter().enumerate() {
                     match tp {
-                        TyParam::Type(t) if t.rec_eq(target) => { return Some(Self::Nth(i)) },
-                        TyParam::Type(t) if t.is_monomorphic() => {},
+                        TyParam::Type(t) if t.rec_eq(target) => return Some(Self::Nth(i)),
+                        TyParam::Type(t) if t.is_monomorphic() => {}
                         other => todo!("{other:?}"),
                     }
                 }
                 None
-            },
+            }
             _ => todo!(),
         }
     }
@@ -81,7 +81,7 @@ impl TyParamIdx {
                     TyParam::Type(t) => *t.clone(),
                     _ => todo!(),
                 }
-            },
+            }
             Self::Nested(_, _) => todo!(),
         }
     }
@@ -192,23 +192,26 @@ impl TyVarContext {
         self_
     }
 
-    fn instantiate_const_template(&mut self, var_name: &str, _callee_name: &Str, ct: &ConstTemplate) -> TyParam {
+    fn instantiate_const_template(
+        &mut self,
+        var_name: &str,
+        _callee_name: &Str,
+        ct: &ConstTemplate,
+    ) -> TyParam {
         match ct {
-            ConstTemplate::Obj(o) => {
-                match o {
-                    ConstObj::Type(t) if t.is_mono_q() => {
-                        if t.name() == "Self" {
-                            let constraint = Constraint::TypeOf(Type);
-                            let t = Type::named_free_var(Str::rc(var_name), self.level, constraint);
-                            TyParam::t(t)
-                        } else {
-                            todo!()
-                        }
-                    },
-                    ConstObj::Type(t) => TyParam::t(*t.clone()),
-                    v @ ConstObj::Value(_) => TyParam::ConstObj(v.clone()),
-                    other => todo!("{other}"),
+            ConstTemplate::Obj(o) => match o {
+                ConstObj::Type(t) if t.is_mono_q() => {
+                    if t.name() == "Self" {
+                        let constraint = Constraint::TypeOf(Type);
+                        let t = Type::named_free_var(Str::rc(var_name), self.level, constraint);
+                        TyParam::t(t)
+                    } else {
+                        todo!()
+                    }
                 }
+                ConstObj::Type(t) => TyParam::t(*t.clone()),
+                v @ ConstObj::Value(_) => TyParam::ConstObj(v.clone()),
+                other => todo!("{other}"),
             },
             ConstTemplate::App { .. } => {
                 todo!()
@@ -216,22 +219,32 @@ impl TyVarContext {
         }
     }
 
-    fn instantiate_poly(&mut self, tvar_name: &str, name: &Str, params: Vec<TyParam>, ctx: &Context) -> Type {
+    fn instantiate_poly(
+        &mut self,
+        tvar_name: &str,
+        name: &Str,
+        params: Vec<TyParam>,
+        ctx: &Context,
+    ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(&name) {
-            let c = ctx.rec_type_ctx_by_name(name).unwrap_or_else(|| panic!("{} not found", name));
+            let c = ctx
+                .rec_type_ctx_by_name(name)
+                .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = c.params.len();
             let given_params_len = params.len();
-            if defined_params_len < given_params_len { panic!() }
+            if defined_params_len < given_params_len {
+                panic!()
+            }
             let inst_non_defaults = params.into_iter().map(|p| self.instantiate_tp(p)).collect();
             let mut inst_defaults = vec![];
-            for c in temp_defaults.into_iter().take(defined_params_len - given_params_len) {
+            for c in temp_defaults
+                .into_iter()
+                .take(defined_params_len - given_params_len)
+            {
                 let c = self.instantiate_const_template(tvar_name, name, c);
                 inst_defaults.push(c);
             }
-            Type::poly(
-                name,
-                [inst_non_defaults, inst_defaults].concat(),
-            )
+            Type::poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
             Type::poly(
                 name,
@@ -257,7 +270,10 @@ impl TyVarContext {
                     tp.update_constraint(constraint);
                 } else {
                     let name = Str::rc(sub.name());
-                    self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                    self.push_tyvar(
+                        name.clone(),
+                        Type::named_free_var(name, self.level, constraint),
+                    );
                 }
             }
             TyBound::Supertype { sup, sub } => {
@@ -275,7 +291,10 @@ impl TyVarContext {
                     tp.update_constraint(constraint);
                 } else {
                     let name = Str::rc(sup.name());
-                    self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                    self.push_tyvar(
+                        name.clone(),
+                        Type::named_free_var(name, self.level, constraint),
+                    );
                 }
             }
             TyBound::Sandwiched { sub, mid, sup } => {
@@ -300,7 +319,10 @@ impl TyVarContext {
                     tp.update_constraint(constraint);
                 } else {
                     let name = Str::rc(mid.name());
-                    self.push_tyvar(name.clone(), Type::named_free_var(name, self.level, constraint));
+                    self.push_tyvar(
+                        name.clone(),
+                        Type::named_free_var(name, self.level, constraint),
+                    );
                 }
             }
             TyBound::Instance { name, t } => {
@@ -327,7 +349,10 @@ impl TyVarContext {
                     if let Some(tp) = self.typaram_instances.get(&name) {
                         tp.update_constraint(constraint);
                     } else {
-                        self.push_typaram(name.clone(), TyParam::named_free_var(name, self.level, t));
+                        self.push_typaram(
+                            name.clone(),
+                            TyParam::named_free_var(name, self.level, t),
+                        );
                     }
                 }
             }
@@ -421,11 +446,19 @@ impl TyVarContext {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConstTemplate {
     Obj(ConstObj),
-    App{ name: Str, non_default_args: Vec<Type>, default_args: Vec<ConstTemplate> },
+    App {
+        name: Str,
+        non_default_args: Vec<Type>,
+        default_args: Vec<ConstTemplate>,
+    },
 }
 
 impl ConstTemplate {
-    pub const fn app(name: &'static str, non_default_args: Vec<Type>, default_args: Vec<ConstTemplate>) -> Self {
+    pub const fn app(
+        name: &'static str,
+        non_default_args: Vec<Type>,
+        default_args: Vec<ConstTemplate>,
+    ) -> Self {
         ConstTemplate::App {
             name: Str::ever(name),
             non_default_args,
@@ -1564,25 +1597,25 @@ impl Context {
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     let arg_t = pos_arg.expr.ref_t();
                     let param_t = &param_ty.ty;
-                    self.sub_unify(
-                        arg_t,
-                        param_t,
-                        None,
-                        Some(pos_arg.loc()),
-                    )
-                    .map_err(|e| {
-                        // REVIEW:
-                        let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
-                        let name =
-                            name + "::" + param_ty.name.as_ref().map(|s| readable_name(&s[..])).unwrap_or("");
-                        TyCheckError::type_mismatch_error(
-                            e.core.loc,
-                            e.caused_by,
-                            &name[..],
-                            param_t,
-                            arg_t,
-                        )
-                    })?;
+                    self.sub_unify(arg_t, param_t, None, Some(pos_arg.loc()))
+                        .map_err(|e| {
+                            // REVIEW:
+                            let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                            let name = name
+                                + "::"
+                                + param_ty
+                                    .name
+                                    .as_ref()
+                                    .map(|s| readable_name(&s[..]))
+                                    .unwrap_or("");
+                            TyCheckError::type_mismatch_error(
+                                e.core.loc,
+                                e.caused_by,
+                                &name[..],
+                                param_t,
+                                arg_t,
+                            )
+                        })?;
                     if let Some(name) = &param_ty.name {
                         if passed_params.contains(name) {
                             return Err(TyCheckError::multiple_args_error(
@@ -1628,10 +1661,10 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let inner = fv.unwrap_linked();
                 self.deref_tp(inner)
-            },
+            }
             TyParam::FreeVar(_fv) if self.level == 0 => {
                 Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
-            },
+            }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
@@ -1645,25 +1678,24 @@ impl Context {
             TyParam::MonoProj { .. }
             | TyParam::MonoQVar(_)
             | TyParam::PolyQVar { .. }
-            | TyParam::Failure if self.level == 0 => Err(TyCheckError::dummy_infer_error(fn_name!(), line!())),
+            | TyParam::Failure
+                if self.level == 0 =>
+            {
+                Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
+            }
             t => Ok(t),
         }
     }
 
     fn deref_constraint(&self, constraint: Constraint) -> TyCheckResult<Constraint> {
         match constraint {
-            Constraint::SubtypeOf(sup) => {
-                Ok(Constraint::SubtypeOf(self.deref_tyvar(sup)?))
-            },
-            Constraint::Sandwiched { sub, sup } => {
-                Ok(Constraint::sandwiched(self.deref_tyvar(sub)?, self.deref_tyvar(sup)?))
-            },
-            Constraint::SupertypeOf(sub) => {
-                Ok(Constraint::SupertypeOf(self.deref_tyvar(sub)?))
-            },
-            Constraint::TypeOf(t) => {
-                Ok(Constraint::TypeOf(self.deref_tyvar(t)?))
-            },
+            Constraint::SubtypeOf(sup) => Ok(Constraint::SubtypeOf(self.deref_tyvar(sup)?)),
+            Constraint::Sandwiched { sub, sup } => Ok(Constraint::sandwiched(
+                self.deref_tyvar(sub)?,
+                self.deref_tyvar(sup)?,
+            )),
+            Constraint::SupertypeOf(sub) => Ok(Constraint::SupertypeOf(self.deref_tyvar(sub)?)),
+            Constraint::TypeOf(t) => Ok(Constraint::TypeOf(self.deref_tyvar(t)?)),
             _ => unreachable!(),
         }
     }
@@ -1682,17 +1714,16 @@ impl Context {
                 } else {
                     Ok(Type::FreeVar(fv))
                 }
-            },
+            }
             // ?T(<: Add(?R(<: T), ?O(<: U)) => ?T(<: Add(T, U))
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {
-                        Constraint::SupertypeOf(t)
-                        | Constraint::SubtypeOf(t) => Ok(t.clone()),
+                        Constraint::SupertypeOf(t) | Constraint::SubtypeOf(t) => Ok(t.clone()),
                         Constraint::Sandwiched { sub, .. } => Ok(sub.clone()),
                         Constraint::TypeOf(_) => {
                             Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
-                        },
+                        }
                         _ => unreachable!(),
                     }
                 } else {
@@ -1701,11 +1732,11 @@ impl Context {
                     fv.update_constraint(new_constraint);
                     Ok(Type::FreeVar(fv))
                 }
-            },
+            }
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
-            },
+            }
             Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.deref_tp(mem::take(param))?;
@@ -1761,14 +1792,14 @@ impl Context {
                     _ => todo!(),
                 }
                 Ok(())
-            },
+            }
             hir::Expr::Array(array) => {
                 array.t = self.deref_tyvar(mem::take(&mut array.t))?;
                 for elem in array.elems.pos_args.iter_mut() {
                     self.deref_expr_t(&mut elem.expr)?;
                 }
                 Ok(())
-            },
+            }
             hir::Expr::Dict(_dict) => {
                 todo!()
             }
@@ -1778,13 +1809,13 @@ impl Context {
                 self.deref_expr_t(&mut binop.lhs)?;
                 self.deref_expr_t(&mut binop.rhs)?;
                 Ok(())
-            },
+            }
             hir::Expr::UnaryOp(unaryop) => {
                 let t = unaryop.signature_mut_t().unwrap();
                 *t = self.deref_tyvar(mem::take(t))?;
                 self.deref_expr_t(&mut unaryop.expr)?;
                 Ok(())
-            },
+            }
             hir::Expr::Call(call) => {
                 let t = call.signature_mut_t().unwrap();
                 *t = self.deref_tyvar(mem::take(t))?;
@@ -1796,15 +1827,15 @@ impl Context {
             hir::Expr::Decl(decl) => {
                 decl.t = self.deref_tyvar(mem::take(&mut decl.t))?;
                 Ok(())
-            },
+            }
             hir::Expr::Def(def) => {
                 match &mut def.sig {
                     hir::Signature::Var(var) => {
                         var.t = self.deref_tyvar(mem::take(&mut var.t))?;
-                    },
+                    }
                     hir::Signature::Subr(subr) => {
                         subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
-                    },
+                    }
                 }
                 for chunk in def.body.block.iter_mut() {
                     self.deref_expr_t(chunk)?;
@@ -2311,7 +2342,7 @@ impl Context {
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
-                                ))
+                                ));
                             } else {
                                 *constraint = Constraint::sandwiched(l.clone(), mem::take(sup));
                             }
@@ -2328,7 +2359,7 @@ impl Context {
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
-                                ))
+                                ));
                             } else {
                                 let union = self.union(l, sub);
                                 *constraint = Constraint::sandwiched(union, mem::take(sub));
@@ -2336,7 +2367,7 @@ impl Context {
                         }
                         Constraint::TypeOf(_t) => {
                             *constraint = Constraint::SupertypeOf(l.clone());
-                        },
+                        }
                         _ => {}
                     },
                     _ => {}
@@ -2358,7 +2389,7 @@ impl Context {
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
-                                ))
+                                ));
                             } else {
                                 *constraint = Constraint::sandwiched(sub.clone(), r.clone());
                             }
@@ -2366,9 +2397,7 @@ impl Context {
                         // sub_unify(?T(<: Int), Nat): (?T(<: Nat))
                         // sub_unify(?T(<: Nat), Int): (/* OK */)
                         // sub_unify(?T(<: Str), Int): (/* Error */) // TODO:
-                        Constraint::SubtypeOf(sup)
-                            if self.rec_full_supertype_of(sup, r) =>
-                        {
+                        Constraint::SubtypeOf(sup) if self.rec_full_supertype_of(sup, r) => {
                             *constraint = Constraint::SubtypeOf(r.clone());
                         }
                         // sub_unify((Int <: ?T <: Ratio), Nat): (/* Error */)
@@ -2388,13 +2417,13 @@ impl Context {
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
                         Constraint::TypeOf(_t) => {
                             *constraint = Constraint::SubtypeOf(r.clone());
-                        },
+                        }
                         _ => {}
                     },
                     _ => {}
                 }
                 return Ok(());
-            },
+            }
             (Type::FreeVar(_fv), _r) => todo!(),
             (l @ Refinement(_), r @ Refinement(_)) => return self.unify(l, r, sub_loc, sup_loc),
             _ => {}
@@ -3299,9 +3328,7 @@ impl Context {
                         }
                         // `(?T :> X) :> Y` is true
                         // `(?T :> Str) :> Int` is true (?T :> Str or Int)
-                        Constraint::SupertypeOf(_sub) => {
-                            true
-                        },
+                        Constraint::SupertypeOf(_sub) => true,
                         // `(Nat <: ?T <: Ratio) :> Nat` can be true
                         Constraint::Sandwiched { sup, .. } => {
                             self.formal_supertype_of(sup, rhs, bounds, lhs_variance)
@@ -3331,8 +3358,8 @@ impl Context {
                         // `Str :> (?T <: Int)` is false
                         Constraint::SubtypeOf(sup) => {
                             self.formal_supertype_of(lhs, sup, bounds, lhs_variance)
-                            || self.formal_subtype_of(lhs, sup, bounds, lhs_variance)
-                        },
+                                || self.formal_subtype_of(lhs, sup, bounds, lhs_variance)
+                        }
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         Constraint::SupertypeOf(sub) => {
                             self.formal_supertype_of(lhs, sub, bounds, lhs_variance)
@@ -3386,9 +3413,7 @@ impl Context {
             // Int :> {I: Int | ...} == true
             // Real :> {I: Int | ...} == false
             // Int :> {I: Str| ...} == false
-            (l, Refinement(r)) => {
-                self.formal_supertype_of(l, &r.t, bounds, lhs_variance)
-            },
+            (l, Refinement(r)) => self.formal_supertype_of(l, &r.t, bounds, lhs_variance),
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
                 if l.preds
@@ -3991,7 +4016,9 @@ impl Context {
         ctxs.sort_by(|(lhs, _), (rhs, _)| {
             // HACK: Equal for unrelated types
             // This doesn't work with [Int, Str, Nat] for example
-            self.cmp_t(lhs, rhs).try_into().unwrap_or_else(|_| panic!("{lhs}, {rhs}")) // _or(Ordering::Equal)
+            self.cmp_t(lhs, rhs)
+                .try_into()
+                .unwrap_or_else(|_| panic!("{lhs}, {rhs}")) // _or(Ordering::Equal)
         });
         ctxs.into_iter().map(|(_, ctx)| ctx)
     }
@@ -4041,14 +4068,8 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_type_ctx_by_name<'a>(
-        &'a self,
-        t_name: &'a str,
-    ) -> Option<&'a Context> {
-        if let Some((_, ctx)) = self.types
-            .iter()
-            .find(|(t, _ctx)| t.name() == t_name)
-        {
+    pub(crate) fn rec_type_ctx_by_name<'a>(&'a self, t_name: &'a str) -> Option<&'a Context> {
+        if let Some((_, ctx)) = self.types.iter().find(|(t, _ctx)| t.name() == t_name) {
             return Some(ctx);
         }
         if let Some(outer) = &self.outer {
@@ -4060,11 +4081,13 @@ impl Context {
 
     fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
-            return Some(impls)
+            return Some(impls);
         }
         if let Some(outer) = &self.outer {
             outer.rec_get_const_param_defaults(name)
-        } else { None }
+        } else {
+            None
+        }
     }
 
     // 再帰サブルーチン/型の推論を可能にするため、予め登録しておく

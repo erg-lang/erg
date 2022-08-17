@@ -38,7 +38,13 @@ impl SubstContext {
         }
     }
 
-    fn substitute(&self, quant_t: Type, ty_ctx: &Context, level: usize, ctx: &Context) -> TyCheckResult<Type> {
+    fn substitute(
+        &self,
+        quant_t: Type,
+        ty_ctx: &Context,
+        level: usize,
+        ctx: &Context,
+    ) -> TyCheckResult<Type> {
         let bounds = ty_ctx.type_params_bounds();
         let tv_ctx = TyVarContext::new(level, bounds, ctx);
         let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
@@ -366,7 +372,10 @@ impl Evaluator {
                 if let Some(outer) = &ctx.outer {
                     self.eval_t_params(Type::MonoProj { lhs, rhs }, outer, level)
                 } else {
-                    todo!("{lhs}.{rhs} not found in {}", erg_common::fmt_iter(ctx.rec_sorted_type_ctxs(&lhs)))
+                    todo!(
+                        "{lhs}.{rhs} not found in {}",
+                        erg_common::fmt_iter(ctx.rec_sorted_type_ctxs(&lhs))
+                    )
                 }
             }
             Type::Ref(l) => Ok(Type::ref_(self.eval_t_params(*l, ctx, level)?)),

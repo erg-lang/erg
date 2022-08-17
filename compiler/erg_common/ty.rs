@@ -94,7 +94,10 @@ pub enum Constraint {
     /// <: T
     SubtypeOf(Type),
     /// :> Sub, <: Sup
-    Sandwiched { sub: Type, sup: Type },
+    Sandwiched {
+        sub: Type,
+        sup: Type,
+    },
     /// : T
     TypeOf(Type),
     Uninited,
@@ -311,8 +314,14 @@ impl<T: Clone + HasLevel> Free<T> {
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
         match self.0.clone_inner() {
             FreeKind::Linked(_) => panic!("the value is linked"),
-            FreeKind::Unbound { constraint, lev, .. } => (None, lev, constraint),
-            | FreeKind::NamedUnbound { name, lev, constraint } => (Some(name), lev, constraint),
+            FreeKind::Unbound {
+                constraint, lev, ..
+            } => (None, lev, constraint),
+            FreeKind::NamedUnbound {
+                name,
+                lev,
+                constraint,
+            } => (Some(name), lev, constraint),
         }
     }
 
@@ -339,8 +348,9 @@ impl<T: Clone + HasLevel> Free<T> {
     pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
         Ref::map(self.0.borrow(), |f| match f {
             FreeKind::Linked(_) => panic!("the value is linked"),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } => constraint,
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                constraint
+            }
         })
     }
 
@@ -902,7 +912,7 @@ impl TyParam {
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
         match self {
-            Self::Type(t) => { t.update_constraint(new_constraint) },
+            Self::Type(t) => t.update_constraint(new_constraint),
             _ => {}
         }
     }
@@ -2861,8 +2871,10 @@ impl Type {
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
         match self {
-            Self::FreeVar(fv) => { fv.update_constraint(new_constraint); },
-            _ => {},
+            Self::FreeVar(fv) => {
+                fv.update_constraint(new_constraint);
+            }
+            _ => {}
         }
     }
 }

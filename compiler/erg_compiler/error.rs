@@ -455,7 +455,6 @@ impl TyCheckError {
         Self::new(ErrorCore::unreachable(fn_name, line), "".into())
     }
 
-
     pub fn reassign_error(loc: Location, caused_by: Str, name: &str) -> Self {
         let name = readable_name(name);
         Self::new(
