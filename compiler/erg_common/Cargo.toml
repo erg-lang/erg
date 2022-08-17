@@ -16,6 +16,7 @@ debug = []
 japanese = []
 
 [dependencies]
+atty = "0.2.14"
 
 [lib]
 path = "lib.rs"

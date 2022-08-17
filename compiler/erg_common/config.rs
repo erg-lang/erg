@@ -143,7 +143,17 @@ pub struct ErgConfig {
 impl Default for ErgConfig {
     #[inline]
     fn default() -> Self {
-        Self::new("exec", 1, false, None, 10, Input::REPL, "<module>", 2)
+        let is_stdin_piped: bool = atty::isnt(atty::Stream::Stdin);
+        let input = if is_stdin_piped {
+            use std::io::Read;
+
+            let mut buffer = String::new();
+            std::io::stdin().read_to_string(&mut buffer).unwrap();
+            Input::Pipe(Str::from(buffer))
+        } else {
+            Input::REPL
+        };
+        Self::new("exec", 1, false, None, 10, input, "<module>", 2)
     }
 }
 
