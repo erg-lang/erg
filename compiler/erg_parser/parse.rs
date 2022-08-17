@@ -295,7 +295,8 @@ impl Runnable for ParserRunner {
     }
 
     fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
-        let ast = Self::parse_from_str(src)?;
+        self.cfg.input = Input::Str(src);
+        let ast = self.parse()?;
         Ok(format!("{ast}"))
     }
 }
@@ -314,9 +315,10 @@ impl ParserRunner {
         self.parse_token_stream(ts)
     }
 
-    pub fn parse_from_str(src: Str) -> Result<AST, ParserRunnerErrors> {
+    /// Parses with default configuration
+    pub fn parse_with_default_config(input: Input) -> Result<AST, ParserRunnerErrors> {
         let mut cfg = ErgConfig::default();
-        cfg.input = Input::Str(src);
+        cfg.input = input;
         let mut self_ = Self::new(cfg);
         self_.parse()
     }

@@ -159,8 +159,10 @@ impl Compiler {
     pub fn compile(&mut self, src: Str, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!("{GREEN}[DEBUG] the compiling process has started.{RESET}");
         let mut dynamic = true;
-        let mut parser = ParserRunner::new(self.cfg.copy());
-        let ast = parser.parse_from_str(src)?;
+        let mut cfg = self.cfg.copy();
+        cfg.input = Input::Str(src);
+        let mut parser = ParserRunner::new(cfg);
+        let ast = parser.parse()?;
         if ast.is_empty() {
             return Ok(CodeObj::empty(
                 vec![],
