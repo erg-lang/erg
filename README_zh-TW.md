@@ -12,6 +12,9 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁體中文
 </p>
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCODE_OF_CONDUCT.md%26commit_hash%3D417c14f237f5fe69033248ab7faf1425c9e65e4d)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=6deeaff891402cfb08cc77d9de1e586ccbbd5089)
+
 ## Erg可以推薦給以下人員&colon;
 
 * 使用Python，但希望有類似Rust的健壯性和舒適的編譯器支持
