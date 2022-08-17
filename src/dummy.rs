@@ -35,7 +35,10 @@ impl Runnable for DummyVM {
             let addr = format!("{repl_server_ip}:{repl_server_port}");
             loop {
                 match TcpStream::connect(&addr) {
-                    Ok(stream) => break Some(stream),
+                    Ok(stream) => {
+                        stream.set_read_timeout(Some(Duration::from_secs(cfg.py_server_timeout))).unwrap();
+                        break Some(stream)
+                    },
                     Err(_) => {
                         println!("Retrying to connect to the REPL server...");
                         sleep(Duration::from_millis(500));
@@ -104,11 +107,15 @@ impl Runnable for DummyVM {
                         s.to_string()
                     }
                     Result::Err(e) => {
+                        self.finish();
                         panic!("{}", format!("Read error: {e}"));
                     }
                 }
             }
-            Result::Err(e) => panic!("{}", format!("Sending error: {e}")),
+            Result::Err(e) => {
+                self.finish();
+                panic!("{}", format!("Sending error: {e}"))
+            },
         };
         if res.ends_with("None") {
             res.truncate(res.len() - 5);

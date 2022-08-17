@@ -130,6 +130,7 @@ pub struct ErgConfig {
     pub opt_level: u8,
     pub dump_as_pyc: bool,
     pub python_ver: Option<u32>,
+    pub py_server_timeout: u64,
     pub input: Input,
     pub module: &'static str,
     /// verbosity level for system messages.
@@ -142,7 +143,7 @@ pub struct ErgConfig {
 impl Default for ErgConfig {
     #[inline]
     fn default() -> Self {
-        Self::new("exec", 1, false, None, Input::REPL, "<module>", 2)
+        Self::new("exec", 1, false, None, 10, Input::REPL, "<module>", 2)
     }
 }
 
@@ -152,6 +153,7 @@ impl ErgConfig {
         opt_level: u8,
         dump_as_pyc: bool,
         python_ver: Option<u32>,
+        py_server_timeout: u64,
         input: Input,
         module: &'static str,
         verbose: u8,
@@ -161,6 +163,7 @@ impl ErgConfig {
             opt_level,
             dump_as_pyc,
             python_ver,
+            py_server_timeout,
             input,
             module,
             verbose,
@@ -202,6 +205,9 @@ impl ErgConfig {
                 }
                 "-p" | "--py-ver" | "--python-version" => {
                     cfg.python_ver = Some(args.next().unwrap().parse::<u32>().unwrap());
+                }
+                "--py-server-timeout" => {
+                    cfg.py_server_timeout = args.next().unwrap().parse::<u64>().unwrap();
                 }
                 "--verbose" => {
                     cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();

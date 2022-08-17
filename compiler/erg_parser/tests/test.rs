@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn test_parser1() -> Result<(), ParserRunnerErrors> {
         let input = Input::File(FILE1.into());
-        let cfg = ErgConfig::new("exec", 1, false, None, input.clone(), "<module>", 2);
+        let cfg = ErgConfig::new("exec", 1, false, None, 100, input.clone(), "<module>", 2);
         let lexer = Lexer::new(input.clone());
         let mut parser = ParserRunner::new(cfg);
         match parser.parse(
