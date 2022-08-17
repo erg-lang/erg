@@ -301,17 +301,21 @@ impl Runnable for ParserRunner {
 }
 
 impl ParserRunner {
-    pub fn parse(&mut self, ts: TokenStream) -> Result<AST, ParserRunnerErrors> {
+    pub fn parse_token_stream(&mut self, ts: TokenStream) -> Result<AST, ParserRunnerErrors> {
         Parser::new(ts)
             .parse(Str::ever(self.cfg.module))
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 
-    pub fn parse_from_str(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
-        let ts = Lexer::from_str(src)
+    pub fn parse_from(&mut self, input: Input) -> Result<AST, ParserRunnerErrors> {
+        let ts = Lexer::new(input)
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        self.parse(ts)
+        self.parse_token_stream(ts)
+    }
+
+    pub fn parse_from_str(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
+        self.parse_from(Input::Str(src))
     }
 }
 

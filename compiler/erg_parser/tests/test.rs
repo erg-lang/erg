@@ -130,7 +130,7 @@ mod tests {
         let cfg = ErgConfig::new("exec", 1, false, None, 100, input.clone(), "<module>", 2);
         let lexer = Lexer::new(input.clone());
         let mut parser = ParserRunner::new(cfg);
-        match parser.parse(
+        match parser.parse_token_stream(
             lexer
                 .lex()
                 .map_err(|errs| ParserRunnerErrors::convert(&input, errs))?,
