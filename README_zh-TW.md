@@ -9,7 +9,7 @@
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
     <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: MIT & APACHE 2.0" src="https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue"></a><br>
-    <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁体中文
+    <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁體中文
 </p>
 
 ## Erg可以推薦給以下人員&colon;
@@ -183,7 +183,7 @@ cd erg
 nix-build
 ```
 
-如果您已啟用 [Nix Flakes](https://nixos.wiki/wiki/Flakes). 
+如果您已啟用 [Nix Flakes](https://nixos.wiki/wiki/Flakes)
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
