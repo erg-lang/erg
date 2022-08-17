@@ -7,7 +7,7 @@ use std::mem;
 
 use erg_common::color::{GREEN, RED, RESET};
 use erg_common::config::ErgConfig;
-use erg_common::config::{Input};
+use erg_common::config::Input;
 use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::Runnable;

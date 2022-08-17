@@ -4,7 +4,7 @@
 use std::env;
 // use std::env::consts::{ARCH, OS};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, stdin};
+use std::io::{stdin, BufRead, BufReader, Read};
 use std::process;
 
 // use crate::lazy::Lazy;

@@ -9,7 +9,7 @@ use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
 use crate::color::{GREEN, RESET};
-use crate::config::{ErgConfig, Input, SEMVER, GIT_HASH_SHORT, BUILD_DATE};
+use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, Location, MultiErrorDisplay};
 use crate::ty::Type;
 use crate::Str;
@@ -311,7 +311,10 @@ pub trait Runnable: Sized {
     fn new(cfg: ErgConfig) -> Self;
     fn input(&self) -> &Input;
     fn start_message(&self) -> String {
-        format!("{} {SEMVER} (tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n", Self::NAME)
+        format!(
+            "{} {SEMVER} (tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
+            Self::NAME
+        )
     }
     fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
