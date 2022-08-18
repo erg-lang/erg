@@ -62,13 +62,13 @@ impl ASTLowerer {
                 expr.loc(),
                 self.ctx.name.clone(),
                 switch_lang!(
-                    "the evaluation result of the expression is not used",
-                    "式の評価結果が使われていません",
+                    "japanese" => "式の評価結果が使われていません",
+                    "english" => "the evaluation result of the expression is not used",
                 ),
                 Some(
                     switch_lang!(
-                        "if you don't use the value, use `discard` function",
-                        "値を使わない場合は、discard関数を使用してください",
+                        "japanese" => "値を使わない場合は、discard関数を使用してください",
+                        "english" => "if you don't use the value, use `discard` function",
                     )
                     .into(),
                 ),

@@ -21,10 +21,16 @@ impl LexError {
     }
 
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::new(errno, CompilerSystemError, loc, switch_lang!(
-            format!("this is a bug of the Erg compiler, please report it to https://github.com/mtshiba/erg\ncaused from: {fn_name}:{line}"),
-            format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/mtshiba/erg)\n{fn_name}:{line}より発生")
-        ), None))
+        Self::new(ErrorCore::new(
+            errno,
+            CompilerSystemError,
+            loc,
+            switch_lang!(
+                "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/mtshiba/erg)\n{fn_name}:{line}より発生"),
+                "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/mtshiba/erg\ncaused from: {fn_name}:{line}"),
+            ),
+            None,
+        ))
     }
 
     pub fn feature_error(errno: usize, loc: Location, name: &str) -> Self {
@@ -33,8 +39,9 @@ impl LexError {
             FeatureError,
             loc,
             switch_lang!(
-                format!("this feature({name}) is not implemented yet"),
-                format!("この機能({name})はまだ正式に提供されていません")
+                "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
+                "simplified_chinese" => format!("该功能({name})还没有正式提供"),
+                "english" => format!("this feature({name}) is not implemented yet"),
             ),
             None,
         ))
@@ -45,7 +52,11 @@ impl LexError {
             errno,
             SyntaxError,
             loc,
-            switch_lang!("invalid syntax", "不正な構文です"),
+            switch_lang!(
+                "japanese" => "不正な構文です",
+                "simplified_chinese" => "无效的语法",
+                "english" => "invalid syntax",
+            ),
             None,
         ))
     }

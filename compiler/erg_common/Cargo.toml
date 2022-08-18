@@ -14,6 +14,8 @@ homepage = "https://erg-lang.github.io/"
 [features]
 debug = []
 japanese = []
+simplified_chinese = []
+traditional_chinese = []
 
 [dependencies]
 atty = "0.2.14"

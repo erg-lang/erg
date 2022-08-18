@@ -58,11 +58,17 @@ macro_rules! impl_display_for_enum_with_variant {
 /// マクロはパラメータを展開しないので、format!のロスがなくなる
 #[macro_export]
 macro_rules! switch_lang {
-    ($en: expr, $jp: expr $(,)*) => {{
-        if cfg!(feature = "japanese") {
-            $jp
+    (
+        $should_english: literal => $msg: expr,
+    ) => {{ $msg }};
+    (
+        $lang_name: literal => $msg: expr,
+        $($rest_lang_name: literal => $rest_msg: expr,)+
+    ) => {{
+        if cfg!(feature = $lang_name) {
+            $msg
         } else {
-            $en
+            switch_lang!($($rest_lang_name => $rest_msg,)+)
         }
     }};
 }

@@ -439,7 +439,10 @@ impl Parser {
             let err = ParseError::syntax_error(
                 0,
                 loc,
-                switch_lang!("failed to parse a block", "ブロックの解析に失敗しました"),
+                switch_lang!(
+                    "japanese" => "ブロックの解析に失敗しました",
+                    "english" => "failed to parse a block",
+                ),
                 None,
             );
             Err(err)
@@ -496,8 +499,8 @@ impl Parser {
                     0,
                     self.peek().unwrap().loc(),
                     switch_lang!(
-                        "Cannot use type bounds in a declaration of a variable",
-                        "変数宣言で型制約は使えません"
+                        "japanese" => "変数宣言で型制約は使えません",
+                        "english" => "Cannot use type bounds in a declaration of a variable",
                     ),
                     None,
                 );
@@ -509,16 +512,6 @@ impl Parser {
                     self.skip();
                     Some(self.try_reduce_type_spec()?)
                 } else {
-                    if self.cur_is(Colon) {
-                        self.warns.push(ParseError::syntax_warning(0, name.loc(), switch_lang!(
-                                "Since it is obvious that the variable is of type `Type`, there is no need to specify the type.",
-                                "変数がType型であることは明らかなので、型指定は不要です。"
-                            ), Some(switch_lang!(
-                                "Are you sure you're not confusing it with subclass declaration (<:)?",
-                                "サブクラスの宣言(<:)ではありませんか?"
-                            ).into())
-                        ));
-                    }
                     None
                 }
             } else if self.cur_is(Colon) {
@@ -663,8 +656,8 @@ impl Parser {
                         0,
                         t.loc(),
                         switch_lang!(
-                            "Binary operators cannot be used in left-values",
-                            "左辺値の中で中置演算子は使えません"
+                            "japanese" => "左辺値の中で中置演算子は使えません",
+                            "english" => "Binary operators cannot be used in left-values",
                         ),
                         None,
                     );
@@ -754,9 +747,10 @@ impl Parser {
                             return Err(ParseError::syntax_error(
                                 0,
                                 param.loc(),
+                                // TODO: switch_lang!
                                 "non-default argument follows default argument",
                                 None,
-                            ))
+                            ));
                         }
                         (false, false) => {
                             non_default_params.push(param);
@@ -768,8 +762,8 @@ impl Parser {
                         0,
                         t.loc(),
                         switch_lang!(
-                            "Binary operators cannot be used in parameters",
-                            "仮引数の中で中置演算子は使えません"
+                            "japanese" => "仮引数の中で中置演算子は使えません",
+                            "english" => "Binary operators cannot be used in parameters",
                         ),
                         None,
                     );
@@ -1015,18 +1009,21 @@ impl Parser {
 
     fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
         match expr {
-            Expr::Lit(l) =>  Ok(ConstExpr::Lit(l)),
+            Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Local(local)) => {
                 let local = ConstLocal::new(local.symbol);
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
             // TODO: App, Array, Record, BinOp, UnaryOp,
-            other => {
-                Err(ParseError::syntax_error(0, other.loc(), switch_lang!(
-                    "this expression is not computable at the compile-time, so cannot used as a type-argument",
-                    "この式はコンパイル時計算できないため、型引数には使用できません",
-                ), None))
-            }
+            other => Err(ParseError::syntax_error(
+                0,
+                other.loc(),
+                switch_lang!(
+                    "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
+                    "english" => "this expression is not computable at the compile-time, so cannot used as a type-argument",
+                ),
+                None,
+            )),
         }
     }
 

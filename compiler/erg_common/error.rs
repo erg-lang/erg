@@ -321,10 +321,16 @@ impl ErrorCore {
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        Self::new(errno, CompilerSystemError, loc, switch_lang!(
-            format!("this is a bug of Erg, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
-            format!("これはErgのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生")
-        ), None)
+        Self::new(
+            errno,
+            CompilerSystemError,
+            loc,
+            switch_lang!(
+                "japanese" => format!("これはErgのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
+                "english" => format!("this is a bug of Erg, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+            ),
+            None,
+        )
     }
 }
 

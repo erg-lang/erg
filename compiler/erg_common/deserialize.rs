@@ -58,8 +58,8 @@ impl DeserializeError {
             0,
             fn_name!(),
             switch_lang!(
-                "the loaded .pyc file is broken",
-                "読み込んだ.pycファイルは破損しています"
+                "japanese" => "読み込んだ.pycファイルは破損しています",
+                "english" => "the loaded .pyc file is broken",
             ),
         )
     }
@@ -69,14 +69,14 @@ impl DeserializeError {
             0,
             fn_name!(),
             switch_lang!(
-                format!(
+                "japanese" => format!(
+                    "{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です",
+                    expect, found
+                ),
+                "english" => format!(
                     "expect a {} object, but the deserialized object is {}",
                     expect, found
                 ),
-                format!(
-                    "{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です",
-                    expect, found
-                )
             ),
         )
     }
@@ -228,8 +228,8 @@ impl Deserializer {
                 0,
                 fn_name!(),
                 switch_lang!(
-                    format!("cannot deserialize this object: {}", other),
-                    format!("このオブジェクトは復元できません: {}", other)
+                    "japanese" => format!("このオブジェクトは復元できません: {}", other),
+                    "english" => format!("cannot deserialize this object: {}", other),
                 ),
             )),
         }
@@ -300,7 +300,10 @@ impl Deserializer {
             return Err(DeserializeError::new(
                 0,
                 fn_name!(),
-                switch_lang!("failed to load bytes", "バイト列の読み込みに失敗しました"),
+                switch_lang!(
+                    "japanese" => "バイト列の読み込みに失敗しました",
+                    "english" => "failed to load bytes",
+                ),
             ));
         }
         let len = Self::deserialize_u32(v);

@@ -138,10 +138,20 @@ impl CompileError {
         fn_name: &str,
         line: u32,
     ) -> Self {
-        Self::new(ErrorCore::new(errno, CompilerSystemError, loc, switch_lang!(
-            format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
-            format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生")
-        ), None), input, "".into())
+        Self::new(
+            ErrorCore::new(
+                errno,
+                CompilerSystemError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+                ),
+                None,
+            ),
+            input,
+            "".into(),
+        )
     }
 
     pub fn stack_bug(
@@ -151,14 +161,24 @@ impl CompileError {
         block_id: usize,
         fn_name: &str,
     ) -> Self {
-        Self::new(ErrorCore::new(0, CompilerSystemError, loc, switch_lang!(
-            format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
-                    this is a bug of the Erg compiler, please report it (https://github.com/...)\n\
-                    caused from: {fn_name}"),
-            format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
-                    これはコンパイラのバグです、開発者に報告して下さい (https://github.com/...)\n\
-                    {fn_name}より発生")
-        ), None), input, "".into())
+        Self::new(
+            ErrorCore::new(
+                0,
+                CompilerSystemError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
+                            これはコンパイラのバグです、開発者に報告して下さい (https://github.com/...)\n\
+                            {fn_name}より発生"),
+                    "english" => format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
+                            this is a bug of the Erg compiler, please report it (https://github.com/...)\n\
+                            caused from: {fn_name}"),
+                ),
+                None,
+            ),
+            input,
+            "".into(),
+        )
     }
 
     pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: Str) -> Self {
@@ -168,8 +188,9 @@ impl CompileError {
                 FeatureError,
                 loc,
                 switch_lang!(
-                    format!("this feature({name}) is not implemented yet"),
-                    format!("この機能({name})はまだ正式に提供されていません")
+                    "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
+                    "simplified_chinese" => format!("该功能({name})还没有正式提供"),
+                    "english" => format!("this feature({name}) is not implemented yet"),
                 ),
                 None,
             ),
@@ -195,10 +216,19 @@ impl TyCheckError {
     }
 
     pub fn checker_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::new(errno, CompilerSystemError, loc, switch_lang!(
-            format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
-            format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生")
-        ), None), "".into())
+        Self::new(
+            ErrorCore::new(
+                errno,
+                CompilerSystemError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+                ),
+                None,
+            ),
+            "".into(),
+        )
     }
 
     pub fn feature_error(loc: Location, name: &str, caused_by: Str) -> Self {
@@ -208,8 +238,8 @@ impl TyCheckError {
                 FeatureError,
                 loc,
                 switch_lang!(
-                    format!("this feature({name}) is not implemented yet"),
-                    format!("この機能({name})はまだ正式に提供されていません")
+                    "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
+                    "english" => format!("this feature({name}) is not implemented yet"),
                 ),
                 None,
             ),
@@ -238,8 +268,8 @@ impl TyCheckError {
                 NameError,
                 loc,
                 switch_lang!(
-                    format!("{name} is already declared"),
-                    format!("{name}は既に宣言されています")
+                    "japanese" => format!("{name}は既に宣言されています"),
+                    "english" => format!("{name} is already declared"),
                 ),
                 Option::<Str>::None,
             ),
@@ -255,12 +285,18 @@ impl TyCheckError {
         found_t: &Type,
     ) -> Self {
         let name = readable_name(name);
-        Self::new(ErrorCore::new(0, TypeError, loc,
-            switch_lang!(
-                format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
-                format!("{name}は{GREEN}{spec_t}{RESET}型として宣言されましたが、{RED}{found_t}{RESET}型のオブジェクトが代入されています")
-            ), Option::<Str>::None),
-            caused_by
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は{GREEN}{spec_t}{RESET}型として宣言されましたが、{RED}{found_t}{RESET}型のオブジェクトが代入されています"),
+                    "english" => format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
+                ),
+                Option::<Str>::None,
+            ),
+            caused_by,
         )
     }
 
@@ -272,8 +308,8 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    format!("the type of {name} is not specified"),
-                    format!("{name}の型が指定されていません")
+                    "japanese" => format!("{name}の型が指定されていません"),
+                    "english" => format!("the type of {name} is not specified"),
                 ),
                 None,
             ),
@@ -291,8 +327,8 @@ impl TyCheckError {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
             switch_lang!(
-                format!("exists a similar name variable: {n}"),
-                format!("似た名前の変数があります: {n}")
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "english" => format!("exists a similar name variable: {n}"),
             )
             .into()
         });
@@ -302,8 +338,8 @@ impl TyCheckError {
                 NameError,
                 loc,
                 switch_lang!(
-                    format!("{RED}{name}{RESET} is not defined"),
-                    format!("{RED}{name}{RESET}という変数は定義されていません")
+                    "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
+                    "english" => format!("{RED}{name}{RESET} is not defined"),
                 ),
                 hint,
             ),
@@ -321,8 +357,8 @@ impl TyCheckError {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
             switch_lang!(
-                format!("has a similar name attribute: {n}"),
-                format!("似た名前の属性があります: {n}")
+                "japanese" => format!("似た名前の属性があります: {n}"),
+                "english" => format!("has a similar name attribute: {n}"),
             )
             .into()
         });
@@ -332,8 +368,8 @@ impl TyCheckError {
                 AttributeError,
                 loc,
                 switch_lang!(
-                    format!("{obj_t} object has no attribute {RED}{name}{RESET}"),
-                    format!("{obj_t}型オブジェクトに{RED}{name}{RESET}という属性はありません")
+                    "japanese" => format!("{obj_t}型オブジェクトに{RED}{name}{RESET}という属性はありません"),
+                    "english" => format!("{obj_t} object has no attribute {RED}{name}{RESET}"),
                 ),
                 hint,
             ),
@@ -353,12 +389,12 @@ impl TyCheckError {
                 NotImplementedError,
                 callee.loc(),
                 switch_lang!(
-                    format!(
+                    "japanese" => format!(
+                        "{callee}は{param_ts}を引数に取る呼び出し可能オブジェクトではありません"
+                    ),
+                    "english" => format!(
                         "{callee} is not a Callable object that takes {param_ts} as an argument"
                     ),
-                    format!(
-                        "{callee}は{param_ts}を引数に取る呼び出し可能オブジェクトではありません"
-                    )
                 ),
                 None,
             ),
@@ -373,10 +409,19 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("the type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
-            format!("{name}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
+                    "english" => format!("the type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn return_type_error(
@@ -386,10 +431,19 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("the return type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
-            format!("{name}の戻り値の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}の戻り値の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
+                    "english" => format!("the return type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn uninitialized_error(loc: Location, caused_by: Str, name: &str, t: &Type) -> Self {
@@ -399,8 +453,8 @@ impl TyCheckError {
                 NameError,
                 loc,
                 switch_lang!(
-                    format!("{name}: {t} is not initialized"),
-                    format!("{name}: {t}は初期化されていません")
+                    "japanese" => format!("{name}: {t}は初期化されていません"),
+                    "english" => format!("{name}: {t} is not initialized"),
                 ),
                 None,
             ),
@@ -409,10 +463,19 @@ impl TyCheckError {
     }
 
     pub fn argument_error(loc: Location, caused_by: Str, expect: usize, found: usize) -> Self {
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("the number of positional arguments is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
-            format!("ポジショナル引数の数が違います。\n予期した個数: {GREEN}{expect}{RESET}\n与えられた個数: {RED}{found}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("ポジショナル引数の数が違います。\n予期した個数: {GREEN}{expect}{RESET}\n与えられた個数: {RED}{found}{RESET}"),
+                    "english" => format!("the number of positional arguments is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn match_error(loc: Location, caused_by: Str, expr_t: &Type) -> Self {
@@ -422,8 +485,8 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    format!("not all patterns of type {expr_t} are covered"),
-                    format!("{expr_t}型の全パターンを網羅していません")
+                    "japanese" => format!("{expr_t}型の全パターンを網羅していません"),
+                    "english" => format!("not all patterns of type {expr_t} are covered"),
                 ),
                 None,
             ),
@@ -438,8 +501,8 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    format!("failed to infer the type of {expr}"),
-                    format!("{expr}の型が推論できません")
+                    "japanese" => format!("{expr}の型が推論できません"),
+                    "english" => format!("failed to infer the type of {expr}"),
                 ),
                 None,
             ),
@@ -463,8 +526,8 @@ impl TyCheckError {
                 AssignError,
                 loc,
                 switch_lang!(
-                    format!("cannot assign twice to the immutable variable {name}"),
-                    format!("定数{name}には再代入できません")
+                    "japanese" => format!("定数{name}には再代入できません"),
+                    "english" => format!("cannot assign twice to the immutable variable {name}"),
                 ),
                 None,
             ),
@@ -487,18 +550,18 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    format!(
+                    "japanese" => format!(
+                        "{name}に渡された引数の数が多すぎます。
+必要な引数の合計数: {GREEN}{params_len}{RESET}個
+渡された引数の数:   {RED}{pos_args_len}{RESET}個
+キーワード引数の数: {RED}{kw_args_len}{RESET}個"
+                    ),
+                    "english" => format!(
                         "too many arguments for {name}:
 total expected params:  {GREEN}{params_len}{RESET}
 passed positional args: {RED}{pos_args_len}{RESET}
 passed keyword args:    {RED}{kw_args_len}{RESET}"
                     ),
-                    format!(
-                        "{name}に渡された引数の数が多すぎます。
-必要な引数の合計数: {GREEN}{params_len}{RESET}個
-渡された引数の数:   {RED}{pos_args_len}{RESET}個
-キーワード引数の数: {RED}{kw_args_len}{RESET}個"
-                    )
                 ),
                 None,
             ),
@@ -519,8 +582,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 TypeError,
                 loc,
                 switch_lang!(
-                    format!("{name}'s argument {RED}{arg_name}{RESET} is passed multiple times"),
-                    format!("{name}の引数{RED}{arg_name}{RESET}が複数回渡されています")
+                    "japanese" => format!("{name}の引数{RED}{arg_name}{RESET}が複数回渡されています"),
+                    "english" => format!("{name}'s argument {RED}{arg_name}{RESET} is passed multiple times"),
                 ),
                 None,
             ),
@@ -541,9 +604,9 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 TypeError,
                 loc,
                 switch_lang!(
-            format!("{name} got unexpected keyword argument {RED}{param_name}{RESET}"),
-            format!("{name}には予期しないキーワード引数{RED}{param_name}{RESET}が渡されています")
-        ),
+                    "japanese" => format!("{name}には予期しないキーワード引数{RED}{param_name}{RESET}が渡されています"),
+                    "english" => format!("{name} got unexpected keyword argument {RED}{param_name}{RESET}"),
+                ),
                 None,
             ),
             caused_by,
@@ -558,8 +621,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 UnusedWarning,
                 loc,
                 switch_lang!(
-                    format!("{YELLOW}{name}{RESET} is not used"),
-                    format!("{YELLOW}{name}{RESET}は使用されていません")
+                    "japanese" => format!("{YELLOW}{name}{RESET}は使用されていません"),
+                    "english" => format!("{YELLOW}{name}{RESET} is not used"),
                 ),
                 None,
             ),
@@ -580,10 +643,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             (None, Some(r)) => r,
             (None, None) => Location::Unknown,
         };
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
-            format!("型の単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("型の単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
+                    "english" => format!("unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn re_unification_error(
@@ -599,10 +671,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             (None, Some(r)) => r,
             (None, None) => Location::Unknown,
         };
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("re-unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
-            format!("型の再単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("型の再単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
+                    "english" => format!("re-unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn subtyping_error(
@@ -618,17 +699,35 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             (None, Some(r)) => r,
             (None, None) => Location::Unknown,
         };
-        Self::new(ErrorCore::new(0, TypeError, loc, switch_lang!(
-            format!("subtype constraints cannot be satisfied:\nsubtype: {YELLOW}{sub_t}{RESET}\nsupertype: {YELLOW}{sup_t}{RESET}"),
-            format!("部分型制約を満たせません:\nサブタイプ: {YELLOW}{sub_t}{RESET}\nスーパータイプ: {YELLOW}{sup_t}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("部分型制約を満たせません:\nサブタイプ: {YELLOW}{sub_t}{RESET}\nスーパータイプ: {YELLOW}{sup_t}{RESET}"),
+                    "english" => format!("subtype constraints cannot be satisfied:\nsubtype: {YELLOW}{sub_t}{RESET}\nsupertype: {YELLOW}{sup_t}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn pred_unification_error(lhs: &Predicate, rhs: &Predicate, caused_by: Str) -> Self {
-        Self::new(ErrorCore::new(0, TypeError, Location::Unknown, switch_lang!(
-            format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
-            format!("述語式の単一化に失敗しました:\n左辺: {YELLOW}{lhs}{RESET}\n右辺: {YELLOW}{rhs}{RESET}")
-        ), None), caused_by)
+        Self::new(
+            ErrorCore::new(
+                0,
+                TypeError,
+                Location::Unknown,
+                switch_lang!(
+                    "japanese" => format!("述語式の単一化に失敗しました:\n左辺: {YELLOW}{lhs}{RESET}\n右辺: {YELLOW}{rhs}{RESET}"),
+                    "english" => format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 
     pub fn has_effect<S: Into<Str>>(expr: &Expr, caused_by: S) -> Self {
@@ -638,8 +737,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 HasEffect,
                 expr.loc(),
                 switch_lang!(
-                    format!("this expression causes a side-effect"),
-                    format!("この式には副作用があります")
+                    "japanese" => format!("この式には副作用があります"),
+                    "english" => format!("this expression causes a side-effect"),
                 ),
                 None,
             ),
@@ -659,14 +758,14 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 MoveError,
                 name_loc,
                 switch_lang!(
-                    format!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}は{}行目ですでに移動されています",
+                        moved_loc.ln_begin().unwrap()
+                    ),
+                    "english" => format!(
                         "{RED}{name}{RESET} was moved in line {}",
                         moved_loc.ln_begin().unwrap()
                     ),
-                    format!(
-                        "{RED}{name}{RESET}は{}行目ですでに移動されています",
-                        moved_loc.ln_begin().unwrap()
-                    )
                 ),
                 None,
             ),

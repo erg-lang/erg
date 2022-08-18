@@ -266,8 +266,8 @@ impl Lexer /*<'a>*/ {
                     0,
                     comment.loc(),
                     switch_lang!(
-                        "invalid unicode character (bi-directional override) in comments",
-                        "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています"
+                        "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
+                        "english" => "invalid unicode character (bi-directional override) in comments",
                     ),
                     None,
                 ));
@@ -298,7 +298,10 @@ impl Lexer /*<'a>*/ {
             Some(Err(LexError::syntax_error(
                 0,
                 space.loc(),
-                switch_lang!("invalid indent", "インデントが不正です"),
+                switch_lang!(
+                    "japanese" => "インデントが不正です",
+                    "english" => "invalid indent",
+                ),
                 None,
             )))
         } else if self.prev_token.is(Newline) {
@@ -317,11 +320,14 @@ impl Lexer /*<'a>*/ {
             return Some(Err(LexError::syntax_error(
                 0,
                 token.loc(),
-                switch_lang!("indentation is too deep", "インデントが深すぎます"),
+                switch_lang!(
+                    "japanese" => "インデントが深すぎます",
+                    "english" => "indentation is too deep",
+                ),
                 Some(
                     switch_lang!(
-                        "The code is too complicated. Please split the process.",
-                        "コードが複雑すぎます。処理を分割してください"
+                        "japanese" => "コードが複雑すぎます。処理を分割してください",
+                        "english" => "The code is too complicated. Please split the process",
                     )
                     .into(),
                 ),
@@ -359,7 +365,10 @@ impl Lexer /*<'a>*/ {
                     Some(Err(LexError::syntax_error(
                         0,
                         invalid_dedent.loc(),
-                        switch_lang!("invalid indent", "インデントが不正です"),
+                        switch_lang!(
+                            "japanese" => "インデントが不正です",
+                            "english" => "invalid indent",
+                        ),
                         None,
                     )))
                 }
@@ -529,9 +538,9 @@ impl Lexer /*<'a>*/ {
                         0,
                         token.loc(),
                         switch_lang!(
-                        "invalid unicode character (bi-directional override) in string literal",
-                        "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています"
-                    ),
+                            "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
+                            "english" => "invalid unicode character (bi-directional override) in string literal",
+                        ),
                         None,
                     ));
                 }
@@ -542,8 +551,8 @@ impl Lexer /*<'a>*/ {
             0,
             token.loc(),
             switch_lang!(
-                "the string is not closed by \"",
-                "文字列が\"によって閉じられていません"
+                "japanese" => "文字列が\"によって閉じられていません",
+                "english" => "the string is not closed by \"",
             ),
             None,
         ))
@@ -590,7 +599,10 @@ impl Iterator for Lexer /*<'a>*/ {
                         Some(Err(LexError::syntax_error(
                             0,
                             token.loc(),
-                            switch_lang!("no such operator: <.", "<.という演算子はありません"),
+                            switch_lang!(
+                                "japanese" => "<.という演算子はありません",
+                                "english" => "no such operator: <.",
+                            ),
                             None,
                         )))
                     }
@@ -764,8 +776,17 @@ impl Iterator for Lexer /*<'a>*/ {
                 Some(Err(LexError::syntax_error(
                     0,
                     token.loc(),
-                    switch_lang!("cannot use a tab as a space", "タブ文字は使用できません"),
-                    Some(switch_lang!("use spaces", "スペースを使用してください").into()),
+                    switch_lang!(
+                        "japanese" => "タブ文字は使用できません",
+                        "english" => "cannot use a tab as a space",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "スペース( )を使用してください",
+                            "english" => "use spaces ( )",
+                        )
+                        .into(),
+                    ),
                 )))
             }
             // TODO:
@@ -788,8 +809,8 @@ impl Iterator for Lexer /*<'a>*/ {
                                 0,
                                 token.loc(),
                                 switch_lang!(
-                                    format!("`{}` cannot be defined by user", &token.content),
-                                    format!("`{}`はユーザー定義できません", &token.content)
+                                    "japanese" => format!("`{}`はユーザー定義できません", &token.content),
+                                    "english" => format!("`{}` cannot be defined by user", &token.content),
                                 ),
                                 None,
                             )));
@@ -802,8 +823,8 @@ impl Iterator for Lexer /*<'a>*/ {
                     0,
                     token.loc(),
                     switch_lang!(
-                        format!("back quotes (`) not closed"),
-                        format!("バッククォート(`)が閉じられていません")
+                        "japanese" => format!("バッククォート(`)が閉じられていません"),
+                        "english" => format!("back quotes (`) not closed"),
                     ),
                     None,
                 )))
@@ -819,8 +840,8 @@ impl Iterator for Lexer /*<'a>*/ {
                     0,
                     token.loc(),
                     switch_lang!(
-                        format!("invalid character: '{invalid}'"),
-                        format!("この文字は使用できません: '{invalid}'")
+                        "japanese" => format!("この文字は使用できません: '{invalid}'"),
+                        "english" => format!("invalid character: '{invalid}'"),
                     ),
                     None,
                 )))

@@ -12,6 +12,8 @@ homepage = "https://erg-lang.github.io/"
 [features]
 debug = [ "erg_common/debug" ]
 japanese = [ "erg_common/japanese" ]
+simplified_chinese = [ "erg_common/simplified_chinese" ]
+traditional_chinese = [ "erg_common/traditional_chinese" ]
 
 [dependencies]
 erg_common = { version = "0.2.5", path = "../erg_common" }
