@@ -3,7 +3,7 @@
 //! コンパイラーを定義する
 use std::path::Path;
 
-use erg_common::codeobj::{CodeObj, CodeObjFlags};
+use erg_common::codeobj::CodeObj;
 use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
@@ -158,26 +158,14 @@ impl Compiler {
 
     pub fn compile(&mut self, src: Str, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!("{GREEN}[DEBUG] the compiling process has started.{RESET}");
-        let mut dynamic = true;
         let mut cfg = self.cfg.copy();
         cfg.input = Input::Str(src);
         let mut parser = ParserRunner::new(cfg);
         let ast = parser.parse()?;
-        if ast.is_empty() {
-            return Ok(CodeObj::empty(
-                vec![],
-                Str::rc(self.input().enclosed_name()),
-                "<module>",
-                1,
-            ));
-        }
         let (hir, warns) = self
             .lowerer
             .lower(ast, mode)
             .map_err(|errs| self.convert(errs))?;
-        if warns.is_empty() {
-            dynamic = false;
-        }
         if self.cfg.verbose >= 2 {
             let warns = self.convert(warns);
             warns.fmt_all_stderr();
@@ -190,10 +178,7 @@ impl Compiler {
         let hir = ownership_checker
             .check(hir)
             .map_err(|errs| self.convert(errs))?;
-        let mut codeobj = self.code_generator.codegen(hir);
-        if dynamic {
-            codeobj.flags += CodeObjFlags::EvmDynamic as u32;
-        }
+        let codeobj = self.code_generator.codegen(hir);
         log!("{GREEN}code object:\n{}", codeobj.code_info());
         log!(
             "[DEBUG] the compiling process has completed, found errors: {}{RESET}",

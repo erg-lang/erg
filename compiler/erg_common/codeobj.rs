@@ -53,7 +53,6 @@ pub enum CodeObjFlags {
     FutureAnnotations = 0x10_0000,
     // Erg-specific flags
     EvmDynParam = 0x1000_0000,
-    EvmDynamic = 0x2000_0000,
     EvmNoGC = 0x4000_0000,
     Illegal = 0x0000,
 }
@@ -82,7 +81,6 @@ impl From<u32> for CodeObjFlags {
             0x10_0000 => Self::FutureAnnotations,
             // EVM flags
             0x1000_0000 => Self::EvmDynParam,
-            0x2000_0000 => Self::EvmDynamic,
             0x4000_0000 => Self::EvmNoGC,
             _ => Self::Illegal,
         }
