@@ -1,28 +1,21 @@
-extern crate erg_common;
-extern crate erg_parser;
+use std::iter::Iterator;
 
-mod tests {
-    use std::iter::Iterator;
+use erg_common::config::Input;
 
-    use erg_common::config::{ErgConfig, Input};
-    use erg_common::error::MultiErrorDisplay;
-    use erg_common::traits::Runnable;
+// use erg_compiler::parser;
 
-    // use erg_compiler::parser;
+use erg_parser::error::ParseResult;
+use erg_parser::lex::{Lexer};
+use erg_parser::token::*;
+use TokenKind::*;
 
-    use erg_parser::error::*;
-    use erg_parser::lex::Lexer;
-    use erg_parser::token::*;
-    use erg_parser::ParserRunner;
-    use TokenKind::*;
+const FILE1: &str = "tests/test1_basic_syntax.er";
 
-    const FILE1: &str = "src/compiler/parser/tests/test1_basic_syntax.er";
-
-    #[test]
-    fn test_lexer() -> ParseResult<()> {
-        let mut lexer = Lexer::new(Input::File(FILE1.into()));
-        let newline = "\n";
-        let /*mut*/ token_array = vec![
+#[test]
+fn test_lexer() -> ParseResult<()> {
+    let mut lexer = Lexer::new(Input::File(FILE1.into()));
+    let newline = "\n";
+    let /*mut*/ token_array = vec![
             (Symbol, "_a"),
             (Equal, "="),
             (IntLit, "1234"),
@@ -108,41 +101,18 @@ mod tests {
             (EOF, "EOF"),
         ];
 
-        let mut tok: Token;
-        for i in token_array.into_iter() {
-            tok = lexer.next().unwrap().unwrap();
-            assert_eq!(tok, Token::from_str(i.0, i.1));
-            println!("{tok}");
-        }
-        Ok(())
+    let mut tok: Token;
+    for i in token_array.into_iter() {
+        tok = lexer.next().unwrap().unwrap();
+        assert_eq!(tok, Token::from_str(i.0, i.1));
+        println!("{tok}");
     }
+    Ok(())
+}
 
-    #[test]
-    fn tesop_te_prec() {
-        assert_eq!(Mod.precedence(), Some(160));
-        assert_eq!(LParen.precedence(), Some(0));
-        assert_eq!(Illegal.precedence(), None);
-    }
-
-    #[test]
-    fn test_parser1() -> Result<(), ParserRunnerErrors> {
-        let input = Input::File(FILE1.into());
-        let cfg = ErgConfig::new("exec", 1, false, None, 100, input.clone(), "<module>", 2);
-        let lexer = Lexer::new(input.clone());
-        let mut parser = ParserRunner::new(cfg);
-        match parser.parse_token_stream(
-            lexer
-                .lex()
-                .map_err(|errs| ParserRunnerErrors::convert(&input, errs))?,
-        ) {
-            Ok(module) => {
-                println!("{module}");
-                Ok(())
-            }
-            Err(e) => {
-                e.fmt_all_stderr();
-                Err(e)
-            }
-        }
-    }
+#[test]
+fn tesop_te_prec() {
+    assert_eq!(Mod.precedence(), Some(160));
+    assert_eq!(LParen.precedence(), Some(0));
+    assert_eq!(Illegal.precedence(), None);
 }
