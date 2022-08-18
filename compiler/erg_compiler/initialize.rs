@@ -624,8 +624,14 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
-        let t_print = nd_proc(
-            vec![param_t("objs", Type::var_args(Type::ref_(Obj)))],
+        let t_print = proc(
+            vec![param_t("objects", Type::var_args(Type::ref_(Obj)))],
+            vec![
+                param_t("sep", Str),
+                param_t("end", Str),
+                param_t("file", mono("Write")),
+                param_t("flush", Bool),
+            ],
             NoneType,
         );
         let t_input = nd_proc(vec![param_t("msg", Str)], Str);

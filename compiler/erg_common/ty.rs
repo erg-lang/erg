@@ -1481,6 +1481,15 @@ impl SubrType {
             return_t: Box::new(return_t),
         }
     }
+
+    pub fn varargs_idx(&self) -> (Option<usize>, Option<usize>) {
+        (
+            self.non_default_params
+                .iter()
+                .position(|t| t.ty.is_varargs()),
+            self.default_params.iter().position(|t| t.ty.is_varargs()),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
