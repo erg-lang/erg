@@ -1448,12 +1448,20 @@ pub struct SubrType {
 
 impl fmt::Display for SubrType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut default_params = String::new();
+        for default_param in self.default_params.iter() {
+            default_params.push_str(&format!(
+                "{} |= {}",
+                default_param.name.as_ref().unwrap(),
+                default_param.ty
+            ));
+        }
         write!(
             f,
             "{}({}, {}) {} {}",
             self.kind.prefix(),
             fmt_vec(&self.non_default_params),
-            fmt_vec(&self.default_params),
+            default_params,
             self.kind.arrow(),
             self.return_t,
         )
