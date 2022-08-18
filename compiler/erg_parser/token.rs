@@ -32,8 +32,6 @@ pub enum TokenKind {
     PrePlus,
     /// `-` (unary)
     PreMinus,
-    /// `*` (unary)
-    PreStar,
     /// ~ (unary)
     PreBitNot,
     // PreAmp,    // & (unary)
@@ -229,6 +227,7 @@ pub enum TokenCategory {
     VBar,
     /// _
     UBar,
+    BOF,
     EOF,
     Illegal,
 }
@@ -245,7 +244,7 @@ impl TokenKind {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
             | InfLit => TokenCategory::Literal,
-            PrePlus | PreMinus | PreStar | PreBitNot | Mutate => TokenCategory::UnaryOp,
+            PrePlus | PreMinus | PreBitNot | Mutate => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | OrEqual => {
                 TokenCategory::SpecialBinOp
@@ -260,8 +259,9 @@ impl TokenKind {
             AtSign => TokenCategory::AtSign,
             VBar => TokenCategory::VBar,
             UBar => TokenCategory::UBar,
+            BOF => TokenCategory::BOF,
             EOF => TokenCategory::EOF,
-            Illegal | BOF => TokenCategory::Illegal,
+            Illegal => TokenCategory::Illegal,
             _ => TokenCategory::BinOp,
         }
     }

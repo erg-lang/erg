@@ -952,8 +952,6 @@ impl CodeGenerator {
                     TokenKind::PrePlus => UNARY_POSITIVE,
                     TokenKind::PreMinus => UNARY_NEGATIVE,
                     TokenKind::Mutate => NOP, // ERG_MUTATE,
-                    // TokenKind::PreStar =>,
-                    // TokenKind::PreRng =>,
                     _ => {
                         self.errs.push(CompileError::feature_error(
                             self.cfg.input.clone(),

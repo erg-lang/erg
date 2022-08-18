@@ -217,7 +217,8 @@ impl Lexer /*<'a>*/ {
             | TokenCategory::Separator
             | TokenCategory::SpecialBinOp
             | TokenCategory::DefOp
-            | TokenCategory::LambdaOp => Some(false),
+            | TokenCategory::LambdaOp
+            | TokenCategory::BOF => Some(false),
             // bin: `] +`, `1 +`, `true and[true]`
             TokenCategory::REnclosure | TokenCategory::Literal => Some(true),
             // bin: `fn +1`
@@ -712,10 +713,13 @@ impl Iterator for Lexer /*<'a>*/ {
             }
             Some('?') => self.accept(Try, "?"),
             Some('+') => {
-                let kind = if self.is_bin_position().unwrap() {
-                    Plus
-                } else {
-                    PrePlus
+                let kind = match self.is_bin_position() {
+                    Some(true) => Plus,
+                    Some(false) => PrePlus,
+                    None => {
+                        let token = self.emit_token(Illegal, "+");
+                        return Some(Err(LexError::simple_syntax_error(0, token.loc())));
+                    }
                 };
                 self.accept(kind, "+")
             }
@@ -725,18 +729,23 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.accept(FuncArrow, "->")
                 }
                 _ => {
-                    if self.is_bin_position().unwrap() {
-                        self.accept(Minus, "-")
-                    } else {
-                        // IntLit (negative number)
-                        if self
-                            .peek_cur_ch()
-                            .map(|t| t.is_ascii_digit())
-                            .unwrap_or(false)
-                        {
-                            Some(self.lex_num('-'))
-                        } else {
-                            self.accept(Minus, "-")
+                    match self.is_bin_position() {
+                        Some(true) => self.accept(Minus, "-"),
+                        Some(false) => {
+                            // IntLit (negative number)
+                            if self
+                                .peek_cur_ch()
+                                .map(|t| t.is_ascii_digit())
+                                .unwrap_or(false)
+                            {
+                                Some(self.lex_num('-'))
+                            } else {
+                                self.accept(PreMinus, "-")
+                            }
+                        }
+                        None => {
+                            let token = self.emit_token(Illegal, "-");
+                            return Some(Err(LexError::simple_syntax_error(0, token.loc())));
                         }
                     }
                 }
@@ -747,10 +756,12 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.accept(Pow, "**")
                 }
                 _ => {
-                    let kind = if self.is_bin_position().unwrap() {
-                        Star
-                    } else {
-                        PreStar
+                    let kind = match self.is_bin_position() {
+                        Some(true) => Star,
+                        _ => {
+                            let token = self.emit_token(Illegal, "*");
+                            return Some(Err(LexError::simple_syntax_error(0, token.loc())));
+                        }
                     };
                     self.accept(kind, "*")
                 }

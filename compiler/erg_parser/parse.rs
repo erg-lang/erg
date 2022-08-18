@@ -836,7 +836,7 @@ impl Parser {
                 // TODO: range pattern
                 Ok(ParamPattern::Lit(self.try_reduce_lit()?))
             }
-            Some(t) if t.is(PreStar) => {
+            Some(t) if t.is(Spread) => {
                 self.skip();
                 Ok(ParamPattern::VarArgsName(self.try_reduce_name()?))
             }
@@ -1420,7 +1420,7 @@ impl Parser {
                 let token = self.lpop();
                 Err(ParseError::feature_error(0, token.loc(), "discard pattern"))
             }
-            _ => Err(self.skip_and_throw_syntax_err(caused_by!())),
+            _other => Err(self.skip_and_throw_syntax_err(caused_by!())),
         }
     }
 
