@@ -10,7 +10,7 @@ use std::vec::IntoIter;
 
 use crate::color::{GREEN, RESET};
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
-use crate::error::{ErrorDisplay, Location, MultiErrorDisplay};
+use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::ty::Type;
 use crate::Str;
 use crate::{addr_eq, chomp, log, switch_unreachable};
@@ -366,8 +366,17 @@ pub trait Runnable: Sized {
                             output.write_all((out + "\n").as_bytes()).unwrap();
                             output.flush().unwrap();
                         }
-                        Err(e) => {
-                            e.fmt_all_stderr();
+                        Err(errs) => {
+                            if errs
+                                .first()
+                                .map(|e| e.core().kind == ErrorKind::SystemExit)
+                                .unwrap_or(false)
+                            {
+                                instance.finish();
+                                log!(f output, "{GREEN}[DEBUG] The REPL has finished successfully.{RESET}\n");
+                                process::exit(0);
+                            }
+                            errs.fmt_all_stderr();
                         }
                     }
                     output.write_all(instance.ps1().as_bytes()).unwrap();

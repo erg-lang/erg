@@ -104,6 +104,9 @@ impl Runnable for DummyVM {
                 match self.stream.as_mut().unwrap().read(&mut buf) {
                     Result::Ok(n) => {
                         let s = std::str::from_utf8(&buf[..n]).unwrap();
+                        if s == "[Exception] SystemExit" {
+                            return Err(CompileErrors::from(CompileError::system_exit()));
+                        }
                         s.to_string()
                     }
                     Result::Err(e) => {

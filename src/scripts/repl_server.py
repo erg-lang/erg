@@ -25,6 +25,9 @@ while True:
                 __res = str(exec('__importlib.reload(o)'))
             else:
                 __res = str(exec('import o'))
+        except SystemExit:
+            __client_socket.send('[Exception] SystemExit'.encode())
+            continue
         except e:
             __res = str(e)
         __already_loaded = True

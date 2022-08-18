@@ -198,6 +198,23 @@ impl CompileError {
             caused_by,
         )
     }
+
+    pub fn system_exit() -> Self {
+        Self::new(
+            ErrorCore::new(
+                0,
+                SystemExit,
+                Location::Unknown,
+                switch_lang!(
+                    "japanese" => format!("システムを終了します"),
+                    "english" => format!("system is exiting"),
+                ),
+                None,
+            ),
+            Input::Dummy,
+            "".into(),
+        )
+    }
 }
 
 #[derive(Debug)]
