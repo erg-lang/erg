@@ -12,13 +12,12 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | 简体中文 | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D47b9b758acea9d4ea5d618436935b197636074f6)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=47b9b758acea9d4ea5d618436935b197636074f6)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D321dd1f5e26b57f91def44ae73e29b0cfa35841e)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=321dd1f5e26b57f91def44ae73e29b0cfa35841e)
 
 ## Erg可以推荐给以下人员&colon;
 
-* 使用Python，但希望有类似Rust的健壮性和舒适的编译器支持
-* 然而，又不需要像Rust那样的冗长的类型规范和内存管理模型
+* 使用Python，但希望有类似Rust的健壮性和舒适的编译器支持，然而，又不需要像Rust那样的冗长的类型规范和内存管理模型
 * 希望有一个像ML那样简单而一致的语言
 * 希望有一个实用的通用语言，有依赖/反射类型
 * 想要一种像Scala一样的语言，既面向对象，又使用函数式编程
