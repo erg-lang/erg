@@ -1,7 +1,9 @@
 # Dependent crate license credit
+
 Licenses for dependent crate in this crate (`erg`) are reproduced below.
 
 ## Note
+
 Format of this text is created with command line shown by below:
 
 ```bash
@@ -9,14 +11,18 @@ Format of this text is created with command line shown by below:
 cargo license --json | \
   jq -r '.[] | ("## `" + .name + "`\n" + "* Source code is available at [" + .repository + "](" + .repository + ")\n" + "* license: " + .license + "\n\n### `" + .name + "`\u0027s license text\n(***TODO***)\n")'
 ```
+
 ----
 
 ## `atty`
+
 * Source code is available at [https://github.com/softprops/atty](https://github.com/softprops/atty)
 * license: MIT
 
 ### `atty`'s license text
+
 MIT from from [https://raw.githubusercontent.com/softprops/atty/0.2.14/LICENSE](https://raw.githubusercontent.com/softprops/atty/0.2.14/LICENSE):
+
 ```text
 Copyright (c) 2015-2019 Doug Tangren
 
@@ -41,12 +47,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ## `hermit-abi`
+
 * Source code is available at [https://github.com/hermitcore/libhermit-rs](https://github.com/hermitcore/libhermit-rs)
 * license: Apache-2.0 OR MIT
 
 ### `hermit-abi`'s license text
+
 <!-- git tag: 0.1.19 does not exist. -->
 Apache-2.0 from [https://github.com/hermitcore/libhermit-rs/blob/master/LICENSE-APACHE](https://github.com/hermitcore/libhermit-rs/blob/master/LICENSE-APACHE):
+
 ```text
                               Apache License
                         Version 2.0, January 2004
@@ -242,7 +251,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+       http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -252,6 +261,7 @@ limitations under the License.
 ```
 
 MIT from [https://github.com/hermitcore/libhermit-rs/blob/master/LICENSE-MIT](https://github.com/hermitcore/libhermit-rs/blob/master/LICENSE-MIT):
+
 ```text
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -279,11 +289,14 @@ DEALINGS IN THE SOFTWARE.
 ```
 
 ## `libc`
+
 * Source code is available at [https://github.com/rust-lang/libc](https://github.com/rust-lang/libc)
 * license: Apache-2.0 OR MIT
 
 ### `libc`'s license text
+
 Apache-2.0 from [https://github.com/rust-lang/libc/blob/0.2.132/LICENSE-APACHE](https://github.com/rust-lang/libc/blob/0.2.132/LICENSE-APACHE):
+
 ```text
                               Apache License
                         Version 2.0, January 2004
@@ -464,6 +477,7 @@ END OF TERMS AND CONDITIONS
 ```
 
 MIT from [https://github.com/rust-lang/libc/blob/0.2.132/LICENSE-MIT](https://github.com/rust-lang/libc/blob/0.2.132/LICENSE-MIT):
+
 ```text
 Copyright (c) 2014-2020 The Rust Project Developers
 
@@ -493,11 +507,14 @@ DEALINGS IN THE SOFTWARE.
 ```
 
 ## `winapi`
+
 * Source code is available at [https://github.com/retep998/winapi-rs](https://github.com/retep998/winapi-rs)
 * license: Apache-2.0 OR MIT
 
 ### `winapi`'s license text
+
 Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/LICENSE-APACHE](https://github.com/retep998/winapi-rs/blob/0.3.9/LICENSE-APACHE):
+
 ```text
                                  Apache License
                            Version 2.0, January 2004
@@ -703,6 +720,7 @@ Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/LICENSE-APACHE
 ```
 
 MIT from [https://github.com/retep998/winapi-rs/blob/0.3.9/LICENSE-MIT](https://github.com/retep998/winapi-rs/blob/0.3.9/LICENSE-MIT):
+
 ```text
 Copyright (c) 2015-2018 The winapi-rs Developers
 
@@ -726,11 +744,14 @@ SOFTWARE.
 ```
 
 ## `winapi-i686-pc-windows-gnu`
+
 * Source code is available at [https://github.com/retep998/winapi-rs](https://github.com/retep998/winapi-rs)
 * license: Apache-2.0 OR MIT
 
-### `winapi`'s license text
-Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE)
+## `winapi-i686-pc-windows-gnu`'s license text
+
+Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE):
+
 ```text
                                  Apache License
                            Version 2.0, January 2004
@@ -935,7 +956,8 @@ Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-A
    limitations under the License.
 ```
 
-MIT from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT)
+MIT from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT):
+
 ```text
 Copyright (c) 2015-2018 The winapi-rs Developers
 
@@ -959,10 +981,12 @@ SOFTWARE.
 ```
 
 ## `winapi-x86_64-pc-windows-gnu`
+
 * Source code is available at [https://github.com/retep998/winapi-rs](https://github.com/retep998/winapi-rs)
 * license: Apache-2.0 OR MIT
 
-Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE)
+Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-APACHE):
+
 ```text
                                  Apache License
                            Version 2.0, January 2004
@@ -1167,7 +1191,8 @@ Apache-2.0 from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-A
    limitations under the License.
 ```
 
-MIT from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT)
+MIT from [https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT](https://github.com/retep998/winapi-rs/blob/0.3.9/i686/LICENSE-MIT):
+
 ```text
 Copyright (c) 2015-2018 The winapi-rs Developers
 

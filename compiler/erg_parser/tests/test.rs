@@ -5,7 +5,7 @@ use erg_common::config::Input;
 // use erg_compiler::parser;
 
 use erg_parser::error::ParseResult;
-use erg_parser::lex::{Lexer};
+use erg_parser::lex::Lexer;
 use erg_parser::token::*;
 use TokenKind::*;
 
