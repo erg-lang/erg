@@ -97,8 +97,11 @@ impl SideEffectChecker {
             (true, _) => {
                 if !allow_inner_effect {
                     let expr = Expr::Def(def.clone());
-                    self.errs
-                        .push(EffectError::has_effect(&expr, self.full_path()));
+                    self.errs.push(EffectError::has_effect(
+                        line!() as usize,
+                        &expr,
+                        self.full_path(),
+                    ));
                 }
                 for chunk in def.body.block.iter() {
                     self.check_expr(chunk, allow_inner_effect);
@@ -165,8 +168,11 @@ impl SideEffectChecker {
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
                 if self.is_procedural(&call.obj) && !allow_self_effect {
-                    self.errs
-                        .push(EffectError::has_effect(expr, self.full_path()));
+                    self.errs.push(EffectError::has_effect(
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
                 }
                 call.args
                     .pos_args
@@ -192,8 +198,11 @@ impl SideEffectChecker {
                     self.path_stack.push((Str::ever("<lambda>"), Private));
                 }
                 if !allow_self_effect && is_proc {
-                    self.errs
-                        .push(EffectError::has_effect(expr, self.full_path()));
+                    self.errs.push(EffectError::has_effect(
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
                 }
                 lambda
                     .body

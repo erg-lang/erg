@@ -89,10 +89,6 @@ pub trait HasLevel {
 // REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
-    /// :> T
-    SupertypeOf(Type),
-    /// <: T
-    SubtypeOf(Type),
     /// :> Sub, <: Sup
     Sandwiched {
         sub: Type,
@@ -106,9 +102,15 @@ pub enum Constraint {
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SupertypeOf(sub) => write!(f, ":> {sub}"),
-            Self::SubtypeOf(sup) => write!(f, "<: {sup}"),
-            Self::Sandwiched { sub, sup } => write!(f, ":> {sub}, <: {sup}"),
+            Self::Sandwiched { sub, sup } => {
+                if sub.rec_eq(&Type::Never) {
+                    write!(f, "<: {sup}")
+                } else if sup.rec_eq(&Type::Obj) {
+                    write!(f, ":> {sub}")
+                } else {
+                    write!(f, ":> {sub}, <: {sup}")
+                }
+            }
             Self::TypeOf(ty) => write!(f, ": {}", ty),
             Self::Uninited => write!(f, "<uninited>"),
         }
@@ -118,6 +120,14 @@ impl fmt::Display for Constraint {
 impl Constraint {
     pub const fn sandwiched(sub: Type, sup: Type) -> Self {
         Self::Sandwiched { sub, sup }
+    }
+
+    pub const fn subtype_of(sup: Type) -> Self {
+        Self::sandwiched(Type::Never, sup)
+    }
+
+    pub const fn supertype_of(sub: Type) -> Self {
+        Self::sandwiched(sub, Type::Obj)
     }
 
     pub const fn is_uninited(&self) -> bool {
@@ -133,7 +143,6 @@ impl Constraint {
 
     pub fn sub_type(&self) -> Option<&Type> {
         match self {
-            Self::SupertypeOf(ty) => Some(ty),
             Self::Sandwiched { sub, .. } => Some(sub),
             _ => None,
         }
@@ -141,7 +150,6 @@ impl Constraint {
 
     pub fn super_type(&self) -> Option<&Type> {
         match self {
-            Self::SubtypeOf(ty) => Some(ty),
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
@@ -156,7 +164,6 @@ impl Constraint {
 
     pub fn super_type_mut(&mut self) -> Option<&mut Type> {
         match self {
-            Self::SubtypeOf(ty) => Some(ty),
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
@@ -989,21 +996,35 @@ impl TyParamOrdering {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyBound {
-    // e.g. A <: Add => Subtype{sub: A, sup: Add}, A <: {a: Int} => Subtype{sub: A, sup: {a: Int}}
-    Subtype { sub: Type, sup: Type },
-    Supertype { sup: Type, sub: Type },
-    Sandwiched { sub: Type, mid: Type, sup: Type },
+    // e.g.
+    // A :> Int => Sandwiched{sub: Int, mid: A, sup: Obj}
+    // A <: {I: Int | I > 0} => Sandwiched{sub: Never, mid: A, sup: {I: Int | I > 0}}
+    /// Sub <: Mid <: Sup
+    Sandwiched {
+        sub: Type,
+        mid: Type,
+        sup: Type,
+    },
     // TyParam::MonoQuantVarに型の情報が含まれているので、boundsからは除去される
     // e.g. N: Nat => Instance{name: N, t: Nat}
-    Instance { name: Str, t: Type },
+    Instance {
+        name: Str,
+        t: Type,
+    },
 }
 
 impl fmt::Display for TyBound {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Subtype { sub, sup } => write!(f, "{sub} <: {sup}"),
-            Self::Supertype { sup, sub } => write!(f, "{sup} :> {sub}"),
-            Self::Sandwiched { sub, mid, sup } => write!(f, "{sub} <: {mid} <: {sup}"),
+            Self::Sandwiched { sub, mid, sup } => {
+                if sub.rec_eq(&Type::Never) {
+                    write!(f, "{mid} <: {sup}")
+                } else if sup.rec_eq(&Type::Obj) {
+                    write!(f, "{sub} <: {mid}")
+                } else {
+                    write!(f, "{sub} <: {mid} <: {sup}")
+                }
+            }
             Self::Instance { name, t } => write!(f, "'{name}: {t}"),
         }
     }
@@ -1016,10 +1037,6 @@ impl HasLevel for TyBound {
 
     fn update_level(&self, level: usize) {
         match self {
-            Self::Subtype { sub, sup } | Self::Supertype { sup, sub } => {
-                sub.update_level(level);
-                sup.update_level(level);
-            }
             Self::Sandwiched { sub, mid, sup } => {
                 sub.update_level(level);
                 mid.update_level(level);
@@ -1033,10 +1050,6 @@ impl HasLevel for TyBound {
 
     fn lift(&self) {
         match self {
-            Self::Subtype { sub, sup } | Self::Supertype { sup, sub } => {
-                sub.lift();
-                sup.lift();
-            }
             Self::Sandwiched { sub, mid, sup } => {
                 sub.lift();
                 mid.lift();
@@ -1050,14 +1063,12 @@ impl HasLevel for TyBound {
 }
 
 impl TyBound {
-    pub const fn subtype(sub: Type, sup: Type) -> Self {
-        Self::Subtype { sub, sup }
-    }
-    pub const fn supertype(sup: Type, sub: Type) -> Self {
-        Self::Supertype { sup, sub }
-    }
     pub const fn sandwiched(sub: Type, mid: Type, sup: Type) -> Self {
         Self::Sandwiched { sub, mid, sup }
+    }
+
+    pub const fn subtype_of(sub: Type, sup: Type) -> Self {
+        Self::sandwiched(Type::Never, sub, sup)
     }
 
     pub const fn static_instance(name: &'static str, t: Type) -> Self {
@@ -1076,14 +1087,11 @@ impl TyBound {
     }
 
     pub fn mentions_as_subtype(&self, name: &str) -> bool {
-        matches!(self, Self::Subtype{ sub, .. } if sub.name() == name)
+        matches!(self, Self::Sandwiched{ sub, .. } if sub.name() == name)
     }
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::Subtype { sub, sup } | Self::Supertype { sub, sup } => {
-                sub.has_unbound_var() || sup.has_unbound_var()
-            }
             Self::Sandwiched { sub, mid, sup } => {
                 sub.has_unbound_var() || mid.has_unbound_var() || sup.has_unbound_var()
             }
@@ -1093,8 +1101,6 @@ impl TyBound {
 
     pub const fn t(&self) -> &Type {
         match self {
-            Self::Subtype { sup, .. } => sup,
-            Self::Supertype { sub, .. } => sub,
             Self::Sandwiched { .. } => todo!(),
             Self::Instance { t, .. } => t,
         }
@@ -1102,8 +1108,6 @@ impl TyBound {
 
     pub fn lhs(&self) -> &str {
         match self {
-            Self::Subtype { sub, .. } => sub.name(),
-            Self::Supertype { sup, .. } => sup.name(),
             Self::Sandwiched { mid, .. } => mid.name(),
             Self::Instance { name, .. } => name,
         }
@@ -1444,26 +1448,15 @@ pub struct SubrType {
 
 impl fmt::Display for SubrType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.default_params.is_empty() {
-            write!(
-                f,
-                "{}({}) {} {}",
-                self.kind.prefix(),
-                fmt_vec(&self.non_default_params),
-                self.kind.arrow(),
-                self.return_t,
-            )
-        } else {
-            write!(
-                f,
-                "{}({} |= {}) {} {}",
-                self.kind.prefix(),
-                fmt_vec(&self.non_default_params),
-                fmt_vec(&self.default_params),
-                self.kind.arrow(),
-                self.return_t,
-            )
-        }
+        write!(
+            f,
+            "{}({}, {}) {} {}",
+            self.kind.prefix(),
+            fmt_vec(&self.non_default_params),
+            fmt_vec(&self.default_params),
+            self.kind.arrow(),
+            self.return_t,
+        )
     }
 }
 
@@ -2971,9 +2964,10 @@ pub mod type_constrs {
         TyBound::static_instance(name, t)
     }
 
+    /// Sub <: Sup
     #[inline]
-    pub fn subtype(sub: Type, sup: Type) -> TyBound {
-        TyBound::subtype(sub, sup)
+    pub fn subtypeof(sub: Type, sup: Type) -> TyBound {
+        TyBound::sandwiched(Type::Never, sub, sup)
     }
 
     #[inline]

@@ -248,10 +248,10 @@ impl TyCheckError {
         )
     }
 
-    pub fn feature_error(loc: Location, name: &str, caused_by: Str) -> Self {
+    pub fn feature_error(errno: usize, loc: Location, name: &str, caused_by: Str) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 FeatureError,
                 loc,
                 switch_lang!(
@@ -277,11 +277,11 @@ impl TyCheckError {
         )
     }
 
-    pub fn duplicate_decl_error(loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn duplicate_decl_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 NameError,
                 loc,
                 switch_lang!(
@@ -295,6 +295,7 @@ impl TyCheckError {
     }
 
     pub fn violate_decl_error(
+        errno: usize,
         loc: Location,
         caused_by: Str,
         name: &str,
@@ -304,7 +305,7 @@ impl TyCheckError {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -317,11 +318,11 @@ impl TyCheckError {
         )
     }
 
-    pub fn no_type_spec_error(loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn no_type_spec_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -335,6 +336,7 @@ impl TyCheckError {
     }
 
     pub fn no_var_error(
+        errno: usize,
         loc: Location,
         caused_by: Str,
         name: &str,
@@ -351,7 +353,7 @@ impl TyCheckError {
         });
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 NameError,
                 loc,
                 switch_lang!(
@@ -365,6 +367,7 @@ impl TyCheckError {
     }
 
     pub fn no_attr_error(
+        errno: usize,
         loc: Location,
         caused_by: Str,
         obj_t: &Type,
@@ -381,7 +384,7 @@ impl TyCheckError {
         });
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 AttributeError,
                 loc,
                 switch_lang!(
@@ -395,6 +398,7 @@ impl TyCheckError {
     }
 
     pub fn callable_impl_error<'a, C: Locational + Display>(
+        errno: usize,
         callee: &C,
         param_ts: impl Iterator<Item = &'a Type>,
         caused_by: Str,
@@ -402,7 +406,7 @@ impl TyCheckError {
         let param_ts = fmt_iter(param_ts);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 NotImplementedError,
                 callee.loc(),
                 switch_lang!(
@@ -420,6 +424,7 @@ impl TyCheckError {
     }
 
     pub fn type_mismatch_error(
+        errno: usize,
         loc: Location,
         caused_by: Str,
         name: &str,
@@ -428,7 +433,7 @@ impl TyCheckError {
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -442,6 +447,7 @@ impl TyCheckError {
     }
 
     pub fn return_type_error(
+        errno: usize,
         loc: Location,
         caused_by: Str,
         name: &str,
@@ -450,7 +456,7 @@ impl TyCheckError {
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -463,10 +469,16 @@ impl TyCheckError {
         )
     }
 
-    pub fn uninitialized_error(loc: Location, caused_by: Str, name: &str, t: &Type) -> Self {
+    pub fn uninitialized_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        name: &str,
+        t: &Type,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 NameError,
                 loc,
                 switch_lang!(
@@ -479,10 +491,16 @@ impl TyCheckError {
         )
     }
 
-    pub fn argument_error(loc: Location, caused_by: Str, expect: usize, found: usize) -> Self {
+    pub fn argument_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        expect: usize,
+        found: usize,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -495,10 +513,10 @@ impl TyCheckError {
         )
     }
 
-    pub fn match_error(loc: Location, caused_by: Str, expr_t: &Type) -> Self {
+    pub fn match_error(errno: usize, loc: Location, caused_by: Str, expr_t: &Type) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -511,10 +529,10 @@ impl TyCheckError {
         )
     }
 
-    pub fn infer_error(loc: Location, caused_by: Str, expr: &str) -> Self {
+    pub fn infer_error(errno: usize, loc: Location, caused_by: Str, expr: &str) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -535,11 +553,11 @@ impl TyCheckError {
         Self::new(ErrorCore::unreachable(fn_name, line), "".into())
     }
 
-    pub fn reassign_error(loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn reassign_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 AssignError,
                 loc,
                 switch_lang!(
@@ -553,6 +571,7 @@ impl TyCheckError {
     }
 
     pub fn too_many_args_error(
+        errno: usize,
         loc: Location,
         callee_name: &str,
         caused_by: Str,
@@ -563,7 +582,7 @@ impl TyCheckError {
         let name = readable_name(callee_name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -587,6 +606,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn multiple_args_error(
+        errno: usize,
         loc: Location,
         callee_name: &str,
         caused_by: Str,
@@ -595,7 +615,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         let name = readable_name(callee_name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -609,6 +629,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn unexpected_kw_arg_error(
+        errno: usize,
         loc: Location,
         callee_name: &str,
         caused_by: Str,
@@ -617,7 +638,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         let name = readable_name(callee_name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -630,11 +651,11 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn unused_warning(loc: Location, name: &str, caused_by: Str) -> Self {
+    pub fn unused_warning(errno: usize, loc: Location, name: &str, caused_by: Str) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 UnusedWarning,
                 loc,
                 switch_lang!(
@@ -648,6 +669,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn unification_error(
+        errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
         lhs_loc: Option<Location>,
@@ -662,7 +684,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         };
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -676,6 +698,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn re_unification_error(
+        errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
         lhs_loc: Option<Location>,
@@ -690,7 +713,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         };
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -704,6 +727,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn subtyping_error(
+        errno: usize,
         sub_t: &Type,
         sup_t: &Type,
         sub_loc: Option<Location>,
@@ -718,7 +742,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         };
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 loc,
                 switch_lang!(
@@ -731,10 +755,15 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn pred_unification_error(lhs: &Predicate, rhs: &Predicate, caused_by: Str) -> Self {
+    pub fn pred_unification_error(
+        errno: usize,
+        lhs: &Predicate,
+        rhs: &Predicate,
+        caused_by: Str,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 TypeError,
                 Location::Unknown,
                 switch_lang!(
@@ -747,10 +776,10 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn has_effect<S: Into<Str>>(expr: &Expr, caused_by: S) -> Self {
+    pub fn has_effect<S: Into<Str>>(errno: usize, expr: &Expr, caused_by: S) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 HasEffect,
                 expr.loc(),
                 switch_lang!(
@@ -764,6 +793,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     }
 
     pub fn move_error<S: Into<Str>>(
+        errno: usize,
         name: &str,
         name_loc: Location,
         moved_loc: Location,
@@ -771,7 +801,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                0,
+                errno,
                 MoveError,
                 name_loc,
                 switch_lang!(

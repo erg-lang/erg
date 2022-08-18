@@ -255,48 +255,6 @@ impl TyVarContext {
 
     fn instantiate_bound(&mut self, bound: TyBound, ctx: &Context) {
         match bound {
-            TyBound::Subtype { sub, sup } => {
-                let sup = match sup {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(sub.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
-                    sup => sup,
-                };
-                let constraint = Constraint::SubtypeOf(sup);
-                if let Some(tv) = self.tyvar_instances.get(sub.name()) {
-                    tv.update_constraint(constraint);
-                } else if let Some(tp) = self.typaram_instances.get(sub.name()) {
-                    tp.update_constraint(constraint);
-                } else {
-                    let name = Str::rc(sub.name());
-                    self.push_tyvar(
-                        name.clone(),
-                        Type::named_free_var(name, self.level, constraint),
-                    );
-                }
-            }
-            TyBound::Supertype { sup, sub } => {
-                let sub = match sub {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(sup.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => Type::mono_proj(self.instantiate_t(*lhs), rhs),
-                    sub => sub,
-                };
-                let constraint = Constraint::SupertypeOf(sub);
-                if let Some(tv) = self.tyvar_instances.get(sup.name()) {
-                    tv.update_constraint(constraint);
-                } else if let Some(tp) = self.typaram_instances.get(sup.name()) {
-                    tp.update_constraint(constraint);
-                } else {
-                    let name = Str::rc(sup.name());
-                    self.push_tyvar(
-                        name.clone(),
-                        Type::named_free_var(name, self.level, constraint),
-                    );
-                }
-            }
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub = match sub {
                     Type::Poly { name, params } => {
@@ -803,6 +761,7 @@ impl Context {
             ast::VarPattern::VarName(v) => {
                 if sig.t_spec.is_none() && opt_t.is_none() {
                     Err(TyCheckError::no_type_spec_error(
+                        line!() as usize,
                         sig.loc(),
                         self.caused_by(),
                         v.inspect(),
@@ -810,6 +769,7 @@ impl Context {
                 } else {
                     if self.registered(v.inspect(), v.inspect().is_uppercase()) {
                         return Err(TyCheckError::duplicate_decl_error(
+                            line!() as usize,
                             sig.loc(),
                             self.caused_by(),
                             v.inspect(),
@@ -849,6 +809,7 @@ impl Context {
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         if self.registered(name, name.is_uppercase()) {
             return Err(TyCheckError::duplicate_decl_error(
+                line!() as usize,
                 sig.loc(),
                 self.caused_by(),
                 name,
@@ -858,6 +819,7 @@ impl Context {
         let vi = VarInfo::new(t, muty, Private, kind);
         if let Some(_decl) = self.decls.remove(name) {
             return Err(TyCheckError::duplicate_decl_error(
+                line!() as usize,
                 sig.loc(),
                 self.caused_by(),
                 name,
@@ -901,6 +863,7 @@ impl Context {
             ast::VarPattern::VarName(v) => {
                 if self.registered(v.inspect(), v.inspect().is_uppercase()) {
                     Err(TyCheckError::reassign_error(
+                        line!() as usize,
                         v.loc(),
                         self.caused_by(),
                         v.inspect(),
@@ -940,6 +903,7 @@ impl Context {
             ast::ParamPattern::VarName(v) => {
                 if self.registered(v.inspect(), v.inspect().is_uppercase()) {
                     Err(TyCheckError::reassign_error(
+                        line!() as usize,
                         v.loc(),
                         self.caused_by(),
                         v.inspect(),
@@ -1067,6 +1031,7 @@ impl Context {
             self.unify(spec_ret_t, body_t, Some(sig.loc()), None)
                 .map_err(|e| {
                     TyCheckError::return_type_error(
+                        line!() as usize,
                         e.core.loc,
                         e.caused_by,
                         readable_name(name.inspect()),
@@ -1077,6 +1042,7 @@ impl Context {
         }
         if self.registered(name.inspect(), name.inspect().is_uppercase()) {
             Err(TyCheckError::reassign_error(
+                line!() as usize,
                 name.loc(),
                 self.caused_by(),
                 name.inspect(),
@@ -1127,6 +1093,7 @@ impl Context {
             if let Some(vi) = self.decls.remove(name) {
                 if !self.rec_full_supertype_of(&vi.t, &found_t) {
                     return Err(TyCheckError::violate_decl_error(
+                        line!() as usize,
                         sig.loc(),
                         self.caused_by(),
                         name.inspect(),
@@ -1164,6 +1131,7 @@ impl Context {
                     }
                 } else {
                     return Err(TyCheckError::type_mismatch_error(
+                        line!() as usize,
                         mod_name.loc(),
                         self.caused_by(),
                         "import::name",
@@ -1174,6 +1142,7 @@ impl Context {
             }
             _ => {
                 return Err(TyCheckError::feature_error(
+                    line!() as usize,
                     mod_name.loc(),
                     "non-literal importing",
                     self.caused_by(),
@@ -1184,7 +1153,7 @@ impl Context {
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {
-        self.bounds.push(TyBound::subtype(sub, sup));
+        self.bounds.push(TyBound::subtype_of(sub, sup));
     }
 
     pub(crate) fn _push_instance_bound(&mut self, name: Str, t: Type) {
@@ -1219,12 +1188,6 @@ impl Context {
                 FreeKind::Unbound { id, constraint, .. } => {
                     let name = id.to_string();
                     let bound = match constraint {
-                        Constraint::SubtypeOf(sup) => {
-                            TyBound::subtype(Type::mono(name.clone()), sup.clone())
-                        }
-                        Constraint::SupertypeOf(sub) => {
-                            TyBound::supertype(Type::mono(name.clone()), sub.clone())
-                        }
                         Constraint::Sandwiched { sub, sup } => {
                             TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone())
                         }
@@ -1237,12 +1200,6 @@ impl Context {
                     name, constraint, ..
                 } => {
                     let bound = match constraint {
-                        Constraint::SubtypeOf(sup) => {
-                            TyBound::subtype(Type::mono(name.clone()), sup.clone())
-                        }
-                        Constraint::SupertypeOf(sub) => {
-                            TyBound::supertype(Type::mono(name.clone()), sub.clone())
-                        }
                         Constraint::Sandwiched { sub, sup } => {
                             TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone())
                         }
@@ -1280,12 +1237,6 @@ impl Context {
                 FreeKind::Unbound { id, constraint, .. } => {
                     let name = id.to_string();
                     let bound = match constraint {
-                        Constraint::SubtypeOf(sup) => {
-                            TyBound::subtype(Type::mono(name.clone()), sup.clone())
-                        }
-                        Constraint::SupertypeOf(sub) => {
-                            TyBound::supertype(Type::mono(name.clone()), sub.clone())
-                        }
                         Constraint::Sandwiched { sub, sup } => {
                             TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone())
                         }
@@ -1298,12 +1249,6 @@ impl Context {
                     name, constraint, ..
                 } => {
                     let bound = match constraint {
-                        Constraint::SubtypeOf(sup) => {
-                            TyBound::subtype(Type::mono(name.clone()), sup.clone())
-                        }
-                        Constraint::SupertypeOf(sub) => {
-                            TyBound::supertype(Type::mono(name.clone()), sub.clone())
-                        }
                         Constraint::Sandwiched { sub, sup } => {
                             TyBound::sandwiched(sub.clone(), Type::mono(name.clone()), sup.clone())
                         }
@@ -1581,6 +1526,7 @@ impl Context {
                 let params_len = subr.non_default_params.len() + subr.default_params.len();
                 if params_len < pos_args.len() + kw_args.len() {
                     return Err(TyCheckError::too_many_args_error(
+                        line!() as usize,
                         callee.loc(),
                         &callee.to_string(),
                         self.caused_by(),
@@ -1609,6 +1555,7 @@ impl Context {
                                     .map(|s| readable_name(&s[..]))
                                     .unwrap_or("");
                             TyCheckError::type_mismatch_error(
+                                line!() as usize,
                                 e.core.loc,
                                 e.caused_by,
                                 &name[..],
@@ -1619,6 +1566,7 @@ impl Context {
                     if let Some(name) = &param_ty.name {
                         if passed_params.contains(name) {
                             return Err(TyCheckError::multiple_args_error(
+                                line!() as usize,
                                 callee.loc(),
                                 &callee.to_string(),
                                 self.caused_by(),
@@ -1643,6 +1591,7 @@ impl Context {
                         self.sub_unify(kw_arg.expr.ref_t(), param_ty, None, Some(kw_arg.loc()))?;
                     } else {
                         return Err(TyCheckError::unexpected_kw_arg_error(
+                            line!() as usize,
                             kw_arg.keyword.loc(),
                             &callee.to_string(),
                             self.caused_by(),
@@ -1689,12 +1638,10 @@ impl Context {
 
     fn deref_constraint(&self, constraint: Constraint) -> TyCheckResult<Constraint> {
         match constraint {
-            Constraint::SubtypeOf(sup) => Ok(Constraint::SubtypeOf(self.deref_tyvar(sup)?)),
             Constraint::Sandwiched { sub, sup } => Ok(Constraint::sandwiched(
                 self.deref_tyvar(sub)?,
                 self.deref_tyvar(sup)?,
             )),
-            Constraint::SupertypeOf(sub) => Ok(Constraint::SupertypeOf(self.deref_tyvar(sub)?)),
             Constraint::TypeOf(t) => Ok(Constraint::TypeOf(self.deref_tyvar(t)?)),
             _ => unreachable!(),
         }
@@ -1702,25 +1649,35 @@ impl Context {
 
     /// e.g.
     /// ```
-    /// deref_tyvar(?T(<: Int)[n]): ?T => Int (if self.level <= n)
+    /// deref_tyvar(?T(:> Never, <: Int)[n]): ?T => Int (if self.level <= n)
     /// deref_tyvar((Int)): (Int) => Int
     /// ```
     fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
         match t {
-            // ?T(<: Int)[n] => Int
-            Type::FreeVar(fv) if fv.constraint_is_subtypeof() || fv.constraint_is_sandwiched() => {
-                if self.level <= fv.level().unwrap() {
-                    Ok(fv.crack_constraint().super_type().unwrap().clone())
+            // ?T(:> Nat, <: Int)[n] => Nat (self.level <= n)
+            // ?T(:> Nat, <: Sub ?U(:> {1}))[n] => Nat
+            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let constraint = fv.crack_constraint();
+                let (sub, sup) = constraint.sub_sup_type().unwrap();
+                if self.rec_full_same_type_of(sub, sup) {
+                    self.unify(sub, sub, None, None)?;
+                    let t = sub.clone();
+                    drop(constraint);
+                    fv.link(&t);
+                    self.deref_tyvar(Type::FreeVar(fv))
+                } else if self.level == 0 || self.level <= fv.level().unwrap() {
+                    let t = sub.clone();
+                    drop(constraint);
+                    fv.link(&t);
+                    self.deref_tyvar(Type::FreeVar(fv))
                 } else {
+                    drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
-            // ?T(<: Add(?R(<: T), ?O(<: U)) => ?T(<: Add(T, U))
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {
-                        Constraint::SupertypeOf(t) | Constraint::SubtypeOf(t) => Ok(t.clone()),
-                        Constraint::Sandwiched { sub, .. } => Ok(sub.clone()),
                         Constraint::TypeOf(_) => {
                             Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
                         }
@@ -1907,7 +1864,7 @@ impl Context {
                 if self.rec_full_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::SubtypeOf(tp_t);
+                        let new_constraint = Constraint::subtype_of(tp_t);
                         if self.is_sub_constraint_of(
                             fv.borrow().constraint().unwrap(),
                             &new_constraint,
@@ -2025,6 +1982,7 @@ impl Context {
                         self.unify_tp(le_rhs, &TyParam::value(Inf), None, None, true)
                     }
                     _ => Err(TyCheckError::pred_unification_error(
+                        line!() as usize,
                         l_pred,
                         r_pred,
                         self.caused_by(),
@@ -2039,6 +1997,7 @@ impl Context {
                     self.unify_tp(ge_rhs, &TyParam::value(NegInf), None, None, true)
                 }
                 _ => Err(TyCheckError::pred_unification_error(
+                    line!() as usize,
                     l_pred,
                     r_pred,
                     self.caused_by(),
@@ -2052,12 +2011,14 @@ impl Context {
                     self.unify_tp(rhs, ge_rhs, None, None, false)
                 }
                 _ => Err(TyCheckError::pred_unification_error(
+                    line!() as usize,
                     l_pred,
                     r_pred,
                     self.caused_by(),
                 )),
             },
             _ => Err(TyCheckError::pred_unification_error(
+                line!() as usize,
                 l_pred,
                 r_pred,
                 self.caused_by(),
@@ -2123,7 +2084,7 @@ impl Context {
                         }
                     }
                 } // &fv is dropped
-                let new_constraint = Constraint::SubtypeOf(t.clone());
+                let new_constraint = Constraint::subtype_of(t.clone());
                 // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                 // fv == ?T(: Type)の場合は?T(<: U)にする
                 if fv.level() < Some(self.level) {
@@ -2142,6 +2103,7 @@ impl Context {
                     && !self.formal_supertype_of(&r.t, &l.t, None, None)
                 {
                     return Err(TyCheckError::unification_error(
+                        line!() as usize,
                         lhs_t,
                         rhs_t,
                         lhs_loc,
@@ -2196,6 +2158,7 @@ impl Context {
             ) => {
                 if ln != rn {
                     return Err(TyCheckError::unification_error(
+                        line!() as usize,
                         lhs_t,
                         rhs_t,
                         lhs_loc,
@@ -2212,6 +2175,7 @@ impl Context {
                 todo!()
             }
             (l, r) => Err(TyCheckError::unification_error(
+                line!() as usize,
                 l,
                 r,
                 lhs_loc,
@@ -2257,6 +2221,7 @@ impl Context {
                 if ln != rn {
                     let before_t = Type::poly(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
+                        line!() as usize,
                         &before_t,
                         after_t,
                         bef_loc,
@@ -2271,6 +2236,7 @@ impl Context {
             }
             (l, r) if self.formal_same_type_of(l, r, None, None) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
+                line!() as usize,
                 l,
                 r,
                 bef_loc,
@@ -2306,6 +2272,7 @@ impl Context {
         if !maybe_sub_is_sub {
             let loc = sub_loc.or(sup_loc).unwrap_or(Location::Unknown);
             return Err(TyCheckError::type_mismatch_error(
+                line!() as usize,
                 loc,
                 self.caused_by(),
                 "<???>",
@@ -2318,57 +2285,47 @@ impl Context {
                 match &mut *fv.borrow_mut() {
                     FreeKind::NamedUnbound { constraint, .. }
                     | FreeKind::Unbound { constraint, .. } => match constraint {
-                        // sub_unify(Nat, ?T(:> Int)): (/* OK */)
-                        // sub_unify(Int, ?T(:> Nat)): (?T :> Int)
-                        // sub_unify(Str, ?T(:> Int)): (/* ?T = Str or Int */) // TODO:
-                        Constraint::SupertypeOf(sub) => {
-                            if self.rec_full_supertype_of(l, sub) {
-                                *constraint = Constraint::SupertypeOf(l.clone());
-                            } else if self.rec_full_subtype_of(l, sub) {
-                                /* OK */
+                        // sub !<: l => OK (sub will widen)
+                        // sup !:> l => Error
+                        // * sub_unify(Str,   ?T(:> _,     <: Int)): (/* Error */)
+                        // * sub_unify(Ratio, ?T(:> _,     <: Int)): (/* Error */)
+                        // sub = max(l, sub) if max exists
+                        // * sub_unify(Nat,   ?T(:> Int,   <: _)): (/* OK */)
+                        // * sub_unify(Int,   ?T(:> Nat,   <: Obj)): (?T(:> Int, <: Obj))
+                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R, ?O))): (?T(:> Nat, <: Add(?R, ?O))
+                        // sub = union(l, sub) if max does not exist
+                        // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
+                        // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
+                        // nested variable is prohibited
+                        // ☓ sub_unify({0},  ?T(:> ?U, <: Ord))
+                        Constraint::Sandwiched { sub, sup } => {
+                            if !self.rec_full_supertype_of(sup, l) {
+                                return Err(TyCheckError::subtyping_error(
+                                    line!() as usize,
+                                    l,
+                                    sup, // TODO: this?
+                                    sub_loc,
+                                    sup_loc,
+                                    self.caused_by(),
+                                ));
+                            }
+                            if let Some(new_sub) = self.max(l, sub) {
+                                *constraint =
+                                    Constraint::sandwiched(new_sub.clone(), mem::take(sup));
+                            } else {
+                                let new_sub = self.union(l, sub);
+                                *constraint = Constraint::sandwiched(new_sub, mem::take(sup));
+                            }
+                        }
+                        // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
+                        Constraint::TypeOf(ty) => {
+                            if self.rec_full_supertype_of(&Type, ty) {
+                                *constraint = Constraint::supertype_of(l.clone());
                             } else {
                                 todo!()
                             }
                         }
-                        // sub_unify(Nat, ?T(<: Int)): (Nat <: ?T <: Int)
-                        // sub_unify(Nat, ?T(<: Add(?R, ?O))): (Nat <: ?T <: Add(?R, ?O))
-                        // sub_unify(Int, ?T(<: Nat)): (/* Error */)
-                        // sub_unify(Str, ?T(<: Int)): (/* Error */)
-                        Constraint::SubtypeOf(sup) => {
-                            if !self.rec_full_subtype_of(l, sup) {
-                                return Err(TyCheckError::subtyping_error(
-                                    l,
-                                    sup,
-                                    sub_loc,
-                                    sup_loc,
-                                    self.caused_by(),
-                                ));
-                            } else {
-                                *constraint = Constraint::sandwiched(l.clone(), mem::take(sup));
-                            }
-                        }
-                        // sub_unify(Nat, (Int <: ?T <: Ratio)): (/* OK */)
-                        // sub_unify(Int, (Nat <: ?T <: Ratio)): (Int <: ?T <: Ratio)
-                        // sub_unify(Str, (Nat <: ?T <: Ratio)): (/* Error */)
-                        // sub_unify({0}, ({1} <: ?T <: Nat)): ({0, 1} <: ?T <: Nat))
-                        Constraint::Sandwiched { sub, sup } => {
-                            if self.rec_full_no_relation_of(l, sup) {
-                                return Err(TyCheckError::subtyping_error(
-                                    l,
-                                    sup, // TODO:
-                                    sub_loc,
-                                    sup_loc,
-                                    self.caused_by(),
-                                ));
-                            } else {
-                                let union = self.union(l, sub);
-                                *constraint = Constraint::sandwiched(union, mem::take(sub));
-                            }
-                        }
-                        Constraint::TypeOf(_t) => {
-                            *constraint = Constraint::SupertypeOf(l.clone());
-                        }
-                        _ => {}
+                        _ => unreachable!(),
                     },
                     _ => {}
                 }
@@ -2378,47 +2335,47 @@ impl Context {
                 match &mut *fv.borrow_mut() {
                     FreeKind::NamedUnbound { constraint, .. }
                     | FreeKind::Unbound { constraint, .. } => match constraint {
-                        // sub_unify(?T(:> Int), Nat): (/* Error */)
-                        // sub_unify(?T(:> Nat), Int): (Nat <: ?T <: Int)
-                        // sub_unify(?T(:> Nat), Str): (/* Error */)
-                        Constraint::SupertypeOf(sub) => {
-                            if !self.rec_full_subtype_of(sub, r) {
+                        // sub !<: r => Error
+                        // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
+                        // * sub_unify(?T(:> Nat,   <: _), Str): (/* Error */)
+                        // sup !:> r => Error
+                        // * sub_unify(?T(:> _, <: Str), Int): (/* Error */)
+                        // * sub_unify(?T(:> _, <: Int), Nat): (/* Error */)
+                        // sub <: r, sup :> r => sup = min(sup, r) if min exists
+                        // * sub_unify(?T(:> Never, <: Nat), Int): (/* OK */)
+                        // * sub_unify(?T(:> Nat,   <: Obj), Int): (?T(:> Nat,   <: Int))
+                        // sup = union(sup, r) if min does not exist
+                        // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
+                        Constraint::Sandwiched { sub, sup } => {
+                            if !self.rec_full_subtype_of(sub, r)
+                                || !self.rec_full_supertype_of(sup, r)
+                            {
                                 return Err(TyCheckError::subtyping_error(
+                                    line!() as usize,
                                     sub,
                                     r,
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
                                 ));
+                            }
+                            if let Some(new_sup) = self.min(sup, r) {
+                                *constraint =
+                                    Constraint::sandwiched(mem::take(sub), new_sup.clone());
                             } else {
-                                *constraint = Constraint::sandwiched(sub.clone(), r.clone());
+                                let new_sup = self.union(sup, r);
+                                *constraint = Constraint::sandwiched(mem::take(sub), new_sup);
                             }
                         }
-                        // sub_unify(?T(<: Int), Nat): (?T(<: Nat))
-                        // sub_unify(?T(<: Nat), Int): (/* OK */)
-                        // sub_unify(?T(<: Str), Int): (/* Error */) // TODO:
-                        Constraint::SubtypeOf(sup) if self.rec_full_supertype_of(sup, r) => {
-                            *constraint = Constraint::SubtypeOf(r.clone());
-                        }
-                        // sub_unify((Int <: ?T <: Ratio), Nat): (/* Error */)
-                        // sub_unify((Nat <: ?T <: Ratio), Int): (/* OK */)
-                        // sub_unify((Nat <: ?T <: Int), Str): (/* Error */)
-                        Constraint::Sandwiched { sub, sup: _ }
-                            if !self.rec_full_subtype_of(sub, r) =>
-                        {
-                            return Err(TyCheckError::subtyping_error(
-                                sub,
-                                r,
-                                sub_loc,
-                                sup_loc,
-                                self.caused_by(),
-                            ))
-                        }
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
-                        Constraint::TypeOf(_t) => {
-                            *constraint = Constraint::SubtypeOf(r.clone());
+                        Constraint::TypeOf(ty) => {
+                            if self.rec_full_supertype_of(&Type, ty) {
+                                *constraint = Constraint::subtype_of(r.clone());
+                            } else {
+                                todo!()
+                            }
                         }
-                        _ => {}
+                        _ => unreachable!(),
                     },
                     _ => {}
                 }
@@ -2502,6 +2459,7 @@ impl Context {
             ast::VarPattern::Discard(token) => {
                 if self.unify(&spec_t, body_t, None, Some(sig.loc())).is_err() {
                     return Err(TyCheckError::type_mismatch_error(
+                        line!() as usize,
                         token.loc(),
                         self.caused_by(),
                         "_",
@@ -2513,6 +2471,7 @@ impl Context {
             ast::VarPattern::VarName(n) => {
                 if self.unify(&spec_t, body_t, None, Some(sig.loc())).is_err() {
                     return Err(TyCheckError::type_mismatch_error(
+                        line!() as usize,
                         n.loc(),
                         self.caused_by(),
                         n.inspect(),
@@ -2804,7 +2763,7 @@ impl Context {
         // REVIEW: 型境界の左辺に来れるのは型変数だけか?
         // TODO: 高階型変数
         match bound {
-            TypeBoundSpec::Subtype { sub, sup } => Ok(TyBound::subtype(
+            TypeBoundSpec::Subtype { sub, sup } => Ok(TyBound::subtype_of(
                 Type::mono_q(sub.inspect().clone()),
                 self.instantiate_typespec(sup, mode)?,
             )),
@@ -2857,6 +2816,7 @@ impl Context {
                         Ok(ctx)
                     } else {
                         Err(TyCheckError::no_var_error(
+                            line!() as usize,
                             obj.loc(),
                             namespace.clone(),
                             name.inspect(),
@@ -2883,6 +2843,7 @@ impl Context {
             let t = pos_arg.expr.ref_t();
             if !matches!(&pos_arg.expr, hir::Expr::Lambda(_)) {
                 return Err(TyCheckError::type_mismatch_error(
+                    line!() as usize,
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
@@ -2901,6 +2862,7 @@ impl Context {
             }
             if lambda.params.len() != 1 {
                 return Err(TyCheckError::argument_error(
+                    line!() as usize,
                     pos_args[i + 1].loc(),
                     self.caused_by(),
                     1,
@@ -2917,6 +2879,7 @@ impl Context {
             && !self.formal_supertype_of(&union_pat_t, expr_t, None, None)
         {
             return Err(TyCheckError::match_error(
+                line!() as usize,
                 pos_args[0].loc(),
                 self.caused_by(),
                 expr_t,
@@ -2957,6 +2920,7 @@ impl Context {
                 return parent.get_var_t(name, namespace);
             }
             Err(TyCheckError::no_var_error(
+                line!() as usize,
                 name.loc(),
                 namespace.clone(),
                 name.inspect(),
@@ -2993,6 +2957,7 @@ impl Context {
             parent.get_attr_t(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
+                line!() as usize,
                 name.loc(),
                 namespace.clone(),
                 &self_t,
@@ -3177,12 +3142,7 @@ impl Context {
         self.rec_full_supertype_of(rhs, lhs)
     }
 
-    /// !(L :> R || L <: R)
-    pub(crate) fn rec_full_no_relation_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        !self.rec_full_supertype_of(lhs, rhs) && !self.rec_full_subtype_of(lhs, rhs)
-    }
-
-    pub(crate) fn _rec_full_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
+    pub(crate) fn rec_full_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.rec_full_supertype_of(lhs, rhs) && self.rec_full_subtype_of(lhs, rhs)
     }
 
@@ -3323,12 +3283,8 @@ impl Context {
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
-                        Constraint::SubtypeOf(sup) => {
-                            self.formal_supertype_of(sup, rhs, bounds, lhs_variance)
-                        }
                         // `(?T :> X) :> Y` is true
                         // `(?T :> Str) :> Int` is true (?T :> Str or Int)
-                        Constraint::SupertypeOf(_sub) => true,
                         // `(Nat <: ?T <: Ratio) :> Nat` can be true
                         Constraint::Sandwiched { sup, .. } => {
                             self.formal_supertype_of(sup, rhs, bounds, lhs_variance)
@@ -3356,14 +3312,7 @@ impl Context {
                         // `Nat :> (?T <: Int)` can be true
                         // `Int :> (?T <: Nat)` can be true
                         // `Str :> (?T <: Int)` is false
-                        Constraint::SubtypeOf(sup) => {
-                            self.formal_supertype_of(lhs, sup, bounds, lhs_variance)
-                                || self.formal_subtype_of(lhs, sup, bounds, lhs_variance)
-                        }
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
-                        Constraint::SupertypeOf(sub) => {
-                            self.formal_supertype_of(lhs, sub, bounds, lhs_variance)
-                        }
                         // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
                         Constraint::Sandwiched { sub, sup: _ } => {
                             self.formal_supertype_of(lhs, sub, bounds, lhs_variance)
@@ -3752,17 +3701,14 @@ impl Context {
 
     fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
-            // |T <: Nat| <: |T <: Int|
             // |I: Nat| <: |I: Int|
-            (Constraint::SubtypeOf(lhs), Constraint::SubtypeOf(rhs))
-            | (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => {
+            (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => {
                 self.rec_full_subtype_of(lhs, rhs)
             }
+            // |T <: Int| <: |T: Type|
+            (Constraint::Sandwiched { sub: Never, .. }, Constraint::TypeOf(Type)) => true,
             // |Int <: T| <: |Nat <: T|
-            (Constraint::SupertypeOf(lhs), Constraint::SupertypeOf(rhs)) => {
-                self.rec_full_supertype_of(lhs, rhs)
-            }
-            (Constraint::SubtypeOf(_), Constraint::TypeOf(Type)) => true,
+            // |T <: Nat| <: |T <: Int|
             // |Int <: T <: Ratio| <: |Nat <: T <: Complex|
             (
                 Constraint::Sandwiched {
@@ -3853,6 +3799,18 @@ impl Context {
         }
     }
 
+    fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+        // 同じならどちらを返しても良い
+        match (
+            self.rec_full_supertype_of(lhs, rhs),
+            self.rec_full_subtype_of(lhs, rhs),
+        ) {
+            (true, true) | (true, false) => Some(lhs),
+            (false, true) => Some(rhs),
+            (false, false) => None,
+        }
+    }
+
     fn cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> TyParamOrdering {
         match self.min(lhs, rhs) {
             Some(l) if l == lhs => TyParamOrdering::Less,
@@ -3886,6 +3844,7 @@ impl Context {
                 return parent.get_local(name, namespace);
             }
             Err(TyCheckError::no_var_error(
+                line!() as usize,
                 name.loc(),
                 namespace.clone(),
                 name.inspect(),
@@ -3911,6 +3870,7 @@ impl Context {
             parent._get_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
+                line!() as usize,
                 name.loc(),
                 namespace.clone(),
                 &self_t,
@@ -3973,6 +3933,7 @@ impl Context {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
+                line!() as usize,
                 name.loc(),
                 self.caused_by(),
                 name.inspect(),

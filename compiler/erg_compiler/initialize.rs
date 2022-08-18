@@ -122,7 +122,7 @@ impl Context {
         let op_t = quant(
             op_t,
             set! {
-                subtype(mono_q("Self"), poly("Eq", vec![ty_tp(mono_q("R"))])),
+                subtypeof(mono_q("Self"), poly("Eq", vec![ty_tp(mono_q("R"))])),
                 static_instance("R", Type)
             },
         );
@@ -137,7 +137,7 @@ impl Context {
         let op_t = quant(
             op_t,
             set! {
-                subtype(mono_q("Self"), poly("PartialOrd", vec![ty_tp(mono_q("R"))])),
+                subtypeof(mono_q("Self"), poly("PartialOrd", vec![ty_tp(mono_q("R"))])),
                 static_instance("R", Type)
             },
         );
@@ -157,13 +157,13 @@ impl Context {
         let t = fn0_met(self_t.clone(), Nat);
         let t = quant(
             t,
-            set! {subtype(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))},
+            set! {subtypeof(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))},
         );
         seq.register_decl("__len__", t, Public);
         let t = Type::fn1_met(self_t.clone(), Nat, mono_q("T"));
         let t = quant(
             t,
-            set! {subtype(self_t, poly("Seq", vec![ty_tp(mono_q("T"))])), static_instance("T", Type)},
+            set! {subtypeof(self_t, poly("Seq", vec![ty_tp(mono_q("T"))])), static_instance("T", Type)},
         );
         // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
         seq.register_decl("get", t, Public);
@@ -180,7 +180,7 @@ impl Context {
             vec![poly("Output", vec![ty_tp(mono_q("R"))])],
             Self::TOP_LEVEL,
         );
-        let self_bound = subtype(mono_q("Self"), poly("Add", ty_params.clone()));
+        let self_bound = subtypeof(mono_q("Self"), poly("Add", ty_params.clone()));
         let op_t = fn1_met(
             poly_q("Self", ty_params.clone()),
             r.clone(),
@@ -195,7 +195,7 @@ impl Context {
             vec![poly("Output", vec![ty_tp(mono_q("R"))])],
             Self::TOP_LEVEL,
         );
-        let self_bound = subtype(mono_q("Self"), poly("Sub", ty_params.clone()));
+        let self_bound = subtypeof(mono_q("Self"), poly("Sub", ty_params.clone()));
         let op_t = fn1_met(
             poly_q("Self", ty_params.clone()),
             r.clone(),
@@ -275,7 +275,7 @@ impl Context {
     fn init_builtin_classes(&mut self) {
         let mut obj = Self::mono_class("Obj", vec![], vec![], Self::TOP_LEVEL);
         let t = fn0_met(mono_q("Self"), mono_q("Self"));
-        let t = quant(t, set! {subtype(mono_q("Self"), mono("Obj"))});
+        let t = quant(t, set! {subtypeof(mono_q("Self"), mono("Obj"))});
         obj.register_impl("clone", t, Const, Public);
         obj.register_impl("__module__", Str, Const, Public);
         obj.register_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
@@ -676,7 +676,7 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtype(l.clone(), poly("Add", params.clone()))
+                subtypeof(l.clone(), poly("Add", params.clone()))
             },
         );
         self.register_impl("__add__", op_t, Const, Private);
@@ -685,7 +685,7 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtype(l.clone(), poly("Sub", params.clone()))
+                subtypeof(l.clone(), poly("Sub", params.clone()))
             },
         );
         self.register_impl("__sub__", op_t, Const, Private);
@@ -694,7 +694,7 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtype(l.clone(), poly("Mul", params.clone()))
+                subtypeof(l.clone(), poly("Mul", params.clone()))
             },
         );
         self.register_impl("__mul__", op_t, Const, Private);
@@ -703,27 +703,27 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtype(l, poly("Mul", params.clone()))
+                subtypeof(l, poly("Mul", params.clone()))
             },
         );
         self.register_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
         let op_t = Type::func2(m.clone(), m.clone(), m.clone());
-        let op_t = quant(op_t, set! {subtype(m, poly("Mul", vec![]))});
+        let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
         // TODO: add bound: M == MulO
         self.register_impl("__pow__", op_t, Const, Private);
         let d = mono_q("D");
         let op_t = Type::func2(d.clone(), d.clone(), d.clone());
-        let op_t = quant(op_t, set! {subtype(d, poly("Div", vec![]))});
+        let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
         self.register_impl("__mod__", op_t, Const, Private);
         let e = mono_q("E");
         let op_t = Type::func2(e.clone(), e.clone(), Bool);
-        let op_t = quant(op_t, set! {subtype(e, poly("Eq", vec![]))});
+        let op_t = quant(op_t, set! {subtypeof(e, poly("Eq", vec![]))});
         self.register_impl("__eq__", op_t.clone(), Const, Private);
         self.register_impl("__ne__", op_t, Const, Private);
         let o = mono_q("O");
         let op_t = Type::func2(o.clone(), o.clone(), Bool);
-        let op_t = quant(op_t, set! {subtype(o, mono("Ord"))});
+        let op_t = quant(op_t, set! {subtypeof(o, mono("Ord"))});
         self.register_impl("__lt__", op_t.clone(), Const, Private);
         self.register_impl("__le__", op_t.clone(), Const, Private);
         self.register_impl("__gt__", op_t.clone(), Const, Private);
@@ -734,18 +734,18 @@ impl Context {
         // TODO: Boolの+/-は警告を出したい
         let n = mono_q("N");
         let op_t = fn0_met(n.clone(), n.clone());
-        let op_t = quant(op_t, set! {subtype(n, mono("Num"))});
+        let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
         self.register_decl("__pos__", op_t.clone(), Private);
         self.register_decl("__neg__", op_t, Private);
         let t = mono_q("T");
         let op_t = Type::func2(t.clone(), t.clone(), Type::range(t.clone()));
-        let op_t = quant(op_t, set! {subtype(t.clone(), mono("Ord"))});
+        let op_t = quant(op_t, set! {subtypeof(t.clone(), mono("Ord"))});
         self.register_decl("__rng__", op_t.clone(), Private);
         self.register_decl("__lorng__", op_t.clone(), Private);
         self.register_decl("__rorng__", op_t.clone(), Private);
         self.register_decl("__orng__", op_t, Private);
         let op_t = Type::func1(mono_q("T"), Type::mono_proj(mono_q("T"), "MutType!"));
-        let op_t = quant(op_t, set! {subtype(mono_q("T"), mono("Mutate"))});
+        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), mono("Mutate"))});
         self.register_impl("__mutate__", op_t, Const, Private);
     }
 

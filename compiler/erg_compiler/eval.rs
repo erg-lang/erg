@@ -399,14 +399,6 @@ impl Evaluator {
         level: usize,
     ) -> EvalResult<TyBound> {
         match bound {
-            TyBound::Subtype { sub, sup } => Ok(TyBound::subtype(
-                self.eval_t_params(sub, ctx, level)?,
-                self.eval_t_params(sup, ctx, level)?,
-            )),
-            TyBound::Supertype { sup, sub } => Ok(TyBound::supertype(
-                self.eval_t_params(sup, ctx, level)?,
-                self.eval_t_params(sub, ctx, level)?,
-            )),
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub = self.eval_t_params(sub, ctx, level)?;
                 let mid = self.eval_t_params(mid, ctx, level)?;

@@ -109,6 +109,7 @@ impl OwnershipChecker {
                     {
                         let moved_loc = *moved_loc;
                         self.errs.push(OwnershipError::move_error(
+                            line!() as usize,
                             local.inspect(),
                             local.loc(),
                             moved_loc,

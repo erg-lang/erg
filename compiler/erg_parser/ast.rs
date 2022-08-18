@@ -1261,9 +1261,8 @@ impl TypeSpec {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeBoundSpec {
-    Subtype { sub: VarName, sup: TypeSpec }, // e.g. S <: Show
+    Subtype { sub: VarName, sup: TypeSpec },  // e.g. S <: Show
     Instance { name: VarName, ty: TypeSpec }, // e.g. N: Nat
-                                             // Predicate, // TODO: e.g. N > 5
 }
 
 impl NestedDisplay for TypeBoundSpec {
