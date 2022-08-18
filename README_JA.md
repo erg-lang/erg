@@ -17,7 +17,8 @@
 
 ## Ergはこんな人におすすめです&#58;
 
-* Pythonを使用しているが、Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい、しかし、煩雑な型定義やメモリ管理は避けたい
+* Pythonを使用しているが、Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい
+* しかし、煩雑な型定義やメモリ管理は避けたい
 * MLのようにシンプルで一貫性のある言語を使いたい
 * 依存型/篩型を持つ実用的な汎用言語を使いたい
 * Scalaのように関数型とオブジェクト指向が高度に融合された言語を使いたい
@@ -44,7 +45,7 @@
 
     2.times! do!:
         print! "hello, ", end: ""
-    # => hello, hello, 
+    # => hello, hello,
     -2.times! do!:
         print! "hello,", end: ""
     # TypeError: `.times!`は`Nat`(0以上のInt)のメソッドです、`Int`ではありません
@@ -184,7 +185,7 @@ cd erg
 nix-build
 ```
 
-[Nix Flakes](https://nixos.wiki/wiki/Flakes)を有効化している場合は次のコマンドでも良いです. 
+[Nix Flakes](https://nixos.wiki/wiki/Flakes)を有効化している場合は次のコマンドでも良いです.
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
