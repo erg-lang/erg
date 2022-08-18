@@ -14,8 +14,7 @@
 
 ## Erg can be recommended to a person that&colon;
 
-* uses Python, but wants Rust-like robustness and comfortable compiler support.
-* and yet, doesn't need the verbose type specifications & memory management model like Rust.
+* uses Python, but wants Rust-like robustness and comfortable compiler support, and yet, doesn't need the verbose type specifications & memory management model like Rust.
 * wants a simple and consistent language like ML.
 * wants a practical general-purpose language with dependent/refinement types.
 * wants a language like Scala that can be used both object-oriented and functional.
