@@ -5,8 +5,9 @@ Ergにおけるクラスは、大まかには自身の要素(インスタンス)
 
 ```erg
 Person = Class {.name = Str; .age = Nat}
+# .newが定義されなかった場合、自動で`Person.new = Person::__new__`となります
 Person.
-    new name, str = Self::__new__ {.name = name; .age = age}
+    new name, age = Self::__new__ {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>

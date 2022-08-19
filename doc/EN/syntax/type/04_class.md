@@ -5,8 +5,9 @@ Here is an example of a simple class.
 
 ```erg
 Person = Class {.name = Str; .age = Nat}
+# If `.new` is not defined, then Erg will create `Person.new = Person::__new__`
 Person.
-    new name, str = Self::__new__ {.name = name; .age = age}
+    new name, age = Self::__new__ {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>
