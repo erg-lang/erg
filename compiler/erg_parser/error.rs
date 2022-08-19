@@ -27,6 +27,8 @@ impl LexError {
             loc,
             switch_lang!(
                 "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/mtshiba/erg)\n{fn_name}:{line}より発生"),
+                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给https://github.com/mtshiba/erg\n原因来自：{fn_name}:{line}"),
+                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給https://github.com/mtshiba/erg\n原因來自：{fn_name}:{line}"),
                 "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/mtshiba/erg\ncaused from: {fn_name}:{line}"),
             ),
             None,
@@ -40,7 +42,8 @@ impl LexError {
             loc,
             switch_lang!(
                 "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
-                "simplified_chinese" => format!("该功能({name})还没有正式提供"),
+                "simplified_chinese" => format!("此功能（{name}）尚未实现"),
+                "traditional_chinese" => format!("此功能（{name}）尚未實現"),
                 "english" => format!("this feature({name}) is not implemented yet"),
             ),
             None,
@@ -55,6 +58,7 @@ impl LexError {
             switch_lang!(
                 "japanese" => "不正な構文です",
                 "simplified_chinese" => "无效的语法",
+                "traditional_chinese" => "無效的語法",
                 "english" => "invalid syntax",
             ),
             None,

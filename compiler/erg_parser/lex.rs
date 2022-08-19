@@ -268,6 +268,8 @@ impl Lexer /*<'a>*/ {
                     comment.loc(),
                     switch_lang!(
                         "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
+                        "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                        "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
                         "english" => "invalid unicode character (bi-directional override) in comments",
                     ),
                     None,
@@ -301,6 +303,8 @@ impl Lexer /*<'a>*/ {
                 space.loc(),
                 switch_lang!(
                     "japanese" => "インデントが不正です",
+                    "simplified_chinese" => "无效缩进",
+                    "traditional_chinese" => "無效縮進",
                     "english" => "invalid indent",
                 ),
                 None,
@@ -323,11 +327,15 @@ impl Lexer /*<'a>*/ {
                 token.loc(),
                 switch_lang!(
                     "japanese" => "インデントが深すぎます",
+                    "simplified_chinese" => "缩进太深",
+                    "traditional_chinese" => "縮進太深",
                     "english" => "indentation is too deep",
                 ),
                 Some(
                     switch_lang!(
                         "japanese" => "コードが複雑すぎます。処理を分割してください",
+                        "simplified_chinese" => "代码过于复杂，请拆分过程",
+                        "traditional_chinese" => "代碼過於復雜，請拆分過程",
                         "english" => "The code is too complicated. Please split the process",
                     )
                     .into(),
@@ -368,6 +376,8 @@ impl Lexer /*<'a>*/ {
                         invalid_dedent.loc(),
                         switch_lang!(
                             "japanese" => "インデントが不正です",
+                            "simplified_chinese" => "无效缩进",
+                            "traditional_chinese" => "無效縮進",
                             "english" => "invalid indent",
                         ),
                         None,
@@ -540,6 +550,8 @@ impl Lexer /*<'a>*/ {
                         token.loc(),
                         switch_lang!(
                             "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
+                            "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                            "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
                             "english" => "invalid unicode character (bi-directional override) in string literal",
                         ),
                         None,
@@ -553,6 +565,8 @@ impl Lexer /*<'a>*/ {
             token.loc(),
             switch_lang!(
                 "japanese" => "文字列が\"によって閉じられていません",
+                "simplified_chinese" => "字符串没有被\"关闭",
+                "traditional_chinese" => "字符串没有被\"关闭",
                 "english" => "the string is not closed by \"",
             ),
             None,
@@ -602,6 +616,8 @@ impl Iterator for Lexer /*<'a>*/ {
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "<.という演算子はありません",
+                                "simplified_chinese" => "没有这样的运算符：<.",
+                                "traditional_chinese" => "沒有這樣的運算符：<.",
                                 "english" => "no such operator: <.",
                             ),
                             None,
@@ -789,11 +805,15 @@ impl Iterator for Lexer /*<'a>*/ {
                     token.loc(),
                     switch_lang!(
                         "japanese" => "タブ文字は使用できません",
+                        "simplified_chinese" => "不能将制表符用作空格",
+                        "traditional_chinese" => "不能將製表符用作空格",
                         "english" => "cannot use a tab as a space",
                     ),
                     Some(
                         switch_lang!(
                             "japanese" => "スペース( )を使用してください",
+                            "simplified_chinese" => "使用空格( )",
+                            "traditional_chinese" => "使用空格( )",
                             "english" => "use spaces ( )",
                         )
                         .into(),
@@ -821,6 +841,8 @@ impl Iterator for Lexer /*<'a>*/ {
                                 token.loc(),
                                 switch_lang!(
                                     "japanese" => format!("`{}`はユーザー定義できません", &token.content),
+                                    "simplified_chinese" => format!("`{}`不能由用户定义", &token.content),
+                                    "traditional_chinese" => format!("`{}`不能由用戶定義", &token.content),
                                     "english" => format!("`{}` cannot be defined by user", &token.content),
                                 ),
                                 None,
@@ -835,6 +857,8 @@ impl Iterator for Lexer /*<'a>*/ {
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("バッククォート(`)が閉じられていません"),
+                        "simplified_chinese" => format!("反引号(`)未关闭"),
+                        "traditional_chinese" => format!("反引號(`)未關閉"),
                         "english" => format!("back quotes (`) not closed"),
                     ),
                     None,
@@ -852,6 +876,8 @@ impl Iterator for Lexer /*<'a>*/ {
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("この文字は使用できません: '{invalid}'"),
+                        "simplified_chinese" => format!("无效字符：'{invalid}'"),
+                        "traditional_chinese" => format!("無效字符：'{invalid}'"),
                         "english" => format!("invalid character: '{invalid}'"),
                     ),
                     None,

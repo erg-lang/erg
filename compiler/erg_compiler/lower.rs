@@ -70,12 +70,16 @@ impl ASTLowerer {
                 self.ctx.name.clone(),
                 switch_lang!(
                     "japanese" => "式の評価結果が使われていません",
+                    "simplified_chinese" => "表达式评估结果未使用",
+                    "traditional_chinese" => "表達式評估結果未使用",
                     "english" => "the evaluation result of the expression is not used",
                 ),
                 Some(
                     switch_lang!(
                         "japanese" => "値を使わない場合は、discard関数を使用してください",
-                        "english" => "if you don't use the value, use `discard` function",
+                        "simplified_chinese" => "如果您不想使用该值，请使用discard函数",
+                        "traditional_chinese" => "如果您不想使用該值，請使用discard函數",
+                        "english" => "if you don't use the value, use discard function",
                     )
                     .into(),
                 ),
