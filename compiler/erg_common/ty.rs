@@ -23,6 +23,8 @@ pub enum OpKind {
     Sub,
     Mul,
     Div,
+    Pow,
+    Mod,
     Pos,
     Neg,
     Invert,
@@ -32,6 +34,13 @@ pub enum OpKind {
     Le,
     Eq,
     Ne,
+    And,
+    Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
     Mutate,
 }
 
@@ -42,6 +51,8 @@ impl fmt::Display for OpKind {
             Self::Sub => write!(f, "-"),
             Self::Mul => write!(f, "*"),
             Self::Div => write!(f, "/"),
+            Self::Pow => write!(f, "**"),
+            Self::Mod => write!(f, "%"),
             Self::Pos => write!(f, "+"),
             Self::Neg => write!(f, "-"),
             Self::Invert => write!(f, "~"),
@@ -51,6 +62,13 @@ impl fmt::Display for OpKind {
             Self::Le => write!(f, "<="),
             Self::Eq => write!(f, "=="),
             Self::Ne => write!(f, "!="),
+            Self::And => write!(f, "and"),
+            Self::Or => write!(f, "or"),
+            Self::BitAnd => write!(f, "&&"),
+            Self::BitOr => write!(f, "||"),
+            Self::BitXor => write!(f, "^^"),
+            Self::Shl => write!(f, "<<"),
+            Self::Shr => write!(f, ">>"),
             Self::Mutate => write!(f, "!"),
         }
     }
@@ -474,44 +492,6 @@ impl ConstSubr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ConstObj {
-    Value(ValueObj),
-    MutValue(RcCell<ValueObj>),
-    Subr(ConstSubr),
-    Record(Dict<Str, ConstObj>),
-    Type(Box<Type>),
-}
-
-impl fmt::Display for ConstObj {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConstObj::Value(v) => write!(f, "{v}"),
-            ConstObj::MutValue(v) => write!(f, "!{v}"),
-            ConstObj::Subr(s) => write!(f, "{s:?}"),
-            ConstObj::Record(r) => write!(f, "{r}"),
-            ConstObj::Type(t) => write!(f, "{t}"),
-        }
-    }
-}
-
-impl ConstObj {
-    pub fn t(t: Type) -> Self {
-        Self::Type(Box::new(t))
-    }
-
-    pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (Self::Value(l), Self::Value(r)) => l.try_cmp(r),
-            (Self::MutValue(l), Self::MutValue(r)) => l.borrow().try_cmp(&r.borrow()),
-            (Self::Value(l), Self::MutValue(r)) => l.try_cmp(&r.borrow()),
-            (Self::MutValue(l), Self::Value(r)) => l.borrow().try_cmp(r),
-            // TODO: cmp with str
-            (_s, _o) => None,
-        }
-    }
-}
-
 /// 型引数
 /// データのみ、その評価結果は別に持つ
 /// __Info__: 連携型パラメータがあるので、比較には`rec_eq`を使うこと
@@ -529,7 +509,7 @@ impl ConstObj {
 /// * Erased: _: Type, _: Nat, ...
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyParam {
-    ConstObj(ConstObj),
+    Value(ValueObj),
     Type(Box<Type>),
     Array(Vec<TyParam>),
     Tuple(Vec<TyParam>),
@@ -564,7 +544,7 @@ pub enum TyParam {
 impl fmt::Display for TyParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ConstObj(c) => write!(f, "{c}"),
+            Self::Value(c) => write!(f, "{c}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::Mono(c) => write!(f, "{c}"),
             Self::MonoProj { obj, attr } => write!(f, "{obj}.{attr}"),
@@ -660,7 +640,7 @@ impl From<RangeInclusive<&TyParam>> for TyParam {
 
 impl<V: Into<ValueObj>> From<V> for TyParam {
     fn from(v: V) -> Self {
-        Self::ConstObj(ConstObj::Value(v.into()))
+        Self::Value(v.into())
     }
 }
 
@@ -749,12 +729,7 @@ impl TyParam {
 
     #[inline]
     pub fn value<V: Into<ValueObj>>(v: V) -> Self {
-        Self::ConstObj(ConstObj::Value(v.into()))
-    }
-
-    #[inline]
-    pub fn cons<C: Into<ConstObj>>(l: C) -> Self {
-        Self::ConstObj(l.into())
+        Self::Value(v.into())
     }
 
     #[inline]
@@ -850,7 +825,7 @@ impl TyParam {
         match (self, r) {
             (Self::Type(l), Self::Type(r)) =>
                 if l.rec_eq(r) { Some(TyParamOrdering::Equal) } else { Some(TyParamOrdering::NotEqual) },
-            (Self::ConstObj(l), Self::ConstObj(r)) =>
+            (Self::Value(l), Self::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
             (Self::FreeVar(fv), p) if fv.is_linked() =>
                 fv.crack().cheap_cmp(p),
@@ -1287,7 +1262,7 @@ impl Predicate {
 
     pub fn can_be_false(&self) -> bool {
         match self {
-            Self::Value(l) => matches!(l, ValueObj::False),
+            Self::Value(l) => matches!(l, ValueObj::Bool(false)),
             Self::Const(_) => todo!(),
             Self::Or(lhs, rhs) => lhs.can_be_false() || rhs.can_be_false(),
             Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
@@ -1736,19 +1711,12 @@ impl ArgsOwnership {
 pub enum Type {
     /* Monomorphic (builtin) types */
     Obj, // {=}
-    ObjMut,
     Int,
-    IntMut,
     Nat,
-    NatMut,
     Ratio,
-    RatioMut,
     Float,
-    FloatMut,
     Bool,
-    BoolMut,
     Str,
-    StrMut,
     NoneType,
     Code,
     Module,
@@ -1871,19 +1839,12 @@ impl From<&str> for Type {
     fn from(item: &str) -> Self {
         match item {
             "Obj" => Self::Obj,
-            "Obj!" => Self::ObjMut,
             "Int" => Self::Int,
-            "Int!" => Self::IntMut,
             "Nat" => Self::Nat,
-            "Nat!" => Self::NatMut,
             "Ratio" => Self::Ratio,
-            "Ratio!" => Self::RatioMut,
             "Float" => Self::Float,
-            "Float!" => Self::FloatMut,
             "Bool" => Self::Bool,
-            "Bool!" => Self::BoolMut,
             "Str" => Self::Str,
-            "Str!" => Self::StrMut,
             "NoneType" => Self::NoneType,
             "Type" => Self::Type,
             "Class" => Self::Class,
@@ -1899,7 +1860,7 @@ impl From<&str> for Type {
             "Never" => Self::Never,
             "Inf" => Self::Inf,
             "_" => Self::Top(),
-            _ => todo!(),
+            other => Self::Mono(Str::rc(other)),
         }
     }
 }
@@ -2094,6 +2055,10 @@ impl Type {
 
     pub fn array(elem_t: Type, len: TyParam) -> Self {
         Self::poly("Array", vec![TyParam::t(elem_t), len])
+    }
+
+    pub fn array_mut(elem_t: Type, len: TyParam) -> Self {
+        Self::poly("Array!", vec![TyParam::t(elem_t), len])
     }
 
     pub fn dict(k_t: Type, v_t: Type) -> Self {
@@ -2445,14 +2410,15 @@ impl Type {
         }
     }
 
+    /// 本来は型環境が必要
     pub fn mutate(self) -> Self {
         match self {
-            Self::Int => Self::IntMut,
-            Self::Nat => Self::NatMut,
-            Self::Ratio => Self::RatioMut,
-            Self::Float => Self::FloatMut,
-            Self::Bool => Self::BoolMut,
-            Self::Str => Self::StrMut,
+            Self::Int => Self::mono("Int!"),
+            Self::Nat => Self::mono("Nat!"),
+            Self::Ratio => Self::mono("Ratio!"),
+            Self::Float => Self::mono("Float!"),
+            Self::Bool => Self::mono("Bool!"),
+            Self::Str => Self::mono("Str!"),
             _ => todo!(),
         }
     }
@@ -2466,12 +2432,6 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::IntMut
-            | Self::NatMut
-            | Self::RatioMut
-            | Self::FloatMut
-            | Self::BoolMut
-            | Self::StrMut => true,
             Self::Mono(name)
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
@@ -2652,19 +2612,12 @@ impl Type {
     pub fn name(&self) -> &str {
         match self {
             Self::Obj => "Obj",
-            Self::ObjMut => "Obj!",
             Self::Int => "Int",
-            Self::IntMut => "Int!",
             Self::Nat => "Nat",
-            Self::NatMut => "Nat!",
             Self::Ratio => "Ratio",
-            Self::RatioMut => "Ratio!",
             Self::Float => "Float",
-            Self::FloatMut => "Float!",
             Self::Bool => "Bool",
-            Self::BoolMut => "Bool!",
             Self::Str => "Str",
-            Self::StrMut => "Str!",
             Self::NoneType => "None",
             Self::Type => "Type",
             Self::Class => "Class",
@@ -3029,11 +2982,19 @@ pub enum TypeCode {
 impl From<&Type> for TypeCode {
     fn from(arg: &Type) -> Self {
         match arg {
-            Type::Int | Type::IntMut => Self::Int32,
-            Type::Nat | Type::NatMut => Self::Nat64,
-            Type::Float | Type::FloatMut => Self::Float64,
-            Type::Bool | Type::BoolMut => Self::Bool,
-            Type::Str | Type::StrMut => Self::Str,
+            Type::Int => Self::Int32,
+            Type::Nat => Self::Nat64,
+            Type::Float => Self::Float64,
+            Type::Bool => Self::Bool,
+            Type::Str => Self::Str,
+            Type::Mono(name) => match &name[..] {
+                "Int!" => Self::Int32,
+                "Nat!" => Self::Nat64,
+                "Float!" => Self::Float64,
+                "Bool!" => Self::Bool,
+                "Str!" => Self::Str,
+                _ => Self::Other,
+            },
             Type::Poly { name, .. } => match &name[..] {
                 "Array" | "Array!" => Self::Array,
                 "Func" => Self::Func,

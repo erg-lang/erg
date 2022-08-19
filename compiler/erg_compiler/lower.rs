@@ -5,7 +5,8 @@ use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
 use erg_common::get_hash;
 use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, Type};
+use erg_common::ty::{ParamTy, TyParam, Type};
+use erg_common::value::ValueObj;
 use erg_common::{fn_name, log, switch_lang};
 
 use erg_parser::ast;
@@ -136,9 +137,48 @@ impl ASTLowerer {
     ) -> LowerResult<hir::ArrayWithLength> {
         log!("[DEBUG] entered {}({array})", fn_name!());
         let elem = self.lower_expr(array.elem.expr, check)?;
+        let array_t = self.gen_array_with_length_type(&elem, &array.len);
         let len = self.lower_expr(*array.len, check)?;
-        let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, elem, len);
+        let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, array_t, elem, len);
         Ok(hir_array)
+    }
+
+    fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+        let maybe_len = self.ctx.eval.eval_const_expr(len, &self.ctx);
+        match maybe_len {
+            Some(v @ ValueObj::Nat(_)) => {
+                if elem.ref_t().is_mut() {
+                    Type::poly(
+                        "ArrayWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    Type::array(elem.t(), TyParam::Value(v))
+                }
+            }
+            Some(v @ ValueObj::Mut(_)) if v.class() == Type::mono("Nat!") => {
+                if elem.ref_t().is_mut() {
+                    Type::poly(
+                        "ArrayWithMutTypeAndLength!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    Type::array_mut(elem.t(), TyParam::Value(v))
+                }
+            }
+            Some(other) => todo!("{other} is not a Nat object"),
+            // TODO: [T; !_]
+            None => {
+                if elem.ref_t().is_mut() {
+                    Type::poly(
+                        "ArrayWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
+                    )
+                } else {
+                    Type::array(elem.t(), TyParam::erased(Type::Nat))
+                }
+            }
+        }
     }
 
     /// call全体で推論できる場合があり、そのときはcheck: falseにする

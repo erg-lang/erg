@@ -4,7 +4,7 @@ use erg_common::dict::Dict;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
-use erg_common::ty::{ConstObj, OpKind, Predicate, SubrKind, TyBound, TyParam, Type};
+use erg_common::ty::{OpKind, Predicate, SubrKind, TyBound, TyParam, Type};
 use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{fn_name, set};
@@ -126,12 +126,25 @@ impl Evaluator {
         todo!()
     }
 
-    fn eval_const_bin(&self, _bin: &BinOp) -> Option<ValueObj> {
-        todo!()
+    fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
+        match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
+            (Expr::Lit(l), Expr::Lit(r)) => {
+                let op = OpKind::try_from(&bin.op).ok()?;
+                self.eval_bin_lit(op, ValueObj::from(l), ValueObj::from(r))
+                    .ok()
+            }
+            _ => None,
+        }
     }
 
-    fn eval_const_unary(&self, _unary: &UnaryOp) -> Option<ValueObj> {
-        todo!()
+    fn eval_const_unary(&self, unary: &UnaryOp) -> Option<ValueObj> {
+        match unary.args[0].as_ref() {
+            Expr::Lit(lit) => {
+                let op = OpKind::try_from(&unary.op).ok()?;
+                self.eval_unary_lit(op, ValueObj::from(lit)).ok()
+            }
+            _ => None,
+        }
     }
 
     // TODO: kw args
@@ -143,7 +156,7 @@ impl Evaluator {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Local(name) if name.is_const() => {
-                    if let Some(ConstObj::Subr(subr)) = ctx.consts.get(name.inspect()) {
+                    if let Some(ValueObj::Subr(subr)) = ctx.consts.get(name.inspect()) {
                         let args = self.eval_args(&call.args)?;
                         Some(subr.call(args))
                     } else {
@@ -226,16 +239,12 @@ impl Evaluator {
         rhs: &TyParam,
     ) -> EvalResult<TyParam> {
         match (lhs, rhs) {
-            (TyParam::ConstObj(ConstObj::Value(lhs)), TyParam::ConstObj(ConstObj::Value(rhs))) => {
-                self.eval_bin_lit(op, lhs.clone(), rhs.clone())
-                    .map(TyParam::value)
-            }
-            (
-                TyParam::ConstObj(ConstObj::MutValue(lhs)),
-                TyParam::ConstObj(ConstObj::Value(rhs)),
-            ) => self
+            (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
                 .eval_bin_lit(op, lhs.borrow().clone(), rhs.clone())
-                .map(|v| TyParam::ConstObj(ConstObj::MutValue(RcCell::new(v)))),
+                .map(|v| TyParam::Value(ValueObj::Mut(RcCell::new(v)))),
+            (TyParam::Value(lhs), TyParam::Value(rhs)) => self
+                .eval_bin_lit(op, lhs.clone(), rhs.clone())
+                .map(TyParam::value),
             (TyParam::FreeVar(fv), r) => {
                 if fv.is_linked() {
                     self.eval_bin_tp(op, &*fv.crack(), r)
@@ -255,25 +264,21 @@ impl Evaluator {
         }
     }
 
-    fn eval_unary_lit(&self, op: OpKind, val: ConstObj) -> EvalResult<ConstObj> {
+    fn eval_unary_lit(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
             Pos => todo!(),
             Neg => todo!(),
             Invert => todo!(),
-            Mutate => {
-                if let ConstObj::Value(v) = val {
-                    Ok(ConstObj::MutValue(RcCell::new(v)))
-                } else {
-                    todo!()
-                }
-            }
+            Mutate => Ok(ValueObj::Mut(RcCell::new(val))),
             other => todo!("{other}"),
         }
     }
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::ConstObj(c) => self.eval_unary_lit(op, c.clone()).map(TyParam::cons),
+            TyParam::Value(c) => self
+                .eval_unary_lit(op, c.clone())
+                .map(|v| TyParam::Value(v)),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),
@@ -291,17 +296,14 @@ impl Evaluator {
             TyParam::Mono(name) => ctx
                 .consts
                 .get(name)
-                .and_then(|c| match c {
-                    ConstObj::Value(v) => Some(TyParam::value(v.clone())),
-                    _ => None,
-                })
+                .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(*op, val),
             TyParam::App { name, args } => self.eval_app(name, args),
             p @ (TyParam::Type(_)
             | TyParam::Erased(_)
-            | TyParam::ConstObj(_)
+            | TyParam::Value(_)
             | TyParam::FreeVar(_)
             | TyParam::MonoQVar(_)) => Ok(p.clone()),
             other => todo!("{other}"),
@@ -359,7 +361,7 @@ impl Evaluator {
             Type::MonoProj { lhs, rhs } => {
                 for ty_ctx in ctx.rec_sorted_type_ctxs(&lhs) {
                     if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
-                        if let ConstObj::Type(quant_t) = obj {
+                        if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
                             let t = subst_ctx.substitute(*quant_t, ty_ctx, level, ctx)?;
                             let t = self.eval_t_params(t, ctx, level)?;
@@ -443,8 +445,8 @@ impl Evaluator {
     ) -> EvalResult<Type> {
         let p = self.eval_tp(p, ctx)?;
         match p {
-            TyParam::ConstObj(ConstObj::Value(v)) => Ok(Type::enum_t(set![v])),
-            TyParam::ConstObj(ConstObj::MutValue(v)) => Ok(v.borrow().class().mutate()),
+            TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
+            TyParam::Value(v) => Ok(Type::enum_t(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
@@ -457,10 +459,7 @@ impl Evaluator {
             TyParam::Mono(name) => ctx
                 .consts
                 .get(&name)
-                .and_then(|c| match c {
-                    ConstObj::Value(v) => Some(Type::enum_t(set![v.clone()])),
-                    _ => None,
-                })
+                .map(|v| Type::enum_t(set![v.clone()]))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
                 if let Some(bs) = bounds {
@@ -484,7 +483,7 @@ impl Evaluator {
     pub(crate) fn _get_tp_class(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
         let p = self.eval_tp(p, ctx)?;
         match p {
-            TyParam::ConstObj(ConstObj::Value(v)) => Ok(v.class()),
+            TyParam::Value(v) => Ok(v.class()),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
@@ -497,10 +496,7 @@ impl Evaluator {
             TyParam::Mono(name) => ctx
                 .consts
                 .get(&name)
-                .and_then(|c| match c {
-                    ConstObj::Value(v) => Some(v.class()),
-                    _ => None,
-                })
+                .map(|v| v.class())
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             other => todo!("{other}"),
         }
@@ -510,7 +506,7 @@ impl Evaluator {
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam, ctx: &Context) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
-            (TyParam::ConstObj(l), TyParam::ConstObj(r)) => l == r,
+            (TyParam::Value(l), TyParam::Value(r)) => l == r,
             (TyParam::Erased(l), TyParam::Erased(r)) => l == r,
             (TyParam::FreeVar { .. }, TyParam::FreeVar { .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {
@@ -526,7 +522,7 @@ impl Evaluator {
             (TyParam::BinOp { .. }, TyParam::BinOp { .. }) => todo!(),
             (TyParam::UnaryOp { .. }, TyParam::UnaryOp { .. }) => todo!(),
             (TyParam::App { .. }, TyParam::App { .. }) => todo!(),
-            (TyParam::Mono(m), TyParam::ConstObj(l)) | (TyParam::ConstObj(l), TyParam::Mono(m)) => {
+            (TyParam::Mono(m), TyParam::Value(l)) | (TyParam::Value(l), TyParam::Mono(m)) => {
                 if let Some(o) = ctx.consts.get(m) {
                     o == l
                 } else {

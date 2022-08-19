@@ -2,7 +2,8 @@
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
 use erg_common::ty::type_constrs::*;
-use erg_common::ty::{ConstObj, TyParam, Type};
+use erg_common::ty::{TyParam, Type};
+use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{debug_power_assert, set};
 use ParamSpec as PS;
@@ -38,7 +39,7 @@ impl Context {
         }
     }
 
-    fn register_const(&mut self, name: &'static str, obj: ConstObj) {
+    fn register_const(&mut self, name: &'static str, obj: ValueObj) {
         if self.consts.get(name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -248,7 +249,7 @@ impl Context {
         // self.register_type(mono("Num"), num, Const);
         self.register_const_param_defaults(
             "Eq",
-            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
         );
         self.register_const_param_defaults(
             "PartialOrd",
@@ -256,19 +257,19 @@ impl Context {
         );
         self.register_const_param_defaults(
             "Add",
-            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
         );
         self.register_const_param_defaults(
             "Sub",
-            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
         );
         self.register_const_param_defaults(
             "Mul",
-            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
         );
         self.register_const_param_defaults(
             "Div",
-            vec![ConstTemplate::Obj(ConstObj::t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
         );
     }
 
@@ -293,6 +294,7 @@ impl Context {
             Immutable,
             Public,
         );
+        obj.register_const("MutType!", ValueObj::t(mono("Obj!")));
         // let mut record = Self::mono_trait("Record", vec![Obj], Self::TOP_LEVEL);
         // let mut class = Self::mono_class("Class", vec![Type, Obj], Self::TOP_LEVEL);
         let mut float = Self::mono_class(
@@ -315,10 +317,11 @@ impl Context {
         float.register_impl("__sub__", op_t.clone(), Const, Public);
         float.register_impl("__mul__", op_t.clone(), Const, Public);
         float.register_impl("__div__", op_t, Const, Public);
-        float.register_const("AddO", ConstObj::t(Float));
-        float.register_const("SubO", ConstObj::t(Float));
-        float.register_const("MulO", ConstObj::t(Float));
-        float.register_const("DivO", ConstObj::t(Float));
+        float.register_const("AddO", ValueObj::t(Float));
+        float.register_const("SubO", ValueObj::t(Float));
+        float.register_const("MulO", ValueObj::t(Float));
+        float.register_const("DivO", ValueObj::t(Float));
+        float.register_const("MutType!", ValueObj::t(mono("Float!")));
         float.register_impl("Real", Float, Const, Public);
         float.register_impl("Imag", Float, Const, Public);
         let mut ratio = Self::mono_class(
@@ -341,10 +344,11 @@ impl Context {
         ratio.register_impl("__sub__", op_t.clone(), Const, Public);
         ratio.register_impl("__mul__", op_t.clone(), Const, Public);
         ratio.register_impl("__div__", op_t, Const, Public);
-        ratio.register_const("AddO", ConstObj::t(Ratio));
-        ratio.register_const("SubO", ConstObj::t(Ratio));
-        ratio.register_const("MulO", ConstObj::t(Ratio));
-        ratio.register_const("DivO", ConstObj::t(Ratio));
+        ratio.register_const("AddO", ValueObj::t(Ratio));
+        ratio.register_const("SubO", ValueObj::t(Ratio));
+        ratio.register_const("MulO", ValueObj::t(Ratio));
+        ratio.register_const("DivO", ValueObj::t(Ratio));
+        ratio.register_const("MutType!", ValueObj::t(mono("Ratio!")));
         ratio.register_impl("Real", Ratio, Const, Public);
         ratio.register_impl("Imag", Ratio, Const, Public);
         let mut int = Self::mono_class(
@@ -370,10 +374,11 @@ impl Context {
         int.register_impl("__add__", op_t.clone(), Const, Public);
         int.register_impl("__sub__", op_t.clone(), Const, Public);
         int.register_impl("__mul__", op_t, Const, Public);
-        int.register_const("AddO", ConstObj::t(Int));
-        int.register_const("SubO", ConstObj::t(Int));
-        int.register_const("MulO", ConstObj::t(Int));
-        int.register_const("DivO", ConstObj::t(Ratio));
+        int.register_const("AddO", ValueObj::t(Int));
+        int.register_const("SubO", ValueObj::t(Int));
+        int.register_const("MulO", ValueObj::t(Int));
+        int.register_const("DivO", ValueObj::t(Ratio));
+        int.register_const("MutType!", ValueObj::t(mono("Int!")));
         int.register_impl("Real", Int, Const, Public);
         int.register_impl("Imag", Int, Const, Public);
         let mut nat = Self::mono_class(
@@ -409,10 +414,11 @@ impl Context {
             Immutable,
             Public,
         );
-        nat.register_const("AddO", ConstObj::t(Nat));
-        nat.register_const("SubO", ConstObj::t(Int));
-        nat.register_const("MulO", ConstObj::t(Nat));
-        nat.register_const("DivO", ConstObj::t(Ratio));
+        nat.register_const("AddO", ValueObj::t(Nat));
+        nat.register_const("SubO", ValueObj::t(Int));
+        nat.register_const("MulO", ValueObj::t(Nat));
+        nat.register_const("DivO", ValueObj::t(Ratio));
+        nat.register_const("MutType!", ValueObj::t(mono("Nat!")));
         nat.register_impl("Real", Nat, Const, Public);
         nat.register_impl("Imag", Nat, Const, Public);
         let mut bool_ = Self::mono_class(
@@ -434,6 +440,7 @@ impl Context {
         );
         bool_.register_impl("__and__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
+        bool_.register_const("MutType!", ValueObj::t(mono("Bool!")));
         let mut str_ = Self::mono_class(
             "Str",
             vec![Obj],
@@ -459,8 +466,9 @@ impl Context {
             Immutable,
             Public,
         );
-        str_.register_const("AddO", ConstObj::t(Str));
-        str_.register_const("MulO", ConstObj::t(Str));
+        str_.register_const("AddO", ValueObj::t(Str));
+        str_.register_const("MulO", ValueObj::t(Str));
+        str_.register_const("MutType!", ValueObj::t(mono("Str!")));
         let mut array = Self::poly_class(
             "Array",
             vec![PS::t_nd("T"), PS::named_nd("N", Nat)],
@@ -493,7 +501,7 @@ impl Context {
             set! {static_instance("N", Nat), static_instance("M", Nat)},
         );
         array.register_impl("concat", t, Immutable, Public);
-        let mut_type = ConstObj::t(Type::poly(
+        let mut_type = ValueObj::t(Type::poly(
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
         ));
@@ -520,7 +528,7 @@ impl Context {
         let array_mut_t = Type::poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
             "Array!",
-            vec![PS::t_nd("T"), PS::named_nd("N", NatMut)],
+            vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
             vec![poly("Range", vec![ty_tp(mono_q("T")), mono_q_tp("N")]), Obj],
             vec![mono("Mutate"), poly("Seq", vec![ty_tp(mono_q("T"))])],
             Self::TOP_LEVEL,
@@ -537,7 +545,7 @@ impl Context {
         );
         let t = quant(
             t,
-            set! {static_instance("T", Type), static_instance("N", NatMut)},
+            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
         );
         array_mut.register_impl("push!", t, Immutable, Public);
         let range_t = Type::poly("Range", vec![TyParam::t(mono_q("T"))]);
@@ -654,7 +662,7 @@ impl Context {
         let t_for = quant(t_for, set! {static_instance("T", Type)});
         let t_while = nd_proc(
             vec![
-                param_t("cond", BoolMut),
+                param_t("cond", mono("Bool!")),
                 param_t("p", nd_proc(vec![], NoneType)),
             ],
             NoneType,
@@ -785,9 +793,9 @@ impl Context {
         interval.register_impl("__sub__", op_t, Const, Public);
         interval.register_const(
             "AddO",
-            ConstObj::t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
+            ValueObj::t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
         );
-        interval.register_const("SubO", ConstObj::t(Type::from(m - p..=n - o)));
+        interval.register_const("SubO", ValueObj::t(Type::from(m - p..=n - o)));
         self.register_patch("Interval", interval, Const);
         // eq.register_impl("__ne__", op_t,         Const, Public);
         // ord.register_impl("__le__", op_t.clone(), Const, Public);

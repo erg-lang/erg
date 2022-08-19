@@ -420,15 +420,7 @@ impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
 impl_t!(ArrayWithLength);
 
 impl ArrayWithLength {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, elem: Expr, len: Expr) -> Self {
-        let tp_len = match &len {
-            Expr::Lit(l) => match l.data {
-                ValueObj::Nat(n) => TyParam::value(n),
-                _ => todo!(),
-            },
-            _ => todo!(),
-        };
-        let t = Type::array(elem.t(), tp_len);
+    pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elem: Expr, len: Expr) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
@@ -538,6 +530,37 @@ impl NormalDict {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct DictComprehension {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub t: Type,
+    pub key: Box<Expr>,
+    pub value: Box<Expr>,
+    pub guard: Box<Expr>,
+}
+
+impl NestedDisplay for DictComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{}: {} | {}]", self.key, self.value, self.guard)
+    }
+}
+
+impl_display_from_nested!(DictComprehension);
+impl_locational!(DictComprehension, l_sqbr, r_sqbr);
+impl_t!(DictComprehension);
+
+#[derive(Debug, Clone)]
+pub enum Dict {
+    Normal(NormalDict),
+    Comprehension(DictComprehension),
+}
+
+impl_nested_display_for_enum!(Dict; Normal, Comprehension);
+impl_display_for_enum!(Dict; Normal, Comprehension);
+impl_locational_for_enum!(Dict; Normal, Comprehension);
+impl_t_for_enum!(Dict; Normal, Comprehension);
 
 #[derive(Debug, Clone)]
 pub struct BinOp {
@@ -1006,9 +1029,8 @@ pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
     Array(Array),
-    // Dict(Dict),
     // Set(Set),
-    Dict(NormalDict),
+    Dict(Dict),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),

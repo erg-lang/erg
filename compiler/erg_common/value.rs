@@ -4,35 +4,42 @@
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
+use std::mem;
 use std::ops::Neg;
 use std::rc::Rc;
 
 use crate::codeobj::CodeObj;
+use crate::dict::Dict;
+use crate::rccell::RcCell;
 use crate::serialize::*;
 use crate::set;
 use crate::traits::HasType;
-use crate::ty::{fresh_varname, ConstObj, Predicate, TyParam, Type};
+use crate::ty::{fresh_varname, ConstSubr, Predicate, TyParam, Type};
 use crate::{fmt_iter, impl_display_from_debug, switch_lang};
 use crate::{RcArray, Str};
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Default)]
 pub enum ValueObj {
     Int(i32),
     Nat(u64),
     Float(f64),
     Str(Str),
-    True,
-    False,
+    Bool(bool),
     Array(Rc<[ValueObj]>),
     Dict(Rc<[(ValueObj, ValueObj)]>),
+    Record(Dict<Str, ValueObj>),
     Code(Box<CodeObj>),
+    Subr(ConstSubr),
+    Type(Box<Type>),
     None,
     Ellipsis,
     NotImplemented,
     NegInf,
     Inf,
+    Mut(RcCell<ValueObj>),
+    #[default]
     Illegal, // to avoid conversions with TryFrom
 }
 
@@ -50,8 +57,13 @@ impl fmt::Debug for ValueObj {
                 }
             }
             Self::Str(s) => write!(f, "\"{s}\""),
-            Self::True => write!(f, "True"),
-            Self::False => write!(f, "False"),
+            Self::Bool(b) => {
+                if *b {
+                    write!(f, "True")
+                } else {
+                    write!(f, "False")
+                }
+            }
             Self::Array(arr) => write!(f, "[{}]", fmt_iter(arr.iter())),
             Self::Dict(dict) => {
                 let mut s = "".to_string();
@@ -63,11 +75,15 @@ impl fmt::Debug for ValueObj {
                 write!(f, "[{s}]")
             }
             Self::Code(code) => write!(f, "{code}"),
+            Self::Record(rec) => write!(f, "{rec}"),
+            Self::Subr(subr) => write!(f, "{subr:?}"),
+            Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
             Self::Ellipsis => write!(f, "Ellipsis"),
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
+            Self::Mut(v) => write!(f, "!{:?}", v.borrow()),
             Self::Illegal => write!(f, "<illegal>"),
         }
     }
@@ -92,29 +108,6 @@ impl Neg for ValueObj {
     }
 }
 
-impl PartialEq for ValueObj {
-    fn eq(&self, other: &ValueObj) -> bool {
-        match (self, other) {
-            (Self::Int(i), Self::Int(j)) => i == j,
-            (Self::Nat(n), Self::Nat(m)) => n == m,
-            (Self::Float(fl), Self::Float(fr)) => fl == fr,
-            (Self::Str(s), Self::Str(t)) => s == t,
-            (Self::True, Self::True) => true,
-            (Self::False, Self::False) => true,
-            (Self::Array(arr), Self::Array(arr2)) => arr == arr2,
-            (Self::Dict(dict), Self::Dict(dict2)) => dict == dict2,
-            (Self::Code(code), Self::Code(code2)) => code == code2,
-            (Self::None, Self::None) => true,
-            (Self::Ellipsis, Self::Ellipsis) => true,
-            (Self::NotImplemented, Self::NotImplemented) => true,
-            (Self::NegInf, Self::NegInf) => true,
-            (Self::Inf, Self::Inf) => true,
-            (Self::Illegal, Self::Illegal) => true,
-            _ => false,
-        }
-    }
-}
-
 // FIXME:
 impl Hash for ValueObj {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -124,11 +117,13 @@ impl Hash for ValueObj {
             // TODO:
             Self::Float(f) => f.to_bits().hash(state),
             Self::Str(s) => s.hash(state),
-            Self::True => true.hash(state),
-            Self::False => false.hash(state),
+            Self::Bool(b) => b.hash(state),
             Self::Array(arr) => arr.hash(state),
             Self::Dict(dict) => dict.hash(state),
             Self::Code(code) => code.hash(state),
+            Self::Record(rec) => rec.hash(state),
+            Self::Subr(subr) => subr.hash(state),
+            Self::Type(t) => t.hash(state),
             Self::None => {
                 "literal".hash(state);
                 "None".hash(state)
@@ -149,6 +144,7 @@ impl Hash for ValueObj {
                 "literal".hash(state);
                 "Inf".hash(state)
             }
+            Self::Mut(v) => v.borrow().hash(state),
             Self::Illegal => {
                 "literal".hash(state);
                 "illegal".hash(state)
@@ -195,11 +191,7 @@ impl From<Str> for ValueObj {
 
 impl From<bool> for ValueObj {
     fn from(item: bool) -> Self {
-        if item {
-            ValueObj::True
-        } else {
-            ValueObj::False
-        }
+        ValueObj::Bool(item)
     }
 }
 
@@ -224,6 +216,7 @@ impl TryFrom<&ValueObj> for f64 {
             ValueObj::Float(f) => Ok(*f),
             ValueObj::Inf => Ok(f64::INFINITY),
             ValueObj::NegInf => Ok(f64::NEG_INFINITY),
+            ValueObj::Mut(v) => f64::try_from(&*v.borrow()).map_err(|_| ()),
             _ => Err(()),
         }
     }
@@ -240,10 +233,7 @@ impl HasType for ValueObj {
     #[inline]
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
-        let pred = Predicate::eq(
-            name.clone(),
-            TyParam::ConstObj(ConstObj::Value(self.clone())),
-        );
+        let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
         Type::refinement(name, self.class(), set! {pred})
     }
     fn signature_t(&self) -> Option<&Type> {
@@ -255,8 +245,20 @@ impl HasType for ValueObj {
 }
 
 impl ValueObj {
-    pub const fn is_num(&self) -> bool {
-        matches!(self, Self::Int(_) | Self::Nat(_) | Self::Float(_))
+    pub fn t(t: Type) -> Self {
+        ValueObj::Type(Box::new(t))
+    }
+
+    pub fn is_num(&self) -> bool {
+        match self {
+            Self::Int(_) | Self::Nat(_) | Self::Float(_) | Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_num(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_mut(&self) -> bool {
+        matches!(self, Self::Mut(_))
     }
 
     pub fn from_str(t: Type, content: Str) -> Self {
@@ -274,13 +276,7 @@ impl ValueObj {
                     Self::Str(Str::rc(replaced))
                 }
             }
-            Type::Bool => {
-                if &content[..] == "True" {
-                    Self::True
-                } else {
-                    Self::False
-                }
-            }
+            Type::Bool => Self::Bool(&content[..] == "True"),
             Type::NoneType => Self::None,
             Type::Ellipsis => Self::Ellipsis,
             Type::NotImplemented => Self::NotImplemented,
@@ -305,8 +301,8 @@ impl ValueObj {
             ]
             .concat(),
             Self::Str(s) => str_into_bytes(s, false),
-            Self::True => vec![DataTypePrefix::True as u8],
-            Self::False => vec![DataTypePrefix::False as u8],
+            Self::Bool(true) => vec![DataTypePrefix::True as u8],
+            Self::Bool(false) => vec![DataTypePrefix::False as u8],
             // TODO: SmallTuple
             Self::Array(arr) => {
                 let mut bytes = Vec::with_capacity(arr.len());
@@ -342,7 +338,7 @@ impl ValueObj {
             Self::Nat(_) => Type::Nat,
             Self::Float(_) => Type::Float,
             Self::Str(_) => Type::Str,
-            Self::True | Self::False => Type::Bool,
+            Self::Bool(_) => Type::Bool,
             // TODO:
             Self::Array(arr) => Type::array(
                 arr.iter().next().unwrap().class(),
@@ -350,11 +346,32 @@ impl ValueObj {
             ),
             Self::Dict(_dict) => todo!(),
             Self::Code(_) => Type::Code,
+            Self::Record(_) => todo!(),
+            Self::Subr(_) => todo!(),
+            Self::Type(_) => Type::Type,
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,
             Self::NotImplemented => Type::NotImplemented,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
+            Self::Mut(m) => match &*m.borrow() {
+                Self::Int(_) => Type::mono("Int!"),
+                Self::Nat(_) => Type::mono("Nat!"),
+                Self::Float(_) => Type::mono("Float!"),
+                Self::Str(_) => Type::mono("Str!"),
+                Self::Bool(_) => Type::mono("Bool!"),
+                Self::Array(arr) => Type::poly(
+                    "Array!",
+                    vec![
+                        TyParam::t(arr.iter().next().unwrap().class()),
+                        TyParam::value(arr.len()).mutate(),
+                    ],
+                ),
+                Self::Dict(_dict) => todo!(),
+                Self::Code(_) => Type::Code,
+                Self::None => Type::NoneType,
+                other => panic!("{other} object cannot be mutated"),
+            },
             Self::Illegal => todo!(),
         }
     }
@@ -370,6 +387,8 @@ impl ValueObj {
             (Self::Inf, Self::NegInf) => Some(Ordering::Greater),
             // REVIEW: 等しいとみなしてよいのか?
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Ordering::Equal),
+            (Self::Mut(m), other) => m.borrow().try_cmp(other),
+            (self_, Self::Mut(m)) => self_.try_cmp(&*m.borrow()),
             /* (Self::PlusEpsilon(l), r) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Less } else { o }),
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)
@@ -386,16 +405,24 @@ impl ValueObj {
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l + r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l + r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l + r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l + r as i32)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::from(l + r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 + r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l + r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 + r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l + r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 + r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l - r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{}{}", l, r)))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_add(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_add(m.borrow().clone()),
             _ => None,
         }
     }
@@ -403,54 +430,78 @@ impl ValueObj {
     pub fn try_sub(self, other: Self) -> Option<Self> {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l - r)),
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l - r)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Int((l - r) as i32)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l - r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l - r as i32)),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 - r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l - r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::from(l - r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 - r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l - r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 - r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l - r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 - r)),
             (inf @ (Self::Inf | Self::NegInf), other)
             | (other, inf @ (Self::Inf | Self::NegInf))
                 if other != Self::Inf && other != Self::NegInf =>
             {
                 Some(inf)
             }
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_sub(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_sub(m.borrow().clone()),
             _ => None,
         }
     }
 
     pub fn try_mul(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l * r)),
+            (Self::Int(l), Self::Int(r)) => Some(Self::from(l * r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l * r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l * r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l * r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 * r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l * r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 * r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l * r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 * r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l * r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 * r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l * r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 * r)),
             (Self::Str(l), Self::Nat(r)) => Some(Self::Str(Str::from(l.repeat(r as usize)))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_mul(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_mul(m.borrow().clone()),
             _ => None,
         }
     }
 
     pub fn try_div(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l / r)),
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l / r)),
+            (Self::Int(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l / r as i32)),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 / r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 / r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l / r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 / r)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_div(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_div(m.borrow().clone()),
             // TODO: x/±Inf = 0
             _ => None,
         }
@@ -467,6 +518,14 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l > r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_gt(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_gt(m.borrow().clone()),
             _ => None,
         }
     }
@@ -482,6 +541,14 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l >= r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_ge(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_ge(m.borrow().clone()),
             _ => None,
         }
     }
@@ -498,8 +565,15 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l == r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 == r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
-            (Self::True, Self::True) | (Self::False, Self::False) => Some(Self::True),
-            (Self::True, Self::False) | (Self::False, Self::True) => Some(Self::False),
+            (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l == r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_eq(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_eq(m.borrow().clone()),
             // TODO:
             _ => None,
         }
@@ -517,8 +591,15 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l != r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 != r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
-            (Self::True, Self::True) | (Self::False, Self::False) => Some(Self::False),
-            (Self::True, Self::False) | (Self::False, Self::True) => Some(Self::True),
+            (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l != r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_ne(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_ne(m.borrow().clone()),
             _ => None,
         }
     }

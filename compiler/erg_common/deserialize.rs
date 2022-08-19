@@ -175,8 +175,8 @@ impl Deserializer {
                 let bytes = v.drain(..len as usize).collect();
                 Ok(self.get_cached_str(&String::from_utf8(bytes)?))
             }
-            DataTypePrefix::True => Ok(ValueObj::True),
-            DataTypePrefix::False => Ok(ValueObj::False),
+            DataTypePrefix::True => Ok(ValueObj::Bool(true)),
+            DataTypePrefix::False => Ok(ValueObj::Bool(false)),
             DataTypePrefix::SmallTuple => {
                 let len = v.remove(0);
                 let mut arr = Vec::with_capacity(len as usize);

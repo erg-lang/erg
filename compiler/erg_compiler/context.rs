@@ -12,8 +12,8 @@ use erg_common::set::Set;
 use erg_common::traits::{HasType, Locational, Stream};
 use erg_common::ty::fresh_varname;
 use erg_common::ty::{
-    ConstObj, Constraint, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, RefinementType,
-    SubrKind, SubrType, TyBound, TyParam, TyParamOrdering, Type,
+    Constraint, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, RefinementType, SubrKind,
+    SubrType, TyBound, TyParam, TyParamOrdering, Type,
 };
 use erg_common::value::ValueObj;
 use erg_common::Str;
@@ -200,7 +200,7 @@ impl TyVarContext {
     ) -> TyParam {
         match ct {
             ConstTemplate::Obj(o) => match o {
-                ConstObj::Type(t) if t.is_mono_q() => {
+                ValueObj::Type(t) if t.is_mono_q() => {
                     if t.name() == "Self" {
                         let constraint = Constraint::TypeOf(Type);
                         let t = Type::named_free_var(Str::rc(var_name), self.level, constraint);
@@ -209,9 +209,8 @@ impl TyVarContext {
                         todo!()
                     }
                 }
-                ConstObj::Type(t) => TyParam::t(*t.clone()),
-                v @ ConstObj::Value(_) => TyParam::ConstObj(v.clone()),
-                other => todo!("{other}"),
+                ValueObj::Type(t) => TyParam::t(*t.clone()),
+                v => TyParam::Value(v.clone()),
             },
             ConstTemplate::App { .. } => {
                 todo!()
@@ -379,7 +378,7 @@ impl TyVarContext {
                 let rhs = self.instantiate_tp(*rhs);
                 TyParam::bin(op, lhs, rhs)
             }
-            p @ TyParam::ConstObj(_) => p,
+            p @ TyParam::Value(_) => p,
             other => todo!("{other}"),
         }
     }
@@ -403,7 +402,7 @@ impl TyVarContext {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConstTemplate {
-    Obj(ConstObj),
+    Obj(ValueObj),
     App {
         name: Str,
         non_default_args: Vec<Type>,
@@ -466,7 +465,7 @@ pub struct Context {
     /// => locals: {"x": T, "y": T}
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
-    pub(crate) consts: Dict<Str, ConstObj>,
+    pub(crate) consts: Dict<Str, ValueObj>,
     pub(crate) eval: Evaluator,
     // stores user-defined type context
     pub(crate) types: Dict<Type, Context>,
@@ -1367,7 +1366,7 @@ impl Context {
                 let (t, tv_ctx) = Self::instantiate_t(*t, tv_ctx);
                 (TyParam::t(t), tv_ctx)
             }
-            p @ (TyParam::ConstObj(_) | TyParam::Mono(_)) => (p, tv_ctx),
+            p @ (TyParam::Value(_) | TyParam::Mono(_)) => (p, tv_ctx),
             other => todo!("{other}"),
         }
     }
@@ -1928,15 +1927,12 @@ impl Context {
         lhs_variance: Option<&Vec<Variance>>,
     ) -> TyCheckResult<()> {
         match (before, after) {
-            (TyParam::ConstObj(ConstObj::MutValue(l)), TyParam::ConstObj(ConstObj::Value(r))) => {
-                *l.borrow_mut() = r.clone();
+            (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
+                *l.borrow_mut() = r.borrow().clone();
                 Ok(())
             }
-            (
-                TyParam::ConstObj(ConstObj::MutValue(l)),
-                TyParam::ConstObj(ConstObj::MutValue(r)),
-            ) => {
-                *l.borrow_mut() = r.borrow().clone();
+            (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(r)) => {
+                *l.borrow_mut() = r.clone();
                 Ok(())
             }
             (TyParam::Type(l), TyParam::Type(r)) => self.reunify(l, r, None, None),
@@ -2613,23 +2609,16 @@ impl Context {
     pub(crate) fn instantiate_simple_t(&self, simple: &SimpleTypeSpec) -> TyCheckResult<Type> {
         match &simple.name.inspect()[..] {
             "Nat" => Ok(Type::Nat),
-            "Nat!" => Ok(Type::NatMut),
             "Int" => Ok(Type::Int),
-            "Int!" => Ok(Type::IntMut),
             "Ratio" => Ok(Type::Ratio),
-            "Ratio!" => Ok(Type::RatioMut),
             "Float" => Ok(Type::Float),
-            "Float!" => Ok(Type::FloatMut),
             "Str" => Ok(Type::Str),
-            "Str!" => Ok(Type::StrMut),
             "Bool" => Ok(Type::Bool),
-            "Bool!" => Ok(Type::BoolMut),
             "None" => Ok(Type::NoneType),
             "Ellipsis" => Ok(Type::Ellipsis),
             "NotImplemented" => Ok(Type::NotImplemented),
             "Inf" => Ok(Type::Inf),
             "Obj" => Ok(Type::Obj),
-            "Obj!" => Ok(Type::ObjMut),
             "Array" => {
                 // TODO: kw
                 let mut args = simple.args.pos_args();
@@ -2646,9 +2635,7 @@ impl Context {
             other => {
                 // FIXME: kw args
                 let params = simple.args.pos_args().map(|arg| match &arg.expr {
-                    ast::ConstExpr::Lit(lit) => {
-                        TyParam::ConstObj(ConstObj::Value(ValueObj::from(lit)))
-                    }
+                    ast::ConstExpr::Lit(lit) => TyParam::Value(ValueObj::from(lit)),
                     _ => {
                         todo!()
                     }
@@ -2660,9 +2647,7 @@ impl Context {
 
     pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyParam {
         match expr {
-            ast::ConstExpr::Lit(lit) => {
-                TyParam::ConstObj(ConstObj::Value(ValueObj::from(&lit.token)))
-            }
+            ast::ConstExpr::Lit(lit) => TyParam::Value(ValueObj::from(&lit.token)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
                 TyParam::Mono(name.inspect().clone())
             }
@@ -3529,7 +3514,7 @@ impl Context {
         bounds: Option<&Set<TyBound>>,
     ) -> Option<TyParamOrdering> {
         match (l, r) {
-            (TyParam::ConstObj(l), TyParam::ConstObj(r)) =>
+            (TyParam::Value(l), TyParam::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
@@ -3860,7 +3845,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn get_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ConstObj> {
+    pub(crate) fn get_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ValueObj> {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
@@ -3882,7 +3867,7 @@ impl Context {
         obj: &hir::Expr,
         name: &Token,
         namespace: &Str,
-    ) -> TyCheckResult<ConstObj> {
+    ) -> TyCheckResult<ValueObj> {
         let self_t = obj.t();
         for ctx in self.sorted_type_ctxs(&self_t) {
             if let Ok(t) = ctx.get_local(name, namespace) {

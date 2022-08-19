@@ -8,7 +8,7 @@ use erg_common::error::Location;
 use erg_common::impl_displayable_stream_for_wrapper;
 use erg_common::str::Str;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::Type;
+use erg_common::ty::{OpKind, Type};
 use erg_common::value::ValueObj;
 
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である
@@ -187,8 +187,7 @@ impl From<&ValueObj> for TokenKind {
             ValueObj::Nat(_) => TokenKind::NatLit,
             ValueObj::Float(_) => TokenKind::RatioLit,
             ValueObj::Str(_) => TokenKind::StrLit,
-            ValueObj::True => TokenKind::BoolLit,
-            ValueObj::False => TokenKind::BoolLit,
+            ValueObj::Bool(_) => TokenKind::BoolLit,
             ValueObj::None => TokenKind::NoneLit,
             ValueObj::Ellipsis => TokenKind::EllipsisLit,
             ValueObj::Inf => TokenKind::InfLit,
@@ -329,6 +328,36 @@ impl From<&Token> for ValueObj {
     #[inline]
     fn from(tok: &Token) -> ValueObj {
         ValueObj::from_str(Type::from(tok.kind), tok.content.clone())
+    }
+}
+
+impl TryFrom<&Token> for OpKind {
+    type Error = ();
+    #[inline]
+    fn try_from(tok: &Token) -> Result<Self, Self::Error> {
+        match tok.kind {
+            TokenKind::Plus => Ok(OpKind::Add),
+            TokenKind::Minus => Ok(OpKind::Sub),
+            TokenKind::Star => Ok(OpKind::Mul),
+            TokenKind::Slash => Ok(OpKind::Div),
+            TokenKind::Pow => Ok(OpKind::Pow),
+            TokenKind::Mod => Ok(OpKind::Mod),
+            TokenKind::DblEq => Ok(OpKind::Eq),
+            TokenKind::NotEq => Ok(OpKind::Ne),
+            TokenKind::Less => Ok(OpKind::Lt),
+            TokenKind::Gre => Ok(OpKind::Gt),
+            TokenKind::LessEq => Ok(OpKind::Le),
+            TokenKind::GreEq => Ok(OpKind::Ge),
+            TokenKind::AndOp => Ok(OpKind::And),
+            TokenKind::OrOp => Ok(OpKind::Or),
+            TokenKind::BitAnd => Ok(OpKind::BitAnd),
+            TokenKind::BitXor => Ok(OpKind::BitXor),
+            TokenKind::BitOr => Ok(OpKind::BitOr),
+            TokenKind::Shl => Ok(OpKind::Shl),
+            TokenKind::Shr => Ok(OpKind::Shr),
+            TokenKind::Mutate => Ok(OpKind::Mutate),
+            _other => Err(()),
+        }
     }
 }
 
