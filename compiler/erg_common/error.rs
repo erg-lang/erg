@@ -326,10 +326,10 @@ impl ErrorCore {
             CompilerSystemError,
             loc,
             switch_lang!(
-                "japanese" => format!("これはErgのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
-                "simplified_chinese" => format!("这是Erg的bug，请报告给https://github.com/...\n原因来自：{fn_name}:{line}"),
-                "traditional_chinese" => format!("这是Erg的bug，请报告给https://github.com/...\n原因来自：{fn_name}:{line}"),
-                "english" => format!("this is a bug of Erg, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+                "japanese" => format!("これはErgのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
+                "simplified_chinese" => format!("这是Erg的bug，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
+                "traditional_chinese" => format!("这是Erg的bug，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
+                "english" => format!("this is a bug of Erg, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
             ),
             None,
         )

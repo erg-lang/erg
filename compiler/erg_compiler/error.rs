@@ -144,10 +144,10 @@ impl CompileError {
                 CompilerSystemError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/...\n原因来自：{fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/...\n原因來自：{fn_name}:{line}"),
-                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自：{fn_name}:{line}"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
             ),
@@ -170,16 +170,16 @@ impl CompileError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
-                            これはコンパイラのバグです、開発者に報告して下さい (https://github.com/...)\n\
+                            これはコンパイラのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n\
                             {fn_name}より発生"),
                 "simplified_chinese" => format!("堆栈中的元素数无效（元素数：{stack_len}，块id：{block_id}）\n\
-                            这是 Erg 编译器的一个错误，请报告它 (https://github.com/...)\n\
+                            这是 Erg 编译器的一个错误，请报告它 (https://github.com/erg-lang/erg)\n\
                             起因于：{fn_name}"),
                 "traditional_chinese" => format!("堆棧中的元素數無效（元素數：{stack_len}，塊id：{block_id}）\n\
-                            這是 Erg 編譯器的一個錯誤，請報告它 (https://github.com/...)\n\
+                            這是 Erg 編譯器的一個錯誤，請報告它 (https://github.com/erg-lang/erg)\n\
                             起因於：{fn_name}"),
                     "english" => format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
-                            this is a bug of the Erg compiler, please report it (https://github.com/...)\n\
+                            this is a bug of the Erg compiler, please report it (https://github.com/erg-lang/erg)\n\
                             caused from: {fn_name}"),
                 ),
                 None,
@@ -250,10 +250,10 @@ impl TyCheckError {
                 CompilerSystemError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/...)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/...\n原因来自：{fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/...\n原因來自：{fn_name}:{line}"),
-                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/...\ncaused from: {fn_name}:{line}"),
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自：{fn_name}:{line}"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
             ),
