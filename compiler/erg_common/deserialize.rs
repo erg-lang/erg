@@ -59,6 +59,8 @@ impl DeserializeError {
             fn_name!(),
             switch_lang!(
                 "japanese" => "読み込んだ.pycファイルは破損しています",
+                "simplified_chinese" => "加载的.pyc文件已损坏",
+                "traditional_chinese" => "加載的.pyc文件已損壞",
                 "english" => "the loaded .pyc file is broken",
             ),
         )
@@ -71,6 +73,14 @@ impl DeserializeError {
             switch_lang!(
                 "japanese" => format!(
                     "{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です",
+                    expect, found
+                ),
+                "simplified_chinese" => format!(
+                    "期望一个{}对象，但反序列化的对象是{}",
+                    expect, found
+                ),
+                "traditional_chinese" => format!(
+                    "期望一個{}對象，但反序列化的對像是{}",
                     expect, found
                 ),
                 "english" => format!(
@@ -229,6 +239,8 @@ impl Deserializer {
                 fn_name!(),
                 switch_lang!(
                     "japanese" => format!("このオブジェクトは復元できません: {}", other),
+                    "simplified_chinese" => format!("无法反序列化此对象：{}", other),
+                    "traditional_chinese" => format!("無法反序列化此對象：{}", other),
                     "english" => format!("cannot deserialize this object: {}", other),
                 ),
             )),
@@ -302,6 +314,8 @@ impl Deserializer {
                 fn_name!(),
                 switch_lang!(
                     "japanese" => "バイト列の読み込みに失敗しました",
+                    "simplified_chinese" => "未能加载字节",
+                    "traditional_chinese" => "未能加載字節",
                     "english" => "failed to load bytes",
                 ),
             ));
