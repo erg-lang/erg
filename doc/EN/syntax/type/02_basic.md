@@ -10,6 +10,13 @@ i: Int = 1
 j = 1 # type specification can be omitted
 ```
 
+You can also specify a type for ordinary expressions.
+
+```erg
+i = 1: Int
+f([1, "a"]: [Int or Str])
+```
+
 For simple variable assignments, most type specifications can be omitted.
 Type specifications are more useful when defining subroutines and types.
 
