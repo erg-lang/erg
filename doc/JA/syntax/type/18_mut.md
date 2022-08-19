@@ -73,13 +73,12 @@ K! T: Type = Class ...
 これらの配列型は糖衣構文であり、実際の型は以下の通りです。
 
 ```erg
-# 実際は5種類の型
-[T; N] = ArrayWithLength(T, N)
-[T!; N] = ArrayWithLength!(T!, N)
-[T; !N] = ArrayWithMutLength!(T, !N)
+# 実際は4種類の型
+[T; N] = Array(T, N)
+[T; !N] = Array!(T, !N)
 [!T; N] = ArrayWithMutType!(!T, N)
 [!T; !N] = ArrayWithMutTypeAndLength!(!T, !N)
-[T!; !N] = ArrayWithMutLength!(T!, !N)
+[T!; !N] = Array!(T!, !N)
 [!T!; N] = ArrayWithMutType!(!T!, N)
 [!T!; !N] = ArrayWithMutTypeAndLength!(!T!, !N)
 ```

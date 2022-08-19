@@ -70,17 +70,16 @@ Below we will review the immutable/mutable semantics of the built-in collection 
 Of course, it is not necessary to memorize and use all of these.
 For variable array types, all you have to do is append `!`, and for practical use, `[T; N]`, `[T!; N]`, `[T; !N]`, and `[T!; !N]` can cover most cases.
 
-These array types are sugar-coated constructions, and the actual types are as follows.
+These array types are sugar-coated, and the actual types are as follows.
 
 ```erg
-# There are actually five types.
-[T; N] = ArrayWithLength(T, N)
-[T!; N] = ArrayWithLength!(T!, N)
-[T; !N] = ArrayWithMutLength!(T, !N)
-[!T; N] = ArrayWithMutType!
-[!T; !N] = ArrayWithMutTypeAndLength!
-[T!; !N] = ArrayWithMutLength!
-[!T!; N] = ArrayWithMutType!
+# There are actually 4 types.
+[T; N] = Array(T, N)
+[T; !N] = Array!(T, !N)
+[!T; N] = ArrayWithMutType!(!T, N)
+[!T; !N] = ArrayWithMutTypeAndLength!(!T, !N)
+[T!; !N] = Array!(T!, !N)
+[!T!; N] = ArrayWithMutType!(!T!, N)
 [!T!; !N] = ArrayWithMutTypeAndLength!(!T!, !N)
 ```
 
