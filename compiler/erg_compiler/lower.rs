@@ -104,8 +104,13 @@ impl ASTLowerer {
             hir::Args::empty(),
             None,
         );
-        for elem in array.elems.into_iters().0 {
-            hir_array.push(self.lower_expr(elem.expr, check)?);
+        let inner_t = hir_array.t.ref_t().inner_ts().first().unwrap().clone();
+        let (elems, _) = array.elems.into_iters();
+        for elem in elems {
+            let elem = self.lower_expr(elem.expr, check)?;
+            self.ctx
+                .sub_unify(elem.ref_t(), &inner_t, Some(elem.loc()), None)?;
+            hir_array.push(elem);
         }
         Ok(hir_array)
     }

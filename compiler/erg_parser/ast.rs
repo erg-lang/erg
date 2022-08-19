@@ -385,16 +385,19 @@ pub struct Array {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elems: Args,
+    pub len: Option<Box<Expr>>, // if some, elems.len() should be 1
     pub guard: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for Array {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        if let Some(guard) = &self.guard {
-            write!(f, "[{} | {}]", self.elems, guard)
-        } else {
-            write!(f, "[{}]", self.elems)
-        }
+        write!(
+            f,
+            "[{}{}{}]",
+            self.elems,
+            fmt_option!(pre "; ", self.len),
+            fmt_option!(pre "| ", self.guard)
+        )
     }
 }
 
@@ -402,11 +405,18 @@ impl_display_from_nested!(Array);
 impl_locational!(Array, l_sqbr, r_sqbr);
 
 impl Array {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, elems: Args, guard: Option<Expr>) -> Self {
+    pub fn new(
+        l_sqbr: Token,
+        r_sqbr: Token,
+        elems: Args,
+        len: Option<Expr>,
+        guard: Option<Expr>,
+    ) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
             elems,
+            len: len.map(Box::new),
             guard: guard.map(Box::new),
         }
     }
@@ -1567,7 +1577,7 @@ pub struct VarSignature {
 
 impl NestedDisplay for VarSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}{}", self.pat, fmt_option!(pre ": ", &self.t_spec))
+        write!(f, "{}{}", self.pat, fmt_option!(pre ": ", self.t_spec))
     }
 }
 
@@ -1741,11 +1751,11 @@ impl NestedDisplay for ParamSignature {
                 f,
                 "{}{} |= {}",
                 self.pat,
-                fmt_option!(pre ": ", &self.t_spec),
+                fmt_option!(pre ": ", self.t_spec),
                 default_val
             )
         } else {
-            write!(f, "{}{}", self.pat, fmt_option!(pre ": ", &self.t_spec),)
+            write!(f, "{}{}", self.pat, fmt_option!(pre ": ", self.t_spec),)
         }
     }
 }
@@ -1868,7 +1878,7 @@ impl NestedDisplay for SubrSignature {
                 "{}{}{}",
                 self.name,
                 self.params,
-                fmt_option!(pre ": ", &self.return_t_spec)
+                fmt_option!(pre ": ", self.return_t_spec)
             )
         } else {
             write!(
@@ -1877,7 +1887,7 @@ impl NestedDisplay for SubrSignature {
                 self.name,
                 self.bounds,
                 self.params,
-                fmt_option!(pre ": ", &self.return_t_spec)
+                fmt_option!(pre ": ", self.return_t_spec)
             )
         }
     }
@@ -1933,7 +1943,7 @@ impl fmt::Display for LambdaSignature {
                 f,
                 "{}{}",
                 self.params,
-                fmt_option!(pre ": ", &self.return_t_spec)
+                fmt_option!(pre ": ", self.return_t_spec)
             )
         } else {
             write!(
@@ -1941,7 +1951,7 @@ impl fmt::Display for LambdaSignature {
                 "|{}|{}{}",
                 self.bounds,
                 self.params,
-                fmt_option!(pre ": ", &self.return_t_spec)
+                fmt_option!(pre ": ", self.return_t_spec)
             )
         }
     }

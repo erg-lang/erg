@@ -14,6 +14,18 @@ mut_a[0].inc!()
 assert mut_a == [2, 2, 3]
 ```
 
+As a rule, arrays cannot contain objects of different types.
+
+```erg.
+[1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
+```
+
+However, you can bypass the restriction by explicitly specifying the type like this.
+
+```erg
+[1, "a"]: [Int or Str].
+```
+
 ## Slice
 
 An array can also have multiple values taken out at once. This is called slicing.

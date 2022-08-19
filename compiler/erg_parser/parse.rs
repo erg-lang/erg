@@ -636,7 +636,7 @@ impl Parser {
         Ok(acc)
     }
 
-    fn try_reduce_elems(&mut self) -> ParseResult<Vars> {
+    fn try_reduce_elems_pattern(&mut self) -> ParseResult<Vars> {
         debug_call_info!(self);
         let mut elems = Vars::empty();
         match self.peek() {
@@ -809,7 +809,7 @@ impl Parser {
             Some(t) if t.is(UBar) => Ok(VarPattern::Discard(self.lpop())),
             Some(t) if t.is(LSqBr) => {
                 let l_sqbr = self.lpop();
-                let elems = self.try_reduce_elems()?;
+                let elems = self.try_reduce_elems_pattern()?;
                 if self.cur_is(RSqBr) {
                     let r_sqbr = self.lpop();
                     Ok(VarPattern::Array(VarArrayPattern::new(
@@ -1068,6 +1068,67 @@ impl Parser {
             }
         }
         Ok(const_args)
+    }
+
+    /// For parsing elements of arrays and tuples
+    /// The second return value is a specified length, the third return value is a guard
+    fn try_reduce_elems(&mut self) -> ParseResult<(Args, Option<Expr>, Option<Expr>)> {
+        debug_call_info!(self);
+        if self.cur_category_is(TC::REnclosure) {
+            let args = Args::new(vec![], vec![], None);
+            return Ok((args, None, None));
+        }
+        let mut args = match self.try_reduce_arg()? {
+            PosOrKwArg::Pos(arg) => Args::new(vec![arg], vec![], None),
+            PosOrKwArg::Kw(arg) => Args::new(vec![], vec![arg], None),
+        };
+        match self.peek() {
+            Some(semi) if semi.is(Semi) => {
+                return Err(ParseError::feature_error(
+                    line!() as usize,
+                    semi.loc(),
+                    "length specification",
+                ))
+            }
+            _ => {}
+        }
+        loop {
+            match self.peek() {
+                Some(comma) if comma.is(Comma) => {
+                    self.skip();
+                    if self.cur_is(Comma) {
+                        return Err(self.skip_and_throw_syntax_err(caused_by!()));
+                    }
+                    if !args.kw_is_empty() {
+                        args.push_kw(self.try_reduce_kw_arg()?);
+                    } else {
+                        match self.try_reduce_arg()? {
+                            PosOrKwArg::Pos(arg) => {
+                                args.push_pos(arg);
+                            }
+                            PosOrKwArg::Kw(arg) => {
+                                args.push_kw(arg);
+                            }
+                        }
+                    }
+                }
+                Some(vbar) if vbar.is(VBar) => {
+                    return Err(ParseError::feature_error(
+                        line!() as usize,
+                        vbar.loc(),
+                        "guard",
+                    ))
+                }
+                Some(t) if t.category_is(TC::REnclosure) => {
+                    break;
+                }
+                _ => {
+                    self.skip();
+                    return Err(self.skip_and_throw_syntax_err(caused_by!()));
+                }
+            }
+        }
+        Ok((args, None, None))
     }
 
     fn opt_reduce_args(&mut self) -> Option<ParseResult<Args>> {
@@ -1476,12 +1537,12 @@ impl Parser {
     fn try_reduce_array(&mut self) -> ParseResult<Array> {
         debug_call_info!(self);
         let l_sqbr = self.lpop();
-        let elems = self.try_reduce_args()?;
+        let (elems, len, guard) = self.try_reduce_elems()?;
         let r_sqbr = self.lpop();
         if !r_sqbr.is(RSqBr) {
             return Err(ParseError::simple_syntax_error(0, r_sqbr.loc()));
         }
-        let arr = Array::new(l_sqbr, r_sqbr, elems, None);
+        let arr = Array::new(l_sqbr, r_sqbr, elems, len, guard);
         Ok(arr)
     }
 
