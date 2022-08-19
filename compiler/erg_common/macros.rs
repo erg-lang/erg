@@ -260,13 +260,13 @@ macro_rules! debug_enum_assert {
 #[macro_export]
 macro_rules! log {
     (f $output: ident, $($arg: tt)*) => {
-        if cfg!(feature = "debug") { write!($output, "{}:{:4}: ", file!(), line!()).unwrap();
+        if cfg!(feature = "debug") { write!($output, "{}:{:04}: ", file!(), line!()).unwrap();
             write!($output, $($arg)*).unwrap();
             $output.flush().unwrap();
         }
     };
     ($($arg: tt)*) => {
-        if cfg!(feature = "debug") { print!("{}:{:4}: ", file!(), line!()); println!($($arg)*); }
+        if cfg!(feature = "debug") { print!("{}:{:04}: ", file!(), line!()); println!($($arg)*); }
     };
 }
 
@@ -290,13 +290,13 @@ macro_rules! log_with_time {
 #[macro_export]
 macro_rules! fmt_dbg {
     ($arg: expr $(,)*) => {
-        if cfg!(feature = "debug") { print!("{}:{:4}:\n", file!(), line!());
+        if cfg!(feature = "debug") { print!("{}:{:04}:\n", file!(), line!());
             print!("{} = ", stringify!($arg));
             println!("{}", $arg);
         }
     };
     ($head: expr, $($arg: expr,)+) => {
-        if cfg!(feature = "debug") { print!("{}:{:4}:\n", file!(), line!());
+        if cfg!(feature = "debug") { print!("{}:{:04}:\n", file!(), line!());
             print!("{} = ", stringify!($head));
             println!("{}", $head);
             $crate::fmt_dbg!(rec $($arg,)+);

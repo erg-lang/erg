@@ -41,7 +41,7 @@
 
     2.times! do!:
         print! "hello, ", end: ""
-    # => hello, hello, 
+    # => hello, hello,
     -2.times! do!:
         print! "hello, ", end: ""
     # TypeError: `.times!` is a method of `Nat` (0 or more Int), not `Int`
@@ -161,6 +161,34 @@ A [Python3](https://www.python.org/) interpreter is required. If it is already i
 
 ```sh
 cargo install erg
+```
+
+By enabling the `--features` flag, you can change the language in which error messages are displayed.
+
+* Japanese
+
+```sh
+cargo install erg --features japanese
+```
+
+* Chinese (Simplified)
+
+```sh
+cargo install erg --features simplified_chinese
+```
+
+* Chinese (Traditional)
+
+```sh
+cargo install erg --features traditional_chinese
+```
+
+And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
+
+* Debugging mode (for contributors)
+
+```sh
+cargo install erg --features debug
 ```
 
 ### Building from source
