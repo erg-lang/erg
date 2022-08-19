@@ -12,8 +12,8 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁體中文
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D321dd1f5e26b57f91def44ae73e29b0cfa35841e)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=321dd1f5e26b57f91def44ae73e29b0cfa35841e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
 
 ## Erg可以推薦給以下人員&colon;
 
@@ -26,7 +26,7 @@
 
 > 某些功能尚未實現。有關實施情況請查看 [TODO.md](./TODO.md) 了解實施情況
 
-1. 穩健性   
+1. 穩健性
 
     Erg有一個智能而強大的類型系統。例如：Erg 可以在編譯時檢查：空值（Option類型）、除以零的情況、數組中的超出範圍的地址
 
@@ -44,7 +44,7 @@
 
     2.times! do!:
         print! "hello, ", end: ""
-    # => hello, hello, 
+    # => hello, hello,
     -2.times! do!:
         print! "hello, ", end: ""
     # 類型錯誤：`.times!`是`Nat`(0或更大整數)的方法，不是`Int`的
@@ -173,7 +173,35 @@ cargo install erg
 git clone https://github.com/erg-lang/erg.git
 cd erg
 cargo build --release
-``` 
+```
+
+通過啟用`--feature`標誌，你可以改變顯示錯誤信息的語言。
+
+* 日語
+
+```sh
+cargo install erg --features japanese
+```
+
+* 中文(簡體)
+
+```sh
+cargo install erg --features simplified_chinese
+```
+
+* 中文(繁體)
+
+```sh
+cargo install erg --features traditional_chinese
+```
+
+還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）。
+
+* 調試模式（針對貢獻者）
+
+```sh
+cargo install erg --features debug
+```
 
 ### 使用Nix構建
 
