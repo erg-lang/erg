@@ -525,14 +525,74 @@ pub trait HasType {
 
 #[macro_export]
 macro_rules! impl_t {
-    ($T: ty, $t: ident) => {
-        impl erg_common::traits::HasType for $T {
+    ($T: ty) => {
+        impl $crate::traits::HasType for $T {
             #[inline]
-            fn ref_t(&self) -> &common::ty::Type {
-                &common::ty::Type::$t
+            fn ref_t(&self) -> &Type {
+                &self.t
+            }
+            #[inline]
+            fn ref_mut_t(&mut self) -> &mut Type {
+                &mut self.t
+            }
+            #[inline]
+            fn signature_t(&self) -> Option<&Type> {
+                None
+            }
+            #[inline]
+            fn signature_mut_t(&mut self) -> Option<&mut Type> {
+                None
             }
         }
     };
+    ($T: ty, $sig_t: ident) => {
+        impl $crate::traits::HasType for $T {
+            #[inline]
+            fn ref_t(&self) -> &Type {
+                &self.t
+            }
+            #[inline]
+            fn ref_mut_t(&mut self) -> &mut Type {
+                &mut self.t
+            }
+            #[inline]
+            fn signature_t(&self) -> Option<&Type> {
+                Some(&self.$sig_t)
+            }
+            #[inline]
+            fn signature_mut_t(&mut self) -> Option<&mut Type> {
+                &mut self.$sig_t
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_t_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        impl $crate::traits::HasType for $Enum {
+            fn ref_t(&self) -> &Type {
+                match self {
+                    $($Enum::$Variant(v) => v.ref_t(),)*
+                }
+            }
+            fn ref_mut_t(&mut self) -> &mut Type {
+                match self {
+                    $($Enum::$Variant(v) => v.ref_mut_t(),)*
+                }
+            }
+            fn signature_t(&self) -> Option<&Type> {
+                match self {
+                    $($Enum::$Variant(v) => v.signature_t(),)*
+                }
+            }
+            fn signature_mut_t(&mut self) -> Option<&mut Type> {
+                match self {
+                    $($Enum::$Variant(v) => v.signature_mut_t(),)*
+                }
+            }
+        }
+    }
 }
 
 /// Pythonではis演算子に相当

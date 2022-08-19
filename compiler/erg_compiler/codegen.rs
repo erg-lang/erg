@@ -25,7 +25,7 @@ use erg_parser::token::{Token, TokenCategory, TokenKind};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::{
-    Accessor, Args, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
+    Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -1051,19 +1051,22 @@ impl CodeGenerator {
                 }
             }
             // TODO: list comprehension
-            Expr::Array(mut arr) => {
-                let len = arr.elems.len();
-                while let Some(arg) = arr.elems.try_remove_pos(0) {
-                    self.codegen_expr(arg.expr);
+            Expr::Array(arr) => match arr {
+                Array::Normal(mut arr) => {
+                    let len = arr.elems.len();
+                    while let Some(arg) = arr.elems.try_remove_pos(0) {
+                        self.codegen_expr(arg.expr);
+                    }
+                    self.write_instr(BUILD_LIST);
+                    self.write_arg(len as u8);
+                    if len == 0 {
+                        self.stack_inc();
+                    } else {
+                        self.stack_dec_n(len - 1);
+                    }
                 }
-                self.write_instr(BUILD_LIST);
-                self.write_arg(len as u8);
-                if len == 0 {
-                    self.stack_inc();
-                } else {
-                    self.stack_dec_n(len - 1);
-                }
-            }
+                other => todo!("{other}"),
+            },
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),

@@ -1077,8 +1077,7 @@ impl Context {
                     vi.t.lift();
                     let (generalized, bounds) = self.generalize_t(vi.t.clone());
                     let generalized = if !bounds.is_empty() {
-                        if self.rec_supertype_of(&Type::mono("GenericCallable"), &generalized)
-                        {
+                        if self.rec_supertype_of(&Type::mono("GenericCallable"), &generalized) {
                             Type::quantified(generalized, bounds)
                         } else {
                             panic!()
@@ -1492,8 +1491,7 @@ impl Context {
                                 self.unify(l, r, None, Some(callee.loc()))?;
                             }
                             // if callee is a Module object or some named one
-                            (None, Some(r))
-                                if self.rec_subtype_of(r, &Type::mono("Named")) => {}
+                            (None, Some(r)) if self.rec_subtype_of(r, &Type::mono("Named")) => {}
                             (None, None) => {}
                             (l, r) => todo!("{l:?}, {r:?}"),
                         }
@@ -1759,13 +1757,16 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::Array(array) => {
-                array.t = self.deref_tyvar(mem::take(&mut array.t))?;
-                for elem in array.elems.pos_args.iter_mut() {
-                    self.deref_expr_t(&mut elem.expr)?;
+            hir::Expr::Array(array) => match array {
+                hir::Array::Normal(arr) => {
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t))?;
+                    for elem in arr.elems.pos_args.iter_mut() {
+                        self.deref_expr_t(&mut elem.expr)?;
+                    }
+                    Ok(())
                 }
-                Ok(())
-            }
+                _ => todo!(),
+            },
             hir::Expr::Dict(_dict) => {
                 todo!()
             }
@@ -2359,9 +2360,7 @@ impl Context {
                         // sup = union(sup, r) if min does not exist
                         // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
                         Constraint::Sandwiched { sub, sup } => {
-                            if !self.rec_subtype_of(sub, r)
-                                || !self.rec_supertype_of(sup, r)
-                            {
+                            if !self.rec_subtype_of(sub, r) || !self.rec_supertype_of(sup, r) {
                                 return Err(TyCheckError::subtyping_error(
                                     line!() as usize,
                                     sub,
@@ -2405,7 +2404,9 @@ impl Context {
                 .super_classes
                 .iter()
                 .chain(ctx.super_traits.iter())
-                .filter(|t| self.structural_supertype_of(maybe_sup, t, Some(&bounds), Some(&variance)));
+                .filter(|t| {
+                    self.structural_supertype_of(maybe_sup, t, Some(&bounds), Some(&variance))
+                });
             // instanceが複数ある場合、経験的に最も小さい型を選ぶのが良い
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
             if let Some(t) = self.smallest_ref_t(instances) {
@@ -3093,7 +3094,12 @@ impl Context {
                 if let Some(bs) = bounds {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
                         let other_t = self.type_of(other, bounds);
-                        return self.structural_supertype_of(bound.t(), &other_t, bounds, lhs_variance);
+                        return self.structural_supertype_of(
+                            bound.t(),
+                            &other_t,
+                            bounds,
+                            lhs_variance,
+                        );
                     } else {
                         todo!()
                     } // subtyping
@@ -3157,8 +3163,7 @@ impl Context {
     }
 
     fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.structural_supertype_of(lhs, rhs, None, None)
-        || self.nominal_supertype_of(lhs, rhs)
+        self.structural_supertype_of(lhs, rhs, None, None) || self.nominal_supertype_of(lhs, rhs)
     }
 
     /// make judgments that include supertypes in the namespace & take into account glue patches
@@ -3296,7 +3301,9 @@ impl Context {
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(v), rhs) => {
                 match &*v.borrow() {
-                    FreeKind::Linked(t) => self.structural_supertype_of(t, rhs, bounds, lhs_variance),
+                    FreeKind::Linked(t) => {
+                        self.structural_supertype_of(t, rhs, bounds, lhs_variance)
+                    }
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
@@ -3322,7 +3329,9 @@ impl Context {
             }
             (lhs, FreeVar(fv)) => {
                 match &*fv.borrow() {
-                    FreeKind::Linked(t) => self.structural_supertype_of(lhs, t, bounds, lhs_variance),
+                    FreeKind::Linked(t) => {
+                        self.structural_supertype_of(lhs, t, bounds, lhs_variance)
+                    }
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // ?T cannot be `Never`
@@ -3719,9 +3728,7 @@ impl Context {
     fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
             // |I: Nat| <: |I: Int|
-            (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => {
-                self.rec_subtype_of(lhs, rhs)
-            }
+            (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => self.rec_subtype_of(lhs, rhs),
             // |T <: Int| <: |T: Type|
             (Constraint::Sandwiched { sub: Never, .. }, Constraint::TypeOf(Type)) => true,
             // |Int <: T| <: |Nat <: T|

@@ -97,12 +97,26 @@ impl ASTLowerer {
 
     fn lower_array(&mut self, array: ast::Array, check: bool) -> LowerResult<hir::Array> {
         log!("[DEBUG] entered {}({array})", fn_name!());
-        let mut hir_array = hir::Array::new(
+        match array {
+            ast::Array::Normal(arr) => Ok(hir::Array::Normal(self.lower_normal_array(arr, check)?)),
+            ast::Array::WithLength(arr) => Ok(hir::Array::WithLength(
+                self.lower_array_with_length(arr, check)?,
+            )),
+            other => todo!("{other}"),
+        }
+    }
+
+    fn lower_normal_array(
+        &mut self,
+        array: ast::NormalArray,
+        check: bool,
+    ) -> LowerResult<hir::NormalArray> {
+        log!("[DEBUG] entered {}({array})", fn_name!());
+        let mut hir_array = hir::NormalArray::new(
             array.l_sqbr,
             array.r_sqbr,
             self.ctx.level,
             hir::Args::empty(),
-            None,
         );
         let inner_t = hir_array.t.ref_t().inner_ts().first().unwrap().clone();
         let (elems, _) = array.elems.into_iters();
@@ -112,6 +126,18 @@ impl ASTLowerer {
                 .sub_unify(elem.ref_t(), &inner_t, Some(elem.loc()), None)?;
             hir_array.push(elem);
         }
+        Ok(hir_array)
+    }
+
+    fn lower_array_with_length(
+        &mut self,
+        array: ast::ArrayWithLength,
+        check: bool,
+    ) -> LowerResult<hir::ArrayWithLength> {
+        log!("[DEBUG] entered {}({array})", fn_name!());
+        let elem = self.lower_expr(array.elem.expr, check)?;
+        let len = self.lower_expr(*array.len, check)?;
+        let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, elem, len);
         Ok(hir_array)
     }
 

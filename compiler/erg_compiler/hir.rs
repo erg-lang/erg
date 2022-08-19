@@ -8,7 +8,7 @@ use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{
     impl_display_for_enum, impl_display_from_nested, impl_locational, impl_locational_for_enum,
-    impl_nested_display_for_enum, impl_stream_for_wrapper,
+    impl_nested_display_for_enum, impl_stream_for_wrapper, impl_t, impl_t_for_enum,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, Params, VarName, VarPattern};
@@ -23,23 +23,7 @@ pub struct Literal {
     t: Type,
 }
 
-impl HasType for Literal {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t!(Literal);
 
 impl NestedDisplay for Literal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
@@ -279,24 +263,7 @@ impl fmt::Display for Local {
     }
 }
 
-impl HasType for Local {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t!(Local);
 
 impl Locational for Local {
     #[inline]
@@ -335,25 +302,7 @@ impl fmt::Display for Attribute {
 }
 
 impl_locational!(Attribute, obj, name);
-
-impl HasType for Attribute {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t!(Attribute);
 
 impl Attribute {
     pub fn new(obj: Expr, name: Token, t: Type) -> Self {
@@ -379,25 +328,7 @@ impl fmt::Display for Subscript {
 }
 
 impl_locational!(Subscript, obj, index);
-
-impl HasType for Subscript {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t!(Subscript);
 
 impl Subscript {
     pub fn new(obj: Expr, index: Expr, t: Type) -> Self {
@@ -430,33 +361,7 @@ impl NestedDisplay for Accessor {
 
 impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Local, SelfDot, Attr, Subscr);
-
-impl HasType for Accessor {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        match self {
-            Self::Local(n) | Self::SelfDot(n) => n.ref_t(),
-            Self::Attr(a) => a.ref_t(),
-            Self::Subscr(s) => s.ref_t(),
-        }
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        match self {
-            Self::Local(n) | Self::SelfDot(n) => n.ref_mut_t(),
-            Self::Attr(a) => a.ref_mut_t(),
-            Self::Subscr(s) => s.ref_mut_t(),
-        }
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t_for_enum!(Accessor; Local, SelfDot, Attr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token, t: Type) -> Self {
@@ -496,54 +401,83 @@ impl Accessor {
 }
 
 #[derive(Debug, Clone)]
-pub struct Array {
+pub struct ArrayWithLength {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub t: Type,
-    pub elems: Args,
-    pub guard: Option<Box<Expr>>,
+    pub elem: Box<Expr>,
+    pub len: Box<Expr>,
 }
 
-impl HasType for Array {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
-
-impl NestedDisplay for Array {
+impl NestedDisplay for ArrayWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        if let Some(guard) = &self.guard {
-            write!(f, "[{} | {}]", self.elems, guard)
-        } else {
-            write!(f, "[{}]", self.elems)
+        write!(f, "[{}; {}]", self.elem, self.len)
+    }
+}
+
+impl_display_from_nested!(ArrayWithLength);
+impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
+impl_t!(ArrayWithLength);
+
+impl ArrayWithLength {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elem: Expr, len: Expr) -> Self {
+        let tp_len = match &len {
+            Expr::Lit(l) => match l.data {
+                ValueObj::Nat(n) => TyParam::value(n),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        };
+        let t = Type::array(elem.t(), tp_len);
+        Self {
+            l_sqbr,
+            r_sqbr,
+            t,
+            elem: Box::new(elem),
+            len: Box::new(len),
         }
     }
 }
 
-impl_display_from_nested!(Array);
-impl_locational!(Array, l_sqbr, r_sqbr);
+#[derive(Debug, Clone)]
+pub struct ArrayComprehension {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub t: Type,
+    pub elem: Box<Expr>,
+    pub guard: Box<Expr>,
+}
 
-impl Array {
-    pub fn new(
-        l_sqbr: Token,
-        r_sqbr: Token,
-        level: usize,
-        elems: Args,
-        guard: Option<Expr>,
-    ) -> Self {
+impl NestedDisplay for ArrayComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{} | {}]", self.elem, self.guard)
+    }
+}
+
+impl_display_from_nested!(ArrayComprehension);
+impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+impl_t!(ArrayComprehension);
+
+#[derive(Debug, Clone)]
+pub struct NormalArray {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub t: Type,
+    pub elems: Args,
+}
+
+impl NestedDisplay for NormalArray {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{}]", self.elems)
+    }
+}
+
+impl_display_from_nested!(NormalArray);
+impl_locational!(NormalArray, l_sqbr, r_sqbr);
+impl_t!(NormalArray);
+
+impl NormalArray {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, level: usize, elems: Args) -> Self {
         let elem_t = elems
             .pos_args
             .first()
@@ -555,7 +489,6 @@ impl Array {
             r_sqbr,
             t,
             elems,
-            guard: guard.map(Box::new),
         }
     }
 
@@ -565,46 +498,42 @@ impl Array {
 }
 
 #[derive(Debug, Clone)]
-pub struct Dict {
+pub enum Array {
+    Normal(NormalArray),
+    Comprehension(ArrayComprehension),
+    WithLength(ArrayWithLength),
+}
+
+impl_nested_display_for_enum!(Array; Normal, Comprehension, WithLength);
+impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
+impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
+impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
+
+#[derive(Debug, Clone)]
+pub struct NormalDict {
     pub l_brace: Token,
     pub r_brace: Token,
+    pub t: Type,
     pub attrs: Args, // TODO: keyをTokenではなくExprにする
 }
 
-impl HasType for Dict {
-    fn ref_t(&self) -> &Type {
-        todo!()
-    }
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
-    }
-    fn t(&self) -> Type {
-        todo!()
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
+impl_t!(NormalDict);
 
-impl NestedDisplay for Dict {
+impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{{}}}", self.attrs)
     }
 }
 
-impl_display_from_nested!(Dict);
-impl_locational!(Dict, l_brace, r_brace);
+impl_display_from_nested!(NormalDict);
+impl_locational!(NormalDict, l_brace, r_brace);
 
-impl Dict {
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: Args) -> Self {
+impl NormalDict {
+    pub const fn new(l_brace: Token, r_brace: Token, t: Type, attrs: Args) -> Self {
         Self {
             l_brace,
             r_brace,
+            t,
             attrs,
         }
     }
@@ -895,25 +824,6 @@ pub struct Lambda {
     pub t: Type,
 }
 
-impl HasType for Lambda {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        &self.t
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
-
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{} {}", self.params, self.op.content)?;
@@ -923,6 +833,7 @@ impl NestedDisplay for Lambda {
 
 impl_display_from_nested!(Lambda);
 impl_locational!(Lambda, params, body);
+impl_t!(Lambda);
 
 impl Lambda {
     pub const fn new(id: usize, params: Params, op: Token, body: Block, t: Type) -> Self {
@@ -992,6 +903,25 @@ impl Locational for Decl {
     }
 }
 
+impl HasType for Decl {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
 impl Decl {
     pub const fn spec_t(&self) -> &Type {
         &self.t
@@ -1046,6 +976,25 @@ impl NestedDisplay for Def {
 impl_display_from_nested!(Def);
 impl_locational!(Def, sig, body);
 
+impl HasType for Def {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
 impl Def {
     pub const fn new(sig: Signature, body: DefBody) -> Self {
         Self { sig, body }
@@ -1059,7 +1008,7 @@ pub enum Expr {
     Array(Array),
     // Dict(Dict),
     // Set(Set),
-    Dict(Dict),
+    Dict(NormalDict),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
@@ -1071,51 +1020,7 @@ pub enum Expr {
 impl_nested_display_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
-
-impl HasType for Expr {
-    fn ref_t(&self) -> &Type {
-        match self {
-            Expr::Lit(lit) => lit.ref_t(),
-            Expr::Accessor(accessor) => accessor.ref_t(),
-            Expr::Array(array) => array.ref_t(),
-            Expr::Dict(dict) => dict.ref_t(),
-            Expr::BinOp(bin) => bin.ref_t(),
-            Expr::UnaryOp(unary) => unary.ref_t(),
-            Expr::Call(call) => call.ref_t(),
-            Expr::Lambda(lambda) => lambda.ref_t(),
-            _ => &Type::NoneType,
-        }
-    }
-    fn ref_mut_t(&mut self) -> &mut Type {
-        match self {
-            Expr::Lit(lit) => lit.ref_mut_t(),
-            Expr::Accessor(accessor) => accessor.ref_mut_t(),
-            Expr::Array(array) => array.ref_mut_t(),
-            Expr::Dict(dict) => dict.ref_mut_t(),
-            Expr::BinOp(bin) => bin.ref_mut_t(),
-            Expr::UnaryOp(unary) => unary.ref_mut_t(),
-            Expr::Call(call) => call.ref_mut_t(),
-            Expr::Lambda(lambda) => lambda.ref_mut_t(),
-            _ => todo!(),
-        }
-    }
-    fn signature_t(&self) -> Option<&Type> {
-        match self {
-            Expr::BinOp(bin) => bin.signature_t(),
-            Expr::UnaryOp(unary) => unary.signature_t(),
-            Expr::Call(call) => call.signature_t(),
-            _ => None,
-        }
-    }
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        match self {
-            Expr::BinOp(bin) => bin.signature_mut_t(),
-            Expr::UnaryOp(unary) => unary.signature_mut_t(),
-            Expr::Call(call) => call.signature_mut_t(),
-            _ => None,
-        }
-    }
-}
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

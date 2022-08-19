@@ -88,7 +88,7 @@ pub type LexResult<T> = Result<T, LexError>;
 
 pub type ParseError = LexError;
 pub type ParseErrors = LexErrors;
-pub type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T> = Result<T, ()>;
 
 #[derive(Debug)]
 pub struct DesugaringError {

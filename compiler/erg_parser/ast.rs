@@ -379,81 +379,181 @@ impl Accessor {
     }
 }
 
-/// DictはキーつきArray(型としては別物)
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Array {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalArray {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elems: Args,
-    pub len: Option<Box<Expr>>, // if some, elems.len() should be 1
-    pub guard: Option<Box<Expr>>,
 }
 
-impl NestedDisplay for Array {
+impl NestedDisplay for NormalArray {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(
-            f,
-            "[{}{}{}]",
-            self.elems,
-            fmt_option!(pre "; ", self.len),
-            fmt_option!(pre "| ", self.guard)
-        )
+        write!(f, "[{}]", self.elems)
     }
 }
 
-impl_display_from_nested!(Array);
-impl_locational!(Array, l_sqbr, r_sqbr);
+impl_display_from_nested!(NormalArray);
+impl_locational!(NormalArray, l_sqbr, r_sqbr);
 
-impl Array {
-    pub fn new(
-        l_sqbr: Token,
-        r_sqbr: Token,
-        elems: Args,
-        len: Option<Expr>,
-        guard: Option<Expr>,
-    ) -> Self {
+impl NormalArray {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
             elems,
-            len: len.map(Box::new),
-            guard: guard.map(Box::new),
         }
     }
 }
 
-/// DictはキーつきArrayとして実現される
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrayWithLength {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub elem: Box<PosArg>,
+    pub len: Box<Expr>,
+}
+
+impl NestedDisplay for ArrayWithLength {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{}; {}]", self.elem, self.len)
+    }
+}
+
+impl_display_from_nested!(ArrayWithLength);
+impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
+
+impl ArrayWithLength {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elem: PosArg, len: Expr) -> Self {
+        Self {
+            l_sqbr,
+            r_sqbr,
+            elem: Box::new(elem),
+            len: Box::new(len),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrayComprehension {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub elem: Box<Expr>,
+    pub generators: Vec<(Local, Expr)>,
+    pub guards: Vec<Expr>,
+}
+
+impl NestedDisplay for ArrayComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            generators.push_str(&format!("{} <- {}, ", name, gen));
+        }
+        write!(
+            f,
+            "[{}| {}{}]",
+            self.elem,
+            generators,
+            fmt_vec(&self.guards)
+        )
+    }
+}
+
+impl_display_from_nested!(ArrayComprehension);
+impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+
+impl ArrayComprehension {
+    pub fn new(
+        l_sqbr: Token,
+        r_sqbr: Token,
+        elem: Expr,
+        generators: Vec<(Local, Expr)>,
+        guards: Vec<Expr>,
+    ) -> Self {
+        Self {
+            l_sqbr,
+            r_sqbr,
+            elem: Box::new(elem),
+            generators,
+            guards,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Array {
+    Normal(NormalArray),
+    WithLength(ArrayWithLength),
+    Comprehension(ArrayComprehension),
+}
+
+impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
+impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
+impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Dict {
+pub struct NormalDict {
     l_brace: Token,
     r_brace: Token,
-    pub attrs: Args,
-    guard: Option<Box<Expr>>,
+    pub attrs: Args, // TODO: Impl K: V Pair
 }
 
-impl NestedDisplay for Dict {
+impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        if let Some(guard) = &self.guard {
-            write!(f, "{{{} | {guard}}}", self.attrs)
-        } else {
-            write!(f, "{{{}}}", self.attrs)
-        }
+        write!(f, "{{{}}}", self.attrs)
     }
 }
 
-impl_display_from_nested!(Dict);
-impl_locational!(Dict, l_brace, r_brace);
+impl_display_from_nested!(NormalDict);
+impl_locational!(NormalDict, l_brace, r_brace);
 
-impl Dict {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Args, guard: Option<Expr>) -> Self {
+impl NormalDict {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: Args) -> Self {
         Self {
             l_brace,
             r_brace,
             attrs,
-            guard: guard.map(Box::new),
         }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DictComprehension {
+    l_brace: Token,
+    r_brace: Token,
+    pub attrs: Args,
+    guards: Vec<Expr>,
+}
+
+// TODO:
+impl NestedDisplay for DictComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{} | {}}}", self.attrs, fmt_vec(&self.guards))
+    }
+}
+
+impl_display_from_nested!(DictComprehension);
+impl_locational!(DictComprehension, l_brace, r_brace);
+
+impl DictComprehension {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+            guards,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Dict {
+    Normal(NormalDict),
+    Comprehension(DictComprehension),
+}
+
+impl_nested_display_for_enum!(Dict; Normal, Comprehension);
+impl_display_for_enum!(Dict; Normal, Comprehension);
+impl_locational_for_enum!(Dict; Normal, Comprehension);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -2120,9 +2220,8 @@ pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
     Array(Array),
-    // Dict(Dict),
-    // Set(Set),
     Dict(Dict),
+    // Set(Set),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),

@@ -8,7 +8,7 @@ use erg_common::ty::{ArgsOwnership, Ownership};
 use erg_common::Str;
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
-use crate::hir::{Accessor, Block, Def, Expr, Signature, HIR};
+use crate::hir::{Accessor, Array, Block, Def, Expr, Signature, HIR};
 use crate::varinfo::Visibility;
 use Visibility::*;
 
@@ -178,11 +178,14 @@ impl OwnershipChecker {
             Expr::UnaryOp(unary) => {
                 self.check_expr(&unary.expr, ownership);
             }
-            Expr::Array(arr) => {
-                for a in arr.elems.pos_args.iter() {
-                    self.check_expr(&a.expr, ownership);
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    for a in arr.elems.pos_args.iter() {
+                        self.check_expr(&a.expr, ownership);
+                    }
                 }
-            }
+                _ => todo!(),
+            },
             Expr::Dict(dict) => {
                 for a in dict.attrs.kw_args.iter() {
                     // self.check_expr(&a.key);
