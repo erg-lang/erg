@@ -327,6 +327,8 @@ impl ValueObj {
                     "{}",
                     switch_lang!(
                         "japanese" => format!("このオブジェクトはシリアライズできません: {other}"),
+                        "simplified_chinese" => format!("此对象无法序列化：{other}"),
+                        "traditional_chinese" => format!("此對象無法序列化：{other}"),
                         "english" => format!("this object cannot be serialized: {other}"),
                     )
                 )

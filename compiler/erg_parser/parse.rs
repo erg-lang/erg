@@ -453,6 +453,8 @@ impl Parser {
                 loc,
                 switch_lang!(
                     "japanese" => "ブロックの解析に失敗しました",
+                    "simplified_chinese" => "无法解析块",
+                    "traditional_chinese" => "無法解析塊",
                     "english" => "failed to parse a block",
                 ),
                 None,
@@ -529,6 +531,8 @@ impl Parser {
                     self.peek().unwrap().loc(),
                     switch_lang!(
                         "japanese" => "変数宣言で型制約は使えません",
+                        "simplified_chinese" => "变量声明中不允许类型约束",
+                        "traditional_chinese" => "變量聲明中不允許類型約束",
                         "english" => "Cannot use type bounds in a declaration of a variable",
                     ),
                     None,
@@ -711,6 +715,8 @@ impl Parser {
                         t.loc(),
                         switch_lang!(
                             "japanese" => "左辺値の中で中置演算子は使えません",
+                            "simplified_chinese" => "二元运算符不能用于左值",
+                            "traditional_chinese" => "二元運算符不能用於左值",
                             "english" => "Binary operators cannot be used in left-values",
                         ),
                         None,
@@ -825,6 +831,8 @@ impl Parser {
                         t.loc(),
                         switch_lang!(
                             "japanese" => "仮引数の中で中置演算子は使えません",
+                            "simplified_chinese" => "参数中不能使用二元运算符",
+                            "traditional_chinese" => "參數中不能使用二元運算符",
                             "english" => "Binary operators cannot be used in parameters",
                         ),
                         None,
@@ -1162,6 +1170,8 @@ impl Parser {
                 other.loc(),
                 switch_lang!(
                     "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
+                    "simplified_chinese" => "此表达式在编译时不可计算，因此不能用作类型参数",
+                    "traditional_chinese" => "此表達式在編譯時不可計算，因此不能用作類型參數",
                     "english" => "this expression is not computable at the compile-time, so cannot used as a type-argument",
                 ),
                 None,
