@@ -372,7 +372,7 @@ pub trait ErrorDisplay {
                     self.format_code_and_pointer(),
                     self.core().kind,
                     self.core().desc,
-                    fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), &self.core().hint),
+                    fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), self.core().hint),
                 )
                 .as_bytes(),
             )
@@ -392,7 +392,7 @@ pub trait ErrorDisplay {
             self.format_code_and_pointer(),
             self.core().kind,
             self.core().desc,
-            fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), &self.core().hint),
+            fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), self.core().hint),
         )?;
         if let Some(inner) = self.ref_inner() {
             inner.format(f)

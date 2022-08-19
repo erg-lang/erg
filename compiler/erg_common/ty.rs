@@ -1451,11 +1451,13 @@ impl fmt::Display for SubrType {
         let mut default_params = String::new();
         for default_param in self.default_params.iter() {
             default_params.push_str(&format!(
-                "{} |= {}",
+                "{} |= {}, ",
                 default_param.name.as_ref().unwrap(),
                 default_param.ty
             ));
         }
+        default_params.pop();
+        default_params.pop();
         write!(
             f,
             "{}({}, {}) {} {}",

@@ -97,41 +97,41 @@ macro_rules! enum_unwrap {
 /// assert fmt_option!(Some(1)) == "1"
 /// assert fmt_option!(None) == ""
 /// assert fmt_option!(None, else 1) == "1"
-/// assert fmt_option!(Some(1), post: ",") == "1,"
+/// assert fmt_option!(Some(1), post ",") == "1,"
 /// assert fmt_option!("[", Some(1), "]") == "[1]"
 /// ```
 #[macro_export]
 macro_rules! fmt_option {
     ($ex: expr $(,)*) => {
-        if let Some(x) = $ex {
+        if let Some(x) = &$ex {
             format!("{}", x)
         } else {
             "".to_string()
         }
     };
     ($ex: expr $(,)*, else $els: expr $(,)*) => {
-        if let Some(x) = $ex {
+        if let Some(x) = &$ex {
             format!("{}", x)
         } else {
             $els.to_string()
         }
     };
     (pre $prefix: expr, $ex: expr $(,)*) => {
-        if let Some(x) = $ex {
+        if let Some(x) = &$ex {
             format!("{}{}", $prefix, x)
         } else {
             "".to_string()
         }
     };
     ($ex: expr, post $postfix: expr $(,)*) => {
-        if let Some(x) = $ex {
+        if let Some(x) = &$ex {
             format!("{}{}", x, $postfix)
         } else {
             "".to_string()
         }
     };
     ($prefix: expr, $ex: expr, $postfix: expr $(,)*) => {
-        if let Some(x) = $ex {
+        if let Some(x) = &$ex {
             format!("{}{}{}", $prefix, x, $postfix)
         } else {
             "".to_string()

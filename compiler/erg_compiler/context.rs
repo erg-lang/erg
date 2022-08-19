@@ -2270,7 +2270,7 @@ impl Context {
     /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
-    fn sub_unify(
+    pub(crate) fn sub_unify(
         &self,
         maybe_sub: &Type,
         maybe_sup: &Type,
