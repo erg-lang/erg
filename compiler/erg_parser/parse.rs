@@ -33,8 +33,9 @@ macro_rules! debug_call_info {
     ($self: ident) => {
         $self.level += 1;
         log!(
-            "[DEBUG]\n{} entered {}, cur: {}",
+            "[DEBUG]\n{} ({}) entered {}, cur: {}",
             " ".repeat($self.level),
+            $self.level,
             fn_name!(),
             $self.peek().unwrap()
         );
@@ -990,7 +991,7 @@ impl Parser {
                 let simple = self
                     .try_reduce_simple_type_spec()
                     .map_err(|e| self.stack_dec(e))?;
-                self.level -= 1;
+                // not finished
                 TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple))
             }
             Some(t) if t.category_is(TC::Literal) => {
@@ -1221,11 +1222,7 @@ impl Parser {
             self.level -= 1;
             return Ok((args, None, None));
         }
-        let mut elems = Args::new(
-            vec![self.try_reduce_elem().map_err(|e| self.stack_dec(e))?],
-            vec![],
-            None,
-        );
+        let mut elems = Args::new(vec![], vec![], None);
         match self.peek() {
             Some(semi) if semi.is(Semi) => {
                 let loc = semi.loc();
@@ -1241,7 +1238,14 @@ impl Parser {
                 self.level -= 1;
                 return Err(ParseError::feature_error(line!() as usize, loc, "guard"));
             }
-            _ => {}
+            Some(_) => {
+                let elem = self.try_reduce_elem().map_err(|e| self.stack_dec(e))?;
+                elems.push_pos(elem);
+            }
+            None => {
+                self.level -= 1;
+                return Err(self.skip_and_throw_syntax_err(caused_by!()));
+            }
         }
         loop {
             match self.peek() {
@@ -1517,14 +1521,10 @@ impl Parser {
                     Some(t) if t.category_is(TC::LambdaOp) => {
                         let sig = LambdaSignature::new(params, None, TypeBoundSpecs::empty());
                         let op = self.lpop();
+                        let body = self.try_reduce_block().map_err(|e| self.stack_dec(e))?;
                         self.counter.inc();
                         self.level -= 1;
-                        Ok(Expr::Lambda(Lambda::new(
-                            sig,
-                            op,
-                            self.try_reduce_block().map_err(|e| self.stack_dec(e))?,
-                            self.counter,
-                        )))
+                        Ok(Expr::Lambda(Lambda::new(sig, op, body, self.counter)))
                     }
                     Some(t) if t.is(Colon) => {
                         self.lpop();
@@ -1532,14 +1532,10 @@ impl Parser {
                         let sig =
                             LambdaSignature::new(params, Some(spec_t), TypeBoundSpecs::empty());
                         let op = self.lpop();
+                        let body = self.try_reduce_block().map_err(|e| self.stack_dec(e))?;
                         self.counter.inc();
                         self.level -= 1;
-                        Ok(Expr::Lambda(Lambda::new(
-                            sig,
-                            op,
-                            self.try_reduce_block().map_err(|e| self.stack_dec(e))?,
-                            self.counter,
-                        )))
+                        Ok(Expr::Lambda(Lambda::new(sig, op, body, self.counter)))
                     }
                     _other => {
                         self.level -= 1;
@@ -1549,7 +1545,7 @@ impl Parser {
             }
             Side::Rhs => {
                 stack.push(ExprOrOp::Expr(
-                    self.try_reduce_lhs().map_err(|e| self.stack_dec(e))?,
+                    self.try_reduce_bin_lhs().map_err(|e| self.stack_dec(e))?,
                 ));
                 loop {
                     match self.peek() {
@@ -1578,7 +1574,7 @@ impl Parser {
                             }
                             stack.push(ExprOrOp::Op(self.lpop()));
                             stack.push(ExprOrOp::Expr(
-                                self.try_reduce_lhs().map_err(|e| self.stack_dec(e))?,
+                                self.try_reduce_bin_lhs().map_err(|e| self.stack_dec(e))?,
                             ));
                         }
                         Some(t) if t.category_is(TC::DefOp) => {
@@ -1627,7 +1623,10 @@ impl Parser {
                     }
                 }
                 match stack.pop() {
-                    Some(ExprOrOp::Expr(expr)) if stack.is_empty() => Ok(expr),
+                    Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
+                        self.level -= 1;
+                        Ok(expr)
+                    }
                     Some(ExprOrOp::Expr(expr)) => {
                         let extra = stack.pop().unwrap();
                         let loc = match extra {
@@ -1651,7 +1650,7 @@ impl Parser {
 
     /// "LHS" is the smallest unit that can be the left-hand side of an BinOp.
     /// e.g. Call, Name, UnaryOp, Lambda
-    fn try_reduce_lhs(&mut self) -> ParseResult<Expr> {
+    fn try_reduce_bin_lhs(&mut self) -> ParseResult<Expr> {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => {
