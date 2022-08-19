@@ -165,17 +165,7 @@
 cargo install erg
 ```
 
-### 从源代码构建
-
-从源代码构建需要 Rust 工具链
-
-```sh
-git clone https://github.com/erg-lang/erg.git
-cd erg
-cargo build --release
-```
-
-通过启用`--feature`标志，你可以改变显示错误信息的语言。
+通过启用`--features`标志，你可以改变显示错误信息的语言。
 
 * 日语
 
@@ -201,6 +191,16 @@ cargo install erg --features traditional_chinese
 
 ```sh
 cargo install erg --features debug
+```
+
+### 从源代码构建
+
+从源代码构建需要 Rust 工具链
+
+```sh
+git clone https://github.com/erg-lang/erg.git
+cd erg
+cargo build --release
 ```
 
 ### 使用Nix构建
