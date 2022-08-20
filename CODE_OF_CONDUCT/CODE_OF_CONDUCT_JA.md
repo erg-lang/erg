@@ -1,7 +1,7 @@
 # 行動規範
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCODE_OF_CONDUCT.md%26commit_hash%3D417c14f237f5fe69033248ab7faf1425c9e65e4d)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CODE_OF_CONDUCT.md&commit_hash=417c14f237f5fe69033248ab7faf1425c9e65e4d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCODE_OF_CONDUCT.md%26commit_hash%3D3ace818c1055f22f9cbe71e00f31c0aa784d52b6)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CODE_OF_CONDUCT.md&commit_hash=3ace818c1055f22f9cbe71e00f31c0aa784d52b6)
 
 ## 全般
 
@@ -28,5 +28,3 @@
 機能の提案をする前に、その機能が既存の機能を組み合わせて容易に解決できないか考えてください。
 
 Ergチームや言語で標準とされるスタイルのコードを書いてください。
-
-> この文書はCC BYライセンスで公開されます。自由に引用、改変、再配布して構いません。
