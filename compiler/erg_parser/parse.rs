@@ -68,11 +68,13 @@ pub enum ArrayInner {
     },
 }
 
+/// Perform recursive descent parsing.
+///
 /// To enhance error descriptions, the parsing process will continue as long as it's not fatal.
 #[derive(Debug)]
 pub struct Parser {
     counter: DefId,
-    level: usize,
+    level: usize, // nest level (for debugging)
     tokens: TokenStream,
     warns: ParseErrors,
     errs: ParseErrors,
