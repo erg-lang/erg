@@ -226,9 +226,6 @@ nix build
 コントリビューション(プロジェクトへの貢献、協力)はいつでも歓迎しています！
 何かわからないことがあれば、[Discordチャンネル](https://discord.gg/zfAAUbgGr4)で気軽に質問してください。
 
-## ライセンス
-
-Ergは、MITライセンスとApache2.0ライセンスのデュアルライセンスで配布されています。
-詳しくは[LICENSE-APACHE](./LICENSE-APACHE), [LICENSE-MIT](./LICENSE-MIT)をご覧ください。
+## [License](./LICENSE)
 
 サードパーティーの依存ライブラリのクレジットについては、[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md) (英語) をご覧ください。

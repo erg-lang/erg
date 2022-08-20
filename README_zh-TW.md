@@ -229,10 +229,6 @@ nix build
 
 如果您有任何疑問，請隨時在 [Discord channel](https://discord.gg/zfAAUbgGr4) 上提問
 
-## 許可證
-
-Erg 根據 MIT 許可證和 Apache 許可證（版本 2.0）的條款分發
-
-有關詳細信息，請參閱： [LICENSE-APACHE](./LICENSE-APACHE), [LICENSE-MIT](./LICENSE-MIT)
+## [License](./LICENSE)
 
 關於第三方crates的製作人員，請參閱：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
