@@ -27,8 +27,6 @@ use TokenCategory as TC;
 use TokenKind::*;
 
 /// Display the name of the called function for debugging the parser
-/// I thought about displaying the nesting level, but due to `?` operator there is not a single exit point for the function
-/// So it is not possible to lower the level
 macro_rules! debug_call_info {
     ($self: ident) => {
         $self.level += 1;
