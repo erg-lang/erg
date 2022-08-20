@@ -27,5 +27,3 @@ Don't intercept issues that others have been assigned (Check assignees on GitHub
 Before proposing a new feature, consider whether that feature could be easily solved by combining existing features.
 
 Please write code in a style that is standardized by the Erg team and languages.
-
-> This document is released under the [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/). You may freely cite, modify, and redistribute it.
