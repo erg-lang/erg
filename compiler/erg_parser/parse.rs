@@ -68,6 +68,8 @@ pub enum ArrayInner {
 
 /// Perform recursive descent parsing.
 ///
+/// `level` is raised by 1 by `debug_call_info!` in each analysis method and lowered by 1 when leaving (`.map_err` is called to lower the level).
+///
 /// To enhance error descriptions, the parsing process will continue as long as it's not fatal.
 #[derive(Debug)]
 pub struct Parser {
