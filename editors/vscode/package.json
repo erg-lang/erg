@@ -1,0 +1,25 @@
+{
+  "name": "erg",
+  "displayName": "Erg",
+  "description": "Erg language support for Visual Studio Code",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "erg",
+      "aliases": ["Erg", "erg"],
+      "extensions": [".er"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "erg",
+      "scopeName": "source.erg",
+      "path": "./syntaxes/erg.tmLanguage.json"
+    }]
+  }
+}
