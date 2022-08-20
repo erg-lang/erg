@@ -1755,18 +1755,9 @@ impl Parser {
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(LParen) => {
-                self.skip();
-                let expr = self.try_reduce_expr().map_err(|_| self.stack_dec())?;
-                if self.cur_is(RParen) {
-                    self.skip();
-                    self.level -= 1;
-                    Ok(expr)
-                } else {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
+                let tuple = self.try_reduce_tuple().map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Expr::Tuple(tuple))
             }
             Some(t) if t.is(LSqBr) => {
                 let array = self.try_reduce_array().map_err(|_| self.stack_dec())?;
@@ -1858,6 +1849,31 @@ impl Parser {
         };
         self.level -= 1;
         Ok(arr)
+    }
+
+    #[inline]
+    fn try_reduce_tuple(&mut self) -> ParseResult<Tuple> {
+        debug_call_info!(self);
+        let l_paren = self.lpop();
+        let inner = self.try_reduce_elems().map_err(|_| self.stack_dec())?;
+        let r_paren = self.lpop();
+        if !r_paren.is(RParen) {
+            self.level -= 1;
+            self.errs
+                .push(ParseError::simple_syntax_error(0, r_paren.loc()));
+            return Err(());
+        }
+        let tpl = match inner {
+            ArrayInner::Normal(elems) => Tuple::Normal(NormalTuple::new(l_paren, r_paren, elems)),
+            ArrayInner::Comprehension {
+                elem: _,
+                generators: _,
+                guards: _,
+            } => todo!(),
+            _ => unreachable!(),
+        };
+        self.level -= 1;
+        Ok(tpl)
     }
 
     #[inline]
