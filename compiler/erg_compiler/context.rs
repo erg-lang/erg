@@ -43,6 +43,21 @@ use Visibility::*;
 type Trait = Type;
 
 /// ```
+/// [Int, Str, Nat, Never, Obj, Str!, Module]
+/// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
+/// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]
+/// => [[Int], [Str]], [Nat, Never, Obj, Str!, Module]
+/// => ...
+/// => [[Int, Nat, Never, Obj]], [Str, Obj, Str!], [Module]]
+/// => [[Never, Nat, Int, Obj], [Str!, Str, Obj], [Module, Obj]]
+/// => [Never, Nat, Int, Obj, Str, Obj, Module, Obj]
+/// => [Never, Nat, Int, Str, Module, Obj]
+/// ```
+pub fn type_sort(_types: Vec<Type>) -> Vec<Type> {
+    todo!()
+}
+
+/// ```
 /// TyParamIdx::new(Add(R, O), O) => Nth(1)
 /// TyParamIdx::new(Add(R, F(O, I)), O) => Nested(Nth(1), 0)
 /// ```
