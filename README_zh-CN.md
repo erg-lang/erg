@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) 是一种静态类型的语言，与Python兼容
+<br>[Erg](https://erg-lang.github.io/) 是一种通用的静态类型语言，可以深度改善Python生态系统
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
@@ -12,8 +12,8 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | 简体中文 | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D5c72adfea103f3c099c4519d492b5b2e68aecce1)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=5c72adfea103f3c099c4519d492b5b2e68aecce1)
 
 ## Erg可以推荐给以下人员&colon;
 
