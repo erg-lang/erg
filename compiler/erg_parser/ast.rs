@@ -490,6 +490,42 @@ impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalTuple {
+    pub l_paren: Token,
+    pub r_paren: Token,
+    pub elems: Args,
+}
+
+impl NestedDisplay for NormalTuple {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({})", self.elems)
+    }
+}
+
+impl_display_from_nested!(NormalTuple);
+impl_locational!(NormalTuple, l_paren, r_paren);
+
+impl NormalTuple {
+    pub fn new(l_paren: Token, r_paren: Token, elems: Args) -> Self {
+        Self {
+            l_paren,
+            r_paren,
+            elems,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Tuple {
+    Normal(NormalTuple),
+    // Comprehension(TupleComprehension),
+}
+
+impl_nested_display_for_enum!(Tuple; Normal);
+impl_display_for_enum!(Tuple; Normal);
+impl_locational_for_enum!(Tuple; Normal);
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     l_brace: Token,
@@ -2220,6 +2256,7 @@ pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
     Array(Array),
+    Tuple(Tuple),
     Dict(Dict),
     // Set(Set),
     BinOp(BinOp),
@@ -2230,9 +2267,9 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
