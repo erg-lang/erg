@@ -1,7 +1,7 @@
 # 行为准则
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCODE_OF_CONDUCT.md%26commit_hash%3D417c14f237f5fe69033248ab7faf1425c9e65e4d)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CODE_OF_CONDUCT.md&commit_hash=417c14f237f5fe69033248ab7faf1425c9e65e4d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCODE_OF_CONDUCT.md%26commit_hash%3D3ace818c1055f22f9cbe71e00f31c0aa784d52b6)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CODE_OF_CONDUCT.md&commit_hash=3ace818c1055f22f9cbe71e00f31c0aa784d52b6)
 
 ## 常规
 
@@ -28,5 +28,3 @@
 在提出新功能之前，请考虑通过组合现有功能是否可以轻松解决该功能
 
 请以 Erg 团队和语言标准化的风格编写代码
-
-> 本文档在 [CC BY 4.0 许可](https://creativecommons.org/licenses/by/4.0/) 下发布。您可以自由引用、修改和重新分发它
