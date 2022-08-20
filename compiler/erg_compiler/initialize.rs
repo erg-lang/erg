@@ -297,60 +297,6 @@ impl Context {
         obj.register_const("MutType!", ValueObj::t(mono("Obj!")));
         // let mut record = Self::mono_trait("Record", vec![Obj], Self::TOP_LEVEL);
         // let mut class = Self::mono_class("Class", vec![Type, Obj], Self::TOP_LEVEL);
-        let mut float = Self::mono_class(
-            "Float",
-            vec![Obj],
-            vec![
-                mono("Num"),
-                // mono("Eq"), // Float doesn't have an Eq implementation
-                mono("Ord"),
-                poly("Add", vec![ty_tp(Float)]),
-                poly("Sub", vec![ty_tp(Float)]),
-                poly("Mul", vec![ty_tp(Float)]),
-                poly("Div", vec![ty_tp(Float)]),
-                mono("Mutate"),
-            ],
-            Self::TOP_LEVEL,
-        );
-        let op_t = fn1_met(Float, Float, Float);
-        float.register_impl("__add__", op_t.clone(), Const, Public);
-        float.register_impl("__sub__", op_t.clone(), Const, Public);
-        float.register_impl("__mul__", op_t.clone(), Const, Public);
-        float.register_impl("__div__", op_t, Const, Public);
-        float.register_const("AddO", ValueObj::t(Float));
-        float.register_const("SubO", ValueObj::t(Float));
-        float.register_const("MulO", ValueObj::t(Float));
-        float.register_const("DivO", ValueObj::t(Float));
-        float.register_const("MutType!", ValueObj::t(mono("Float!")));
-        float.register_impl("Real", Float, Const, Public);
-        float.register_impl("Imag", Float, Const, Public);
-        let mut ratio = Self::mono_class(
-            "Ratio",
-            vec![Obj],
-            vec![
-                mono("Num"),
-                poly("Eq", vec![ty_tp(Ratio)]),
-                mono("Ord"),
-                poly("Add", vec![ty_tp(Ratio)]),
-                poly("Sub", vec![ty_tp(Ratio)]),
-                poly("Mul", vec![ty_tp(Ratio)]),
-                poly("Div", vec![ty_tp(Ratio)]),
-                mono("Mutate"),
-            ],
-            Self::TOP_LEVEL,
-        );
-        let op_t = fn1_met(Ratio, Ratio, Ratio);
-        ratio.register_impl("__add__", op_t.clone(), Const, Public);
-        ratio.register_impl("__sub__", op_t.clone(), Const, Public);
-        ratio.register_impl("__mul__", op_t.clone(), Const, Public);
-        ratio.register_impl("__div__", op_t, Const, Public);
-        ratio.register_const("AddO", ValueObj::t(Ratio));
-        ratio.register_const("SubO", ValueObj::t(Ratio));
-        ratio.register_const("MulO", ValueObj::t(Ratio));
-        ratio.register_const("DivO", ValueObj::t(Ratio));
-        ratio.register_const("MutType!", ValueObj::t(mono("Ratio!")));
-        ratio.register_impl("Real", Ratio, Const, Public);
-        ratio.register_impl("Imag", Ratio, Const, Public);
         let mut int = Self::mono_class(
             "Int",
             vec![Obj],
@@ -421,6 +367,60 @@ impl Context {
         nat.register_const("MutType!", ValueObj::t(mono("Nat!")));
         nat.register_impl("Real", Nat, Const, Public);
         nat.register_impl("Imag", Nat, Const, Public);
+        let mut float = Self::mono_class(
+            "Float",
+            vec![Obj],
+            vec![
+                mono("Num"),
+                // mono("Eq"), // Float doesn't have an Eq implementation
+                mono("Ord"),
+                poly("Add", vec![ty_tp(Float)]),
+                poly("Sub", vec![ty_tp(Float)]),
+                poly("Mul", vec![ty_tp(Float)]),
+                poly("Div", vec![ty_tp(Float)]),
+                mono("Mutate"),
+            ],
+            Self::TOP_LEVEL,
+        );
+        let op_t = fn1_met(Float, Float, Float);
+        float.register_impl("__add__", op_t.clone(), Const, Public);
+        float.register_impl("__sub__", op_t.clone(), Const, Public);
+        float.register_impl("__mul__", op_t.clone(), Const, Public);
+        float.register_impl("__div__", op_t, Const, Public);
+        float.register_const("AddO", ValueObj::t(Float));
+        float.register_const("SubO", ValueObj::t(Float));
+        float.register_const("MulO", ValueObj::t(Float));
+        float.register_const("DivO", ValueObj::t(Float));
+        float.register_const("MutType!", ValueObj::t(mono("Float!")));
+        float.register_impl("Real", Float, Const, Public);
+        float.register_impl("Imag", Float, Const, Public);
+        let mut ratio = Self::mono_class(
+            "Ratio",
+            vec![Obj],
+            vec![
+                mono("Num"),
+                poly("Eq", vec![ty_tp(Ratio)]),
+                mono("Ord"),
+                poly("Add", vec![ty_tp(Ratio)]),
+                poly("Sub", vec![ty_tp(Ratio)]),
+                poly("Mul", vec![ty_tp(Ratio)]),
+                poly("Div", vec![ty_tp(Ratio)]),
+                mono("Mutate"),
+            ],
+            Self::TOP_LEVEL,
+        );
+        let op_t = fn1_met(Ratio, Ratio, Ratio);
+        ratio.register_impl("__add__", op_t.clone(), Const, Public);
+        ratio.register_impl("__sub__", op_t.clone(), Const, Public);
+        ratio.register_impl("__mul__", op_t.clone(), Const, Public);
+        ratio.register_impl("__div__", op_t, Const, Public);
+        ratio.register_const("AddO", ValueObj::t(Ratio));
+        ratio.register_const("SubO", ValueObj::t(Ratio));
+        ratio.register_const("MulO", ValueObj::t(Ratio));
+        ratio.register_const("DivO", ValueObj::t(Ratio));
+        ratio.register_const("MutType!", ValueObj::t(mono("Ratio!")));
+        ratio.register_impl("Real", Ratio, Const, Public);
+        ratio.register_impl("Imag", Ratio, Const, Public);
         let mut bool_ = Self::mono_class(
             "Bool",
             vec![Nat, Int, Obj],
@@ -469,6 +469,24 @@ impl Context {
         str_.register_const("AddO", ValueObj::t(Str));
         str_.register_const("MulO", ValueObj::t(Str));
         str_.register_const("MutType!", ValueObj::t(mono("Str!")));
+        let mut type_ = Self::mono_class(
+            "Type",
+            vec![Obj],
+            vec![poly("Eq", vec![ty_tp(Type)]), mono("Named")],
+            Self::TOP_LEVEL,
+        );
+        type_.register_impl(
+            "mro",
+            Type::array(Type, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        let module = Self::mono_class(
+            "Module",
+            vec![Obj],
+            vec![poly("Eq", vec![ty_tp(Module)]), mono("Named")],
+            Self::TOP_LEVEL,
+        );
         let mut array = Self::poly_class(
             "Array",
             vec![PS::t_nd("T"), PS::named_nd("N", Nat)],
@@ -501,30 +519,72 @@ impl Context {
             set! {static_instance("N", Nat), static_instance("M", Nat)},
         );
         array.register_impl("concat", t, Immutable, Public);
+        let n = mono_q_tp("N");
+        let array_inner = mono_q("T");
+        let array_t = Type::array(array_inner.clone(), n.clone());
+        let proj_t = mono_proj(array_inner.clone(), "ImmutType");
+        let t = Type::fn_met(
+            array_t.clone(),
+            vec![param_t(
+                "f",
+                Type::nd_func(vec![anon(proj_t.clone())], proj_t),
+            )],
+            vec![],
+            Type::NoneType,
+        );
+        let t = quant(
+            t,
+            set! {static_instance("N", Nat), static_instance("T", Type::mono("Mutable"))},
+        );
+        array.register_impl("map!", t, Immutable, Public);
         let mut_type = ValueObj::t(Type::poly(
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
         ));
+        let mut int_mut = Self::mono_class(
+            "Int!",
+            vec![Int, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        int_mut.register_const("ImmutType", ValueObj::t(Int));
+        let mut nat_mut = Self::mono_class(
+            "Int!",
+            vec![Nat, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        nat_mut.register_const("ImmutType", ValueObj::t(Nat));
+        let mut float_mut = Self::mono_class(
+            "Float!",
+            vec![Float, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        float_mut.register_const("ImmutType", ValueObj::t(Float));
+        let mut ratio_mut = Self::mono_class(
+            "Ratio!",
+            vec![Ratio, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        ratio_mut.register_const("ImmutType", ValueObj::t(Ratio));
+        let mut bool_mut = Self::mono_class(
+            "Bool!",
+            vec![Bool, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        bool_mut.register_const("ImmutType", ValueObj::t(Bool));
+        let mut str_mut = Self::mono_class(
+            "Str!",
+            vec![Str, Obj],
+            vec![mono("Mutable")],
+            Self::TOP_LEVEL,
+        );
+        str_mut.register_const("ImmutType", ValueObj::t(Str));
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         array.register_const("MutType!", mut_type);
-        let mut type_ = Self::mono_class(
-            "Type",
-            vec![Obj],
-            vec![poly("Eq", vec![ty_tp(Type)]), mono("Named")],
-            Self::TOP_LEVEL,
-        );
-        type_.register_impl(
-            "mro",
-            Type::array(Type, TyParam::erased(Nat)),
-            Immutable,
-            Public,
-        );
-        let module = Self::mono_class(
-            "Module",
-            vec![Obj],
-            vec![poly("Eq", vec![ty_tp(Module)]), mono("Named")],
-            Self::TOP_LEVEL,
-        );
         let array_mut_t = Type::poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
             "Array!",
@@ -567,17 +627,23 @@ impl Context {
         self.register_type(Obj, obj, Const);
         // self.register_type(Type::mono("Record"), vec![], record, Const);
         // self.register_type(Type::mono("Class"), vec![], class, Const);
-        self.register_type(Float, float, Const);
-        self.register_type(Ratio, ratio, Const);
         self.register_type(Int, int, Const);
         self.register_type(Nat, nat, Const);
+        self.register_type(Float, float, Const);
+        self.register_type(Ratio, ratio, Const);
         self.register_type(Bool, bool_, Const);
         self.register_type(Str, str_, Const);
         self.register_type(Type, type_, Const);
         self.register_type(Module, module, Const);
         self.register_type(array_t, array, Const);
-        self.register_type(range_t, range, Const);
+        self.register_type(mono("Int!"), int_mut, Const);
+        self.register_type(mono("Nat!"), nat_mut, Const);
+        self.register_type(mono("Float!"), float_mut, Const);
+        self.register_type(mono("Ratio!"), ratio_mut, Const);
+        self.register_type(mono("Bool!"), bool_mut, Const);
+        self.register_type(mono("Str!"), str_mut, Const);
         self.register_type(array_mut_t, array_mut, Const);
+        self.register_type(range_t, range, Const);
     }
 
     fn init_builtin_funcs(&mut self) {
