@@ -493,8 +493,6 @@ impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
-    pub l_paren: Token,
-    pub r_paren: Token,
     pub elems: Args,
 }
 
@@ -505,13 +503,11 @@ impl NestedDisplay for NormalTuple {
 }
 
 impl_display_from_nested!(NormalTuple);
-impl_locational!(NormalTuple, l_paren, r_paren);
+impl_locational!(NormalTuple, elems, elems);
 
 impl NormalTuple {
-    pub fn new(l_paren: Token, r_paren: Token, elems: Args) -> Self {
+    pub fn new(elems: Args) -> Self {
         Self {
-            l_paren,
-            r_paren,
             elems,
         }
     }

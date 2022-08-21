@@ -1854,17 +1854,13 @@ impl Parser {
     #[inline]
     fn try_reduce_tuple(&mut self) -> ParseResult<Tuple> {
         debug_call_info!(self);
-        let l_paren = self.lpop();
+        self.skip();
         let inner = self.try_reduce_elems().map_err(|_| self.stack_dec())?;
-        let r_paren = self.lpop();
-        if !r_paren.is(RParen) {
-            self.level -= 1;
-            self.errs
-                .push(ParseError::simple_syntax_error(0, r_paren.loc()));
-            return Err(());
-        }
+        self.skip();
         let tpl = match inner {
-            ArrayInner::Normal(elems) => Tuple::Normal(NormalTuple::new(l_paren, r_paren, elems)),
+            ArrayInner::Normal(elems) => {
+                Tuple::Normal(NormalTuple::new(elems))
+                },
             ArrayInner::Comprehension {
                 elem: _,
                 generators: _,
