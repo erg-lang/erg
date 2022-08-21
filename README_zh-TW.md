@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) 是一種靜態類型的語言，與Python兼容
+<br>這是[Erg](https://erg-lang.github.io/)的主要源代碼庫。它包含編譯器和文檔。
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg">
@@ -18,7 +18,8 @@
 
 ## Erg可以推薦給以下人員&colon;
 
-* 使用Python，但希望有類似Rust的健壯性和舒適的編譯器支持，然而，又不需要像Rust那樣的冗長的類型規範和內存管理模型
+* 希望有類似Rust的健壯性和舒適的編譯器支持，然而，又不需要像Rust那樣的冗長的類型規範和內存管理模型
+* 對Python不滿意，但無法下定決心放棄Python代碼資產
 * 希望有一個像ML那樣簡單而一致的語言
 * 希望有一個實用的通用語言，有依賴/反射類型
 * 想要一種像Scala一樣的語言，既面向對象，又使用函數式編程

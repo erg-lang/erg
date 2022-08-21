@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) is a statically typed language that is Python-compatible.
+<br>This is the main source code repository for [Erg](https://erg-lang.github.io/). This contains the compiler and documentation.
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg">
@@ -15,7 +15,8 @@
 
 ## Erg can be recommended to a person that&colon;
 
-* uses Python, but wants Rust-like robustness and comfortable compiler support, and yet, doesn't need the verbose type specifications & memory management model like Rust.
+* wants Rust-like robustness and comfortable compiler support, and yet, doesn't need the verbose type specifications & memory management model like Rust.
+* frustrated with Python, but can't throw away Python code assets.
 * wants a simple and consistent language like ML.
 * wants a practical general-purpose language with dependent/refinement types.
 * wants a language like Scala that can be used both object-oriented and functional.

@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://mtshiba.github.io/TheErgBook)はPython互換の静的型付け言語です。
+<br>こちらは[Erg](https://mtshiba.github.io/TheErgBook)のメインリポジトリです。コンパイラとドキュメントが置かれています。
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg">
@@ -18,8 +18,9 @@
 
 ## Ergはこんな人におすすめです&#58;
 
-* Pythonを使用しているが、Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい
+* Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい
 * しかし、煩雑な型定義やメモリ管理は避けたい
+* Pythonに不満があるが、Pythonのコード資産を捨てきる決心が付かない
 * MLのようにシンプルで一貫性のある言語を使いたい
 * 依存型/篩型を持つ実用的な汎用言語を使いたい
 * Scalaのように関数型とオブジェクト指向が高度に融合された言語を使いたい

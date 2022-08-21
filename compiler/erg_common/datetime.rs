@@ -4,7 +4,7 @@ use std::process::Command;
 pub fn now() -> String {
     let output = if cfg!(windows) {
         Command::new("cmd")
-            .args(&["/C", "echo %date% %time%"])
+            .args(&["/C", "echo %date:~0,10% %time%"])
             .output()
             .expect("failed to execute a process to get current time")
     } else {
