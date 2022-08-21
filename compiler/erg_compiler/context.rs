@@ -1,6 +1,6 @@
 //! Defines `Context`.
 //! `Context` is used for type inference and type checking.
-// use std::cmp::Ordering;
+use std::cmp::Ordering;
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
@@ -425,6 +425,8 @@ impl ConstTemplate {
 }
 
 /// Represents the context of the current scope
+///
+/// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
 #[derive(Debug)]
 pub struct Context {
     pub(crate) name: Str,
@@ -1656,25 +1658,25 @@ impl Context {
             // ?T(:> Never, <: Nat)[n] => Nat
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let constraint = fv.crack_constraint();
-                let (sub, sup) = constraint.sub_sup_type().unwrap();
-                if self.rec_same_type_of(sub, sup) {
-                    self.unify(sub, sub, None, None)?;
-                    let t = if sub.rec_eq(&Never) {
-                        sup.clone()
+                let (sub_t, super_t) = constraint.sub_sup_type().unwrap();
+                if self.rec_same_type_of(sub_t, super_t) {
+                    self.unify(sub_t, super_t, None, None)?;
+                    let t = if sub_t.rec_eq(&Never) {
+                        super_t.clone()
                     } else {
-                        sub.clone()
+                        sub_t.clone()
                     };
                     drop(constraint);
                     fv.link(&t);
                     self.deref_tyvar(Type::FreeVar(fv))
                 } else if self.level == 0 || self.level <= fv.level().unwrap() {
-                    let t = if sub.rec_eq(&Never) {
-                        sup.clone()
+                    let new_t = if sub_t.rec_eq(&Never) {
+                        super_t.clone()
                     } else {
-                        sub.clone()
+                        sub_t.clone()
                     };
                     drop(constraint);
-                    fv.link(&t);
+                    fv.link(&new_t);
                     self.deref_tyvar(Type::FreeVar(fv))
                 } else {
                     drop(constraint);
@@ -2243,7 +2245,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) if self.formal_same_type_of(l, r, None, None) => Ok(()),
+            (l, r) if self.structural_same_type_of(l, r, None, None) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
                 line!() as usize,
                 l,
@@ -2305,8 +2307,6 @@ impl Context {
                         // sub = union(l, sub) if max does not exist
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
-                        // nested variable is prohibited
-                        // ☓ sub_unify({0},  ?T(:> ?U, <: Ord))
                         Constraint::Sandwiched { sub, sup } => {
                             if !self.rec_supertype_of(sup, l) {
                                 return Err(TyCheckError::subtyping_error(
@@ -2318,11 +2318,11 @@ impl Context {
                                     self.caused_by(),
                                 ));
                             }
-                            if let Some(new_sub) = self.max(l, sub) {
+                            if let Some(new_sub) = self.rec_max(l, sub) {
                                 *constraint =
                                     Constraint::sandwiched(new_sub.clone(), mem::take(sup));
                             } else {
-                                let new_sub = self.union(l, sub);
+                                let new_sub = self.rec_union(l, sub);
                                 *constraint = Constraint::sandwiched(new_sub, mem::take(sup));
                             }
                         }
@@ -2366,11 +2366,11 @@ impl Context {
                                     self.caused_by(),
                                 ));
                             }
-                            if let Some(new_sup) = self.min(sup, r) {
+                            if let Some(new_sup) = self.rec_min(sup, r) {
                                 *constraint =
                                     Constraint::sandwiched(mem::take(sub), new_sup.clone());
                             } else {
-                                let new_sup = self.union(sup, r);
+                                let new_sup = self.rec_union(sup, r);
                                 *constraint = Constraint::sandwiched(mem::take(sub), new_sup);
                             }
                         }
@@ -2393,7 +2393,7 @@ impl Context {
             _ => {}
         }
         let mut opt_smallest = None;
-        for ctx in self.rec_sorted_type_ctxs(maybe_sub) {
+        for ctx in self.rec_sorted_sup_type_ctxs(maybe_sub) {
             let bounds = ctx.type_params_bounds();
             let variance = ctx.type_params_variance();
             let instances = ctx
@@ -2407,7 +2407,7 @@ impl Context {
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
             if let Some(t) = self.smallest_ref_t(instances) {
                 opt_smallest = if let Some(small) = opt_smallest {
-                    self.min(small, t)
+                    self.rec_min(small, t)
                 } else {
                     Some(t)
                 };
@@ -2434,7 +2434,7 @@ impl Context {
         let opt_smallest_pair = self.smallest_pair(patch_instances);
         match (opt_smallest, opt_smallest_pair) {
             (Some(smallest), Some((l, r))) => {
-                if self.min(smallest, &r) == Some(&r) {
+                if self.rec_min(smallest, &r) == Some(&r) {
                     self.unify(maybe_sub, &l, sub_loc, None)?;
                     self.unify(maybe_sup, &r, sup_loc, None)
                 } else {
@@ -2730,7 +2730,7 @@ impl Context {
                 let l = self.eval.eval_tp(&l, self)?;
                 let r = self.instantiate_const_expr(rhs);
                 let r = self.eval.eval_tp(&r, self)?;
-                if let Some(Greater) = self.try_cmp(&l, &r, None) {
+                if let Some(Greater) = self.rec_try_cmp(&l, &r, None) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
                 Ok(Type::int_interval(op, l, r))
@@ -2870,7 +2870,7 @@ impl Context {
                 ));
             }
             let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
-            union_pat_t = self.union(&union_pat_t, &rhs);
+            union_pat_t = self.rec_union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
@@ -2892,7 +2892,7 @@ impl Context {
             .collect::<Vec<_>>();
         let mut return_t = branch_ts[0].ty.return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.union(&return_t, arg_t.ty.return_t().unwrap());
+            return_t = self.rec_union(&return_t, arg_t.ty.return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -2943,7 +2943,7 @@ impl Context {
             }
             _ => {}
         }
-        for ctx in self.rec_sorted_type_ctxs(&self_t) {
+        for ctx in self.rec_sorted_sup_type_ctxs(&self_t) {
             if let Ok(t) = ctx.get_var_t(name, namespace) {
                 return Ok(t);
             }
@@ -3064,7 +3064,7 @@ impl Context {
     ) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(lhs), TyParam::Type(rhs)) => {
-                return self.formal_same_type_of(lhs, rhs, bounds, lhs_variance)
+                return self.structural_same_type_of(lhs, rhs, bounds, lhs_variance)
             }
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if let (Some((l, _)), Some((r, _))) = (
@@ -3072,7 +3072,7 @@ impl Context {
                     self.types.iter().find(|(t, _)| t.name() == &r[..]),
                 ) {
                     return self.structural_supertype_of(l, r, bounds, None)
-                        || self.formal_subtype_of(l, r, bounds, lhs_variance);
+                        || self.structural_subtype_of(l, r, bounds, lhs_variance);
                 }
             }
             (TyParam::MonoQVar(name), other) | (other, TyParam::MonoQVar(name)) => {
@@ -3147,19 +3147,36 @@ impl Context {
         self.rec_supertype_of(lhs, rhs) && self.rec_subtype_of(lhs, rhs)
     }
 
-    pub(crate) fn rec_related(&self, lhs: &Type, rhs: &Type) -> bool {
+    pub(crate) fn _rec_related(&self, lhs: &Type, rhs: &Type) -> bool {
         self.rec_supertype_of(lhs, rhs) || self.rec_subtype_of(lhs, rhs)
+    }
+
+    fn related(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.supertype_of(lhs, rhs) || self.subtype_of(lhs, rhs)
     }
 
     fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.structural_supertype_of(lhs, rhs, None, None) || self.nominal_supertype_of(lhs, rhs)
     }
 
-    /// make judgments that include supertypes in the namespace & take into account glue patches
-    /// 名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
+    fn subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.structural_subtype_of(lhs, rhs, None, None) || self.nominal_subtype_of(lhs, rhs)
+    }
+
+    /// make judgments that include supertypes in the same namespace & take into account glue patches
+    /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        for rhs_ctx in self.sorted_type_ctxs(rhs) {
-            let bounds = rhs_ctx.type_params_bounds();
+        for rhs_ctx in self.sorted_sup_type_ctxs(rhs) {
+            let r_bounds = rhs_ctx.type_params_bounds();
+            let bounds = if lhs.is_monomorphic() {
+                r_bounds
+            } else {
+                if let Some((_, lhs_ctx)) = self._just_type_ctxs(lhs) {
+                    lhs_ctx.type_params_bounds().concat(r_bounds)
+                } else {
+                    r_bounds
+                }
+            };
             let variance = rhs_ctx.type_params_variance();
             if rhs_ctx
                 .super_classes
@@ -3181,12 +3198,16 @@ impl Context {
             // Rhs <: X => Rhs <: Ord
             // Ord <: Lhs => Rhs <: Ord <: Lhs
             if self.structural_supertype_of(sub_type, rhs, Some(&bounds), Some(&variance))
-                && self.formal_subtype_of(sup_trait, lhs, Some(&bounds), Some(&variance))
+                && self.structural_subtype_of(sup_trait, lhs, Some(&bounds), Some(&variance))
             {
                 return true;
             }
         }
         false
+    }
+
+    fn nominal_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.nominal_supertype_of(rhs, lhs)
     }
 
     /// lhs :> rhs?
@@ -3276,10 +3297,10 @@ impl Context {
                 && self.structural_supertype_of(&ls.return_t, &rs.return_t, bounds, lhs_variance) // covariant
                 && ls.non_default_params.iter()
                     .zip(rs.non_default_params.iter())
-                    .all(|(l, r)| self.formal_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
+                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
                 && ls.default_params.iter()
                     .zip(rs.default_params.iter())
-                    .all(|(l, r)| self.formal_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
+                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
                 // contravariant
             }
             // RefMut, OptionMut are invariant
@@ -3358,7 +3379,7 @@ impl Context {
                     for r_pred in r.preds.iter() {
                         if l_pred.subject().unwrap_or("") == &l.var[..]
                             && r_pred.subject().unwrap_or("") == &r.var[..]
-                            && self.is_super_pred_of(l_pred, r_pred, bounds)
+                            && self.rec_is_super_pred_of(l_pred, r_pred, bounds)
                         {
                             r_preds_clone.remove(r_pred);
                         }
@@ -3442,7 +3463,7 @@ impl Context {
                         && lp.iter().zip(rp.iter()).zip(lhs_variance.iter()).all(
                             |((l, r), variance)| match (l, r, variance) {
                                 (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
-                                    self.formal_subtype_of(l, r, bounds, Some(lhs_variance))
+                                    self.structural_subtype_of(l, r, bounds, Some(lhs_variance))
                                 }
                                 (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
                                     self.structural_supertype_of(l, r, bounds, Some(lhs_variance))
@@ -3464,12 +3485,18 @@ impl Context {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_subtype(name)) {
                         self.structural_supertype_of(bound.t(), r, bounds, lhs_variance)
                     } else if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
-                        if self.formal_same_type_of(bound.t(), &Type::Type, bounds, lhs_variance) {
+                        if self.structural_same_type_of(
+                            bound.t(),
+                            &Type::Type,
+                            bounds,
+                            lhs_variance,
+                        ) {
                             true
                         } else {
                             todo!()
                         }
                     } else {
+                        log!("bs: {bs}\nname: {name}, r: {r}");
                         panic!("Unbound type variable: {name}")
                     }
                 } else {
@@ -3490,7 +3517,7 @@ impl Context {
     }
 
     /// lhs <: rhs?
-    pub(crate) fn formal_subtype_of(
+    pub(crate) fn structural_subtype_of(
         &self,
         lhs: &Type,
         rhs: &Type,
@@ -3500,7 +3527,7 @@ impl Context {
         self.structural_supertype_of(rhs, lhs, bounds, lhs_variance)
     }
 
-    pub(crate) fn formal_same_type_of(
+    pub(crate) fn structural_same_type_of(
         &self,
         lhs: &Type,
         rhs: &Type,
@@ -3508,10 +3535,10 @@ impl Context {
         lhs_variance: Option<&Vec<Variance>>,
     ) -> bool {
         self.structural_supertype_of(lhs, rhs, bounds, lhs_variance)
-            && self.formal_subtype_of(lhs, rhs, bounds, lhs_variance)
+            && self.structural_subtype_of(lhs, rhs, bounds, lhs_variance)
     }
 
-    fn try_cmp(
+    fn rec_try_cmp(
         &self,
         l: &TyParam,
         r: &TyParam,
@@ -3523,14 +3550,14 @@ impl Context {
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
                 if let Ok(l) = self.eval.eval_bin_tp(*op, lhs, rhs) {
-                    self.try_cmp(&l, r, bounds)
+                    self.rec_try_cmp(&l, r, bounds)
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.try_cmp(&*fv.crack(), p, bounds)
+                self.rec_try_cmp(&*fv.crack(), p, bounds)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.try_cmp(p, &*fv.crack(), bounds)
+                self.rec_try_cmp(p, &*fv.crack(), bounds)
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
@@ -3549,14 +3576,14 @@ impl Context {
             // try_cmp((n: -1.._), 1) -> Some(Any)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
                 let t = self.eval.get_tp_t(l, bounds, self).unwrap();
-                let inf = self.inf(&t);
-                let sup = self.sup(&t);
+                let inf = self.rec_inf(&t);
+                let sup = self.rec_sup(&t);
                 if let (Some(inf), Some(sup)) = (inf, sup) {
                     // (n: Int, 1) -> (-inf..inf, 1) -> (cmp(-inf, 1), cmp(inf, 1)) -> (Less, Greater) -> Any
                     // (n: 5..10, 2) -> (cmp(5..10, 2), cmp(5..10, 2)) -> (Greater, Greater) -> Greater
                     match (
-                        self.try_cmp(&inf, p, bounds).unwrap(),
-                        self.try_cmp(&sup, p, bounds).unwrap()
+                        self.rec_try_cmp(&inf, p, bounds).unwrap(),
+                        self.rec_try_cmp(&sup, p, bounds).unwrap()
                     ) {
                         (Less, Less) => Some(Less),
                         (Less, Equal) => Some(LessEqual),
@@ -3592,7 +3619,7 @@ impl Context {
                 } else { None }
             }
             (l, r @ (TyParam::Erased(_) | TyParam::MonoQVar(_) | TyParam::FreeVar(_))) =>
-                self.try_cmp(r, l, bounds).map(|ord| ord.reverse()),
+                self.rec_try_cmp(r, l, bounds).map(|ord| ord.reverse()),
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);
                 None
@@ -3619,7 +3646,7 @@ impl Context {
     }
 
     /// 和集合(A or B)を返す
-    fn union(&self, lhs: &Type, rhs: &Type) -> Type {
+    fn rec_union(&self, lhs: &Type, rhs: &Type) -> Type {
         match (
             self.rec_supertype_of(lhs, rhs),
             self.rec_subtype_of(lhs, rhs),
@@ -3643,7 +3670,7 @@ impl Context {
 
     fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
         if !self.structural_supertype_of(&lhs.t, &rhs.t, None, None)
-            && !self.formal_subtype_of(&lhs.t, &rhs.t, None, None)
+            && !self.structural_subtype_of(&lhs.t, &rhs.t, None, None)
         {
             log!("{lhs}\n{rhs}");
             todo!()
@@ -3669,7 +3696,7 @@ impl Context {
     /// assert is_super_pred({T >= 0}, {I == 0})
     /// assert !is_super_pred({I < 0}, {I == 0})
     /// ```
-    fn is_super_pred_of(
+    fn rec_is_super_pred_of(
         &self,
         lhs: &Predicate,
         rhs: &Predicate,
@@ -3687,28 +3714,32 @@ impl Context {
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                self.try_cmp(rhs, rhs2, bounds).unwrap().is_eq()
+                self.rec_try_cmp(rhs, rhs2, bounds).unwrap().is_eq()
             }
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },
                 Pred::GreaterEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2, bounds).unwrap().is_le(),
+            ) => self.rec_try_cmp(rhs, rhs2, bounds).unwrap().is_le(),
             (
                 Pred::LessEqual { rhs, .. },
                 Pred::LessEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2, bounds).unwrap().is_ge(),
+            ) => self.rec_try_cmp(rhs, rhs2, bounds).unwrap().is_ge(),
             (lhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. }), Pred::And(l, r)) => {
-                self.is_super_pred_of(lhs, l, bounds) || self.is_super_pred_of(lhs, r, bounds)
+                self.rec_is_super_pred_of(lhs, l, bounds)
+                    || self.rec_is_super_pred_of(lhs, r, bounds)
             }
             (lhs, Pred::Or(l, r)) => {
-                self.is_super_pred_of(lhs, l, bounds) && self.is_super_pred_of(lhs, r, bounds)
+                self.rec_is_super_pred_of(lhs, l, bounds)
+                    && self.rec_is_super_pred_of(lhs, r, bounds)
             }
             (Pred::Or(l, r), rhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. })) => {
-                self.is_super_pred_of(l, rhs, bounds) || self.is_super_pred_of(r, rhs, bounds)
+                self.rec_is_super_pred_of(l, rhs, bounds)
+                    || self.rec_is_super_pred_of(r, rhs, bounds)
             }
             (Pred::And(l, r), rhs) => {
-                self.is_super_pred_of(l, rhs, bounds) && self.is_super_pred_of(r, rhs, bounds)
+                self.rec_is_super_pred_of(l, rhs, bounds)
+                    && self.rec_is_super_pred_of(r, rhs, bounds)
             }
             (lhs, rhs) => todo!("{lhs}/{rhs}"),
         }
@@ -3743,7 +3774,7 @@ impl Context {
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
-    fn sup(&self, t: &Type) -> Option<TyParam> {
+    fn rec_sup(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Nat | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
@@ -3754,7 +3785,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(max) = &maybe_max {
-                                if self.try_cmp(rhs, max, None).unwrap() == Greater {
+                                if self.rec_try_cmp(rhs, max, None).unwrap() == Greater {
                                     maybe_max = Some(rhs.clone());
                                 }
                             } else {
@@ -3770,7 +3801,7 @@ impl Context {
         }
     }
 
-    fn inf(&self, t: &Type) -> Option<TyParam> {
+    fn rec_inf(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Float => Some(TyParam::value(-Inf)),
             Nat => Some(TyParam::value(0usize)),
@@ -3782,7 +3813,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(min) = &maybe_min {
-                                if self.try_cmp(rhs, min, None).unwrap() == Less {
+                                if self.rec_try_cmp(rhs, min, None).unwrap() == Less {
                                     maybe_min = Some(rhs.clone());
                                 }
                             } else {
@@ -3800,7 +3831,7 @@ impl Context {
 
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
-    fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    fn rec_min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (
             self.rec_supertype_of(lhs, rhs),
@@ -3812,12 +3843,38 @@ impl Context {
         }
     }
 
-    fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    fn rec_max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (
             self.rec_supertype_of(lhs, rhs),
             self.rec_subtype_of(lhs, rhs),
         ) {
+            (true, true) | (true, false) => Some(lhs),
+            (false, true) => Some(rhs),
+            (false, false) => None,
+        }
+    }
+
+    fn _rec_cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> TyParamOrdering {
+        match self.rec_min(lhs, rhs) {
+            Some(l) if l == lhs => TyParamOrdering::Less,
+            Some(_) => TyParamOrdering::Greater,
+            None => TyParamOrdering::NoRelation,
+        }
+    }
+
+    fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+        // 同じならどちらを返しても良い
+        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+            (true, true) | (true, false) => Some(rhs),
+            (false, true) => Some(lhs),
+            (false, false) => None,
+        }
+    }
+
+    fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+        // 同じならどちらを返しても良い
+        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),
             (false, true) => Some(rhs),
             (false, false) => None,
@@ -3833,20 +3890,53 @@ impl Context {
     }
 
     // TODO:
-    fn smallest_pair<I: Iterator<Item = (Type, Type)>>(&self, ts: I) -> Option<(Type, Type)> {
-        ts.min_by(|(_, lhs), (_, rhs)| {
-            // HACK: Equal for unrelated types
-            // This doesn't work with [Nat, Str, Int] for example
-            self.cmp_t(lhs, rhs).try_into().unwrap() // _or(Ordering::Equal)
-        })
+    fn smallest_pair<I: Iterator<Item = (Type, Trait)>>(
+        &self,
+        type_and_traits: I,
+    ) -> Option<(Type, Trait)> {
+        let mut type_and_traits = type_and_traits.collect::<Vec<_>>();
+        // Avoid heavy sorting as much as possible for efficiency
+        let mut cheap_sort_succeed = true;
+        type_and_traits.sort_by(|(_, lhs), (_, rhs)| match self.cmp_t(lhs, rhs).try_into() {
+            Ok(ord) => ord,
+            Err(_) => {
+                cheap_sort_succeed = false;
+                Ordering::Equal
+            }
+        });
+        let mut sorted = if cheap_sort_succeed {
+            type_and_traits
+        } else {
+            self.sort_type_pairs(type_and_traits.into_iter())
+        };
+        if sorted.first().is_some() {
+            Some(sorted.remove(0))
+        } else {
+            None
+        }
     }
 
     fn smallest_ref_t<'t, I: Iterator<Item = &'t Type>>(&self, ts: I) -> Option<&'t Type> {
-        ts.min_by(|lhs, rhs| {
-            // HACK: Equal for unrelated types
-            // This doesn't work with [Int, Str, Nat] for example
-            self.cmp_t(lhs, rhs).try_into().unwrap() //_or(Ordering::Equal)
-        })
+        let mut ts = ts.collect::<Vec<_>>();
+        // Avoid heavy sorting as much as possible for efficiency
+        let mut cheap_sort_succeed = true;
+        ts.sort_by(|lhs, rhs| match self.cmp_t(lhs, rhs).try_into() {
+            Ok(ord) => ord,
+            Err(_) => {
+                cheap_sort_succeed = false;
+                Ordering::Equal
+            }
+        });
+        let mut sorted = if cheap_sort_succeed {
+            ts
+        } else {
+            self.sort_types(ts.into_iter())
+        };
+        if sorted.first().is_some() {
+            Some(sorted.remove(0))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn get_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ValueObj> {
@@ -3873,7 +3963,7 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.t();
-        for ctx in self.sorted_type_ctxs(&self_t) {
+        for ctx in self.sorted_sup_type_ctxs(&self_t) {
             if let Ok(t) = ctx.get_local(name, namespace) {
                 return Ok(t);
             }
@@ -3914,7 +4004,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for ctx in self.rec_sorted_type_ctxs(self_t) {
+        for ctx in self.rec_sorted_sup_type_ctxs(self_t) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -3972,6 +4062,7 @@ impl Context {
     }
 
     /// Perform types linearization.
+    /// TODO: Current implementation may be very inefficient.
     ///
     /// C3 linearization requires prior knowledge of inter-type dependencies, and cannot be used for Erg structural subtype linearization
     ///
@@ -3980,23 +4071,23 @@ impl Context {
     /// [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]
-    /// // If related, put them in the same array; if not, put them in different arrays.
+    /// // 1. If related, put them in the same array; if not, put them in different arrays.
     /// => [[Int], [Str]], [Nat, Never, Obj, Str!, Module]
     /// => ...
-    /// => [[Int, Nat, Never, Obj]], [Str, Obj, Str!], [Module]]
-    /// // For each array, find a type from another array that can be put into the dependency and put it in
-    /// // Then, perform sorting on the arrays
-    /// => [[Never, Nat, Int, Obj], [Str!, Str, Obj], [Module, Obj]]
-    /// => [Never, Nat, Int, Obj, Str, Obj, Module, Obj]
-    /// // Remove duplicate types. Leave only the rightmost one
-    /// => [Never, Nat, Int, Str, Module, Obj]
+    /// => [[Int, Nat, Never, Obj]], [Str, Str!], [Module]]
+    /// // 2. Then, perform sorting on the arrays
+    /// => [[Never, Nat, Int, Obj], [Str!, Str], [Module]]
+    /// // 3. Concatenate the arrays
+    /// => [Never, Nat, Int, Obj, Str!, Str, Module]
+    /// // 4. From the left, "slide" types as far as it can.
+    /// => [Never, Nat, Int, Str!, Str, Module, Obj]
     /// ```
-    pub fn _type_sort<'a>(&self, _types: impl Iterator<Item = &'a Type>) -> Vec<Type> {
+    pub fn sort_types<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Vec<&'a Type> {
         let mut buffers: Vec<Vec<&Type>> = vec![];
-        for t in _types {
+        for t in types {
             let mut found = false;
             for buf in buffers.iter_mut() {
-                if buf.iter().all(|buf_inner| self.rec_related(buf_inner, t)) {
+                if buf.iter().all(|buf_inner| self.related(buf_inner, t)) {
                     found = true;
                     buf.push(t);
                     break;
@@ -4006,37 +4097,156 @@ impl Context {
                 buffers.push(vec![t]);
             }
         }
-        todo!()
+        for buf in buffers.iter_mut() {
+            // this unwrap should be safe
+            buf.sort_by(|lhs, rhs| self.cmp_t(lhs, rhs).try_into().unwrap());
+        }
+        let mut concatenated = buffers.into_iter().flatten().collect::<Vec<_>>();
+        let mut idx = 0;
+        let len = concatenated.len();
+        while let Some(maybe_sup) = concatenated.get(idx) {
+            if let Some(pos) = concatenated
+                .iter()
+                .take(len - idx - 1)
+                .rposition(|t| self.supertype_of(maybe_sup, t))
+            {
+                let sup = concatenated.remove(idx);
+                concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
+            }
+            idx += 1;
+        }
+        concatenated
     }
 
-    pub(crate) fn rec_sorted_type_ctxs<'a>(
+    // TODO: unify with type_sort
+    fn sort_type_ctxs<'a>(
+        &self,
+        type_and_ctxs: impl Iterator<Item = (&'a Type, &'a Context)>,
+    ) -> Vec<(&'a Type, &'a Context)> {
+        let mut buffers: Vec<Vec<(&Type, &Context)>> = vec![];
+        for t_ctx in type_and_ctxs {
+            let mut found = false;
+            for buf in buffers.iter_mut() {
+                if buf
+                    .iter()
+                    .all(|(buf_inner, _)| self.related(buf_inner, t_ctx.0))
+                {
+                    found = true;
+                    buf.push(t_ctx);
+                    break;
+                }
+            }
+            if !found {
+                buffers.push(vec![t_ctx]);
+            }
+        }
+        for buf in buffers.iter_mut() {
+            // this unwrap should be safe
+            buf.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs).try_into().unwrap());
+        }
+        let mut concatenated = buffers.into_iter().flatten().collect::<Vec<_>>();
+        let mut idx = 0;
+        let len = concatenated.len();
+        while let Some((maybe_sup, _)) = concatenated.get(idx) {
+            if let Some(pos) = concatenated
+                .iter()
+                .take(len - idx - 1)
+                .rposition(|(t, _)| self.supertype_of(maybe_sup, t))
+            {
+                let sup = concatenated.remove(idx);
+                concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
+            }
+            idx += 1;
+        }
+        concatenated
+    }
+
+    fn sort_type_pairs(
+        &self,
+        type_and_traits: impl Iterator<Item = (Type, Trait)>,
+    ) -> Vec<(Type, Trait)> {
+        let mut buffers: Vec<Vec<(Type, Trait)>> = vec![];
+        for t_trait in type_and_traits {
+            let mut found = false;
+            for buf in buffers.iter_mut() {
+                if buf
+                    .iter()
+                    .all(|(_, buf_inner)| self.related(buf_inner, &t_trait.0))
+                {
+                    found = true;
+                    buf.push(t_trait.clone());
+                    break;
+                }
+            }
+            if !found {
+                buffers.push(vec![t_trait]);
+            }
+        }
+        for buf in buffers.iter_mut() {
+            // this unwrap should be safe
+            buf.sort_by(|(_, lhs), (_, rhs)| self.cmp_t(lhs, rhs).try_into().unwrap());
+        }
+        let mut concatenated = buffers.into_iter().flatten().collect::<Vec<_>>();
+        let mut idx = 0;
+        let len = concatenated.len();
+        while let Some((_, maybe_sup)) = concatenated.get(idx) {
+            if let Some(pos) = concatenated
+                .iter()
+                .take(len - idx - 1)
+                .rposition(|(_, t)| self.supertype_of(maybe_sup, t))
+            {
+                let sup = concatenated.remove(idx);
+                concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
+            }
+            idx += 1;
+        }
+        concatenated
+    }
+
+    pub(crate) fn rec_sorted_sup_type_ctxs<'a>(
         &'a self,
         t: &'a Type,
     ) -> impl Iterator<Item = &'a Context> {
-        let i = self.sorted_type_ctxs(t);
+        let i = self.sorted_sup_type_ctxs(t);
         if i.size_hint().1 == Some(0) {
             if let Some(outer) = &self.outer {
-                return outer.sorted_type_ctxs(t);
+                return outer.sorted_sup_type_ctxs(t);
             }
         }
         i
     }
 
+    /// Return `Context`s equal to or greater than `t`
     /// tと一致ないしそれよりも大きい型のContextを返す
-    fn sorted_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = &'a Context> {
-        let mut ctxs = self._type_ctxs(t).collect::<Vec<_>>();
-        ctxs.sort_by(|(lhs, _), (rhs, _)| {
-            // HACK: Equal for unrelated types
-            // This doesn't work with [Int, Str, Nat] for example
-            self.cmp_t(lhs, rhs)
-                .try_into()
-                .unwrap_or_else(|_| panic!("{lhs}, {rhs}")) // _or(Ordering::Equal)
+    fn sorted_sup_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = &'a Context> {
+        let mut ctxs = self._sup_type_ctxs(t).collect::<Vec<_>>();
+        // Avoid heavy sorting as much as possible for efficiency
+        let mut cheap_sort_succeed = true;
+        ctxs.sort_by(|(lhs, _), (rhs, _)| match self.cmp_t(lhs, rhs).try_into() {
+            Ok(ord) => ord,
+            Err(_) => {
+                cheap_sort_succeed = false;
+                Ordering::Equal
+            }
         });
-        ctxs.into_iter().map(|(_, ctx)| ctx)
+        let sorted = if cheap_sort_succeed {
+            ctxs
+        } else {
+            self.sort_type_ctxs(ctxs.into_iter())
+        };
+        sorted.into_iter().map(|(_, ctx)| ctx)
+    }
+
+    fn _just_type_ctxs<'a>(&'a self, t: &'a Type) -> Option<(&'a Type, &'a Context)> {
+        self.types.iter().find(move |(maybe_sup, ctx)| {
+            let bounds = ctx.type_params_bounds();
+            let variance = ctx.type_params_variance();
+            self.structural_same_type_of(maybe_sup, t, Some(&bounds), Some(&variance))
+        })
     }
 
     /// this method is for `sorted_type_ctxs` only
-    fn _type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+    fn _sup_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = (&'a Type, &'a Context)> {
         self.types.iter().filter_map(move |(maybe_sup, ctx)| {
             let bounds = ctx.type_params_bounds();
             let variance = ctx.type_params_variance();
