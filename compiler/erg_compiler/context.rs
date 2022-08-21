@@ -43,21 +43,6 @@ use Visibility::*;
 type Trait = Type;
 
 /// ```
-/// [Int, Str, Nat, Never, Obj, Str!, Module]
-/// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
-/// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]
-/// => [[Int], [Str]], [Nat, Never, Obj, Str!, Module]
-/// => ...
-/// => [[Int, Nat, Never, Obj]], [Str, Obj, Str!], [Module]]
-/// => [[Never, Nat, Int, Obj], [Str!, Str, Obj], [Module, Obj]]
-/// => [Never, Nat, Int, Obj, Str, Obj, Module, Obj]
-/// => [Never, Nat, Int, Str, Module, Obj]
-/// ```
-pub fn type_sort(_types: Vec<Type>) -> Vec<Type> {
-    todo!()
-}
-
-/// ```
 /// TyParamIdx::new(Add(R, O), O) => Nth(1)
 /// TyParamIdx::new(Add(R, F(O, I)), O) => Nested(Nth(1), 0)
 /// ```
@@ -3162,6 +3147,10 @@ impl Context {
         self.rec_supertype_of(lhs, rhs) && self.rec_subtype_of(lhs, rhs)
     }
 
+    pub(crate) fn rec_related(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.rec_supertype_of(lhs, rhs) || self.rec_subtype_of(lhs, rhs)
+    }
+
     fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.structural_supertype_of(lhs, rhs, None, None) || self.nominal_supertype_of(lhs, rhs)
     }
@@ -3980,6 +3969,44 @@ impl Context {
                 line!(),
             )))
         }
+    }
+
+    /// Perform types linearization.
+    ///
+    /// C3 linearization requires prior knowledge of inter-type dependencies, and cannot be used for Erg structural subtype linearization
+    ///
+    /// Algorithm:
+    /// ```
+    /// [Int, Str, Nat, Never, Obj, Str!, Module]
+    /// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
+    /// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]
+    /// // If related, put them in the same array; if not, put them in different arrays.
+    /// => [[Int], [Str]], [Nat, Never, Obj, Str!, Module]
+    /// => ...
+    /// => [[Int, Nat, Never, Obj]], [Str, Obj, Str!], [Module]]
+    /// // For each array, find a type from another array that can be put into the dependency and put it in
+    /// // Then, perform sorting on the arrays
+    /// => [[Never, Nat, Int, Obj], [Str!, Str, Obj], [Module, Obj]]
+    /// => [Never, Nat, Int, Obj, Str, Obj, Module, Obj]
+    /// // Remove duplicate types. Leave only the rightmost one
+    /// => [Never, Nat, Int, Str, Module, Obj]
+    /// ```
+    pub fn _type_sort<'a>(&self, _types: impl Iterator<Item = &'a Type>) -> Vec<Type> {
+        let mut buffers: Vec<Vec<&Type>> = vec![];
+        for t in _types {
+            let mut found = false;
+            for buf in buffers.iter_mut() {
+                if buf.iter().all(|buf_inner| self.rec_related(buf_inner, t)) {
+                    found = true;
+                    buf.push(t);
+                    break;
+                }
+            }
+            if !found {
+                buffers.push(vec![t]);
+            }
+        }
+        todo!()
     }
 
     pub(crate) fn rec_sorted_type_ctxs<'a>(
