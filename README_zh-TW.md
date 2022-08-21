@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) 是一種靜態類型的語言，與Python兼容
+<br>這是[Erg](https://erg-lang.github.io/)的主要源代碼庫。它包含編譯器和文檔。
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
@@ -12,12 +12,13 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁體中文
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D5c72adfea103f3c099c4519d492b5b2e68aecce1)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=5c72adfea103f3c099c4519d492b5b2e68aecce1)
 
 ## Erg可以推薦給以下人員&colon;
 
-* 使用Python，但希望有類似Rust的健壯性和舒適的編譯器支持，然而，又不需要像Rust那樣的冗長的類型規範和內存管理模型
+* 希望有類似Rust的健壯性和舒適的編譯器支持，然而，又不需要像Rust那樣的冗長的類型規範和內存管理模型
+* 對Python不滿意，但無法下定決心放棄Python代碼資產
 * 希望有一個像ML那樣簡單而一致的語言
 * 希望有一個實用的通用語言，有依賴/反射類型
 * 想要一種像Scala一樣的語言，既面向對象，又使用函數式編程
