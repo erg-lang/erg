@@ -13,8 +13,8 @@
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | 简体中文 | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Dfbebeb9cb70df66f073d403e8b5441e97572622b)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=fbebeb9cb70df66f073d403e8b5441e97572622b)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -230,6 +230,8 @@ nix build
 
 如果您有任何疑问，请随时在 [Discord channel](https://discord.gg/zfAAUbgGr4) 上提问
 
-## [License](./LICENSE)
+## License
+        
+这个存储库的所有文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权，除了[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)使用CC-BY-4.0授权，可以在它们的根目录下看到许可证的拷贝
 
 关于第三方crates的制作人员，请参阅：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
