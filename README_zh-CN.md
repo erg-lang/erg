@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://erg-lang.github.io/) 是一种通用的静态类型语言，可以深度改善Python生态系统
+<br>这是[Erg](https://erg-lang.github.io/)的主要源代码库。它包含编译器和文档。
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
@@ -17,7 +17,8 @@
 
 ## Erg可以推荐给以下人员&colon;
 
-* 使用Python，但希望有类似Rust的健壮性和舒适的编译器支持，然而，又不需要像Rust那样的冗长的类型规范和内存管理模型
+* 希望有类似Rust的健壮性和舒适的编译器支持，然而，又不需要像Rust那样的冗长的类型规范和内存管理模型
+* 对Python不满意，但无法下定决心放弃Python代码资产
 * 希望有一个像ML那样简单而一致的语言
 * 希望有一个实用的通用语言，有依赖/反射类型
 * 想要一种像Scala一样的语言，既面向对象，又使用函数式编程
