@@ -228,7 +228,7 @@ nix build
 何かわからないことがあれば、[Discordチャンネル](https://discord.gg/zfAAUbgGr4)で気軽に質問してください。
 
 ## License
-       
-このリポジトリ内のすべてのファイルは、[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT) を使用してライセンス供与されます。ただし、[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)、[assets](./assets) を除きます。 ) および [doc](./doc) は CC-BY-4.0 の下でライセンスされており、ライセンスのコピーはルート ディレクトリで確認できます。
+
+[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)、[assets](./assets)、および [doc](./doc) フォルダー内のすべてのファイルは、CC-BY-4.0 でライセンスされています (ライセンスのコピーはルートディレクトリの下に表示されます）。 このリポジトリの残りのファイルは、[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT) でライセンスされています。
 
 サードパーティーの依存ライブラリのクレジットについては、[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md) (英語) をご覧ください。

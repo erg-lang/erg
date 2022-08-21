@@ -228,7 +228,7 @@ To get started with contributions, please look [CONTRIBUTING.md](https://github.
 If you have any questions, please feel free to ask them on the [Discord channel](https://discord.gg/zfAAUbgGr4).
 
 ## License
-        
-All files in this repository are licensed using [Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT), except [CODE_OF_CONDUCT](./CODE_OF_CONDUCT), [assets](./assets ) and [doc](./doc) are licensed under CC-BY-4.0, a copy of the license can be seen in their root directory
+
+All files in the [CODE_OF_CONDUCT](./CODE_OF_CONDUCT), [assets](./assets)and [doc](./doc) folders are licensed with CC-BY-4.0 (you can see the copy of the license in their root directory). The rest of the files in this repository are licensed with [Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT).
 
 For credits about third party crates, see [THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md).

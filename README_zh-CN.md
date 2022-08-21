@@ -231,7 +231,7 @@ nix build
 如果您有任何疑问，请随时在 [Discord channel](https://discord.gg/zfAAUbgGr4) 上提问
 
 ## License
-        
-这个存储库的所有文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权，除了[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)使用CC-BY-4.0授权，可以在它们的根目录下看到许可证的拷贝
+
+在此存储库[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)文件夹内的所有文件使用CC-BY-4.0授权（可以在它们的根目录下看到许可证的拷贝）其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权
 
 关于第三方crates的制作人员，请参阅：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
