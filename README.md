@@ -230,6 +230,6 @@ If you have any questions, please feel free to ask them on the [Discord channel]
 
 ## License
 
-All files in the [CODE_OF_CONDUCT](./CODE_OF_CONDUCT), [assets](./assets)and [doc](./doc) folders are licensed with CC-BY-4.0 (you can see the copy of the license in their root directory). The rest of the files in this repository are licensed with [Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT).
+All files in the [CODE_OF_CONDUCT](./CODE_OF_CONDUCT), [assets](./assets) and [doc](./doc) folders are licensed with [CC-BY-4.0](./doc/LICENSE). The rest of the files in this repository are licensed with [Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT).
 
 For credits about third party crates, see [THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md).
