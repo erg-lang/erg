@@ -1,6 +1,9 @@
 # Code of Conduct
 
 See [CODE_OF_CONDUCT](./CODE_OF_CONDUCT) Folder.
+
 [CODE_OF_CONDUCT](./CODE_ OF_CONDUCT)フォルダを参照してください。
+
 参见[CODE_OF_CONDUCT](./CODE_ OF_CONDUCT)文件夹
+
 參見[CODE_OF_CONDUCT](./CODE_ OF_CONDUCT)資料夾
