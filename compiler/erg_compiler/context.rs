@@ -1731,6 +1731,21 @@ impl Context {
                 subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
                 Ok(Type::Subr(subr))
             }
+            Type::Ref(t) => {
+                let t = self.deref_tyvar(*t)?;
+                Ok(Type::ref_(t))
+            }
+            Type::RefMut(t) => {
+                let t = self.deref_tyvar(*t)?;
+                Ok(Type::ref_mut(t))
+            }
+            Type::Callable { .. } => todo!(),
+            Type::Record(_) => todo!(),
+            Type::Refinement(refine) => {
+                let t = self.deref_tyvar(*refine.t)?;
+                // TODO: deref_predicate
+                Ok(Type::refinement(refine.var, t, refine.preds))
+            }
             t => Ok(t),
         }
     }
