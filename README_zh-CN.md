@@ -7,13 +7,14 @@
 <br>这是[Erg](https://erg-lang.github.io/)的主要源代码库。它包含编译器和文档。
 
 <p align='center'>
-    <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
-    <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: MIT & APACHE 2.0" src="https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue"></a><br>
+    <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg">
+    <a href="https://github.com/erg-lang/erg/actions/workflows/rust.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
+<br>
     <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | 简体中文 | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D453207e47652dcf10a715ae9531d5cddbadb36d2)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=453207e47652dcf10a715ae9531d5cddbadb36d2)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -230,10 +231,8 @@ nix build
 
 如果您有任何疑问，请随时在 [Discord channel](https://discord.gg/zfAAUbgGr4) 上提问
 
-## 许可证
+## License
 
-Erg 根据 MIT 许可证和 Apache 许可证（版本 2.0）的条款分发
-
-有关详细信息，请参阅： [LICENSE-APACHE](./LICENSE-APACHE), [LICENSE-MIT](./LICENSE-MIT)
+在此存储库[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)文件夹内的所有文件使用CC-BY-4.0授权（可以在它们的根目录下看到许可证的拷贝）其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权
 
 关于第三方crates的制作人员，请参阅：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）

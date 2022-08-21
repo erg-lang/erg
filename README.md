@@ -7,8 +7,9 @@
 <br>This is the main source code repository for [Erg](https://erg-lang.github.io/). This contains the compiler and documentation.
 
 <p align='center'>
-    <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
-    <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: MIT & APACHE 2.0" src="https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue"></a><br>
+    <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg">
+    <a href="https://github.com/erg-lang/erg/actions/workflows/rust.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
+<br>
     English | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
@@ -229,7 +230,6 @@ If you have any questions, please feel free to ask them on the [Discord channel]
 
 ## License
 
-Erg is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
-See [LICENSE-APACHE](./LICENSE-APACHE), [LICENSE-MIT](./LICENSE-MIT) for details.
+All files in the [CODE_OF_CONDUCT](./CODE_OF_CONDUCT), [assets](./assets)and [doc](./doc) folders are licensed with CC-BY-4.0 (you can see the copy of the license in their root directory). The rest of the files in this repository are licensed with [Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT).
 
 For credits about third party crates, see [THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md).
