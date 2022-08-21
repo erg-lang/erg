@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>[Erg](https://mtshiba.github.io/TheErgBook)はPython互換の静的型付け言語です。
+<br>こちらは[Erg](https://mtshiba.github.io/TheErgBook)のメインリポジトリです。コンパイラとドキュメントが置かれています。
 
 <p align='center'>
     <img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg">
@@ -12,13 +12,14 @@
     <a href='./README.md'>English</a> | 日本語 | <a href='./README_zh-CN.md'>简体中文</a> | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=9d60fe14f2a6e9867c51c1f254831a28ec2f3b2b)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=92ace1bbe6cf0e8e8ebf0cbb80f2ea4410f5d366)
 
 ## Ergはこんな人におすすめです&#58;
 
-* Pythonを使用しているが、Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい
+* Rustのような静的型付き言語で堅牢かつ快適にコーディングしたい
 * しかし、煩雑な型定義やメモリ管理は避けたい
+* Pythonに不満があるが、Pythonのコード資産を捨てきる決心が付かない
 * MLのようにシンプルで一貫性のある言語を使いたい
 * 依存型/篩型を持つ実用的な汎用言語を使いたい
 * Scalaのように関数型とオブジェクト指向が高度に融合された言語を使いたい

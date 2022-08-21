@@ -274,6 +274,7 @@ impl Attribute {
     }
 }
 
+/// e.g. obj.0, obj.1
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TupleAttribute {
     pub obj: Box<Expr>,
