@@ -50,12 +50,15 @@ type Trait = Type;
 /// let o = Type::mono_q("O");
 /// let search_from = Type::poly("Add", vec![TyParam::t(r.clone()), TyParam::t(o.clone())]);
 /// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::Nth(1)));
-/// // TyParamIdx::new(Add(R, F(O, I)), O) => Nested(Nth(1), 0)
+/// let i = Type::mono_q("I");
+/// let f = Type::poly("F", vec![TyParam::t(o.clone()), TyParam::t(i.clone())]);
+/// let search_from = Type::poly("Add", vec![TyParam::t(r), TyParam::t(f)]);
+/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::nested(1, TyParamIdx::Nth(0))));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyParamIdx {
     Nth(usize),
-    Nested(Box<TyParamIdx>, usize),
+    Nested { idx: usize, inner: Box<TyParamIdx> },
 }
 
 impl TyParamIdx {
@@ -66,6 +69,11 @@ impl TyParamIdx {
                     match tp {
                         TyParam::Type(t) if t.rec_eq(target) => return Some(Self::Nth(i)),
                         TyParam::Type(t) if t.is_monomorphic() => {}
+                        TyParam::Type(inner) => {
+                            if let Some(inner) = Self::search(&inner, target) {
+                                return Some(Self::nested(i, inner));
+                            }
+                        }
                         other => todo!("{other:?}"),
                     }
                 }
@@ -88,7 +96,14 @@ impl TyParamIdx {
                     _ => todo!(),
                 }
             }
-            Self::Nested(_, _) => todo!(),
+            Self::Nested { .. } => todo!(),
+        }
+    }
+
+    pub fn nested(idx: usize, inner: Self) -> Self {
+        Self::Nested {
+            idx,
+            inner: Box::new(inner),
         }
     }
 }
