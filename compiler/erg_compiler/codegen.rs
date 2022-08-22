@@ -233,9 +233,9 @@ fn escape_name(ident: Identifier) -> Str {
     name = name.replace('!', "__erg_proc");
     name = name.replace('$', "__erg_shared");
     if vis.is_public() || is_python_global(&name) {
-        Str::rc(&name)
+        Str::from(name)
     } else {
-        Str::from("__".to_string() + &name)
+        Str::from("::".to_string() + &name)
     }
 }
 
