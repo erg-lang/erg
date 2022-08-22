@@ -230,8 +230,8 @@ fn convert_to_python_name(name: Str) -> Str {
 fn escape_name(ident: Identifier) -> Str {
     let vis = ident.vis();
     let mut name = convert_to_python_name(ident.name.into_token().content).to_string();
-    name = name.replace('!', "__erg_proc");
-    name = name.replace('$', "__erg_shared");
+    name = name.replace('!', "__erg_proc__");
+    name = name.replace('$', "__erg_shared__");
     if vis.is_public() || is_python_global(&name) {
         Str::from(name)
     } else {
