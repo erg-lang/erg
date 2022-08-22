@@ -1739,6 +1739,10 @@ impl Context {
                 let t = self.deref_tyvar(*t)?;
                 Ok(Type::ref_mut(t))
             }
+            Type::VarArgs(t) => {
+                let t = self.deref_tyvar(*t)?;
+                Ok(Type::var_args(t))
+            }
             Type::Callable { .. } => todo!(),
             Type::Record(_) => todo!(),
             Type::Refinement(refine) => {
@@ -1851,6 +1855,95 @@ impl Context {
             self.reunify(receiver_t, after, Some(callee.loc()), None)?;
         }
         Ok(())
+    }
+
+    /// Replace monomorphised trait with concrete type
+    /// Return Err if already concrete
+    /// 単相化されたトレイトを具体的な型に置換する
+    /// 既に具体的な型の場合はErrを返す
+    /// ```
+    /// instantiate_trait(Add(Int)) => Ok(Int)
+    /// instantiate_trait(Array(Add(Int), 2)) => Ok(Array(Int, 2))
+    /// instantiate_trait(Array(Int, 2)) => Err(Array(Int, 2))
+    /// instantiate_trait(Int) => Err(Int)
+    /// ```
+    fn instantiate_trait(&self, generic: Type) -> Result<Type, Type> {
+        match generic {
+            Type::Poly{ name, params } => {
+                let t_name = name.clone();
+                let t_params = params.clone();
+                let t = Type::Poly { name, params };
+                let mut min = Type::Never;
+                for (concrete_t, concrete_trait) in self.rec_get_poly_trait_impls(&t_name) {
+                    if self.rec_supertype_of(&concrete_trait, &t) {
+                        min = self.rec_min(&min, &concrete_t).unwrap_or(&min).clone();
+                    }
+                }
+                if min == Type::Never {
+                    // may be `Array(Add(Int), 2)`, etc.
+                    let mut instantiated = false;
+                    let mut new_params = Vec::with_capacity(t_params.len());
+                    for param in t_params.into_iter() {
+                        match param {
+                            TyParam::Type(t) => {
+                                match self.instantiate_trait(*t) {
+                                    Ok(concrete) => {
+                                        instantiated = true;
+                                        new_params.push(TyParam::t(concrete));
+                                    }
+                                    Err(param) => { new_params.push(TyParam::t(param)); },
+                                }
+                            }
+                            other => { new_params.push(other); },
+                        }
+                    }
+                    if instantiated {
+                        Ok(Type::poly(t_name, new_params))
+                    } else {
+                        Err(t)
+                    }
+                } else {
+                    Ok(min)
+                }
+            }
+            Type::Subr(subr) => {
+                let mut instantiated = false;
+                let mut new_non_default_params = Vec::with_capacity(subr.non_default_params.len());
+                for param in subr.non_default_params.into_iter() {
+                    match self.instantiate_trait(param.ty) {
+                        Ok(t) => {
+                            instantiated = true;
+                            new_non_default_params.push(ParamTy::new(param.name, t));
+                        }
+                        Err(other) => { new_non_default_params.push(ParamTy::new(param.name, other)); },
+                    }
+                }
+                let mut new_default_params = Vec::with_capacity(subr.default_params.len());
+                for param in subr.default_params.into_iter() {
+                    match self.instantiate_trait(param.ty) {
+                        Ok(t) => {
+                            instantiated = true;
+                            new_default_params.push(ParamTy::new(param.name, t));
+                        }
+                        Err(other) => { new_default_params.push(ParamTy::new(param.name, other)); },
+                    }
+                }
+                let new_return_t = match self.instantiate_trait(*subr.return_t) {
+                    Ok(t) => {
+                        instantiated = true;
+                        t
+                    }
+                    Err(other) => other,
+                };
+                let t = Type::subr(subr.kind, new_non_default_params, new_default_params, new_return_t);
+                if instantiated {
+                    Ok(t)
+                } else {
+                    Err(t)
+                }
+            }
+            other => Err(other),
+        }
     }
 
     fn _occur(&self, _t: Type) -> TyCheckResult<Type> {
@@ -3061,6 +3154,11 @@ impl Context {
         log!("Substituted:\ninstance: {instance}");
         let res = self.deref_tyvar(instance)?;
         log!("Derefed:\nres: {res}\n");
+        let res = match self.instantiate_trait(res) {
+            Ok(t) => t,
+            Err(e) => e,
+        };
+        log!("Trait instantiated:\nres: {res}\n");
         let res = self.eval.eval_t_params(res, &self, self.level)?;
         log!("Params Evaluated:\nres: {res}\n");
         let res = self.deref_tyvar(res)?;
@@ -3465,33 +3563,37 @@ impl Context {
             (
                 Poly {
                     name: ln,
-                    params: lp,
+                    params: lps,
                 },
                 Poly {
                     name: rn,
-                    params: rp,
+                    params: rps,
                 },
             ) => {
                 if let Some(lhs_variance) = lhs_variance {
                     ln == rn
-                        && lp.len() == rp.len()
-                        && lp.iter().zip(rp.iter()).zip(lhs_variance.iter()).all(
-                            |((l, r), variance)| match (l, r, variance) {
+                        && lps.len() == rps.len()
+                        && lps.iter().zip(rps.iter()).zip(lhs_variance.iter()).all(
+                            |((lp, rp), variance)| match (lp, rp, variance) {
                                 (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
                                     self.structural_subtype_of(l, r, bounds, Some(lhs_variance))
                                 }
                                 (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
+                                    log!("{l}, {r}");
                                     self.structural_supertype_of(l, r, bounds, Some(lhs_variance))
                                 }
-                                _ => self.eq_tp(l, r, bounds, Some(lhs_variance)),
+                                // Invariant
+                                _ => {
+                                    self.eq_tp(lp, rp, bounds, Some(lhs_variance))
+                                },
                             },
                         )
                 } else {
                     ln == rn
-                        && lp.len() == rp.len()
-                        && lp
+                        && lps.len() == rps.len()
+                        && lps
                             .iter()
-                            .zip(rp.iter())
+                            .zip(rps.iter())
                             .all(|(l, r)| self.eq_tp(l, r, bounds, None))
                 }
             }
@@ -3518,11 +3620,27 @@ impl Context {
                     panic!("No quantification")
                 }
             }
-            (_l, MonoQVar(_name)) => {
-                if let Some(_bounds) = bounds {
-                    todo!()
+            (l, MonoQVar(name)) => {
+                if let Some(bs) = bounds {
+                    if let Some(bound) = bs.iter().find(|b| b.mentions_as_subtype(name)) {
+                        self.structural_supertype_of(l, bound.t(), bounds, lhs_variance)
+                    } else if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
+                        if self.structural_same_type_of(
+                            bound.t(),
+                            &Type::Type,
+                            bounds,
+                            lhs_variance,
+                        ) {
+                            true
+                        } else {
+                            todo!()
+                        }
+                    } else {
+                        log!("bs: {bs}\nl: {l}, name: {name}");
+                        panic!("Unbound type variable: {name}")
+                    }
                 } else {
-                    todo!()
+                    panic!("No quantification")
                 }
             }
             (PolyQVar { .. }, _r) => todo!(),
@@ -4271,6 +4389,23 @@ impl Context {
                 None
             }
         })
+    }
+
+    fn rec_get_poly_trait_impls(&self, name: &Str) -> Vec<(Type, Type)> {
+        let current = if let Some(impls) = self.poly_trait_impls.get(name) {
+            impls.clone()
+        } else {
+            vec![]
+        };
+        if let Some(outer) = &self.outer {
+            [
+                current,
+                outer.rec_get_poly_trait_impls(name),
+            ]
+            .concat()
+        } else {
+            current
+        }
     }
 
     fn rec_get_glue_patch_and_types(&self) -> Vec<(VarName, Type, Type)> {

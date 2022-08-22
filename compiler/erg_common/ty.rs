@@ -1405,6 +1405,10 @@ impl ParamTy {
         Self { name, ty }
     }
 
+    pub const fn named(name: Str, ty: Type) -> Self {
+        Self { name: Some(name), ty }
+    }
+
     pub const fn anonymous(ty: Type) -> Self {
         Self::new(None, ty)
     }
