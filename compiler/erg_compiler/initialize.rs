@@ -11,7 +11,7 @@ use Type::*;
 
 use erg_parser::ast::VarName;
 
-use crate::context::{ConstTemplate, Context, DefaultInfo, ParamSpec};
+use crate::context::{ConstTemplate, Context, ContextKind, DefaultInfo, ParamSpec};
 use crate::varinfo::{Mutability, VarInfo, VarKind, Visibility};
 use DefaultInfo::*;
 use Mutability::*;
@@ -920,5 +920,17 @@ impl Context {
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();
         ctx
+    }
+
+    pub fn new_root_module() -> Self {
+        Context::new(
+            "<module>".into(),
+            ContextKind::Module,
+            vec![],
+            Some(Context::init_builtins()),
+            vec![],
+            vec![],
+            Context::TOP_LEVEL,
+        )
     }
 }

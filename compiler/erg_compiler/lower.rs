@@ -30,15 +30,7 @@ pub struct ASTLowerer {
 impl ASTLowerer {
     pub fn new() -> Self {
         Self {
-            ctx: Context::new(
-                "<module>".into(),
-                ContextKind::Module,
-                vec![],
-                Some(Context::init_builtins()),
-                vec![],
-                vec![],
-                Context::TOP_LEVEL,
-            ),
+            ctx: Context::new_root_module(),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }

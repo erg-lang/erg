@@ -1869,7 +1869,7 @@ impl Context {
     /// ```
     fn instantiate_trait(&self, generic: Type) -> Result<Type, Type> {
         match generic {
-            Type::Poly{ name, params } => {
+            Type::Poly { name, params } => {
                 let t_name = name.clone();
                 let t_params = params.clone();
                 let t = Type::Poly { name, params };
@@ -1885,16 +1885,18 @@ impl Context {
                     let mut new_params = Vec::with_capacity(t_params.len());
                     for param in t_params.into_iter() {
                         match param {
-                            TyParam::Type(t) => {
-                                match self.instantiate_trait(*t) {
-                                    Ok(concrete) => {
-                                        instantiated = true;
-                                        new_params.push(TyParam::t(concrete));
-                                    }
-                                    Err(param) => { new_params.push(TyParam::t(param)); },
+                            TyParam::Type(t) => match self.instantiate_trait(*t) {
+                                Ok(concrete) => {
+                                    instantiated = true;
+                                    new_params.push(TyParam::t(concrete));
                                 }
+                                Err(param) => {
+                                    new_params.push(TyParam::t(param));
+                                }
+                            },
+                            other => {
+                                new_params.push(other);
                             }
-                            other => { new_params.push(other); },
                         }
                     }
                     if instantiated {
@@ -1915,7 +1917,9 @@ impl Context {
                             instantiated = true;
                             new_non_default_params.push(ParamTy::new(param.name, t));
                         }
-                        Err(other) => { new_non_default_params.push(ParamTy::new(param.name, other)); },
+                        Err(other) => {
+                            new_non_default_params.push(ParamTy::new(param.name, other));
+                        }
                     }
                 }
                 let mut new_default_params = Vec::with_capacity(subr.default_params.len());
@@ -1925,7 +1929,9 @@ impl Context {
                             instantiated = true;
                             new_default_params.push(ParamTy::new(param.name, t));
                         }
-                        Err(other) => { new_default_params.push(ParamTy::new(param.name, other)); },
+                        Err(other) => {
+                            new_default_params.push(ParamTy::new(param.name, other));
+                        }
                     }
                 }
                 let new_return_t = match self.instantiate_trait(*subr.return_t) {
@@ -1935,7 +1941,12 @@ impl Context {
                     }
                     Err(other) => other,
                 };
-                let t = Type::subr(subr.kind, new_non_default_params, new_default_params, new_return_t);
+                let t = Type::subr(
+                    subr.kind,
+                    new_non_default_params,
+                    new_default_params,
+                    new_return_t,
+                );
                 if instantiated {
                     Ok(t)
                 } else {
@@ -3583,9 +3594,7 @@ impl Context {
                                     self.structural_supertype_of(l, r, bounds, Some(lhs_variance))
                                 }
                                 // Invariant
-                                _ => {
-                                    self.eq_tp(lp, rp, bounds, Some(lhs_variance))
-                                },
+                                _ => self.eq_tp(lp, rp, bounds, Some(lhs_variance)),
                             },
                         )
                 } else {
@@ -4398,11 +4407,7 @@ impl Context {
             vec![]
         };
         if let Some(outer) = &self.outer {
-            [
-                current,
-                outer.rec_get_poly_trait_impls(name),
-            ]
-            .concat()
+            [current, outer.rec_get_poly_trait_impls(name)].concat()
         } else {
             current
         }
@@ -4494,5 +4499,23 @@ impl Context {
             }
         }
         Ok(())
+    }
+}
+
+// test methods
+impl Context {
+    pub fn test_refinement_subtyping(&self) -> Result<(), ()> {
+        let lhs = Nat;
+        let var = Str::ever("I");
+        let rhs = Type::refinement(
+            var.clone(),
+            Type::Nat,
+            set! { Predicate::eq(var, TyParam::value(1)) },
+        );
+        if self.rec_supertype_of(&lhs, &rhs) {
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 }
