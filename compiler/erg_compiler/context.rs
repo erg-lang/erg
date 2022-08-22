@@ -1793,7 +1793,7 @@ impl Context {
                     hir::Accessor::Attr(attr) => {
                         self.deref_expr_t(&mut attr.obj)?;
                     }
-                    hir::Accessor::Local(_) => {}
+                    hir::Accessor::Local(_) | hir::Accessor::Public(_) => {}
                     _ => todo!(),
                 }
                 Ok(())
@@ -3048,12 +3048,27 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_var_t(&self, name: &Token, namespace: &Str) -> TyCheckResult<Type> {
+    pub(crate) fn get_var_t(
+        &self,
+        name: &Token,
+        vis: Visibility,
+        namespace: &Str,
+    ) -> TyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&name.inspect()[..]) {
-            Ok(vi.t())
+            if vi.vis == vis {
+                Ok(vi.t())
+            } else {
+                Err(TyCheckError::visibility_error(
+                    line!() as usize,
+                    name.loc(),
+                    namespace.clone(),
+                    name.inspect(),
+                    vi.vis,
+                ))
+            }
         } else {
             if let Some(parent) = self.outer.as_ref() {
-                return parent.get_var_t(name, namespace);
+                return parent.get_var_t(name, vis, namespace);
             }
             Err(TyCheckError::no_var_error(
                 line!() as usize,
@@ -3078,13 +3093,13 @@ impl Context {
             Type::Record(_) => todo!(),
             Module => {
                 let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
-                let t = mod_ctx.get_var_t(name, namespace)?;
+                let t = mod_ctx.get_var_t(name, Public, namespace)?;
                 return Ok(t);
             }
             _ => {}
         }
         for ctx in self.rec_sorted_sup_type_ctxs(&self_t) {
-            if let Ok(t) = ctx.get_var_t(name, namespace) {
+            if let Ok(t) = ctx.get_var_t(name, Public, namespace) {
                 return Ok(t);
             }
         }
@@ -3129,7 +3144,7 @@ impl Context {
         } else {
             if obj.ref_t().rec_eq(&ASTOmitted) {
                 let local = enum_unwrap!(obj, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
-                self.get_var_t(&local.name, namespace)
+                self.get_var_t(&local.name, Private, namespace)
             } else {
                 Ok(obj.t())
             }

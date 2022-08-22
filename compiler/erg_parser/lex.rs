@@ -425,7 +425,11 @@ impl Lexer /*<'a>*/ {
                     } else {
                         // IntLit * Symbol(e.g. 3x + 1)
                         let token = self.emit_token(Illegal, &(num + &c.to_string()));
-                        return Err(LexError::feature_error(0, token.loc(), "*-less multiply"));
+                        return Err(LexError::feature_error(
+                            line!() as usize,
+                            token.loc(),
+                            "*-less multiply",
+                        ));
                     }
                 }
                 _ => {

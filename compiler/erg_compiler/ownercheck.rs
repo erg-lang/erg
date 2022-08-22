@@ -120,6 +120,26 @@ impl OwnershipChecker {
                     self.drop(local.inspect(), expr.loc());
                 }
             }
+            Expr::Accessor(Accessor::Public(public)) => {
+                for n in 0..self.path_stack.len() {
+                    if let Some(moved_loc) =
+                        self.nth_outer_scope(n).dropped_vars.get(public.inspect())
+                    {
+                        let moved_loc = *moved_loc;
+                        self.errs.push(OwnershipError::move_error(
+                            line!() as usize,
+                            public.inspect(),
+                            public.loc(),
+                            moved_loc,
+                            self.full_path(),
+                        ));
+                    }
+                }
+                if expr.ref_t().is_mut() && ownership.is_owned() {
+                    log!("dropped: {}", public.inspect());
+                    self.drop(public.inspect(), expr.loc());
+                }
+            }
             Expr::Accessor(Accessor::Attr(a)) => {
                 if a.ref_t().is_mut() {
                     todo!("ownership checking {a}")

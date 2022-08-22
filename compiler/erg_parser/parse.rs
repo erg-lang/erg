@@ -653,7 +653,18 @@ impl Parser {
         debug_call_info!(self);
         let mut acc = match self.peek() {
             Some(t) if t.is(Symbol) => Accessor::local(self.lpop()),
-            // TODO: SelfDot
+            Some(t) if t.is(Dot) => {
+                let dot = self.lpop();
+                let maybe_symbol = self.lpop();
+                if maybe_symbol.is(Symbol) {
+                    Accessor::public(dot, maybe_symbol)
+                } else {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
+            }
             _ => {
                 self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1842,8 +1853,11 @@ impl Parser {
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
                 self.level -= 1;
-                self.errs
-                    .push(ParseError::feature_error(0, token.loc(), "discard pattern"));
+                self.errs.push(ParseError::feature_error(
+                    line!() as usize,
+                    token.loc(),
+                    "discard pattern",
+                ));
                 Err(())
             }
             _other => {

@@ -1026,11 +1026,17 @@ impl CodeGenerator {
             Expr::Lit(lit) => {
                 self.emit_load_const(lit.data);
             }
-            Expr::Accessor(Accessor::Local(l)) => {
-                self.emit_load_name_instr(Identifier::new(None, VarName::new(l.name)))
+            Expr::Accessor(Accessor::Local(local)) => {
+                self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
                     .unwrap_or_else(|err| {
                         self.errs.push(err);
                     });
+            }
+            Expr::Accessor(Accessor::Public(public)) => {
+                let ident = Identifier::new(Some(public.dot), VarName::new(public.name));
+                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
+                    self.errs.push(err);
+                });
             }
             Expr::Accessor(Accessor::Attr(a)) => {
                 let class = Str::rc(a.obj.ref_t().name());
@@ -1180,7 +1186,7 @@ impl CodeGenerator {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),
                     other.loc(),
-                    "",
+                    "???",
                     "".into(),
                 ));
                 self.crash("cannot compile this expression at this time");

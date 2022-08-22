@@ -290,6 +290,60 @@ impl Local {
 }
 
 #[derive(Debug, Clone)]
+pub struct Public {
+    pub dot: Token,
+    pub name: Token,
+    /// オブジェクト自身の名前
+    __name__: Option<Str>,
+    t: Type,
+}
+
+impl fmt::Display for Public {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let __name__ = if let Some(__name__) = self.__name__() {
+            format!("(__name__ = {__name__})")
+        } else {
+            "".to_string()
+        };
+        if self.t != Type::ASTOmitted {
+            write!(f, ".{} (: {}){}", self.name.content, self.t, __name__)
+        } else {
+            write!(f, ".{}{}", self.name.content, __name__)
+        }
+    }
+}
+
+impl_t!(Public);
+
+impl Locational for Public {
+    #[inline]
+    fn loc(&self) -> Location {
+        Location::concat(&self.dot, &self.name)
+    }
+}
+
+impl Public {
+    pub const fn new(dot: Token, name: Token, __name__: Option<Str>, t: Type) -> Self {
+        Self {
+            dot,
+            name,
+            __name__,
+            t,
+        }
+    }
+
+    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
+    #[inline]
+    pub fn inspect(&self) -> &Str {
+        &self.name.content
+    }
+
+    pub const fn __name__(&self) -> Option<&Str> {
+        self.__name__.as_ref()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Attribute {
     pub obj: Box<Expr>,
     pub name: Token,
@@ -344,7 +398,7 @@ impl Subscript {
 #[derive(Debug, Clone)]
 pub enum Accessor {
     Local(Local),
-    SelfDot(Local),
+    Public(Public),
     Attr(Attribute),
     Subscr(Subscript),
 }
@@ -353,7 +407,7 @@ impl NestedDisplay for Accessor {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Local(name) => write!(f, "{}", name),
-            Self::SelfDot(attr) => write!(f, ".{}", attr),
+            Self::Public(name) => write!(f, "{}", name),
             Self::Attr(attr) => write!(f, "{}", attr),
             Self::Subscr(subscr) => write!(f, "{}", subscr),
         }
@@ -361,16 +415,16 @@ impl NestedDisplay for Accessor {
 }
 
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, SelfDot, Attr, Subscr);
-impl_t_for_enum!(Accessor; Local, SelfDot, Attr, Subscr);
+impl_locational_for_enum!(Accessor; Local, Public, Attr, Subscr);
+impl_t_for_enum!(Accessor; Local, Public, Attr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token, t: Type) -> Self {
         Self::Local(Local::new(symbol, None, t))
     }
 
-    pub const fn self_dot(name: Token, t: Type) -> Self {
-        Self::SelfDot(Local::new(name, None, t))
+    pub const fn public(dot: Token, name: Token, t: Type) -> Self {
+        Self::Public(Public::new(dot, name, None, t))
     }
 
     pub fn attr(obj: Expr, name: Token, t: Type) -> Self {
@@ -388,14 +442,15 @@ impl Accessor {
                 .obj
                 .var_full_name()
                 .map(|n| n + "." + readable_name(attr.name.inspect())),
-            Self::Subscr(_) | Self::SelfDot(_) => todo!(),
+            Self::Subscr(_) | Self::Public(_) => todo!(),
         }
     }
 
     // 参照するオブジェクト自体が持っている固有の名前
     pub fn __name__(&self) -> Option<&str> {
         match self {
-            Self::Local(local) | Self::SelfDot(local) => local.__name__().map(|s| &s[..]),
+            Self::Local(local) => local.__name__().map(|s| &s[..]),
+            Self::Public(public) => public.__name__().map(|s| &s[..]),
             _ => None,
         }
     }

@@ -179,13 +179,26 @@ impl ASTLowerer {
             ast::Accessor::Local(n) => {
                 let (t, __name__) = if check {
                     (
-                        self.ctx.get_var_t(&n.symbol, &self.ctx.name)?,
+                        self.ctx.get_var_t(&n.symbol, Private, &self.ctx.name)?,
                         self.ctx.get_local_uniq_obj_name(&n.symbol),
                     )
                 } else {
                     (Type::ASTOmitted, None)
                 };
                 let acc = hir::Accessor::Local(hir::Local::new(n.symbol, __name__, t));
+                Ok(acc)
+            }
+            ast::Accessor::Public(n) => {
+                let (t, __name__) = if check {
+                    (
+                        self.ctx.get_var_t(&n.symbol, Public, &self.ctx.name)?,
+                        self.ctx.get_local_uniq_obj_name(&n.symbol),
+                    )
+                } else {
+                    (Type::ASTOmitted, None)
+                };
+                let public = hir::Public::new(n.dot, n.symbol, __name__, t);
+                let acc = hir::Accessor::Public(public);
                 Ok(acc)
             }
             ast::Accessor::Attr(a) => {

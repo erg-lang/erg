@@ -6,6 +6,7 @@ use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::{Locational, Stream};
 use erg_common::ty::{Predicate, Type};
+use erg_common::value::Visibility;
 use erg_common::{fmt_iter, Str};
 use erg_common::{impl_stream_for_wrapper, switch_lang};
 
@@ -898,6 +899,46 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 None,
             ),
             caused_by.into(),
+        )
+    }
+
+    pub fn visibility_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        name: &str,
+        vis: Visibility,
+    ) -> Self {
+        let name = readable_name(name);
+        let visibility = if vis.is_private() {
+            switch_lang!(
+                "japanese" => "非公開",
+                "simplified_chinese" => "私有",
+                "traditional_chinese" => "私有",
+                "english" => "private",
+            )
+        } else {
+            switch_lang!(
+                "japanese" => "公開",
+                "simplified_chinese" => "公有",
+                "traditional_chinese" => "公有",
+                "english" => "public",
+            )
+        };
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),
+                    "simplified_chinese" => format!("{RED}{name}{RESET}是{visibility}变量",),
+                    "traditional_chinese" => format!("{RED}{name}{RESET}是{visibility}變量",),
+                    "english" => format!("{RED}{name}{RESET} is {visibility} variable",),
+                ),
+                None,
+            ),
+            caused_by,
         )
     }
 }
