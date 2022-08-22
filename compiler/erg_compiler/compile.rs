@@ -127,7 +127,9 @@ impl Runnable for Compiler {
     }
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        todo!()
+        let path = self.input().filename().replace(".er", ".pyc");
+        let src = self.input().read();
+        self.compile_and_dump_as_pyc(src, path, "exec")
     }
 
     fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
