@@ -494,7 +494,7 @@ impl CodeGenerator {
 
     fn emit_var_pat(&mut self, pat: &VarPattern, op: &Token) {
         match pat {
-            VarPattern::VarName(var) => {
+            VarPattern::Local(var) => {
                 if op.category_is(TokenCategory::DefOp) {
                     self.emit_store_instr(var.inspect().clone(), Name);
                 } else {

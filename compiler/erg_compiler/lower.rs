@@ -361,7 +361,7 @@ impl ASTLowerer {
             .assign_var(&sig, id, found_body_t)?;
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
-                if let ast::VarPattern::VarName(name) = &sig.pat {
+                if let ast::VarPattern::Local(name) = &sig.pat {
                     if call.is_import_call() {
                         self.ctx
                             .outer

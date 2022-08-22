@@ -481,12 +481,26 @@ macro_rules! impl_display_from_nested {
     };
 }
 
+/// For Decl, Def, Call, etc., which can occupy a line by itself
+#[macro_export]
+macro_rules! impl_nested_display_for_chunk_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        impl NestedDisplay for $Enum {
+            fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+                write!(f, "{}", "    ".repeat(level))?;
+                match self {
+                    $($Enum::$Variant(v) => v.fmt_nest(f, level),)*
+                }
+            }
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! impl_nested_display_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
         impl NestedDisplay for $Enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-                write!(f, "{}", "    ".repeat(level))?;
                 match self {
                     $($Enum::$Variant(v) => v.fmt_nest(f, level),)*
                 }

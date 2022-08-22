@@ -166,7 +166,7 @@ impl Evaluator {
                 Accessor::Local(_) => None,
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
-                Accessor::SelfDot(_name) => todo!(),
+                Accessor::Public(_name) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
             }
         } else {

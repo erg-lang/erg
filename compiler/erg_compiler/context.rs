@@ -780,7 +780,7 @@ impl Context {
         let vis = Private; // TODO:
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         match &sig.pat {
-            ast::VarPattern::VarName(v) => {
+            ast::VarPattern::Local(v) => {
                 if sig.t_spec.is_none() && opt_t.is_none() {
                     Err(TyCheckError::no_type_spec_error(
                         line!() as usize,
@@ -882,7 +882,7 @@ impl Context {
         };
         match &sig.pat {
             ast::VarPattern::Discard(_token) => Ok(()),
-            ast::VarPattern::VarName(v) => {
+            ast::VarPattern::Local(v) => {
                 if self.registered(v.inspect(), v.inspect().is_uppercase()) {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
@@ -899,7 +899,7 @@ impl Context {
                     Ok(())
                 }
             }
-            ast::VarPattern::SelfDot(_) => todo!(),
+            ast::VarPattern::Public(_) => todo!(),
             ast::VarPattern::Array(arr) => {
                 for (elem, inf) in arr.iter().zip(generalized.inner_ts().iter()) {
                     let id = DefId(get_hash(&(&self.name, elem)));
@@ -2617,7 +2617,7 @@ impl Context {
                     ));
                 }
             }
-            ast::VarPattern::VarName(n) => {
+            ast::VarPattern::Local(n) => {
                 if self.unify(&spec_t, body_t, None, Some(sig.loc())).is_err() {
                     return Err(TyCheckError::type_mismatch_error(
                         line!() as usize,

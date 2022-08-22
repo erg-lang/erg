@@ -8,7 +8,8 @@ use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{
     impl_display_for_enum, impl_display_from_nested, impl_locational, impl_locational_for_enum,
-    impl_nested_display_for_enum, impl_stream_for_wrapper, impl_t, impl_t_for_enum,
+    impl_nested_display_for_chunk_enum, impl_nested_display_for_enum, impl_stream_for_wrapper,
+    impl_t, impl_t_for_enum,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, Params, VarName, VarPattern};
@@ -1039,7 +1040,7 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_t_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);

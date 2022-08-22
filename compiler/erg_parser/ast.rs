@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use std::fmt;
 
 use erg_common::error::Location;
-use erg_common::set::Set;
+use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::ty::SubrKind;
 use erg_common::value::ValueObj;
@@ -11,7 +11,8 @@ use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
-    impl_locational_for_enum, impl_nested_display_for_enum, impl_stream, impl_stream_for_wrapper,
+    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
+    impl_stream, impl_stream_for_wrapper,
 };
 
 use crate::token::{Token, TokenKind};
@@ -21,8 +22,8 @@ pub fn fmt_lines<'a, T: NestedDisplay + 'a>(
     f: &mut fmt::Formatter<'_>,
     level: usize,
 ) -> fmt::Result {
-    if let Some(line) = iter.next() {
-        line.fmt_nest(f, level)?;
+    if let Some(first) = iter.next() {
+        first.fmt_nest(f, level)?;
     }
     for arg in iter {
         writeln!(f)?;
@@ -135,7 +136,8 @@ pub struct Args {
 
 impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        fmt_lines(self.pos_args.iter(), f, level)
+        fmt_lines(self.pos_args.iter(), f, level)?;
+        fmt_lines(self.kw_args.iter(), f, level)
     }
 }
 
@@ -217,20 +219,20 @@ impl Args {
     }
 }
 
-/// represents a local variable
+/// represents a local (private) variable
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Local {
     pub symbol: Token,
 }
 
-impl_display_for_single_struct!(Local, symbol.content);
-
-impl Locational for Local {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.symbol.loc()
+impl NestedDisplay for Local {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{}", self.symbol.content)
     }
 }
+
+impl_display_from_nested!(Local);
+impl_locational!(Local, symbol, symbol);
 
 impl Local {
     pub const fn new(symbol: Token) -> Self {
@@ -252,17 +254,55 @@ impl Local {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Public {
+    pub dot: Token,
+    pub symbol: Token,
+}
+
+impl NestedDisplay for Public {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, ".{}", self.symbol.content)
+    }
+}
+
+impl_display_from_nested!(Public);
+impl_locational!(Public, dot, symbol);
+
+impl Public {
+    pub const fn new(dot: Token, symbol: Token) -> Self {
+        Self { dot, symbol }
+    }
+
+    pub fn dummy(name: &'static str) -> Self {
+        Self::new(
+            Token::from_str(TokenKind::Dot, "."),
+            Token::from_str(TokenKind::Symbol, name),
+        )
+    }
+
+    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
+    pub const fn inspect(&self) -> &Str {
+        &self.symbol.content
+    }
+
+    pub fn is_const(&self) -> bool {
+        self.symbol.inspect().chars().next().unwrap().is_uppercase()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
     pub name: Local,
 }
 
-impl fmt::Display for Attribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Attribute {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         write!(f, "({}).{}", self.obj, self.name)
     }
 }
 
+impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, name);
 
 impl Attribute {
@@ -281,12 +321,13 @@ pub struct TupleAttribute {
     pub index: Literal,
 }
 
-impl fmt::Display for TupleAttribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for TupleAttribute {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         write!(f, "({}).{}", self.obj, self.index)
     }
 }
 
+impl_display_from_nested!(TupleAttribute);
 impl_locational!(TupleAttribute, obj, index);
 
 impl TupleAttribute {
@@ -304,12 +345,13 @@ pub struct Subscript {
     index: Box<Expr>,
 }
 
-impl fmt::Display for Subscript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Subscript {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         write!(f, "({})[{}]", self.obj, self.index)
     }
 }
 
+impl_display_from_nested!(Subscript);
 impl_locational!(Subscript, obj, index);
 
 impl Subscript {
@@ -324,34 +366,23 @@ impl Subscript {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Accessor {
     Local(Local),
-    SelfDot(Local),
+    Public(Public),
     Attr(Attribute),
     TupleAttr(TupleAttribute),
     Subscr(Subscript),
 }
 
-impl NestedDisplay for Accessor {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        match self {
-            Self::Local(name) => write!(f, "{}", name),
-            Self::SelfDot(attr) => write!(f, "self.{}", attr),
-            Self::Attr(attr) => write!(f, "{}", attr),
-            Self::TupleAttr(attr) => write!(f, "{}", attr),
-            Self::Subscr(subscr) => write!(f, "{}", subscr),
-        }
-    }
-}
-
+impl_nested_display_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, SelfDot, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
         Self::Local(Local::new(symbol))
     }
 
-    pub const fn self_dot(attr: Token) -> Self {
-        Self::SelfDot(Local::new(attr))
+    pub const fn public(dot: Token, symbol: Token) -> Self {
+        Self::Public(Public::new(dot, symbol))
     }
 
     pub fn attr(obj: Expr, name: Local) -> Self {
@@ -365,14 +396,15 @@ impl Accessor {
     pub const fn name(&self) -> Option<&Str> {
         match self {
             Self::Local(local) => Some(local.inspect()),
-            Self::SelfDot(local) => Some(local.inspect()),
+            Self::Public(local) => Some(local.inspect()),
             _ => None,
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Local(local) | Self::SelfDot(local) => local.is_const(),
+            Self::Local(local) => local.is_const(),
+            Self::Public(public) => public.is_const(),
             Self::Subscr(subscr) => subscr.obj.is_const_acc(),
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
             Self::Attr(attr) => attr.obj.is_const_acc() && attr.name.is_const(),
@@ -555,6 +587,85 @@ pub enum Dict {
 impl_nested_display_for_enum!(Dict; Normal, Comprehension);
 impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RecordAttrs(Vec<Def>);
+
+impl NestedDisplay for RecordAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl From<Vec<Def>> for RecordAttrs {
+    fn from(attrs: Vec<Def>) -> Self {
+        Self(attrs)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Record {
+    l_brace: Token,
+    r_brace: Token,
+    pub attrs: RecordAttrs,
+}
+
+impl NestedDisplay for Record {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "{{")?;
+        self.attrs.fmt_nest(f, level + 1)?;
+        writeln!(f, "\n{}}}", "    ".repeat(level))
+    }
+}
+
+impl_display_from_nested!(Record);
+impl_locational!(Record, l_brace, r_brace);
+
+impl Record {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NormalSet {
+    l_brace: Token,
+    r_brace: Token,
+    pub elems: Args,
+}
+
+impl NestedDisplay for NormalSet {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}}}", self.elems)
+    }
+}
+
+impl_display_from_nested!(NormalSet);
+impl_locational!(NormalSet, l_brace, r_brace);
+
+impl NormalSet {
+    pub fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            elems,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Set {
+    Normal(NormalSet),
+    // Comprehension(SetComprehension),
+}
+
+impl_nested_display_for_enum!(Set; Normal);
+impl_display_for_enum!(Set; Normal);
+impl_locational_for_enum!(Set; Normal);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -936,14 +1047,13 @@ pub enum ConstExpr {
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
-    // Dict(Dict),
     // Set(Set),
     Dict(ConstDict),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
 impl_display_from_nested!(ConstExpr);
 impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
 
@@ -977,9 +1087,8 @@ pub struct ConstKwArg {
 }
 
 impl NestedDisplay for ConstKwArg {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "{}: ", self.keyword.inspect())?;
-        self.expr.fmt_nest(f, level + 1)
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{}: {}", self.keyword.inspect(), self.expr)
     }
 }
 
@@ -1004,16 +1113,8 @@ pub struct ConstArgs {
 
 impl NestedDisplay for ConstArgs {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        for arg in self.pos_args.iter() {
-            arg.fmt_nest(f, level)?;
-            write!(f, ", ")?;
-        }
-        write!(f, "?")?;
-        for arg in self.kw_args.iter() {
-            arg.fmt_nest(f, level)?;
-            write!(f, ", ")?;
-        }
-        Ok(())
+        fmt_lines(self.pos_args(), f, level)?;
+        fmt_lines(self.kw_args(), f, level)
     }
 }
 
@@ -1607,8 +1708,8 @@ impl VarRecordPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VarPattern {
     Discard(Token),
-    VarName(VarName),
-    SelfDot(VarName), // only self-attribute can assign once
+    Local(VarName),  // x
+    Public(VarName), // .x
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
     Array(VarArrayPattern),
     /// e.g. `(x, y, z)` of `(x, y, z) = (1, 2, 3)`
@@ -1621,8 +1722,8 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
-            Self::VarName(n) => write!(f, "{}", n),
-            Self::SelfDot(n) => write!(f, "self.{}", n),
+            Self::Local(n) => write!(f, "{}", n),
+            Self::Public(n) => write!(f, ".{}", n),
             Self::Array(a) => write!(f, "{}", a),
             Self::Tuple(t) => write!(f, "{}", t),
             Self::Record(r) => write!(f, "{}", r),
@@ -1631,19 +1732,19 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, VarName, SelfDot, Array, Tuple, Record);
+impl_locational_for_enum!(VarPattern; Discard, Local, Public, Array, Tuple, Record);
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
-            Self::VarName(n) | Self::SelfDot(n) => Some(n.inspect()),
+            Self::Local(n) | Self::Public(n) => Some(n.inspect()),
             _ => None,
         }
     }
 
     pub fn inspects(&self) -> Vec<&Str> {
         match self {
-            Self::VarName(n) | Self::SelfDot(n) => vec![n.inspect()],
+            Self::Local(n) | Self::Public(n) => vec![n.inspect()],
             Self::Array(VarArrayPattern { elems, .. })
             | Self::Tuple(VarTuplePattern { elems, .. })
             | Self::Record(VarRecordPattern { elems, .. }) => {
@@ -1656,7 +1757,7 @@ impl VarPattern {
     // _!(...) = ... is invalid
     pub fn is_procedural(&self) -> bool {
         match self {
-            Self::VarName(n) | Self::SelfDot(n) => n.is_procedural(),
+            Self::Local(n) | Self::Public(n) => n.is_procedural(),
             _ => false,
         }
     }
@@ -1664,7 +1765,7 @@ impl VarPattern {
     // _ = (type block) is invalid
     pub fn is_const(&self) -> bool {
         match self {
-            Self::VarName(n) | Self::SelfDot(n) => n.is_const(),
+            Self::Local(n) | Self::Public(n) => n.is_const(),
             _ => false,
         }
     }
@@ -1773,8 +1874,8 @@ pub struct ParamRecordPattern {
 }
 
 impl NestedDisplay for ParamRecordPattern {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.elems)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "{}{{{}}}", " ".repeat(level), self.elems)
     }
 }
 
@@ -1964,7 +2065,7 @@ impl Params {
 /// 引数を取るならTypeでもSubr扱い
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
-    pub decorators: Set<Decorator>,
+    pub decorators: HashSet<Decorator>,
     pub name: VarName,
     pub params: Params,
     pub return_t_spec: Option<TypeSpec>,
@@ -2010,7 +2111,7 @@ impl Locational for SubrSignature {
 
 impl SubrSignature {
     pub const fn new(
-        decorators: Set<Decorator>,
+        decorators: HashSet<Decorator>,
         name: VarName,
         params: Params,
         return_t: Option<TypeSpec>,
@@ -2128,7 +2229,7 @@ pub enum Signature {
     Subr(SubrSignature),
 }
 
-impl_nested_display_for_enum!(Signature; Var, Subr);
+impl_nested_display_for_chunk_enum!(Signature; Var, Subr);
 impl_display_from_nested!(Signature);
 impl_locational_for_enum!(Signature; Var, Subr);
 
@@ -2143,7 +2244,7 @@ impl Signature {
     pub fn name(&self) -> Option<&VarName> {
         match self {
             Self::Var(v) => {
-                if let VarPattern::VarName(v) = &v.pat {
+                if let VarPattern::Local(v) = &v.pat {
                     Some(v)
                 } else {
                     None
@@ -2193,7 +2294,8 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
+        self.sig.fmt_nest(f, level)?;
+        writeln!(f, " {}", self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }
@@ -2222,7 +2324,8 @@ pub enum Expr {
     Accessor(Accessor),
     Array(Array),
     Dict(Dict),
-    // Set(Set),
+    Set(Set),
+    Record(Record),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
@@ -2231,9 +2334,9 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
