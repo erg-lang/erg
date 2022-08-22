@@ -43,8 +43,14 @@ use Visibility::*;
 type Trait = Type;
 
 /// ```
-/// TyParamIdx::new(Add(R, O), O) => Nth(1)
-/// TyParamIdx::new(Add(R, F(O, I)), O) => Nested(Nth(1), 0)
+/// # use erg_common::ty::{Type, TyParam};
+/// # use erg_compiler::context::TyParamIdx;
+///
+/// let r = Type::mono_q("R");
+/// let o = Type::mono_q("O");
+/// let search_from = Type::poly("Add", vec![TyParam::t(r.clone()), TyParam::t(o.clone())]);
+/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::Nth(1)));
+/// // TyParamIdx::new(Add(R, F(O, I)), O) => Nested(Nth(1), 0)
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyParamIdx {
@@ -69,7 +75,7 @@ impl TyParamIdx {
         }
     }
 
-    /// ```
+    /// ```erg
     /// Nested(Nth(1), 0).select(F(X, G(Y, Z))) == Y
     /// ```
     pub fn select(self, from: &Type) -> Type {
@@ -460,7 +466,7 @@ pub struct Context {
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names
     // 型の一致はHashMapでは判定できないため、keyはVarNameとして1つずつ見ていく
-    /// ```
+    /// ```erg
     /// f [x, y], z = ...
     /// ```
     /// => params: vec![(None, [T; 2]), (Some("z"), U)]
@@ -1216,7 +1222,7 @@ impl Context {
     }
 
     /// see doc/LANG/compiler/inference.md#一般化 for details
-    /// ```
+    /// ```erg
     /// generalize_t(?T) == 'T: Type
     /// generalize_t(?T(<: Nat) -> ?T) == |'T <: Nat| 'T -> 'T
     /// generalize_t(?T(<: Nat) -> Int) == Nat -> Int // 戻り値に現れないなら量化しない
@@ -1507,7 +1513,7 @@ impl Context {
     }
 
     /// e.g.
-    /// ```
+    /// ```erg
     /// substitute_call(instance: ((?T, ?U) -> ?T), [Int, Str], []) => instance: (Int, Str) -> Int
     /// substitute_call(instance: ((?T, Int) -> ?T), [Int, Nat], []) => instance: (Int, Int) -> Str
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
@@ -1647,7 +1653,7 @@ impl Context {
     }
 
     /// e.g.
-    /// ```
+    /// ```erg
     /// deref_tyvar(?T(:> Never, <: Int)[n]): ?T => Int (if self.level <= n)
     /// deref_tyvar((Int)): (Int) => Int
     /// ```
@@ -1861,7 +1867,7 @@ impl Context {
     /// Return Err if already concrete
     /// 単相化されたトレイトを具体的な型に置換する
     /// 既に具体的な型の場合はErrを返す
-    /// ```
+    /// ```erg
     /// instantiate_trait(Add(Int)) => Ok(Int)
     /// instantiate_trait(Array(Add(Int), 2)) => Ok(Array(Int, 2))
     /// instantiate_trait(Array(Int, 2)) => Err(Array(Int, 2))
@@ -2381,7 +2387,7 @@ impl Context {
     /// When comparing arguments and parameter, the left side is the argument (found) and the right side is the parameter (expected)
     ///
     /// The parameter type must be a supertype of the argument type
-    /// ```
+    /// ```erg
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
     /// sub_unify(Nat, ?T(:> Int)): (/* OK */)
@@ -3335,7 +3341,7 @@ impl Context {
     }
 
     /// lhs :> rhs?
-    /// ```
+    /// ```erg
     /// assert supertype_of(Int, Nat) # i: Int = 1 as Nat
     /// assert supertype_of(Bool, Bool)
     /// ```
@@ -3833,7 +3839,7 @@ impl Context {
     }
 
     /// see doc/LANG/compiler/refinement_subtyping.md
-    /// ```
+    /// ```erg
     /// assert is_super_pred({I >= 0}, {I == 0})
     /// assert is_super_pred({T >= 0}, {I == 0})
     /// assert !is_super_pred({I < 0}, {I == 0})
@@ -4209,19 +4215,19 @@ impl Context {
     /// C3 linearization requires prior knowledge of inter-type dependencies, and cannot be used for Erg structural subtype linearization
     ///
     /// Algorithm:
-    /// ```
+    /// ```erg
     /// [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]
-    /// // 1. If related, put them in the same array; if not, put them in different arrays.
+    /// # 1. If related, put them in the same array; if not, put them in different arrays.
     /// => [[Int], [Str]], [Nat, Never, Obj, Str!, Module]
     /// => ...
     /// => [[Int, Nat, Never, Obj]], [Str, Str!], [Module]]
-    /// // 2. Then, perform sorting on the arrays
+    /// # 2. Then, perform sorting on the arrays
     /// => [[Never, Nat, Int, Obj], [Str!, Str], [Module]]
-    /// // 3. Concatenate the arrays
+    /// # 3. Concatenate the arrays
     /// => [Never, Nat, Int, Obj, Str!, Str, Module]
-    /// // 4. From the left, "slide" types as far as it can.
+    /// # 4. From the left, "slide" types as far as it can.
     /// => [Never, Nat, Int, Str!, Str, Module, Obj]
     /// ```
     pub fn sort_types<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Vec<&'a Type> {

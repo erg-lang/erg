@@ -144,7 +144,7 @@ impl SideEffectChecker {
     /// returns effects, purity violations will be appended to `self.errs`.
     ///
     /// causes side-effects:
-    /// ```
+    /// ```erg
     /// p!() // 1 side-effect
     /// p!(q!()) // 2 side-effects
     /// x =
@@ -152,12 +152,12 @@ impl SideEffectChecker {
     ///     y + 1 // 1 side-effect
     /// ```
     /// causes no side-effects:
-    /// ```
+    /// ```erg
     /// q! = p!
     /// y = f(p!)
     /// ```
     /// purity violation:
-    /// ```
+    /// ```erg
     /// for iter, i -> print! i
     /// ```
     fn check_expr(&mut self, expr: &Expr, allow_self_effect: bool) {

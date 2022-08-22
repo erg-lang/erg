@@ -51,7 +51,7 @@ impl Visibility {
 use Visibility::*;
 
 /// e.g.
-/// ```
+/// ```erg
 /// K(T, [U, V]) = ...
 /// U.idx == Nested(Just(1), 0)
 /// ```
