@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::ty::SubrKind;
-use erg_common::value::ValueObj;
+use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -603,6 +603,12 @@ impl From<Vec<Def>> for RecordAttrs {
     }
 }
 
+impl RecordAttrs {
+    pub fn iter(&self) -> impl Iterator<Item = &Def> {
+        self.0.iter()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Record {
     l_brace: Token,
@@ -732,12 +738,15 @@ impl UnaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
+    pub method_name: Option<Token>,
     pub args: Args,
 }
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "({}):", self.obj)?;
+        write!(f, "({})", self.obj)?;
+        write!(f, "{}", fmt_option!(pre ".", self.method_name))?;
+        writeln!(f, ":")?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -755,9 +764,10 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, args: Args) -> Self {
+    pub fn new(obj: Expr, method_name: Option<Token>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
+            method_name,
             args,
         }
     }
@@ -1597,6 +1607,67 @@ impl VarName {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Identifier {
+    pub dot: Option<Token>,
+    pub name: VarName,
+}
+
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.dot {
+            Some(_dot) => write!(f, ".{}", self.name),
+            None => write!(f, "{}", self.name),
+        }
+    }
+}
+
+impl Locational for Identifier {
+    fn loc(&self) -> Location {
+        if let Some(dot) = &self.dot {
+            Location::concat(dot, &self.name)
+        } else {
+            self.name.loc()
+        }
+    }
+}
+
+impl Identifier {
+    pub const fn new(dot: Option<Token>, name: VarName) -> Self {
+        Self { dot, name }
+    }
+
+    pub fn public(name: &'static str) -> Self {
+        Self::new(
+            Some(Token::from_str(TokenKind::Dot, ".")),
+            VarName::from_static(name),
+        )
+    }
+
+    pub fn private(name: Str) -> Self {
+        Self::new(None, VarName::from_str(name))
+    }
+
+    pub fn is_const(&self) -> bool {
+        self.name.is_const()
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        match &self.dot {
+            Some(_dot) => Visibility::Public,
+            None => Visibility::Private,
+        }
+    }
+
+    pub const fn inspect(&self) -> &Str {
+        &self.name.inspect()
+    }
+
+    pub fn is_procedural(&self) -> bool {
+        self.name.is_procedural()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarArrayPattern {
     l_sqbr: Token,
@@ -1708,8 +1779,7 @@ impl VarRecordPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VarPattern {
     Discard(Token),
-    Local(VarName),  // x
-    Public(VarName), // .x
+    Ident(Identifier),
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
     Array(VarArrayPattern),
     /// e.g. `(x, y, z)` of `(x, y, z) = (1, 2, 3)`
@@ -1722,8 +1792,7 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
-            Self::Local(n) => write!(f, "{}", n),
-            Self::Public(n) => write!(f, ".{}", n),
+            Self::Ident(ident) => write!(f, "{}", ident),
             Self::Array(a) => write!(f, "{}", a),
             Self::Tuple(t) => write!(f, "{}", t),
             Self::Record(r) => write!(f, "{}", r),
@@ -1732,19 +1801,19 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Local, Public, Array, Tuple, Record);
+impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record);
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
-            Self::Local(n) | Self::Public(n) => Some(n.inspect()),
+            Self::Ident(ident) => Some(ident.inspect()),
             _ => None,
         }
     }
 
     pub fn inspects(&self) -> Vec<&Str> {
         match self {
-            Self::Local(n) | Self::Public(n) => vec![n.inspect()],
+            Self::Ident(ident) => vec![ident.inspect()],
             Self::Array(VarArrayPattern { elems, .. })
             | Self::Tuple(VarTuplePattern { elems, .. })
             | Self::Record(VarRecordPattern { elems, .. }) => {
@@ -1757,7 +1826,7 @@ impl VarPattern {
     // _!(...) = ... is invalid
     pub fn is_procedural(&self) -> bool {
         match self {
-            Self::Local(n) | Self::Public(n) => n.is_procedural(),
+            Self::Ident(ident) => ident.is_procedural(),
             _ => false,
         }
     }
@@ -1765,8 +1834,16 @@ impl VarPattern {
     // _ = (type block) is invalid
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Local(n) | Self::Public(n) => n.is_const(),
+            Self::Ident(ident) => ident.is_const(),
             _ => false,
+        }
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        match self {
+            Self::Ident(ident) => ident.vis(),
+            // TODO: `[.x, .y]`?
+            _ => Visibility::Private,
         }
     }
 }
@@ -1806,6 +1883,10 @@ impl VarSignature {
 
     pub fn is_const(&self) -> bool {
         self.pat.is_const()
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        self.pat.vis()
     }
 }
 
@@ -2066,7 +2147,7 @@ impl Params {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
-    pub name: VarName,
+    pub ident: Identifier,
     pub params: Params,
     pub return_t_spec: Option<TypeSpec>,
     pub bounds: TypeBoundSpecs,
@@ -2078,7 +2159,7 @@ impl NestedDisplay for SubrSignature {
             write!(
                 f,
                 "{}{}{}",
-                self.name,
+                self.ident,
                 self.params,
                 fmt_option!(pre ": ", self.return_t_spec)
             )
@@ -2086,7 +2167,7 @@ impl NestedDisplay for SubrSignature {
             write!(
                 f,
                 "{}|{}|{}{}",
-                self.name,
+                self.ident,
                 self.bounds,
                 self.params,
                 fmt_option!(pre ": ", self.return_t_spec)
@@ -2100,11 +2181,11 @@ impl_display_from_nested!(SubrSignature);
 impl Locational for SubrSignature {
     fn loc(&self) -> Location {
         if !self.bounds.is_empty() {
-            Location::concat(&self.name, &self.bounds)
+            Location::concat(&self.ident, &self.bounds)
         } else if let Some(return_t) = &self.return_t_spec {
-            Location::concat(&self.name, return_t)
+            Location::concat(&self.ident, return_t)
         } else {
-            Location::concat(&self.name, &self.params)
+            Location::concat(&self.ident, &self.params)
         }
     }
 }
@@ -2112,14 +2193,14 @@ impl Locational for SubrSignature {
 impl SubrSignature {
     pub const fn new(
         decorators: HashSet<Decorator>,
-        name: VarName,
+        ident: Identifier,
         params: Params,
         return_t: Option<TypeSpec>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
             decorators,
-            name,
+            ident,
             params,
             return_t_spec: return_t,
             bounds,
@@ -2127,7 +2208,11 @@ impl SubrSignature {
     }
 
     pub fn is_const(&self) -> bool {
-        self.name.is_const()
+        self.ident.is_const()
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        self.ident.vis()
     }
 }
 
@@ -2236,21 +2321,21 @@ impl_locational_for_enum!(Signature; Var, Subr);
 impl Signature {
     pub fn name_as_str(&self) -> &Str {
         match self {
-            Self::Var(v) => v.pat.inspect().unwrap(),
-            Self::Subr(s) => s.name.inspect(),
+            Self::Var(var) => var.pat.inspect().unwrap(),
+            Self::Subr(subr) => subr.ident.inspect(),
         }
     }
 
-    pub fn name(&self) -> Option<&VarName> {
+    pub fn ident(&self) -> Option<&Identifier> {
         match self {
-            Self::Var(v) => {
-                if let VarPattern::Local(v) = &v.pat {
-                    Some(v)
+            Self::Var(var) => {
+                if let VarPattern::Ident(ident) = &var.pat {
+                    Some(ident)
                 } else {
                     None
                 }
             }
-            Self::Subr(s) => Some(&s.name),
+            Self::Subr(subr) => Some(&subr.ident),
         }
     }
 
@@ -2263,8 +2348,15 @@ impl Signature {
 
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Var(v) => v.is_const(),
-            Self::Subr(s) => s.is_const(),
+            Self::Var(var) => var.is_const(),
+            Self::Subr(subr) => subr.is_const(),
+        }
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        match self {
+            Self::Var(var) => var.vis(),
+            Self::Subr(subr) => subr.vis(),
         }
     }
 }

@@ -3,7 +3,7 @@
 //! 組み込みオブジェクトの型情報を(Contextに)定義
 use erg_common::ty::type_constrs::*;
 use erg_common::ty::{TyParam, Type};
-use erg_common::value::ValueObj;
+use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{debug_power_assert, set};
 use ParamSpec as PS;
@@ -12,7 +12,7 @@ use Type::*;
 use erg_parser::ast::VarName;
 
 use crate::context::{ConstTemplate, Context, ContextKind, DefaultInfo, ParamSpec};
-use crate::varinfo::{Mutability, VarInfo, VarKind, Visibility};
+use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
 use Mutability::*;
 use VarKind::*;

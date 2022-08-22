@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::get_hash;
 use erg_common::traits::{HasType, Locational, Stream};
 use erg_common::ty::{ParamTy, TyParam, Type};
-use erg_common::value::ValueObj;
+use erg_common::value::{ValueObj, Visibility};
 use erg_common::{fn_name, log, switch_lang};
 
 use erg_parser::ast;
@@ -16,7 +16,6 @@ use crate::context::{Context, ContextKind, RegistrationMode};
 use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
 use crate::hir;
 use crate::hir::HIR;
-use crate::varinfo::Visibility;
 use Visibility::*;
 
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
@@ -245,10 +244,14 @@ impl ASTLowerer {
             ));
         }
         let obj = self.lower_expr(*call.obj, false)?;
-        let t = self
-            .ctx
-            .get_call_t(&obj, &hir_args.pos_args, &hir_args.kw_args, &self.ctx.name)?;
-        Ok(hir::Call::new(obj, hir_args, t))
+        let t = self.ctx.get_call_t(
+            &obj,
+            &call.method_name,
+            &hir_args.pos_args,
+            &hir_args.kw_args,
+            &self.ctx.name,
+        )?;
+        Ok(hir::Call::new(obj, call.method_name, hir_args, t))
     }
 
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
@@ -361,13 +364,13 @@ impl ASTLowerer {
             .assign_var(&sig, id, found_body_t)?;
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
-                if let ast::VarPattern::Local(name) = &sig.pat {
+                if let ast::VarPattern::Ident(ident) = &sig.pat {
                     if call.is_import_call() {
                         self.ctx
                             .outer
                             .as_mut()
                             .unwrap()
-                            .import_mod(name, &call.args.pos_args.first().unwrap().expr)?;
+                            .import_mod(&ident.name, &call.args.pos_args.first().unwrap().expr)?;
                     }
                 } else {
                     todo!()
@@ -392,9 +395,9 @@ impl ASTLowerer {
             .outer
             .as_ref()
             .unwrap()
-            .get_current_scope_var(sig.name.inspect())
+            .get_current_scope_var(sig.ident.inspect())
             .unwrap_or_else(|| {
-                log!("{}\n", sig.name.inspect());
+                log!("{}\n", sig.ident.inspect());
                 log!("{}\n", self.ctx.outer.as_ref().unwrap());
                 panic!()
             }) // FIXME: or instantiate
@@ -406,7 +409,7 @@ impl ASTLowerer {
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
         if let Err(e) =
-            self.return_t_check(sig.loc(), sig.name.inspect(), expect_body_t, found_body_t)
+            self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
         {
             self.errs.push(e);
         }
@@ -416,7 +419,7 @@ impl ASTLowerer {
             .as_mut()
             .unwrap()
             .assign_subr(&sig, id, found_body_t)?;
-        let sig = hir::SubrSignature::new(sig.name, sig.params, t);
+        let sig = hir::SubrSignature::new(sig.ident, sig.params, t);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }

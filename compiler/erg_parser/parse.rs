@@ -515,7 +515,7 @@ impl Parser {
             return Ok(Signature::Var(var));
         }
         let decorators = self.opt_reduce_decorators().map_err(|_| self.stack_dec())?;
-        let (opt_dot, name) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
+        let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
         // TODO: parse bounds |...|
         let bounds = TypeBoundSpecs::empty();
         if self.cur_is(VBar) {
@@ -534,7 +534,7 @@ impl Parser {
             };
             self.level -= 1;
             Ok(Signature::Subr(SubrSignature::new(
-                decorators, name, params, t_spec, bounds,
+                decorators, ident, params, t_spec, bounds,
             )))
         } else {
             if !bounds.is_empty() {
@@ -554,7 +554,7 @@ impl Parser {
                 self.errs.push(err);
                 return Err(());
             }
-            let t_spec = if name.is_const() {
+            let t_spec = if ident.is_const() {
                 if self.cur_is(SubtypeOf) {
                     self.skip();
                     Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
@@ -568,12 +568,10 @@ impl Parser {
                 None
             };
             self.level -= 1;
-            let var_pat = if opt_dot.is_some() {
-                VarPattern::Public(name)
-            } else {
-                VarPattern::Local(name)
-            };
-            Ok(Signature::Var(VarSignature::new(var_pat, t_spec)))
+            Ok(Signature::Var(VarSignature::new(
+                VarPattern::Ident(ident),
+                t_spec,
+            )))
         }
     }
 
@@ -906,14 +904,9 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                let (opt_dot, varname) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
-                let var_pat = if let Some(_dot) = opt_dot {
-                    VarPattern::Public(varname)
-                } else {
-                    VarPattern::Local(varname)
-                };
+                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(var_pat)
+                Ok(VarPattern::Ident(ident))
             }
             Some(t) if t.is(UBar) => {
                 self.level -= 1;
@@ -968,8 +961,8 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                let (opt_dot, varname) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
-                if let Some(dot) = opt_dot {
+                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
+                if let Some(dot) = &ident.dot {
                     let loc = dot.loc();
                     self.level -= 1;
                     self.errs.push(ParseError::syntax_error(
@@ -986,7 +979,7 @@ impl Parser {
                     return Err(());
                 }
                 self.level -= 1;
-                Ok(ParamPattern::VarName(varname))
+                Ok(ParamPattern::VarName(ident.name))
             }
             Some(t) if t.is(UBar) => {
                 self.level -= 1;
@@ -1000,8 +993,8 @@ impl Parser {
             }
             Some(t) if t.is(Spread) => {
                 self.skip();
-                let (opt_dot, varname) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
-                if let Some(dot) = opt_dot {
+                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
+                if let Some(dot) = &ident.dot {
                     let loc = dot.loc();
                     self.level -= 1;
                     self.errs.push(ParseError::syntax_error(
@@ -1018,7 +1011,7 @@ impl Parser {
                     return Err(());
                 }
                 self.level -= 1;
-                Ok(ParamPattern::VarArgsName(varname))
+                Ok(ParamPattern::VarArgsName(ident.name))
             }
             Some(t) if t.is(LSqBr) => {
                 let l_sqbr = self.lpop();
@@ -1162,11 +1155,11 @@ impl Parser {
         debug_call_info!(self);
         if self.cur_is(Symbol) && self.nth_is(1, Colon) {
             // TODO: handle `.`
-            let (_opt_dot, name) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
+            let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
             self.skip();
             let typ = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
             self.level -= 1;
-            Ok(ParamTySpec::new(Some(name.into_token()), typ))
+            Ok(ParamTySpec::new(Some(ident.name.into_token()), typ))
         } else {
             let ty_spec = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
             self.level -= 1;
@@ -1228,15 +1221,15 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                // TODO: handle dot
-                let (_opt_dot, name) = self.try_reduce_name().map_err(|_| self.stack_dec())?;
+                // TODO: handle dot (`.`)
+                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
                 if let Some(res) = self.opt_reduce_args() {
                     let args = self.validate_const_args(res?)?;
                     self.level -= 1;
-                    Ok(SimpleTypeSpec::new(name, args))
+                    Ok(SimpleTypeSpec::new(ident.name, args))
                 } else {
                     self.level -= 1;
-                    Ok(SimpleTypeSpec::new(name, ConstArgs::empty()))
+                    Ok(SimpleTypeSpec::new(ident.name, ConstArgs::empty()))
                 }
             }
             _ => {
@@ -1714,11 +1707,15 @@ impl Parser {
                                         self.errs.push(err);
                                         return Err(());
                                     };
-                                    let acc = Accessor::attr(obj, Local::new(symbol));
-                                    if let Ok(args) = self.try_reduce_args() {
-                                        let call = Call::new(Expr::Accessor(acc), args);
+                                    if let Some(args) = self
+                                        .opt_reduce_args()
+                                        .transpose()
+                                        .map_err(|_| self.stack_dec())?
+                                    {
+                                        let call = Call::new(obj, Some(symbol), args);
                                         stack.push(ExprOrOp::Expr(Expr::Call(call)));
                                     } else {
+                                        let acc = Accessor::attr(obj, Local::new(symbol));
                                         stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                                     }
                                 }
@@ -1864,7 +1861,12 @@ impl Parser {
         let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
-            let call = Call::new(Expr::Accessor(acc), args);
+            let (obj, method_name) = match acc {
+                Accessor::Attr(attr) => (*attr.obj, Some(attr.name.symbol)),
+                Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
+                _ => todo!(),
+            };
+            let call = Call::new(obj, method_name, args);
             self.level -= 1;
             Ok(Expr::Call(call))
         } else {
@@ -1978,9 +1980,8 @@ impl Parser {
         todo!()
     }
 
-    /// option: Dot(`.`)
     #[inline]
-    fn try_reduce_name(&mut self) -> ParseResult<(Option<Token>, VarName)> {
+    fn try_reduce_ident(&mut self) -> ParseResult<Identifier> {
         debug_call_info!(self);
         self.level -= 1;
         match self.peek() {
@@ -1988,9 +1989,13 @@ impl Parser {
                 let dot = self.lpop();
                 // TODO:
                 assert!(self.cur_category_is(TC::Symbol));
-                Ok((Some(dot), VarName::new(self.lpop())))
+                let ident = Identifier::new(Some(dot), VarName::new(self.lpop()));
+                Ok(ident)
             }
-            Some(t) if t.is(Symbol) => Ok((None, VarName::new(self.lpop()))),
+            Some(t) if t.is(Symbol) => {
+                let ident = Identifier::new(None, VarName::new(self.lpop()));
+                Ok(ident)
+            }
             _ => {
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);

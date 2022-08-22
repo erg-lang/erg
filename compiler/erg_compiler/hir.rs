@@ -4,7 +4,7 @@ use std::fmt;
 use erg_common::error::Location;
 use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
 use erg_common::ty::{Constraint, TyParam, Type};
-use erg_common::value::ValueObj;
+use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     impl_display_for_enum, impl_display_from_nested, impl_locational, impl_locational_for_enum,
@@ -12,7 +12,7 @@ use erg_common::{
     impl_t, impl_t_for_enum,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Params, VarName, VarPattern};
+use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::error::readable_name;
@@ -676,9 +676,9 @@ impl UnaryOp {
 #[derive(Debug, Clone)]
 pub struct Call {
     pub obj: Box<Expr>,
+    pub method_name: Option<Token>,
     pub args: Args,
-    /// 全体の型、e.g. `abs(-1)` -> `Neg -> Nat`
-    /// necessary for mangling
+    /// 全体の型(引数自体の型は関係ない)、e.g. `abs(-1)` -> `Neg -> Nat`
     pub sig_t: Type,
 }
 
@@ -725,9 +725,10 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, args: Args, sig_t: Type) -> Self {
+    pub fn new(obj: Expr, method_name: Option<Token>, args: Args, sig_t: Type) -> Self {
         Self {
             obj: Box::new(obj),
+            method_name,
             args,
             sig_t,
         }
@@ -808,34 +809,38 @@ impl VarSignature {
     pub fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
     }
+
+    pub fn vis(&self) -> Visibility {
+        self.pat.vis()
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct SubrSignature {
-    pub name: VarName,
+    pub ident: Identifier,
     pub params: Params,
     pub t: Type,
 }
 
 impl fmt::Display for SubrSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{} (: {})", self.name, self.params, self.t)
+        write!(f, "{}{} (: {})", self.ident, self.params, self.t)
     }
 }
 
 impl Locational for SubrSignature {
     fn loc(&self) -> Location {
-        Location::concat(&self.name, &self.params)
+        Location::concat(&self.ident, &self.params)
     }
 }
 
 impl SubrSignature {
-    pub const fn new(name: VarName, params: Params, t: Type) -> Self {
-        Self { name, params, t }
+    pub const fn new(ident: Identifier, params: Params, t: Type) -> Self {
+        Self { ident, params, t }
     }
 
     pub fn is_procedural(&self) -> bool {
-        self.name.is_procedural()
+        self.ident.is_procedural()
     }
 }
 
@@ -892,14 +897,21 @@ impl Signature {
     pub fn is_const(&self) -> bool {
         match self {
             Self::Var(v) => v.pat.is_const(),
-            Self::Subr(s) => s.name.is_const(),
+            Self::Subr(s) => s.ident.is_const(),
         }
     }
 
     pub fn is_procedural(&self) -> bool {
         match self {
             Self::Var(v) => v.pat.is_procedural(),
-            Self::Subr(s) => s.name.is_procedural(),
+            Self::Subr(s) => s.ident.is_procedural(),
+        }
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        match self {
+            Self::Var(v) => v.pat.vis(),
+            Self::Subr(s) => s.ident.vis(),
         }
     }
 }

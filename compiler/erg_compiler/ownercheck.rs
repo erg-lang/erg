@@ -5,11 +5,11 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{HasType, Locational, Stream};
 use erg_common::ty::{ArgsOwnership, Ownership};
+use erg_common::value::Visibility;
 use erg_common::Str;
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, HIR};
-use crate::varinfo::Visibility;
 use Visibility::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,19 +84,17 @@ impl OwnershipChecker {
         match expr {
             Expr::Def(def) => {
                 self.define(def);
-                let name_and_vis = match &def.sig {
-                    Signature::Var(var) =>
-                    // TODO: visibility
-                    {
+                let name = match &def.sig {
+                    Signature::Var(var) => {
                         if let Some(name) = var.inspect() {
-                            (name.clone(), Private)
+                            name.clone()
                         } else {
-                            (Str::ever("::<instant>"), Private)
+                            Str::ever("::<instant>")
                         }
                     }
-                    Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
+                    Signature::Subr(subr) => subr.ident.inspect().clone(),
                 };
-                self.path_stack.push(name_and_vis);
+                self.path_stack.push((name, def.sig.vis()));
                 self.dict
                     .insert(Str::from(self.full_path()), LocalVars::default());
                 self.check_block(&def.body.block);
@@ -239,7 +237,7 @@ impl OwnershipChecker {
             Signature::Subr(sig) => {
                 self.current_scope()
                     .alive_vars
-                    .insert(sig.name.inspect().clone());
+                    .insert(sig.ident.inspect().clone());
             }
         }
     }

@@ -47,7 +47,7 @@ impl Desugarer {
                         if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str()
                         {
                             let mut previous = enum_unwrap!(new.pop().unwrap(), Expr::Def);
-                            let name = def.sig.name().unwrap().clone();
+                            let name = def.sig.ident().unwrap().clone();
                             let op = Token::from_str(TokenKind::FuncArrow, "->");
                             let (call, return_t_spec) = if previous.body.block.len() == 1
                                 && previous.body.block.first().unwrap().is_match_call()
@@ -104,7 +104,7 @@ impl Desugarer {
                                     vec![],
                                     None,
                                 );
-                                let call = Call::new(match_symbol, args);
+                                let call = Call::new(match_symbol, None, args);
                                 (call, return_t_spec)
                             };
                             let param_name = enum_unwrap!(&call.args.pos_args().iter().next().unwrap().expr, Expr::Accessor:(Accessor::Local:(_))).inspect();

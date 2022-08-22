@@ -15,10 +15,10 @@ use erg_common::ty::{
     Constraint, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, RefinementType, SubrKind,
     SubrType, TyBound, TyParam, TyParamOrdering, Type,
 };
-use erg_common::value::ValueObj;
+use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
-    assume_unreachable, enum_unwrap, fmt_slice, fn_name, get_hash, log, set, try_map,
+    assume_unreachable, enum_unwrap, fmt_option, fmt_slice, fn_name, get_hash, log, set, try_map,
 };
 use Predicate as Pred;
 use TyParamOrdering::*;
@@ -36,7 +36,7 @@ use crate::error::readable_name;
 use crate::error::{binop_to_dname, unaryop_to_dname, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::eval::Evaluator;
 use crate::hir;
-use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind, Visibility};
+use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use Visibility::*;
 
@@ -777,30 +777,30 @@ impl Context {
         opt_t: Option<Type>,
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
-        let vis = Private; // TODO:
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         match &sig.pat {
-            ast::VarPattern::Local(v) => {
+            ast::VarPattern::Ident(ident) => {
                 if sig.t_spec.is_none() && opt_t.is_none() {
                     Err(TyCheckError::no_type_spec_error(
                         line!() as usize,
                         sig.loc(),
                         self.caused_by(),
-                        v.inspect(),
+                        ident.inspect(),
                     ))
                 } else {
-                    if self.registered(v.inspect(), v.inspect().is_uppercase()) {
+                    if self.registered(ident.inspect(), ident.is_const()) {
                         return Err(TyCheckError::duplicate_decl_error(
                             line!() as usize,
                             sig.loc(),
                             self.caused_by(),
-                            v.inspect(),
+                            ident.inspect(),
                         ));
                     }
+                    let vis = ident.vis();
                     let kind = id.map_or(VarKind::Declared, VarKind::Defined);
                     let sig_t = self.instantiate_var_sig_t(sig, opt_t, PreRegister)?;
                     self.decls
-                        .insert(v.clone(), VarInfo::new(sig_t, muty, vis, kind));
+                        .insert(ident.name.clone(), VarInfo::new(sig_t, muty, vis, kind));
                     Ok(())
                 }
             }
@@ -826,7 +826,8 @@ impl Context {
         opt_ret_t: Option<Type>,
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
-        let name = sig.name.inspect();
+        let name = sig.ident.inspect();
+        let vis = sig.ident.vis();
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         if self.registered(name, name.is_uppercase()) {
@@ -838,7 +839,7 @@ impl Context {
             ));
         }
         let t = self.instantiate_sub_sig_t(sig, opt_ret_t, PreRegister)?;
-        let vi = VarInfo::new(t, muty, Private, kind);
+        let vi = VarInfo::new(t, muty, vis, kind);
         if let Some(_decl) = self.decls.remove(name) {
             return Err(TyCheckError::duplicate_decl_error(
                 line!() as usize,
@@ -847,7 +848,7 @@ impl Context {
                 name,
             ));
         } else {
-            self.decls.insert(sig.name.clone(), vi);
+            self.decls.insert(sig.ident.name.clone(), vi);
         }
         Ok(())
     }
@@ -868,7 +869,6 @@ impl Context {
         id: DefId,
     ) -> TyCheckResult<()> {
         self.validate_var_sig_t(sig, body_t, Normal)?;
-        let vis = Private; // TODO:
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         let (generalized, bounds) = self.generalize_t(body_t.clone());
         let generalized = if !bounds.is_empty() {
@@ -882,24 +882,24 @@ impl Context {
         };
         match &sig.pat {
             ast::VarPattern::Discard(_token) => Ok(()),
-            ast::VarPattern::Local(v) => {
-                if self.registered(v.inspect(), v.inspect().is_uppercase()) {
+            ast::VarPattern::Ident(ident) => {
+                if self.registered(ident.inspect(), ident.is_const()) {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
-                        v.loc(),
+                        ident.loc(),
                         self.caused_by(),
-                        v.inspect(),
+                        ident.inspect(),
                     ))
                 } else {
-                    if self.decls.remove(v.inspect()).is_some() {
+                    if self.decls.remove(ident.inspect()).is_some() {
                         // something to do?
                     }
+                    let vis = ident.vis();
                     let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
-                    self.params.push((Some(v.clone()), vi));
+                    self.params.push((Some(ident.name.clone()), vi));
                     Ok(())
                 }
             }
-            ast::VarPattern::Public(_) => todo!(),
             ast::VarPattern::Array(arr) => {
                 for (elem, inf) in arr.iter().zip(generalized.inner_ts().iter()) {
                     let id = DefId(get_hash(&(&self.name, elem)));
@@ -1036,12 +1036,12 @@ impl Context {
         id: DefId,
         body_t: &Type,
     ) -> TyCheckResult<()> {
-        let muty = if sig.name.is_const() {
+        let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
             Mutability::Immutable
         };
-        let name = &sig.name;
+        let name = &sig.ident.name;
         // FIXME: constでない関数
         let t = self
             .get_current_scope_var(name.inspect())
@@ -1070,7 +1070,7 @@ impl Context {
                 name.inspect(),
             ))
         } else {
-            let sub_t = if sig.name.is_procedural() {
+            let sub_t = if sig.ident.is_procedural() {
                 Type::proc(
                     non_default_params.clone(),
                     default_params.clone(),
@@ -2617,13 +2617,13 @@ impl Context {
                     ));
                 }
             }
-            ast::VarPattern::Local(n) => {
+            ast::VarPattern::Ident(ident) => {
                 if self.unify(&spec_t, body_t, None, Some(sig.loc())).is_err() {
                     return Err(TyCheckError::type_mismatch_error(
                         line!() as usize,
-                        n.loc(),
+                        ident.loc(),
                         self.caused_by(),
-                        n.inspect(),
+                        ident.inspect(),
                         &spec_t,
                         body_t,
                     ));
@@ -2703,7 +2703,7 @@ impl Context {
                 None,
             )?;
         }
-        Ok(if sig.name.is_procedural() {
+        Ok(if sig.ident.is_procedural() {
             Type::proc(non_defaults, defaults, return_t)
         } else {
             Type::func(non_defaults, defaults, return_t)
@@ -3104,17 +3104,35 @@ impl Context {
     }
 
     /// 戻り値ではなく、call全体の型を返す
-    /// objは現時点ではAccessorのみ対応
-    /// 受け入れるobj(Accessor)はcheckしてないハリボテ
-    fn search_call_t(&self, callee: &hir::Expr, namespace: &Str) -> TyCheckResult<Type> {
-        match callee {
-            hir::Expr::Accessor(hir::Accessor::Local(local)) => {
+    fn search_callee_t(
+        &self,
+        obj: &hir::Expr,
+        method_name: &Option<Token>,
+        namespace: &Str,
+    ) -> TyCheckResult<Type> {
+        if let Some(method_name) = method_name.as_ref() {
+            for ctx in self.rec_sorted_sup_type_ctxs(obj.ref_t()) {
+                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
+                    return Ok(vi.t());
+                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
+                    return Ok(vi.t());
+                }
+            }
+            Err(TyCheckError::no_attr_error(
+                line!() as usize,
+                method_name.loc(),
+                namespace.clone(),
+                obj.ref_t(),
+                method_name.inspect(),
+                self.get_similar_attr(obj.ref_t(), method_name.inspect()),
+            ))
+        } else {
+            if obj.ref_t().rec_eq(&ASTOmitted) {
+                let local = enum_unwrap!(obj, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
                 self.get_var_t(&local.name, namespace)
+            } else {
+                Ok(obj.t())
             }
-            hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
-                self.get_attr_t(&attr.obj, &attr.name, namespace)
-            }
-            _ => todo!(),
         }
     }
 
@@ -3127,17 +3145,18 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 2);
         let symbol = Token::symbol(binop_to_dname(op.inspect()));
         let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
-        self.get_call_t(&op, args, &[], namespace).map_err(|e| {
-            // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
-            let core = ErrorCore::new(
-                e.core.errno,
-                e.core.kind,
-                op.loc(),
-                e.core.desc,
-                e.core.hint,
-            );
-            TyCheckError::new(core, e.caused_by)
-        })
+        self.get_call_t(&op, &None, args, &[], namespace)
+            .map_err(|e| {
+                // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                let core = ErrorCore::new(
+                    e.core.errno,
+                    e.core.kind,
+                    op.loc(),
+                    e.core.desc,
+                    e.core.hint,
+                );
+                TyCheckError::new(core, e.caused_by)
+            })
     }
 
     pub(crate) fn get_unaryop_t(
@@ -3149,40 +3168,45 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 1);
         let symbol = Token::symbol(unaryop_to_dname(op.inspect()));
         let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
-        self.get_call_t(&op, args, &[], namespace).map_err(|e| {
-            let core = ErrorCore::new(
-                e.core.errno,
-                e.core.kind,
-                op.loc(),
-                e.core.desc,
-                e.core.hint,
-            );
-            TyCheckError::new(core, e.caused_by)
-        })
+        self.get_call_t(&op, &None, args, &[], namespace)
+            .map_err(|e| {
+                let core = ErrorCore::new(
+                    e.core.errno,
+                    e.core.kind,
+                    op.loc(),
+                    e.core.desc,
+                    e.core.hint,
+                );
+                TyCheckError::new(core, e.caused_by)
+            })
     }
 
     pub(crate) fn get_call_t(
         &self,
-        callee: &hir::Expr,
+        obj: &hir::Expr,
+        method_name: &Option<Token>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         namespace: &Str,
     ) -> TyCheckResult<Type> {
-        match callee {
+        match obj {
             hir::Expr::Accessor(hir::Accessor::Local(local)) if &local.inspect()[..] == "match" => {
                 return self.get_match_call_t(pos_args, kw_args)
             }
             _ => {}
         }
-        let found = self.search_call_t(callee, namespace)?;
-        log!("Found:\ncallee: {callee}\nfound: {found}");
-        let instance = self.instantiate(found, callee)?;
+        let found = self.search_callee_t(obj, method_name, namespace)?;
+        log!(
+            "Found:\ncallee: {obj}{}\nfound: {found}",
+            fmt_option!(pre ".", method_name.as_ref().map(|t| &t.content))
+        );
+        let instance = self.instantiate(found, obj)?;
         log!(
             "Instantiated:\ninstance: {instance}\npos_args: ({})\nkw_args: ({})",
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        self.substitute_call(callee, &instance, pos_args, kw_args)?;
+        self.substitute_call(obj, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
         let res = self.deref_tyvar(instance)?;
         log!("Derefed:\nres: {res}\n");
@@ -3195,7 +3219,7 @@ impl Context {
         log!("Params Evaluated:\nres: {res}\n");
         let res = self.deref_tyvar(res)?;
         log!("Derefed (2):\nres: {res}\n");
-        self.propagate(&res, callee)?;
+        self.propagate(&res, obj)?;
         log!("Propagated:\nres: {res}\n");
         Ok(res)
     }
@@ -4150,6 +4174,7 @@ impl Context {
         if name.len() <= 1 {
             return None;
         }
+        // TODO: add `.decls`
         let most_similar_name = self
             .params
             .iter()

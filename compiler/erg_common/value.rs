@@ -18,6 +18,45 @@ use crate::ty::{fresh_varname, ConstSubr, Predicate, TyParam, Type};
 use crate::{fmt_iter, impl_display_from_debug, switch_lang};
 use crate::{RcArray, Str};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Visibility {
+    Private,
+    Public,
+}
+
+impl Visibility {
+    pub const fn is_public(&self) -> bool {
+        matches!(self, Self::Public)
+    }
+    pub const fn is_private(&self) -> bool {
+        matches!(self, Self::Private)
+    }
+}
+
+/// same structure as `Identifier`, but only for Record fields.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Field {
+    vis: Visibility,
+    symbol: Str,
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.vis == Visibility::Public {
+            write!(f, ".{}", self.symbol)
+        } else {
+            write!(f, "{}", self.symbol)
+        }
+    }
+}
+
+impl Field {
+    pub const fn new(vis: Visibility, symbol: Str) -> Self {
+        Field { vis, symbol }
+    }
+}
+
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
 #[derive(Clone, PartialEq, Default)]
@@ -29,7 +68,7 @@ pub enum ValueObj {
     Bool(bool),
     Array(Rc<[ValueObj]>),
     Dict(Rc<[(ValueObj, ValueObj)]>),
-    Record(Dict<Str, ValueObj>),
+    Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
     Subr(ConstSubr),
     Type(Box<Type>),

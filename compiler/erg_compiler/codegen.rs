@@ -19,7 +19,7 @@ use erg_common::{
 };
 use Opcode::*;
 
-use erg_parser::ast::{ParamPattern, Params, VarPattern};
+use erg_parser::ast::{Identifier, ParamPattern, Params, VarName, VarPattern};
 use erg_parser::token::{Token, TokenCategory, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
@@ -29,12 +29,162 @@ use crate::hir::{
 };
 use AccessKind::*;
 
-fn obj_name(obj: &Expr) -> Option<String> {
-    match obj {
-        Expr::Accessor(Accessor::Local(n)) => Some(n.inspect().to_string()),
-        Expr::Accessor(Accessor::Attr(a)) => Some(obj_name(&a.obj)? + "." + a.name.inspect()),
-        Expr::Accessor(Accessor::SelfDot(n)) => Some(format!(".{}", n.inspect())),
-        _ => None,
+fn is_python_global(name: &str) -> bool {
+    match name {
+        "ArithmeticError"
+        | "AssertionError"
+        | "AttributeError"
+        | "BaseException"
+        | "BlockingIOError"
+        | "BrokenPipeError"
+        | "BufferError"
+        | "BytesWarning"
+        | "ChildProcessError"
+        | "ConnectionAbortedError"
+        | "ConnectionError"
+        | "ConnectionRefusedError"
+        | "ConnectionResetError"
+        | "DeprecationWarning"
+        | "EOFError"
+        | "Ellipsis"
+        | "EncodingWarning"
+        | "EnvironmentError"
+        | "Exception"
+        | "False"
+        | "FileExistsError"
+        | "FileNotFoundError"
+        | "FloatingPointError"
+        | "FutureWarning"
+        | "GeneratorExit"
+        | "IOError"
+        | "ImportError"
+        | "ImportWarning"
+        | "IndentationError"
+        | "IndexError"
+        | "InterruptedError"
+        | "IsADirectoryError"
+        | "KeyError"
+        | "KeyboardInterrupt"
+        | "LookupError"
+        | "MemoryError"
+        | "ModuleNotFoundError"
+        | "NameError"
+        | "None"
+        | "NotADirectoryError"
+        | "NotImplemented"
+        | "NotImplementedError"
+        | "OSError"
+        | "OverflowError"
+        | "PendingDeprecationWarning"
+        | "PermissionError"
+        | "ProcessLookupError"
+        | "RecursionError"
+        | "ReferenceError"
+        | "ResourceWarning"
+        | "RuntimeError"
+        | "RuntimeWarning"
+        | "StopAsyncIteration"
+        | "StopIteration"
+        | "SyntaxError"
+        | "SyntaxWarning"
+        | "SystemError"
+        | "SystemExit"
+        | "TabError"
+        | "TimeoutError"
+        | "True"
+        | "TypeError"
+        | "UnboundLocalError"
+        | "UnicodeDecodeError"
+        | "UnicodeEncodeError"
+        | "UnicodeError"
+        | "UnicodeTranslateError"
+        | "UnicodeWarning"
+        | "UserWarning"
+        | "ValueError"
+        | "Warning"
+        | "WindowsError"
+        | "ZeroDivisionError"
+        | "__build__class__"
+        | "__debug__"
+        | "__doc__"
+        | "__import__"
+        | "__loader__"
+        | "__name__"
+        | "__package__"
+        | "__spec__"
+        | "__annotations__"
+        | "__builtins__"
+        | "abs"
+        | "aiter"
+        | "all"
+        | "any"
+        | "anext"
+        | "ascii"
+        | "bin"
+        | "bool"
+        | "breakpoint"
+        | "bytearray"
+        | "bytes"
+        | "callable"
+        | "chr"
+        | "classmethod"
+        | "compile"
+        | "complex"
+        | "delattr"
+        | "dict"
+        | "dir"
+        | "divmod"
+        | "enumerate"
+        | "eval"
+        | "exec"
+        | "filter"
+        | "float"
+        | "format"
+        | "frozenset"
+        | "getattr"
+        | "globals"
+        | "hasattr"
+        | "hash"
+        | "help"
+        | "hex"
+        | "id"
+        | "input"
+        | "int"
+        | "isinstance"
+        | "issubclass"
+        | "iter"
+        | "len"
+        | "list"
+        | "locals"
+        | "map"
+        | "max"
+        | "memoryview"
+        | "min"
+        | "next"
+        | "object"
+        | "oct"
+        | "open"
+        | "ord"
+        | "pow"
+        | "print"
+        | "property"
+        | "range"
+        | "repr"
+        | "reversed"
+        | "round"
+        | "set"
+        | "setattr"
+        | "slice"
+        | "sorted"
+        | "staticmethod"
+        | "str"
+        | "sum"
+        | "super"
+        | "tuple"
+        | "type"
+        | "vars"
+        | "zip" => true,
+        _ => false,
     }
 }
 
@@ -76,11 +226,16 @@ fn convert_to_python_name(name: Str) -> Str {
     }
 }
 
-fn escape_name(name: Str) -> Str {
-    let mut name = convert_to_python_name(name).to_string();
-    name = name.replace('!', "__erg_proc__");
-    name = name.replace('$', "__erg_shared__");
-    Str::rc(&name)
+fn escape_name(ident: Identifier) -> Str {
+    let vis = ident.vis();
+    let mut name = convert_to_python_name(ident.name.into_token().content).to_string();
+    name = name.replace('!', "__erg_proc");
+    name = name.replace('$', "__erg_shared");
+    if vis.is_public() || is_python_global(&name) {
+        Str::rc(&name)
+    } else {
+        Str::from("__".to_string() + &name)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -324,9 +479,9 @@ impl CodeGenerator {
         Some(StoreLoadKind::Global)
     }
 
-    fn register_name(&mut self, name: Str) -> Name {
+    fn register_name(&mut self, ident: Identifier) -> Name {
         let current_is_toplevel = self.cur_block() == self.toplevel_block();
-        let name = escape_name(name);
+        let name = escape_name(ident);
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
                 let st = if current_is_toplevel {
@@ -371,10 +526,10 @@ impl CodeGenerator {
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
-    fn emit_load_name_instr(&mut self, name: Str) -> CompileResult<()> {
+    fn emit_load_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
         let name = self
-            .local_search(&name, Name)
-            .unwrap_or_else(|| self.register_name(name));
+            .local_search(ident.inspect(), Name)
+            .unwrap_or_else(|| self.register_name(ident));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -427,10 +582,10 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_store_instr(&mut self, name: Str, acc_kind: AccessKind) {
+    fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         let name = self
-            .local_search(&name, acc_kind)
-            .unwrap_or_else(|| self.register_name(name));
+            .local_search(ident.inspect(), acc_kind)
+            .unwrap_or_else(|| self.register_name(ident));
         let instr = match name.kind {
             StoreLoadKind::Fast => Opcode::STORE_FAST,
             StoreLoadKind::FastConst => Opcode::ERG_STORE_FAST_IMMUT,
@@ -492,11 +647,11 @@ impl CodeGenerator {
             .collect()
     }
 
-    fn emit_var_pat(&mut self, pat: &VarPattern, op: &Token) {
+    fn emit_var_pat(&mut self, pat: VarPattern, op: &Token) {
         match pat {
-            VarPattern::Local(var) => {
+            VarPattern::Ident(ident) => {
                 if op.category_is(TokenCategory::DefOp) {
-                    self.emit_store_instr(var.inspect().clone(), Name);
+                    self.emit_store_instr(ident, Name);
                 } else {
                     todo!()
                 }
@@ -507,8 +662,8 @@ impl CodeGenerator {
                     self.write_instr(UNPACK_SEQUENCE);
                     self.write_arg(a.len() as u8);
                     self.stack_inc_n(a.len() - 1);
-                    for sig in a.iter() {
-                        self.emit_var_pat(&sig.pat, op);
+                    for sig in a.into_iter() {
+                        self.emit_var_pat(sig.pat, op);
                     }
                 } else {
                     switch_unreachable!()
@@ -522,17 +677,20 @@ impl CodeGenerator {
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let name = sig.inspect().unwrap();
-        let code = self.codegen_typedef_block(name.clone(), body.block);
+        let ident = match sig.pat {
+            VarPattern::Ident(ident) => ident,
+            _ => todo!(),
+        };
+        let code = self.codegen_typedef_block(ident.inspect().clone(), body.block);
         self.emit_load_const(code);
-        self.emit_load_const(name.clone());
+        self.emit_load_const(ident.inspect().clone());
         self.write_instr(Opcode::MAKE_FUNCTION);
         self.write_arg(0);
-        self.emit_load_const(name.clone());
+        self.emit_load_const(ident.inspect().clone());
         self.write_instr(Opcode::CALL_FUNCTION);
         self.write_arg(2);
         self.stack_dec_n((1 + 2) - 1);
-        self.emit_store_instr(name.clone(), Name);
+        self.emit_store_instr(ident, Name);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
@@ -544,11 +702,11 @@ impl CodeGenerator {
         } else {
             self.codegen_frameless_block(body.block, vec![]);
         }
-        self.emit_var_pat(&sig.pat, &body.op);
+        self.emit_var_pat(sig.pat, &body.op);
     }
 
     fn emit_subr_def(&mut self, sig: SubrSignature, body: DefBody) {
-        let name = sig.name.inspect().clone();
+        let name = sig.ident.inspect().clone();
         let mut opcode_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
         let code = self.codegen_block(body.block, Some(name.clone()), params);
@@ -568,7 +726,7 @@ impl CodeGenerator {
         self.write_arg(opcode_flag);
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
-        self.emit_store_instr(name, Name);
+        self.emit_store_instr(sig.ident, Name);
     }
 
     fn emit_discard_instr(&mut self, mut args: Args) -> CompileResult<()> {
@@ -687,7 +845,8 @@ impl CodeGenerator {
         let mut pop_jump_points = vec![];
         match pat {
             ParamPattern::VarName(name) => {
-                self.emit_store_instr(name.inspect().clone(), AccessKind::Name);
+                let ident = Identifier::new(None, name);
+                self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Lit(lit) => {
                 self.emit_load_const(ValueObj::from(&lit));
@@ -735,15 +894,16 @@ impl CodeGenerator {
         Ok(pop_jump_points)
     }
 
-    fn emit_call_name(&mut self, name: Str, mut args: Args) -> CompileResult<()> {
-        match &name[..] {
+    fn emit_call_special(&mut self, name: VarName, mut args: Args) -> CompileResult<()> {
+        match &name.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             _ => {
-                self.emit_load_name_instr(name).unwrap_or_else(|e| {
+                let ident = Identifier::new(None, name);
+                self.emit_load_name_instr(ident).unwrap_or_else(|e| {
                     self.errs.push(e);
                 });
                 let argc = args.len();
@@ -772,66 +932,20 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_call_method(&mut self, obj: Expr, name: Str, mut args: Args, is_static: bool) {
-        if is_static {
-            self.emit_load_name_instr(name).unwrap_or_else(|err| {
+    fn emit_call(&mut self, obj: Expr, method_name: Option<Token>, mut args: Args) {
+        let class = Str::rc(obj.ref_t().name()); // これは必ずmethodのあるクラスになっている
+        let uniq_obj_name = obj.__name__().map(Str::rc);
+        self.codegen_expr(obj);
+        if let Some(method_name) = method_name {
+            self.emit_load_method_instr(
+                &class,
+                uniq_obj_name.as_ref().map(|s| &s[..]),
+                method_name.content,
+            )
+            .unwrap_or_else(|err| {
                 self.errs.push(err);
             });
-            let argc = args.len();
-            let mut kws = Vec::with_capacity(args.kw_len());
-            while let Some(arg) = args.try_remove_pos(0) {
-                self.codegen_expr(arg.expr);
-            }
-            while let Some(arg) = args.try_remove_kw(0) {
-                kws.push(ValueObj::Str(arg.keyword.content.clone()));
-                self.codegen_expr(arg.expr);
-            }
-            let kwsc = if !kws.is_empty() {
-                let kws_tuple = ValueObj::from(kws);
-                self.emit_load_const(kws_tuple);
-                self.write_instr(CALL_FUNCTION_KW);
-                1
-            } else {
-                self.write_instr(CALL_FUNCTION);
-                0
-            };
-            self.write_arg(1 + argc as u8);
-            // (1 (method as subroutine) + 1 (obj) + argc + kwsc) input objects -> 1 return object
-            self.stack_dec_n((1 + 1 + argc + kwsc) - 1);
-        } else {
-            let class = Str::rc(obj.ref_t().name());
-            let uniq_obj_name = obj.__name__().map(Str::rc);
-            self.codegen_expr(obj);
-            self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), name)
-                .unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
-            let argc = args.len();
-            let mut kws = Vec::with_capacity(args.kw_len());
-            while let Some(arg) = args.try_remove_pos(0) {
-                self.codegen_expr(arg.expr);
-            }
-            while let Some(arg) = args.try_remove_kw(0) {
-                kws.push(ValueObj::Str(arg.keyword.content.clone()));
-                self.codegen_expr(arg.expr);
-            }
-            let kwsc = if !kws.is_empty() {
-                let kws_tuple = ValueObj::from(kws);
-                self.emit_load_const(kws_tuple);
-                self.write_instr(CALL_FUNCTION_KW);
-                1
-            } else {
-                self.write_instr(CALL_METHOD);
-                0
-            };
-            self.write_arg(argc as u8);
-            // (1 (method) + argc + kwsc) input objects -> 1 return object
-            self.stack_dec_n((1 + argc + kwsc) - 1);
         }
-    }
-
-    fn emit_call_callable_obj(&mut self, obj: Expr, mut args: Args) {
-        self.codegen_expr(obj);
         let argc = args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
         while let Some(arg) = args.try_remove_pos(0) {
@@ -847,11 +961,11 @@ impl CodeGenerator {
             self.write_instr(CALL_FUNCTION_KW);
             1
         } else {
-            self.write_instr(CALL_FUNCTION);
+            self.write_instr(CALL_METHOD);
             0
         };
         self.write_arg(argc as u8);
-        // (1 (name) + argc + kwsc) objects -> 1 return object
+        // (1 (method) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + argc + kwsc) - 1);
     }
 
@@ -912,7 +1026,7 @@ impl CodeGenerator {
                 self.emit_load_const(lit.data);
             }
             Expr::Accessor(Accessor::Local(l)) => {
-                self.emit_load_name_instr(l.inspect().clone())
+                self.emit_load_name_instr(Identifier::new(None, VarName::new(l.name)))
                     .unwrap_or_else(|err| {
                         self.errs.push(err);
                     });
@@ -971,7 +1085,8 @@ impl CodeGenerator {
                 match &bin.op.kind {
                     // l..<r == range(l, r)
                     TokenKind::RightOpen => {
-                        self.emit_load_name_instr(Str::ever("range")).unwrap();
+                        self.emit_load_name_instr(Identifier::public("range"))
+                            .unwrap();
                     }
                     TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
                     _ => {}
@@ -1034,22 +1149,15 @@ impl CodeGenerator {
                     _ => {}
                 }
             }
-            Expr::Call(call) => {
-                // TODO: unwrap
-                let name = Str::from(obj_name(&call.obj).unwrap());
-                match *call.obj {
-                    Expr::Accessor(Accessor::Local(_)) => {
-                        self.emit_call_name(name, call.args).unwrap();
-                    }
-                    Expr::Accessor(Accessor::Attr(a)) => {
-                        // TODO: impl static dispatch mode
-                        self.emit_call_method(*a.obj, name, call.args, false);
-                    }
-                    obj => {
-                        self.emit_call_callable_obj(obj, call.args);
-                    }
+            Expr::Call(call) => match *call.obj {
+                Expr::Accessor(Accessor::Local(local)) => {
+                    let name = VarName::new(local.name);
+                    self.emit_call_special(name, call.args).unwrap();
                 }
-            }
+                obj => {
+                    self.emit_call(obj, call.method_name, call.args);
+                }
+            },
             // TODO: list comprehension
             Expr::Array(arr) => match arr {
                 Array::Normal(mut arr) => {
@@ -1082,7 +1190,7 @@ impl CodeGenerator {
     /// forブロックなどで使う
     fn codegen_frameless_block(&mut self, block: Block, params: Vec<Str>) {
         for param in params {
-            self.emit_store_instr(param, Name);
+            self.emit_store_instr(Identifier::private(param), Name);
         }
         for expr in block.into_iter() {
             self.codegen_expr(expr);
@@ -1106,9 +1214,9 @@ impl CodeGenerator {
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
-        self.emit_store_instr(Str::from("__module__"), Attr);
+        self.emit_store_instr(Identifier::public("__module__"), Attr);
         self.emit_load_const(name);
-        self.emit_store_instr(Str::from("__qualname__"), Attr);
+        self.emit_store_instr(Identifier::public("__qualname__"), Attr);
         // TODO: サブルーチンはT.subという書式でSTORE
         for expr in block.into_iter() {
             self.codegen_expr(expr);
@@ -1222,7 +1330,8 @@ impl CodeGenerator {
         let mut print_point = 0;
         if self.input().is_repl() {
             print_point = self.cur_block().lasti;
-            self.emit_load_name_instr(Str::ever("print")).unwrap();
+            self.emit_load_name_instr(Identifier::public("print"))
+                .unwrap();
         }
         for expr in hir.module.into_iter() {
             self.codegen_expr(expr);

@@ -2,6 +2,8 @@ use std::fmt;
 
 use erg_common::traits::HasType;
 use erg_common::ty::Type;
+use erg_common::value::Visibility;
+use Visibility::*;
 
 use erg_parser::ast::DefId;
 
@@ -31,24 +33,6 @@ impl Mutability {
 }
 
 use Mutability::*;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Visibility {
-    Private,
-    Public,
-}
-
-impl Visibility {
-    pub const fn is_public(&self) -> bool {
-        matches!(self, Self::Public)
-    }
-    pub const fn is_private(&self) -> bool {
-        matches!(self, Self::Private)
-    }
-}
-
-use Visibility::*;
 
 /// e.g.
 /// ```erg

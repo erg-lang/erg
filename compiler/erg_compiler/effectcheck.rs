@@ -5,11 +5,12 @@
 use erg_common::color::{GREEN, RESET};
 use erg_common::log;
 use erg_common::traits::Stream;
+use erg_common::value::Visibility;
 use erg_common::Str;
 
 use crate::error::{EffectError, EffectErrors, EffectResult};
 use crate::hir::{Accessor, Def, Expr, Signature, HIR};
-use crate::varinfo::Visibility;
+
 use Visibility::*;
 
 #[derive(Debug)]
@@ -85,7 +86,7 @@ impl SideEffectChecker {
                     (Str::ever("::<instant>"), Private)
                 }
             }
-            Signature::Subr(subr) => (subr.name.inspect().clone(), Private),
+            Signature::Subr(subr) => (subr.ident.inspect().clone(), Private),
         };
         self.path_stack.push(name_and_vis);
         // TODO: support raw identifier (``)

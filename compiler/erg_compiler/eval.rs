@@ -5,9 +5,9 @@ use erg_common::rccell::RcCell;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
 use erg_common::ty::{OpKind, Predicate, SubrKind, TyBound, TyParam, Type};
-use erg_common::value::ValueObj;
-use erg_common::Str;
+use erg_common::value::{Field, ValueObj};
 use erg_common::{fn_name, set};
+use erg_common::{RcArray, Str};
 use OpKind::*;
 
 use erg_parser::ast::*;
@@ -181,6 +181,46 @@ impl Evaluator {
         None
     }
 
+    fn eval_const_array(&self, arr: &Array, ctx: &Context) -> Option<ValueObj> {
+        let mut elems = vec![];
+        match arr {
+            Array::Normal(arr) => {
+                for elem in arr.elems.pos_args().iter() {
+                    if let Some(elem) = self.eval_const_expr(&elem.expr, ctx) {
+                        elems.push(elem);
+                    } else {
+                        return None;
+                    }
+                }
+            }
+            _ => {
+                return None;
+            }
+        }
+        Some(ValueObj::Array(RcArray::from(elems)))
+    }
+
+    fn eval_const_record(&self, _record: &Record, ctx: &Context) -> Option<ValueObj> {
+        let mut attrs = vec![];
+        for attr in _record.attrs.iter() {
+            if let Some(elem) = self.eval_const_block(&attr.body.block, ctx) {
+                let ident = match &attr.sig {
+                    Signature::Var(var) => match &var.pat {
+                        VarPattern::Ident(ident) => {
+                            Field::new(ident.vis(), ident.inspect().clone())
+                        }
+                        _ => todo!(),
+                    },
+                    _ => todo!(),
+                };
+                attrs.push((ident, elem));
+            } else {
+                return None;
+            }
+        }
+        Some(ValueObj::Record(attrs.into_iter().collect()))
+    }
+
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
@@ -191,6 +231,8 @@ impl Evaluator {
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call, ctx),
             Expr::Def(def) => self.eval_const_def(def),
+            Expr::Array(arr) => self.eval_const_array(arr, ctx),
+            Expr::Record(rec) => self.eval_const_record(rec, ctx),
             other => todo!("{other}"),
         }
     }
