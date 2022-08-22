@@ -36,6 +36,8 @@ assert employee.name == 'John Smith'
 
 ## Polymorphic Type
 
+> WIP
+
 ## Instant Scope
 
 名前空間内での衝突が起きない場合は、単にマングリングして展開されます。
@@ -67,10 +69,6 @@ def _():
     return y + 1
 x = _()
 ```
-
-## Overloading
-
-マングリングを使用しています。
 
 ## Visibility
 

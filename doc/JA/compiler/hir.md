@@ -18,7 +18,7 @@ log v.sum()
 AST(Module[
     VarDef{
         sig: VarSignature{
-            pat: VarPattern::Name(Name("v")),
+            pat: VarPattern::Ident(None, VarName("v")),
             spec_t: None,
         },
         op: "=",
@@ -41,7 +41,7 @@ AST(Module[
                 sig: LambdaSignature{
                     params: [
                         ParamSignature{
-                            pat: ParamPattern::Name(Name("i")),
+                            pat: ParamPattern::Name(VarName("i")),
                         },
                     ],
                     spec_ret_t: None,
@@ -75,7 +75,7 @@ AST(Module[
 HIR(Module[
     VarDef{
         sig: VarSignature{
-            pat: VarPattern::Name(Name("v")),
+            pat: VarPattern::Ident(None, Name("v")),
             t: [0..10, _]!,
         },
         op: "=",

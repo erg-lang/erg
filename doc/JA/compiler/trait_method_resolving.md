@@ -4,7 +4,7 @@
 本来`Nat`はPythonのクラス階層には存在しない。Ergはこのパッチのメソッドをどうやって解決するのだろうか？
 
 ```erg
-1.times do
+1.times do:
     log "hello, world"
 ```
 

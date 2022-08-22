@@ -3223,9 +3223,7 @@ impl Context {
         );
         self.substitute_call(obj, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
-        let res = self.deref_tyvar(instance)?;
-        log!("Derefed:\nres: {res}\n");
-        let res = match self.instantiate_trait(res) {
+        let res = match self.instantiate_trait(instance) {
             Ok(t) => t,
             Err(e) => e,
         };
@@ -3233,7 +3231,7 @@ impl Context {
         let res = self.eval.eval_t_params(res, &self, self.level)?;
         log!("Params Evaluated:\nres: {res}\n");
         let res = self.deref_tyvar(res)?;
-        log!("Derefed (2):\nres: {res}\n");
+        log!("Derefed:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!("Propagated:\nres: {res}\n");
         Ok(res)
