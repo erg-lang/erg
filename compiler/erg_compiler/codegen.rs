@@ -168,6 +168,7 @@ fn is_python_global(name: &str) -> bool {
         | "pow"
         | "print"
         | "property"
+        | "quit"
         | "range"
         | "repr"
         | "reversed"
