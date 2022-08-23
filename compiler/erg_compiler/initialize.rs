@@ -115,6 +115,21 @@ impl Context {
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
         let named = Self::mono_trait("Named", vec![], Self::TOP_LEVEL);
+        let mut mutable = Self::mono_trait("Mutable", vec![], Self::TOP_LEVEL);
+        let proj = mono_proj(mono_q("Self"), "ImmutType");
+        let f_t = Type::func(vec![param_t("old", proj.clone())], vec![], proj);
+        let t = Type::pr1_met(mono_q("Self"), None, f_t, NoneType);
+        let t = quant(t, set! { subtypeof(mono_q("Self"), mono("Immutizable")) });
+        mutable.register_decl("update!", t, Public);
+        let mut immutizable =
+            Self::mono_trait("Immutizable", vec![mono("Mutable")], Self::TOP_LEVEL);
+        immutizable.register_decl("ImmutType", Type, Public);
+        let mut mutizable = Self::mono_trait("Mutizable", vec![], Self::TOP_LEVEL);
+        mutizable.register_decl("MutType!", Type, Public);
+        let mut in_ = Self::poly_trait("In", vec![PS::t("T", NonDefault)], vec![], Self::TOP_LEVEL);
+        let op_t = Type::fn1_met(poly("In", vec![ty_tp(mono_q("T"))]), mono_q("T"), Bool);
+        let op_t = quant(op_t, set! { static_instance("T", Type) });
+        in_.register_decl("__in__", op_t, Public);
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
         // use `l - r < EPSILON` to check if two floats are almost equal
@@ -233,6 +248,10 @@ impl Context {
         div.register_decl("__div__", op_t, Public);
         div.register_decl("DivO", Type, Public);
         self.register_type(mono("Named"), named, Const);
+        self.register_type(mono("Mutable"), mutable, Const);
+        self.register_type(mono("Immutizable"), immutizable, Const);
+        self.register_type(mono("Mutizable"), mutizable, Const);
+        self.register_type(poly("In", vec![ty_tp(mono_q("T"))]), in_, Const);
         self.register_type(poly("Eq", vec![ty_tp(mono_q("R"))]), eq, Const);
         self.register_type(
             poly("PartialOrd", vec![ty_tp(mono_q("R"))]),
@@ -473,7 +492,11 @@ impl Context {
         let mut type_ = Self::mono_class(
             "Type",
             vec![Obj],
-            vec![poly("Eq", vec![ty_tp(Type)]), mono("Named")],
+            vec![
+                poly("Eq", vec![ty_tp(Type)]),
+                poly("In", vec![ty_tp(Obj)]), // x in Type
+                mono("Named"),
+            ],
             Self::TOP_LEVEL,
         );
         type_.register_impl(
@@ -542,6 +565,8 @@ impl Context {
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
         ));
+        // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
+        array.register_const("MutType!", mut_type);
         let mut int_mut = Self::mono_class(
             "Int!",
             vec![Int, Obj],
@@ -549,6 +574,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         int_mut.register_const("ImmutType", ValueObj::t(Int));
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Int"))], vec![], mono("Int")),
+        );
+        let t = Type::pr_met(mono("Int!"), None, vec![f_t], vec![], mono("Int!"));
+        int_mut.register_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
             "Int!",
             vec![Nat, Obj],
@@ -556,6 +587,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         nat_mut.register_const("ImmutType", ValueObj::t(Nat));
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Nat"))], vec![], mono("Nat")),
+        );
+        let t = Type::pr_met(mono("Nat!"), None, vec![f_t], vec![], mono("Nat!"));
+        nat_mut.register_impl("update!", t, Immutable, Public);
         let mut float_mut = Self::mono_class(
             "Float!",
             vec![Float, Obj],
@@ -563,6 +600,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         float_mut.register_const("ImmutType", ValueObj::t(Float));
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Float"))], vec![], mono("Float")),
+        );
+        let t = Type::pr_met(mono("Float!"), None, vec![f_t], vec![], mono("Float!"));
+        float_mut.register_impl("update!", t, Immutable, Public);
         let mut ratio_mut = Self::mono_class(
             "Ratio!",
             vec![Ratio, Obj],
@@ -570,6 +613,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         ratio_mut.register_const("ImmutType", ValueObj::t(Ratio));
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Ratio"))], vec![], mono("Ratio")),
+        );
+        let t = Type::pr_met(mono("Ratio!"), None, vec![f_t], vec![], mono("Ratio!"));
+        ratio_mut.register_impl("update!", t, Immutable, Public);
         let mut bool_mut = Self::mono_class(
             "Bool!",
             vec![Bool, Obj],
@@ -577,6 +626,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         bool_mut.register_const("ImmutType", ValueObj::t(Bool));
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Bool"))], vec![], mono("Bool")),
+        );
+        let t = Type::pr_met(mono("Bool!"), None, vec![f_t], vec![], mono("Bool!"));
+        bool_mut.register_impl("update!", t, Immutable, Public);
         let mut str_mut = Self::mono_class(
             "Str!",
             vec![Str, Obj],
@@ -584,8 +639,12 @@ impl Context {
             Self::TOP_LEVEL,
         );
         str_mut.register_const("ImmutType", ValueObj::t(Str));
-        // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
-        array.register_const("MutType!", mut_type);
+        let f_t = param_t(
+            "f",
+            Type::func(vec![param_t("old", mono("Str"))], vec![], mono("Str")),
+        );
+        let t = Type::pr_met(mono("Str!"), None, vec![f_t], vec![], mono("Str!"));
+        str_mut.register_impl("update!", t, Immutable, Public);
         let array_mut_t = Type::poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
             "Array!",
@@ -609,6 +668,22 @@ impl Context {
             set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
         );
         array_mut.register_impl("push!", t, Immutable, Public);
+        let f_t = param_t(
+            "f",
+            Type::func(
+                vec![param_t("old", array_t.clone())],
+                vec![],
+                array_t.clone(),
+            ),
+        );
+        let t = Type::pr_met(
+            array_mut_t.clone(),
+            None,
+            vec![f_t],
+            vec![],
+            array_mut_t.clone(),
+        );
+        array_mut.register_impl("update!", t, Immutable, Public);
         let range_t = Type::poly("Range", vec![TyParam::t(mono_q("T"))]);
         let range = Self::poly_class(
             "Range",
@@ -654,7 +729,7 @@ impl Context {
             vec![param_t("err_message", Str)],
             NoneType,
         );
-        let t_classof = nd_func(vec![param_t("o", Obj)], Type::option(Class));
+        let t_classof = nd_func(vec![param_t("old", Obj)], Type::option(Class));
         let t_compile = nd_func(vec![param_t("src", Str)], Code);
         let t_cond = nd_func(
             vec![
@@ -665,8 +740,8 @@ impl Context {
             mono_q("T"),
         );
         let t_cond = quant(t_cond, set! {static_instance("T", Type)});
-        let t_discard = nd_func(vec![param_t("o", Obj)], NoneType);
-        let t_id = nd_func(vec![param_t("o", Obj)], Nat);
+        let t_discard = nd_func(vec![param_t("old", Obj)], NoneType);
+        let t_id = nd_func(vec![param_t("old", Obj)], Nat);
         // FIXME: quantify
         let t_if = func(
             vec![
@@ -808,13 +883,6 @@ impl Context {
         self.register_impl("__ge__", op_t, Const, Private);
         self.register_impl("__and__", Type::bin_op(Bool, Bool, Bool), Const, Private);
         self.register_impl("__or__", Type::bin_op(Bool, Bool, Bool), Const, Private);
-        /* unary */
-        // TODO: Boolの+/-は警告を出したい
-        let n = mono_q("N");
-        let op_t = Type::func1(n.clone(), n.clone());
-        let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
-        self.register_decl("__pos__", op_t.clone(), Private);
-        self.register_decl("__neg__", op_t, Private);
         let t = mono_q("T");
         let op_t = Type::bin_op(t.clone(), t.clone(), Type::range(t.clone()));
         let op_t = quant(op_t, set! {subtypeof(t.clone(), mono("Ord"))});
@@ -822,9 +890,19 @@ impl Context {
         self.register_decl("__lorng__", op_t.clone(), Private);
         self.register_decl("__rorng__", op_t.clone(), Private);
         self.register_decl("__orng__", op_t, Private);
+        let op_t = Type::bin_op(mono_q("T"), poly("In", vec![ty_tp(mono_q("T"))]), Bool);
+        let op_t = quant(op_t, set! { static_instance("T", Type) });
+        self.register_impl("__in__", op_t, Const, Private);
+        /* unary */
+        // TODO: Boolの+/-は警告を出したい
         let op_t = Type::func1(mono_q("T"), Type::mono_proj(mono_q("T"), "MutType!"));
         let op_t = quant(op_t, set! {subtypeof(mono_q("T"), mono("Mutate"))});
         self.register_impl("__mutate__", op_t, Const, Private);
+        let n = mono_q("N");
+        let op_t = Type::func1(n.clone(), n.clone());
+        let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
+        self.register_decl("__pos__", op_t.clone(), Private);
+        self.register_decl("__neg__", op_t, Private);
     }
 
     fn init_builtin_patches(&mut self) {
