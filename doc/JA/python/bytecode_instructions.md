@@ -6,23 +6,33 @@ Python bytecodeの変数操作系の命令はnamei (name index)を通してア�
 
 ## STORE_NAME(namei)
 
+```python
 globals[namei] = stack.pop()
+```
 
 ## LOAD_NAME(namei)
 
+```python
 stack.push(globals[namei])
+```
+
 トップレベルでしか呼び出されない。
 
 ## LOAD_GLOBAL(namei)
 
+```python
 stack.push(globals[namei])
-トップレベルでSTORE_NAMEしたものを内側のスコープでLoadするためのものだが
-トップレベルでのnamei==あるスコープのコードオブジェクトでのnameiとは限らない(nameiではなくnameが同じ)
+```
+
+トップレベルでSTORE_NAMEしたものを内側のスコープでLoadするためのものだが、トップレベルでの`namei`ならばあるスコープのコードオブジェクトでのnameiとも同じとは限らない(nameiではなくnameが同じ)
 
 ## LOAD_CONST(namei)
 
+```python
 stack.push(consts[namei])
-定数テーブルにある定数をロードする
+```
+
+定数テーブルにある定数をロードする。
 現在(Python 3.9)のところ、CPythonではいちいちラムダ関数を"\<lambda\>"という名前でMAKE_FUNCTIONしている
 
 ```console
@@ -53,29 +63,37 @@ fastlocalsはvarnames?
 
 ## LOAD_CLOSURE(namei)
 
+```python
 cell = freevars[namei]
 stack.push(cell)
+```
+
 そのあとBUILD_TUPLEが呼ばれている
 クロージャの中でしか呼び出されないし、cellvarsはクロージャの中での参照を格納するものと思われる
 LOAD_DEREFと違ってcell(参照を詰めたコンテナ)ごとスタックにpushする
 
 ## STORE_DEREF(namei)
 
+```python
 cell = freevars[namei]
 cell.set(stack.pop())
+```
+
 内側のスコープで参照のない変数はSTORE_FASTされるが、参照される変数はSTORE_DEREFされる
 Pythonではこの命令内で参照カウントの増減がされる
 
 ## LOAD_DEREF(namei)
 
+```python
 cell = freevars[namei]
 stack.push(cell.get())
+```
 
 ## 名前リスト
 
 ### varnames
 
-fast_localsに対対応する、関数の内部変数の名前リスト
+fast_localsに対応する、関数の内部変数の名前リスト
 namesで同名の変数があっても、基本的に同じものではない(新しく作られ、そのスコープからは外の変数にアクセスできない)
 つまり、スコープ内で定義された外部参照のない変数はvarnamesに入る
 

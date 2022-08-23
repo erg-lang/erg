@@ -35,8 +35,8 @@
 
 ## PyStringObject
 
-* ascii以外の文字を使うとPyUnicodeになる？
-* "あ", "𠮷", "α"だとPyUnicodeになった(もう使われていない？)
+* If I use a character other than ascii, does it become PyUnicode?
+* "あ", "𠮷", and "α" are PyUnicode (no longer used?)
 
 * 0     byte: 0x73 (means 's')
 * 1~4   byte: length of string
@@ -50,8 +50,8 @@
 
 ## PyShortAsciiObject
 
-* shortと言っているが、100文字以上あってもこれになる
-* というかshortじゃないasciiはない(shortはデータ型？)
+* This is called short, but even if there are more than 100 characters, this will still short
+* or rather, there is no ascii that is not short (is short a data type?)
 
 * 0     byte: 0xFA (means 'z')
 * 1~4   byte: length of string
@@ -59,8 +59,8 @@
 
 ## PyInternedObject
 
-** intern化したオブジェクトは専用のmapに登録され、isで比較できるようになる
-** 例えば文字列などが長さに関係なく定数時間で比較できる
+* interned objects are registered in a dedicated map and can be compared with is
+* String, for example, can be compared in constant time regardless of its length
 
 * 0     byte: 0x74 (means 't')
 
