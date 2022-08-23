@@ -1778,8 +1778,7 @@ pub enum Type {
         lhs: Box<Type>,
         rhs: Str,
     }, // e.g. T.U
-    ASTOmitted,         // call中のcalleeの型など、不要な部分に付ける
-    Failure,            // when failed to infer
+    Failure,            // when failed to infer (e.g. get the type of `match`)
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
@@ -2700,7 +2699,6 @@ impl Type {
             Self::Never => "Never",
             Self::FreeVar(_) => "?", // TODO: 中身がSomeなら表示したい
             Self::MonoProj { .. } => "MonoProj",
-            Self::ASTOmitted => "ASTOmitted",
             Self::Failure => "<Failure>",
             Self::Uninited => "<Uninited>",
         }

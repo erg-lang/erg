@@ -1536,13 +1536,21 @@ impl Context {
     /// ```
     fn substitute_call(
         &self,
-        callee: &hir::Expr,
+        obj: &hir::Expr,
+        method_name: &Option<Token>,
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<()> {
         match instance {
             Type::Subr(subr) => {
+                let callee = if let Some(name) = method_name {
+                    let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Ellipsis);
+                    let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
+                    acc
+                } else {
+                    obj.clone()
+                };
                 let params_len = subr.non_default_params.len() + subr.default_params.len();
                 if params_len < pos_args.len() + kw_args.len() {
                     return Err(TyCheckError::too_many_args_error(
@@ -3069,7 +3077,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_var_t(
+    pub(crate) fn rec_get_var_t(
         &self,
         name: &Token,
         vis: Visibility,
@@ -3089,7 +3097,7 @@ impl Context {
             }
         } else {
             if let Some(parent) = self.outer.as_ref() {
-                return parent.get_var_t(name, vis, namespace);
+                return parent.rec_get_var_t(name, vis, namespace);
             }
             Err(TyCheckError::no_var_error(
                 line!() as usize,
@@ -3101,7 +3109,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_attr_t(
+    pub(crate) fn rec_get_attr_t(
         &self,
         obj: &hir::Expr,
         name: &Token,
@@ -3109,7 +3117,6 @@ impl Context {
     ) -> TyCheckResult<Type> {
         let self_t = obj.t();
         match self_t {
-            ASTOmitted => panic!(),
             Type => todo!(),
             Type::Record(rec) => {
                 // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
@@ -3129,19 +3136,19 @@ impl Context {
             }
             Module => {
                 let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
-                let t = mod_ctx.get_var_t(name, Public, namespace)?;
+                let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
                 return Ok(t);
             }
             _ => {}
         }
         for ctx in self.rec_sorted_sup_type_ctxs(&self_t) {
-            if let Ok(t) = ctx.get_var_t(name, Public, namespace) {
+            if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
                 return Ok(t);
             }
         }
         // TODO: dependent type widening
         if let Some(parent) = self.outer.as_ref() {
-            parent.get_attr_t(obj, name, namespace)
+            parent.rec_get_attr_t(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
@@ -3162,6 +3169,7 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
+            erg_common::fmt_dbg!(obj, obj.ref_t());
             for ctx in self.rec_sorted_sup_type_ctxs(obj.ref_t()) {
                 if let Some(vi) = ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
@@ -3178,12 +3186,7 @@ impl Context {
                 self.get_similar_attr(obj.ref_t(), method_name.inspect()),
             ))
         } else {
-            if obj.ref_t().rec_eq(&ASTOmitted) {
-                let local = enum_unwrap!(obj, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
-                self.get_var_t(&local.name, Private, namespace)
-            } else {
-                Ok(obj.t())
-            }
+            Ok(obj.t())
         }
     }
 
@@ -3195,7 +3198,8 @@ impl Context {
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 2);
         let symbol = Token::symbol(binop_to_dname(op.inspect()));
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
+        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
+        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
@@ -3218,7 +3222,8 @@ impl Context {
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 1);
         let symbol = Token::symbol(unaryop_to_dname(op.inspect()));
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, Type::ASTOmitted));
+        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
+        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
                 let core = ErrorCore::new(
@@ -3257,7 +3262,7 @@ impl Context {
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        self.substitute_call(obj, &instance, pos_args, kw_args)?;
+        self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
         let res = match self.instantiate_trait(instance) {
             Ok(t) => t,
@@ -3581,6 +3586,14 @@ impl Context {
                         Constraint::Uninited => unreachable!(),
                     },
                 }
+            }
+            (Type, Record(rec)) => {
+                for (_, t) in rec.iter() {
+                    if !self.structural_supertype_of(&Type, t, bounds, lhs_variance) {
+                        return false;
+                    }
+                }
+                true
             }
             // (MonoQuantVar(_), _) | (_, MonoQuantVar(_)) => true,
             // REVIEW: maybe this is incomplete

@@ -256,11 +256,7 @@ impl NestedDisplay for Local {
         } else {
             "".to_string()
         };
-        if self.t != Type::ASTOmitted {
-            write!(f, "{} (: {}){}", self.name.content, self.t, __name__)
-        } else {
-            write!(f, "{}{}", self.name.content, __name__)
-        }
+        write!(f, "{} (: {}){}", self.name.content, self.t, __name__)
     }
 }
 
@@ -306,11 +302,7 @@ impl NestedDisplay for Public {
         } else {
             "".to_string()
         };
-        if self.t != Type::ASTOmitted {
-            write!(f, ".{} (: {}){}", self.name.content, self.t, __name__)
-        } else {
-            write!(f, ".{}{}", self.name.content, __name__)
-        }
+        write!(f, ".{} (: {}){}", self.name.content, self.t, __name__)
     }
 }
 

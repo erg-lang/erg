@@ -87,22 +87,18 @@ impl ASTLowerer {
         }
     }
 
-    fn lower_array(&mut self, array: ast::Array, check: bool) -> LowerResult<hir::Array> {
+    fn lower_array(&mut self, array: ast::Array) -> LowerResult<hir::Array> {
         log!("[DEBUG] entered {}({array})", fn_name!());
         match array {
-            ast::Array::Normal(arr) => Ok(hir::Array::Normal(self.lower_normal_array(arr, check)?)),
-            ast::Array::WithLength(arr) => Ok(hir::Array::WithLength(
-                self.lower_array_with_length(arr, check)?,
-            )),
+            ast::Array::Normal(arr) => Ok(hir::Array::Normal(self.lower_normal_array(arr)?)),
+            ast::Array::WithLength(arr) => {
+                Ok(hir::Array::WithLength(self.lower_array_with_length(arr)?))
+            }
             other => todo!("{other}"),
         }
     }
 
-    fn lower_normal_array(
-        &mut self,
-        array: ast::NormalArray,
-        check: bool,
-    ) -> LowerResult<hir::NormalArray> {
+    fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!("[DEBUG] entered {}({array})", fn_name!());
         let mut hir_array = hir::NormalArray::new(
             array.l_sqbr,
@@ -113,7 +109,7 @@ impl ASTLowerer {
         let inner_t = hir_array.t.ref_t().inner_ts().first().unwrap().clone();
         let (elems, _) = array.elems.into_iters();
         for elem in elems {
-            let elem = self.lower_expr(elem.expr, check)?;
+            let elem = self.lower_expr(elem.expr)?;
             self.ctx
                 .sub_unify(elem.ref_t(), &inner_t, Some(elem.loc()), None)?;
             hir_array.push(elem);
@@ -124,12 +120,11 @@ impl ASTLowerer {
     fn lower_array_with_length(
         &mut self,
         array: ast::ArrayWithLength,
-        check: bool,
     ) -> LowerResult<hir::ArrayWithLength> {
         log!("[DEBUG] entered {}({array})", fn_name!());
-        let elem = self.lower_expr(array.elem.expr, check)?;
+        let elem = self.lower_expr(array.elem.expr)?;
         let array_t = self.gen_array_with_length_type(&elem, &array.len);
-        let len = self.lower_expr(*array.len, check)?;
+        let len = self.lower_expr(*array.len)?;
         let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, array_t, elem, len);
         Ok(hir_array)
     }
@@ -185,42 +180,37 @@ impl ASTLowerer {
         Ok(hir_record)
     }
 
-    /// call全体で推論できる場合があり、そのときはcheck: falseにする
-    fn lower_acc(&mut self, acc: ast::Accessor, check: bool) -> LowerResult<hir::Accessor> {
+    fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!("[DEBUG] entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Local(n) => {
-                let (t, __name__) = if check {
+                // `match` is an untypable special form
+                // `match`は型付け不可能な特殊形式
+                let (t, __name__) = if &n.inspect()[..] == "match" {
+                    (Type::Failure, None)
+                } else {
                     (
-                        self.ctx.get_var_t(&n.symbol, Private, &self.ctx.name)?,
+                        self.ctx.rec_get_var_t(&n.symbol, Private, &self.ctx.name)?,
                         self.ctx.get_local_uniq_obj_name(&n.symbol),
                     )
-                } else {
-                    (Type::ASTOmitted, None)
                 };
                 let acc = hir::Accessor::Local(hir::Local::new(n.symbol, __name__, t));
                 Ok(acc)
             }
             ast::Accessor::Public(n) => {
-                let (t, __name__) = if check {
-                    (
-                        self.ctx.get_var_t(&n.symbol, Public, &self.ctx.name)?,
-                        self.ctx.get_local_uniq_obj_name(&n.symbol),
-                    )
-                } else {
-                    (Type::ASTOmitted, None)
-                };
+                let (t, __name__) = (
+                    self.ctx.rec_get_var_t(&n.symbol, Public, &self.ctx.name)?,
+                    self.ctx.get_local_uniq_obj_name(&n.symbol),
+                );
                 let public = hir::Public::new(n.dot, n.symbol, __name__, t);
                 let acc = hir::Accessor::Public(public);
                 Ok(acc)
             }
             ast::Accessor::Attr(a) => {
-                let obj = self.lower_expr(*a.obj, true)?;
-                let t = if check {
-                    self.ctx.get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?
-                } else {
-                    Type::ASTOmitted
-                };
+                let obj = self.lower_expr(*a.obj)?;
+                let t = self
+                    .ctx
+                    .rec_get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?;
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, a.name.symbol, t));
                 Ok(acc)
             }
@@ -231,8 +221,8 @@ impl ASTLowerer {
     fn lower_bin(&mut self, bin: ast::BinOp) -> LowerResult<hir::BinOp> {
         log!("[DEBUG] entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
-        let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
-        let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
+        let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
+        let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [lhs, rhs];
         let t = self.ctx.get_binop_t(&bin.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
@@ -244,7 +234,7 @@ impl ASTLowerer {
     fn lower_unary(&mut self, unary: ast::UnaryOp) -> LowerResult<hir::UnaryOp> {
         log!("[DEBUG] entered {}({unary})", fn_name!());
         let mut args = unary.args.into_iter();
-        let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap(), true)?);
+        let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [arg];
         let t = self.ctx.get_unaryop_t(&unary.op, &args, &self.ctx.name)?;
         let mut args = args.into_iter();
@@ -261,15 +251,12 @@ impl ASTLowerer {
             paren,
         );
         for arg in pos_args.into_iter() {
-            hir_args.push_pos(hir::PosArg::new(self.lower_expr(arg.expr, true)?));
+            hir_args.push_pos(hir::PosArg::new(self.lower_expr(arg.expr)?));
         }
         for arg in kw_args.into_iter() {
-            hir_args.push_kw(hir::KwArg::new(
-                arg.keyword,
-                self.lower_expr(arg.expr, true)?,
-            ));
+            hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr)?));
         }
-        let obj = self.lower_expr(*call.obj, false)?;
+        let obj = self.lower_expr(*call.obj)?;
         let t = self.ctx.get_call_t(
             &obj,
             &call.method_name,
@@ -311,7 +298,7 @@ impl ASTLowerer {
             .ctx
             .params
             .iter()
-            .partition(|(_, v)| v.kind.has_default());
+            .partition(|(_, v)| !v.kind.has_default());
         let non_default_params = non_default_params
             .into_iter()
             .map(|(name, vi)| {
@@ -452,13 +439,13 @@ impl ASTLowerer {
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
-    fn lower_expr(&mut self, expr: ast::Expr, check: bool) -> LowerResult<hir::Expr> {
+    fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!("[DEBUG] entered {}", fn_name!());
         match expr {
             ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
-            ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr, check)?)),
+            ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
-            ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc, check)?)),
+            ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
@@ -472,7 +459,7 @@ impl ASTLowerer {
         log!("[DEBUG] entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
         for expr in ast_block.into_iter() {
-            let expr = self.lower_expr(expr, true)?;
+            let expr = self.lower_expr(expr)?;
             hir_block.push(expr);
         }
         Ok(hir::Block::new(hir_block))
@@ -483,10 +470,7 @@ impl ASTLowerer {
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.ref_payload())?;
         for expr in ast.module.into_iter() {
-            match self
-                .lower_expr(expr, true)
-                .and_then(|e| self.use_check(e, mode))
-            {
+            match self.lower_expr(expr).and_then(|e| self.use_check(e, mode)) {
                 Ok(expr) => {
                     module.push(expr);
                 }

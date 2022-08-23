@@ -295,7 +295,7 @@ macro_rules! fmt_dbg {
             println!("{}", $arg);
         }
     };
-    ($head: expr, $($arg: expr,)+) => {
+    ($head: expr, $($arg: expr $(,)*)+) => {
         if cfg!(feature = "debug") { print!("{}:{:04}:\n", file!(), line!());
             print!("{} = ", stringify!($head));
             println!("{}", $head);
