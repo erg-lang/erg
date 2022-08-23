@@ -1,8 +1,9 @@
-# Add R, O
+# Add R
 
 ```erg
-Add R, O = Trait {
-    .`_+_` = (Self, R) -> O
+Add R = Trait {
+    .AddO = Type
+    .`_+_` = (Self, R) -> Self.AddO
 }
 ```
 

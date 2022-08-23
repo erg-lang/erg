@@ -59,18 +59,17 @@ C.
 
 ```erg
 # foo.er
-Add R, O = Trait {
-    .`_+_` = Self.(R) -> O
-}
-@Attach IntIsBinAdd, OddIsBinAdd
-BinAdd = Subsume Add(Self, Self.AddO), {
+Add R = Trait {
     .AddO = Type
+    .`_+_` = Self.(R) -> Self.AddO
 }
+@Attach AddForInt, AddForOdd
+ClosedAdd = Subsume Add(Self)
 
-IntIsBinAdd = Patch(Int, Impl: BinAdd)
-IntIsBinAdd.AddO = Int
-OddIsBinAdd = Patch(Odd, Impl: BinAdd)
-OddIsBinAdd.AddO = Even
+AddForInt = Patch(Int, Impl: ClosedAdd)
+AddForInt.AddO = Int
+AddForOdd = Patch(Odd, Impl: ClosedAdd)
+AddForOdd.AddO = Even
 ```
 
 こうすると、他のモジュールからトレイトをインポートした際に、アタッチメントパッチが自動で適用されます。

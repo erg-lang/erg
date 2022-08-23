@@ -52,19 +52,16 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
 これはクラスにおける継承(Inheritance)に対応しますが、継承と違い複数の基底型を`and`で合成して指定できます。`not`によって一部を除外したトレイトでもOKです。
 
 ```erg
-Add R, O = Trait {
-    .`_+_` = Self.(R) -> O
-}
-BinAdd = Subsume Add(Self, Self.AddO), {
+Add R = Trait {
     .AddO = Type
+    .`_+_` = Self.(R) -> Self.AddO
 }
+ClosedAdd = Subsume Add(Self)
 Sub R, O = Trait {
     .`_-_` = Self.(R) -> O
 }
-BinSub = Subsume Sub(Self, Self.SubO), {
-    .SubO = Type
-}
-BinAddSub = Subsume BinAdd(Self, Self.AddO) and BinSub(Self, Self.SubO)
+ClosedSub = Subsume Sub(Self)
+ClosedAddSub = Subsume ClosedAdd and ClosedSub
 ```
 
 ## 構造的トレイト

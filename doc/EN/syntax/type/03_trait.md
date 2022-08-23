@@ -52,19 +52,17 @@ In the example below, `BinAddSub` subsumes `BinAdd` and `BinSub`.
 This corresponds to Inheritance in a class, but unlike Inheritance, multiple base types can be combined using `and`. Traits that are partially excluded by `not` are also allowed.
 
 ```erg
-Add R, O = Trait {
-    . `_+_` = Self.(R) -> O
-}
-BinAdd = Subsume Add(Self, Self.AddO), {
+Add R = Trait {
     .AddO = Type
+    . `_+_` = Self.(R) -> Self.AddO
 }
-Sub R, O = Trait {
-    . `_-_` = Self.(R) -> O
-}
-BinSub = Subsume Sub(Self, Self.SubO), {
+
+Sub R = Trait {
     .SubO = Type
+    . `_-_` = Self.(R) -> Self.SubO
 }
-BinAddSub = Subsume BinAdd(Self, Self.AddO) and BinSub(Self, Self.SubO)
+
+BinAddSub = Subsume Add(Self) and Sub(Self)
 ```
 
 ## Structural Traits
@@ -91,7 +89,7 @@ In the following example, `add` cannot be used with an argument of type `C` beca
 
 ```erg
 Add = Trait {
-    . `_+_` = Self.(Self) -> Self.
+    .`_+_` = Self.(Self) -> Self
 }
 # |A <: Add| can be omitted
 add|A <: Add| x, y: A = x.`_+_` y

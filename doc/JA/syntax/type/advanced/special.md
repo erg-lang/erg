@@ -34,19 +34,18 @@ classof D.new_c() # C
 `Self`, `Super`は、構造型・トレイト中では型変数として使用できます。これは、その型のサブタイプであるところのクラスを指します。すなわち、型`T`中で`Self`は`Self <: T`を意味します。
 
 ```erg
-Add R, O = Trait {
-    .`_+_`: Self, R -> O
-}
-BinAdd = Subsume Add(Self, Self.AddO), {
+Add R = Trait {
     .AddO = Type
+    .`_+_`: Self, R -> Self.AddO
 }
+ClosedAdd = Subsume Add(Self)
 
-IntIsBinAdd = Patch(Int, Impl: BinAdd)
-IntIsBinAdd.
+ClosedAddForInt = Patch(Int, Impl: ClosedAdd)
+ClosedAddForInt.
     AddO = Int
 
 assert 1 in Add(Int, Int)
-assert 1 in BinAdd
+assert 1 in ClosedAdd
 assert Int < Add(Int, Int)
-assert Int < BinAdd
+assert Int < ClosedAdd
 ```

@@ -115,8 +115,9 @@ Point2D = {.x = Int; .y = Int}
 なお型引数は型オブジェクト以外も使用できます。例えば配列型`[Int; 3]`は`Array Int, 3`の糖衣文法です。型の実装がかぶる場合、ユーザは明示的に選択しなくてはなりません。
 
 ```erg
-Add R, O = Trait {
-    .`_+_` = Self.(R) -> O
+Add R = Trait {
+    .AddO = Type
+    .`_+_` = Self.(R) -> Self.AddO
 }
 ```
 

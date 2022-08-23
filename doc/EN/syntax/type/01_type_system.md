@@ -116,8 +116,9 @@ The following is a definition of the `Add` type, which requires `+` (the middle 
 Type parameters can also be used for types other than type objects. For example, the array type `[Int; 3]` is a syntax sugar for `Array Int, 3`. If the type implementations overlap, the user must explicitly choose one.
 
 ```erg
-Add R, O = Trait {
-    . `_+_` = Self.(R) -> O
+Add R = Trait {
+    .AddO = Type
+    . `_+_` = Self.(R) -> Self.AddO
 }
 ```
 

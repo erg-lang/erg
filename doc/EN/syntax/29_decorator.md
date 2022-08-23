@@ -37,14 +37,14 @@ Use to override an attribute, which by default Erg will fail if you try to defin
 Indicates implementation of the argument trace.
 
 ```erg
-Add = Trait {
+ClosedAdd = Trait {
     . `_+_` = Self.(Self) -> Self
 }
-Sub = Trait {
+ClosedSub = Trait {
     . `_-_` = Self.(Self) -> Self
 }
 
-C = Class({i = Int}, Impl: Add and Sub)
+C = Class({i = Int}, Impl: ClosedAdd and ClosedSub)
 C.
     @Impl Add.
     `_+_` self, other = C.new {i = self::i + other::i}
@@ -59,18 +59,18 @@ This allows you to reproduce the same behavior as the Rust trait.
 
 ```erg
 # foo.er
-Add R, O = Trait {
-    . `_+_` = Self.(R) -> O
-}
-@Attach IntIsBinAdd, OddIsBinAdd
-BinAdd = Subsume Add(Self, Self.AddO), {
+
+Add R = Trait {
+    .`_+_` = Self.(R) -> Self.AddO
     .AddO = Type
 }
+@Attach AddForInt, AddForOdd
+ClosedAdd = Subsume Add(Self)
 
-IntIsBinAdd = Patch(Int, Impl: BinAdd)
-AddO = Int
-OddIsBinAdd = Patch(Odd, Impl: BinAdd)
-OddIsBinAdd.AddO = Even
+AddForInt = Patch(Int, Impl: ClosedAdd)
+AddForInt.AddO = Int
+AddForOdd = Patch(Odd, Impl: ClosedAdd)
+AddForOdd.AddO = Even
 ```
 
 This way, when you import traits from other modules, the attachment patch is automatically applied.

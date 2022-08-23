@@ -84,37 +84,29 @@ ClassはInt, Bool, Strなど
 
 * `__add__(self, rhs: Self) -> Self`: `+`を実装
 
-### Add R, O
+### Add R
 
-* `__add__(self, rhs: R) -> O`
+* `__add__(self, rhs: R) -> Self.AddO`
 
-### BinSub
+### Sub R
 
-* `__sub__(self, rhs: Self) -> Self`: `-`を実装
+* `__sub__(self, rhs: R) -> Self.SubO`
 
-### Sub R, O
+### Mul R
 
-* `__sub__(self, rhs: R) -> O`
+* `__mul__(self, rhs: R) -> Self.MulO`
 
-### BinMul
+### BinMul <: Mul Self
 
-* `__mul__(self, rhs: Self) -> Self`: `*`を実装
 * `__pow__`: `**`を実装(デフォルト実装あり)
-
-### Mul R, O
-
-* `__mul__(self, rhs: R) -> O`
-* `__pow__`
-
-### BinDiv
-
-* `__div__(self, rhs: Self) -> Self`: `/`を実装、0によりパニックしてもよい
-* `__mod__`: `%`を実装(デフォルト実装あり)
 
 ### Div R, O
 
-* `__div__(self, rhs: R) -> O`
-* `__mod__`
+* `__div__(self, rhs: Self) -> Self`: `/`を実装、0によりパニックしてもよい
+
+### BinDiv <: Div Self
+
+* `__mod__`: `%`を実装(デフォルト実装あり)
 
 ## 数値型
 
@@ -122,15 +114,15 @@ ClassはInt, Bool, Strなど
 
 Complex以外の例として、Vector, Matrix, TensorはNum(Matrix, Tensorの*はそれぞれdot, productと同じ)
 
-### Complex (= Inherit(Object, Impl=Num))
+### Complex (= Inherit(Object, Impl: Num))
 
 * `imag: Ratio`: 虚部を返す
 * `real: Ratio`: 実部を返す
 * `conjugate self -> Complex`: 共役複素数を返す
 
-### Float (= Inherit(FloatComplex, Impl=Num))
+### Float (= Inherit(FloatComplex, Impl: Num))
 
-### Ratio (= Inherit(Complex, Impl=Num))
+### Ratio (= Inherit(Complex, Impl: Num))
 
 * `numerator: Int`: 分子を返す
 * `denominator: Int`: 分母を返す
