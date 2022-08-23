@@ -8,7 +8,7 @@
 自由型変数(型、未束縛): ?T, ?U, ...
 自由型変数(値、未束縛): ?a, ?b, ...
 型環境(Γ): { x: T, ... }
-型代入規則(S): { ?T -> T, ... }
+型代入規則(S): { ?T --> T, ... }
 型引数評価環境(E): { e -> e', ... }
 ```
 
@@ -25,7 +25,7 @@ Ergの型推論は、大枠としてHindley-Milner型推論アルゴリズムを
 1. 右辺値の型を推論する(search)
 2. 得られた型を具体化する(instantiate)
 3. 呼び出しならば型代入を行う(substitute)
-4. 単相化済みのトレイトを具体化する(instantiate traits)
+4. 単相化済みのトレイトを具体化する(resolve traits)
 5. 型変数値があれば評価・簡約する(eval)
 6. リンク済みの型変数を除去する(deref)
 7. 可変依存型メソッドならば、変更を伝搬させる(propagate)
@@ -49,7 +49,7 @@ line 2. CallMethod{obj: v, name: push!, args: [1]}
         search: `Γ Array!(?T, 0).push!({1})`
         get: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
         instantiate: `Array!(?T, ?N).push!(?T) => NoneType`
-        substitute(`S: {?T -> Nat, ?N -> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
+        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
         eval: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`
         update: `Γ: {v: [Nat; 1]!}`
     expr returns `NoneType`: OK
@@ -112,15 +112,15 @@ inst 'T = ?T (?T ∉ Γ)
 あとは引数なりの型を与えて目的の型を得ます。この操作を型代入(Type substitution)といい、`subst`と表すことにします。
 さらに、その式が呼び出しの場合に戻り値型を得る操作を`subst_call_ret`と表します。第1引数は引数型のリスト、第2引数は代入先の型です。
 
-型代入規則`{?T -> X}`は、`?T`と`X`を同一の型とみなすよう書き換えるという意味です。この操作を __単一化(Unification)__ といいます。`X`は型変数もありえます。
+型代入規則`{?T --> X}`は、`?T`と`X`を同一の型とみなすよう書き換えるという意味です。この操作を __単一化(Unification)__ といいます。`X`は型変数もありえます。
 単一化の詳しいアルゴリズムは[別の項](./unification.md)で解説します。単一化操作は`unify`と表すことにします。
 
 ```erg
 unify(?T, Int) == Ok(()) # ?T == (Int)
 
 # Sは型代入規則、Tは適用する型
-subst(S: {?T -> X}, T: ?T -> ?T) == X -> X
-# 型代入規則は{?T -> X, ?U -> T}
+subst(S: {?T --> X}, T: ?T -> ?T) == X -> X
+# 型代入規則は{?T --> X, ?U --> T}
 subst_call_ret([X, Y], (?T, ?U) -> ?U) == Y
 ```
 
@@ -293,38 +293,38 @@ f x (: ?T<1>), y (: ?W<2>) =
 
 ```erg
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R, 'O)| ('L, 'R) -> 'O)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L.AddO)
 ```
 
 ```erg
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>, ?O<2>))<2>, ?R<2>) -> ?O<2>)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2>) -> ?L<2>.AddO)
 ```
 
 ```erg
 id: ?T<1> -> ?U<1>
 f x (: ?T<2>), y (: ?R<2>) =
-    # ?L<2> -> ?U<1>
-    # ?W<2> -> ?R<2>
-    # ?U<1> <: Add(?R<2>, ?O<2>) (レベルが違うので単一化はせず、部分型関係を追加する)
-    (id(x) + x) (: ?O<2>)
+    # ?L<2> --> ?U<1>
+    # ?W<2> --> ?R<2>
+    # ?U<1> <: Add(?R<1>) (レベルが違うので単一化はせず、レベルを揃えて部分型関係を追加する)
+    (id(x) + x) (: ?U<1>.AddO)
 ```
 
 ```erg
 # current_level = 1
-f(x, y) (: gen ?T<1>, gen ?R<2> -> gen ?O<2>) =
+f(x, y) (: gen ?T<1>, gen ?R<1> -> gen ?U<1>.AddO) =
     id(x) + x
 ```
 
 ```erg
 id: ?T<1> -> ?U<1>
-f(x, y) (: (?T<1>, 'R) -> gen ?O<2>) =
+f(x, y) (: (?T<1>, ?R<1>) -> gen ?U<1>.AddO) =
     id(x) + x
 ```
 
 ```erg
-# ?U<1> <: Add('R, 'O)
-f(x, y) (: (?T<1>, 'R) -> 'O =
+# ?U<1> <: Add(?R<1>)
+f(x, y) (: (?T<1>, ?R<1>) -> ?U<1>.AddO =
     id(x) + x
 ```
 
@@ -336,46 +336,40 @@ f(x, y) (: (?T<1>, 'R) -> 'O =
 id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
 ```
 
-戻り値型が既に割り当てられている場合は、得られた型と単一化します(`?U<2> -> ?T<2>`)。
+戻り値型が既に割り当てられている場合は、得られた型と単一化します(`?U<2> --> ?T<2>`)。
 
 ```erg
-# ?U<2> -> ?T<2>
-f(x, y) (: ?T(<: Add('R, 'O))<2>, 'R -> 'O) =
+# ?U<2> --> ?T<2>
+f(x, y) (: ?T(<: Add(?R<2>))<2>, ?R<2> -> ?T<2>.AddO) =
     id(x) + x
 # current_level = 1
 id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
 ```
 
 ```erg
-f(x, y) (: |'T <: Add('R, 'O)| 'T, 'R -> 'O) =
+f(x, y) (: |'T <: Add('R)| 'T, 'R -> 'T.AddO) =
     id(x) + x
 id(x) (: 'T -> gen 'T) = x
 ```
 
 ```erg
-f x, y (: |'T <: Add('R, 'O)| 'T, 'R -> 'O) =
-    id x + y
+f x, y (: |'T <: Add('R)| 'T, 'R -> 'T.AddO) =
+    id(x) + y
 id(x) (: 'T -> 'T) = x
 
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'T <: Add('R, 'O)| ('T, 'R) -> 'O))
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'T <: Add('R)| ('T, 'R) -> 'T.AddO))
 ```
 
 ```erg
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T(<: Add(?R<1>, ?O<1>))<1>, ?R<1>) -> ?O<1>))
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T(<: Add(?R<1>))<1>, ?R<1>) -> ?T<1>.AddO))
 ```
 
-型変数は、デフォルトではクラスまで拡大されます。
+型変数は、実装のある最小の型まで拡大されます。
 
 ```erg
-# ?T<1> -> Nat
-# ?R<1> -> Nat
-# Nat <: Add(Nat, ?O<1>)
-f(10, 1) (: ?O<1>)
-```
-
-型制約を解決します。詳しくは[型制約の解決](./ty_bound_resolving.md)を参照してください。
-
-```erg
-# ?O<1> -> Nat
+# ?T<1>(:> {10}, <: Add(?R<1>))
+# ?R<1>(:> {1})
+# {10} <: ?T <: Add(?R :> {1}) <: Add(Nat) == Nat
+# ?T(:> {10}, <: Nat).AddO == Nat
 f(10, 1) (: Nat)
 ```
