@@ -35,7 +35,7 @@ If you declare the argument names explicitly, a type error will result if the na
 
 ```erg
 T = Trait {
-    .f(x: Int, y: Int): Int
+    .f = (x: Int, y: Int): Int
 }
 
 C = Class(U, Impl: T)

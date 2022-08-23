@@ -36,7 +36,7 @@ f: (Int, Int) -> Int
 
 ```erg
 T = Trait {
-    .f(x: Int, y: Int): Int
+    .f = (x: Int, y: Int): Int
 }
 
 C = Class(U, Impl: T)
