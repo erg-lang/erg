@@ -4,12 +4,12 @@ use std::fmt;
 use erg_common::error::Location;
 use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
 use erg_common::ty::{Constraint, TyParam, Type};
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
-    impl_display_for_enum, impl_display_from_nested, impl_locational, impl_locational_for_enum,
-    impl_nested_display_for_chunk_enum, impl_nested_display_for_enum, impl_stream_for_wrapper,
-    impl_t, impl_t_for_enum,
+    enum_unwrap, impl_display_for_enum, impl_display_from_nested, impl_locational,
+    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
+    impl_stream_for_wrapper, impl_t, impl_t_for_enum,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
@@ -249,8 +249,8 @@ pub struct Local {
     t: Type,
 }
 
-impl fmt::Display for Local {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Local {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let __name__ = if let Some(__name__) = self.__name__() {
             format!("(__name__ = {__name__})")
         } else {
@@ -264,6 +264,7 @@ impl fmt::Display for Local {
     }
 }
 
+impl_display_from_nested!(Local);
 impl_t!(Local);
 
 impl Locational for Local {
@@ -298,8 +299,8 @@ pub struct Public {
     t: Type,
 }
 
-impl fmt::Display for Public {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Public {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let __name__ = if let Some(__name__) = self.__name__() {
             format!("(__name__ = {__name__})")
         } else {
@@ -313,6 +314,7 @@ impl fmt::Display for Public {
     }
 }
 
+impl_display_from_nested!(Public);
 impl_t!(Public);
 
 impl Locational for Public {
@@ -350,12 +352,13 @@ pub struct Attribute {
     t: Type,
 }
 
-impl fmt::Display for Attribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}).{}", self.obj, self.name)
+impl NestedDisplay for Attribute {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({}).{}", self.obj, self.name.content)
     }
 }
 
+impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, name);
 impl_t!(Attribute);
 
@@ -376,12 +379,13 @@ pub struct Subscript {
     t: Type,
 }
 
-impl fmt::Display for Subscript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Subscript {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "({})[{}]", self.obj, self.index)
     }
 }
 
+impl_display_from_nested!(Subscript);
 impl_locational!(Subscript, obj, index);
 impl_t!(Subscript);
 
@@ -403,17 +407,7 @@ pub enum Accessor {
     Subscr(Subscript),
 }
 
-impl NestedDisplay for Accessor {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        match self {
-            Self::Local(name) => write!(f, "{}", name),
-            Self::Public(name) => write!(f, "{}", name),
-            Self::Attr(attr) => write!(f, "{}", attr),
-            Self::Subscr(subscr) => write!(f, "{}", subscr),
-        }
-    }
-}
-
+impl_nested_display_for_enum!(Accessor; Local, Public, Attr, Subscr);
 impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Local, Public, Attr, Subscr);
 impl_t_for_enum!(Accessor; Local, Public, Attr, Subscr);
@@ -617,6 +611,81 @@ impl_nested_display_for_enum!(Dict; Normal, Comprehension);
 impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_t_for_enum!(Dict; Normal, Comprehension);
+
+#[derive(Debug, Clone)]
+pub struct RecordAttrs(Vec<Def>);
+
+impl NestedDisplay for RecordAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl From<Vec<Def>> for RecordAttrs {
+    fn from(attrs: Vec<Def>) -> Self {
+        Self(attrs)
+    }
+}
+
+impl RecordAttrs {
+    pub const fn new() -> Self {
+        Self(vec![])
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Def> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
+        self.0.iter_mut()
+    }
+
+    pub fn push(&mut self, attr: Def) {
+        self.0.push(attr);
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Record {
+    l_brace: Token,
+    r_brace: Token,
+    pub attrs: RecordAttrs,
+    t: Type,
+}
+
+impl NestedDisplay for Record {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "{{")?;
+        self.attrs.fmt_nest(f, level + 1)?;
+        writeln!(f, "\n{}}}", "    ".repeat(level))
+    }
+}
+
+impl_display_from_nested!(Record);
+impl_locational!(Record, l_brace, r_brace);
+impl_t!(Record);
+
+impl Record {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
+        let rec = attrs
+            .iter()
+            .map(|def| (Field::from(def.sig.ident().unwrap()), def.body.block.t()))
+            .collect();
+        let t = Type::Record(rec);
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+            t,
+        }
+    }
+
+    pub fn push(&mut self, attr: Def) {
+        let t = enum_unwrap!(&mut self.t, Type::Record);
+        t.insert(Field::from(attr.sig.ident().unwrap()), attr.body.block.t());
+        self.attrs.push(attr);
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct BinOp {
@@ -844,17 +913,14 @@ pub struct VarSignature {
     pub t: Type,
 }
 
-impl fmt::Display for VarSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for VarSignature {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{} (: {})", self.pat, self.t)
     }
 }
 
-impl Locational for VarSignature {
-    fn loc(&self) -> Location {
-        self.pat.loc()
-    }
-}
+impl_display_from_nested!(VarSignature);
+impl_locational!(VarSignature, pat, pat);
 
 impl VarSignature {
     pub const fn new(pat: VarPattern, t: Type) -> Self {
@@ -877,17 +943,14 @@ pub struct SubrSignature {
     pub t: Type,
 }
 
-impl fmt::Display for SubrSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{} (: {})", self.ident, self.params, self.t)
+impl NestedDisplay for SubrSignature {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}{} (: {})", self.ident, self.params, self.t,)
     }
 }
 
-impl Locational for SubrSignature {
-    fn loc(&self) -> Location {
-        Location::concat(&self.ident, &self.params)
-    }
-}
+impl_display_from_nested!(SubrSignature);
+impl_locational!(SubrSignature, ident, params);
 
 impl SubrSignature {
     pub const fn new(ident: Identifier, params: Params, t: Type) -> Self {
@@ -941,6 +1004,7 @@ pub enum Signature {
     Subr(SubrSignature),
 }
 
+impl_nested_display_for_chunk_enum!(Signature; Var, Subr);
 impl_display_for_enum!(Signature; Var, Subr,);
 impl_locational_for_enum!(Signature; Var, Subr,);
 
@@ -967,6 +1031,13 @@ impl Signature {
         match self {
             Self::Var(v) => v.pat.vis(),
             Self::Subr(s) => s.ident.vis(),
+        }
+    }
+
+    pub fn ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Var(v) => v.pat.ident(),
+            Self::Subr(s) => Some(&s.ident),
         }
     }
 }
@@ -1059,7 +1130,8 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
+        self.sig.fmt_nest(f, level)?;
+        writeln!(f, " {}", self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }
@@ -1099,6 +1171,7 @@ pub enum Expr {
     Array(Array),
     // Set(Set),
     Dict(Dict),
+    Record(Record),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
@@ -1107,10 +1180,10 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Dict, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

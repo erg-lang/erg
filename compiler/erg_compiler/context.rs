@@ -15,7 +15,7 @@ use erg_common::ty::{
     Constraint, FreeKind, HasLevel, IntervalOp, ParamTy, Predicate, RefinementType, SubrKind,
     SubrType, TyBound, TyParam, TyParamOrdering, Type,
 };
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     assume_unreachable, enum_unwrap, fmt_option, fmt_slice, fn_name, get_hash, log, set, try_map,
@@ -488,7 +488,7 @@ pub struct Context {
     /// => locals: {"x": T, "y": T}
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
-    pub(crate) consts: Dict<Str, ValueObj>,
+    pub(crate) consts: Dict<VarName, ValueObj>,
     pub(crate) eval: Evaluator,
     // stores user-defined type context
     pub(crate) types: Dict<Type, Context>,
@@ -1765,7 +1765,12 @@ impl Context {
                 Ok(Type::var_args(t))
             }
             Type::Callable { .. } => todo!(),
-            Type::Record(_) => todo!(),
+            Type::Record(mut rec) => {
+                for (_, field) in rec.iter_mut() {
+                    *field = self.deref_tyvar(mem::take(field))?;
+                }
+                Ok(Type::Record(rec))
+            }
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t)?;
                 // TODO: deref_predicate
@@ -1810,6 +1815,22 @@ impl Context {
             },
             hir::Expr::Dict(_dict) => {
                 todo!()
+            }
+            hir::Expr::Record(record) => {
+                for attr in record.attrs.iter_mut() {
+                    match &mut attr.sig {
+                        hir::Signature::Var(var) => {
+                            var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                        }
+                        hir::Signature::Subr(subr) => {
+                            subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                        }
+                    }
+                    for chunk in attr.body.block.iter_mut() {
+                        self.deref_expr_t(chunk)?;
+                    }
+                }
+                Ok(())
             }
             hir::Expr::BinOp(binop) => {
                 let t = binop.signature_mut_t().unwrap();
@@ -3090,7 +3111,22 @@ impl Context {
         match self_t {
             ASTOmitted => panic!(),
             Type => todo!(),
-            Type::Record(_) => todo!(),
+            Type::Record(rec) => {
+                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
+                if let Some(attr) = rec.get(&Field::new(Public, name.inspect().clone())) {
+                    return Ok(attr.clone());
+                } else {
+                    let t = Type::Record(rec);
+                    return Err(TyCheckError::no_attr_error(
+                        line!() as usize,
+                        name.loc(),
+                        namespace.clone(),
+                        &t,
+                        name.inspect(),
+                        self.get_similar_attr(&t, name.inspect()),
+                    ));
+                }
+            }
             Module => {
                 let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
                 let t = mod_ctx.get_var_t(name, Public, namespace)?;
@@ -3914,6 +3950,7 @@ impl Context {
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
+                erg_common::fmt_dbg!(rhs, rhs2,);
                 self.rec_try_cmp(rhs, rhs2, bounds).unwrap().is_eq()
             }
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
@@ -4184,6 +4221,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&Str> {
+        let name = readable_name(name);
         if name.len() <= 1 {
             return None;
         }
@@ -4193,7 +4231,7 @@ impl Context {
             .iter()
             .filter_map(|(opt_name, _)| opt_name.as_ref())
             .chain(self.locals.keys())
-            .min_by_key(|v| levenshtein(v.inspect(), name))?
+            .min_by_key(|v| levenshtein(readable_name(v.inspect()), name))?
             .inspect();
         let len = most_similar_name.len();
         if levenshtein(most_similar_name, name) >= len / 2 {
@@ -4499,6 +4537,16 @@ impl Context {
             Some(mod_)
         } else if let Some(outer) = &self.outer {
             outer.rec_get_mod(name)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
+        if let Some(val) = self.consts.get(name) {
+            Some(val)
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_const_obj(name)
         } else {
             None
         }

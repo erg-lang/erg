@@ -12,8 +12,8 @@ use crate::dict::Dict;
 use crate::rccell::RcCell;
 use crate::set::Set;
 use crate::traits::HasType;
-use crate::ty::ValueObj::{Inf, NegInf};
-use crate::value::ValueObj;
+use crate::value::ValueObj::{Inf, NegInf};
+use crate::value::{Field, ValueObj};
 use crate::{enum_unwrap, fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1749,7 +1749,7 @@ pub enum Type {
         param_ts: Vec<Type>,
         return_t: Box<Type>,
     },
-    Record(Dict<Str, Type>), // e.g. {x = Int}
+    Record(Dict<Field, Type>), // e.g. {x = Int}
     // e.g. {T -> T | T: Type}, {I: Int | I > 0}, {S | N: Nat; S: Str N; N > 1}
     // 区間型と列挙型は篩型に変換される
     // f 0 = ...はf _: {0} == {I: Int | I == 0}のシンタックスシュガー
@@ -1794,7 +1794,16 @@ impl fmt::Display for Type {
             Self::Callable { param_ts, return_t } => {
                 write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
             }
-            Self::Record(attrs) => write!(f, "{{{attrs}}}"),
+            Self::Record(attrs) => {
+                write!(f, "{{")?;
+                if let Some((field, t)) = attrs.iter().next() {
+                    write!(f, "{field} = {t}")?;
+                }
+                for (field, t) in attrs.iter().skip(1) {
+                    write!(f, "; {field} = {t}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Refinement(refinement) => write!(f, "{}", refinement),
             Self::Quantified(quantified) => write!(f, "{}", quantified),
             Self::And(types) => write!(f, "{}", fmt_vec_split_with(types, " and ")),
@@ -2197,6 +2206,16 @@ impl Type {
         )
     }
 
+    pub fn bin_op(l: Type, r: Type, return_t: Type) -> Self {
+        Self::nd_func(
+            vec![
+                ParamTy::named(Str::ever("lhs"), l.clone()),
+                ParamTy::named(Str::ever("rhs"), r.clone()),
+            ],
+            return_t,
+        )
+    }
+
     pub fn anon_param_func(
         non_default_params: Vec<Type>,
         default_params: Vec<Type>,
@@ -2560,7 +2579,18 @@ impl Type {
                     return_t: _rr,
                 },
             ) => todo!(),
-            (Self::Record(_l), Self::Record(_r)) => todo!(),
+            (Self::Record(lhs), Self::Record(rhs)) => {
+                for (l_field, l_t) in lhs.iter() {
+                    if let Some(r_t) = rhs.get(l_field) {
+                        if !l_t.rec_eq(r_t) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (Self::Refinement(l), Self::Refinement(r)) => l.t.rec_eq(&r.t) && l.preds == r.preds,
             (Self::Quantified(l), Self::Quantified(r)) => {
                 l.unbound_callable.rec_eq(&r.unbound_callable) && l.bounds == r.bounds

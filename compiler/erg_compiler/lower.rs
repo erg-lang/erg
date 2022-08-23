@@ -172,6 +172,19 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
+        log!("[DEBUG] entered {}({record})", fn_name!());
+        let mut hir_record =
+            hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());
+        self.ctx.grow("<record>", ContextKind::Record, Private)?;
+        for attr in record.attrs.into_iter() {
+            let attr = self.lower_def(attr)?;
+            hir_record.push(attr);
+        }
+        self.pop_append_errs();
+        Ok(hir_record)
+    }
+
     /// call全体で推論できる場合があり、そのときはcheck: falseにする
     fn lower_acc(&mut self, acc: ast::Accessor, check: bool) -> LowerResult<hir::Accessor> {
         log!("[DEBUG] entered {}({acc})", fn_name!());
@@ -444,6 +457,7 @@ impl ASTLowerer {
         match expr {
             ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr, check)?)),
+            ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc, check)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),

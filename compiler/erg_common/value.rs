@@ -1,6 +1,7 @@
 //! defines `ValueObj` (used in the compiler, VM).
 //!
 //! コンパイラ、VM等で使われる(データも保持した)値オブジェクトを定義する
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
@@ -48,6 +49,20 @@ impl fmt::Display for Field {
         } else {
             write!(f, "{}", self.symbol)
         }
+    }
+}
+
+impl Borrow<str> for Field {
+    #[inline]
+    fn borrow(&self) -> &str {
+        &self.symbol[..]
+    }
+}
+
+impl Borrow<Str> for Field {
+    #[inline]
+    fn borrow(&self) -> &Str {
+        &self.symbol
     }
 }
 
@@ -385,7 +400,9 @@ impl ValueObj {
             ),
             Self::Dict(_dict) => todo!(),
             Self::Code(_) => Type::Code,
-            Self::Record(_) => todo!(),
+            Self::Record(rec) => {
+                Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
+            }
             Self::Subr(_) => todo!(),
             Self::Type(_) => Type::Type,
             Self::None => Type::NoneType,
@@ -433,8 +450,17 @@ impl ValueObj {
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Greater } else { o }),
             */
-            // TODO: cmp with str
-            (_s, _o) => None,
+            (_s, _o) => {
+                if let Some(ValueObj::Bool(b)) = _s.clone().try_eq(_o.clone()) {
+                    if b {
+                        Some(Ordering::Equal)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
         }
     }
 

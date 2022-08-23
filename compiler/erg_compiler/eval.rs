@@ -122,8 +122,21 @@ impl Evaluator {
         ValueObj::from(lit)
     }
 
-    fn eval_const_acc(&self, _acc: &Accessor) -> Option<ValueObj> {
-        todo!()
+    fn eval_const_acc(&self, _acc: &Accessor, ctx: &Context) -> Option<ValueObj> {
+        match _acc {
+            Accessor::Local(local) => {
+                if let Some(val) = ctx.rec_get_const_obj(local.inspect()) {
+                    Some(val.clone())
+                } else {
+                    None
+                }
+            }
+            Accessor::Attr(attr) => {
+                let _obj = self.eval_const_expr(&attr.obj, ctx)?;
+                todo!()
+            }
+            _ => todo!(),
+        }
     }
 
     fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
@@ -156,7 +169,7 @@ impl Evaluator {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Local(name) if name.is_const() => {
-                    if let Some(ValueObj::Subr(subr)) = ctx.consts.get(name.inspect()) {
+                    if let Some(ValueObj::Subr(subr)) = ctx.rec_get_const_obj(&name.inspect()) {
                         let args = self.eval_args(&call.args)?;
                         Some(subr.call(args))
                     } else {
@@ -226,7 +239,7 @@ impl Evaluator {
     pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
         match expr {
             Expr::Lit(lit) => Some(self.eval_const_lit(lit)),
-            Expr::Accessor(acc) => self.eval_const_acc(acc),
+            Expr::Accessor(acc) => self.eval_const_acc(acc, ctx),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call, ctx),
@@ -336,8 +349,7 @@ impl Evaluator {
         match p {
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(&fv.crack(), ctx),
             TyParam::Mono(name) => ctx
-                .consts
-                .get(name)
+                .rec_get_const_obj(name)
                 .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),

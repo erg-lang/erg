@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::ty::SubrKind;
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -607,12 +607,16 @@ impl RecordAttrs {
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
     }
+
+    pub fn into_iter(self) -> impl IntoIterator<Item = Def> {
+        self.0.into_iter()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Record {
-    l_brace: Token,
-    r_brace: Token,
+    pub l_brace: Token,
+    pub r_brace: Token,
     pub attrs: RecordAttrs,
 }
 
@@ -1632,6 +1636,12 @@ impl Locational for Identifier {
     }
 }
 
+impl From<&Identifier> for Field {
+    fn from(ident: &Identifier) -> Self {
+        Self::new(ident.vis(), ident.inspect().clone())
+    }
+}
+
 impl Identifier {
     pub const fn new(dot: Option<Token>, name: VarName) -> Self {
         Self { dot, name }
@@ -1844,6 +1854,13 @@ impl VarPattern {
             Self::Ident(ident) => ident.vis(),
             // TODO: `[.x, .y]`?
             _ => Visibility::Private,
+        }
+    }
+
+    pub fn ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Ident(ident) => Some(ident),
+            _ => None,
         }
     }
 }

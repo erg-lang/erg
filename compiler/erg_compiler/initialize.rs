@@ -43,7 +43,7 @@ impl Context {
         if self.consts.get(name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.consts.insert(Str::ever(name), obj);
+            self.consts.insert(VarName::from_static(name), obj);
         }
     }
 
@@ -61,7 +61,8 @@ impl Context {
         } else {
             let name = VarName::from_str(Str::rc(t.name()));
             self.locals
-                .insert(name, VarInfo::new(Type, muty, Private, Builtin));
+                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.consts.insert(name, ValueObj::t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if !impl_trait.is_monomorphic() {
                     if let Some(impls) = self.poly_trait_impls.get_mut(impl_trait.name()) {
@@ -745,7 +746,10 @@ impl Context {
         let l = mono_q("L");
         let r = mono_q("R");
         let params = vec![ty_tp(mono_q("R"))];
-        let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "AddO"));
+        let op_t = nd_func(
+            vec![param_t("lhs", l.clone()), param_t("rhs", r.clone())],
+            mono_proj(mono_q("L"), "AddO"),
+        );
         let op_t = quant(
             op_t,
             set! {
@@ -754,7 +758,7 @@ impl Context {
             },
         );
         self.register_impl("__add__", op_t, Const, Private);
-        let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "SubO"));
+        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "SubO"));
         let op_t = quant(
             op_t,
             set! {
@@ -763,7 +767,7 @@ impl Context {
             },
         );
         self.register_impl("__sub__", op_t, Const, Private);
-        let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "MulO"));
+        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "MulO"));
         let op_t = quant(
             op_t,
             set! {
@@ -772,7 +776,7 @@ impl Context {
             },
         );
         self.register_impl("__mul__", op_t, Const, Private);
-        let op_t = Type::func2(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
+        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
         let op_t = quant(
             op_t,
             set! {
@@ -782,37 +786,37 @@ impl Context {
         );
         self.register_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
-        let op_t = Type::func2(m.clone(), m.clone(), m.clone());
+        let op_t = Type::bin_op(m.clone(), m.clone(), m.clone());
         let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
         // TODO: add bound: M == MulO
         self.register_impl("__pow__", op_t, Const, Private);
         let d = mono_q("D");
-        let op_t = Type::func2(d.clone(), d.clone(), d.clone());
+        let op_t = Type::bin_op(d.clone(), d.clone(), d.clone());
         let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
         self.register_impl("__mod__", op_t, Const, Private);
         let e = mono_q("E");
-        let op_t = Type::func2(e.clone(), e.clone(), Bool);
+        let op_t = Type::bin_op(e.clone(), e.clone(), Bool);
         let op_t = quant(op_t, set! {subtypeof(e, poly("Eq", vec![]))});
         self.register_impl("__eq__", op_t.clone(), Const, Private);
         self.register_impl("__ne__", op_t, Const, Private);
         let o = mono_q("O");
-        let op_t = Type::func2(o.clone(), o.clone(), Bool);
+        let op_t = Type::bin_op(o.clone(), o.clone(), Bool);
         let op_t = quant(op_t, set! {subtypeof(o, mono("Ord"))});
         self.register_impl("__lt__", op_t.clone(), Const, Private);
         self.register_impl("__le__", op_t.clone(), Const, Private);
         self.register_impl("__gt__", op_t.clone(), Const, Private);
         self.register_impl("__ge__", op_t, Const, Private);
-        self.register_impl("__and__", Type::func2(Bool, Bool, Bool), Const, Private);
-        self.register_impl("__or__", Type::func2(Bool, Bool, Bool), Const, Private);
+        self.register_impl("__and__", Type::bin_op(Bool, Bool, Bool), Const, Private);
+        self.register_impl("__or__", Type::bin_op(Bool, Bool, Bool), Const, Private);
         /* unary */
         // TODO: Boolの+/-は警告を出したい
         let n = mono_q("N");
-        let op_t = fn0_met(n.clone(), n.clone());
+        let op_t = Type::func1(n.clone(), n.clone());
         let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
         self.register_decl("__pos__", op_t.clone(), Private);
         self.register_decl("__neg__", op_t, Private);
         let t = mono_q("T");
-        let op_t = Type::func2(t.clone(), t.clone(), Type::range(t.clone()));
+        let op_t = Type::bin_op(t.clone(), t.clone(), Type::range(t.clone()));
         let op_t = quant(op_t, set! {subtypeof(t.clone(), mono("Ord"))});
         self.register_decl("__rng__", op_t.clone(), Private);
         self.register_decl("__lorng__", op_t.clone(), Private);
