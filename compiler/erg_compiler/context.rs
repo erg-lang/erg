@@ -7,6 +7,7 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, Location};
+use erg_common::impl_display_from_debug;
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{HasType, Locational, Stream};
@@ -114,6 +115,8 @@ pub enum DefaultInfo {
     WithDefault,
 }
 
+impl_display_from_debug!(DefaultInfo);
+
 impl DefaultInfo {
     pub const fn has_default(&self) -> bool {
         matches!(self, DefaultInfo::WithDefault)
@@ -129,6 +132,8 @@ pub enum Variance {
     #[default]
     Invariant, // 不変
 }
+
+impl_display_from_debug!(Variance);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
@@ -1571,7 +1576,7 @@ impl Context {
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     let arg_t = pos_arg.expr.ref_t();
                     let param_t = &param_ty.ty;
-                    self.sub_unify(arg_t, param_t, None, Some(pos_arg.loc()))
+                    self.sub_unify(arg_t, param_t, Some(pos_arg.loc()), None)
                         .map_err(|e| {
                             // REVIEW:
                             let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
@@ -1616,7 +1621,7 @@ impl Context {
                 };
                 for kw_arg in kw_args.iter() {
                     if let Some(param_ty) = param_ts.get(kw_arg.keyword.inspect()) {
-                        self.sub_unify(kw_arg.expr.ref_t(), param_ty, None, Some(kw_arg.loc()))?;
+                        self.sub_unify(kw_arg.expr.ref_t(), param_ty, Some(kw_arg.loc()), None)?;
                     } else {
                         return Err(TyCheckError::unexpected_kw_arg_error(
                             line!() as usize,
@@ -1917,15 +1922,17 @@ impl Context {
     /// instantiate_trait(Array(Int, 2)) => Err(Array(Int, 2))
     /// instantiate_trait(Int) => Err(Int)
     /// ```
-    fn instantiate_trait(&self, generic: Type) -> Result<Type, Type> {
-        match generic {
+    fn instantiate_trait(&self, maybe_trait: Type) -> Result<Type, Type> {
+        match maybe_trait {
             Type::Poly { name, params } => {
                 let t_name = name.clone();
                 let t_params = params.clone();
-                let t = Type::Poly { name, params };
+                let maybe_trait = Type::Poly { name, params };
                 let mut min = Type::Never;
                 for (concrete_t, concrete_trait) in self.rec_get_poly_trait_impls(&t_name) {
-                    if self.rec_supertype_of(&concrete_trait, &t) {
+                    log!("{concrete_t}, {concrete_trait}, {maybe_trait}");
+                    if self.rec_supertype_of(&concrete_trait, &maybe_trait) {
+                        log!("super");
                         min = self.rec_min(&min, &concrete_t).unwrap_or(&min).clone();
                     }
                 }
@@ -1952,7 +1959,7 @@ impl Context {
                     if instantiated {
                         Ok(Type::poly(t_name, new_params))
                     } else {
-                        Err(t)
+                        Err(maybe_trait)
                     }
                 } else {
                     Ok(min)
@@ -2060,8 +2067,8 @@ impl Context {
                     }
                     Ok(())
                 } else if allow_divergence
-                    && (self.eq_tp(tp, &TyParam::value(Inf), None, None)
-                        || self.eq_tp(tp, &TyParam::value(NegInf), None, None))
+                    && (self.eq_tp(tp, &TyParam::value(Inf), None)
+                        || self.eq_tp(tp, &TyParam::value(NegInf), None))
                     && self.rec_subtype_of(&fv_t, &Type::mono("Num"))
                 {
                     fv.link(tp);
@@ -2095,7 +2102,6 @@ impl Context {
         before: &TyParam,
         after: &TyParam,
         bounds: Option<&Set<TyBound>>,
-        lhs_variance: Option<&Vec<Variance>>,
     ) -> TyCheckResult<()> {
         match (before, after) {
             (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
@@ -2110,7 +2116,7 @@ impl Context {
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
             {
-                self.reunify_tp(lval, rval, bounds, lhs_variance)
+                self.reunify_tp(lval, rval, bounds)
             }
             (
                 TyParam::BinOp { op: lop, lhs, rhs },
@@ -2120,10 +2126,10 @@ impl Context {
                     rhs: rhs2,
                 },
             ) if lop == rop => {
-                self.reunify_tp(lhs, lhs2, bounds, lhs_variance)?;
-                self.reunify_tp(rhs, rhs2, bounds, lhs_variance)
+                self.reunify_tp(lhs, lhs2, bounds)?;
+                self.reunify_tp(rhs, rhs2, bounds)
             }
-            (l, r) if self.eq_tp(l, r, bounds, lhs_variance) => Ok(()),
+            (l, r) if self.eq_tp(l, r, bounds) => Ok(()),
             (l, r) => panic!("type-parameter re-unification failed:\nl: {l}\nr: {r}"),
         }
     }
@@ -2279,8 +2285,8 @@ impl Context {
                 Ok(())
             }
             (Type::Refinement(l), Type::Refinement(r)) => {
-                if !self.structural_supertype_of(&l.t, &r.t, None, None)
-                    && !self.structural_supertype_of(&r.t, &l.t, None, None)
+                if !self.structural_supertype_of(&l.t, &r.t, None)
+                    && !self.structural_supertype_of(&r.t, &l.t, None)
                 {
                     return Err(TyCheckError::unification_error(
                         line!() as usize,
@@ -2410,11 +2416,11 @@ impl Context {
                     ));
                 }
                 for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.reunify_tp(l, r, None, None)?;
+                    self.reunify_tp(l, r, None)?;
                 }
                 Ok(())
             }
-            (l, r) if self.structural_same_type_of(l, r, None, None) => Ok(()),
+            (l, r) if self.structural_same_type_of(l, r, None) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
                 line!() as usize,
                 l,
@@ -2564,14 +2570,11 @@ impl Context {
         let mut opt_smallest = None;
         for ctx in self.rec_sorted_sup_type_ctxs(maybe_sub) {
             let bounds = ctx.type_params_bounds();
-            let variance = ctx.type_params_variance();
             let instances = ctx
                 .super_classes
                 .iter()
                 .chain(ctx.super_traits.iter())
-                .filter(|t| {
-                    self.structural_supertype_of(maybe_sup, t, Some(&bounds), Some(&variance))
-                });
+                .filter(|t| self.structural_supertype_of(maybe_sup, t, Some(&bounds)));
             // instanceが複数ある場合、経験的に最も小さい型を選ぶのが良い
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
             if let Some(t) = self.smallest_ref_t(instances) {
@@ -2588,9 +2591,8 @@ impl Context {
             .filter_map(|(patch_name, l, r)| {
                 let patch = self.rec_get_patch(patch_name).unwrap();
                 let bounds = patch.type_params_bounds();
-                let variance = patch.type_params_variance();
-                if self.structural_supertype_of(l, maybe_sub, Some(&bounds), Some(&variance))
-                    && self.structural_supertype_of(r, maybe_sup, Some(&bounds), Some(&variance))
+                if self.structural_supertype_of(l, maybe_sub, Some(&bounds))
+                    && self.structural_supertype_of(r, maybe_sup, Some(&bounds))
                 {
                     let tv_ctx = TyVarContext::new(self.level, bounds, &self);
                     let (l, _) = Self::instantiate_t(l.clone(), tv_ctx.clone());
@@ -3169,7 +3171,6 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            erg_common::fmt_dbg!(obj, obj.ref_t());
             for ctx in self.rec_sorted_sup_type_ctxs(obj.ref_t()) {
                 if let Some(vi) = ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
@@ -3197,16 +3198,21 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 2);
-        let symbol = Token::symbol(binop_to_dname(op.inspect()));
+        let cont = binop_to_dname(op.inspect());
+        let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(&symbol, Private, namespace)?;
         let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let lhs = args[0].expr.clone();
+                let rhs = args[1].expr.clone();
+                let bin = hir::BinOp::new(op.name, lhs, rhs, op.t);
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
-                    op.loc(),
+                    bin.loc(),
                     e.core.desc,
                     e.core.hint,
                 );
@@ -3221,15 +3227,19 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 1);
-        let symbol = Token::symbol(unaryop_to_dname(op.inspect()));
+        let cont = unaryop_to_dname(op.inspect());
+        let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(&symbol, Private, namespace)?;
         let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let expr = args[0].expr.clone();
+                let unary = hir::UnaryOp::new(op.name, expr, op.t);
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
-                    op.loc(),
+                    unary.loc(),
                     e.core.desc,
                     e.core.hint,
                 );
@@ -3264,50 +3274,39 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
-        let res = match self.instantiate_trait(instance) {
-            Ok(t) => t,
-            Err(e) => e,
-        };
-        log!("Trait instantiated:\nres: {res}\n");
-        let res = self.eval.eval_t_params(res, &self, self.level)?;
+        let res = self.eval.eval_t_params(instance, &self, self.level)?;
         log!("Params Evaluated:\nres: {res}\n");
         let res = self.deref_tyvar(res)?;
         log!("Derefed:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!("Propagated:\nres: {res}\n");
+        let res = match self.instantiate_trait(res) {
+            Ok(t) => t,
+            Err(e) => e,
+        };
+        log!("Trait instantiated:\nres: {res}\n");
         Ok(res)
     }
 
-    fn eq_tp(
-        &self,
-        lhs: &TyParam,
-        rhs: &TyParam,
-        bounds: Option<&Set<TyBound>>,
-        lhs_variance: Option<&Vec<Variance>>,
-    ) -> bool {
+    fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam, bounds: Option<&Set<TyBound>>) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(lhs), TyParam::Type(rhs)) => {
-                return self.structural_same_type_of(lhs, rhs, bounds, lhs_variance)
+                return self.structural_same_type_of(lhs, rhs, bounds)
             }
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if let (Some((l, _)), Some((r, _))) = (
                     self.types.iter().find(|(t, _)| t.name() == &l[..]),
                     self.types.iter().find(|(t, _)| t.name() == &r[..]),
                 ) {
-                    return self.structural_supertype_of(l, r, bounds, None)
-                        || self.structural_subtype_of(l, r, bounds, lhs_variance);
+                    return self.structural_supertype_of(l, r, bounds)
+                        || self.structural_subtype_of(l, r, bounds);
                 }
             }
             (TyParam::MonoQVar(name), other) | (other, TyParam::MonoQVar(name)) => {
                 if let Some(bs) = bounds {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
                         let other_t = self.type_of(other, bounds);
-                        return self.structural_supertype_of(
-                            bound.t(),
-                            &other_t,
-                            bounds,
-                            lhs_variance,
-                        );
+                        return self.structural_supertype_of(bound.t(), &other_t, bounds);
                     } else {
                         todo!()
                     } // subtyping
@@ -3328,15 +3327,15 @@ impl Context {
                     && largs
                         .iter()
                         .zip(rargs.iter())
-                        .all(|(l, r)| self.eq_tp(l, r, bounds, lhs_variance))
+                        .all(|(l, r)| self.eq_tp(l, r, bounds))
             }
             (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(tp) => return self.eq_tp(tp, other, bounds, lhs_variance),
+                FreeKind::Linked(tp) => return self.eq_tp(tp, other, bounds),
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.typ().unwrap();
                     let other_t = self.type_of(other, bounds);
-                    return self.structural_supertype_of(t, &other_t, bounds, lhs_variance);
+                    return self.structural_supertype_of(t, &other_t, bounds);
                 }
             },
             (l, r) if l == r => return true,
@@ -3379,11 +3378,11 @@ impl Context {
     }
 
     fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.structural_supertype_of(lhs, rhs, None, None) || self.nominal_supertype_of(lhs, rhs)
+        self.structural_supertype_of(lhs, rhs, None) || self.nominal_supertype_of(lhs, rhs)
     }
 
     fn subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.structural_subtype_of(lhs, rhs, None, None) || self.nominal_subtype_of(lhs, rhs)
+        self.structural_subtype_of(lhs, rhs, None) || self.nominal_subtype_of(lhs, rhs)
     }
 
     /// make judgments that include supertypes in the same namespace & take into account glue patches
@@ -3400,12 +3399,11 @@ impl Context {
                     r_bounds
                 }
             };
-            let variance = rhs_ctx.type_params_variance();
             if rhs_ctx
                 .super_classes
                 .iter()
                 .chain(rhs_ctx.super_traits.iter())
-                .any(|sup| self.structural_supertype_of(lhs, sup, Some(&bounds), Some(&variance)))
+                .any(|sup| self.structural_supertype_of(lhs, sup, Some(&bounds)))
             {
                 return true;
             }
@@ -3415,13 +3413,12 @@ impl Context {
                 .rec_get_patch(patch_name)
                 .unwrap_or_else(|| panic!("{patch_name} not found"));
             let bounds = patch.type_params_bounds();
-            let variance = patch.type_params_variance();
             // e.g.
             // P = Patch X, Impl: Ord
             // Rhs <: X => Rhs <: Ord
             // Ord <: Lhs => Rhs <: Ord <: Lhs
-            if self.structural_supertype_of(sub_type, rhs, Some(&bounds), Some(&variance))
-                && self.structural_subtype_of(sup_trait, lhs, Some(&bounds), Some(&variance))
+            if self.structural_supertype_of(sub_type, rhs, Some(&bounds))
+                && self.structural_subtype_of(sup_trait, lhs, Some(&bounds))
             {
                 return true;
             }
@@ -3447,7 +3444,6 @@ impl Context {
         lhs: &Type,
         rhs: &Type,
         bounds: Option<&Set<TyBound>>,
-        lhs_variance: Option<&Vec<Variance>>,
     ) -> bool {
         if lhs.rec_eq(rhs) {
             return true;
@@ -3517,26 +3513,24 @@ impl Context {
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
                 ls.non_default_params.len() == rs.non_default_params.len()
                 && ls.default_params.len() == rs.default_params.len()
-                && self.structural_supertype_of(&ls.return_t, &rs.return_t, bounds, lhs_variance) // covariant
+                && self.structural_supertype_of(&ls.return_t, &rs.return_t, bounds) // covariant
                 && ls.non_default_params.iter()
                     .zip(rs.non_default_params.iter())
-                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
+                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds))
                 && ls.default_params.iter()
                     .zip(rs.default_params.iter())
-                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds, lhs_variance))
+                    .all(|(l, r)| self.structural_subtype_of(&l.ty, &r.ty, bounds))
                 // contravariant
             }
             // RefMut, OptionMut are invariant
             (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => {
-                self.structural_supertype_of(lhs, rhs, bounds, lhs_variance)
+                self.structural_supertype_of(lhs, rhs, bounds)
             }
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(v), rhs) => {
                 match &*v.borrow() {
-                    FreeKind::Linked(t) => {
-                        self.structural_supertype_of(t, rhs, bounds, lhs_variance)
-                    }
+                    FreeKind::Linked(t) => self.structural_supertype_of(t, rhs, bounds),
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
@@ -3544,13 +3538,13 @@ impl Context {
                         // `(?T :> Str) :> Int` is true (?T :> Str or Int)
                         // `(Nat <: ?T <: Ratio) :> Nat` can be true
                         Constraint::Sandwiched { sup, .. } => {
-                            self.structural_supertype_of(sup, rhs, bounds, lhs_variance)
+                            self.structural_supertype_of(sup, rhs, bounds)
                         }
                         // (?v: Type, rhs): OK
                         // (?v: Nat, rhs): Something wrong
                         // Class <: Type, but Nat <!: Type (Nat: Type)
                         Constraint::TypeOf(t) => {
-                            if self.structural_supertype_of(&Type, t, bounds, lhs_variance) {
+                            if self.structural_supertype_of(&Type, t, bounds) {
                                 true
                             } else {
                                 panic!()
@@ -3562,9 +3556,7 @@ impl Context {
             }
             (lhs, FreeVar(fv)) => {
                 match &*fv.borrow() {
-                    FreeKind::Linked(t) => {
-                        self.structural_supertype_of(lhs, t, bounds, lhs_variance)
-                    }
+                    FreeKind::Linked(t) => self.structural_supertype_of(lhs, t, bounds),
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // ?T cannot be `Never`
@@ -3574,10 +3566,10 @@ impl Context {
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
                         Constraint::Sandwiched { sub, sup: _ } => {
-                            self.structural_supertype_of(lhs, sub, bounds, lhs_variance)
+                            self.structural_supertype_of(lhs, sub, bounds)
                         }
                         Constraint::TypeOf(t) => {
-                            if self.structural_supertype_of(&Type, t, bounds, lhs_variance) {
+                            if self.structural_supertype_of(&Type, t, bounds) {
                                 true
                             } else {
                                 panic!()
@@ -3589,7 +3581,7 @@ impl Context {
             }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
-                    if !self.structural_supertype_of(&Type, t, bounds, lhs_variance) {
+                    if !self.structural_supertype_of(&Type, t, bounds) {
                         return false;
                     }
                 }
@@ -3602,7 +3594,7 @@ impl Context {
             // ({I: Int | I >= 0} :> {N: Nat | N >= 1}) == true,
             // ({I: Int | I > 1 or I < -1} :> {I: Int | I >= 0}) == false,
             (Refinement(l), Refinement(r)) => {
-                if !self.structural_supertype_of(&l.t, &r.t, bounds, lhs_variance) {
+                if !self.structural_supertype_of(&l.t, &r.t, bounds) {
                     return false;
                 }
                 let mut r_preds_clone = r.preds.clone();
@@ -3620,16 +3612,16 @@ impl Context {
             }
             (Nat, re @ Refinement(_)) => {
                 let nat = Type::Refinement(self.into_refinement(Nat));
-                self.structural_supertype_of(&nat, re, bounds, lhs_variance)
+                self.structural_supertype_of(&nat, re, bounds)
             }
             (re @ Refinement(_), Nat) => {
                 let nat = Type::Refinement(self.into_refinement(Nat));
-                self.structural_supertype_of(re, &nat, bounds, lhs_variance)
+                self.structural_supertype_of(re, &nat, bounds)
             }
             // Int :> {I: Int | ...} == true
             // Real :> {I: Int | ...} == false
             // Int :> {I: Str| ...} == false
-            (l, Refinement(r)) => self.structural_supertype_of(l, &r.t, bounds, lhs_variance),
+            (l, Refinement(r)) => self.structural_supertype_of(l, &r.t, bounds),
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
                 if l.preds
@@ -3638,7 +3630,7 @@ impl Context {
                 {
                     return false;
                 }
-                self.structural_supertype_of(&l.t, r, bounds, lhs_variance)
+                self.structural_supertype_of(&l.t, r, bounds)
             }
             (Quantified(l), Quantified(r)) => {
                 // REVIEW: maybe this should be `unreachable`
@@ -3650,7 +3642,6 @@ impl Context {
                         l.unbound_callable.as_ref(),
                         r.unbound_callable.as_ref(),
                         Some(&l.bounds),
-                        lhs_variance,
                     )
                 }
             }
@@ -3659,25 +3650,18 @@ impl Context {
                 if bounds.is_some() {
                     panic!("Nested quantification")
                 } else {
-                    self.structural_supertype_of(
-                        q.unbound_callable.as_ref(),
-                        r,
-                        Some(&q.bounds),
-                        lhs_variance,
-                    )
+                    self.structural_supertype_of(q.unbound_callable.as_ref(), r, Some(&q.bounds))
                 }
             }
             (lhs, Or(tys)) => tys
                 .iter()
-                .all(|t| self.structural_supertype_of(lhs, t, bounds, lhs_variance)),
+                .all(|t| self.structural_supertype_of(lhs, t, bounds)),
             (And(tys), rhs) => tys
                 .iter()
-                .all(|t| self.structural_supertype_of(t, rhs, bounds, lhs_variance)),
-            (VarArgs(lhs), rhs) => self.structural_supertype_of(lhs, rhs, bounds, lhs_variance),
+                .all(|t| self.structural_supertype_of(t, rhs, bounds)),
+            (VarArgs(lhs), rhs) => self.structural_supertype_of(lhs, rhs, bounds),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
-            (Ref(lhs), rhs) | (RefMut(lhs), rhs) => {
-                self.structural_supertype_of(lhs, rhs, bounds, lhs_variance)
-            }
+            (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.structural_supertype_of(lhs, rhs, bounds),
             (
                 Poly {
                     name: ln,
@@ -3688,42 +3672,35 @@ impl Context {
                     params: rps,
                 },
             ) => {
-                if let Some(lhs_variance) = lhs_variance {
-                    ln == rn
-                        && lps.len() == rps.len()
-                        && lps.iter().zip(rps.iter()).zip(lhs_variance.iter()).all(
-                            |((lp, rp), variance)| match (lp, rp, variance) {
-                                (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
-                                    self.structural_subtype_of(l, r, bounds, Some(lhs_variance))
-                                }
-                                (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                                    log!("{l}, {r}");
-                                    self.structural_supertype_of(l, r, bounds, Some(lhs_variance))
-                                }
-                                // Invariant
-                                _ => self.eq_tp(lp, rp, bounds, Some(lhs_variance)),
-                            },
-                        )
-                } else {
-                    ln == rn
-                        && lps.len() == rps.len()
-                        && lps
-                            .iter()
-                            .zip(rps.iter())
-                            .all(|(l, r)| self.eq_tp(l, r, bounds, None))
+                if ln != rn || lps.len() != rps.len() {
+                    return false;
                 }
+                let variances = self
+                    .rec_type_ctx_by_name(ln)
+                    .unwrap_or_else(|| panic!("{ln} is not found"))
+                    .type_params_variance();
+                debug_assert_eq!(lps.len(), variances.len());
+                lps.iter()
+                    .zip(rps.iter())
+                    .zip(variances.iter())
+                    .all(|((lp, rp), variance)| match (lp, rp, variance) {
+                        (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
+                            self.structural_subtype_of(l, r, bounds)
+                        }
+                        (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
+                            // if matches!(r.as_ref(), &Type::Refinement(_)) { log!("{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
+                            self.structural_supertype_of(l, r, bounds)
+                        }
+                        // Invariant
+                        _ => self.eq_tp(lp, rp, bounds),
+                    })
             }
             (MonoQVar(name), r) => {
                 if let Some(bs) = bounds {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_subtype(name)) {
-                        self.structural_supertype_of(bound.t(), r, bounds, lhs_variance)
+                        self.structural_supertype_of(bound.t(), r, bounds)
                     } else if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
-                        if self.structural_same_type_of(
-                            bound.t(),
-                            &Type::Type,
-                            bounds,
-                            lhs_variance,
-                        ) {
+                        if self.structural_same_type_of(bound.t(), &Type::Type, bounds) {
                             true
                         } else {
                             todo!()
@@ -3739,14 +3716,9 @@ impl Context {
             (l, MonoQVar(name)) => {
                 if let Some(bs) = bounds {
                     if let Some(bound) = bs.iter().find(|b| b.mentions_as_subtype(name)) {
-                        self.structural_supertype_of(l, bound.t(), bounds, lhs_variance)
+                        self.structural_supertype_of(l, bound.t(), bounds)
                     } else if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(name)) {
-                        if self.structural_same_type_of(
-                            bound.t(),
-                            &Type::Type,
-                            bounds,
-                            lhs_variance,
-                        ) {
+                        if self.structural_same_type_of(bound.t(), &Type::Type, bounds) {
                             true
                         } else {
                             todo!()
@@ -3771,9 +3743,8 @@ impl Context {
         lhs: &Type,
         rhs: &Type,
         bounds: Option<&Set<TyBound>>,
-        lhs_variance: Option<&Vec<Variance>>,
     ) -> bool {
-        self.structural_supertype_of(rhs, lhs, bounds, lhs_variance)
+        self.structural_supertype_of(rhs, lhs, bounds)
     }
 
     pub(crate) fn structural_same_type_of(
@@ -3781,10 +3752,9 @@ impl Context {
         lhs: &Type,
         rhs: &Type,
         bounds: Option<&Set<TyBound>>,
-        lhs_variance: Option<&Vec<Variance>>,
     ) -> bool {
-        self.structural_supertype_of(lhs, rhs, bounds, lhs_variance)
-            && self.structural_subtype_of(lhs, rhs, bounds, lhs_variance)
+        self.structural_supertype_of(lhs, rhs, bounds)
+            && self.structural_subtype_of(lhs, rhs, bounds)
     }
 
     fn rec_try_cmp(
@@ -3918,8 +3888,8 @@ impl Context {
     }
 
     fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
-        if !self.structural_supertype_of(&lhs.t, &rhs.t, None, None)
-            && !self.structural_subtype_of(&lhs.t, &rhs.t, None, None)
+        if !self.structural_supertype_of(&lhs.t, &rhs.t, None)
+            && !self.structural_subtype_of(&lhs.t, &rhs.t, None)
         {
             log!("{lhs}\n{rhs}");
             todo!()
@@ -4492,8 +4462,7 @@ impl Context {
     fn _just_type_ctxs<'a>(&'a self, t: &'a Type) -> Option<(&'a Type, &'a Context)> {
         self.types.iter().find(move |(maybe_sup, ctx)| {
             let bounds = ctx.type_params_bounds();
-            let variance = ctx.type_params_variance();
-            self.structural_same_type_of(maybe_sup, t, Some(&bounds), Some(&variance))
+            self.structural_same_type_of(maybe_sup, t, Some(&bounds))
         })
     }
 
@@ -4501,8 +4470,7 @@ impl Context {
     fn _sup_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = (&'a Type, &'a Context)> {
         self.types.iter().filter_map(move |(maybe_sup, ctx)| {
             let bounds = ctx.type_params_bounds();
-            let variance = ctx.type_params_variance();
-            if self.structural_supertype_of(maybe_sup, t, Some(&bounds), Some(&variance)) {
+            if self.structural_supertype_of(maybe_sup, t, Some(&bounds)) {
                 Some((maybe_sup, ctx))
             } else {
                 None

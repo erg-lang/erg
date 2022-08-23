@@ -246,7 +246,7 @@ pub struct Local {
     pub name: Token,
     /// オブジェクト自身の名前
     __name__: Option<Str>,
-    t: Type,
+    pub(crate) t: Type,
 }
 
 impl NestedDisplay for Local {

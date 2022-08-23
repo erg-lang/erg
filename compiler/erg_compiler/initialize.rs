@@ -133,7 +133,12 @@ impl Context {
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
         // use `l - r < EPSILON` to check if two floats are almost equal
-        let mut eq = Self::poly_trait("Eq", vec![PS::t("R", WithDefault)], vec![], Self::TOP_LEVEL);
+        let mut eq = Self::poly_trait(
+            "Eq",
+            vec![PS::t("R", WithDefault)],
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            Self::TOP_LEVEL,
+        );
         // __eq__: |Self <: Eq()| Self.(Self) -> Bool
         let op_t = fn1_met(mono_q("Self"), mono_q("R"), Bool);
         let op_t = quant(
@@ -194,7 +199,7 @@ impl Context {
         let mut add = Self::poly_trait(
             "Add",
             params.clone(),
-            vec![poly("Output", vec![ty_tp(mono_q("R"))])],
+            vec![poly("Output", vec![ty_tp(mono_q("R"))])], // Rについて共変(__add__の型とは関係ない)
             Self::TOP_LEVEL,
         );
         let self_bound = subtypeof(mono_q("Self"), poly("Add", ty_params.clone()));
