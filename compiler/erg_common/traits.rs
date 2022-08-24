@@ -297,6 +297,10 @@ pub trait ImmutableStream<T>: Sized {
     }
 }
 
+pub trait LimitedDisplay {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result;
+}
+
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
     src.ends_with(&['=', ':']) || src.ends_with("->") || src.ends_with("=>")

@@ -100,21 +100,42 @@ impl ASTLowerer {
 
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!("[DEBUG] entered {}({array})", fn_name!());
-        let mut hir_array = hir::NormalArray::new(
-            array.l_sqbr,
-            array.r_sqbr,
-            self.ctx.level,
-            hir::Args::empty(),
-        );
-        let inner_t = hir_array.t.ref_t().inner_ts().first().unwrap().clone();
+        let mut new_array = vec![];
         let (elems, _) = array.elems.into_iters();
+        let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            self.ctx
-                .sub_unify(elem.ref_t(), &inner_t, Some(elem.loc()), None)?;
-            hir_array.push(elem);
+            union = self.ctx.rec_union(&union, elem.ref_t());
+            if matches!(union, Type::Or(_, _)) {
+                return Err(LowerError::syntax_error(
+                    line!() as usize,
+                    elem.loc(),
+                    self.ctx.name.clone(),
+                    switch_lang!(
+                        "japanese" => "配列の要素は全て同じ型である必要があります",
+                        "simplified_chinese" => "数组元素必须全部是相同类型",
+                        "traditional_chinese" => "數組元素必須全部是相同類型",
+                        "english" => "all elements of an array must be of the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                ));
+            }
+            new_array.push(elem);
         }
-        Ok(hir_array)
+        Ok(hir::NormalArray::new(
+            array.l_sqbr,
+            array.r_sqbr,
+            union,
+            hir::Args::from(new_array),
+        ))
     }
 
     fn lower_array_with_length(

@@ -420,8 +420,10 @@ pub struct NormalArray {
 }
 
 impl NestedDisplay for NormalArray {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}]", self.elems)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "[")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{}]", "    ".repeat(level))
     }
 }
 

@@ -11,10 +11,10 @@ use crate::codeobj::CodeObj;
 use crate::dict::Dict;
 use crate::rccell::RcCell;
 use crate::set::Set;
-use crate::traits::HasType;
+use crate::traits::{HasType, LimitedDisplay};
 use crate::value::ValueObj::{Inf, NegInf};
 use crate::value::{Field, ValueObj};
-use crate::{enum_unwrap, fmt_set_split_with, fmt_vec, fmt_vec_split_with, set, Str};
+use crate::{enum_unwrap, fmt_set_split_with, fmt_vec, set, Str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -253,6 +253,24 @@ impl<T: fmt::Display> fmt::Display for FreeKind<T> {
     }
 }
 
+impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        match self {
+            Self::Linked(t) => t.limited_fmt(f, limit),
+            Self::NamedUnbound {
+                name,
+                lev,
+                constraint,
+            } => write!(f, "?{name}({constraint})[{lev}]"),
+            Self::Unbound {
+                id,
+                lev,
+                constraint,
+            } => write!(f, "?{id}({constraint})[{lev}]"),
+        }
+    }
+}
+
 impl<T> FreeKind<T> {
     pub const fn unbound(id: Id, lev: Level, constraint: Constraint) -> Self {
         Self::Unbound {
@@ -286,6 +304,12 @@ pub struct Free<T>(RcCell<FreeKind<T>>);
 impl<T: fmt::Display> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.borrow())
+    }
+}
+
+impl<T: LimitedDisplay> Free<T> {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        self.0.borrow().limited_fmt(f, limit)
     }
 }
 
@@ -582,21 +606,81 @@ pub enum TyParam {
 
 impl fmt::Display for TyParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.limited_fmt(f, 10)
+    }
+}
+
+impl LimitedDisplay for TyParam {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 { return write!(f, "...") }
         match self {
-            Self::Value(c) => write!(f, "{c}"),
-            Self::Type(t) => write!(f, "{t}"),
-            Self::Mono(c) => write!(f, "{c}"),
-            Self::MonoProj { obj, attr } => write!(f, "{obj}.{attr}"),
-            Self::Array(a) => write!(f, "[{}]", fmt_vec(a)),
-            Self::Tuple(t) => write!(f, "({})", fmt_vec(t)),
-            Self::App { name, args } => write!(f, "{name}({})", fmt_vec(args)),
-            Self::MonoQVar(name) => write!(f, "'{name}"),
-            Self::PolyQVar { name, args } => write!(f, "'{name}({})", fmt_vec(args)),
-            Self::FreeVar(fv) => write!(f, "{fv}"),
-            Self::UnaryOp { op, val } => write!(f, "{op}{val}"),
-            Self::BinOp { op, lhs, rhs } => write!(f, "{lhs} {op} {rhs}"),
-            Self::Erased(t) => write!(f, "_: {t}"),
-            Self::Failure => write!(f, "<failure>"),
+            Self::Value(v) => write!(f, "{v}"),
+            Self::Failure => write!(f, "<Failure>"),
+            Self::Type(t) => t.limited_fmt(f, limit - 1),
+            Self::FreeVar(fv) => fv.limited_fmt(f, limit - 1),
+            Self::UnaryOp { op, val } => {
+                write!(f, "{}", op)?;
+                val.limited_fmt(f, limit - 1)
+            }
+            Self::BinOp { op, lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " {} ", op)?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::App { name, args } => {
+                write!(f, "{}", name)?;
+                write!(f, "(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+            Self::PolyQVar { name, args } => {
+                write!(f, "'{}", name)?;
+                write!(f, "(")?;
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        arg.limited_fmt(f, limit - 1)?;
+                    }
+                write!(f, ")")?;
+                Ok(())
+            }
+            Self::Erased(t) => {
+                write!(f, "_: ")?;
+                t.limited_fmt(f, limit - 1)
+            },
+            Self::Mono(name) => write!(f, "{}", name),
+            Self::MonoQVar(name) => write!(f, "'{}", name),
+            Self::MonoProj { obj, attr } => {
+                write!(f, "{}.", obj)?;
+                write!(f, "{}", attr)
+            }
+            Self::Array(arr) => {
+                write!(f, "[")?;
+                for (i, t) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "]")
+            }
+            Self::Tuple(tuple) => {
+                write!(f, "(")?;
+                for (i, t) in tuple.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -1585,7 +1669,7 @@ pub struct QuantifiedType {
 
 impl fmt::Display for QuantifiedType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "|{}| {}", &self.bounds, self.unbound_callable)
+        self.limited_fmt(f, 10)
     }
 }
 
@@ -1595,6 +1679,11 @@ impl QuantifiedType {
             unbound_callable: Box::new(unbound_callable),
             bounds,
         }
+    }
+
+    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        write!(f, "|{}| ", fmt_set_split_with(&self.bounds, "; "))?;
+        self.unbound_callable.limited_fmt(f, limit)
     }
 }
 
@@ -1839,6 +1928,85 @@ impl fmt::Display for Type {
     }
 }
 
+impl LimitedDisplay for Type {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Mono(name) => write!(f, "{name}"),
+            Self::Ref(t) | Self::RefMut(t) => {
+                write!(f, "{}(", self.name())?;
+                t.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::Subr(sub) => sub.limited_fmt(f, limit - 1),
+            Self::Callable { param_ts, return_t } => {
+                write!(f, "Callable((")?;
+                for (i, t) in param_ts.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "), ")?;
+                return_t.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::Record(attrs) => {
+                write!(f, "{{")?;
+                if let Some((field, t)) = attrs.iter().next() {
+                    write!(f, "{field} = ")?;
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                for (field, t) in attrs.iter().skip(1) {
+                    write!(f, "; {field} = ")?;
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Refinement(refinement) => refinement.limited_fmt(f, limit - 1),
+            Self::Quantified(quantified) => quantified.limited_fmt(f, limit - 1),
+            Self::And(lhs, rhs) => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " and ")?;
+                rhs.limited_fmt(f, limit - 1)
+            },
+            Self::Not(lhs, rhs) => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " not ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::Or(lhs, rhs) => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " or ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::VarArgs(t) => {
+                write!(f, "...")?;
+                t.limited_fmt(f, limit - 1)
+            },
+            Self::Poly { name, params } => {
+                write!(f, "{name}(")?;
+                for (i, tp) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    tp.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
+            Self::MonoQVar(name) => write!(f, "'{name}"),
+            Self::FreeVar(fv) => fv.limited_fmt(f, limit - 1),
+            Self::MonoProj { lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, ".{rhs}")
+            },
+            _ => write!(f, "{}", self.name()),
+        }
+    }
+}
+
 impl Default for Type {
     fn default() -> Self {
         Self::Failure
@@ -1968,10 +2136,9 @@ impl HasLevel for Type {
                 }
                 subr.return_t.update_level(level);
             }
-            Self::And(ts) | Self::Or(ts) | Self::Not(ts) => {
-                for t in ts.iter() {
-                    t.update_level(level);
-                }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.update_level(level);
+                rhs.update_level(level);
             }
             Self::Record(attrs) => {
                 for t in attrs.values() {
@@ -2023,10 +2190,9 @@ impl HasLevel for Type {
                 }
                 subr.return_t.lift();
             }
-            Self::And(ts) | Self::Or(ts) | Self::Not(ts) => {
-                for t in ts.iter() {
-                    t.lift();
-                }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.lift();
+                rhs.lift();
             }
             Self::Record(attrs) => {
                 for t in attrs.values() {
@@ -2067,45 +2233,6 @@ impl Type {
     pub const NEG_INF: &'static Self = &Self::NegInf;
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
-
-    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        if limit == 0 {
-            return write!(f, "...");
-        }
-        match self {
-            Self::Mono(name) => write!(f, "{name}"),
-            Self::Ref(t) | Self::RefMut(t) => {
-                write!(f, "{}(", self.name())?;
-                t.limited_fmt(f, limit - 1)?;
-                write!(f, ")")
-            }
-            Self::Subr(sub) => sub.limited_fmt(f, limit - 1),
-            Self::Callable { param_ts, return_t } => {
-                write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
-            }
-            Self::Record(attrs) => {
-                write!(f, "{{")?;
-                if let Some((field, t)) = attrs.iter().next() {
-                    write!(f, "{field} = {t}")?;
-                }
-                for (field, t) in attrs.iter().skip(1) {
-                    write!(f, "; {field} = {t}")?;
-                }
-                write!(f, "}}")
-            }
-            Self::Refinement(refinement) => write!(f, "{}", refinement),
-            Self::Quantified(quantified) => write!(f, "{}", quantified),
-            Self::And(types) => write!(f, "{}", fmt_vec_split_with(types, " and ")),
-            Self::Not(types) => write!(f, "{}", fmt_vec_split_with(types, " not ")),
-            Self::Or(types) => write!(f, "{}", fmt_vec_split_with(types, " or ")),
-            Self::VarArgs(t) => write!(f, "...{t}"),
-            Self::Poly { name, params } => write!(f, "{name}({})", fmt_vec(params)),
-            Self::MonoQVar(name) => write!(f, "'{name}"),
-            Self::FreeVar(fv) => write!(f, "{fv}"),
-            Self::MonoProj { lhs, rhs } => write!(f, "{lhs}.{rhs}"),
-            _ => write!(f, "{}", self.name()),
-        }
-    }
 
     /// Top := {=}
     #[allow(non_snake_case)]
@@ -2666,9 +2793,11 @@ impl Type {
             (Self::Quantified(l), Self::Quantified(r)) => {
                 l.unbound_callable.rec_eq(&r.unbound_callable) && l.bounds == r.bounds
             }
-            (Self::And(l), Self::And(r))
-            | (Self::Not(l), Self::Not(r))
-            | (Self::Or(l), Self::Or(r)) => l.iter().zip(r.iter()).all(|(l, r)| l.rec_eq(r)),
+            (Self::And(ll, lr), Self::And(rl, rr))
+            | (Self::Not(ll, lr), Self::Not(rl, rr))
+            | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
+                ll.rec_eq(rl) && lr.rec_eq(rr)
+            },
             (Self::VarArgs(l), Self::VarArgs(r)) => l.rec_eq(r),
             (
                 Self::Poly {
@@ -2735,9 +2864,9 @@ impl Type {
             Self::Inf => "Inf",
             Self::NegInf => "NegInf",
             Self::Mono(name) | Self::MonoQVar(name) => name,
-            Self::And(_) => "And",
-            Self::Not(_) => "Not",
-            Self::Or(_) => "Or",
+            Self::And(_, _) => "And",
+            Self::Not(_, _) => "Not",
+            Self::Or(_, _) => "Or",
             Self::Ref(_) => "Ref",
             Self::RefMut(_) => "Ref!",
             Self::Subr(SubrType {
@@ -2799,8 +2928,8 @@ impl Type {
                 }
             }
             Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.has_unbound_var(),
-            Self::And(param_ts) | Self::Not(param_ts) | Self::Or(param_ts) => {
-                param_ts.iter().any(|t| t.has_unbound_var())
+            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_unbound_var() || rhs.has_unbound_var()
             }
             Self::Callable { param_ts, return_t } => {
                 param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
@@ -2838,7 +2967,7 @@ impl Type {
         match self {
             // REVIEw:
             Self::Ref(_) | Self::RefMut(_) => 1,
-            Self::And(param_ts) | Self::Or(param_ts) => param_ts.len(),
+            Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => 2,
             Self::Subr(subr) => {
                 subr.kind.inner_len()
                     + subr.non_default_params.len()
@@ -2856,8 +2985,8 @@ impl Type {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => vec![],
             Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
-            Self::And(param_ts) | Self::Or(param_ts) | Self::Not(param_ts) => {
-                param_ts.iter().map(|t| TyParam::t(t.clone())).collect()
+            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+                vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
             Self::Subr(subr) => {
                 if let Some(self_t) = subr.kind.self_t() {

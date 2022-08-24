@@ -3,7 +3,7 @@ use std::fmt;
 
 use erg_common::error::Location;
 use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
-use erg_common::ty::{Constraint, TyParam, Type};
+use erg_common::ty::{TyParam, Type};
 use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
@@ -137,6 +137,16 @@ impl NestedDisplay for Args {
             fmt_lines(self.kw_args.iter(), f, level)?;
         }
         Ok(())
+    }
+}
+
+impl From<Vec<Expr>> for Args {
+    fn from(exprs: Vec<Expr>) -> Self {
+        Self {
+            pos_args: exprs.into_iter().map(PosArg::new).collect(),
+            kw_args: Vec::new(),
+            paren: None,
+        }
     }
 }
 
@@ -501,8 +511,10 @@ pub struct NormalArray {
 }
 
 impl NestedDisplay for NormalArray {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}](: {})", self.elems, self.t)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "[")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{}](: {})", "    ".repeat(level), self.t)
     }
 }
 
@@ -511,12 +523,7 @@ impl_locational!(NormalArray, l_sqbr, r_sqbr);
 impl_t!(NormalArray);
 
 impl NormalArray {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, level: usize, elems: Args) -> Self {
-        let elem_t = elems
-            .pos_args
-            .first()
-            .map(|a| a.expr.t())
-            .unwrap_or_else(|| Type::free_var(level, Constraint::TypeOf(Type::Type)));
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
         let t = Type::array(elem_t, TyParam::value(elems.len()));
         Self {
             l_sqbr,

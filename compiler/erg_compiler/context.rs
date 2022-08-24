@@ -2042,7 +2042,7 @@ impl Context {
                 Ok(Type::var_args(new_t))
             }
             Type::Callable { .. } => todo!(),
-            Type::And(_) | Type::Or(_) | Type::Not(_) => todo!(),
+            Type::And(_, _) | Type::Or(_, _) | Type::Not(_, _) => todo!(),
             other => Ok(other),
         }
     }
@@ -3705,12 +3705,20 @@ impl Context {
                     self.structural_supertype_of(q.unbound_callable.as_ref(), r, Some(&q.bounds))
                 }
             }
-            (lhs, Or(tys)) => tys
-                .iter()
-                .all(|t| self.structural_supertype_of(lhs, t, bounds)),
-            (And(tys), rhs) => tys
-                .iter()
-                .all(|t| self.structural_supertype_of(t, rhs, bounds)),
+            (Or(l_or, r_or), rhs) =>
+                self.structural_supertype_of(l_or, rhs, bounds)
+                || self.structural_supertype_of(r_or, rhs, bounds),
+            (lhs, Or(or_l, or_r)) =>
+                self.structural_supertype_of(lhs, or_l, bounds)
+                && self.structural_supertype_of(lhs, or_r, bounds),
+            (And(l_and, r_and), rhs) =>
+                self.structural_supertype_of(l_and, rhs, bounds)
+                && self.structural_supertype_of(r_and, rhs, bounds),
+            (lhs, And(l_and, r_and)) =>
+                self.structural_supertype_of(lhs, l_and, bounds)
+                || self.structural_supertype_of(lhs, r_and, bounds),
+            (_lhs, Not(_, _)) => todo!(),
+            (Not(_, _), _rhs) => todo!(),
             (VarArgs(lhs), rhs) => self.structural_supertype_of(lhs, rhs, bounds),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.structural_supertype_of(lhs, rhs, bounds),
@@ -3917,7 +3925,7 @@ impl Context {
     }
 
     /// 和集合(A or B)を返す
-    fn rec_union(&self, lhs: &Type, rhs: &Type) -> Type {
+    pub(crate) fn rec_union(&self, lhs: &Type, rhs: &Type) -> Type {
         match (
             self.rec_supertype_of(lhs, rhs),
             self.rec_subtype_of(lhs, rhs),
@@ -4101,7 +4109,7 @@ impl Context {
 
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
-    fn rec_min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn rec_min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (
             self.rec_supertype_of(lhs, rhs),
@@ -4133,7 +4141,7 @@ impl Context {
         }
     }
 
-    fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(rhs),
