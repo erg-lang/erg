@@ -5,6 +5,7 @@ use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::color::{GREEN, RED};
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, Location};
 use erg_common::impl_display_from_debug;
@@ -228,7 +229,7 @@ impl TyVarContext {
             ConstTemplate::Obj(o) => match o {
                 ValueObj::Type(t) if t.is_mono_q() => {
                     if t.name() == "Self" {
-                        let constraint = Constraint::TypeOf(Type);
+                        let constraint = Constraint::type_of(Type);
                         let t = Type::named_free_var(Str::rc(var_name), self.level, constraint);
                         TyParam::t(t)
                     } else {
@@ -315,7 +316,7 @@ impl TyVarContext {
                     }
                     t => t,
                 };
-                let constraint = Constraint::TypeOf(t.clone());
+                let constraint = Constraint::type_of(t.clone());
                 // TODO: type-like types
                 if t == Type {
                     if let Some(tv) = self.tyvar_instances.get(&name) {
@@ -835,7 +836,7 @@ impl Context {
         let vis = sig.ident.vis();
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        if self.registered(name, name.is_uppercase()) {
+        if self.registered(name, sig.is_const()) {
             return Err(TyCheckError::duplicate_decl_error(
                 line!() as usize,
                 sig.loc(),
@@ -1200,6 +1201,10 @@ impl Context {
 
     fn _generalize_tp(&self, free: TyParam) -> (TyParam, Set<TyBound>) {
         match free {
+            TyParam::Type(t) => {
+                let (t, bs) = self.generalize_t(*t);
+                (TyParam::t(t), bs)
+            }
             TyParam::FreeVar(v) if v.is_linked() => {
                 let bounds: Set<TyBound>;
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
@@ -1322,6 +1327,31 @@ impl Context {
                     Type::subr(kind, subr.non_default_params, subr.default_params, return_t),
                     bounds,
                 )
+            }
+            Callable { .. } => todo!(),
+            Ref(t) => {
+                let (t, bs) = self.generalize_t(*t);
+                (Type::ref_(t), bs)
+            }
+            RefMut(t) => {
+                let (t, bs) = self.generalize_t(*t);
+                (Type::ref_mut(t), bs)
+            }
+            VarArgs(t) => {
+                let (t, bs) = self.generalize_t(*t);
+                (Type::var_args(t), bs)
+            }
+            Poly { name, mut params } => {
+                let mut bounds = set! {};
+                let params = params
+                    .iter_mut()
+                    .map(|p| {
+                        let (p, bs) = self._generalize_tp(mem::take(p));
+                        bounds.merge(bs);
+                        p
+                    })
+                    .collect::<Vec<_>>();
+                (Type::poly(name, params), bounds)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => (other, set! {}),
@@ -1578,6 +1608,7 @@ impl Context {
                     let param_t = &param_ty.ty;
                     self.sub_unify(arg_t, param_t, Some(pos_arg.loc()), None)
                         .map_err(|e| {
+                            log!("{RED}semi-unification failed with {callee} ({arg_t} <:? {param_t}){GREEN}");
                             // REVIEW:
                             let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
                             let name = name
@@ -1913,104 +1944,106 @@ impl Context {
     }
 
     /// Replace monomorphised trait with concrete type
-    /// Return Err if already concrete
+    /// Just return input if the type is already concrete (or there is still a type variable that cannot be resolved)
     /// 単相化されたトレイトを具体的な型に置換する
-    /// 既に具体的な型の場合はErrを返す
+    /// 既に具体的な型である(か、まだ型変数があり解決できない)場合はそのまま返す
     /// ```erg
     /// instantiate_trait(Add(Int)) => Ok(Int)
     /// instantiate_trait(Array(Add(Int), 2)) => Ok(Array(Int, 2))
-    /// instantiate_trait(Array(Int, 2)) => Err(Array(Int, 2))
-    /// instantiate_trait(Int) => Err(Int)
+    /// instantiate_trait(Array(Int, 2)) => Ok(Array(Int, 2))
+    /// instantiate_trait(Int) => Ok(Int)
     /// ```
-    fn instantiate_trait(&self, maybe_trait: Type) -> Result<Type, Type> {
+    fn resolve_trait(&self, maybe_trait: Type) -> TyCheckResult<Type> {
         match maybe_trait {
-            Type::Poly { name, params } => {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                let inner = fv.crack().clone();
+                let t = self.resolve_trait(inner)?;
+                fv.link(&t);
+                Ok(Type::FreeVar(fv))
+            }
+            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = enum_unwrap!(
+                    fv.crack_constraint().clone(),
+                    Constraint::Sandwiched { sub, sup }
+                );
+                let (new_sub, new_sup) = (self.resolve_trait(sub)?, self.resolve_trait(sup)?);
+                let new_constraint = Constraint::sandwiched(new_sub, new_sup);
+                fv.update_constraint(new_constraint);
+                Ok(Type::FreeVar(fv))
+            }
+            Type::Poly { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
                 let t_name = name.clone();
                 let t_params = params.clone();
                 let maybe_trait = Type::Poly { name, params };
-                let mut min = Type::Never;
+                let mut min = Type::Obj;
                 for (concrete_t, concrete_trait) in self.rec_get_poly_trait_impls(&t_name) {
-                    log!("{concrete_t}, {concrete_trait}, {maybe_trait}");
                     if self.rec_supertype_of(&concrete_trait, &maybe_trait) {
-                        log!("super");
-                        min = self.rec_min(&min, &concrete_t).unwrap_or(&min).clone();
+                        let new_min = self.rec_min(&min, &concrete_t).unwrap_or(&min).clone();
+                        min = new_min;
                     }
                 }
-                if min == Type::Never {
+                if min == Type::Obj {
                     // may be `Array(Add(Int), 2)`, etc.
-                    let mut instantiated = false;
                     let mut new_params = Vec::with_capacity(t_params.len());
                     for param in t_params.into_iter() {
                         match param {
-                            TyParam::Type(t) => match self.instantiate_trait(*t) {
-                                Ok(concrete) => {
-                                    instantiated = true;
-                                    new_params.push(TyParam::t(concrete));
-                                }
-                                Err(param) => {
-                                    new_params.push(TyParam::t(param));
-                                }
-                            },
+                            TyParam::Type(t) => {
+                                let new_t = self.resolve_trait(*t)?;
+                                new_params.push(TyParam::t(new_t));
+                            }
                             other => {
                                 new_params.push(other);
                             }
                         }
                     }
-                    if instantiated {
-                        Ok(Type::poly(t_name, new_params))
-                    } else {
-                        Err(maybe_trait)
-                    }
+                    Ok(Type::poly(t_name, new_params))
                 } else {
                     Ok(min)
                 }
             }
             Type::Subr(subr) => {
-                let mut instantiated = false;
                 let mut new_non_default_params = Vec::with_capacity(subr.non_default_params.len());
                 for param in subr.non_default_params.into_iter() {
-                    match self.instantiate_trait(param.ty) {
-                        Ok(t) => {
-                            instantiated = true;
-                            new_non_default_params.push(ParamTy::new(param.name, t));
-                        }
-                        Err(other) => {
-                            new_non_default_params.push(ParamTy::new(param.name, other));
-                        }
-                    }
+                    let t = self.resolve_trait(param.ty)?;
+                    new_non_default_params.push(ParamTy::new(param.name, t));
                 }
                 let mut new_default_params = Vec::with_capacity(subr.default_params.len());
                 for param in subr.default_params.into_iter() {
-                    match self.instantiate_trait(param.ty) {
-                        Ok(t) => {
-                            instantiated = true;
-                            new_default_params.push(ParamTy::new(param.name, t));
-                        }
-                        Err(other) => {
-                            new_default_params.push(ParamTy::new(param.name, other));
-                        }
-                    }
+                    let t = self.resolve_trait(param.ty)?;
+                    new_default_params.push(ParamTy::new(param.name, t));
                 }
-                let new_return_t = match self.instantiate_trait(*subr.return_t) {
-                    Ok(t) => {
-                        instantiated = true;
-                        t
-                    }
-                    Err(other) => other,
-                };
+                let new_return_t = self.resolve_trait(*subr.return_t)?;
                 let t = Type::subr(
-                    subr.kind,
+                    subr.kind, // TODO: resolve self
                     new_non_default_params,
                     new_default_params,
                     new_return_t,
                 );
-                if instantiated {
-                    Ok(t)
-                } else {
-                    Err(t)
-                }
+                Ok(t)
             }
-            other => Err(other),
+            Type::MonoProj { lhs, rhs } => {
+                let new_lhs = self.resolve_trait(*lhs)?;
+                Ok(Type::mono_proj(new_lhs, rhs))
+            }
+            Type::Refinement(refine) => {
+                let new_t = self.resolve_trait(*refine.t)?;
+                Ok(Type::refinement(refine.var, new_t, refine.preds))
+            }
+            Type::Ref(t) => {
+                let new_t = self.resolve_trait(*t)?;
+                Ok(Type::ref_(new_t))
+            }
+            Type::RefMut(t) => {
+                let new_t = self.resolve_trait(*t)?;
+                Ok(Type::ref_mut(new_t))
+            }
+            Type::VarArgs(t) => {
+                let new_t = self.resolve_trait(*t)?;
+                Ok(Type::var_args(new_t))
+            }
+            Type::Callable { .. } => todo!(),
+            Type::And(_) | Type::Or(_) | Type::Not(_) => todo!(),
+            other => Ok(other),
         }
     }
 
@@ -2467,6 +2500,30 @@ impl Context {
             ));
         }
         match (maybe_sub, maybe_sup) {
+            // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
+            // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
+            // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
+            // sub_unify(?T[1](:> Never, <: Nat), ?U[0](:> Never, <: Int)): (/* ?T[1] --> ?U[0](:> Never, <: Nat))
+            // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (/* Error */)
+            // sub_unify(?T[0](:> Str, <: Obj), ?U[1](:> Int, <: Obj)): (/* ?U[1] --> ?T[0](:> Str or Int) */)
+            (lt @ Type::FreeVar(lfv), rt @ Type::FreeVar(rfv))
+                if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
+            {
+                let (lsub, lsup) = lfv.crack_bound_types().unwrap();
+                let (rsub, rsup) = rfv.crack_bound_types().unwrap();
+                let new_constraint = if let Some(min) = self.min(&lsup, &rsup) {
+                    Constraint::sandwiched(self.rec_union(&lsub, &rsub), min.clone())
+                } else {
+                    todo!()
+                };
+                if lfv.level().unwrap() <= rfv.level().unwrap() {
+                    lfv.update_constraint(new_constraint);
+                    rfv.link(rt);
+                } else {
+                    rfv.update_constraint(new_constraint);
+                    lfv.link(lt);
+                }
+            }
             (l, Type::FreeVar(fv)) if fv.is_unbound() => {
                 match &mut *fv.borrow_mut() {
                     FreeKind::NamedUnbound { constraint, .. }
@@ -2858,18 +2915,18 @@ impl Context {
         match spec {
             TypeSpec::PreDeclTy(predecl) => self.instantiate_predecl_t(predecl),
             // TODO: Flatten
-            TypeSpec::And(lhs, rhs) => Ok(Type::And(vec![
+            TypeSpec::And(lhs, rhs) => Ok(Type::and(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
-            ])),
-            TypeSpec::Not(lhs, rhs) => Ok(Type::Not(vec![
+            )),
+            TypeSpec::Not(lhs, rhs) => Ok(Type::not(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
-            ])),
-            TypeSpec::Or(lhs, rhs) => Ok(Type::Or(vec![
+            )),
+            TypeSpec::Or(lhs, rhs) => Ok(Type::or(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
-            ])),
+            )),
             TypeSpec::Array { .. } => todo!(),
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(Type::tuple(
@@ -3275,16 +3332,11 @@ impl Context {
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!("Substituted:\ninstance: {instance}");
         let res = self.eval.eval_t_params(instance, &self, self.level)?;
-        log!("Params Evaluated:\nres: {res}\n");
-        let res = self.deref_tyvar(res)?;
-        log!("Derefed:\nres: {res}\n");
+        log!("Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!("Propagated:\nres: {res}\n");
-        let res = match self.instantiate_trait(res) {
-            Ok(t) => t,
-            Err(e) => e,
-        };
-        log!("Trait instantiated:\nres: {res}\n");
+        let res = self.resolve_trait(res)?;
+        log!("Trait resolved:\nres: {res}\n");
         Ok(res)
     }
 
@@ -3877,13 +3929,12 @@ impl Context {
         }
         match (lhs, rhs) {
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
-            (Or(ts), t) | (t, Or(ts)) => Or([vec![t.clone()], ts.clone()].concat()),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             (t, Refinement(r)) | (Refinement(r), t) => {
                 let t = self.into_refinement(t.clone());
                 Type::Refinement(self.union_refinement(&t, r))
             }
-            (l, r) => Type::Or(vec![l.clone(), r.clone()]),
+            (l, r) => Type::or(l.clone(), r.clone()),
         }
     }
 
@@ -3933,7 +3984,6 @@ impl Context {
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                erg_common::fmt_dbg!(rhs, rhs2,);
                 self.rec_try_cmp(rhs, rhs2, bounds).unwrap().is_eq()
             }
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
@@ -4593,14 +4643,48 @@ impl Context {
 // test methods
 impl Context {
     pub fn test_refinement_subtyping(&self) -> Result<(), ()> {
+        // Nat :> {I: Int | I >= 1} ?
         let lhs = Nat;
         let var = Str::ever("I");
         let rhs = Type::refinement(
             var.clone(),
-            Type::Nat,
+            Type::Int,
             set! { Predicate::eq(var, TyParam::value(1)) },
         );
         if self.rec_supertype_of(&lhs, &rhs) {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn test_resolve_trait(&self) -> Result<(), ()> {
+        let t = Type::poly("Add", vec![TyParam::t(Nat)]);
+        match self.resolve_trait(t) {
+            Ok(Nat) => Ok(()),
+            Ok(other) => {
+                print!("other: {other}");
+                Err(())
+            }
+            Err(err) => {
+                use erg_common::error::ErrorDisplay;
+                err.write_to_stderr();
+                Err(())
+            }
+        }
+    }
+
+    pub fn test_resolve_trait_inner1(&self) -> Result<(), ()> {
+        let name = Str::ever("Add");
+        let params = vec![TyParam::t(Nat)];
+        let maybe_trait = Type::poly(name.clone(), params);
+        let mut min = Type::Obj;
+        for (concrete_t, concrete_trait) in self.rec_get_poly_trait_impls(&name) {
+            if self.rec_supertype_of(&concrete_trait, &maybe_trait) {
+                min = self.rec_min(&min, &concrete_t).unwrap_or(&min).clone();
+            }
+        }
+        if min.rec_eq(&Nat) {
             Ok(())
         } else {
             Err(())

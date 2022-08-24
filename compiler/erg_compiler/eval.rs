@@ -429,7 +429,7 @@ impl Evaluator {
                     self.eval_t_params(Type::mono_proj(*lhs, rhs), outer, level)
                 } else {
                     todo!(
-                        "{lhs}.{rhs} not found in {}",
+                        "{lhs}.{rhs} not found in [{}]",
                         erg_common::fmt_iter(
                             ctx.rec_sorted_sup_type_ctxs(&lhs).map(|ctx| &ctx.name)
                         )

@@ -235,6 +235,21 @@ pub struct TyCheckError {
     pub caused_by: Str,
 }
 
+impl ErrorDisplay for TyCheckError {
+    fn core(&self) -> &ErrorCore {
+        &self.core
+    }
+    fn input(&self) -> &Input {
+        &Input::Dummy
+    }
+    fn caused_by(&self) -> &str {
+        &self.caused_by
+    }
+    fn ref_inner(&self) -> Option<&Box<Self>> {
+        None
+    }
+}
+
 impl TyCheckError {
     pub const fn new(core: ErrorCore, caused_by: Str) -> Self {
         Self { core, caused_by }

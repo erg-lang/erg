@@ -107,12 +107,15 @@ pub trait HasLevel {
 // REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
+    // : Type --> (:> Never, <: Obj)
+    // :> Sub --> (:> Sub, <: Obj)
+    // <: Sup --> (:> Never, <: Sup)
     /// :> Sub, <: Sup
     Sandwiched {
         sub: Type,
         sup: Type,
     },
-    /// : T
+    // : Int, ...
     TypeOf(Type),
     Uninited,
 }
@@ -121,23 +124,48 @@ impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Sandwiched { sub, sup } => {
-                if sub.rec_eq(&Type::Never) {
-                    write!(f, "<: {sup}")
-                } else if sup.rec_eq(&Type::Obj) {
-                    write!(f, ":> {sub}")
-                } else {
-                    write!(f, ":> {sub}, <: {sup}")
+                match (sub.rec_eq(&Type::Never), sup.rec_eq(&Type::Obj)) {
+                    (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
+                    (true, false) => write!(f, "<: {sup}"),
+                    (false, true) => write!(f, ":> {sub}"),
+                    (false, false) => write!(f, ":> {sub}, <: {sup}"),
                 }
             }
-            Self::TypeOf(ty) => write!(f, ": {}", ty),
+            Self::TypeOf(t) => write!(f, ": {t}"),
             Self::Uninited => write!(f, "<uninited>"),
         }
     }
 }
 
 impl Constraint {
+    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        if level == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Sandwiched { sub, sup } => {
+                match (sub.rec_eq(&Type::Never), sup.rec_eq(&Type::Obj)) {
+                    (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
+                    (true, false) => write!(f, "<: {sup}"),
+                    (false, true) => write!(f, ":> {sub}"),
+                    (false, false) => write!(f, ":> {sub}, <: {sup}"),
+                }
+            }
+            Self::TypeOf(t) => write!(f, ": {t}"),
+            Self::Uninited => write!(f, "<uninited>"),
+        }
+    }
+
     pub const fn sandwiched(sub: Type, sup: Type) -> Self {
         Self::Sandwiched { sub, sup }
+    }
+
+    pub fn type_of(t: Type) -> Self {
+        if t.rec_eq(&Type::Type) {
+            Self::sandwiched(Type::Never, Type::Obj)
+        } else {
+            Self::TypeOf(t)
+        }
     }
 
     pub const fn subtype_of(sup: Type) -> Self {
@@ -155,6 +183,10 @@ impl Constraint {
     pub fn typ(&self) -> Option<&Type> {
         match self {
             Self::TypeOf(ty) => Some(ty),
+            Self::Sandwiched {
+                sub: Type::Never,
+                sup: Type::Obj,
+            } => Some(&Type::Type),
             _ => None,
         }
     }
@@ -383,11 +415,18 @@ impl<T: Clone + HasLevel> Free<T> {
         self.0.borrow().constraint().and_then(|c| c.typ().cloned())
     }
 
-    pub fn subtype_of(&self) -> Option<Type> {
+    pub fn crack_subtype(&self) -> Option<Type> {
         self.0
             .borrow()
             .constraint()
             .and_then(|c| c.super_type().cloned())
+    }
+
+    pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
+        self.0
+            .borrow()
+            .constraint()
+            .and_then(|c| c.sub_sup_type().map(|(l, r)| (l.clone(), r.clone())))
     }
 
     pub fn is_unbound(&self) -> bool {
@@ -716,15 +755,13 @@ impl TyParam {
     }
 
     pub fn free_var(level: usize, t: Type) -> Self {
-        Self::FreeVar(FreeTyParam::new_unbound(level, Constraint::TypeOf(t)))
+        let constraint = Constraint::type_of(t);
+        Self::FreeVar(FreeTyParam::new_unbound(level, constraint))
     }
 
     pub fn named_free_var(name: Str, level: usize, t: Type) -> Self {
-        Self::FreeVar(FreeTyParam::new_named_unbound(
-            name,
-            level,
-            Constraint::TypeOf(t),
-        ))
+        let constraint = Constraint::type_of(t);
+        Self::FreeVar(FreeTyParam::new_named_unbound(name, level, constraint))
     }
 
     #[inline]
@@ -1430,25 +1467,7 @@ pub struct SubrType {
 
 impl fmt::Display for SubrType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut default_params = String::new();
-        for default_param in self.default_params.iter() {
-            default_params.push_str(&format!(
-                "{} |= {}, ",
-                default_param.name.as_ref().unwrap(),
-                default_param.ty
-            ));
-        }
-        default_params.pop();
-        default_params.pop();
-        write!(
-            f,
-            "{}({}, {}) {} {}",
-            self.kind.prefix(),
-            fmt_vec(&self.non_default_params),
-            default_params,
-            self.kind.arrow(),
-            self.return_t,
-        )
+        self.limited_fmt(f, 10)
     }
 }
 
@@ -1473,6 +1492,31 @@ impl SubrType {
                 .iter()
                 .position(|t| t.ty.is_varargs()),
             self.default_params.iter().position(|t| t.ty.is_varargs()),
+        )
+    }
+
+    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        let mut default_params = String::new();
+        for default_param in self.default_params.iter() {
+            default_params.push_str(&format!(
+                "{} |= {}, ",
+                default_param.name.as_ref().unwrap(),
+                default_param.ty
+            ));
+        }
+        default_params.pop();
+        default_params.pop();
+        write!(
+            f,
+            "{}({}, {}) {} {}",
+            self.kind.prefix(),
+            fmt_vec(&self.non_default_params),
+            default_params,
+            self.kind.arrow(),
+            self.return_t,
         )
     }
 }
@@ -1520,6 +1564,12 @@ impl RefinementType {
 
     pub fn bound(&self) -> TyBound {
         TyBound::instance(self.var.clone(), *self.t.clone())
+    }
+
+    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        write!(f, "{{{}: ", self.var)?;
+        self.t.limited_fmt(f, limit - 1)?;
+        write!(f, "| {}}}", fmt_set_split_with(&self.preds, "; "))
     }
 }
 
@@ -1759,9 +1809,9 @@ pub enum Type {
     Refinement(RefinementType),
     // e.g. |T: Type| T -> T
     Quantified(QuantifiedType),
-    And(Vec<Type>),
-    Not(Vec<Type>),
-    Or(Vec<Type>),
+    And(Box<Type>, Box<Type>),
+    Not(Box<Type>, Box<Type>),
+    Or(Box<Type>, Box<Type>),
     VarArgs(Box<Type>), // ...T
     Poly {
         name: Str,
@@ -1785,36 +1835,7 @@ pub enum Type {
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Mono(name) => write!(f, "{name}"),
-            Self::Ref(t) => write!(f, "Ref({t})"),
-            Self::RefMut(t) => write!(f, "Ref!({t})"),
-            Self::Subr(sub) => write!(f, "{sub}"),
-            Self::Callable { param_ts, return_t } => {
-                write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
-            }
-            Self::Record(attrs) => {
-                write!(f, "{{")?;
-                if let Some((field, t)) = attrs.iter().next() {
-                    write!(f, "{field} = {t}")?;
-                }
-                for (field, t) in attrs.iter().skip(1) {
-                    write!(f, "; {field} = {t}")?;
-                }
-                write!(f, "}}")
-            }
-            Self::Refinement(refinement) => write!(f, "{}", refinement),
-            Self::Quantified(quantified) => write!(f, "{}", quantified),
-            Self::And(types) => write!(f, "{}", fmt_vec_split_with(types, " and ")),
-            Self::Not(types) => write!(f, "{}", fmt_vec_split_with(types, " not ")),
-            Self::Or(types) => write!(f, "{}", fmt_vec_split_with(types, " or ")),
-            Self::VarArgs(t) => write!(f, "...{t}"),
-            Self::Poly { name, params } => write!(f, "{name}({})", fmt_vec(params)),
-            Self::MonoQVar(name) => write!(f, "'{name}"),
-            Self::FreeVar(v) => write!(f, "{v}"),
-            Self::MonoProj { lhs, rhs } => write!(f, "{lhs}.{rhs}"),
-            _ => write!(f, "{}", self.name()),
-        }
+        self.limited_fmt(f, 10)
     }
 }
 
@@ -2046,6 +2067,45 @@ impl Type {
     pub const NEG_INF: &'static Self = &Self::NegInf;
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
+
+    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Mono(name) => write!(f, "{name}"),
+            Self::Ref(t) | Self::RefMut(t) => {
+                write!(f, "{}(", self.name())?;
+                t.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::Subr(sub) => sub.limited_fmt(f, limit - 1),
+            Self::Callable { param_ts, return_t } => {
+                write!(f, "Callable(({}), {return_t})", fmt_vec(param_ts))
+            }
+            Self::Record(attrs) => {
+                write!(f, "{{")?;
+                if let Some((field, t)) = attrs.iter().next() {
+                    write!(f, "{field} = {t}")?;
+                }
+                for (field, t) in attrs.iter().skip(1) {
+                    write!(f, "; {field} = {t}")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Refinement(refinement) => write!(f, "{}", refinement),
+            Self::Quantified(quantified) => write!(f, "{}", quantified),
+            Self::And(types) => write!(f, "{}", fmt_vec_split_with(types, " and ")),
+            Self::Not(types) => write!(f, "{}", fmt_vec_split_with(types, " not ")),
+            Self::Or(types) => write!(f, "{}", fmt_vec_split_with(types, " or ")),
+            Self::VarArgs(t) => write!(f, "...{t}"),
+            Self::Poly { name, params } => write!(f, "{name}({})", fmt_vec(params)),
+            Self::MonoQVar(name) => write!(f, "'{name}"),
+            Self::FreeVar(fv) => write!(f, "{fv}"),
+            Self::MonoProj { lhs, rhs } => write!(f, "{lhs}.{rhs}"),
+            _ => write!(f, "{}", self.name()),
+        }
+    }
 
     /// Top := {=}
     #[allow(non_snake_case)]
@@ -2427,6 +2487,18 @@ impl Type {
         Self::Quantified(QuantifiedType::new(unbound_t, bounds))
     }
 
+    pub fn and(lhs: Self, rhs: Self) -> Self {
+        Self::And(Box::new(lhs), Box::new(rhs))
+    }
+
+    pub fn or(lhs: Self, rhs: Self) -> Self {
+        Self::Or(Box::new(lhs), Box::new(rhs))
+    }
+
+    pub fn not(lhs: Self, rhs: Self) -> Self {
+        Self::Not(Box::new(lhs), Box::new(rhs))
+    }
+
     pub fn is_mono_q(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_q(),
@@ -2636,12 +2708,9 @@ impl Type {
         match (lhs, rhs) {
             // { .i: Int } and { .s: Str } == { .i: Int, .s: Str }
             (Self::Record(l), Self::Record(r)) => Self::Record(l.clone().concat(r.clone())),
-            (Self::And(ts), t) | (t, Self::And(ts)) => {
-                Self::And([vec![t.clone()], ts.clone()].concat())
-            }
             (t, Self::Obj) | (Self::Obj, t) => t.clone(),
             (_, Self::Never) | (Self::Never, _) => Self::Never,
-            (l, r) => Self::And(vec![l.clone(), r.clone()]),
+            (l, r) => Self::and(l.clone(), r.clone()),
         }
     }
 
