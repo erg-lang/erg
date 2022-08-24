@@ -46,8 +46,8 @@ impl SubstContext {
         ctx: &Context,
     ) -> TyCheckResult<Type> {
         let bounds = ty_ctx.type_params_bounds();
-        let tv_ctx = TyVarContext::new(level, bounds, ctx);
-        let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
+        let mut tv_ctx = TyVarContext::new(level, bounds, ctx);
+        let inst = Context::instantiate_t(quant_t, &mut tv_ctx);
         for param in inst.typarams() {
             self.substitute_tp(&param, ty_ctx)?;
         }
@@ -59,7 +59,7 @@ impl SubstContext {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ty_ctx.unify_tp(param, v, None, None, false)?;
+                        ty_ctx.unify_tp(param, v, None, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
@@ -493,12 +493,7 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn get_tp_t(
-        &self,
-        p: &TyParam,
-        bounds: Option<&Set<TyBound>>,
-        ctx: &Context,
-    ) -> EvalResult<Type> {
+    pub(crate) fn get_tp_t(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
         let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
@@ -518,18 +513,10 @@ impl Evaluator {
                 .map(|v| Type::enum_t(set![v.clone()]))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
-                if let Some(bs) = bounds {
-                    if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(&name)) {
-                        Ok(bound.t().clone())
-                    } else {
-                        todo!()
-                    }
-                } else {
-                    todo!()
-                }
+                panic!("Not instantiated type variable: {name}")
             }
             TyParam::UnaryOp { op, val } => match op {
-                OpKind::Mutate => Ok(self.get_tp_t(&val, bounds, ctx)?.mutate()),
+                OpKind::Mutate => Ok(self.get_tp_t(&val, ctx)?.mutate()),
                 _ => todo!(),
             },
             other => todo!("{other}"),

@@ -14,7 +14,7 @@ use crate::set::Set;
 use crate::traits::{HasType, LimitedDisplay};
 use crate::value::ValueObj::{Inf, NegInf};
 use crate::value::{Field, ValueObj};
-use crate::{enum_unwrap, fmt_set_split_with, fmt_vec, set, Str};
+use crate::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -122,40 +122,45 @@ pub enum Constraint {
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Sandwiched { sub, sup } => {
-                match (sub.rec_eq(&Type::Never), sup.rec_eq(&Type::Obj)) {
-                    (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
-                    (true, false) => write!(f, "<: {sup}"),
-                    (false, true) => write!(f, ":> {sub}"),
-                    (false, false) => write!(f, ":> {sub}, <: {sup}"),
-                }
-            }
-            Self::TypeOf(t) => write!(f, ": {t}"),
-            Self::Uninited => write!(f, "<uninited>"),
-        }
+        self.limited_fmt(f, 10)
     }
 }
 
-impl Constraint {
-    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        if level == 0 {
+impl LimitedDisplay for Constraint {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
             return write!(f, "...");
         }
         match self {
             Self::Sandwiched { sub, sup } => {
                 match (sub.rec_eq(&Type::Never), sup.rec_eq(&Type::Obj)) {
                     (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
-                    (true, false) => write!(f, "<: {sup}"),
-                    (false, true) => write!(f, ":> {sub}"),
-                    (false, false) => write!(f, ":> {sub}, <: {sup}"),
+                    (true, false) => {
+                        write!(f, "<: ")?;
+                        sup.limited_fmt(f, limit - 1)
+                    }
+                    (false, true) => {
+                        write!(f, "<: ")?;
+                        sub.limited_fmt(f, limit - 1)
+                    }
+                    (false, false) => {
+                        write!(f, "<: ")?;
+                        sub.limited_fmt(f, limit - 1)?;
+                        write!(f, ", :> ")?;
+                        sup.limited_fmt(f, limit - 1)
+                    }
                 }
             }
-            Self::TypeOf(t) => write!(f, ": {t}"),
+            Self::TypeOf(t) => {
+                write!(f, ": ")?;
+                t.limited_fmt(f, limit - 1)
+            }
             Self::Uninited => write!(f, "<uninited>"),
         }
     }
+}
 
+impl Constraint {
     pub const fn sandwiched(sub: Type, sup: Type) -> Self {
         Self::Sandwiched { sub, sup }
     }
@@ -235,38 +240,37 @@ pub enum FreeKind<T> {
     },
 }
 
-impl<T: fmt::Display> fmt::Display for FreeKind<T> {
+impl<T: LimitedDisplay> fmt::Display for FreeKind<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Linked(t) => write!(f, "({t})"),
-            Self::NamedUnbound {
-                name,
-                lev,
-                constraint,
-            } => write!(f, "?{name}({constraint})[{lev}]"),
-            Self::Unbound {
-                id,
-                lev,
-                constraint,
-            } => write!(f, "?{id}({constraint})[{lev}]"),
-        }
+        self.limited_fmt(f, 10)
     }
 }
 
 impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
     fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
         match self {
             Self::Linked(t) => t.limited_fmt(f, limit),
             Self::NamedUnbound {
                 name,
                 lev,
                 constraint,
-            } => write!(f, "?{name}({constraint})[{lev}]"),
+            } => {
+                write!(f, "?{name}(")?;
+                constraint.limited_fmt(f, limit - 1)?;
+                write!(f, ")[{lev}]")
+            }
             Self::Unbound {
                 id,
                 lev,
                 constraint,
-            } => write!(f, "?{id}({constraint})[{lev}]"),
+            } => {
+                write!(f, "?{id}(")?;
+                constraint.limited_fmt(f, limit - 1)?;
+                write!(f, ")[{lev}]")
+            }
         }
     }
 }
@@ -301,7 +305,7 @@ impl<T> FreeKind<T> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Free<T>(RcCell<FreeKind<T>>);
 
-impl<T: fmt::Display> fmt::Display for Free<T> {
+impl<T: LimitedDisplay> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.borrow())
     }
@@ -612,7 +616,9 @@ impl fmt::Display for TyParam {
 
 impl LimitedDisplay for TyParam {
     fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        if limit == 0 { return write!(f, "...") }
+        if limit == 0 {
+            return write!(f, "...");
+        }
         match self {
             Self::Value(v) => write!(f, "{v}"),
             Self::Failure => write!(f, "<Failure>"),
@@ -642,19 +648,19 @@ impl LimitedDisplay for TyParam {
             Self::PolyQVar { name, args } => {
                 write!(f, "'{}", name)?;
                 write!(f, "(")?;
-                    for (i, arg) in args.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, ", ")?;
-                        }
-                        arg.limited_fmt(f, limit - 1)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
                     }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
                 write!(f, ")")?;
                 Ok(())
             }
             Self::Erased(t) => {
                 write!(f, "_: ")?;
                 t.limited_fmt(f, limit - 1)
-            },
+            }
             Self::Mono(name) => write!(f, "{}", name),
             Self::MonoQVar(name) => write!(f, "'{}", name),
             Self::MonoProj { obj, attr } => {
@@ -897,6 +903,24 @@ impl TyParam {
         Self::app("Pred", vec![self])
     }
 
+    pub fn name(&self) -> Option<Str> {
+        match self {
+            Self::Type(t) => Some(t.name()),
+            Self::Mono(name) => Some(name.clone()),
+            Self::MonoQVar(name) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn tvar_name(&self) -> Option<Str> {
+        match self {
+            Self::Type(t) => t.tvar_name(),
+            Self::FreeVar(fv) => fv.unbound_name(),
+            Self::MonoQVar(name) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
     /// 型変数の内容を考慮した再帰的(Recursive)比較を行う
     pub fn rec_eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -1111,17 +1135,37 @@ pub enum TyBound {
 
 impl fmt::Display for TyBound {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.limited_fmt(f, 10)
+    }
+}
+
+impl LimitedDisplay for TyBound {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
         match self {
             Self::Sandwiched { sub, mid, sup } => {
                 if sub.rec_eq(&Type::Never) {
-                    write!(f, "{mid} <: {sup}")
+                    mid.limited_fmt(f, limit - 1)?;
+                    write!(f, " <: ")?;
+                    sup.limited_fmt(f, limit - 1)
                 } else if sup.rec_eq(&Type::Obj) {
-                    write!(f, "{sub} <: {mid}")
+                    mid.limited_fmt(f, limit - 1)?;
+                    write!(f, " :> ")?;
+                    sub.limited_fmt(f, limit - 1)
                 } else {
-                    write!(f, "{sub} <: {mid} <: {sup}")
+                    sub.limited_fmt(f, limit - 1)?;
+                    write!(f, " <: ")?;
+                    mid.limited_fmt(f, limit - 1)?;
+                    write!(f, " <: ")?;
+                    sup.limited_fmt(f, limit - 1)
                 }
             }
-            Self::Instance { name, t } => write!(f, "'{name}: {t}"),
+            Self::Instance { name, t } => {
+                write!(f, "'{name}: ")?;
+                t.limited_fmt(f, limit - 1)
+            }
         }
     }
 }
@@ -1174,16 +1218,20 @@ impl TyBound {
         }
     }
 
-    pub const fn instance(name: Str, t: Type) -> Self {
-        Self::Instance { name, t }
+    pub fn instance(name: Str, t: Type) -> Self {
+        if t.rec_eq(&Type::Type) {
+            Self::sandwiched(Type::Never, Type::mono(name), Type::Obj)
+        } else {
+            Self::Instance { name, t }
+        }
     }
 
     pub fn mentions_as_instance(&self, name: &str) -> bool {
         matches!(self, Self::Instance{ name: n, .. } if &n[..] == name)
     }
 
-    pub fn mentions_as_subtype(&self, name: &str) -> bool {
-        matches!(self, Self::Sandwiched{ sub, .. } if sub.name() == name)
+    pub fn mentions_as_mid(&self, name: &str) -> bool {
+        matches!(self, Self::Sandwiched{ mid, .. } if &mid.name()[..] == name)
     }
 
     pub fn has_unbound_var(&self) -> bool {
@@ -1195,17 +1243,23 @@ impl TyBound {
         }
     }
 
-    pub const fn t(&self) -> &Type {
+    pub fn typ(&self) -> &Type {
         match self {
-            Self::Sandwiched { .. } => todo!(),
+            Self::Sandwiched { sub, sup, .. } => {
+                if sub.rec_eq(&Type::Never) && sup.rec_eq(&Type::Obj) {
+                    &Type::Type
+                } else {
+                    todo!()
+                }
+            }
             Self::Instance { t, .. } => t,
         }
     }
 
-    pub fn lhs(&self) -> &str {
+    pub fn lhs(&self) -> Str {
         match self {
             Self::Sandwiched { mid, .. } => mid.name(),
-            Self::Instance { name, .. } => name,
+            Self::Instance { name, .. } => name.clone(),
         }
     }
 }
@@ -1555,6 +1609,31 @@ impl fmt::Display for SubrType {
     }
 }
 
+impl LimitedDisplay for SubrType {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        write!(f, "{}(", self.kind.prefix())?;
+        for (i, param) in self.non_default_params.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", fmt_option!(param.name, post ": "))?;
+            param.ty.limited_fmt(f, limit - 1)?;
+        }
+        for (i, default_param) in self.default_params.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{} |= ", default_param.name.as_ref().unwrap(),)?;
+            default_param.ty.limited_fmt(f, limit - 1)?;
+        }
+        write!(f, ") {} ", self.kind.arrow())?;
+        self.return_t.limited_fmt(f, limit - 1)
+    }
+}
+
 impl SubrType {
     pub fn new(
         kind: SubrKind,
@@ -1576,31 +1655,6 @@ impl SubrType {
                 .iter()
                 .position(|t| t.ty.is_varargs()),
             self.default_params.iter().position(|t| t.ty.is_varargs()),
-        )
-    }
-
-    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        if limit == 0 {
-            return write!(f, "...");
-        }
-        let mut default_params = String::new();
-        for default_param in self.default_params.iter() {
-            default_params.push_str(&format!(
-                "{} |= {}, ",
-                default_param.name.as_ref().unwrap(),
-                default_param.ty
-            ));
-        }
-        default_params.pop();
-        default_params.pop();
-        write!(
-            f,
-            "{}({}, {}) {} {}",
-            self.kind.prefix(),
-            fmt_vec(&self.non_default_params),
-            default_params,
-            self.kind.arrow(),
-            self.return_t,
         )
     }
 }
@@ -1627,13 +1681,18 @@ pub struct RefinementType {
 
 impl fmt::Display for RefinementType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{{{}: {} | {}}}",
-            self.var,
-            self.t,
-            fmt_set_split_with(&self.preds, "; ")
-        )
+        self.limited_fmt(f, 10)
+    }
+}
+
+impl LimitedDisplay for RefinementType {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        write!(f, "{{{}: ", self.var)?;
+        self.t.limited_fmt(f, limit - 1)?;
+        write!(f, "| {}}}", fmt_set_split_with(&self.preds, "; "))
     }
 }
 
@@ -1648,12 +1707,6 @@ impl RefinementType {
 
     pub fn bound(&self) -> TyBound {
         TyBound::instance(self.var.clone(), *self.t.clone())
-    }
-
-    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        write!(f, "{{{}: ", self.var)?;
-        self.t.limited_fmt(f, limit - 1)?;
-        write!(f, "| {}}}", fmt_set_split_with(&self.preds, "; "))
     }
 }
 
@@ -1673,17 +1726,29 @@ impl fmt::Display for QuantifiedType {
     }
 }
 
+impl LimitedDisplay for QuantifiedType {
+    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        write!(f, "|")?;
+        for (i, bound) in self.bounds.iter().enumerate() {
+            if i != 0 {
+                write!(f, "; ")?;
+            }
+            bound.limited_fmt(f, limit - 1)?;
+        }
+        write!(f, "|")?;
+        self.unbound_callable.limited_fmt(f, limit - 1)
+    }
+}
+
 impl QuantifiedType {
     pub fn new(unbound_callable: Type, bounds: Set<TyBound>) -> Self {
         Self {
             unbound_callable: Box::new(unbound_callable),
             bounds,
         }
-    }
-
-    pub fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        write!(f, "|{}| ", fmt_set_split_with(&self.bounds, "; "))?;
-        self.unbound_callable.limited_fmt(f, limit)
     }
 }
 
@@ -1744,10 +1809,10 @@ impl SubrKind {
         }
     }
 
-    pub const fn arrow(&self) -> &str {
+    pub const fn arrow(&self) -> Str {
         match self {
-            Self::Func | Self::FuncMethod(_) => "->",
-            Self::Proc | Self::ProcMethod { .. } => "=>",
+            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
+            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
         }
     }
 
@@ -1940,7 +2005,6 @@ impl LimitedDisplay for Type {
                 t.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
-            Self::Subr(sub) => sub.limited_fmt(f, limit - 1),
             Self::Callable { param_ts, return_t } => {
                 write!(f, "Callable((")?;
                 for (i, t) in param_ts.iter().enumerate() {
@@ -1965,13 +2029,14 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, "}}")
             }
-            Self::Refinement(refinement) => refinement.limited_fmt(f, limit - 1),
-            Self::Quantified(quantified) => quantified.limited_fmt(f, limit - 1),
+            Self::Subr(sub) => sub.limited_fmt(f, limit),
+            Self::Refinement(refinement) => refinement.limited_fmt(f, limit),
+            Self::Quantified(quantified) => quantified.limited_fmt(f, limit),
             Self::And(lhs, rhs) => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " and ")?;
                 rhs.limited_fmt(f, limit - 1)
-            },
+            }
             Self::Not(lhs, rhs) => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " not ")?;
@@ -1985,7 +2050,7 @@ impl LimitedDisplay for Type {
             Self::VarArgs(t) => {
                 write!(f, "...")?;
                 t.limited_fmt(f, limit - 1)
-            },
+            }
             Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
@@ -1997,11 +2062,11 @@ impl LimitedDisplay for Type {
                 write!(f, ")")
             }
             Self::MonoQVar(name) => write!(f, "'{name}"),
-            Self::FreeVar(fv) => fv.limited_fmt(f, limit - 1),
+            Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::MonoProj { lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, ".{rhs}")
-            },
+            }
             _ => write!(f, "{}", self.name()),
         }
     }
@@ -2795,9 +2860,7 @@ impl Type {
             }
             (Self::And(ll, lr), Self::And(rl, rr))
             | (Self::Not(ll, lr), Self::Not(rl, rr))
-            | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
-                ll.rec_eq(rl) && lr.rec_eq(rr)
-            },
+            | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll.rec_eq(rl) && lr.rec_eq(rr),
             (Self::VarArgs(l), Self::VarArgs(r)) => l.rec_eq(r),
             (
                 Self::Poly {
@@ -2843,62 +2906,74 @@ impl Type {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> Str {
         match self {
-            Self::Obj => "Obj",
-            Self::Int => "Int",
-            Self::Nat => "Nat",
-            Self::Ratio => "Ratio",
-            Self::Float => "Float",
-            Self::Bool => "Bool",
-            Self::Str => "Str",
-            Self::NoneType => "None",
-            Self::Type => "Type",
-            Self::Class => "Class",
-            Self::Trait => "Trait",
-            Self::Patch => "Patch",
-            Self::Code => "Code",
-            Self::Module => "Module",
-            Self::Frame => "Frame",
-            Self::Error => "Error",
-            Self::Inf => "Inf",
-            Self::NegInf => "NegInf",
-            Self::Mono(name) | Self::MonoQVar(name) => name,
-            Self::And(_, _) => "And",
-            Self::Not(_, _) => "Not",
-            Self::Or(_, _) => "Or",
-            Self::Ref(_) => "Ref",
-            Self::RefMut(_) => "Ref!",
+            Self::Obj => Str::ever("Obj"),
+            Self::Int => Str::ever("Int"),
+            Self::Nat => Str::ever("Nat"),
+            Self::Ratio => Str::ever("Ratio"),
+            Self::Float => Str::ever("Float"),
+            Self::Bool => Str::ever("Bool"),
+            Self::Str => Str::ever("Str"),
+            Self::NoneType => Str::ever("NoneType"),
+            Self::Type => Str::ever("Type"),
+            Self::Class => Str::ever("Class"),
+            Self::Trait => Str::ever("Trait"),
+            Self::Patch => Str::ever("Patch"),
+            Self::Code => Str::ever("Code"),
+            Self::Module => Str::ever("Module"),
+            Self::Frame => Str::ever("Frame"),
+            Self::Error => Str::ever("Error"),
+            Self::Inf => Str::ever("Inf"),
+            Self::NegInf => Str::ever("NegInf"),
+            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
+            Self::And(_, _) => Str::ever("And(_, _)"),
+            Self::Not(_, _) => Str::ever("Not(_, _)"),
+            Self::Or(_, _) => Str::ever("Or(_, _)"),
+            Self::Ref(_) => Str::ever("Ref(_)"),
+            Self::RefMut(_) => Str::ever("RefMut(_)"),
             Self::Subr(SubrType {
                 kind: SubrKind::Func,
                 ..
-            }) => "Func",
+            }) => Str::ever("Func"),
             Self::Subr(SubrType {
                 kind: SubrKind::Proc,
                 ..
-            }) => "Proc",
+            }) => Str::ever("Proc"),
             Self::Subr(SubrType {
                 kind: SubrKind::FuncMethod(_),
                 ..
-            }) => "FuncMethod",
+            }) => Str::ever("FuncMethod"),
             Self::Subr(SubrType {
                 kind: SubrKind::ProcMethod { .. },
                 ..
-            }) => "ProcMethod",
-            Self::Callable { .. } => "Callable",
-            Self::Record(_) => "Record",
-            Self::VarArgs(_) => "VarArgs",
-            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name,
+            }) => Str::ever("ProcMethod"),
+            Self::Callable { .. } => Str::ever("Callable { .. }"),
+            Self::Record(_) => Str::ever("Record(_)"),
+            Self::VarArgs(_) => Str::ever("VarArgs(_)"),
+            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.name(),
-            Self::Quantified(_) => "Quantified",
-            Self::Ellipsis => "Ellipsis",
-            Self::NotImplemented => "NotImplemented",
-            Self::Never => "Never",
-            Self::FreeVar(_) => "?", // TODO: 中身がSomeなら表示したい
-            Self::MonoProj { .. } => "MonoProj",
-            Self::Failure => "<Failure>",
-            Self::Uninited => "<Uninited>",
+            Self::Quantified(_) => Str::ever("Quantified(_)"),
+            Self::Ellipsis => Str::ever("Ellipsis"),
+            Self::NotImplemented => Str::ever("NotImplemented"),
+            Self::Never => Str::ever("Never"),
+            Self::FreeVar(_fv) => match &*_fv.borrow() {
+                FreeKind::Linked(l) => l.name(),
+                FreeKind::NamedUnbound { name, .. } => name.clone(),
+                FreeKind::Unbound { id, .. } => Str::from(id.to_string()),
+            }, // TODO: 中身がSomeなら表示したい
+            Self::MonoProj { .. } => Str::ever("MonoProj { .. }"),
+            Self::Failure => Str::ever("Failure"),
+            Self::Uninited => Str::ever("Uninited"),
+        }
+    }
+
+    pub fn tvar_name(&self) -> Option<Str> {
+        match self {
+            Self::FreeVar(fv) => fv.unbound_name(),
+            Self::MonoQVar(name) => Some(name.clone()),
+            _ => None,
         }
     }
 
@@ -2916,6 +2991,10 @@ impl Type {
 
     pub const fn is_callable(&self) -> bool {
         matches!(self, Self::Subr { .. } | Self::Callable { .. })
+    }
+
+    pub fn is_tyvar(&self) -> bool {
+        matches!(self, Self::FreeVar(fv) if fv.is_unbound())
     }
 
     pub fn has_unbound_var(&self) -> bool {

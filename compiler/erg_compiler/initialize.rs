@@ -59,19 +59,17 @@ impl Context {
         if self.types.contains_key(&t) {
             panic!("{} has already been registered", t.name());
         } else {
-            let name = VarName::from_str(Str::rc(t.name()));
+            let name = VarName::from_str(t.name());
             self.locals
                 .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
             self.consts.insert(name, ValueObj::t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if !impl_trait.is_monomorphic() {
-                    if let Some(impls) = self.poly_trait_impls.get_mut(impl_trait.name()) {
+                    if let Some(impls) = self.poly_trait_impls.get_mut(&impl_trait.name()) {
                         impls.push((t.clone(), impl_trait.clone()));
                     } else {
-                        self.poly_trait_impls.insert(
-                            Str::rc(impl_trait.name()),
-                            vec![(t.clone(), impl_trait.clone())],
-                        );
+                        self.poly_trait_impls
+                            .insert(impl_trait.name(), vec![(t.clone(), impl_trait.clone())]);
                     }
                 }
             }

@@ -934,7 +934,7 @@ impl CodeGenerator {
     }
 
     fn emit_call(&mut self, obj: Expr, method_name: Option<Token>, mut args: Args) {
-        let class = Str::rc(obj.ref_t().name()); // これは必ずmethodのあるクラスになっている
+        let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
         self.codegen_expr(obj);
         if let Some(method_name) = method_name {
@@ -1039,7 +1039,7 @@ impl CodeGenerator {
                 });
             }
             Expr::Accessor(Accessor::Attr(a)) => {
-                let class = Str::rc(a.obj.ref_t().name());
+                let class = a.obj.ref_t().name();
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
                 self.codegen_expr(*a.obj);
                 self.emit_load_attr_instr(
