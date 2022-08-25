@@ -11,7 +11,8 @@ use Type::*;
 
 use erg_parser::ast::VarName;
 
-use crate::context::{ConstTemplate, Context, ContextKind, DefaultInfo, ParamSpec};
+use crate::context::instantiate::ConstTemplate;
+use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstancePair};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
 use Mutability::*;
@@ -65,11 +66,13 @@ impl Context {
             self.consts.insert(name, ValueObj::t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if !impl_trait.is_monomorphic() {
-                    if let Some(impls) = self.poly_trait_impls.get_mut(&impl_trait.name()) {
-                        impls.push((t.clone(), impl_trait.clone()));
+                    if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                        impls.push(TraitInstancePair::new(t.clone(), impl_trait.clone()));
                     } else {
-                        self.poly_trait_impls
-                            .insert(impl_trait.name(), vec![(t.clone(), impl_trait.clone())]);
+                        self.trait_impls.insert(
+                            impl_trait.name(),
+                            vec![TraitInstancePair::new(t.clone(), impl_trait.clone())],
+                        );
                     }
                 }
             }
@@ -97,8 +100,7 @@ impl Context {
                 for impl_trait in ctx.super_traits.iter() {
                     self.glue_patch_and_types.push((
                         VarName::from_str(ctx.name.clone()),
-                        target_type.clone(),
-                        impl_trait.clone(),
+                        TraitInstancePair::new(target_type.clone(), impl_trait.clone()),
                     ));
                 }
             }

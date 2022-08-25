@@ -42,16 +42,18 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
-        self.ctx.unify(expect, found, Some(loc), None).map_err(|_| {
-            LowerError::type_mismatch_error(
-                line!() as usize,
-                loc,
-                self.ctx.caused_by(),
-                name,
-                expect,
-                found,
-            )
-        })
+        self.ctx
+            .sub_unify(found, expect, None, Some(loc))
+            .map_err(|_| {
+                LowerError::type_mismatch_error(
+                    line!() as usize,
+                    loc,
+                    self.ctx.caused_by(),
+                    name,
+                    expect,
+                    found,
+                )
+            })
     }
 
     fn use_check(&self, expr: hir::Expr, mode: &str) -> LowerResult<hir::Expr> {

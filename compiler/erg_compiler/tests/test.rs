@@ -8,6 +8,14 @@ fn test_subtyping() -> Result<(), ()> {
 }
 
 #[test]
+fn test_instantiation_and_generalization() -> Result<(), ()> {
+    let context = Context::new_root_module();
+    context.test_instantiation_and_generalization()?;
+    Ok(())
+}
+
+/*
+#[test]
 fn test_resolve_trait() -> Result<(), ()> {
     let context = Context::new_root_module();
     context.test_resolve_trait()?;
@@ -20,3 +28,4 @@ fn test_resolve_trait_inner1() -> Result<(), ()> {
     context.test_resolve_trait_inner1()?;
     Ok(())
 }
+*/

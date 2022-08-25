@@ -13,7 +13,8 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::Token;
 
-use crate::context::{Context, TyVarContext};
+use crate::context::instantiate::TyVarContext;
+use crate::context::Context;
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
 /// SubstContext::new([?T; 0], Context(Array(T, N))) => SubstContext{ params: { T: ?T; N: 0 } }
@@ -213,9 +214,9 @@ impl Evaluator {
         Some(ValueObj::Array(RcArray::from(elems)))
     }
 
-    fn eval_const_record(&self, _record: &Record, ctx: &Context) -> Option<ValueObj> {
+    fn eval_const_record(&self, record: &Record, ctx: &Context) -> Option<ValueObj> {
         let mut attrs = vec![];
-        for attr in _record.attrs.iter() {
+        for attr in record.attrs.iter() {
             if let Some(elem) = self.eval_const_block(&attr.body.block, ctx) {
                 let ident = match &attr.sig {
                     Signature::Var(var) => match &var.pat {

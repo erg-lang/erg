@@ -3,7 +3,7 @@
 //! コンパイラ、VM等で使われる(データも保持した)値オブジェクトを定義する
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::fmt::{self, Write};
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::Neg;
@@ -120,16 +120,26 @@ impl fmt::Debug for ValueObj {
             }
             Self::Array(arr) => write!(f, "[{}]", fmt_iter(arr.iter())),
             Self::Dict(dict) => {
-                let mut s = "".to_string();
-                for (k, v) in dict.iter() {
-                    write!(s, "{k}: {v}, ")?;
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
                 }
-                s.pop();
-                s.pop();
-                write!(f, "[{s}]")
+                write!(f, "}}")
             }
             Self::Code(code) => write!(f, "{code}"),
-            Self::Record(rec) => write!(f, "{rec}"),
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in rec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Subr(subr) => write!(f, "{subr:?}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),

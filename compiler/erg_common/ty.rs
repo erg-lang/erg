@@ -132,25 +132,23 @@ impl LimitedDisplay for Constraint {
             return write!(f, "...");
         }
         match self {
-            Self::Sandwiched { sub, sup } => {
-                match (sub.rec_eq(&Type::Never), sup.rec_eq(&Type::Obj)) {
-                    (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
-                    (true, false) => {
-                        write!(f, "<: ")?;
-                        sup.limited_fmt(f, limit - 1)
-                    }
-                    (false, true) => {
-                        write!(f, "<: ")?;
-                        sub.limited_fmt(f, limit - 1)
-                    }
-                    (false, false) => {
-                        write!(f, "<: ")?;
-                        sub.limited_fmt(f, limit - 1)?;
-                        write!(f, ", :> ")?;
-                        sup.limited_fmt(f, limit - 1)
-                    }
+            Self::Sandwiched { sub, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
+                (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
+                (true, false) => {
+                    write!(f, "<: ")?;
+                    sup.limited_fmt(f, limit - 1)
                 }
-            }
+                (false, true) => {
+                    write!(f, ":> ")?;
+                    sub.limited_fmt(f, limit - 1)
+                }
+                (false, false) => {
+                    write!(f, ":> ")?;
+                    sub.limited_fmt(f, limit - 1)?;
+                    write!(f, ", <: ")?;
+                    sup.limited_fmt(f, limit - 1)
+                }
+            },
             Self::TypeOf(t) => {
                 write!(f, ": ")?;
                 t.limited_fmt(f, limit - 1)
@@ -166,7 +164,7 @@ impl Constraint {
     }
 
     pub fn type_of(t: Type) -> Self {
-        if t.rec_eq(&Type::Type) {
+        if &t == &Type::Type {
             Self::sandwiched(Type::Never, Type::Obj)
         } else {
             Self::TypeOf(t)
@@ -185,7 +183,7 @@ impl Constraint {
         matches!(self, Self::Uninited)
     }
 
-    pub fn typ(&self) -> Option<&Type> {
+    pub fn get_type(&self) -> Option<&Type> {
         match self {
             Self::TypeOf(ty) => Some(ty),
             Self::Sandwiched {
@@ -196,28 +194,28 @@ impl Constraint {
         }
     }
 
-    pub fn sub_type(&self) -> Option<&Type> {
+    pub fn get_sub_type(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sub, .. } => Some(sub),
             _ => None,
         }
     }
 
-    pub fn super_type(&self) -> Option<&Type> {
+    pub fn get_super_type(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
     }
 
-    pub fn sub_sup_type(&self) -> Option<(&Type, &Type)> {
+    pub fn get_sub_sup_type(&self) -> Option<(&Type, &Type)> {
         match self {
             Self::Sandwiched { sub, sup } => Some((sub, sup)),
             _ => None,
         }
     }
 
-    pub fn super_type_mut(&mut self) -> Option<&mut Type> {
+    pub fn get_super_type_mut(&mut self) -> Option<&mut Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
@@ -314,6 +312,15 @@ impl<T: LimitedDisplay> fmt::Display for Free<T> {
 impl<T: LimitedDisplay> Free<T> {
     fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
         self.0.borrow().limited_fmt(f, limit)
+    }
+}
+
+impl<T> Free<T> {
+    pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
+        self.0.borrow_mut()
     }
 }
 
@@ -440,21 +447,24 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn type_of(&self) -> Option<Type> {
-        self.0.borrow().constraint().and_then(|c| c.typ().cloned())
+        self.0
+            .borrow()
+            .constraint()
+            .and_then(|c| c.get_type().cloned())
     }
 
     pub fn crack_subtype(&self) -> Option<Type> {
         self.0
             .borrow()
             .constraint()
-            .and_then(|c| c.super_type().cloned())
+            .and_then(|c| c.get_super_type().cloned())
     }
 
     pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
         self.0
             .borrow()
             .constraint()
-            .and_then(|c| c.sub_sup_type().map(|(l, r)| (l.clone(), r.clone())))
+            .and_then(|c| c.get_sub_sup_type().map(|(l, r)| (l.clone(), r.clone())))
     }
 
     pub fn is_unbound(&self) -> bool {
@@ -468,7 +478,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.0.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.typ().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_type().is_some()
         )
     }
 
@@ -476,7 +486,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.0.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.sub_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_type().is_some()
         )
     }
 
@@ -484,7 +494,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.0.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.super_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super_type().is_some()
         )
     }
 
@@ -492,7 +502,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.0.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.sub_sup_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup_type().is_some()
         )
     }
 
@@ -505,13 +515,6 @@ impl<T: Clone + HasLevel> Free<T> {
             FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
             _ => None,
         }
-    }
-
-    pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
-        self.0.borrow()
-    }
-    pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
-        self.0.borrow_mut()
     }
 }
 
@@ -561,7 +564,6 @@ impl ConstSubr {
 
 /// 型引数
 /// データのみ、その評価結果は別に持つ
-/// __Info__: 連携型パラメータがあるので、比較には`rec_eq`を使うこと
 /// * Literal: 1, "aa", True, None, ... (don't use container literals, they can only hold literals)
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...
@@ -574,7 +576,7 @@ impl ConstSubr {
 /// * UnaryOp: -N, ~B, ...
 /// * BinOp: 1 + 1, N * 2, ...
 /// * Erased: _: Type, _: Nat, ...
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
@@ -607,6 +609,72 @@ pub enum TyParam {
     FreeVar(FreeTyParam),
     Failure,
 }
+
+impl PartialEq for TyParam {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Value(l), Self::Value(r)) => l == r,
+            (Self::Type(l), Self::Type(r)) => l == r,
+            (Self::Array(l), Self::Array(r)) => l == r,
+            (Self::Tuple(l), Self::Tuple(r)) => l == r,
+            (Self::Mono(l), Self::Mono(r)) | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
+            (
+                Self::MonoProj { obj, attr },
+                Self::MonoProj {
+                    obj: r_obj,
+                    attr: r_attr,
+                },
+            ) => obj == r_obj && attr == r_attr,
+            (
+                Self::App {
+                    name: ln,
+                    args: lps,
+                }
+                | Self::PolyQVar {
+                    name: ln,
+                    args: lps,
+                },
+                Self::App {
+                    name: rn,
+                    args: rps,
+                }
+                | Self::PolyQVar {
+                    name: rn,
+                    args: rps,
+                },
+            ) => ln == rn && lps == rps,
+            (
+                Self::UnaryOp { op, val },
+                Self::UnaryOp {
+                    op: r_op,
+                    val: r_val,
+                },
+            ) => op == r_op && val == r_val,
+            (
+                Self::BinOp { op, lhs, rhs },
+                Self::BinOp {
+                    op: r_op,
+                    lhs: r_lhs,
+                    rhs: r_rhs,
+                },
+            ) => op == r_op && lhs == r_lhs && rhs == r_rhs,
+            (Self::Erased(l), Self::Erased(r)) => l == r,
+            (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
+            (Self::FreeVar(fv), other) => match &*fv.borrow() {
+                FreeKind::Linked(t) => t == other,
+                _ => false,
+            },
+            (self_, Self::FreeVar(fv)) => match &*fv.borrow() {
+                FreeKind::Linked(t) => t == self_,
+                _ => false,
+            },
+            (Self::Failure, Self::Failure) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TyParam {}
 
 impl fmt::Display for TyParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -921,55 +989,11 @@ impl TyParam {
         }
     }
 
-    /// 型変数の内容を考慮した再帰的(Recursive)比較を行う
-    pub fn rec_eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Type(l), Self::Type(r)) => l.rec_eq(r),
-            (Self::FreeVar(fv), o) | (o, Self::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(tp) => tp.rec_eq(o),
-                _ => self == o,
-            },
-            (Self::MonoProj { obj: lo, attr: la }, Self::MonoProj { obj: ro, attr: ra }) => {
-                lo.rec_eq(ro) && la == ra
-            }
-            (Self::Array(l), Self::Array(r)) | (Self::Tuple(l), Self::Tuple(r)) => {
-                l.iter().zip(r.iter()).all(|(l, r)| l.rec_eq(r))
-            }
-            (
-                Self::App {
-                    name: ln,
-                    args: lps,
-                },
-                Self::App {
-                    name: rn,
-                    args: rps,
-                },
-            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.rec_eq(r)),
-            (Self::UnaryOp { op: lop, val: lv }, Self::UnaryOp { op: rop, val: rv }) => {
-                lop == rop && lv.rec_eq(rv)
-            }
-            (
-                Self::BinOp {
-                    op: lop,
-                    lhs: ll,
-                    rhs: lr,
-                },
-                Self::BinOp {
-                    op: rop,
-                    lhs: rl,
-                    rhs: rr,
-                },
-            ) => lop == rop && ll.rec_eq(rl) && lr.rec_eq(rr),
-            (Self::Erased(l), Self::Erased(r)) => l.rec_eq(r),
-            _ => self == other,
-        }
-    }
-
     // 定数の比較など環境が必要な場合はContext::try_cmpを使う
     pub fn cheap_cmp(&self, r: &TyParam) -> Option<TyParamOrdering> {
         match (self, r) {
             (Self::Type(l), Self::Type(r)) =>
-                if l.rec_eq(r) { Some(TyParamOrdering::Equal) } else { Some(TyParamOrdering::NotEqual) },
+                if l == r { Some(TyParamOrdering::Equal) } else { Some(TyParamOrdering::NotEqual) },
             (Self::Value(l), Self::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
             (Self::FreeVar(fv), p) if fv.is_linked() =>
@@ -990,6 +1014,27 @@ impl TyParam {
             (l, r @ (Self::Erased(_) | Self::Mono{ .. } | Self::FreeVar{ .. })) =>
                 r.cheap_cmp(l).map(|ord| ord.reverse()),
             _ => None,
+        }
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
+            Self::FreeVar(fv) => {
+                if fv.is_unbound() {
+                    true
+                } else {
+                    fv.crack().has_qvar()
+                }
+            }
+            Self::Type(t) => t.has_qvar(),
+            Self::MonoProj { obj, .. } => obj.has_qvar(),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::UnaryOp { val, .. } => val.has_qvar(),
+            Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
+            Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
+            Self::Erased(t) => t.has_qvar(),
+            _ => false,
         }
     }
 
@@ -1145,23 +1190,22 @@ impl LimitedDisplay for TyBound {
             return write!(f, "...");
         }
         match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                if sub.rec_eq(&Type::Never) {
-                    mid.limited_fmt(f, limit - 1)?;
-                    write!(f, " <: ")?;
-                    sup.limited_fmt(f, limit - 1)
-                } else if sup.rec_eq(&Type::Obj) {
-                    mid.limited_fmt(f, limit - 1)?;
-                    write!(f, " :> ")?;
-                    sub.limited_fmt(f, limit - 1)
-                } else {
-                    sub.limited_fmt(f, limit - 1)?;
-                    write!(f, " <: ")?;
-                    mid.limited_fmt(f, limit - 1)?;
-                    write!(f, " <: ")?;
+            Self::Sandwiched { sub, mid, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
+                (true, true) => write!(f, "{mid}: Type (:> Never, <: Obj)"),
+                (true, false) => {
+                    write!(f, "{mid} <: ")?;
                     sup.limited_fmt(f, limit - 1)
                 }
-            }
+                (false, true) => {
+                    write!(f, "{mid} :> ")?;
+                    sub.limited_fmt(f, limit - 1)
+                }
+                (false, false) => {
+                    sub.limited_fmt(f, limit - 1)?;
+                    write!(f, " <: {mid} <: ")?;
+                    sup.limited_fmt(f, limit - 1)
+                }
+            },
             Self::Instance { name, t } => {
                 write!(f, "'{name}: ")?;
                 t.limited_fmt(f, limit - 1)
@@ -1219,7 +1263,7 @@ impl TyBound {
     }
 
     pub fn instance(name: Str, t: Type) -> Self {
-        if t.rec_eq(&Type::Type) {
+        if t == Type::Type {
             Self::sandwiched(Type::Never, Type::mono(name), Type::Obj)
         } else {
             Self::Instance { name, t }
@@ -1234,6 +1278,15 @@ impl TyBound {
         matches!(self, Self::Sandwiched{ mid, .. } if &mid.name()[..] == name)
     }
 
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::Sandwiched { sub, mid, sup } => {
+                sub.has_qvar() || mid.has_qvar() || sup.has_qvar()
+            }
+            Self::Instance { t, .. } => t.has_qvar(),
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Sandwiched { sub, mid, sup } => {
@@ -1243,10 +1296,10 @@ impl TyBound {
         }
     }
 
-    pub fn typ(&self) -> &Type {
+    pub fn get_type(&self) -> &Type {
         match self {
             Self::Sandwiched { sub, sup, .. } => {
-                if sub.rec_eq(&Type::Never) && sup.rec_eq(&Type::Obj) {
+                if sub == &Type::Never && sup == &Type::Obj {
                     &Type::Type
                 } else {
                     todo!()
@@ -1256,7 +1309,7 @@ impl TyBound {
         }
     }
 
-    pub fn lhs(&self) -> Str {
+    pub fn get_lhs(&self) -> Str {
         match self {
             Self::Sandwiched { mid, .. } => mid.name(),
             Self::Instance { name, .. } => name.clone(),
@@ -1443,6 +1496,20 @@ impl Predicate {
             Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
             Self::Not(lhs, rhs) => lhs.can_be_false() && !rhs.can_be_false(),
             _ => true,
+        }
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::Value(_) => false,
+            Self::Const(_) => false,
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.has_qvar(),
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.has_qvar() || rhs.has_qvar()
+            }
         }
     }
 
@@ -1692,7 +1759,7 @@ impl LimitedDisplay for RefinementType {
         }
         write!(f, "{{{}: ", self.var)?;
         self.t.limited_fmt(f, limit - 1)?;
-        write!(f, "| {}}}", fmt_set_split_with(&self.preds, "; "))
+        write!(f, " | {}}}", fmt_set_split_with(&self.preds, "; "))
     }
 }
 
@@ -1837,6 +1904,16 @@ impl SubrKind {
         }
     }
 
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::Func | Self::Proc => false,
+            Self::FuncMethod(t) => t.has_qvar(),
+            Self::ProcMethod { before, after } => {
+                before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
+            }
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Func | Self::Proc => false,
@@ -1917,8 +1994,7 @@ impl ArgsOwnership {
     }
 }
 
-/// NOTE: 連携型変数があるので、比較には`ref_eq`を使うこと
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum Type {
     /* Monomorphic (builtin) types */
     Obj, // {=}
@@ -1947,6 +2023,7 @@ pub enum Type {
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut(Box<Type>),
+    VarArgs(Box<Type>), // ...T
     Subr(SubrType),
     // CallableはProcの上位型なので、変数に!をつける
     Callable {
@@ -1966,7 +2043,6 @@ pub enum Type {
     And(Box<Type>, Box<Type>),
     Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
-    VarArgs(Box<Type>), // ...T
     Poly {
         name: Str,
         params: Vec<TyParam>,
@@ -1977,15 +2053,113 @@ pub enum Type {
         name: Str,
         params: Vec<TyParam>,
     },
-    FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     MonoProj {
         lhs: Box<Type>,
         rhs: Str,
     }, // e.g. T.U
+    FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     Failure,            // when failed to infer (e.g. get the type of `match`)
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Obj, Self::Obj)
+            | (Self::Int, Self::Int)
+            | (Self::Nat, Self::Nat)
+            | (Self::Ratio, Self::Ratio)
+            | (Self::Float, Self::Float)
+            | (Self::Bool, Self::Bool)
+            | (Self::Str, Self::Str)
+            | (Self::NoneType, Self::NoneType)
+            | (Self::Code, Self::Code)
+            | (Self::Module, Self::Module)
+            | (Self::Frame, Self::Frame)
+            | (Self::Error, Self::Error)
+            | (Self::Inf, Self::Inf)
+            | (Self::NegInf, Self::NegInf)
+            | (Self::Type, Self::Type)
+            | (Self::Class, Self::Class)
+            | (Self::Trait, Self::Trait)
+            | (Self::Patch, Self::Patch)
+            | (Self::NotImplemented, Self::NotImplemented)
+            | (Self::Ellipsis, Self::Ellipsis)
+            | (Self::Never, Self::Never) => true,
+            (Self::Mono(l), Self::Mono(r)) | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
+            (Self::Ref(l), Self::Ref(r))
+            | (Self::RefMut(l), Self::RefMut(r))
+            | (Self::VarArgs(l), Self::VarArgs(r)) => l == r,
+            (Self::Subr(l), Self::Subr(r)) => l == r,
+            (
+                Self::Callable {
+                    param_ts: _lps,
+                    return_t: _lr,
+                },
+                Self::Callable {
+                    param_ts: _rps,
+                    return_t: _rr,
+                },
+            ) => todo!(),
+            (Self::Record(lhs), Self::Record(rhs)) => {
+                for (l_field, l_t) in lhs.iter() {
+                    if let Some(r_t) = rhs.get(l_field) {
+                        if !(l_t == r_t) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Refinement(l), Self::Refinement(r)) => l == r,
+            (Self::Quantified(l), Self::Quantified(r)) => l == r,
+            (Self::And(ll, lr), Self::And(rl, rr))
+            | (Self::Not(ll, lr), Self::Not(rl, rr))
+            | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll == rl && lr == rr,
+            (
+                Self::Poly {
+                    name: ln,
+                    params: lps,
+                }
+                | Self::PolyQVar {
+                    name: ln,
+                    params: lps,
+                },
+                Self::Poly {
+                    name: rn,
+                    params: rps,
+                }
+                | Self::PolyQVar {
+                    name: rn,
+                    params: rps,
+                },
+            ) => ln == rn && lps == rps,
+            (
+                Self::MonoProj { lhs, rhs },
+                Self::MonoProj {
+                    lhs: rlhs,
+                    rhs: rrhs,
+                },
+            ) => lhs == rlhs && rhs == rrhs,
+            (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
+            (Self::FreeVar(fv), other) => match &*fv.borrow() {
+                FreeKind::Linked(t) => t == other,
+                _ => false,
+            },
+            (self_, Self::FreeVar(fv)) => match &*fv.borrow() {
+                FreeKind::Linked(t) => t == self_,
+                _ => false,
+            },
+            (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Type {}
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -2061,6 +2235,16 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, ")")
             }
+            Self::PolyQVar { name, params } => {
+                write!(f, "'{name}(")?;
+                for (i, tp) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    tp.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
             Self::MonoQVar(name) => write!(f, "'{name}"),
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::MonoProj { lhs, rhs } => {
@@ -2128,6 +2312,7 @@ impl From<&str> for Type {
             "NotImplemented" => Self::NotImplemented,
             "Never" => Self::Never,
             "Inf" => Self::Inf,
+            "NegInf" => Self::NegInf,
             "_" => Self::Top(),
             other => Self::Mono(Str::rc(other)),
         }
@@ -2712,6 +2897,35 @@ impl Type {
         }
     }
 
+    pub fn is_basic_class(&self) -> bool {
+        match self {
+            Self::Obj
+            | Self::Int
+            | Self::Nat
+            | Self::Ratio
+            | Self::Float
+            | Self::Bool
+            | Self::Str
+            | Self::NoneType
+            | Self::Code
+            | Self::Module
+            | Self::Frame
+            | Self::Error
+            | Self::Inf
+            | Self::NegInf
+            | Self::Type
+            | Self::Class
+            | Self::Trait
+            | Self::Patch
+            | Self::NotImplemented
+            | Self::Ellipsis
+            | Self::Never
+            | Self::Subr(_)
+            | Self::Record(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_mut(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
@@ -2777,117 +2991,6 @@ impl Type {
             Self::Ref(_) => Ownership::Ref,
             Self::RefMut(_) => Ownership::RefMut,
             _ => Ownership::Owned,
-        }
-    }
-
-    pub fn rec_eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::FreeVar(v), other) => match &*v.borrow() {
-                FreeKind::Linked(t) => t.rec_eq(other),
-                _ => self == other,
-            },
-            (self_, Self::FreeVar(v)) => match &*v.borrow() {
-                FreeKind::Linked(t) => t.rec_eq(self_),
-                _ => self_ == other,
-            },
-            (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l.rec_eq(r),
-            (Self::Subr(l), Self::Subr(r)) => {
-                match (&l.kind, &r.kind) {
-                    (SubrKind::Func, SubrKind::Func) | (SubrKind::Proc, SubrKind::Proc) => {}
-                    (SubrKind::FuncMethod(l), SubrKind::FuncMethod(r)) if !l.rec_eq(r.as_ref()) => {
-                        return false
-                    }
-                    (
-                        SubrKind::ProcMethod { before, after },
-                        SubrKind::ProcMethod {
-                            before: rbefore,
-                            after: rafter,
-                        },
-                    ) if !before.rec_eq(rbefore.as_ref())
-                        || !after
-                            .as_ref()
-                            .zip(rafter.as_ref())
-                            .map(|(l, r)| l.rec_eq(r))
-                            .unwrap_or(false) =>
-                    {
-                        return false
-                    }
-                    _ => return false,
-                }
-                if !l
-                    .default_params
-                    .iter()
-                    .zip(r.default_params.iter())
-                    .all(|(l, r)| l.name == r.name && l.ty.rec_eq(&r.ty))
-                {
-                    return false;
-                }
-                if !l
-                    .non_default_params
-                    .iter()
-                    .zip(r.non_default_params.iter())
-                    .all(|(l, r)| l.name == r.name && l.ty.rec_eq(&r.ty))
-                {
-                    return false;
-                }
-                l.return_t.rec_eq(&r.return_t)
-            }
-            (
-                Self::Callable {
-                    param_ts: _lps,
-                    return_t: _lr,
-                },
-                Self::Callable {
-                    param_ts: _rps,
-                    return_t: _rr,
-                },
-            ) => todo!(),
-            (Self::Record(lhs), Self::Record(rhs)) => {
-                for (l_field, l_t) in lhs.iter() {
-                    if let Some(r_t) = rhs.get(l_field) {
-                        if !l_t.rec_eq(r_t) {
-                            return false;
-                        }
-                    } else {
-                        return false;
-                    }
-                }
-                true
-            }
-            (Self::Refinement(l), Self::Refinement(r)) => l.t.rec_eq(&r.t) && l.preds == r.preds,
-            (Self::Quantified(l), Self::Quantified(r)) => {
-                l.unbound_callable.rec_eq(&r.unbound_callable) && l.bounds == r.bounds
-            }
-            (Self::And(ll, lr), Self::And(rl, rr))
-            | (Self::Not(ll, lr), Self::Not(rl, rr))
-            | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll.rec_eq(rl) && lr.rec_eq(rr),
-            (Self::VarArgs(l), Self::VarArgs(r)) => l.rec_eq(r),
-            (
-                Self::Poly {
-                    name: ln,
-                    params: lps,
-                }
-                | Self::PolyQVar {
-                    name: ln,
-                    params: lps,
-                },
-                Self::Poly {
-                    name: rn,
-                    params: rps,
-                }
-                | Self::PolyQVar {
-                    name: rn,
-                    params: rps,
-                },
-            ) => ln == rn && lps.iter().zip(rps.iter()).all(|(l, r)| l.rec_eq(r)),
-            (
-                Self::MonoProj { lhs, rhs },
-                Self::MonoProj {
-                    lhs: rlhs,
-                    rhs: rrhs,
-                },
-            ) => lhs.rec_eq(rlhs) && rhs == rrhs,
-            _ => self == other,
         }
     }
 
@@ -2995,6 +3098,43 @@ impl Type {
 
     pub fn is_tyvar(&self) -> bool {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound())
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
+            Self::FreeVar(fv) => {
+                if fv.is_unbound() {
+                    false
+                } else {
+                    fv.crack().has_qvar()
+                }
+            }
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.has_qvar(),
+            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_qvar() || rhs.has_qvar()
+            }
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
+            }
+            Self::Subr(subr) => {
+                subr.kind.has_qvar()
+                    || subr.non_default_params.iter().any(|pt| pt.ty.has_qvar())
+                    || subr.default_params.iter().any(|pt| pt.ty.has_qvar())
+                    || subr.return_t.has_qvar()
+            }
+            Self::Record(r) => r.values().any(|t| t.has_qvar()),
+            Self::Refinement(refine) => {
+                refine.t.has_qvar() || refine.preds.iter().any(|pred| pred.has_qvar())
+            }
+            Self::Quantified(quant) => {
+                quant.unbound_callable.has_unbound_var()
+                    || quant.bounds.iter().any(|tb| tb.has_qvar())
+            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
+            Self::MonoProj { lhs, .. } => lhs.has_qvar(),
+            _ => false,
+        }
     }
 
     pub fn has_unbound_var(&self) -> bool {
