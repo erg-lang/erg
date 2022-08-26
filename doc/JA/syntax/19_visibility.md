@@ -187,5 +187,5 @@ _ = foo.record.a.z # OK
 ```
 
 <p align='center'>
-    <a href='./18_memory_management.md'>Previous</a> | <a href='./20_naming_rule.md'>Next</a>
+    <a href='./18_ownership.md'>Previous</a> | <a href='./20_naming_rule.md'>Next</a>
 </p>
