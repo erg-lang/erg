@@ -1,4 +1,6 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::hash::Hash;
 use std::thread::LocalKey;
 
 use erg_common::dict::Dict;
@@ -6,12 +8,12 @@ use erg_common::dict::Dict;
 use erg_type::Type;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypePair {
+pub struct SubtypePair {
     pub sub: Type,
     pub sup: Type,
 }
 
-impl TypePair {
+impl SubtypePair {
     pub const fn new(sub: Type, sup: Type) -> Self {
         Self { sub, sup }
     }
@@ -19,7 +21,7 @@ impl TypePair {
 
 #[derive(Debug, Default)]
 pub struct TypeCmpCache {
-    cache: Dict<TypePair, bool>,
+    cache: Dict<SubtypePair, bool>,
 }
 
 impl TypeCmpCache {
@@ -27,12 +29,15 @@ impl TypeCmpCache {
         Self::default()
     }
 
-    pub fn get(&self, pair: &TypePair) -> Option<bool> {
+    pub fn get<Q: Eq + Hash>(&self, pair: &Q) -> Option<bool>
+    where
+        SubtypePair: Borrow<Q>,
+    {
         self.cache.get(pair).map(|b| *b)
     }
 
-    pub fn register(&mut self, pair: &TypePair, b: bool) {
-        self.cache.insert(pair.clone(), b);
+    pub fn register(&mut self, pair: SubtypePair, b: bool) {
+        self.cache.insert(pair, b);
     }
 }
 
@@ -46,11 +51,14 @@ pub struct GlobalTypeCmpCache(LocalKey<RefCell<TypeCmpCache>>);
 pub static GLOBAL_TYPE_CACHE: GlobalTypeCmpCache = GlobalTypeCmpCache(TYPE_CACHE);
 
 impl GlobalTypeCmpCache {
-    pub fn get(&'static self, pair: &TypePair) -> Option<bool> {
+    pub fn get<Q: Eq + Hash>(&'static self, pair: &Q) -> Option<bool>
+    where
+        SubtypePair: Borrow<Q>,
+    {
         self.0.with(|s| s.borrow().get(pair))
     }
 
-    pub fn register(&'static self, pair: &TypePair, b: bool) {
+    pub fn register(&'static self, pair: SubtypePair, b: bool) {
         self.0.with(|s| s.borrow_mut().register(pair, b));
     }
 }

@@ -18,7 +18,7 @@ use erg_parser::ast;
 use erg_parser::token::Token;
 
 use erg_type::constructors::{
-    func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t, var_args,
+    class, func, mono_proj, poly_class, ref_, ref_mut, refinement, subr_t, var_args,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -145,7 +145,7 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &mono("LambdaFunc"),
+                    &class("LambdaFunc"),
                     t,
                 ));
             }
@@ -418,10 +418,10 @@ impl Context {
                 fv.update_constraint(new_constraint);
                 Ok(Type::FreeVar(fv))
             }
-            Type::Poly { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
+            Type::PolyTrait { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
                 let t_name = name.clone();
                 let t_params = params.clone();
-                let maybe_trait = Type::Poly { name, params };
+                let maybe_trait = Type::PolyTrait { name, params };
                 let mut min = Type::Obj;
                 for pair in self.rec_get_trait_impls(&t_name) {
                     if self.rec_supertype_of(&pair.sup_trait, &maybe_trait) {
@@ -443,7 +443,7 @@ impl Context {
                             }
                         }
                     }
-                    Ok(poly(t_name, new_params))
+                    Ok(poly_class(t_name, new_params))
                 } else {
                     Ok(min)
                 }
@@ -920,9 +920,7 @@ impl Context {
         &'a self,
         t: &'a Type,
     ) -> impl Iterator<Item = &'a Context> {
-        log!("{t}");
         let mut ctxs = self._sup_type_ctxs(t).collect::<Vec<_>>();
-        log!("{t}");
         // Avoid heavy sorting as much as possible for efficiency
         let mut cheap_sort_succeed = true;
         ctxs.sort_by(|(lhs, _), (rhs, _)| match self.cmp_t(lhs, rhs).try_into() {
@@ -955,7 +953,6 @@ impl Context {
 
     /// this method is for `sorted_type_ctxs` only
     fn _sup_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        log!("{t}");
         self.types.iter().filter_map(move |(maybe_sup, ctx)| {
             let maybe_sup_inst = if maybe_sup.has_qvar() {
                 let bounds = ctx.type_params_bounds();
@@ -964,7 +961,6 @@ impl Context {
             } else {
                 maybe_sup.clone()
             };
-            log!("{maybe_sup}, {t}");
             if self.supertype_of(&maybe_sup_inst, t) {
                 Some((maybe_sup, ctx))
             } else {

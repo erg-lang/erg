@@ -10,17 +10,6 @@ pub const fn anon(ty: Type) -> ParamTy {
     ParamTy::anonymous(ty)
 }
 
-/// Top := {=}
-#[allow(non_snake_case)]
-pub const fn Top() -> Type {
-    Type::Mono(Str::ever("Top"))
-}
-/// Bottom := {}
-#[allow(non_snake_case)]
-pub const fn Bottom() -> Type {
-    Type::Mono(Str::ever("Bottom"))
-}
-
 #[inline]
 pub fn free_var(level: usize, constraint: Constraint) -> Type {
     Type::FreeVar(Free::new_unbound(level, constraint))
@@ -32,19 +21,19 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
 }
 
 pub fn array(elem_t: Type, len: TyParam) -> Type {
-    poly("Array", vec![TyParam::t(elem_t), len])
+    poly_class("Array", vec![TyParam::t(elem_t), len])
 }
 
 pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
-    poly("Array!", vec![TyParam::t(elem_t), len])
+    poly_class("Array!", vec![TyParam::t(elem_t), len])
 }
 
 pub fn dict(k_t: Type, v_t: Type) -> Type {
-    poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+    poly_class("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
 }
 
 pub fn tuple(args: Vec<Type>) -> Type {
-    poly("Tuple", args.into_iter().map(TyParam::t).collect())
+    poly_class("Tuple", args.into_iter().map(TyParam::t).collect())
 }
 
 #[inline]
@@ -54,7 +43,7 @@ pub fn var_args(elem_t: Type) -> Type {
 
 #[inline]
 pub fn range(t: Type) -> Type {
-    poly("Range", vec![TyParam::t(t)])
+    poly_class("Range", vec![TyParam::t(t)])
 }
 
 pub fn enum_t(s: Set<ValueObj>) -> Type {
@@ -106,7 +95,7 @@ pub fn int_interval<P: Into<TyParam>, Q: Into<TyParam>>(op: IntervalOp, l: P, r:
 }
 
 pub fn iter(t: Type) -> Type {
-    poly("Iter", vec![TyParam::t(t)])
+    poly_class("Iter", vec![TyParam::t(t)])
 }
 
 pub fn ref_(t: Type) -> Type {
@@ -118,11 +107,11 @@ pub fn ref_mut(t: Type) -> Type {
 }
 
 pub fn option(t: Type) -> Type {
-    poly("Option", vec![TyParam::t(t)])
+    poly_class("Option", vec![TyParam::t(t)])
 }
 
 pub fn option_mut(t: Type) -> Type {
-    poly("Option!", vec![TyParam::t(t)])
+    poly_class("Option!", vec![TyParam::t(t)])
 }
 
 pub fn subr_t(
@@ -334,8 +323,13 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn mono<S: Into<Str>>(name: S) -> Type {
-    Type::Mono(name.into())
+pub fn class<S: Into<Str>>(name: S) -> Type {
+    Type::MonoClass(name.into())
+}
+
+#[inline]
+pub fn trait_<S: Into<Str>>(name: S) -> Type {
+    Type::MonoTrait(name.into())
 }
 
 #[inline]
@@ -344,8 +338,16 @@ pub fn mono_q<S: Into<Str>>(name: S) -> Type {
 }
 
 #[inline]
-pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::Poly {
+pub fn poly_class<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::PolyClass {
+        name: name.into(),
+        params,
+    }
+}
+
+#[inline]
+pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::PolyTrait {
         name: name.into(),
         params,
     }

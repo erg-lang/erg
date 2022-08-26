@@ -15,6 +15,7 @@ use erg_common::{assume_unreachable, enum_unwrap, log, set};
 use TyParamOrdering::*;
 use Type::*;
 
+use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
 use crate::context::instantiate::TyVarContext;
 use crate::context::{Context, TraitInstancePair, Variance};
 
@@ -27,6 +28,16 @@ pub enum Credibility {
 use Credibility::*;
 
 impl Context {
+    fn register_cache(&self, sub: &Type, sup: &Type, result: bool) {
+        GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
+    }
+
+    // TODO: linkされた型変数の場合、おそらくhitしない
+    // TODO: is it impossible to avoid .clone()?
+    fn inquire_cache(&self, sub: &Type, sup: &Type) -> Option<bool> {
+        GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()))
+    }
+
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(lhs), TyParam::Type(rhs)) => {
@@ -80,7 +91,6 @@ impl Context {
     /// super_traits_of(Nat) == [Eq(Nat), Add(Nat), ...]
     /// ```
     pub fn super_traits<'a>(&'a self, t: &'a Type) -> Vec<&'a TraitInstancePair> {
-        log!("{}", self.name);
         let traits: Vec<_> = self
             .trait_impls
             .iter()
@@ -91,7 +101,6 @@ impl Context {
                     let bounds = sub_ctx.type_params_bounds();
                     let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
                     let sub_type = Self::instantiate_t(pair.sub_type.clone(), &mut tv_ctx);
-                    log!("{sub_type}, {t}");
                     if self.supertype_of(&sub_type, t) {
                         Some(pair)
                     } else {
@@ -200,44 +209,44 @@ impl Context {
                     && self.supertype_of(&Type, &subr.return_t),
             ),
             (
-                Type::Mono(n),
+                Type::MonoClass(n),
                 Subr(SubrType {
                     kind: SubrKind::Func,
                     ..
                 }),
             ) if &n[..] == "GenericFunc" => (Absolutely, true),
             (
-                Type::Mono(n),
+                Type::MonoClass(n),
                 Subr(SubrType {
                     kind: SubrKind::Proc,
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
             (
-                Type::Mono(n),
+                Type::MonoClass(n),
                 Subr(SubrType {
                     kind: SubrKind::FuncMethod(_),
                     ..
                 }),
             ) if &n[..] == "GenericFuncMethod" => (Absolutely, true),
             (
-                Type::Mono(n),
+                Type::MonoClass(n),
                 Subr(SubrType {
                     kind: SubrKind::ProcMethod { .. },
                     ..
                 }),
             ) if &n[..] == "GenericProcMethod" => (Absolutely, true),
-            (Type::Mono(l), Type::Poly { name: r, .. })
+            (Type::MonoClass(l), Type::PolyClass { name: r, .. })
                 if &l[..] == "GenericArray" && &r[..] == "Array" =>
             {
                 (Absolutely, true)
             }
-            (Type::Mono(l), Type::Poly { name: r, .. })
+            (Type::MonoClass(l), Type::PolyClass { name: r, .. })
                 if &l[..] == "GenericDict" && &r[..] == "Dict" =>
             {
                 (Absolutely, true)
             }
-            (Type::Mono(l), Type::Mono(r))
+            (Type::MonoClass(l), Type::MonoClass(r))
                 if &l[..] == "GenericCallable"
                     && (&r[..] == "GenericFunc"
                         || &r[..] == "GenericProc"
@@ -246,7 +255,7 @@ impl Context {
             {
                 (Absolutely, true)
             }
-            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Type::MonoClass(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
             (lhs, rhs) if lhs.is_basic_class() && rhs.is_basic_class() => (Absolutely, false),
             _ => (Maybe, false),
         }
@@ -259,9 +268,11 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!("{lhs}, {rhs}");
+        if let Some(res) = self.inquire_cache(rhs, lhs) {
+            log!("cache hit: {lhs} :> {rhs}");
+            return res;
+        }
         for rhs_ctx in self.sorted_sup_type_ctxs(rhs) {
-            log!("{lhs}, {}", rhs_ctx.name);
             if lhs.has_qvar() {
                 let r_bounds = rhs_ctx.type_params_bounds();
                 let bounds = if let Some((_, lhs_ctx)) = self._just_type_ctxs(lhs) {
@@ -284,6 +295,7 @@ impl Context {
                         }
                     })
                 {
+                    self.register_cache(&rhs, &lhs, true);
                     return true;
                 }
             } else {
@@ -296,24 +308,21 @@ impl Context {
                     .any(|sup| {
                         if sup.has_qvar() {
                             let sup = Self::instantiate_t(sup.clone(), &mut tv_ctx);
-                            log!("{lhs}, {sup}");
                             self.supertype_of(&lhs, &sup)
                         } else {
-                            log!("{lhs}, {sup}");
                             self.supertype_of(&lhs, &sup)
                         }
                     })
                 {
+                    self.register_cache(&rhs, &lhs, true);
                     return true;
                 }
             }
         }
-        log!("{lhs}, {rhs}",);
         for (patch_name, pair) in self.glue_patch_and_types.iter() {
             let patch = self
                 .rec_get_patch(patch_name)
                 .unwrap_or_else(|| panic!("{patch_name} not found"));
-            log!("{patch_name}, {pair}",);
             if pair.sub_type.has_qvar() || pair.sup_trait.has_qvar() {
                 let bounds = patch.type_params_bounds();
                 let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
@@ -324,14 +333,17 @@ impl Context {
                 // Rhs <: X => Rhs <: Ord
                 // Ord <: Lhs => Rhs <: Ord <: Lhs
                 if self.supertype_of(&sub_type, rhs) && self.subtype_of(&sup_trait, lhs) {
+                    self.register_cache(&rhs, &lhs, true);
                     return true;
                 }
             } else {
                 if self.supertype_of(&pair.sub_type, rhs) && self.subtype_of(&pair.sup_trait, lhs) {
+                    self.register_cache(&rhs, &lhs, true);
                     return true;
                 }
             }
         }
+        self.register_cache(&rhs, &lhs, false);
         false
     }
 
@@ -341,7 +353,7 @@ impl Context {
 
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn sup_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstancePair) -> bool {
+    fn _sup_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstancePair) -> bool {
         // 一旦汎化して、自由にlinkできるようにする
         let generalized = self.generalize_t(Type::FreeVar(free.clone()));
         let quant = enum_unwrap!(generalized, Type::Quantified);
@@ -355,7 +367,7 @@ impl Context {
 
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstancePair) -> bool {
+    fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstancePair) -> bool {
         let generalized = self.generalize_t(Type::FreeVar(free.clone()));
         let quant = enum_unwrap!(generalized, Type::Quantified);
         let mut ctx = TyVarContext::new(self.level, quant.bounds, self);
@@ -396,11 +408,33 @@ impl Context {
             }
             // RefMut, OptionMut are invariant
             (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => self.supertype_of(lhs, rhs),
-            (FreeVar(lfv), rhs) if lfv.is_linked() => self.supertype_of(&lfv.crack(), rhs),
+            // (FreeVar(lfv), rhs) if lfv.is_linked() => self.supertype_of(&lfv.crack(), rhs),
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(lfv), rhs) => {
-                log!("here: {lfv}, {rhs}");
+                match &*lfv.borrow() {
+                    FreeKind::Linked(t) => self.supertype_of(t, rhs),
+                    FreeKind::Unbound { constraint, .. }
+                    | FreeKind::NamedUnbound { constraint, .. } => match constraint {
+                        // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
+                        // `(?T :> X) :> Y` is true
+                        // `(?T :> Str) :> Int` is true (?T :> Str or Int)
+                        // `(Nat <: ?T <: Ratio) :> Nat` can be true
+                        Constraint::Sandwiched { sup, .. } => self.supertype_of(sup, rhs),
+                        // (?v: Type, rhs): OK
+                        // (?v: Nat, rhs): Something wrong
+                        // Class <: Type, but Nat <!: Type (Nat: Type)
+                        Constraint::TypeOf(t) => {
+                            if self.supertype_of(&Type, t) {
+                                true
+                            } else {
+                                panic!()
+                            }
+                        }
+                        Constraint::Uninited => unreachable!(),
+                    },
+                }
+                /*log!("{lfv} :>? {rhs}");
                 let super_traits = self.super_traits(rhs);
                 log!("super_traits: {}", erg_common::fmt_vec(&super_traits));
                 for inst_pair in super_traits.into_iter() {
@@ -408,11 +442,32 @@ impl Context {
                         return true;
                     }
                 }
-                false
+                false*/
             }
-            (lhs, FreeVar(lfv)) if lfv.is_linked() => self.supertype_of(lhs, &lfv.crack()),
+            // (lhs, FreeVar(lfv)) if lfv.is_linked() => self.supertype_of(lhs, &lfv.crack()),
             (lhs, FreeVar(rfv)) => {
-                log!("here: {rfv}, {lhs}");
+                match &*rfv.borrow() {
+                    FreeKind::Linked(t) => self.supertype_of(lhs, t),
+                    FreeKind::Unbound { constraint, .. }
+                    | FreeKind::NamedUnbound { constraint, .. } => match constraint {
+                        // ?T cannot be `Never`
+                        // `Nat :> (?T <: Int)` can be true
+                        // `Int :> (?T <: Nat)` can be true
+                        // `Str :> (?T <: Int)` is false
+                        // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
+                        // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
+                        Constraint::Sandwiched { sub, sup: _ } => self.supertype_of(lhs, sub),
+                        Constraint::TypeOf(t) => {
+                            if self.supertype_of(&Type, t) {
+                                true
+                            } else {
+                                panic!()
+                            }
+                        }
+                        Constraint::Uninited => unreachable!(),
+                    },
+                }
+                /*log!("here: {rfv}, {lhs}");
                 let super_traits = self.super_traits(lhs);
                 for inst_pair in super_traits.into_iter() {
                     if self.sub_conforms(&rfv, inst_pair) {
@@ -420,6 +475,7 @@ impl Context {
                     }
                 }
                 false
+                */
             }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
@@ -505,11 +561,11 @@ impl Context {
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),
             (
-                Poly {
+                PolyClass {
                     name: ln,
                     params: lps,
                 },
-                Poly {
+                PolyClass {
                     name: rn,
                     params: rps,
                 },
@@ -537,6 +593,7 @@ impl Context {
                         _ => self.eq_tp(lp, rp),
                     })
             }
+            (PolyTrait { .. }, PolyTrait { .. }) => todo!(),
             (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
                 panic!("Not instantiated type variable: {name}, r: {r}")
             }

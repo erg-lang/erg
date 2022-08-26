@@ -4,7 +4,7 @@ use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 
 use erg_common::traits::LimitedDisplay;
 
-use crate::constructors::{int_interval, mono};
+use crate::constructors::int_interval;
 use crate::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
 use crate::value::ValueObj;
 use crate::Str;
@@ -445,11 +445,6 @@ impl TyParam {
             obj: Box::new(obj),
             attr: attr.into(),
         }
-    }
-
-    // TODO: polymorphic type
-    pub fn array_t(t: Str, len: TyParam) -> Self {
-        Self::Array(vec![TyParam::t(mono(t)), len])
     }
 
     pub fn free_var(level: usize, t: Type) -> Self {

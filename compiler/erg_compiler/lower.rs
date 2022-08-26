@@ -11,7 +11,7 @@ use erg_common::{fn_name, log, switch_lang};
 use erg_parser::ast;
 use erg_parser::ast::AST;
 
-use erg_type::constructors::{array, array_mut, func, mono, poly, proc, quant};
+use erg_type::constructors::{array, array_mut, class, func, poly_class, proc, quant};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, Type};
@@ -161,7 +161,7 @@ impl ASTLowerer {
         match maybe_len {
             Some(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    poly_class(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -169,9 +169,9 @@ impl ASTLowerer {
                     array(elem.t(), TyParam::Value(v))
                 }
             }
-            Some(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
+            Some(v @ ValueObj::Mut(_)) if v.class() == class("Nat!") => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    poly_class(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -183,7 +183,7 @@ impl ASTLowerer {
             // TODO: [T; !_]
             None => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    poly_class(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )

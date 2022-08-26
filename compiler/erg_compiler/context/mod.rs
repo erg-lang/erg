@@ -2,6 +2,7 @@
 //! `Context` is used for type inference and type checking.
 pub mod cache;
 pub mod compare;
+pub mod initialize;
 pub mod inquire;
 pub mod instantiate;
 pub mod register;
@@ -83,7 +84,7 @@ pub enum TyParamIdx {
 impl TyParamIdx {
     pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
         match search_from {
-            Type::Poly { params, .. } => {
+            Type::PolyClass { params, .. } => {
                 for (i, tp) in params.iter().enumerate() {
                     match tp {
                         TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),

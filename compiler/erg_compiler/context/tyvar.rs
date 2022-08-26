@@ -148,12 +148,19 @@ impl Context {
             Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
             RefMut(t) => ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
             VarArgs(t) => var_args(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            Poly { name, mut params } => {
+            PolyClass { name, mut params } => {
                 let params = params
                     .iter_mut()
                     .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
                     .collect::<Vec<_>>();
-                poly(name, params)
+                poly_class(name, params)
+            }
+            PolyTrait { name, mut params } => {
+                let params = params
+                    .iter_mut()
+                    .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
+                    .collect::<Vec<_>>();
+                poly_trait(name, params)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
@@ -286,11 +293,17 @@ impl Context {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             }
-            Type::Poly { name, mut params } => {
+            Type::PolyClass { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.deref_tp(mem::take(param))?;
                 }
-                Ok(Type::Poly { name, params })
+                Ok(Type::PolyClass { name, params })
+            }
+            Type::PolyTrait { name, mut params } => {
+                for param in params.iter_mut() {
+                    *param = self.deref_tp(mem::take(param))?;
+                }
+                Ok(Type::PolyTrait { name, params })
             }
             Type::Subr(mut subr) => {
                 match &mut subr.kind {
@@ -507,7 +520,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.rec_subtype_of(&fv_t, &mono("Num"))
+                    && self.rec_subtype_of(&fv_t, &trait_("Num"))
                 {
                     fv.link(tp);
                     Ok(())
@@ -766,11 +779,11 @@ impl Context {
             (Type::Ref(l), r) | (Type::RefMut(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
             (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.unify(l, r, lhs_loc, rhs_loc),
             (
-                Type::Poly {
+                Type::PolyClass {
                     name: ln,
                     params: lps,
                 },
-                Type::Poly {
+                Type::PolyClass {
                     name: rn,
                     params: rps,
                 },
@@ -790,7 +803,32 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::Poly { name: _, params: _ }, _r) => {
+            (
+                Type::PolyTrait {
+                    name: ln,
+                    params: lps,
+                },
+                Type::PolyTrait {
+                    name: rn,
+                    params: rps,
+                },
+            ) => {
+                if ln != rn {
+                    return Err(TyCheckError::unification_error(
+                        line!() as usize,
+                        lhs_t,
+                        rhs_t,
+                        lhs_loc,
+                        rhs_loc,
+                        self.caused_by(),
+                    ));
+                }
+                for (l, r) in lps.iter().zip(rps.iter()) {
+                    self.unify_tp(l, r, None, false)?;
+                }
+                Ok(())
+            }
+            (Type::PolyClass { name: _, params: _ }, _r) => {
                 todo!()
             }
             (l, r) => Err(TyCheckError::unification_error(
@@ -828,17 +866,43 @@ impl Context {
             (Type::Ref(l), r) | (Type::RefMut(l), r) => self.reunify(l, r, bef_loc, aft_loc),
             (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.reunify(l, r, bef_loc, aft_loc),
             (
-                Type::Poly {
+                Type::PolyClass {
                     name: ln,
                     params: lps,
                 },
-                Type::Poly {
+                Type::PolyClass {
                     name: rn,
                     params: rps,
                 },
             ) => {
                 if ln != rn {
-                    let before_t = poly(ln.clone(), lps.clone());
+                    let before_t = poly_class(ln.clone(), lps.clone());
+                    return Err(TyCheckError::re_unification_error(
+                        line!() as usize,
+                        &before_t,
+                        after_t,
+                        bef_loc,
+                        aft_loc,
+                        self.caused_by(),
+                    ));
+                }
+                for (l, r) in lps.iter().zip(rps.iter()) {
+                    self.reunify_tp(l, r)?;
+                }
+                Ok(())
+            }
+            (
+                Type::PolyTrait {
+                    name: ln,
+                    params: lps,
+                },
+                Type::PolyTrait {
+                    name: rn,
+                    params: rps,
+                },
+            ) => {
+                if ln != rn {
+                    let before_t = poly_trait(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
                         line!() as usize,
                         &before_t,

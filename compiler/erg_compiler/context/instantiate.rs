@@ -130,9 +130,9 @@ impl TyVarContext {
                 self.push_or_init_typaram(&c.tvar_name().unwrap(), &c);
                 inst_defaults.push(c);
             }
-            poly(name, [inst_non_defaults, inst_defaults].concat())
+            poly_class(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            poly(
+            poly_class(
                 name,
                 params
                     .into_iter()
@@ -154,14 +154,14 @@ impl TyVarContext {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub_instance = match sub {
-                    Type::Poly { name, params } => {
+                    Type::PolyClass { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
                     Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
                     sub => sub,
                 };
                 let sup_instance = match sup {
-                    Type::Poly { name, params } => {
+                    Type::PolyClass { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
                     Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
@@ -176,7 +176,7 @@ impl TyVarContext {
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
-                    Type::Poly { name, params } => {
+                    Type::PolyClass { name, params } => {
                         self.instantiate_poly(name.clone(), &name, params, ctx)
                     }
                     t => t,
@@ -485,10 +485,10 @@ impl Context {
                     let len = self.instantiate_const_expr(&len.expr);
                     Ok(array(t, len))
                 } else {
-                    Ok(mono("GenericArray"))
+                    Ok(class("GenericArray"))
                 }
             }
-            other if simple.args.is_empty() => Ok(mono(Str::rc(other))),
+            other if simple.args.is_empty() => Ok(class(Str::rc(other))),
             other => {
                 // FIXME: kw args
                 let params = simple.args.pos_args().map(|arg| match &arg.expr {
@@ -497,7 +497,7 @@ impl Context {
                         todo!()
                     }
                 });
-                Ok(poly(Str::rc(other), params.collect()))
+                Ok(poly_class(Str::rc(other), params.collect()))
             }
         }
     }
@@ -517,7 +517,7 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> TyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(class(name.inspect())),
             _ => todo!(),
         }
     }
@@ -773,11 +773,11 @@ impl Context {
                 let lhs = Self::instantiate_t(*lhs, tv_ctx);
                 mono_proj(lhs, rhs)
             }
-            Poly { name, mut params } => {
+            PolyClass { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                poly(name, params)
+                poly_class(name, params)
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
@@ -799,7 +799,7 @@ impl Context {
                                 self.unify(l, r, None, Some(callee.loc()))?;
                             }
                             // if callee is a Module object or some named one
-                            (None, Some(r)) if self.rec_subtype_of(r, &mono("Named")) => {}
+                            (None, Some(r)) if self.rec_subtype_of(r, &class("Named")) => {}
                             (None, None) => {}
                             (l, r) => todo!("{l:?}, {r:?}"),
                         }
