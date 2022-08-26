@@ -464,8 +464,8 @@ impl Evaluator {
             }
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj { lhs, rhs } => {
-                for ty_ctx in ctx.rec_sorted_sup_type_ctxs(&lhs) {
-                    if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
+                for ty_ctx in ctx.rec_get_nominal_super_type_ctxs(&lhs) {
+                    if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
                             let t = subst_ctx.substitute(*quant_t, ty_ctx, level, ctx)?;
@@ -482,7 +482,8 @@ impl Evaluator {
                     todo!(
                         "{lhs}.{rhs} not found in [{}]",
                         erg_common::fmt_iter(
-                            ctx.rec_sorted_sup_type_ctxs(&lhs).map(|ctx| &ctx.name)
+                            ctx.rec_get_nominal_super_type_ctxs(&lhs)
+                                .map(|ctx| &ctx.name)
                         )
                     )
                 }

@@ -1,9 +1,9 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
+use erg_common::set;
 use erg_common::vis::Visibility;
 use erg_common::Str;
-use erg_common::{debug_power_assert, set};
 
 use erg_type::constructors::*;
 use erg_type::typaram::TyParam;
@@ -15,7 +15,7 @@ use Type::*;
 use erg_parser::ast::VarName;
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstancePair};
+use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
 use Mutability::*;
@@ -60,28 +60,46 @@ impl Context {
     }
 
     fn register_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
-        if self.types.contains_key(&t) {
-            panic!("{} has already been registered", t.name());
-        } else {
-            let name = VarName::from_str(t.name());
-            self.locals
-                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-            self.consts.insert(name, ValueObj::t(t.clone()));
-            for impl_trait in ctx.super_traits.iter() {
-                if !impl_trait.has_qvar() {
+        if t.typarams_len().is_none() {
+            if self.mono_types.contains_key(&t.name()) {
+                panic!("{} has already been registered", t.name());
+            } else {
+                let name = VarName::from_str(t.name());
+                self.locals
+                    .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+                self.consts.insert(name.clone(), ValueObj::t(t.clone()));
+                for impl_trait in ctx.super_traits.iter() {
                     if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                        impls.push(TraitInstancePair::new(t.clone(), impl_trait.clone()));
+                        impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
                     } else {
                         self.trait_impls.insert(
                             impl_trait.name(),
-                            vec![TraitInstancePair::new(t.clone(), impl_trait.clone())],
+                            vec![TraitInstance::new(t.clone(), impl_trait.clone())],
                         );
                     }
-                } else {
-                    todo!()
                 }
+                self.mono_types.insert(name, ctx);
             }
-            self.types.insert(t, ctx);
+        } else {
+            if let Some(ctxs) = self.poly_types.get_mut(&t.name()) {
+                ctxs.push((t.typarams(), ctx));
+            } else {
+                let name = VarName::from_str(t.name());
+                self.locals
+                    .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+                self.consts.insert(name.clone(), ValueObj::t(t.clone()));
+                for impl_trait in ctx.super_traits.iter() {
+                    if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                        impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    } else {
+                        self.trait_impls.insert(
+                            impl_trait.name(),
+                            vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        );
+                    }
+                }
+                self.poly_types.insert(name, vec![(t.typarams(), ctx)]);
+            }
         }
     }
 
@@ -98,15 +116,6 @@ impl Context {
                 } else {
                     self.method_impl_patches
                         .insert(method_name.clone(), vec![name.clone()]);
-                }
-            }
-            debug_power_assert!(ctx.super_classes.len(), ==, 1);
-            if let Some(target_type) = ctx.super_classes.first() {
-                for impl_trait in ctx.super_traits.iter() {
-                    self.glue_patch_and_types.push((
-                        VarName::from_str(ctx.name.clone()),
-                        TraitInstancePair::new(target_type.clone(), impl_trait.clone()),
-                    ));
                 }
             }
             self.patches.insert(name, ctx);

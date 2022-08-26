@@ -1506,6 +1506,45 @@ impl Type {
         }
     }
 
+    pub fn is_class(&self) -> bool {
+        match self {
+            Self::Obj
+            | Self::Int
+            | Self::Nat
+            | Self::Ratio
+            | Self::Float
+            | Self::Bool
+            | Self::Str
+            | Self::NoneType
+            | Self::Code
+            | Self::Module
+            | Self::Frame
+            | Self::Error
+            | Self::Inf
+            | Self::NegInf
+            | Self::Type
+            | Self::Class
+            | Self::Trait
+            | Self::Patch
+            | Self::NotImplemented
+            | Self::Ellipsis
+            | Self::Never
+            | Self::Subr(_)
+            | Self::Callable { .. }
+            | Self::Record(_)
+            | Self::Quantified(_) => true,
+            Self::MonoClass(_) | Self::PolyClass { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_trait(&self) -> bool {
+        match self {
+            Self::MonoTrait(_) | Self::PolyTrait { .. } => true,
+            _ => false,
+        }
+    }
+
     pub fn is_mut(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
@@ -1673,7 +1712,10 @@ impl Type {
     }
 
     pub fn is_monomorphic(&self) -> bool {
-        self.typarams_len() == 0
+        match self.typarams_len() {
+            Some(0) | None => true,
+            _ => false,
+        }
     }
 
     pub const fn is_callable(&self) -> bool {
@@ -1768,22 +1810,22 @@ impl Type {
         !self.has_unbound_var()
     }
 
-    pub fn typarams_len(&self) -> usize {
+    pub fn typarams_len(&self) -> Option<usize> {
         match self {
             // REVIEw:
-            Self::Ref(_) | Self::RefMut(_) => 1,
-            Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => 2,
-            Self::Subr(subr) => {
+            Self::Ref(_) | Self::RefMut(_) => Some(1),
+            Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => Some(2),
+            Self::Subr(subr) => Some(
                 subr.kind.inner_len()
                     + subr.non_default_params.len()
                     + subr.default_params.len()
-                    + 1
-            }
-            Self::Callable { param_ts, .. } => param_ts.len() + 1,
+                    + 1,
+            ),
+            Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
             Self::PolyClass { params, .. }
             | Self::PolyTrait { params, .. }
-            | Self::PolyQVar { params, .. } => params.len(),
-            _ => 0,
+            | Self::PolyQVar { params, .. } => Some(params.len()),
+            _ => None,
         }
     }
 

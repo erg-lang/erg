@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
 use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name, log, set};
+use erg_common::{assume_unreachable, enum_unwrap, fn_name, log, set};
 
 use erg_type::constructors::*;
 use erg_type::free::{Constraint, FreeKind, HasLevel};
@@ -15,7 +15,7 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, SubrKind, TyBound, Type};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{Context, TraitInstancePair, Variance};
+use crate::context::{Context, ContextKind, TraitInstance, Variance};
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
 
@@ -1097,7 +1097,7 @@ impl Context {
             _ => {}
         }
         let mut opt_smallest = None;
-        for ctx in self.rec_sorted_sup_type_ctxs(maybe_sub) {
+        for ctx in self.rec_get_nominal_super_type_ctxs(maybe_sub) {
             let maybe_sup = if maybe_sup.has_qvar() {
                 let bounds = ctx.type_params_bounds();
                 let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
@@ -1109,7 +1109,7 @@ impl Context {
                 .super_classes
                 .iter()
                 .chain(ctx.super_traits.iter())
-                .filter(|t| self.structural_supertype_of(&maybe_sup, t));
+                .filter(|t| self.rec_supertype_of(&maybe_sup, t));
             // instanceが複数ある場合、経験的に最も小さい型を選ぶのが良い
             // これでうまくいかない場合は型指定してもらう(REVIEW: もっと良い方法があるか?)
             if let Some(t) = self.smallest_ref_t(instances) {
@@ -1120,25 +1120,23 @@ impl Context {
                 };
             }
         }
-        let glue_patch_and_types = self.rec_get_glue_patch_and_types();
-        let patch_instances = glue_patch_and_types
-            .iter()
-            .filter_map(|(patch_name, pair)| {
-                let patch = self.rec_get_patch(patch_name).unwrap();
-                let bounds = patch.type_params_bounds();
-                let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-                let maybe_sub = Self::instantiate_t(maybe_sub.clone(), &mut tv_ctx);
-                let maybe_sup = Self::instantiate_t(maybe_sup.clone(), &mut tv_ctx);
-                if self.structural_supertype_of(&pair.sub_type, &maybe_sub)
-                    && self.structural_supertype_of(&pair.sup_trait, &maybe_sup)
-                {
-                    let l = Self::instantiate_t(pair.sub_type.clone(), &mut tv_ctx);
-                    let r = Self::instantiate_t(pair.sup_trait.clone(), &mut tv_ctx);
-                    Some(TraitInstancePair::new(l, r))
-                } else {
-                    None
-                }
-            });
+        let patches = self.rec_get_glue_patches();
+        let patch_instances = patches.iter().filter_map(|patch| {
+            let tr_inst = enum_unwrap!(&patch.kind, ContextKind::GluePatch);
+            let bounds = patch.type_params_bounds();
+            let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
+            let maybe_sub = Self::instantiate_t(maybe_sub.clone(), &mut tv_ctx);
+            let maybe_sup = Self::instantiate_t(maybe_sup.clone(), &mut tv_ctx);
+            if self.rec_supertype_of(&tr_inst.sub_type, &maybe_sub)
+                && self.rec_supertype_of(&tr_inst.sup_trait, &maybe_sup)
+            {
+                let l = Self::instantiate_t(tr_inst.sub_type.clone(), &mut tv_ctx);
+                let r = Self::instantiate_t(tr_inst.sup_trait.clone(), &mut tv_ctx);
+                Some(TraitInstance::new(l, r))
+            } else {
+                None
+            }
+        });
         let opt_smallest_pair = self.smallest_pair(patch_instances);
         match (opt_smallest, opt_smallest_pair) {
             (Some(smallest), Some(pair)) => {

@@ -38,12 +38,12 @@ use Mutability::*;
 use Visibility::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TraitInstancePair {
+pub struct TraitInstance {
     pub sub_type: Type,
     pub sup_trait: Type,
 }
 
-impl std::fmt::Display for TraitInstancePair {
+impl std::fmt::Display for TraitInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -53,9 +53,9 @@ impl std::fmt::Display for TraitInstancePair {
     }
 }
 
-impl TraitInstancePair {
+impl TraitInstance {
     pub const fn new(sub_type: Type, sup_trait: Type) -> Self {
-        TraitInstancePair {
+        TraitInstance {
             sub_type,
             sup_trait,
         }
@@ -187,7 +187,7 @@ impl ParamSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ContextKind {
     Func,
     Proc,
@@ -196,8 +196,9 @@ pub enum ContextKind {
     Class,
     Trait,
     StructuralTrait,
-    Patch,
-    StructuralPatch,
+    Patch(Type),
+    StructuralPatch(Type),
+    GluePatch(TraitInstance),
     Module,
     Instant,
     Dummy,
@@ -239,11 +240,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Vec<TraitInstancePair>>,
-    /// .0: glue patch, .1: type as subtype, .2: trait as supertype
-    /// .0: 関係付けるパッチ(glue patch), .1: サブタイプになる型, .2: スーパータイプになるトレイト
-    /// 一つの型ペアを接着パッチは同時に一つまでしか存在しないが、付け替えは可能
-    pub(crate) glue_patch_and_types: Vec<(VarName, TraitInstancePair)>,
+    pub(crate) trait_impls: Dict<Str, Vec<TraitInstance>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names
@@ -257,8 +254,14 @@ pub struct Context {
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
     pub(crate) eval: Evaluator,
-    // stores user-defined type context
-    pub(crate) types: Dict<Type, Context>,
+    // {"Nat": ctx, "Int": ctx, ...}
+    pub(crate) mono_types: Dict<VarName, Context>,
+    // Implementation Contexts for Polymorphic Types
+    // Vec<TyParam> are specialization parameters
+    // e.g. {"Array": [([Nat], ctx), ([Int], ctx), ([Str], ctx), ([Obj], ctx), (['T], ctx)], ...}
+    pub(crate) poly_types: Dict<VarName, Vec<(Vec<TyParam>, Context)>>,
+    // patches can be accessed like normal records
+    // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mods: Dict<VarName, Context>,
     pub(crate) _nlocals: usize, // necessary for CodeObj.nlocals
@@ -291,7 +294,8 @@ impl fmt::Display for Context {
             .field("locals", &self.params)
             .field("consts", &self.consts)
             .field("eval", &self.eval)
-            .field("types", &self.types)
+            .field("mono_types", &self.mono_types)
+            .field("poly_types", &self.poly_types)
             .field("patches", &self.patches)
             .field("mods", &self.mods)
             .finish()
@@ -358,13 +362,13 @@ impl Context {
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
-            glue_patch_and_types: Vec::default(),
             params: params_,
             decls: Dict::default(),
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
             eval: Evaluator::default(),
-            types: Dict::default(),
+            mono_types: Dict::default(),
+            poly_types: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
             _nlocals: 0,

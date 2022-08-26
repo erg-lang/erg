@@ -1,5 +1,4 @@
 // (type) getters & validators
-use std::cmp::Ordering;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::color::{GREEN, RED};
@@ -25,8 +24,8 @@ use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
-use crate::context::instantiate::{ConstTemplate, TyVarContext};
-use crate::context::{Context, ContextKind, RegistrationMode, TraitInstancePair, Variance};
+use crate::context::instantiate::ConstTemplate;
+use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
 use crate::error::readable_name;
 use crate::error::{binop_to_dname, unaryop_to_dname, TyCheckError, TyCheckResult};
 use crate::hir;
@@ -165,7 +164,12 @@ impl Context {
                     pos_args[i + 1].loc(),
                     self.caused_by(),
                     1,
-                    pos_args[i + 1].expr.signature_t().unwrap().typarams_len(),
+                    pos_args[i + 1]
+                        .expr
+                        .signature_t()
+                        .unwrap()
+                        .typarams_len()
+                        .unwrap_or(0),
                 ));
             }
             let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
@@ -271,7 +275,7 @@ impl Context {
             }
             _ => {}
         }
-        for ctx in self.rec_sorted_sup_type_ctxs(&self_t) {
+        for ctx in self.rec_get_nominal_super_type_ctxs(&self_t) {
             if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
                 return Ok(t);
             }
@@ -299,13 +303,14 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            for ctx in self.rec_sorted_sup_type_ctxs(obj.ref_t()) {
+            for ctx in self.rec_get_nominal_super_type_ctxs(obj.ref_t()) {
                 if let Some(vi) = ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
                 } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
                     return Ok(vi.t());
                 }
             }
+            // TODO: patch
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 method_name.loc(),
@@ -638,12 +643,12 @@ impl Context {
         Ok(res)
     }
 
-    pub(crate) fn get_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ValueObj> {
+    pub(crate) fn get_const_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ValueObj> {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
             if let Some(parent) = self.outer.as_ref() {
-                return parent.get_local(name, namespace);
+                return parent.get_const_local(name, namespace);
             }
             Err(TyCheckError::no_var_error(
                 line!() as usize,
@@ -655,29 +660,29 @@ impl Context {
         }
     }
 
-    pub(crate) fn _get_attr(
+    pub(crate) fn _get_const_attr(
         &self,
         obj: &hir::Expr,
         name: &Token,
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
-        let self_t = obj.t();
-        for ctx in self.sorted_sup_type_ctxs(&self_t) {
-            if let Ok(t) = ctx.get_local(name, namespace) {
+        let self_t = obj.ref_t();
+        for ctx in self.rec_get_nominal_super_type_ctxs(self_t) {
+            if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }
         }
         // TODO: dependent type widening
         if let Some(parent) = self.outer.as_ref() {
-            parent._get_attr(obj, name, namespace)
+            parent._get_const_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 name.loc(),
                 namespace.clone(),
-                &self_t,
+                self_t,
                 name.inspect(),
-                self.get_similar_attr(&self_t, name.inspect()),
+                self.get_similar_attr(self_t, name.inspect()),
             ))
         }
     }
@@ -705,7 +710,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for ctx in self.rec_sorted_sup_type_ctxs(self_t) {
+        for ctx in self.rec_get_nominal_super_type_ctxs(self_t) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -812,54 +817,11 @@ impl Context {
         concatenated
     }
 
-    // TODO: unify with type_sort
-    fn sort_type_ctxs<'a>(
-        &self,
-        type_and_ctxs: impl Iterator<Item = (&'a Type, &'a Context)>,
-    ) -> Vec<(&'a Type, &'a Context)> {
-        let mut buffers: Vec<Vec<(&Type, &Context)>> = vec![];
-        for t_ctx in type_and_ctxs {
-            let mut found = false;
-            for buf in buffers.iter_mut() {
-                if buf
-                    .iter()
-                    .all(|(buf_inner, _)| self.related(buf_inner, t_ctx.0))
-                {
-                    found = true;
-                    buf.push(t_ctx);
-                    break;
-                }
-            }
-            if !found {
-                buffers.push(vec![t_ctx]);
-            }
-        }
-        for buf in buffers.iter_mut() {
-            // this unwrap should be safe
-            buf.sort_by(|(lhs, _), (rhs, _)| self.cmp_t(lhs, rhs).try_into().unwrap());
-        }
-        let mut concatenated = buffers.into_iter().flatten().collect::<Vec<_>>();
-        let mut idx = 0;
-        let len = concatenated.len();
-        while let Some((maybe_sup, _)) = concatenated.get(idx) {
-            if let Some(pos) = concatenated
-                .iter()
-                .take(len - idx - 1)
-                .rposition(|(t, _)| self.supertype_of(maybe_sup, t))
-            {
-                let sup = concatenated.remove(idx);
-                concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
-            }
-            idx += 1;
-        }
-        concatenated
-    }
-
     pub(crate) fn sort_type_pairs(
         &self,
-        type_and_traits: impl Iterator<Item = TraitInstancePair>,
-    ) -> Vec<TraitInstancePair> {
-        let mut buffers: Vec<Vec<TraitInstancePair>> = vec![];
+        type_and_traits: impl Iterator<Item = TraitInstance>,
+    ) -> Vec<TraitInstance> {
+        let mut buffers: Vec<Vec<TraitInstance>> = vec![];
         for t_trait in type_and_traits {
             let mut found = false;
             for buf in buffers.iter_mut() {
@@ -901,75 +863,49 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn rec_sorted_sup_type_ctxs<'a>(
+    pub(crate) fn rec_get_nominal_super_type_ctxs<'a>(
         &'a self,
-        t: &'a Type,
+        t: &Type,
     ) -> impl Iterator<Item = &'a Context> {
-        let i = self.sorted_sup_type_ctxs(t);
-        if i.size_hint().1 == Some(0) {
-            if let Some(outer) = &self.outer {
-                return outer.sorted_sup_type_ctxs(t);
-            }
-        }
-        i
-    }
-
-    /// Return `Context`s equal to or greater than `t`
-    /// tと一致ないしそれよりも大きい型のContextを返す
-    pub(crate) fn sorted_sup_type_ctxs<'a>(
-        &'a self,
-        t: &'a Type,
-    ) -> impl Iterator<Item = &'a Context> {
-        let mut ctxs = self._sup_type_ctxs(t).collect::<Vec<_>>();
-        // Avoid heavy sorting as much as possible for efficiency
-        let mut cheap_sort_succeed = true;
-        ctxs.sort_by(|(lhs, _), (rhs, _)| match self.cmp_t(lhs, rhs).try_into() {
-            Ok(ord) => ord,
-            Err(_) => {
-                cheap_sort_succeed = false;
-                Ordering::Equal
-            }
-        });
-        let sorted = if cheap_sort_succeed {
-            ctxs
+        if let Some(ctx) = self.rec_get_nominal_type_ctx(t) {
+            vec![ctx].into_iter().chain(
+                ctx.super_classes
+                    .iter()
+                    .chain(ctx.super_traits.iter())
+                    .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap()),
+            )
         } else {
-            self.sort_type_ctxs(ctxs.into_iter())
-        };
-        sorted.into_iter().map(|(_, ctx)| ctx)
+            todo!()
+        }
     }
 
-    pub(crate) fn _just_type_ctxs<'a>(&'a self, t: &'a Type) -> Option<(&'a Type, &'a Context)> {
-        self.types.iter().find(move |(maybe_sup, ctx)| {
-            let maybe_sup_inst = if maybe_sup.has_qvar() {
-                let bounds = ctx.type_params_bounds();
-                let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-                Self::instantiate_t((*maybe_sup).clone(), &mut tv_ctx)
-            } else {
-                (*maybe_sup).clone()
-            };
-            self.same_type_of(&maybe_sup_inst, t)
-        })
-    }
-
-    /// this method is for `sorted_type_ctxs` only
-    fn _sup_type_ctxs<'a>(&'a self, t: &'a Type) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        self.types.iter().filter_map(move |(maybe_sup, ctx)| {
-            let maybe_sup_inst = if maybe_sup.has_qvar() {
-                let bounds = ctx.type_params_bounds();
-                let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-                Self::instantiate_t(maybe_sup.clone(), &mut tv_ctx)
-            } else {
-                maybe_sup.clone()
-            };
-            if self.supertype_of(&maybe_sup_inst, t) {
-                Some((maybe_sup, ctx))
-            } else {
-                None
+    pub(crate) fn rec_get_nominal_type_ctx<'a>(&'a self, t: &Type) -> Option<&'a Context> {
+        match t {
+            Type::Refinement(_) | Type::Quantified(_) => todo!(),
+            other if other.is_monomorphic() => {
+                if let Some(ctx) = self.mono_types.get(&t.name()) {
+                    return Some(ctx);
+                }
             }
-        })
+            _ => todo!(),
+        }
+        if let Some(outer) = &self.outer {
+            outer.rec_get_nominal_type_ctx(t)
+        } else {
+            None
+        }
     }
 
-    pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstancePair> {
+    pub(crate) fn rec_get_glue_patches(&self) -> Vec<&Context> {
+        let patches = self.patches.values().collect();
+        if let Some(outer) = &self.outer {
+            [patches, outer.rec_get_glue_patches()].concat()
+        } else {
+            patches
+        }
+    }
+
+    pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstance> {
         let current = if let Some(impls) = self.trait_impls.get(name) {
             impls.clone()
         } else {
@@ -982,23 +918,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_glue_patch_and_types(&self) -> Vec<(VarName, TraitInstancePair)> {
-        if let Some(outer) = &self.outer {
-            [
-                &self.glue_patch_and_types[..],
-                &outer.rec_get_glue_patch_and_types(),
-            ]
-            .concat()
-        } else {
-            self.glue_patch_and_types.clone()
-        }
-    }
-
-    pub(crate) fn rec_get_patch(&self, name: &VarName) -> Option<&Context> {
+    pub(crate) fn _rec_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
             Some(patch)
         } else if let Some(outer) = &self.outer {
-            outer.rec_get_patch(name)
+            outer._rec_get_patch(name)
         } else {
             None
         }
@@ -1014,22 +938,12 @@ impl Context {
         }
     }
 
+    // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
         if let Some(val) = self.consts.get(name) {
             Some(val)
         } else if let Some(outer) = &self.outer {
             outer.rec_get_const_obj(name)
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn rec_type_ctx_by_name<'a>(&'a self, t_name: &'a str) -> Option<&'a Context> {
-        if let Some((_, ctx)) = self.types.iter().find(|(t, _ctx)| &t.name()[..] == t_name) {
-            return Some(ctx);
-        }
-        if let Some(outer) = &self.outer {
-            outer.rec_type_ctx_by_name(t_name)
         } else {
             None
         }
