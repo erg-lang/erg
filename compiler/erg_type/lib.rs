@@ -18,6 +18,7 @@ use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 use crate::codeobj::CodeObj;
+use crate::constructors::{and, int_interval, mono, Top};
 use crate::free::{fresh_varname, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level};
 use crate::typaram::{IntervalOp, TyParam};
 use crate::value::value_set::*;
@@ -255,7 +256,7 @@ impl TyBound {
 
     pub fn instance(name: Str, t: Type) -> Self {
         if t == Type::Type {
-            Self::sandwiched(Type::Never, Type::mono(name), Type::Obj)
+            Self::sandwiched(Type::Never, mono(name), Type::Obj)
         } else {
             Self::Instance { name, t }
         }
@@ -1217,27 +1218,27 @@ impl Default for Type {
 
 impl From<Range<TyParam>> for Type {
     fn from(r: Range<TyParam>) -> Self {
-        Type::int_interval(IntervalOp::RightOpen, r.start, r.end)
+        int_interval(IntervalOp::RightOpen, r.start, r.end)
     }
 }
 
 impl From<Range<&TyParam>> for Type {
     fn from(r: Range<&TyParam>) -> Self {
-        Type::int_interval(IntervalOp::RightOpen, r.start.clone(), r.end.clone())
+        int_interval(IntervalOp::RightOpen, r.start.clone(), r.end.clone())
     }
 }
 
 impl From<RangeInclusive<TyParam>> for Type {
     fn from(r: RangeInclusive<TyParam>) -> Self {
         let (start, end) = r.into_inner();
-        Type::int_interval(IntervalOp::Closed, start, end)
+        int_interval(IntervalOp::Closed, start, end)
     }
 }
 
 impl From<RangeInclusive<&TyParam>> for Type {
     fn from(r: RangeInclusive<&TyParam>) -> Self {
         let (start, end) = r.into_inner();
-        Type::int_interval(IntervalOp::Closed, start.clone(), end.clone())
+        int_interval(IntervalOp::Closed, start.clone(), end.clone())
     }
 }
 
@@ -1266,7 +1267,7 @@ impl From<&str> for Type {
             "Never" => Self::Never,
             "Inf" => Self::Inf,
             "NegInf" => Self::NegInf,
-            "_" => Self::Top(),
+            "_" => Top(),
             other => Self::Mono(Str::rc(other)),
         }
     }
@@ -1437,398 +1438,6 @@ impl Type {
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
 
-    /// Top := {=}
-    #[allow(non_snake_case)]
-    pub const fn Top() -> Self {
-        Self::Mono(Str::ever("Top"))
-    }
-    /// Bottom := {}
-    #[allow(non_snake_case)]
-    pub const fn Bottom() -> Self {
-        Self::Mono(Str::ever("Bottom"))
-    }
-
-    #[inline]
-    pub fn free_var(level: usize, constraint: Constraint) -> Self {
-        Self::FreeVar(Free::new_unbound(level, constraint))
-    }
-
-    #[inline]
-    pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Self {
-        Self::FreeVar(Free::new_named_unbound(name, level, constraint))
-    }
-
-    pub fn array(elem_t: Type, len: TyParam) -> Self {
-        Self::poly("Array", vec![TyParam::t(elem_t), len])
-    }
-
-    pub fn array_mut(elem_t: Type, len: TyParam) -> Self {
-        Self::poly("Array!", vec![TyParam::t(elem_t), len])
-    }
-
-    pub fn dict(k_t: Type, v_t: Type) -> Self {
-        Self::poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
-    }
-
-    pub fn tuple(args: Vec<Type>) -> Self {
-        Self::poly("Tuple", args.into_iter().map(TyParam::t).collect())
-    }
-
-    #[inline]
-    pub fn var_args(elem_t: Type) -> Self {
-        Self::VarArgs(Box::new(elem_t))
-    }
-
-    #[inline]
-    pub fn range(t: Type) -> Self {
-        Self::poly("Range", vec![TyParam::t(t)])
-    }
-
-    pub fn enum_t(s: Set<ValueObj>) -> Self {
-        assert!(is_homogeneous(&s));
-        let name = Str::from(fresh_varname());
-        let preds = s
-            .iter()
-            .map(|o| Predicate::eq(name.clone(), TyParam::value(o.clone())))
-            .collect();
-        let refine = RefinementType::new(name, inner_class(&s), preds);
-        Self::Refinement(refine)
-    }
-
-    #[inline]
-    pub fn int_interval<P: Into<TyParam>, Q: Into<TyParam>>(op: IntervalOp, l: P, r: Q) -> Self {
-        let l = l.into();
-        let r = r.into();
-        let l = l.try_into().unwrap_or_else(|l| todo!("{l}"));
-        let r = r.try_into().unwrap_or_else(|r| todo!("{r}"));
-        let name = Str::from(fresh_varname());
-        let pred = match op {
-            IntervalOp::LeftOpen if l == TyParam::value(NegInf) => Predicate::le(name.clone(), r),
-            // l<..r => {I: classof(l) | I >= l+ε and I <= r}
-            IntervalOp::LeftOpen => Predicate::and(
-                Predicate::ge(name.clone(), TyParam::succ(l)),
-                Predicate::le(name.clone(), r),
-            ),
-            IntervalOp::RightOpen if r == TyParam::value(Inf) => Predicate::ge(name.clone(), l),
-            // l..<r => {I: classof(l) | I >= l and I <= r-ε}
-            IntervalOp::RightOpen => Predicate::and(
-                Predicate::ge(name.clone(), l),
-                Predicate::le(name.clone(), TyParam::pred(r)),
-            ),
-            // l..r => {I: classof(l) | I >= l and I <= r}
-            IntervalOp::Closed => Predicate::and(
-                Predicate::ge(name.clone(), l),
-                Predicate::le(name.clone(), r),
-            ),
-            IntervalOp::Open if l == TyParam::value(NegInf) && r == TyParam::value(Inf) => {
-                return Type::refinement(name, Type::Int, set! {})
-            }
-            // l<..<r => {I: classof(l) | I >= l+ε and I <= r-ε}
-            IntervalOp::Open => Predicate::and(
-                Predicate::ge(name.clone(), TyParam::succ(l)),
-                Predicate::le(name.clone(), TyParam::pred(r)),
-            ),
-        };
-        Type::refinement(name, Type::Int, set! {pred})
-    }
-
-    pub fn iter(t: Type) -> Self {
-        Self::poly("Iter", vec![TyParam::t(t)])
-    }
-
-    pub fn ref_(t: Type) -> Self {
-        Self::Ref(Box::new(t))
-    }
-
-    pub fn ref_mut(t: Type) -> Self {
-        Self::RefMut(Box::new(t))
-    }
-
-    pub fn option(t: Type) -> Self {
-        Self::poly("Option", vec![TyParam::t(t)])
-    }
-
-    pub fn option_mut(t: Type) -> Self {
-        Self::poly("Option!", vec![TyParam::t(t)])
-    }
-
-    pub fn subr(
-        kind: SubrKind,
-        non_default_params: Vec<ParamTy>,
-        default_params: Vec<ParamTy>,
-        return_t: Type,
-    ) -> Self {
-        Self::Subr(SubrType::new(
-            kind,
-            non_default_params,
-            default_params,
-            return_t,
-        ))
-    }
-
-    pub fn func(
-        non_default_params: Vec<ParamTy>,
-        default_params: Vec<ParamTy>,
-        return_t: Type,
-    ) -> Self {
-        Self::Subr(SubrType::new(
-            SubrKind::Func,
-            non_default_params,
-            default_params,
-            return_t,
-        ))
-    }
-
-    pub fn func1(param_t: Type, return_t: Type) -> Self {
-        Self::func(vec![ParamTy::anonymous(param_t)], vec![], return_t)
-    }
-
-    pub fn kind1(param: Type) -> Self {
-        Self::func1(param, Type::Type)
-    }
-
-    pub fn func2(l: Type, r: Type, return_t: Type) -> Self {
-        Self::func(
-            vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
-            vec![],
-            return_t,
-        )
-    }
-
-    pub fn bin_op(l: Type, r: Type, return_t: Type) -> Self {
-        Self::nd_func(
-            vec![
-                ParamTy::named(Str::ever("lhs"), l.clone()),
-                ParamTy::named(Str::ever("rhs"), r.clone()),
-            ],
-            return_t,
-        )
-    }
-
-    pub fn anon_param_func(
-        non_default_params: Vec<Type>,
-        default_params: Vec<Type>,
-        return_t: Type,
-    ) -> Self {
-        let non_default_params = non_default_params
-            .into_iter()
-            .map(ParamTy::anonymous)
-            .collect();
-        let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-        Self::func(non_default_params, default_params, return_t)
-    }
-
-    pub fn proc(
-        non_default_params: Vec<ParamTy>,
-        default_params: Vec<ParamTy>,
-        return_t: Type,
-    ) -> Self {
-        Self::Subr(SubrType::new(
-            SubrKind::Proc,
-            non_default_params,
-            default_params,
-            return_t,
-        ))
-    }
-
-    pub fn proc1(param_t: Type, return_t: Type) -> Self {
-        Self::proc(vec![ParamTy::anonymous(param_t)], vec![], return_t)
-    }
-
-    pub fn proc2(l: Type, r: Type, return_t: Type) -> Self {
-        Self::proc(
-            vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
-            vec![],
-            return_t,
-        )
-    }
-
-    pub fn anon_param_proc(
-        non_default_params: Vec<Type>,
-        default_params: Vec<Type>,
-        return_t: Type,
-    ) -> Self {
-        let non_default_params = non_default_params
-            .into_iter()
-            .map(ParamTy::anonymous)
-            .collect();
-        let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-        Self::proc(non_default_params, default_params, return_t)
-    }
-
-    pub fn fn_met(
-        self_t: Type,
-        non_default_params: Vec<ParamTy>,
-        default_params: Vec<ParamTy>,
-        return_t: Type,
-    ) -> Self {
-        Self::Subr(SubrType::new(
-            SubrKind::FuncMethod(Box::new(self_t)),
-            non_default_params,
-            default_params,
-            return_t,
-        ))
-    }
-
-    pub fn fn0_met(self_t: Type, return_t: Type) -> Self {
-        Self::fn_met(self_t, vec![], vec![], return_t)
-    }
-
-    pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Self {
-        Self::fn_met(self_t, vec![ParamTy::anonymous(input_t)], vec![], return_t)
-    }
-
-    pub fn anon_param_fn_met(
-        self_t: Type,
-        non_default_params: Vec<Type>,
-        default_params: Vec<Type>,
-        return_t: Type,
-    ) -> Self {
-        let non_default_params = non_default_params
-            .into_iter()
-            .map(ParamTy::anonymous)
-            .collect();
-        let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-        Self::fn_met(self_t, non_default_params, default_params, return_t)
-    }
-
-    pub fn pr_met(
-        self_before: Type,
-        self_after: Option<Type>,
-        non_default_params: Vec<ParamTy>,
-        default_params: Vec<ParamTy>,
-        return_t: Type,
-    ) -> Self {
-        Self::Subr(SubrType::new(
-            SubrKind::pr_met(self_before, self_after),
-            non_default_params,
-            default_params,
-            return_t,
-        ))
-    }
-
-    pub fn pr0_met(self_before: Type, self_after: Option<Type>, return_t: Type) -> Self {
-        Self::pr_met(self_before, self_after, vec![], vec![], return_t)
-    }
-
-    pub fn pr1_met(
-        self_before: Type,
-        self_after: Option<Type>,
-        input_t: Type,
-        return_t: Type,
-    ) -> Self {
-        Self::pr_met(
-            self_before,
-            self_after,
-            vec![ParamTy::anonymous(input_t)],
-            vec![],
-            return_t,
-        )
-    }
-
-    pub fn anon_param_pr_met(
-        self_before: Type,
-        self_after: Option<Type>,
-        non_default_params: Vec<Type>,
-        default_params: Vec<Type>,
-        return_t: Type,
-    ) -> Self {
-        let non_default_params = non_default_params
-            .into_iter()
-            .map(ParamTy::anonymous)
-            .collect();
-        let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-        Self::pr_met(
-            self_before,
-            self_after,
-            non_default_params,
-            default_params,
-            return_t,
-        )
-    }
-
-    /// function type with non-default parameters
-    #[inline]
-    pub fn nd_func(params: Vec<ParamTy>, ret: Type) -> Type {
-        Type::func(params, vec![], ret)
-    }
-
-    #[inline]
-    pub fn nd_proc(params: Vec<ParamTy>, ret: Type) -> Type {
-        Type::proc(params, vec![], ret)
-    }
-
-    pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Self {
-        Self::Callable {
-            param_ts,
-            return_t: Box::new(return_t),
-        }
-    }
-
-    #[inline]
-    pub fn mono<S: Into<Str>>(name: S) -> Self {
-        Self::Mono(name.into())
-    }
-
-    #[inline]
-    pub fn mono_q<S: Into<Str>>(name: S) -> Self {
-        Self::MonoQVar(name.into())
-    }
-
-    #[inline]
-    pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Self {
-        Self::Poly {
-            name: name.into(),
-            params,
-        }
-    }
-
-    #[inline]
-    pub fn poly_q<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Self {
-        Self::PolyQVar {
-            name: name.into(),
-            params,
-        }
-    }
-
-    #[inline]
-    pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Self {
-        Self::MonoProj {
-            lhs: Box::new(lhs),
-            rhs: rhs.into(),
-        }
-    }
-
-    /// ```rust
-    /// {I: Int | I >= 0}
-    /// => Refinement{
-    ///     layout: TyParam::MonoQ "I",
-    ///     bounds: [TyBound::Instance("I", "Int")],
-    ///     preds: [Predicate::GreaterEqual("I", 0)]
-    /// }
-    /// ```
-    #[inline]
-    pub fn refinement(var: Str, t: Type, preds: Set<Predicate>) -> Self {
-        Self::Refinement(RefinementType::new(var, t, preds))
-    }
-
-    /// quantified((T -> T), T: Type) => |T: Type| T -> T
-    pub fn quantified(unbound_t: Type, bounds: Set<TyBound>) -> Self {
-        Self::Quantified(QuantifiedType::new(unbound_t, bounds))
-    }
-
-    pub fn and(lhs: Self, rhs: Self) -> Self {
-        Self::And(Box::new(lhs), Box::new(rhs))
-    }
-
-    pub fn or(lhs: Self, rhs: Self) -> Self {
-        Self::Or(Box::new(lhs), Box::new(rhs))
-    }
-
-    pub fn not(lhs: Self, rhs: Self) -> Self {
-        Self::Not(Box::new(lhs), Box::new(rhs))
-    }
-
     pub fn is_mono_q(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_q(),
@@ -1840,12 +1449,12 @@ impl Type {
     /// 本来は型環境が必要
     pub fn mutate(self) -> Self {
         match self {
-            Self::Int => Self::mono("Int!"),
-            Self::Nat => Self::mono("Nat!"),
-            Self::Ratio => Self::mono("Ratio!"),
-            Self::Float => Self::mono("Float!"),
-            Self::Bool => Self::mono("Bool!"),
-            Self::Str => Self::mono("Str!"),
+            Self::Int => mono("Int!"),
+            Self::Nat => mono("Nat!"),
+            Self::Ratio => mono("Ratio!"),
+            Self::Float => mono("Float!"),
+            Self::Bool => mono("Bool!"),
+            Self::Str => mono("Str!"),
             _ => todo!(),
         }
     }
@@ -1958,7 +1567,7 @@ impl Type {
             (Self::Record(l), Self::Record(r)) => Self::Record(l.clone().concat(r.clone())),
             (t, Self::Obj) | (Self::Obj, t) => t.clone(),
             (_, Self::Never) | (Self::Never, _) => Self::Never,
-            (l, r) => Self::and(l.clone(), r.clone()),
+            (l, r) => and(l.clone(), r.clone()),
         }
     }
 

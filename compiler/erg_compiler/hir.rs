@@ -10,12 +10,14 @@ use erg_common::{
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_stream_for_wrapper,
 };
-use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
 use erg_parser::token::{Token, TokenKind};
+
+use erg_type::constructors::array;
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use crate::error::readable_name;
 use crate::eval::type_from_token_kind;
@@ -517,7 +519,7 @@ impl_t!(NormalArray);
 
 impl NormalArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
-        let t = Type::array(elem_t, TyParam::value(elems.len()));
+        let t = array(elem_t, TyParam::value(elems.len()));
         Self {
             l_sqbr,
             r_sqbr,

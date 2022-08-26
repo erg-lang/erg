@@ -17,6 +17,9 @@ use ast::VarName;
 use erg_parser::ast;
 use erg_parser::token::Token;
 
+use erg_type::constructors::{
+    func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t, var_args,
+};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
@@ -142,7 +145,7 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &Type::mono("LambdaFunc"),
+                    &mono("LambdaFunc"),
                     t,
                 ));
             }
@@ -192,7 +195,7 @@ impl Context {
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
-        let t = Type::func(param_ts, vec![], return_t);
+        let t = func(param_ts, vec![], return_t);
         Ok(t)
     }
 
@@ -440,7 +443,7 @@ impl Context {
                             }
                         }
                     }
-                    Ok(Type::poly(t_name, new_params))
+                    Ok(poly(t_name, new_params))
                 } else {
                     Ok(min)
                 }
@@ -457,7 +460,7 @@ impl Context {
                     new_default_params.push(ParamTy::new(param.name, t));
                 }
                 let new_return_t = self.resolve_trait(*subr.return_t)?;
-                let t = Type::subr(
+                let t = subr_t(
                     subr.kind, // TODO: resolve self
                     new_non_default_params,
                     new_default_params,
@@ -467,23 +470,23 @@ impl Context {
             }
             Type::MonoProj { lhs, rhs } => {
                 let new_lhs = self.resolve_trait(*lhs)?;
-                Ok(Type::mono_proj(new_lhs, rhs))
+                Ok(mono_proj(new_lhs, rhs))
             }
             Type::Refinement(refine) => {
                 let new_t = self.resolve_trait(*refine.t)?;
-                Ok(Type::refinement(refine.var, new_t, refine.preds))
+                Ok(refinement(refine.var, new_t, refine.preds))
             }
             Type::Ref(t) => {
                 let new_t = self.resolve_trait(*t)?;
-                Ok(Type::ref_(new_t))
+                Ok(ref_(new_t))
             }
             Type::RefMut(t) => {
                 let new_t = self.resolve_trait(*t)?;
-                Ok(Type::ref_mut(new_t))
+                Ok(ref_mut(new_t))
             }
             Type::VarArgs(t) => {
                 let new_t = self.resolve_trait(*t)?;
-                Ok(Type::var_args(new_t))
+                Ok(var_args(new_t))
             }
             Type::Callable { .. } => todo!(),
             Type::And(_, _) | Type::Or(_, _) | Type::Not(_, _) => todo!(),

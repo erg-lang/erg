@@ -10,6 +10,7 @@ use erg_common::{fn_name, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
+use crate::constructors::array;
 use crate::typaram::TyParam;
 use crate::value::ValueObj;
 use crate::{HasType, Type};
@@ -295,7 +296,7 @@ impl Deserializer {
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
-                &Type::array(Type::Str, TyParam::erased(Type::Nat)),
+                &array(Type::Str, TyParam::erased(Type::Nat)),
                 other.ref_t(),
             )),
         }

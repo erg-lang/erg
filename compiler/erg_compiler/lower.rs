@@ -11,6 +11,7 @@ use erg_common::{fn_name, log, switch_lang};
 use erg_parser::ast;
 use erg_parser::ast::AST;
 
+use erg_type::constructors::{array, array_mut, func, mono, poly, proc, quant};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, Type};
@@ -160,34 +161,34 @@ impl ASTLowerer {
         match maybe_len {
             Some(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else {
-                    Type::array(elem.t(), TyParam::Value(v))
+                    array(elem.t(), TyParam::Value(v))
                 }
             }
-            Some(v @ ValueObj::Mut(_)) if v.class() == Type::mono("Nat!") => {
+            Some(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else {
-                    Type::array_mut(elem.t(), TyParam::Value(v))
+                    array_mut(elem.t(), TyParam::Value(v))
                 }
             }
             Some(other) => todo!("{other} is not a Nat object"),
             // TODO: [T; !_]
             None => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    Type::array(elem.t(), TyParam::erased(Type::Nat))
+                    array(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }
@@ -346,14 +347,14 @@ impl ASTLowerer {
             })?;
         self.pop_append_errs();
         let t = if is_procedural {
-            Type::proc(non_default_params, default_params, body.t())
+            proc(non_default_params, default_params, body.t())
         } else {
-            Type::func(non_default_params, default_params, body.t())
+            func(non_default_params, default_params, body.t())
         };
         let t = if bounds.is_empty() {
             t
         } else {
-            Type::quantified(t, bounds)
+            quant(t, bounds)
         };
         Ok(hir::Lambda::new(id, lambda.sig.params, lambda.op, body, t))
     }

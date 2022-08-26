@@ -2,6 +2,7 @@
 use std::cmp::Ordering;
 use std::option::Option; // conflicting to Type::Option
 
+use erg_type::constructors::or;
 use erg_type::free::fresh_varname;
 use erg_type::free::{Constraint, FreeKind, FreeTyVar};
 use erg_type::typaram::{TyParam, TyParamOrdering};
@@ -675,7 +676,7 @@ impl Context {
                 let t = self.into_refinement(t.clone());
                 Type::Refinement(self.union_refinement(&t, r))
             }
-            (l, r) => Type::or(l.clone(), r.clone()),
+            (l, r) => or(l.clone(), r.clone()),
         }
     }
 

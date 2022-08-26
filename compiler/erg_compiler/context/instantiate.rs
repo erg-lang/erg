@@ -18,6 +18,7 @@ use ast::{
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
 
+use erg_type::constructors::*;
 use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use erg_type::value::ValueObj;
 use erg_type::{ParamTy, Predicate, SubrKind, TyBound, Type};
@@ -80,7 +81,7 @@ impl TyVarContext {
                 ValueObj::Type(t) if t.is_mono_q() => {
                     if &t.name()[..] == "Self" {
                         let constraint = Constraint::type_of(Type);
-                        let t = Type::named_free_var(Str::rc(var_name), self.level, constraint);
+                        let t = named_free_var(Str::rc(var_name), self.level, constraint);
                         TyParam::t(t)
                     } else {
                         todo!()
@@ -129,9 +130,9 @@ impl TyVarContext {
                 self.push_or_init_typaram(&c.tvar_name().unwrap(), &c);
                 inst_defaults.push(c);
             }
-            Type::poly(name, [inst_non_defaults, inst_defaults].concat())
+            poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            Type::poly(
+            poly(
                 name,
                 params
                     .into_iter()
@@ -156,25 +157,21 @@ impl TyVarContext {
                     Type::Poly { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
-                    Type::MonoProj { lhs, rhs } => {
-                        Type::mono_proj(self.instantiate_qvar(*lhs), rhs)
-                    }
+                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
                     sub => sub,
                 };
                 let sup_instance = match sup {
                     Type::Poly { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
-                    Type::MonoProj { lhs, rhs } => {
-                        Type::mono_proj(self.instantiate_qvar(*lhs), rhs)
-                    }
+                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
                     sup => sup,
                 };
                 let name = mid.name();
                 let constraint = Constraint::sandwiched(sub_instance, sup_instance);
                 self.push_or_init_tyvar(
                     &name,
-                    &Type::named_free_var(name.clone(), self.level, constraint),
+                    &named_free_var(name.clone(), self.level, constraint),
                 );
             }
             TyBound::Instance { name, t } => {
@@ -194,7 +191,7 @@ impl TyVarContext {
                     } else {
                         self.push_or_init_tyvar(
                             &name,
-                            &Type::named_free_var(name.clone(), self.level, constraint),
+                            &named_free_var(name.clone(), self.level, constraint),
                         );
                     }
                 } else {
@@ -227,7 +224,7 @@ impl TyVarContext {
                         todo!()
                     }
                 } else {
-                    let tv = Type::named_free_var(n.clone(), self.level, Constraint::Uninited);
+                    let tv = named_free_var(n.clone(), self.level, Constraint::Uninited);
                     self.push_or_init_tyvar(&n, &tv);
                     tv
                 }
@@ -256,7 +253,7 @@ impl TyVarContext {
                     } else if let Some(t) = self.get_tyvar(&n) {
                         TyParam::t(t.clone())
                     } else {
-                        let tv = Type::named_free_var(n.clone(), self.level, Constraint::Uninited);
+                        let tv = named_free_var(n.clone(), self.level, Constraint::Uninited);
                         self.push_or_init_tyvar(&n, &tv);
                         TyParam::t(tv)
                     }
@@ -363,7 +360,7 @@ impl Context {
         let spec_t = if let Some(s) = sig.t_spec.as_ref() {
             self.instantiate_typespec(s, mode)?
         } else {
-            Type::free_var(self.level, Constraint::type_of(Type))
+            free_var(self.level, Constraint::type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
             self.sub_unify(&eval_t, &spec_t, None, sig.t_spec.as_ref().map(|s| s.loc()))?;
@@ -408,7 +405,7 @@ impl Context {
             } else {
                 self.level + 1
             };
-            Type::free_var(level, Constraint::type_of(Type))
+            free_var(level, Constraint::type_of(Type))
         };
         if let Some(eval_ret_t) = eval_ret_t {
             self.sub_unify(
@@ -419,9 +416,9 @@ impl Context {
             )?;
         }
         Ok(if sig.ident.is_procedural() {
-            Type::proc(non_defaults, defaults, spec_return_t)
+            proc(non_defaults, defaults, spec_return_t)
         } else {
-            Type::func(non_defaults, defaults, spec_return_t)
+            func(non_defaults, defaults, spec_return_t)
         })
     }
 
@@ -436,7 +433,7 @@ impl Context {
             self.instantiate_typespec(spec, mode)?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => Type::enum_t(set![eval_lit(lit)]),
+                ast::ParamPattern::Lit(lit) => enum_t(set![eval_lit(lit)]),
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -444,7 +441,7 @@ impl Context {
                     } else {
                         self.level + 1
                     };
-                    Type::free_var(level, Constraint::type_of(Type))
+                    free_var(level, Constraint::type_of(Type))
                 }
             }
         };
@@ -486,12 +483,12 @@ impl Context {
                     let t = self.instantiate_const_expr_as_type(&first.expr)?;
                     let len = args.next().unwrap();
                     let len = self.instantiate_const_expr(&len.expr);
-                    Ok(Type::array(t, len))
+                    Ok(array(t, len))
                 } else {
-                    Ok(Type::mono("GenericArray"))
+                    Ok(mono("GenericArray"))
                 }
             }
-            other if simple.args.is_empty() => Ok(Type::mono(Str::rc(other))),
+            other if simple.args.is_empty() => Ok(mono(Str::rc(other))),
             other => {
                 // FIXME: kw args
                 let params = simple.args.pos_args().map(|arg| match &arg.expr {
@@ -500,7 +497,7 @@ impl Context {
                         todo!()
                     }
                 });
-                Ok(Type::poly(Str::rc(other), params.collect()))
+                Ok(poly(Str::rc(other), params.collect()))
             }
         }
     }
@@ -520,9 +517,7 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> TyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                Ok(Type::mono(name.inspect()))
-            }
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
             _ => todo!(),
         }
     }
@@ -547,27 +542,27 @@ impl Context {
         match spec {
             TypeSpec::PreDeclTy(predecl) => self.instantiate_predecl_t(predecl),
             // TODO: Flatten
-            TypeSpec::And(lhs, rhs) => Ok(Type::and(
+            TypeSpec::And(lhs, rhs) => Ok(and(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
             )),
-            TypeSpec::Not(lhs, rhs) => Ok(Type::not(
+            TypeSpec::Not(lhs, rhs) => Ok(not(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
             )),
-            TypeSpec::Or(lhs, rhs) => Ok(Type::or(
+            TypeSpec::Or(lhs, rhs) => Ok(or(
                 self.instantiate_typespec(lhs, mode)?,
                 self.instantiate_typespec(rhs, mode)?,
             )),
             TypeSpec::Array { .. } => todo!(),
             // FIXME: unwrap
-            TypeSpec::Tuple(tys) => Ok(Type::tuple(
+            TypeSpec::Tuple(tys) => Ok(tuple(
                 tys.iter()
                     .map(|spec| self.instantiate_typespec(spec, mode).unwrap())
                     .collect(),
             )),
             // TODO: エラー処理(リテラルでない、ダブりがある)はパーサーにやらせる
-            TypeSpec::Enum(set) => Ok(Type::enum_t(
+            TypeSpec::Enum(set) => Ok(enum_t(
                 set.pos_args()
                     .map(|arg| {
                         if let ast::ConstExpr::Lit(lit) = &arg.expr {
@@ -593,7 +588,7 @@ impl Context {
                 if let Some(Greater) = self.rec_try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
-                Ok(Type::int_interval(op, l, r))
+                Ok(int_interval(op, l, r))
             }
             TypeSpec::Subr(subr) => {
                 let non_defaults = try_map(subr.non_defaults.iter(), |p| {
@@ -603,7 +598,7 @@ impl Context {
                     self.instantiate_func_param_spec(p, mode)
                 })?;
                 let return_t = self.instantiate_typespec(&subr.return_t, mode)?;
-                Ok(Type::subr(
+                Ok(subr_t(
                     self.instantiate_subr_kind(&subr.kind)?,
                     non_defaults,
                     defaults,
@@ -639,7 +634,7 @@ impl Context {
         // TODO: 高階型変数
         match bound {
             TypeBoundSpec::Subtype { sub, sup } => Ok(TyBound::subtype_of(
-                Type::mono_q(sub.inspect().clone()),
+                mono_q(sub.inspect().clone()),
                 self.instantiate_typespec(sup, mode)?,
             )),
             TypeBoundSpec::Instance { name, ty } => Ok(TyBound::instance(
@@ -714,7 +709,7 @@ impl Context {
                 for param in params.iter_mut() {
                     *param = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                Type::poly_q(name, params)
+                poly_q(name, params)
             }
             Refinement(mut refine) => {
                 refine.preds = refine
@@ -754,7 +749,7 @@ impl Context {
                     p.ty = Self::instantiate_t(mem::take(&mut p.ty), tv_ctx);
                 }
                 let return_t = Self::instantiate_t(*subr.return_t, tv_ctx);
-                Type::subr(kind, subr.non_default_params, subr.default_params, return_t)
+                subr_t(kind, subr.non_default_params, subr.default_params, return_t)
             }
             Record(mut dict) => {
                 for v in dict.values_mut() {
@@ -764,25 +759,25 @@ impl Context {
             }
             Ref(t) => {
                 let t = Self::instantiate_t(*t, tv_ctx);
-                Type::ref_(t)
+                ref_(t)
             }
             RefMut(t) => {
                 let t = Self::instantiate_t(*t, tv_ctx);
-                Type::ref_mut(t)
+                ref_mut(t)
             }
             VarArgs(t) => {
                 let t = Self::instantiate_t(*t, tv_ctx);
-                Type::var_args(t)
+                var_args(t)
             }
             MonoProj { lhs, rhs } => {
                 let lhs = Self::instantiate_t(*lhs, tv_ctx);
-                Type::mono_proj(lhs, rhs)
+                mono_proj(lhs, rhs)
             }
             Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                Type::poly(name, params)
+                poly(name, params)
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
@@ -804,7 +799,7 @@ impl Context {
                                 self.unify(l, r, None, Some(callee.loc()))?;
                             }
                             // if callee is a Module object or some named one
-                            (None, Some(r)) if self.rec_subtype_of(r, &Type::mono("Named")) => {}
+                            (None, Some(r)) if self.rec_subtype_of(r, &mono("Named")) => {}
                             (None, None) => {}
                             (l, r) => todo!("{l:?}, {r:?}"),
                         }

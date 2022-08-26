@@ -4,6 +4,7 @@
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{debug_power_assert, set};
+
 use erg_type::constructors::*;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
@@ -119,8 +120,8 @@ impl Context {
         let named = Self::mono_trait("Named", vec![], Self::TOP_LEVEL);
         let mut mutable = Self::mono_trait("Mutable", vec![], Self::TOP_LEVEL);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
-        let f_t = Type::func(vec![param_t("old", proj.clone())], vec![], proj);
-        let t = Type::pr1_met(mono_q("Self"), None, f_t, NoneType);
+        let f_t = func(vec![param_t("old", proj.clone())], vec![], proj);
+        let t = pr1_met(mono_q("Self"), None, f_t, NoneType);
         let t = quant(t, set! { subtypeof(mono_q("Self"), mono("Immutizable")) });
         mutable.register_decl("update!", t, Public);
         let mut immutizable =
@@ -129,7 +130,7 @@ impl Context {
         let mut mutizable = Self::mono_trait("Mutizable", vec![], Self::TOP_LEVEL);
         mutizable.register_decl("MutType!", Type, Public);
         let mut in_ = Self::poly_trait("In", vec![PS::t("T", NonDefault)], vec![], Self::TOP_LEVEL);
-        let op_t = Type::fn1_met(poly("In", vec![ty_tp(mono_q("T"))]), mono_q("T"), Bool);
+        let op_t = fn1_met(poly("In", vec![ty_tp(mono_q("T"))]), mono_q("T"), Bool);
         let op_t = quant(op_t, set! { static_instance("T", Type) });
         in_.register_decl("__in__", op_t, Public);
         // Erg does not have a trait equivalent to `PartialEq` in Rust
@@ -184,7 +185,7 @@ impl Context {
             set! {subtypeof(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))},
         );
         seq.register_decl("__len__", t, Public);
-        let t = Type::fn1_met(self_t.clone(), Nat, mono_q("T"));
+        let t = fn1_met(self_t.clone(), Nat, mono_q("T"));
         let t = quant(
             t,
             set! {subtypeof(self_t, poly("Seq", vec![ty_tp(mono_q("T"))])), static_instance("T", Type)},
@@ -309,18 +310,8 @@ impl Context {
         obj.register_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
         obj.register_impl("__repr__", fn0_met(Obj, Str), Immutable, Public);
         obj.register_impl("__str__", fn0_met(Obj, Str), Immutable, Public);
-        obj.register_impl(
-            "__dict__",
-            fn0_met(Obj, Type::dict(Str, Obj)),
-            Immutable,
-            Public,
-        );
-        obj.register_impl(
-            "__bytes__",
-            fn0_met(Obj, Type::mono("Bytes")),
-            Immutable,
-            Public,
-        );
+        obj.register_impl("__dict__", fn0_met(Obj, dict(Str, Obj)), Immutable, Public);
+        obj.register_impl("__bytes__", fn0_met(Obj, mono("Bytes")), Immutable, Public);
         obj.register_const("MutType!", ValueObj::t(mono("Obj!")));
         // let mut record = Self::mono_trait("Record", vec![Obj], Self::TOP_LEVEL);
         // let mut class = Self::mono_class("Class", vec![Type, Obj], Self::TOP_LEVEL);
@@ -377,7 +368,7 @@ impl Context {
         nat.register_impl("__mul__", op_t, Const, Public);
         nat.register_impl(
             "times!",
-            Type::pr_met(
+            pr_met(
                 Nat,
                 None,
                 vec![param_t("p", nd_proc(vec![], NoneType))],
@@ -484,7 +475,7 @@ impl Context {
         str_.register_impl("__add__", fn1_met(Str, Str, Str), Const, Public);
         str_.register_impl(
             "replace",
-            Type::fn_met(
+            fn_met(
                 Str,
                 vec![param_t("pat", Str), param_t("into", Str)],
                 vec![],
@@ -506,26 +497,21 @@ impl Context {
             ],
             Self::TOP_LEVEL,
         );
-        type_.register_impl(
-            "mro",
-            Type::array(Type, TyParam::erased(Nat)),
-            Immutable,
-            Public,
-        );
+        type_.register_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
         let module = Self::mono_class(
             "Module",
             vec![Obj],
             vec![poly("Eq", vec![ty_tp(Module)]), mono("Named")],
             Self::TOP_LEVEL,
         );
-        let mut array = Self::poly_class(
+        let mut array_ = Self::poly_class(
             "Array",
             vec![PS::t_nd("T"), PS::named_nd("N", Nat)],
             vec![Obj],
             vec![
                 poly(
                     "Eq",
-                    vec![ty_tp(Type::poly(
+                    vec![ty_tp(poly(
                         "Array",
                         vec![ty_tp(mono_q("T")), mono_q_tp("N")],
                     ))],
@@ -538,42 +524,39 @@ impl Context {
         );
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
-        let array_t = Type::array(mono_q("T"), n.clone());
-        let t = Type::fn_met(
+        let array_t = array(mono_q("T"), n.clone());
+        let t = fn_met(
             array_t.clone(),
-            vec![param_t("rhs", Type::array(mono_q("T"), m.clone()))],
+            vec![param_t("rhs", array(mono_q("T"), m.clone()))],
             vec![],
-            Type::array(mono_q("T"), n + m),
+            array(mono_q("T"), n + m),
         );
         let t = quant(
             t,
             set! {static_instance("N", Nat), static_instance("M", Nat)},
         );
-        array.register_impl("concat", t, Immutable, Public);
+        array_.register_impl("concat", t, Immutable, Public);
         let n = mono_q_tp("N");
         let array_inner = mono_q("T");
-        let array_t = Type::array(array_inner.clone(), n.clone());
+        let array_t = array(array_inner.clone(), n.clone());
         let proj_t = mono_proj(array_inner.clone(), "ImmutType");
-        let t = Type::fn_met(
+        let t = fn_met(
             array_t.clone(),
-            vec![param_t(
-                "f",
-                Type::nd_func(vec![anon(proj_t.clone())], proj_t),
-            )],
+            vec![param_t("f", nd_func(vec![anon(proj_t.clone())], proj_t))],
             vec![],
-            Type::NoneType,
+            NoneType,
         );
         let t = quant(
             t,
-            set! {static_instance("N", Nat), static_instance("T", Type::mono("Mutable"))},
+            set! {static_instance("N", Nat), static_instance("T", mono("Mutable"))},
         );
-        array.register_impl("map!", t, Immutable, Public);
-        let mut_type = ValueObj::t(Type::poly(
+        array_.register_impl("map!", t, Immutable, Public);
+        let mut_type = ValueObj::t(poly(
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
         ));
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
-        array.register_const("MutType!", mut_type);
+        array_.register_const("MutType!", mut_type);
         let mut int_mut = Self::mono_class(
             "Int!",
             vec![Int, Obj],
@@ -583,9 +566,9 @@ impl Context {
         int_mut.register_const("ImmutType", ValueObj::t(Int));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Int"))], vec![], mono("Int")),
+            func(vec![param_t("old", mono("Int"))], vec![], mono("Int")),
         );
-        let t = Type::pr_met(mono("Int!"), None, vec![f_t], vec![], mono("Int!"));
+        let t = pr_met(mono("Int!"), None, vec![f_t], vec![], mono("Int!"));
         int_mut.register_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
             "Int!",
@@ -596,9 +579,9 @@ impl Context {
         nat_mut.register_const("ImmutType", ValueObj::t(Nat));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Nat"))], vec![], mono("Nat")),
+            func(vec![param_t("old", mono("Nat"))], vec![], mono("Nat")),
         );
-        let t = Type::pr_met(mono("Nat!"), None, vec![f_t], vec![], mono("Nat!"));
+        let t = pr_met(mono("Nat!"), None, vec![f_t], vec![], mono("Nat!"));
         nat_mut.register_impl("update!", t, Immutable, Public);
         let mut float_mut = Self::mono_class(
             "Float!",
@@ -609,9 +592,9 @@ impl Context {
         float_mut.register_const("ImmutType", ValueObj::t(Float));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Float"))], vec![], mono("Float")),
+            func(vec![param_t("old", mono("Float"))], vec![], mono("Float")),
         );
-        let t = Type::pr_met(mono("Float!"), None, vec![f_t], vec![], mono("Float!"));
+        let t = pr_met(mono("Float!"), None, vec![f_t], vec![], mono("Float!"));
         float_mut.register_impl("update!", t, Immutable, Public);
         let mut ratio_mut = Self::mono_class(
             "Ratio!",
@@ -622,9 +605,9 @@ impl Context {
         ratio_mut.register_const("ImmutType", ValueObj::t(Ratio));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Ratio"))], vec![], mono("Ratio")),
+            func(vec![param_t("old", mono("Ratio"))], vec![], mono("Ratio")),
         );
-        let t = Type::pr_met(mono("Ratio!"), None, vec![f_t], vec![], mono("Ratio!"));
+        let t = pr_met(mono("Ratio!"), None, vec![f_t], vec![], mono("Ratio!"));
         ratio_mut.register_impl("update!", t, Immutable, Public);
         let mut bool_mut = Self::mono_class(
             "Bool!",
@@ -635,9 +618,9 @@ impl Context {
         bool_mut.register_const("ImmutType", ValueObj::t(Bool));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Bool"))], vec![], mono("Bool")),
+            func(vec![param_t("old", mono("Bool"))], vec![], mono("Bool")),
         );
-        let t = Type::pr_met(mono("Bool!"), None, vec![f_t], vec![], mono("Bool!"));
+        let t = pr_met(mono("Bool!"), None, vec![f_t], vec![], mono("Bool!"));
         bool_mut.register_impl("update!", t, Immutable, Public);
         let mut str_mut = Self::mono_class(
             "Str!",
@@ -648,11 +631,11 @@ impl Context {
         str_mut.register_const("ImmutType", ValueObj::t(Str));
         let f_t = param_t(
             "f",
-            Type::func(vec![param_t("old", mono("Str"))], vec![], mono("Str")),
+            func(vec![param_t("old", mono("Str"))], vec![], mono("Str")),
         );
-        let t = Type::pr_met(mono("Str!"), None, vec![f_t], vec![], mono("Str!"));
+        let t = pr_met(mono("Str!"), None, vec![f_t], vec![], mono("Str!"));
         str_mut.register_impl("update!", t, Immutable, Public);
-        let array_mut_t = Type::poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
+        let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
@@ -660,15 +643,15 @@ impl Context {
             vec![mono("Mutate"), poly("Seq", vec![ty_tp(mono_q("T"))])],
             Self::TOP_LEVEL,
         );
-        let t = Type::pr_met(
-            Type::ref_mut(array_mut_t.clone()),
-            Some(Type::ref_mut(poly(
+        let t = pr_met(
+            ref_mut(array_mut_t.clone()),
+            Some(ref_mut(poly(
                 "Array!",
                 vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
             ))),
             vec![param_t("elem", mono_q("T"))],
             vec![],
-            Type::NoneType,
+            NoneType,
         );
         let t = quant(
             t,
@@ -677,13 +660,13 @@ impl Context {
         array_mut.register_impl("push!", t, Immutable, Public);
         let f_t = param_t(
             "f",
-            Type::func(
+            func(
                 vec![param_t("old", array_t.clone())],
                 vec![],
                 array_t.clone(),
             ),
         );
-        let t = Type::pr_met(
+        let t = pr_met(
             array_mut_t.clone(),
             None,
             vec![f_t],
@@ -691,16 +674,13 @@ impl Context {
             array_mut_t.clone(),
         );
         array_mut.register_impl("update!", t, Immutable, Public);
-        let range_t = Type::poly("Range", vec![TyParam::t(mono_q("T"))]);
+        let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
         let range = Self::poly_class(
             "Range",
             vec![PS::t_nd("T")],
             vec![Obj],
             vec![
-                poly(
-                    "Eq",
-                    vec![ty_tp(Type::poly("Range", vec![ty_tp(mono_q("T"))]))],
-                ),
+                poly("Eq", vec![ty_tp(poly("Range", vec![ty_tp(mono_q("T"))]))]),
                 mono("Mutate"),
                 poly("Seq", vec![ty_tp(mono_q("T"))]),
                 poly("Output", vec![ty_tp(mono_q("T"))]),
@@ -708,8 +688,8 @@ impl Context {
             Self::TOP_LEVEL,
         );
         self.register_type(Obj, obj, Const);
-        // self.register_type(Type::mono("Record"), vec![], record, Const);
-        // self.register_type(Type::mono("Class"), vec![], class, Const);
+        // self.register_type(mono("Record"), vec![], record, Const);
+        // self.register_type(mono("Class"), vec![], class, Const);
         self.register_type(Int, int, Const);
         self.register_type(Nat, nat, Const);
         self.register_type(Float, float, Const);
@@ -718,7 +698,7 @@ impl Context {
         self.register_type(Str, str_, Const);
         self.register_type(Type, type_, Const);
         self.register_type(Module, module, Const);
-        self.register_type(array_t, array, Const);
+        self.register_type(array_t, array_, Const);
         self.register_type(mono("Int!"), int_mut, Const);
         self.register_type(mono("Nat!"), nat_mut, Const);
         self.register_type(mono("Float!"), float_mut, Const);
@@ -736,7 +716,7 @@ impl Context {
             vec![param_t("err_message", Str)],
             NoneType,
         );
-        let t_classof = nd_func(vec![param_t("old", Obj)], Type::option(Class));
+        let t_classof = nd_func(vec![param_t("old", Obj)], option(Class));
         let t_compile = nd_func(vec![param_t("src", Str)], Code);
         let t_cond = nd_func(
             vec![
@@ -756,11 +736,11 @@ impl Context {
                 param_t("then", nd_func(vec![], mono_q("T"))),
             ],
             vec![param_t("else", nd_func(vec![], mono_q("T")))],
-            Type::option(mono_q("T")),
+            option(mono_q("T")),
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_import = nd_func(vec![param_t("path", Str)], Module);
-        let t_log = nd_func(vec![param_t("objs", Type::var_args(Obj))], NoneType);
+        let t_log = nd_func(vec![param_t("objs", var_args(Obj))], NoneType);
         let t_pyimport = nd_func(vec![param_t("path", Str)], Module);
         let t_quit = func(vec![], vec![param_t("code", Int)], NoneType);
         self.register_impl("abs", t_abs, Const, Private);
@@ -782,7 +762,7 @@ impl Context {
 
     fn init_builtin_procs(&mut self) {
         let t_print = proc(
-            vec![param_t("objects", Type::var_args(Type::ref_(Obj)))],
+            vec![param_t("objects", var_args(ref_(Obj)))],
             vec![
                 param_t("sep", Str),
                 param_t("end", Str),
@@ -798,12 +778,12 @@ impl Context {
                 param_t("then", nd_proc(vec![], mono_q("T"))),
             ],
             vec![param_t("else", nd_proc(vec![], mono_q("T")))],
-            Type::option(mono_q("T")),
+            option(mono_q("T")),
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_for = nd_proc(
             vec![
-                param_t("iter", Type::iter(mono_q("T"))),
+                param_t("iter", iter(mono_q("T"))),
                 param_t("p", nd_proc(vec![anon(mono_q("T"))], NoneType)),
             ],
             NoneType,
@@ -840,7 +820,7 @@ impl Context {
             },
         );
         self.register_impl("__add__", op_t, Const, Private);
-        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "SubO"));
+        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "SubO"));
         let op_t = quant(
             op_t,
             set! {
@@ -849,7 +829,7 @@ impl Context {
             },
         );
         self.register_impl("__sub__", op_t, Const, Private);
-        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "MulO"));
+        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "MulO"));
         let op_t = quant(
             op_t,
             set! {
@@ -858,7 +838,7 @@ impl Context {
             },
         );
         self.register_impl("__mul__", op_t, Const, Private);
-        let op_t = Type::bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
+        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
         let op_t = quant(
             op_t,
             set! {
@@ -868,45 +848,45 @@ impl Context {
         );
         self.register_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
-        let op_t = Type::bin_op(m.clone(), m.clone(), m.clone());
+        let op_t = bin_op(m.clone(), m.clone(), m.clone());
         let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
         // TODO: add bound: M == MulO
         self.register_impl("__pow__", op_t, Const, Private);
         let d = mono_q("D");
-        let op_t = Type::bin_op(d.clone(), d.clone(), d.clone());
+        let op_t = bin_op(d.clone(), d.clone(), d.clone());
         let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
         self.register_impl("__mod__", op_t, Const, Private);
         let e = mono_q("E");
-        let op_t = Type::bin_op(e.clone(), e.clone(), Bool);
+        let op_t = bin_op(e.clone(), e.clone(), Bool);
         let op_t = quant(op_t, set! {subtypeof(e, poly("Eq", vec![]))});
         self.register_impl("__eq__", op_t.clone(), Const, Private);
         self.register_impl("__ne__", op_t, Const, Private);
         let o = mono_q("O");
-        let op_t = Type::bin_op(o.clone(), o.clone(), Bool);
+        let op_t = bin_op(o.clone(), o.clone(), Bool);
         let op_t = quant(op_t, set! {subtypeof(o, mono("Ord"))});
         self.register_impl("__lt__", op_t.clone(), Const, Private);
         self.register_impl("__le__", op_t.clone(), Const, Private);
         self.register_impl("__gt__", op_t.clone(), Const, Private);
         self.register_impl("__ge__", op_t, Const, Private);
-        self.register_impl("__and__", Type::bin_op(Bool, Bool, Bool), Const, Private);
-        self.register_impl("__or__", Type::bin_op(Bool, Bool, Bool), Const, Private);
+        self.register_impl("__and__", bin_op(Bool, Bool, Bool), Const, Private);
+        self.register_impl("__or__", bin_op(Bool, Bool, Bool), Const, Private);
         let t = mono_q("T");
-        let op_t = Type::bin_op(t.clone(), t.clone(), Type::range(t.clone()));
+        let op_t = bin_op(t.clone(), t.clone(), range(t.clone()));
         let op_t = quant(op_t, set! {subtypeof(t.clone(), mono("Ord"))});
         self.register_decl("__rng__", op_t.clone(), Private);
         self.register_decl("__lorng__", op_t.clone(), Private);
         self.register_decl("__rorng__", op_t.clone(), Private);
         self.register_decl("__orng__", op_t, Private);
-        let op_t = Type::bin_op(mono_q("T"), poly("In", vec![ty_tp(mono_q("T"))]), Bool);
+        let op_t = bin_op(mono_q("T"), poly("In", vec![ty_tp(mono_q("T"))]), Bool);
         let op_t = quant(op_t, set! { static_instance("T", Type) });
         self.register_impl("__in__", op_t, Const, Private);
         /* unary */
         // TODO: Boolの+/-は警告を出したい
-        let op_t = Type::func1(mono_q("T"), Type::mono_proj(mono_q("T"), "MutType!"));
+        let op_t = func1(mono_q("T"), mono_proj(mono_q("T"), "MutType!"));
         let op_t = quant(op_t, set! {subtypeof(mono_q("T"), mono("Mutate"))});
         self.register_impl("__mutate__", op_t, Const, Private);
         let n = mono_q("N");
-        let op_t = Type::func1(n.clone(), n.clone());
+        let op_t = func1(n.clone(), n.clone());
         let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
         self.register_decl("__pos__", op_t.clone(), Private);
         self.register_decl("__neg__", op_t, Private);
@@ -960,12 +940,12 @@ impl Context {
 
     pub(crate) fn init_py_math_mod() -> Self {
         let mut math = Context::module("math".into(), 10);
-        math.register_impl("pi", Type::Float, Immutable, Public);
-        math.register_impl("tau", Type::Float, Immutable, Public);
-        math.register_impl("e", Type::Float, Immutable, Public);
-        math.register_impl("sin", Type::func1(Float, Float), Immutable, Public);
-        math.register_impl("cos", Type::func1(Float, Float), Immutable, Public);
-        math.register_impl("tan", Type::func1(Float, Float), Immutable, Public);
+        math.register_impl("pi", Float, Immutable, Public);
+        math.register_impl("tau", Float, Immutable, Public);
+        math.register_impl("e", Float, Immutable, Public);
+        math.register_impl("sin", func1(Float, Float), Immutable, Public);
+        math.register_impl("cos", func1(Float, Float), Immutable, Public);
+        math.register_impl("tan", func1(Float, Float), Immutable, Public);
         math
     }
 
@@ -973,11 +953,11 @@ impl Context {
         let mut random = Context::module("random".into(), 10);
         random.register_impl(
             "seed!",
-            Type::proc(
+            proc(
                 vec![],
                 vec![
-                    param_t("a", Type::mono("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
-                    param_t("version", Type::Int),
+                    param_t("a", mono("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
+                    param_t("version", Int),
                 ],
                 NoneType,
             ),
@@ -991,7 +971,7 @@ impl Context {
             Public,
         );
         let t = nd_proc(
-            vec![param_t("seq", Type::poly("Seq", vec![ty_tp(mono_q("T"))]))],
+            vec![param_t("seq", poly("Seq", vec![ty_tp(mono_q("T"))]))],
             mono_q("T"),
         );
         let t = quant(t, set! {static_instance("T", Type)});

@@ -17,6 +17,7 @@ use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
+use crate::constructors::{array, mono, poly, refinement};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -247,7 +248,7 @@ impl HasType for ValueObj {
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
         let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
-        Type::refinement(name, self.class(), set! {pred})
+        refinement(name, self.class(), set! {pred})
     }
     fn signature_t(&self) -> Option<&Type> {
         None
@@ -353,7 +354,7 @@ impl ValueObj {
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
             // TODO:
-            Self::Array(arr) => Type::array(
+            Self::Array(arr) => array(
                 arr.iter().next().unwrap().class(),
                 TyParam::value(arr.len()),
             ),
@@ -370,12 +371,12 @@ impl ValueObj {
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => Type::mono("Int!"),
-                Self::Nat(_) => Type::mono("Nat!"),
-                Self::Float(_) => Type::mono("Float!"),
-                Self::Str(_) => Type::mono("Str!"),
-                Self::Bool(_) => Type::mono("Bool!"),
-                Self::Array(arr) => Type::poly(
+                Self::Int(_) => mono("Int!"),
+                Self::Nat(_) => mono("Nat!"),
+                Self::Float(_) => mono("Float!"),
+                Self::Str(_) => mono("Str!"),
+                Self::Bool(_) => mono("Bool!"),
+                Self::Array(arr) => poly(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),

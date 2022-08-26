@@ -10,64 +10,391 @@ pub const fn anon(ty: Type) -> ParamTy {
     ParamTy::anonymous(ty)
 }
 
-#[inline]
-pub fn mono<S: Into<Str>>(name: S) -> Type {
-    Type::mono(name)
+/// Top := {=}
+#[allow(non_snake_case)]
+pub const fn Top() -> Type {
+    Type::Mono(Str::ever("Top"))
+}
+/// Bottom := {}
+#[allow(non_snake_case)]
+pub const fn Bottom() -> Type {
+    Type::Mono(Str::ever("Bottom"))
 }
 
 #[inline]
-pub fn mono_q<S: Into<Str>>(name: S) -> Type {
-    Type::mono_q(name)
+pub fn free_var(level: usize, constraint: Constraint) -> Type {
+    Type::FreeVar(Free::new_unbound(level, constraint))
 }
 
 #[inline]
-pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
-    Type::mono_proj(lhs, rhs)
+pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
+    Type::FreeVar(Free::new_named_unbound(name, level, constraint))
+}
+
+pub fn array(elem_t: Type, len: TyParam) -> Type {
+    poly("Array", vec![TyParam::t(elem_t), len])
+}
+
+pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
+    poly("Array!", vec![TyParam::t(elem_t), len])
+}
+
+pub fn dict(k_t: Type, v_t: Type) -> Type {
+    poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+}
+
+pub fn tuple(args: Vec<Type>) -> Type {
+    poly("Tuple", args.into_iter().map(TyParam::t).collect())
 }
 
 #[inline]
-pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::poly(name, params)
+pub fn var_args(elem_t: Type) -> Type {
+    Type::VarArgs(Box::new(elem_t))
 }
 
 #[inline]
-pub fn poly_q<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::poly_q(name, params)
+pub fn range(t: Type) -> Type {
+    poly("Range", vec![TyParam::t(t)])
+}
+
+pub fn enum_t(s: Set<ValueObj>) -> Type {
+    assert!(is_homogeneous(&s));
+    let name = Str::from(fresh_varname());
+    let preds = s
+        .iter()
+        .map(|o| Predicate::eq(name.clone(), TyParam::value(o.clone())))
+        .collect();
+    let refine = RefinementType::new(name, inner_class(&s), preds);
+    Type::Refinement(refine)
 }
 
 #[inline]
-pub fn func(non_default_params: Vec<ParamTy>, default_params: Vec<ParamTy>, ret: Type) -> Type {
-    Type::func(non_default_params, default_params, ret)
+pub fn int_interval<P: Into<TyParam>, Q: Into<TyParam>>(op: IntervalOp, l: P, r: Q) -> Type {
+    let l = l.into();
+    let r = r.into();
+    let l = l.try_into().unwrap_or_else(|l| todo!("{l}"));
+    let r = r.try_into().unwrap_or_else(|r| todo!("{r}"));
+    let name = Str::from(fresh_varname());
+    let pred = match op {
+        IntervalOp::LeftOpen if l == TyParam::value(NegInf) => Predicate::le(name.clone(), r),
+        // l<..r => {I: classof(l) | I >= l+ε and I <= r}
+        IntervalOp::LeftOpen => Predicate::and(
+            Predicate::ge(name.clone(), TyParam::succ(l)),
+            Predicate::le(name.clone(), r),
+        ),
+        IntervalOp::RightOpen if r == TyParam::value(Inf) => Predicate::ge(name.clone(), l),
+        // l..<r => {I: classof(l) | I >= l and I <= r-ε}
+        IntervalOp::RightOpen => Predicate::and(
+            Predicate::ge(name.clone(), l),
+            Predicate::le(name.clone(), TyParam::pred(r)),
+        ),
+        // l..r => {I: classof(l) | I >= l and I <= r}
+        IntervalOp::Closed => Predicate::and(
+            Predicate::ge(name.clone(), l),
+            Predicate::le(name.clone(), r),
+        ),
+        IntervalOp::Open if l == TyParam::value(NegInf) && r == TyParam::value(Inf) => {
+            return refinement(name, Type::Int, set! {})
+        }
+        // l<..<r => {I: classof(l) | I >= l+ε and I <= r-ε}
+        IntervalOp::Open => Predicate::and(
+            Predicate::ge(name.clone(), TyParam::succ(l)),
+            Predicate::le(name.clone(), TyParam::pred(r)),
+        ),
+    };
+    refinement(name, Type::Int, set! {pred})
 }
 
-#[inline]
-pub fn proc(non_default_params: Vec<ParamTy>, default_params: Vec<ParamTy>, ret: Type) -> Type {
-    Type::proc(non_default_params, default_params, ret)
+pub fn iter(t: Type) -> Type {
+    poly("Iter", vec![TyParam::t(t)])
 }
 
+pub fn ref_(t: Type) -> Type {
+    Type::Ref(Box::new(t))
+}
+
+pub fn ref_mut(t: Type) -> Type {
+    Type::RefMut(Box::new(t))
+}
+
+pub fn option(t: Type) -> Type {
+    poly("Option", vec![TyParam::t(t)])
+}
+
+pub fn option_mut(t: Type) -> Type {
+    poly("Option!", vec![TyParam::t(t)])
+}
+
+pub fn subr_t(
+    kind: SubrKind,
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    Type::Subr(SubrType::new(
+        kind,
+        non_default_params,
+        default_params,
+        return_t,
+    ))
+}
+
+pub fn func(
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    Type::Subr(SubrType::new(
+        SubrKind::Func,
+        non_default_params,
+        default_params,
+        return_t,
+    ))
+}
+
+pub fn func1(param_t: Type, return_t: Type) -> Type {
+    func(vec![ParamTy::anonymous(param_t)], vec![], return_t)
+}
+
+pub fn kind1(param: Type) -> Type {
+    func1(param, Type::Type)
+}
+
+pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
+    func(
+        vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        vec![],
+        return_t,
+    )
+}
+
+pub fn bin_op(l: Type, r: Type, return_t: Type) -> Type {
+    nd_func(
+        vec![
+            ParamTy::named(Str::ever("lhs"), l.clone()),
+            ParamTy::named(Str::ever("rhs"), r.clone()),
+        ],
+        return_t,
+    )
+}
+
+pub fn anon_param_func(
+    non_default_params: Vec<Type>,
+    default_params: Vec<Type>,
+    return_t: Type,
+) -> Type {
+    let non_default_params = non_default_params
+        .into_iter()
+        .map(ParamTy::anonymous)
+        .collect();
+    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
+    func(non_default_params, default_params, return_t)
+}
+
+pub fn proc(
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    Type::Subr(SubrType::new(
+        SubrKind::Proc,
+        non_default_params,
+        default_params,
+        return_t,
+    ))
+}
+
+pub fn proc1(param_t: Type, return_t: Type) -> Type {
+    proc(vec![ParamTy::anonymous(param_t)], vec![], return_t)
+}
+
+pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
+    proc(
+        vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        vec![],
+        return_t,
+    )
+}
+
+pub fn anon_param_proc(
+    non_default_params: Vec<Type>,
+    default_params: Vec<Type>,
+    return_t: Type,
+) -> Type {
+    let non_default_params = non_default_params
+        .into_iter()
+        .map(ParamTy::anonymous)
+        .collect();
+    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
+    proc(non_default_params, default_params, return_t)
+}
+
+pub fn fn_met(
+    self_t: Type,
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    Type::Subr(SubrType::new(
+        SubrKind::FuncMethod(Box::new(self_t)),
+        non_default_params,
+        default_params,
+        return_t,
+    ))
+}
+
+pub fn fn0_met(self_t: Type, return_t: Type) -> Type {
+    fn_met(self_t, vec![], vec![], return_t)
+}
+
+pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
+    fn_met(self_t, vec![ParamTy::anonymous(input_t)], vec![], return_t)
+}
+
+pub fn anon_param_fn_met(
+    self_t: Type,
+    non_default_params: Vec<Type>,
+    default_params: Vec<Type>,
+    return_t: Type,
+) -> Type {
+    let non_default_params = non_default_params
+        .into_iter()
+        .map(ParamTy::anonymous)
+        .collect();
+    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
+    fn_met(self_t, non_default_params, default_params, return_t)
+}
+
+pub fn pr_met(
+    self_before: Type,
+    self_after: Option<Type>,
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    Type::Subr(SubrType::new(
+        SubrKind::pr_met(self_before, self_after),
+        non_default_params,
+        default_params,
+        return_t,
+    ))
+}
+
+pub fn pr0_met(self_before: Type, self_after: Option<Type>, return_t: Type) -> Type {
+    pr_met(self_before, self_after, vec![], vec![], return_t)
+}
+
+pub fn pr1_met(self_before: Type, self_after: Option<Type>, input_t: Type, return_t: Type) -> Type {
+    pr_met(
+        self_before,
+        self_after,
+        vec![ParamTy::anonymous(input_t)],
+        vec![],
+        return_t,
+    )
+}
+
+pub fn anon_param_pr_met(
+    self_before: Type,
+    self_after: Option<Type>,
+    non_default_params: Vec<Type>,
+    default_params: Vec<Type>,
+    return_t: Type,
+) -> Type {
+    let non_default_params = non_default_params
+        .into_iter()
+        .map(ParamTy::anonymous)
+        .collect();
+    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
+    pr_met(
+        self_before,
+        self_after,
+        non_default_params,
+        default_params,
+        return_t,
+    )
+}
+
+/// function type with non-default parameters
 #[inline]
 pub fn nd_func(params: Vec<ParamTy>, ret: Type) -> Type {
-    Type::nd_func(params, ret)
+    func(params, vec![], ret)
 }
 
 #[inline]
 pub fn nd_proc(params: Vec<ParamTy>, ret: Type) -> Type {
-    Type::nd_proc(params, ret)
+    proc(params, vec![], ret)
+}
+
+pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
+    Type::Callable {
+        param_ts,
+        return_t: Box::new(return_t),
+    }
 }
 
 #[inline]
-pub fn fn0_met(self_t: Type, return_t: Type) -> Type {
-    Type::fn0_met(self_t, return_t)
+pub fn mono<S: Into<Str>>(name: S) -> Type {
+    Type::Mono(name.into())
 }
 
 #[inline]
-pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
-    Type::fn1_met(self_t, input_t, return_t)
+pub fn mono_q<S: Into<Str>>(name: S) -> Type {
+    Type::MonoQVar(name.into())
 }
 
 #[inline]
+pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::Poly {
+        name: name.into(),
+        params,
+    }
+}
+
+#[inline]
+pub fn poly_q<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::PolyQVar {
+        name: name.into(),
+        params,
+    }
+}
+
+#[inline]
+pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
+    Type::MonoProj {
+        lhs: Box::new(lhs),
+        rhs: rhs.into(),
+    }
+}
+
+/// ```rust
+/// {I: Int | I >= 0}
+/// => Refinement{
+///     layout: TyParam::MonoQ "I",
+///     bounds: [TyBound::Instance("I", "Int")],
+///     preds: [Predicate::GreaterEqual("I", 0)]
+/// }
+/// ```
+#[inline]
+pub fn refinement(var: Str, t: Type, preds: Set<Predicate>) -> Type {
+    Type::Refinement(RefinementType::new(var, t, preds))
+}
+
+/// quantified((T -> T), T: Type) => |T: Type| T -> T
 pub fn quant(unbound_t: Type, bounds: Set<TyBound>) -> Type {
-    Type::quantified(unbound_t, bounds)
+    Type::Quantified(QuantifiedType::new(unbound_t, bounds))
+}
+
+pub fn and(lhs: Type, rhs: Type) -> Type {
+    Type::And(Box::new(lhs), Box::new(rhs))
+}
+
+pub fn or(lhs: Type, rhs: Type) -> Type {
+    Type::Or(Box::new(lhs), Box::new(rhs))
+}
+
+pub fn not(lhs: Type, rhs: Type) -> Type {
+    Type::Not(Box::new(lhs), Box::new(rhs))
 }
 
 #[inline]

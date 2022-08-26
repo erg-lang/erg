@@ -7,6 +7,8 @@ use erg_common::set::Set;
 use erg_common::traits::Stream;
 use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, log, set};
+
+use erg_type::constructors::*;
 use erg_type::free::{Constraint, FreeKind, HasLevel};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
@@ -75,7 +77,7 @@ impl Context {
         if bounds.is_empty() {
             maybe_unbound_t
         } else {
-            Type::quantified(maybe_unbound_t, bounds)
+            quant(maybe_unbound_t, bounds)
         }
     }
 
@@ -106,13 +108,13 @@ impl Context {
                 FreeKind::Unbound { id, constraint, .. } => {
                     let name = id.to_string();
                     self.generalize_constraint(&name, constraint, bounds, lazy_inits);
-                    Type::mono_q(name)
+                    mono_q(name)
                 }
                 FreeKind::NamedUnbound {
                     name, constraint, ..
                 } => {
                     self.generalize_constraint(name, constraint, bounds, lazy_inits);
-                    Type::mono_q(name)
+                    mono_q(name)
                 }
                 _ => assume_unreachable!(),
             },
@@ -140,18 +142,18 @@ impl Context {
                     p.ty = self.generalize_t_inner(mem::take(&mut p.ty), bounds, lazy_inits);
                 });
                 let return_t = self.generalize_t_inner(*subr.return_t, bounds, lazy_inits);
-                Type::subr(kind, subr.non_default_params, subr.default_params, return_t)
+                subr_t(kind, subr.non_default_params, subr.default_params, return_t)
             }
             Callable { .. } => todo!(),
-            Ref(t) => Type::ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            RefMut(t) => Type::ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            VarArgs(t) => Type::var_args(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            RefMut(t) => ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            VarArgs(t) => var_args(self.generalize_t_inner(*t, bounds, lazy_inits)),
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
                     .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
                     .collect::<Vec<_>>();
-                Type::poly(name, params)
+                poly(name, params)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
@@ -175,7 +177,7 @@ impl Context {
                     let sub = self.generalize_t_inner(sub.clone(), bounds, lazy_inits);
                     let sup = self.generalize_t_inner(sup.clone(), bounds, lazy_inits);
                     // let bs = sub_bs.concat(sup_bs);
-                    bounds.insert(TyBound::sandwiched(sub, Type::mono_q(name.clone()), sup));
+                    bounds.insert(TyBound::sandwiched(sub, mono_q(name.clone()), sup));
                 }
                 Constraint::TypeOf(t) => {
                     let t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
@@ -315,15 +317,15 @@ impl Context {
             }
             Type::Ref(t) => {
                 let t = self.deref_tyvar(*t)?;
-                Ok(Type::ref_(t))
+                Ok(ref_(t))
             }
             Type::RefMut(t) => {
                 let t = self.deref_tyvar(*t)?;
-                Ok(Type::ref_mut(t))
+                Ok(ref_mut(t))
             }
             Type::VarArgs(t) => {
                 let t = self.deref_tyvar(*t)?;
-                Ok(Type::var_args(t))
+                Ok(var_args(t))
             }
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
@@ -335,7 +337,7 @@ impl Context {
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t)?;
                 // TODO: deref_predicate
-                Ok(Type::refinement(refine.var, t, refine.preds))
+                Ok(refinement(refine.var, t, refine.preds))
             }
             t => Ok(t),
         }
@@ -505,7 +507,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.rec_subtype_of(&fv_t, &Type::mono("Num"))
+                    && self.rec_subtype_of(&fv_t, &mono("Num"))
                 {
                     fv.link(tp);
                     Ok(())
@@ -836,7 +838,7 @@ impl Context {
                 },
             ) => {
                 if ln != rn {
-                    let before_t = Type::poly(ln.clone(), lps.clone());
+                    let before_t = poly(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
                         line!() as usize,
                         &before_t,

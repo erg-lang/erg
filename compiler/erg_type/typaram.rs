@@ -4,6 +4,7 @@ use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 
 use erg_common::traits::LimitedDisplay;
 
+use crate::constructors::{int_interval, mono};
 use crate::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
 use crate::value::ValueObj;
 use crate::Str;
@@ -346,13 +347,13 @@ impl Neg for TyParam {
 
 impl From<Range<TyParam>> for TyParam {
     fn from(r: Range<TyParam>) -> Self {
-        Self::t(Type::int_interval(IntervalOp::RightOpen, r.start, r.end))
+        Self::t(int_interval(IntervalOp::RightOpen, r.start, r.end))
     }
 }
 
 impl From<Range<&TyParam>> for TyParam {
     fn from(r: Range<&TyParam>) -> Self {
-        Self::t(Type::int_interval(
+        Self::t(int_interval(
             IntervalOp::RightOpen,
             r.start.clone(),
             r.end.clone(),
@@ -363,18 +364,14 @@ impl From<Range<&TyParam>> for TyParam {
 impl From<RangeInclusive<TyParam>> for TyParam {
     fn from(r: RangeInclusive<TyParam>) -> Self {
         let (start, end) = r.into_inner();
-        Self::t(Type::int_interval(IntervalOp::Closed, start, end))
+        Self::t(int_interval(IntervalOp::Closed, start, end))
     }
 }
 
 impl From<RangeInclusive<&TyParam>> for TyParam {
     fn from(r: RangeInclusive<&TyParam>) -> Self {
         let (start, end) = r.into_inner();
-        Self::t(Type::int_interval(
-            IntervalOp::Closed,
-            start.clone(),
-            end.clone(),
-        ))
+        Self::t(int_interval(IntervalOp::Closed, start.clone(), end.clone()))
     }
 }
 
@@ -452,7 +449,7 @@ impl TyParam {
 
     // TODO: polymorphic type
     pub fn array_t(t: Str, len: TyParam) -> Self {
-        Self::Array(vec![TyParam::t(Type::mono(t)), len])
+        Self::Array(vec![TyParam::t(mono(t)), len])
     }
 
     pub fn free_var(level: usize, t: Type) -> Self {

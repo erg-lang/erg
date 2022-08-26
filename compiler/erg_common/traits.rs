@@ -466,6 +466,13 @@ macro_rules! impl_locational {
             }
         }
     };
+    ($T: ty, $inner: ident) => {
+        impl Locational for $T {
+            fn loc(&self) -> Location {
+                self.$inner.loc()
+            }
+        }
+    };
 }
 
 pub trait NestedDisplay {

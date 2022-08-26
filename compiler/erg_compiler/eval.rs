@@ -12,6 +12,9 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::constructors::{
+    enum_t, mono_proj, poly, ref_, ref_mut, refinement, subr_t, var_args,
+};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
 use erg_type::{Predicate, SubrKind, TyBound, Type};
@@ -445,7 +448,7 @@ impl Evaluator {
                     p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
                 }
                 let return_t = self.eval_t_params(*subr.return_t, ctx, level)?;
-                Ok(Type::subr(
+                Ok(subr_t(
                     kind,
                     subr.non_default_params,
                     subr.default_params,
@@ -457,7 +460,7 @@ impl Evaluator {
                 for pred in refine.preds.into_iter() {
                     preds.insert(self.eval_pred(pred, ctx)?);
                 }
-                Ok(Type::refinement(refine.var, *refine.t, preds))
+                Ok(refinement(refine.var, *refine.t, preds))
             }
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj { lhs, rhs } => {
@@ -474,7 +477,7 @@ impl Evaluator {
                     }
                 }
                 if let Some(outer) = &ctx.outer {
-                    self.eval_t_params(Type::mono_proj(*lhs, rhs), outer, level)
+                    self.eval_t_params(mono_proj(*lhs, rhs), outer, level)
                 } else {
                     todo!(
                         "{lhs}.{rhs} not found in [{}]",
@@ -484,14 +487,14 @@ impl Evaluator {
                     )
                 }
             }
-            Type::Ref(l) => Ok(Type::ref_(self.eval_t_params(*l, ctx, level)?)),
-            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t_params(*l, ctx, level)?)),
-            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t_params(*l, ctx, level)?)),
+            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, ctx, level)?)),
+            Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, ctx, level)?)),
+            Type::VarArgs(l) => Ok(var_args(self.eval_t_params(*l, ctx, level)?)),
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p), ctx)?;
                 }
-                Ok(Type::poly(name, params))
+                Ok(poly(name, params))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
@@ -545,7 +548,7 @@ impl Evaluator {
         let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
-            TyParam::Value(v) => Ok(Type::enum_t(set![v])),
+            TyParam::Value(v) => Ok(enum_t(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
@@ -558,7 +561,7 @@ impl Evaluator {
             TyParam::Mono(name) => ctx
                 .consts
                 .get(&name)
-                .map(|v| Type::enum_t(set![v.clone()]))
+                .map(|v| enum_t(set![v.clone()]))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
                 panic!("Not instantiated type variable: {name}")

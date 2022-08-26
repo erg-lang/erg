@@ -47,13 +47,7 @@ impl NestedDisplay for Literal {
 }
 
 impl_display_from_nested!(Literal);
-
-impl Locational for Literal {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.token.loc()
-    }
-}
+impl_locational!(Literal, token);
 
 impl From<Token> for Literal {
     #[inline]
@@ -81,12 +75,7 @@ impl NestedDisplay for PosArg {
 }
 
 impl_display_from_nested!(PosArg);
-
-impl Locational for PosArg {
-    fn loc(&self) -> Location {
-        self.expr.loc()
-    }
-}
+impl_locational!(PosArg, expr);
 
 impl PosArg {
     pub const fn new(expr: Expr) -> Self {
@@ -108,12 +97,7 @@ impl NestedDisplay for KwArg {
 }
 
 impl_display_from_nested!(KwArg);
-
-impl Locational for KwArg {
-    fn loc(&self) -> Location {
-        Location::concat(&self.keyword, &self.expr)
-    }
-}
+impl_locational!(KwArg, keyword, expr);
 
 impl KwArg {
     pub const fn new(keyword: Token, expr: Expr) -> Self {
@@ -226,7 +210,7 @@ impl NestedDisplay for Local {
 }
 
 impl_display_from_nested!(Local);
-impl_locational!(Local, symbol, symbol);
+impl_locational!(Local, symbol);
 
 impl Local {
     pub const fn new(symbol: Token) -> Self {
@@ -804,13 +788,7 @@ impl NestedDisplay for ConstLocal {
 }
 
 impl_display_from_nested!(ConstLocal);
-
-impl Locational for ConstLocal {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.symbol.loc()
-    }
-}
+impl_locational!(ConstLocal, symbol);
 
 impl ConstLocal {
     pub const fn new(symbol: Token) -> Self {
@@ -1078,11 +1056,7 @@ impl NestedDisplay for ConstPosArg {
     }
 }
 
-impl Locational for ConstPosArg {
-    fn loc(&self) -> Location {
-        self.expr.loc()
-    }
-}
+impl_locational!(ConstPosArg, expr);
 
 impl ConstPosArg {
     pub const fn new(expr: ConstExpr) -> Self {
@@ -1102,11 +1076,7 @@ impl NestedDisplay for ConstKwArg {
     }
 }
 
-impl Locational for ConstKwArg {
-    fn loc(&self) -> Location {
-        Location::concat(&self.keyword, &self.expr)
-    }
-}
+impl_locational!(ConstKwArg, keyword, expr);
 
 impl ConstKwArg {
     pub const fn new(keyword: Token, expr: ConstExpr) -> Self {

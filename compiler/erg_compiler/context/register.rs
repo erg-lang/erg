@@ -9,6 +9,7 @@ use erg_type::free::HasLevel;
 use ast::{DefId, VarName};
 use erg_parser::ast;
 
+use erg_type::constructors::{enum_t, func, proc};
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
@@ -344,13 +345,13 @@ impl Context {
             ))
         } else {
             let sub_t = if sig.ident.is_procedural() {
-                Type::proc(
+                proc(
                     non_default_params.clone(),
                     default_params.clone(),
                     body_t.clone(),
                 )
             } else {
-                Type::func(
+                func(
                     non_default_params.clone(),
                     default_params.clone(),
                     body_t.clone(),
@@ -393,7 +394,7 @@ impl Context {
                 let eval_body_t = || {
                     self.eval
                         .eval_const_block(&def.body.block, self)
-                        .map(|c| Type::enum_t(set![c]))
+                        .map(|c| enum_t(set![c]))
                 };
                 match &def.sig {
                     ast::Signature::Subr(sig) => {
