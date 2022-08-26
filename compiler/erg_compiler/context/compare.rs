@@ -84,8 +84,8 @@ impl Context {
         let traits: Vec<_> = self
             .trait_impls
             .iter()
-            .map(|(_, sub_and_sup)| {
-                sub_and_sup.iter().filter_map(|pair| {
+            .map(|(_, pair)| {
+                pair.iter().filter_map(|pair| {
                     let t_name = pair.sub_type.name();
                     let sub_ctx = self.rec_type_ctx_by_name(&t_name).unwrap();
                     let bounds = sub_ctx.type_params_bounds();

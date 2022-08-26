@@ -2,7 +2,7 @@
 use std::process;
 use std::string::FromUtf8Error;
 
-use erg_common::cache::Cache;
+use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::serialize::DataTypePrefix;
@@ -98,17 +98,17 @@ pub type DeserializeResult<T> = Result<T, DeserializeError>;
 
 #[derive(Default)]
 pub struct Deserializer {
-    str_cache: Cache<str>,
-    arr_cache: Cache<[ValueObj]>,
-    dict_cache: Cache<[(ValueObj, ValueObj)]>,
+    str_cache: CacheSet<str>,
+    arr_cache: CacheSet<[ValueObj]>,
+    dict_cache: CacheSet<[(ValueObj, ValueObj)]>,
 }
 
 impl Deserializer {
     pub fn new() -> Self {
         Self {
-            str_cache: Cache::new(),
-            arr_cache: Cache::new(),
-            dict_cache: Cache::new(),
+            str_cache: CacheSet::new(),
+            arr_cache: CacheSet::new(),
+            dict_cache: CacheSet::new(),
         }
     }
 

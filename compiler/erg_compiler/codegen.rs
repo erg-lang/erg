@@ -4,7 +4,7 @@
 use std::fmt;
 use std::process;
 
-use erg_common::cache::Cache;
+use erg_common::cache::CacheSet;
 use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -298,7 +298,7 @@ impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
 #[derive(Debug)]
 pub struct CodeGenerator {
     cfg: ErgConfig,
-    str_cache: Cache<str>,
+    str_cache: CacheSet<str>,
     unit_size: usize,
     units: CodeGenStack,
     pub(crate) errs: CompileErrors,
@@ -308,7 +308,7 @@ impl CodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            str_cache: Cache::new(),
+            str_cache: CacheSet::new(),
             unit_size: 0,
             units: CodeGenStack::empty(),
             errs: CompileErrors::empty(),
