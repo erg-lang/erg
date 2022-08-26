@@ -191,8 +191,6 @@ impl ParamSpec {
 pub enum ContextKind {
     Func,
     Proc,
-    Tuple,
-    Record,
     Class,
     Trait,
     StructuralTrait,
@@ -255,11 +253,13 @@ pub struct Context {
     pub(crate) consts: Dict<VarName, ValueObj>,
     pub(crate) eval: Evaluator,
     // {"Nat": ctx, "Int": ctx, ...}
-    pub(crate) mono_types: Dict<VarName, Context>,
+    pub(crate) mono_types: Dict<VarName, (Type, Context)>,
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
-    // e.g. {"Array": [([Nat], ctx), ([Int], ctx), ([Str], ctx), ([Obj], ctx), (['T], ctx)], ...}
-    pub(crate) poly_types: Dict<VarName, Vec<(Vec<TyParam>, Context)>>,
+    // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
+    pub(crate) poly_classes: Dict<VarName, Vec<(Type, Context)>>,
+    // Traits cannot be specialized
+    pub(crate) poly_traits: Dict<VarName, (Type, Context)>,
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
@@ -295,7 +295,7 @@ impl fmt::Display for Context {
             .field("consts", &self.consts)
             .field("eval", &self.eval)
             .field("mono_types", &self.mono_types)
-            .field("poly_types", &self.poly_types)
+            .field("poly_types", &self.poly_classes)
             .field("patches", &self.patches)
             .field("mods", &self.mods)
             .finish()
@@ -368,7 +368,8 @@ impl Context {
             consts: Dict::default(),
             eval: Evaluator::default(),
             mono_types: Dict::default(),
-            poly_types: Dict::default(),
+            poly_classes: Dict::default(),
+            poly_traits: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
             _nlocals: 0,

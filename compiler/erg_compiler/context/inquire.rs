@@ -275,7 +275,7 @@ impl Context {
             }
             _ => {}
         }
-        for ctx in self.rec_get_nominal_super_type_ctxs(&self_t) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(&self_t) {
             if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
                 return Ok(t);
             }
@@ -303,7 +303,7 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            for ctx in self.rec_get_nominal_super_type_ctxs(obj.ref_t()) {
+            for (_, ctx) in self.rec_get_nominal_super_type_ctxs(obj.ref_t()) {
                 if let Some(vi) = ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
                 } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
@@ -543,6 +543,7 @@ impl Context {
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     let arg_t = pos_arg.expr.ref_t();
                     let param_t = &param_ty.ty;
+                    log!("{arg_t} <:? {param_t}");
                     self.sub_unify(arg_t, param_t, Some(pos_arg.loc()), None)
                         .map_err(|e| {
                             log!("{RED}semi-unification failed with {callee} ({arg_t} <:? {param_t})");
@@ -667,7 +668,7 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for ctx in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
             if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }
@@ -710,7 +711,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for ctx in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -863,12 +864,39 @@ impl Context {
         concatenated
     }
 
+    pub(crate) fn rec_get_nominal_super_trait_ctxs<'a>(
+        &'a self,
+        t: &Type,
+    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+        if let Some((_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+            ctx.super_traits.iter().map(|sup| {
+                log!("{sup}");
+                self.rec_get_nominal_type_ctx(&sup).unwrap()
+            })
+        } else {
+            todo!()
+        }
+    }
+
+    pub(crate) fn rec_get_nominal_super_class_ctxs<'a>(
+        &'a self,
+        t: &Type,
+    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+        if let Some((_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+            ctx.super_classes
+                .iter()
+                .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap())
+        } else {
+            todo!()
+        }
+    }
+
     pub(crate) fn rec_get_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = &'a Context> {
-        if let Some(ctx) = self.rec_get_nominal_type_ctx(t) {
-            vec![ctx].into_iter().chain(
+    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+        if let Some((t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+            vec![(t, ctx)].into_iter().chain(
                 ctx.super_classes
                     .iter()
                     .chain(ctx.super_traits.iter())
@@ -879,18 +907,35 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_nominal_type_ctx<'a>(&'a self, t: &Type) -> Option<&'a Context> {
-        match t {
+    pub(crate) fn rec_get_nominal_type_ctx<'a>(
+        &'a self,
+        typ: &Type,
+    ) -> Option<(&'a Type, &'a Context)> {
+        match typ {
             Type::Refinement(_) | Type::Quantified(_) => todo!(),
             other if other.is_monomorphic() => {
-                if let Some(ctx) = self.mono_types.get(&t.name()) {
-                    return Some(ctx);
+                if let Some((t, ctx)) = self.mono_types.get(&typ.name()) {
+                    return Some((t, ctx));
+                }
+            }
+            Type::PolyClass { name, params } => {
+                if let Some(params_and_ctxs) = self.poly_classes.get(name) {
+                    for (ctx_t, ctx) in params_and_ctxs {
+                        if self.poly_supertype_of(typ, &ctx_t.typarams(), params) {
+                            return Some((ctx_t, ctx));
+                        }
+                    }
+                }
+            }
+            Type::PolyTrait { name, params: _ } => {
+                if let Some((t, ctx)) = self.poly_traits.get(name) {
+                    return Some((t, ctx));
                 }
             }
             _ => todo!(),
         }
         if let Some(outer) = &self.outer {
-            outer.rec_get_nominal_type_ctx(t)
+            outer.rec_get_nominal_type_ctx(typ)
         } else {
             None
         }

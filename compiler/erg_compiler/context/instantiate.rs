@@ -104,19 +104,19 @@ impl TyVarContext {
         ctx: &Context,
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(&name) {
-            let c = ctx
+            let (_, ctx) = ctx
                 .rec_get_nominal_type_ctx(&poly_trait(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
-            let defined_params_len = c.params.len();
+            let defined_params_len = ctx.params.len();
             let given_params_len = params.len();
             if defined_params_len < given_params_len {
                 panic!()
             }
             let inst_non_defaults = params
                 .into_iter()
-                .map(|p| {
-                    let name = p.tvar_name().unwrap();
-                    let tp = self.instantiate_qtp(p);
+                .map(|tp| {
+                    let name = tp.tvar_name().unwrap();
+                    let tp = self.instantiate_qtp(tp);
                     self.push_or_init_typaram(&name, &tp);
                     tp
                 })
@@ -126,9 +126,9 @@ impl TyVarContext {
                 .into_iter()
                 .take(defined_params_len - given_params_len)
             {
-                let c = self.instantiate_const_template(&tvar_name, name, c);
-                self.push_or_init_typaram(&c.tvar_name().unwrap(), &c);
-                inst_defaults.push(c);
+                let tp = self.instantiate_const_template(&tvar_name, name, c);
+                self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
+                inst_defaults.push(tp);
             }
             poly_trait(name, [inst_non_defaults, inst_defaults].concat())
         } else {

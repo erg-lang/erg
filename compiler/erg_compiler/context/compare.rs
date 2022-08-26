@@ -242,6 +242,7 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        log!("{lhs} :>? {rhs}");
         if let Some(res) = self.inquire_cache(rhs, lhs) {
             return res;
         }
@@ -252,6 +253,7 @@ impl Context {
             }
             _ => {}
         }
+        log!("{lhs} :>? {rhs}");
         match self.trait_supertype_of(lhs, rhs) {
             (Absolutely, judge) => {
                 self.register_cache(rhs, lhs, judge);
@@ -259,6 +261,7 @@ impl Context {
             }
             _ => {}
         }
+        log!("{lhs} :>? {rhs}");
         for patch in self.patches.values() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
@@ -296,14 +299,42 @@ impl Context {
         if !lhs.is_class() || !rhs.is_class() {
             return (Maybe, false);
         }
-        todo!()
+        for (rhs_sup, _) in self.rec_get_nominal_super_class_ctxs(rhs) {
+            match self.cheap_supertype_of(lhs, rhs_sup) {
+                (Absolutely, true) => {
+                    return (Absolutely, true);
+                }
+                (Maybe, _) => {
+                    if self.structural_supertype_of(lhs, rhs_sup) {
+                        return (Absolutely, true);
+                    }
+                }
+                _ => {}
+            }
+        }
+        (Maybe, false)
     }
 
-    fn trait_supertype_of(&self, lhs: &Type, _rhs: &Type) -> (Credibility, bool) {
+    // e.g. Eq(Nat) :> Nat
+    // Nat.super_traits = [Add(Nat), Eq(Nat), ...]
+    fn trait_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
         if !lhs.is_trait() {
             return (Maybe, false);
         }
-        todo!()
+        for (rhs_sup, _) in self.rec_get_nominal_super_trait_ctxs(rhs) {
+            match self.cheap_supertype_of(lhs, rhs_sup) {
+                (Absolutely, true) => {
+                    return (Absolutely, true);
+                }
+                (Maybe, _) => {
+                    if self.structural_supertype_of(lhs, rhs_sup) {
+                        return (Absolutely, true);
+                    }
+                }
+                _ => {}
+            }
+        }
+        (Maybe, false)
     }
 
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
@@ -343,6 +374,7 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        log!("{lhs} :>? {rhs}");
         match (lhs, rhs) {
             (Subr(ls), Subr(rs))
                 if ls.kind.same_kind_as(&rs.kind)
@@ -363,10 +395,10 @@ impl Context {
             }
             // RefMut, OptionMut are invariant
             (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => self.supertype_of(lhs, rhs),
-            // (FreeVar(lfv), rhs) if lfv.is_linked() => self.supertype_of(&lfv.crack(), rhs),
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(lfv), rhs) => {
+                log!("{lhs} :>? {rhs}");
                 match &*lfv.borrow() {
                     FreeKind::Linked(t) => self.supertype_of(t, rhs),
                     FreeKind::Unbound { constraint, .. }
@@ -400,8 +432,8 @@ impl Context {
                 }
                 false*/
             }
-            // (lhs, FreeVar(lfv)) if lfv.is_linked() => self.supertype_of(lhs, &lfv.crack()),
             (lhs, FreeVar(rfv)) => {
+                log!("{lhs} :>? {rhs}");
                 match &*rfv.borrow() {
                     FreeKind::Linked(t) => self.supertype_of(lhs, t),
                     FreeKind::Unbound { constraint, .. }
@@ -519,68 +551,32 @@ impl Context {
             (
                 PolyClass {
                     name: ln,
-                    params: lps,
+                    params: lparams,
                 },
                 PolyClass {
                     name: rn,
-                    params: rps,
+                    params: rparams,
                 },
             ) => {
-                if ln != rn || lps.len() != rps.len() {
+                if ln != rn || lparams.len() != rparams.len() {
                     return false;
                 }
-                let ctx = self
-                    .rec_get_nominal_type_ctx(lhs)
-                    .unwrap_or_else(|| panic!("{ln} is not found"));
-                let variances = ctx.type_params_variance();
-                debug_assert_eq!(lps.len(), variances.len());
-                lps.iter()
-                    .zip(rps.iter())
-                    .zip(variances.iter())
-                    .all(|((lp, rp), variance)| match (lp, rp, variance) {
-                        (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
-                            self.subtype_of(l, r)
-                        }
-                        (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                            // if matches!(r.as_ref(), &Type::Refinement(_)) { log!("{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
-                            self.supertype_of(l, r)
-                        }
-                        // Invariant
-                        _ => self.eq_tp(lp, rp),
-                    })
+                self.poly_supertype_of(lhs, lparams, rparams)
             }
             (
                 PolyTrait {
                     name: ln,
-                    params: lps,
+                    params: lparams,
                 },
                 PolyTrait {
                     name: rn,
-                    params: rps,
+                    params: rparams,
                 },
             ) => {
-                if ln != rn || lps.len() != rps.len() {
+                if ln != rn || lparams.len() != rparams.len() {
                     return false;
                 }
-                let ctx = self
-                    .rec_get_nominal_type_ctx(lhs)
-                    .unwrap_or_else(|| panic!("{ln} is not found"));
-                let variances = ctx.type_params_variance();
-                debug_assert_eq!(lps.len(), variances.len());
-                lps.iter()
-                    .zip(rps.iter())
-                    .zip(variances.iter())
-                    .all(|((lp, rp), variance)| match (lp, rp, variance) {
-                        (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
-                            self.subtype_of(l, r)
-                        }
-                        (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                            // if matches!(r.as_ref(), &Type::Refinement(_)) { log!("{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
-                            self.supertype_of(l, r)
-                        }
-                        // Invariant
-                        _ => self.eq_tp(lp, rp),
-                    })
+                self.poly_supertype_of(lhs, lparams, rparams)
             }
             (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
                 panic!("Not instantiated type variable: {name}, r: {r}")
@@ -590,6 +586,34 @@ impl Context {
             }
             (_l, _r) => false,
         }
+    }
+
+    pub(crate) fn poly_supertype_of(
+        &self,
+        typ: &Type,
+        lparams: &Vec<TyParam>,
+        rparams: &Vec<TyParam>,
+    ) -> bool {
+        let (_, ctx) = self
+            .rec_get_nominal_type_ctx(typ)
+            .unwrap_or_else(|| panic!("{typ} is not found"));
+        let variances = ctx.type_params_variance();
+        debug_assert_eq!(lparams.len(), variances.len());
+        lparams
+            .iter()
+            .zip(rparams.iter())
+            .zip(variances.iter())
+            .all(|((lp, rp), variance)| match (lp, rp, variance) {
+                (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
+                    self.subtype_of(l, r)
+                }
+                (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
+                    // if matches!(r.as_ref(), &Type::Refinement(_)) { log!("{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
+                    self.supertype_of(l, r)
+                }
+                // Invariant
+                _ => self.eq_tp(lp, rp),
+            })
     }
 
     /// lhs <: rhs?

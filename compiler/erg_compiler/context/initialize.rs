@@ -78,28 +78,60 @@ impl Context {
                         );
                     }
                 }
-                self.mono_types.insert(name, ctx);
+                self.mono_types.insert(name, (t, ctx));
             }
         } else {
-            if let Some(ctxs) = self.poly_types.get_mut(&t.name()) {
-                ctxs.push((t.typarams(), ctx));
+            if t.is_class() {
+                self.register_poly_class(t, ctx, muty);
+            } else if t.is_trait() {
+                self.register_poly_trait(t, ctx, muty);
             } else {
-                let name = VarName::from_str(t.name());
-                self.locals
-                    .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-                self.consts.insert(name.clone(), ValueObj::t(t.clone()));
-                for impl_trait in ctx.super_traits.iter() {
-                    if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                        impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
-                    } else {
-                        self.trait_impls.insert(
-                            impl_trait.name(),
-                            vec![TraitInstance::new(t.clone(), impl_trait.clone())],
-                        );
-                    }
-                }
-                self.poly_types.insert(name, vec![(t.typarams(), ctx)]);
+                todo!()
             }
+        }
+    }
+
+    fn register_poly_class(&mut self, t: Type, ctx: Self, muty: Mutability) {
+        if let Some(ctxs) = self.poly_classes.get_mut(&t.name()) {
+            ctxs.push((t, ctx));
+        } else {
+            let name = VarName::from_str(t.name());
+            self.locals
+                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.consts.insert(name.clone(), ValueObj::t(t.clone()));
+            for impl_trait in ctx.super_traits.iter() {
+                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                } else {
+                    self.trait_impls.insert(
+                        impl_trait.name(),
+                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                    );
+                }
+            }
+            self.poly_classes.insert(name, vec![(t, ctx)]);
+        }
+    }
+
+    fn register_poly_trait(&mut self, t: Type, ctx: Self, muty: Mutability) {
+        if self.poly_traits.contains_key(&t.name()) {
+            panic!("{} has already been registered", t.name());
+        } else {
+            let name = VarName::from_str(t.name());
+            self.locals
+                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.consts.insert(name.clone(), ValueObj::t(t.clone()));
+            for impl_trait in ctx.super_traits.iter() {
+                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                } else {
+                    self.trait_impls.insert(
+                        impl_trait.name(),
+                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                    );
+                }
+            }
+            self.poly_traits.insert(name, (t, ctx));
         }
     }
 
@@ -187,6 +219,15 @@ impl Context {
             vec![poly_trait("Eq", vec![]), poly_trait("PartialOrd", vec![])],
             Self::TOP_LEVEL,
         );
+        let num = Self::mono_trait(
+            "Num",
+            vec![
+                poly_trait("Add", vec![]),
+                poly_trait("Sub", vec![]),
+                poly_trait("Mul", vec![]),
+            ],
+            Self::TOP_LEVEL,
+        );
         let mut seq = Self::poly_trait(
             "Seq",
             vec![PS::t("T", NonDefault)],
@@ -270,6 +311,7 @@ impl Context {
             Const,
         );
         self.register_type(trait_("Ord"), ord, Const);
+        self.register_type(trait_("Num"), num, Const);
         self.register_type(poly_trait("Seq", vec![ty_tp(mono_q("T"))]), seq, Const);
         self.register_type(poly_trait("Input", vec![ty_tp(mono_q("T"))]), input, Const);
         self.register_type(
@@ -281,7 +323,6 @@ impl Context {
         self.register_type(poly_trait("Sub", ty_params.clone()), sub, Const);
         self.register_type(poly_trait("Mul", ty_params.clone()), mul, Const);
         self.register_type(poly_trait("Div", ty_params), div, Const);
-        // self.register_type(trait_("Num"), num, Const);
         self.register_const_param_defaults(
             "Eq",
             vec![ConstTemplate::Obj(ValueObj::t(mono_q("Self")))],
@@ -333,9 +374,9 @@ impl Context {
                 poly_trait("Mul", vec![ty_tp(Int)]),
                 poly_trait("Div", vec![ty_tp(Int)]),
                 trait_("Num"),
-                trait_("Rational"),
-                trait_("Integral"),
-                trait_("Mutate"),
+                // trait_("Rational"),
+                // trait_("Integral"),
+                trait_("Mutizable"),
             ],
             Self::TOP_LEVEL,
         );
@@ -363,9 +404,9 @@ impl Context {
                 poly_trait("Mul", vec![ty_tp(Nat)]),
                 poly_trait("Div", vec![ty_tp(Nat)]),
                 trait_("Num"),
-                trait_("Rational"),
-                trait_("Integral"),
-                trait_("Mutate"),
+                // trait_("Rational"),
+                // trait_("Integral"),
+                trait_("Mutizable"),
             ],
             Self::TOP_LEVEL,
         );
@@ -403,7 +444,7 @@ impl Context {
                 poly_trait("Sub", vec![ty_tp(Float)]),
                 poly_trait("Mul", vec![ty_tp(Float)]),
                 poly_trait("Div", vec![ty_tp(Float)]),
-                trait_("Mutate"),
+                trait_("Mutizable"),
             ],
             Self::TOP_LEVEL,
         );
@@ -430,7 +471,7 @@ impl Context {
                 poly_trait("Sub", vec![ty_tp(Ratio)]),
                 poly_trait("Mul", vec![ty_tp(Ratio)]),
                 poly_trait("Div", vec![ty_tp(Ratio)]),
-                trait_("Mutate"),
+                trait_("Mutizable"),
             ],
             Self::TOP_LEVEL,
         );
@@ -451,15 +492,15 @@ impl Context {
             vec![Nat, Int, Obj],
             vec![
                 trait_("Num"),
-                trait_("Rational"),
-                trait_("Integral"),
+                // trait_("Rational"),
+                // trait_("Integral"),
                 poly_trait("Eq", vec![ty_tp(Bool)]),
                 trait_("Ord"),
                 // mono("SelfAdd"),
                 // mono("SelfSub"),
                 // mono("SelfMul"),
                 // mono("SelfDiv"),
-                trait_("Mutate"),
+                trait_("Mutizable"),
             ],
             Self::TOP_LEVEL,
         );
@@ -472,7 +513,7 @@ impl Context {
             vec![
                 poly_trait("Eq", vec![ty_tp(Str)]),
                 trait_("Ord"),
-                trait_("Mutate"),
+                trait_("Mutizable"),
                 poly_trait("Seq", vec![ty_tp(Str)]),
                 poly_trait("Add", vec![ty_tp(Str)]),
                 poly_trait("Mul", vec![ty_tp(Nat)]),
@@ -523,7 +564,7 @@ impl Context {
                         vec![ty_tp(mono_q("T")), mono_q_tp("N")],
                     ))],
                 ),
-                trait_("Mutate"),
+                trait_("Mutizable"),
                 poly_trait("Seq", vec![ty_tp(mono_q("T"))]),
                 poly_trait("Output", vec![ty_tp(mono_q("T"))]),
             ],
@@ -636,7 +677,7 @@ impl Context {
                 Obj,
             ],
             vec![
-                trait_("Mutate"),
+                trait_("Mutizable"),
                 poly_trait("Seq", vec![ty_tp(mono_q("T"))]),
             ],
             Self::TOP_LEVEL,
@@ -682,7 +723,7 @@ impl Context {
                     "Eq",
                     vec![ty_tp(poly_class("Range", vec![ty_tp(mono_q("T"))]))],
                 ),
-                trait_("Mutate"),
+                trait_("Mutizable"),
                 poly_trait("Seq", vec![ty_tp(mono_q("T"))]),
                 poly_trait("Output", vec![ty_tp(mono_q("T"))]),
             ],
@@ -888,7 +929,7 @@ impl Context {
         /* unary */
         // TODO: Boolの+/-は警告を出したい
         let op_t = func1(mono_q("T"), mono_proj(mono_q("T"), "MutType!"));
-        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), trait_("Mutate"))});
+        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), trait_("Mutizable"))});
         self.register_impl("__mutate__", op_t, Const, Private);
         let n = mono_q("N");
         let op_t = func1(n.clone(), n.clone());

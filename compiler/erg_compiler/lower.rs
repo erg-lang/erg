@@ -198,7 +198,7 @@ impl ASTLowerer {
         log!("[DEBUG] entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());
-        self.ctx.grow("<record>", ContextKind::Record, Private)?;
+        self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
         for attr in record.attrs.into_iter() {
             let attr = self.lower_def(attr)?;
             hir_record.push(attr);

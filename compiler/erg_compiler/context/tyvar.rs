@@ -953,6 +953,7 @@ impl Context {
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj {
             return Ok(());
         }
+        log!("{maybe_sub} <:? {maybe_sup}");
         let maybe_sub_is_sub = self.rec_subtype_of(maybe_sub, maybe_sup);
         if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() && maybe_sub_is_sub {
             return Ok(());
@@ -994,6 +995,7 @@ impl Context {
                 }
             }
             (l, Type::FreeVar(rfv)) if rfv.is_unbound() => {
+                log!("{l}, {rfv}");
                 match &mut *rfv.borrow_mut() {
                     FreeKind::NamedUnbound { constraint, .. }
                     | FreeKind::Unbound { constraint, .. } => match constraint {
@@ -1097,7 +1099,7 @@ impl Context {
             _ => {}
         }
         let mut opt_smallest = None;
-        for ctx in self.rec_get_nominal_super_type_ctxs(maybe_sub) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(maybe_sub) {
             let maybe_sup = if maybe_sup.has_qvar() {
                 let bounds = ctx.type_params_bounds();
                 let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
