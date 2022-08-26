@@ -5,25 +5,27 @@ use std::fmt;
 use std::process;
 
 use erg_common::cache::Cache;
-use erg_common::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::opcode::Opcode;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{TypeCode, TypePair};
-use erg_common::value::ValueObj;
+use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
     debug_power_assert, enum_unwrap, fn_name_full, impl_stream_for_wrapper, log, switch_unreachable,
 };
+use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
 use erg_parser::ast::{Identifier, ParamPattern, Params, VarName, VarPattern};
 use erg_parser::token::{Token, TokenCategory, TokenKind};
 
+use erg_type::value::ValueObj;
+use erg_type::{HasType, TypeCode, TypePair};
+
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
+use crate::eval::eval_lit;
 use crate::hir::{
     Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
 };
@@ -850,7 +852,7 @@ impl CodeGenerator {
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Lit(lit) => {
-                self.emit_load_const(ValueObj::from(&lit));
+                self.emit_load_const(eval_lit(&lit));
                 self.write_instr(Opcode::COMPARE_OP);
                 self.write_arg(2); // ==
                 self.stack_dec();

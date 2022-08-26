@@ -15,11 +15,13 @@ use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{Predicate, TyBound, Type};
-use erg_common::typaram::TyParam;
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
+
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{Predicate, TyBound, Type};
 use Type::*;
 
 use ast::{DefId, VarName};

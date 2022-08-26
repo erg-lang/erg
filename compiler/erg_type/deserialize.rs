@@ -2,17 +2,17 @@
 use std::process;
 use std::string::FromUtf8Error;
 
-use crate::cache::Cache;
+use erg_common::cache::Cache;
+use erg_common::config::{ErgConfig, Input};
+use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::serialize::DataTypePrefix;
+use erg_common::{fn_name, switch_lang};
+use erg_common::{RcArray, Str};
+
 use crate::codeobj::CodeObj;
-use crate::config::{ErgConfig, Input};
-use crate::error::{ErrorCore, ErrorKind, Location};
-use crate::serialize::DataTypePrefix;
-use crate::traits::HasType;
-use crate::ty::Type;
 use crate::typaram::TyParam;
 use crate::value::ValueObj;
-use crate::{fn_name, switch_lang};
-use crate::{RcArray, Str};
+use crate::{HasType, Type};
 
 #[derive(Debug)]
 pub struct DeserializeError {

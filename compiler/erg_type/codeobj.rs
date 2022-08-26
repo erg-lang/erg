@@ -3,15 +3,15 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
+use erg_common::impl_display_from_debug;
+use erg_common::opcode::Opcode;
+use erg_common::python_util::detect_magic_number;
+use erg_common::serialize::*;
+use erg_common::Str;
+
 use crate::deserialize::{DeserializeResult, Deserializer};
-use crate::impl_display_from_debug;
-use crate::opcode::Opcode;
-use crate::python_util::detect_magic_number;
-use crate::serialize::*;
-use crate::traits::HasType;
-use crate::ty::{Type, TypePair};
 use crate::value::ValueObj;
-use crate::Str;
+use crate::{HasType, Type, TypePair};
 
 pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
     let mut tuple = vec![];

@@ -2,21 +2,23 @@
 use std::fmt;
 
 use erg_common::error::Location;
-use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
-use erg_common::ty::Type;
-use erg_common::typaram::TyParam;
-use erg_common::value::{Field, ValueObj, Visibility};
+use erg_common::traits::{Locational, NestedDisplay, Stream};
+use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
     enum_unwrap, impl_display_for_enum, impl_display_from_nested, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream_for_wrapper, impl_t, impl_t_for_enum,
+    impl_stream_for_wrapper,
 };
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::error::readable_name;
+use crate::eval::type_from_token_kind;
 
 #[derive(Debug, Clone)]
 pub struct Literal {
@@ -44,7 +46,7 @@ impl Locational for Literal {
 
 impl From<Token> for Literal {
     fn from(token: Token) -> Self {
-        let data = ValueObj::from_str(Type::from(token.kind), token.content.clone());
+        let data = ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone());
         Self {
             t: data.t(),
             data,
@@ -54,16 +56,6 @@ impl From<Token> for Literal {
 }
 
 impl Literal {
-    pub fn new(c: ValueObj, lineno: usize, col: usize) -> Self {
-        let kind = TokenKind::from(&c);
-        let token = Token::new(kind, c.to_string(), lineno, col);
-        Self {
-            t: c.t(),
-            data: c,
-            token,
-        }
-    }
-
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)

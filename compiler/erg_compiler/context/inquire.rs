@@ -5,13 +5,10 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::color::{GREEN, RED};
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
-use erg_common::free::Constraint;
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, SubrKind, SubrType, TyBound, Type};
-use erg_common::typaram::TyParam;
-use erg_common::value::{Field, ValueObj, Visibility};
+use erg_common::traits::{Locational, Stream};
+use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
 use Type::*;
@@ -19,6 +16,11 @@ use Type::*;
 use ast::VarName;
 use erg_parser::ast;
 use erg_parser::token::Token;
+
+use erg_type::free::Constraint;
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
 use crate::context::{Context, ContextKind, RegistrationMode, TraitInstancePair, Variance};

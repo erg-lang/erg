@@ -1,15 +1,17 @@
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::free::HasLevel;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, SubrType, TyBound, Type};
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
-use Type::*;
+use erg_type::free::HasLevel;
 
 use ast::{DefId, VarName};
 use erg_parser::ast;
+
+use erg_type::value::ValueObj;
+use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
+use Type::*;
 
 use crate::context::{Context, DefaultInfo, RegistrationMode};
 use crate::error::readable_name;

@@ -2,14 +2,11 @@
 use std::fmt;
 
 pub mod cache;
-pub mod codeobj;
 pub mod color;
 pub mod config;
 pub mod datetime;
-pub mod deserialize;
 pub mod dict;
 pub mod error;
-pub mod free;
 pub mod fxhash;
 pub mod levenshtein;
 pub mod macros;
@@ -22,9 +19,7 @@ pub mod stdin;
 pub mod str;
 pub mod traits;
 pub mod tsort;
-pub mod ty;
-pub mod typaram;
-pub mod value;
+pub mod vis;
 
 use crate::set::Set;
 pub use crate::str::Str;

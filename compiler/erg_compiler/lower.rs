@@ -4,14 +4,16 @@
 use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
 use erg_common::get_hash;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, Type};
-use erg_common::typaram::TyParam;
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::{fn_name, log, switch_lang};
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
+
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{Context, ContextKind, RegistrationMode};
 use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};

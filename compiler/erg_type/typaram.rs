@@ -2,11 +2,12 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 
+use erg_common::traits::LimitedDisplay;
+
 use crate::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
-use crate::traits::LimitedDisplay;
-use crate::ty::Type;
 use crate::value::ValueObj;
 use crate::Str;
+use crate::Type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]

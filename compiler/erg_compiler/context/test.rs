@@ -1,8 +1,8 @@
 //! test module for `Context`
-use erg_common::ty::{Predicate, TyBound, Type};
-use erg_common::typaram::TyParam;
 use erg_common::Str;
 use erg_common::{enum_unwrap, set};
+use erg_type::typaram::TyParam;
+use erg_type::{Predicate, TyBound, Type};
 use Type::*;
 
 use crate::context::instantiate::TyVarContext;

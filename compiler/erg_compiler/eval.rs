@@ -4,19 +4,71 @@ use erg_common::dict::Dict;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
-use erg_common::ty::{Predicate, SubrKind, TyBound, Type};
-use erg_common::typaram::{OpKind, TyParam};
-use erg_common::value::{Field, ValueObj};
+use erg_common::vis::Field;
 use erg_common::{fn_name, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
 use erg_parser::ast::*;
-use erg_parser::token::Token;
+use erg_parser::token::{Token, TokenKind};
+
+use erg_type::typaram::{OpKind, TyParam};
+use erg_type::value::ValueObj;
+use erg_type::{Predicate, SubrKind, TyBound, Type};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::Context;
 use crate::error::{EvalError, EvalResult, TyCheckResult};
+
+#[inline]
+pub fn type_from_token_kind(kind: TokenKind) -> Type {
+    use TokenKind::*;
+
+    match kind {
+        NatLit => Type::Nat,
+        IntLit => Type::Int,
+        RatioLit => Type::Ratio,
+        StrLit => Type::Str,
+        BoolLit => Type::Bool,
+        NoneLit => Type::NoneType,
+        NoImplLit => Type::NotImplemented,
+        EllipsisLit => Type::Ellipsis,
+        InfLit => Type::Inf,
+        other => panic!("this has not type: {other}"),
+    }
+}
+
+fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
+    match kind {
+        TokenKind::Plus => Ok(OpKind::Add),
+        TokenKind::Minus => Ok(OpKind::Sub),
+        TokenKind::Star => Ok(OpKind::Mul),
+        TokenKind::Slash => Ok(OpKind::Div),
+        TokenKind::Pow => Ok(OpKind::Pow),
+        TokenKind::Mod => Ok(OpKind::Mod),
+        TokenKind::DblEq => Ok(OpKind::Eq),
+        TokenKind::NotEq => Ok(OpKind::Ne),
+        TokenKind::Less => Ok(OpKind::Lt),
+        TokenKind::Gre => Ok(OpKind::Gt),
+        TokenKind::LessEq => Ok(OpKind::Le),
+        TokenKind::GreEq => Ok(OpKind::Ge),
+        TokenKind::AndOp => Ok(OpKind::And),
+        TokenKind::OrOp => Ok(OpKind::Or),
+        TokenKind::BitAnd => Ok(OpKind::BitAnd),
+        TokenKind::BitXor => Ok(OpKind::BitXor),
+        TokenKind::BitOr => Ok(OpKind::BitOr),
+        TokenKind::Shl => Ok(OpKind::Shl),
+        TokenKind::Shr => Ok(OpKind::Shr),
+        TokenKind::Mutate => Ok(OpKind::Mutate),
+        _other => Err(()),
+    }
+}
+
+#[inline]
+pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
+    let t = type_from_token_kind(lit.token.kind);
+    ValueObj::from_str(t, lit.token.content.clone())
+}
 
 /// SubstContext::new([?T; 0], Context(Array(T, N))) => SubstContext{ params: { T: ?T; N: 0 } }
 /// SubstContext::substitute([T; !N], Context(Array(T, N))): [?T; !0]
@@ -119,11 +171,6 @@ impl Evaluator {
         Self::default()
     }
 
-    #[inline]
-    pub(crate) fn eval_const_lit(&self, lit: &Literal) -> ValueObj {
-        ValueObj::from(lit)
-    }
-
     fn eval_const_acc(&self, _acc: &Accessor, ctx: &Context) -> Option<ValueObj> {
         match _acc {
             Accessor::Local(local) => {
@@ -144,9 +191,8 @@ impl Evaluator {
     fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
         match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
             (Expr::Lit(l), Expr::Lit(r)) => {
-                let op = OpKind::try_from(&bin.op).ok()?;
-                self.eval_bin_lit(op, ValueObj::from(l), ValueObj::from(r))
-                    .ok()
+                let op = try_get_op_kind_from_token(bin.op.kind).ok()?;
+                self.eval_bin_lit(op, eval_lit(l), eval_lit(r)).ok()
             }
             _ => None,
         }
@@ -155,8 +201,8 @@ impl Evaluator {
     fn eval_const_unary(&self, unary: &UnaryOp) -> Option<ValueObj> {
         match unary.args[0].as_ref() {
             Expr::Lit(lit) => {
-                let op = OpKind::try_from(&unary.op).ok()?;
-                self.eval_unary_lit(op, ValueObj::from(lit)).ok()
+                let op = try_get_op_kind_from_token(unary.op.kind).ok()?;
+                self.eval_unary_lit(op, eval_lit(lit)).ok()
             }
             _ => None,
         }
@@ -240,7 +286,7 @@ impl Evaluator {
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Some(self.eval_const_lit(lit)),
+            Expr::Lit(lit) => Some(eval_lit(lit)),
             Expr::Accessor(acc) => self.eval_const_acc(acc, ctx),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),

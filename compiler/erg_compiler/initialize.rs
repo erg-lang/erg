@@ -1,12 +1,13 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
-use erg_common::ty::type_constrs::*;
-use erg_common::ty::Type;
-use erg_common::typaram::TyParam;
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{debug_power_assert, set};
+use erg_type::constructors::*;
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::Type;
 use ParamSpec as PS;
 use Type::*;
 

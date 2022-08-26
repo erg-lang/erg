@@ -5,13 +5,12 @@
 use erg_common::color::{GREEN, RESET};
 use erg_common::log;
 use erg_common::traits::Stream;
-use erg_common::value::Visibility;
+use erg_common::vis::Visibility;
 use erg_common::Str;
+use Visibility::*;
 
 use crate::error::{EffectError, EffectErrors, EffectResult};
 use crate::hir::{Accessor, Def, Expr, Signature, HIR};
-
-use Visibility::*;
 
 #[derive(Debug)]
 pub struct SideEffectChecker {

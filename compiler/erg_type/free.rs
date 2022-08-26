@@ -2,11 +2,11 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::mem;
 
-use crate::rccell::RcCell;
-use crate::traits::LimitedDisplay;
-use crate::ty::Type;
 use crate::typaram::TyParam;
 use crate::Str;
+use crate::Type;
+use erg_common::rccell::RcCell;
+use erg_common::traits::LimitedDisplay;
 
 pub type Level = usize;
 pub type Id = usize;

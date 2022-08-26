@@ -3,14 +3,15 @@ use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ArgsOwnership, Ownership};
-use erg_common::value::Visibility;
+use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::Str;
+use Visibility::*;
+
+use erg_type::{ArgsOwnership, HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, HIR};
-use Visibility::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WrapperKind {

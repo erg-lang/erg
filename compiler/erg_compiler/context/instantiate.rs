@@ -3,26 +3,28 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::dict::Dict;
-use erg_common::free::Constraint;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{ParamTy, Predicate, SubrKind, TyBound, Type};
-use erg_common::typaram::{IntervalOp, TyParam, TyParamOrdering};
-use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{assume_unreachable, set, try_map};
+use erg_type::free::Constraint;
 use TyParamOrdering::*;
 use Type::*;
 
 use ast::{
-    ParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec, TypeBoundSpecs,
-    TypeSpec,
+    ParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, SubrKindSpec, TypeBoundSpec,
+    TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
 
+use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
+use erg_type::value::ValueObj;
+use erg_type::{ParamTy, Predicate, SubrKind, TyBound, Type};
+
 use crate::context::{Context, RegistrationMode};
 use crate::error::TyCheckResult;
+use crate::eval::eval_lit;
 use crate::hir;
 use RegistrationMode::*;
 
@@ -434,7 +436,7 @@ impl Context {
             self.instantiate_typespec(spec, mode)?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => Type::enum_t(set![self.eval.eval_const_lit(lit)]),
+                ast::ParamPattern::Lit(lit) => Type::enum_t(set![eval_lit(lit)]),
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -493,7 +495,7 @@ impl Context {
             other => {
                 // FIXME: kw args
                 let params = simple.args.pos_args().map(|arg| match &arg.expr {
-                    ast::ConstExpr::Lit(lit) => TyParam::Value(ValueObj::from(lit)),
+                    ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(lit)),
                     _ => {
                         todo!()
                     }
@@ -505,7 +507,7 @@ impl Context {
 
     pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyParam {
         match expr {
-            ast::ConstExpr::Lit(lit) => TyParam::Value(ValueObj::from(&lit.token)),
+            ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(&lit)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
                 TyParam::Mono(name.inspect().clone())
             }
@@ -569,7 +571,7 @@ impl Context {
                 set.pos_args()
                     .map(|arg| {
                         if let ast::ConstExpr::Lit(lit) = &arg.expr {
-                            ValueObj::from(lit)
+                            eval_lit(lit)
                         } else {
                             todo!()
                         }
@@ -602,12 +604,29 @@ impl Context {
                 })?;
                 let return_t = self.instantiate_typespec(&subr.return_t, mode)?;
                 Ok(Type::subr(
-                    subr.kind.clone(),
+                    self.instantiate_subr_kind(&subr.kind)?,
                     non_defaults,
                     defaults,
                     return_t,
                 ))
             }
+        }
+    }
+
+    fn instantiate_subr_kind(&self, kind: &SubrKindSpec) -> TyCheckResult<SubrKind> {
+        match kind {
+            SubrKindSpec::Func => Ok(SubrKind::Func),
+            SubrKindSpec::Proc => Ok(SubrKind::Proc),
+            SubrKindSpec::FuncMethod(spec) => {
+                Ok(SubrKind::fn_met(self.instantiate_typespec(spec, Normal)?))
+            }
+            SubrKindSpec::ProcMethod { before, after } => Ok(SubrKind::pr_met(
+                self.instantiate_typespec(before, Normal)?,
+                after
+                    .as_ref()
+                    .map(|after| self.instantiate_typespec(after, Normal))
+                    .transpose()?,
+            )),
         }
     }
 

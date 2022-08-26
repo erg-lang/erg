@@ -3,14 +3,14 @@ use std::mem;
 use std::option::Option;
 
 use erg_common::error::Location;
-use erg_common::free::{Constraint, FreeKind, HasLevel};
 use erg_common::set::Set;
-use erg_common::traits::{HasType, Stream};
-use erg_common::ty::{Predicate, SubrKind, TyBound, Type};
-use erg_common::typaram::TyParam;
-use erg_common::value::ValueObj;
+use erg_common::traits::Stream;
 use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, log, set};
+use erg_type::free::{Constraint, FreeKind, HasLevel};
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{HasType, Predicate, SubrKind, TyBound, Type};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{Context, TraitInstancePair, Variance};

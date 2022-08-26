@@ -1,11 +1,11 @@
 use std::fmt;
 
-use erg_common::traits::HasType;
-use erg_common::ty::Type;
-use erg_common::value::Visibility;
+use erg_common::vis::Visibility;
 use Visibility::*;
 
 use erg_parser::ast::DefId;
+
+use erg_type::{HasType, Type};
 
 use crate::context::DefaultInfo;
 

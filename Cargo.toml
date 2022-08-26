@@ -15,6 +15,7 @@ members = [
     "compiler/erg_common",
     "compiler/erg_compiler",
     "compiler/erg_parser",
+    "compiler/erg_type",
 ]
 
 [features]
@@ -23,27 +24,32 @@ debug = [
     "erg_common/debug",
     "erg_parser/debug",
     "erg_compiler/debug",
+    "erg_type/debug",
 ]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
     "erg_compiler/japanese",
+    "erg_type/japanese",
 ]
 simplified_chinese = [
     "erg_common/simplified_chinese",
     "erg_parser/simplified_chinese",
     "erg_compiler/simplified_chinese",
+    "erg_type/simplified_chinese",
 ]
 traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
+    "erg_type/traditional_chinese",
 ]
 
 [dependencies]
 erg_common = { version = "0.2.8", path = "./compiler/erg_common" }
 erg_parser = { version = "0.2.8", path = "./compiler/erg_parser" }
 erg_compiler = { version = "0.2.8", path = "./compiler/erg_compiler" }
+erg_type = { version = "0.2.8", path = "./compiler/erg_type" }
 
 # [workspace]
 # member = ["cm", "dyne"]

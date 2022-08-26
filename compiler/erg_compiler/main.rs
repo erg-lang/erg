@@ -5,13 +5,14 @@ extern crate erg_parser;
 use std::process;
 
 use erg_common::config::ErgConfig;
-use erg_common::deserialize::Deserializer;
 use erg_common::traits::Runnable;
 
 use erg_compiler::Compiler;
 
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
+
+use erg_type::deserialize::Deserializer;
 
 fn main() {
     let cfg = ErgConfig::parse();

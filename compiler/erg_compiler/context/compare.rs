@@ -2,13 +2,13 @@
 use std::cmp::Ordering;
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::free::{Constraint, FreeKind, FreeTyVar};
-use erg_common::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
-use erg_common::typaram::{TyParam, TyParamOrdering};
+use erg_type::free::fresh_varname;
+use erg_type::free::{Constraint, FreeKind, FreeTyVar};
+use erg_type::typaram::{TyParam, TyParamOrdering};
+use erg_type::value::ValueObj::Inf;
+use erg_type::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
-use erg_common::free::fresh_varname;
-use erg_common::value::ValueObj::Inf;
 use erg_common::Str;
 use erg_common::{assume_unreachable, enum_unwrap, log, set};
 use TyParamOrdering::*;

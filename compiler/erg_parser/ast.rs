@@ -5,8 +5,9 @@ use std::fmt;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
-use erg_common::ty::SubrKind;
-use erg_common::value::{Field, ValueObj, Visibility};
+use erg_common::vis::{Field, Visibility};
+// use erg_common::ty::SubrKind;
+// use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -58,13 +59,6 @@ impl From<Token> for Literal {
     #[inline]
     fn from(token: Token) -> Self {
         Self { token }
-    }
-}
-
-impl From<&Literal> for ValueObj {
-    #[inline]
-    fn from(lit: &Literal) -> ValueObj {
-        ValueObj::from(&lit.token)
     }
 }
 
@@ -1321,9 +1315,29 @@ impl ParamTySpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SubrKindSpec {
+    Func,
+    Proc,
+    FuncMethod(Box<TypeSpec>),
+    ProcMethod {
+        before: Box<TypeSpec>,
+        after: Option<Box<TypeSpec>>,
+    },
+}
+
+impl SubrKindSpec {
+    pub const fn arrow(&self) -> Str {
+        match self {
+            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
+            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTySpec {
-    pub kind: SubrKind,
+    pub kind: SubrKindSpec,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub defaults: Vec<ParamTySpec>,
@@ -1356,7 +1370,7 @@ impl Locational for SubrTySpec {
 
 impl SubrTySpec {
     pub fn new(
-        kind: SubrKind,
+        kind: SubrKindSpec,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
@@ -1463,7 +1477,7 @@ impl TypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self::Subr(SubrTySpec::new(
-            SubrKind::Func,
+            SubrKindSpec::Func,
             lparen,
             non_defaults,
             defaults,
@@ -1478,7 +1492,7 @@ impl TypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self::Subr(SubrTySpec::new(
-            SubrKind::Proc,
+            SubrKindSpec::Proc,
             lparen,
             non_defaults,
             defaults,
