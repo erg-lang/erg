@@ -1,5 +1,6 @@
 //! test module for `Context`
-use erg_common::ty::{Predicate, TyBound, TyParam, Type};
+use erg_common::ty::{Predicate, TyBound, Type};
+use erg_common::typaram::TyParam;
 use erg_common::Str;
 use erg_common::{enum_unwrap, set};
 use Type::*;

@@ -11,11 +11,13 @@ use std::rc::Rc;
 
 use crate::codeobj::CodeObj;
 use crate::dict::Dict;
+use crate::free::fresh_varname;
 use crate::rccell::RcCell;
 use crate::serialize::*;
 use crate::set;
 use crate::traits::HasType;
-use crate::ty::{fresh_varname, ConstSubr, Predicate, TyParam, Type};
+use crate::ty::{ConstSubr, Predicate, Type};
+use crate::typaram::TyParam;
 use crate::{fmt_iter, impl_display_from_debug, switch_lang};
 use crate::{RcArray, Str};
 

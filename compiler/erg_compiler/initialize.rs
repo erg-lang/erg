@@ -2,7 +2,8 @@
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
 use erg_common::ty::type_constrs::*;
-use erg_common::ty::{TyParam, Type};
+use erg_common::ty::Type;
+use erg_common::typaram::TyParam;
 use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{debug_power_assert, set};

@@ -8,7 +8,8 @@ use erg_common::error::Location;
 use erg_common::impl_displayable_stream_for_wrapper;
 use erg_common::str::Str;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{OpKind, Type};
+use erg_common::ty::Type;
+use erg_common::typaram::OpKind;
 use erg_common::value::ValueObj;
 
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である

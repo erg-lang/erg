@@ -9,6 +9,7 @@ pub mod datetime;
 pub mod deserialize;
 pub mod dict;
 pub mod error;
+pub mod free;
 pub mod fxhash;
 pub mod levenshtein;
 pub mod macros;
@@ -22,6 +23,7 @@ pub mod str;
 pub mod traits;
 pub mod tsort;
 pub mod ty;
+pub mod typaram;
 pub mod value;
 
 use crate::set::Set;

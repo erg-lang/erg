@@ -1,7 +1,8 @@
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::free::HasLevel;
 use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{HasLevel, ParamTy, SubrType, TyBound, Type};
+use erg_common::ty::{ParamTy, SubrType, TyBound, Type};
 use erg_common::value::{ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};

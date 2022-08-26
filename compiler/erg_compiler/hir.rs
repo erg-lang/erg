@@ -3,7 +3,8 @@ use std::fmt;
 
 use erg_common::error::Location;
 use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
-use erg_common::ty::{TyParam, Type};
+use erg_common::ty::Type;
+use erg_common::typaram::TyParam;
 use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{

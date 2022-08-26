@@ -3,9 +3,11 @@ use std::mem;
 use std::option::Option;
 
 use erg_common::error::Location;
+use erg_common::free::{Constraint, FreeKind, HasLevel};
 use erg_common::set::Set;
 use erg_common::traits::{HasType, Stream};
-use erg_common::ty::{Constraint, FreeKind, HasLevel, Predicate, SubrKind, TyBound, TyParam, Type};
+use erg_common::ty::{Predicate, SubrKind, TyBound, Type};
+use erg_common::typaram::TyParam;
 use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, log, set};

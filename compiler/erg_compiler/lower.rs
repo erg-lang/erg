@@ -5,7 +5,8 @@ use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
 use erg_common::get_hash;
 use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, TyParam, Type};
+use erg_common::ty::{ParamTy, Type};
+use erg_common::typaram::TyParam;
 use erg_common::value::{ValueObj, Visibility};
 use erg_common::{fn_name, log, switch_lang};
 

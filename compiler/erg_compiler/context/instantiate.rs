@@ -3,11 +3,11 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::dict::Dict;
+use erg_common::free::Constraint;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{
-    Constraint, IntervalOp, ParamTy, Predicate, SubrKind, TyBound, TyParam, TyParamOrdering, Type,
-};
+use erg_common::ty::{ParamTy, Predicate, SubrKind, TyBound, Type};
+use erg_common::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use erg_common::value::ValueObj;
 use erg_common::Str;
 use erg_common::{assume_unreachable, set, try_map};

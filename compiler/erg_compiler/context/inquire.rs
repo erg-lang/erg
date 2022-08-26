@@ -5,10 +5,12 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::color::{GREEN, RED};
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
+use erg_common::free::Constraint;
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{Constraint, ParamTy, SubrKind, SubrType, TyBound, TyParam, Type};
+use erg_common::ty::{ParamTy, SubrKind, SubrType, TyBound, Type};
+use erg_common::typaram::TyParam;
 use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
