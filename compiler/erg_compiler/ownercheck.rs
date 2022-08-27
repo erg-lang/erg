@@ -142,9 +142,8 @@ impl OwnershipChecker {
                 }
             }
             Expr::Accessor(Accessor::Attr(a)) => {
-                if a.ref_t().is_mut() {
-                    todo!("ownership checking {a}")
-                }
+                // REVIEW: is ownership the same?
+                self.check_expr(&a.obj, ownership)
             }
             Expr::Accessor(_a) => todo!(),
             // TODO: referenced
@@ -214,6 +213,13 @@ impl OwnershipChecker {
                 }
                 _ => todo!(),
             },
+            Expr::Record(rec) => {
+                for def in rec.attrs.iter() {
+                    for chunk in def.body.block.iter() {
+                        self.check_expr(chunk, ownership);
+                    }
+                }
+            }
             // TODO: capturing
             Expr::Lambda(lambda) => {
                 let name_and_vis = (Str::from(format!("<lambda_{}>", lambda.id)), Private);
