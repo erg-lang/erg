@@ -1,6 +1,6 @@
 use std::fs::remove_file;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -30,12 +30,12 @@ impl Runnable for DummyVM {
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
             println!("Starting the REPL server...");
-            let code = include_str!("scripts/repl_server.py");
-            exec_py(code);
+            let port = find_available_port();
+            let code = include_str!("scripts/repl_server.py")
+                .replace("__PORT__", port.to_string().as_str());
+            exec_py(&code);
+            let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
             println!("Connecting to the REPL server...");
-            let repl_server_ip = "127.0.0.1";
-            let repl_server_port = 8736;
-            let addr = format!("{repl_server_ip}:{repl_server_port}");
             loop {
                 match TcpStream::connect(&addr) {
                     Ok(stream) => {
@@ -127,4 +127,18 @@ impl Runnable for DummyVM {
         }
         Ok(res)
     }
+}
+
+fn find_available_port() -> u16 {
+    const DEFAULT_PORT: u16 = 8736;
+    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, DEFAULT_PORT))
+        .is_ok()
+        .then_some(DEFAULT_PORT)
+        .unwrap_or_else(|| {
+            let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
+            TcpListener::bind(socket)
+                .and_then(|listener| listener.local_addr())
+                .map(|sock_addr| sock_addr.port())
+                .expect("No free port found.")
+        })
 }
