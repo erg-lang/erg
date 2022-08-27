@@ -38,7 +38,11 @@ impl Context {
     // TODO: is it impossible to avoid .clone()?
     fn inquire_cache(&self, sub: &Type, sup: &Type) -> Option<bool> {
         if sub.is_cachable() && sup.is_cachable() {
-            GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()))
+            let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
+            if res.is_some() {
+                log!("cache hit");
+            }
+            res
         } else {
             None
         }
@@ -116,10 +120,6 @@ impl Context {
         self.rec_supertype_of(lhs, rhs) && self.rec_subtype_of(lhs, rhs)
     }
 
-    pub(crate) fn _rec_related(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.rec_supertype_of(lhs, rhs) || self.rec_subtype_of(lhs, rhs)
-    }
-
     pub(crate) fn related(&self, lhs: &Type, rhs: &Type) -> bool {
         self.supertype_of(lhs, rhs) || self.subtype_of(lhs, rhs)
     }
@@ -142,10 +142,6 @@ impl Context {
                 judge || self.structural_subtype_of(lhs, rhs) || self.nominal_subtype_of(lhs, rhs)
             }
         }
-    }
-
-    pub(crate) fn _same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.supertype_of(lhs, rhs) && self.subtype_of(lhs, rhs)
     }
 
     pub(crate) fn cheap_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
@@ -234,7 +230,7 @@ impl Context {
                 _ => (Maybe, false),
             },
             (Type::MonoClass(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
-            (lhs, rhs) if lhs.is_basic_class() && rhs.is_basic_class() => (Absolutely, false),
+            (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
             _ => (Maybe, false),
         }
     }
@@ -367,11 +363,12 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        log!("structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         match (lhs, rhs) {
-            (Subr(ls), Subr(rs))
-                if ls.kind.same_kind_as(&rs.kind)
-                    && (ls.kind == SubrKind::Func || ls.kind == SubrKind::Proc) =>
-            {
+            (Subr(ls), Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
+                if ls.kind.self_t().is_some() {
+                    todo!("method type is not supported yet")
+                }
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
                 ls.non_default_params.len() == rs.non_default_params.len()
@@ -554,6 +551,7 @@ impl Context {
             (Not(_, _), _rhs) => todo!(),
             (VarArgs(lhs), rhs) => self.supertype_of(lhs, rhs),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
+            // REVIEW: RefMut is invariant, maybe
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),
             (
                 PolyClass {

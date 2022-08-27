@@ -625,7 +625,7 @@ impl Context {
         );
         int_mut.register_const("ImmutType", ValueObj::t(Int));
         let f_t = param_t("f", func(vec![param_t("old", Int)], vec![], Int));
-        let t = pr_met(class("Int!"), None, vec![f_t], vec![], class("Int!"));
+        let t = pr_met(class("Int!"), None, vec![f_t], vec![], NoneType);
         int_mut.register_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
             "Nat!",
@@ -635,7 +635,7 @@ impl Context {
         );
         nat_mut.register_const("ImmutType", ValueObj::t(Nat));
         let f_t = param_t("f", func(vec![param_t("old", Nat)], vec![], Nat));
-        let t = pr_met(class("Nat!"), None, vec![f_t], vec![], class("Nat!"));
+        let t = pr_met(class("Nat!"), None, vec![f_t], vec![], NoneType);
         nat_mut.register_impl("update!", t, Immutable, Public);
         let mut float_mut = Self::mono_class(
             "Float!",
@@ -645,7 +645,7 @@ impl Context {
         );
         float_mut.register_const("ImmutType", ValueObj::t(Float));
         let f_t = param_t("f", func(vec![param_t("old", Float)], vec![], Float));
-        let t = pr_met(class("Float!"), None, vec![f_t], vec![], class("Float!"));
+        let t = pr_met(class("Float!"), None, vec![f_t], vec![], NoneType);
         float_mut.register_impl("update!", t, Immutable, Public);
         let mut ratio_mut = Self::mono_class(
             "Ratio!",
@@ -658,7 +658,7 @@ impl Context {
             "f",
             func(vec![param_t("old", class("Ratio"))], vec![], class("Ratio")),
         );
-        let t = pr_met(class("Ratio!"), None, vec![f_t], vec![], class("Ratio!"));
+        let t = pr_met(class("Ratio!"), None, vec![f_t], vec![], NoneType);
         ratio_mut.register_impl("update!", t, Immutable, Public);
         let mut bool_mut = Self::mono_class(
             "Bool!",
@@ -668,7 +668,7 @@ impl Context {
         );
         bool_mut.register_const("ImmutType", ValueObj::t(Bool));
         let f_t = param_t("f", func(vec![param_t("old", Bool)], vec![], Bool));
-        let t = pr_met(class("Bool!"), None, vec![f_t], vec![], class("Bool!"));
+        let t = pr_met(class("Bool!"), None, vec![f_t], vec![], NoneType);
         bool_mut.register_impl("update!", t, Immutable, Public);
         let mut str_mut = Self::mono_class(
             "Str!",
@@ -678,7 +678,7 @@ impl Context {
         );
         str_mut.register_const("ImmutType", ValueObj::t(Str));
         let f_t = param_t("f", func(vec![param_t("old", Str)], vec![], Str));
-        let t = pr_met(class("Str!"), None, vec![f_t], vec![], class("Str!"));
+        let t = pr_met(class("Str!"), None, vec![f_t], vec![], NoneType);
         str_mut.register_impl("update!", t, Immutable, Public);
         let array_mut_t = poly_class("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
@@ -717,13 +717,7 @@ impl Context {
                 array_t.clone(),
             ),
         );
-        let t = pr_met(
-            array_mut_t.clone(),
-            None,
-            vec![f_t],
-            vec![],
-            array_mut_t.clone(),
-        );
+        let t = pr_met(array_mut_t.clone(), None, vec![f_t], vec![], NoneType);
         array_mut.register_impl("update!", t, Immutable, Public);
         let range_t = poly_class("Range", vec![TyParam::t(mono_q("T"))]);
         let range = Self::poly_class(

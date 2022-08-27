@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
 use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name, log, set};
+use erg_common::{assume_unreachable, fn_name, set};
 
 use erg_type::constructors::*;
 use erg_type::free::{Constraint, Cyclicity, FreeKind, HasLevel};
@@ -251,7 +251,7 @@ impl Context {
     /// deref_tyvar(?T(:> Never, <: Int)[n]): ?T => Int (if self.level <= n)
     /// deref_tyvar((Int)): (Int) => Int
     /// ```
-    fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
+    pub(crate) fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
         match t {
             // ?T(:> Nat, <: Int)[n] => Nat (self.level <= n)
             // ?T(:> Nat, <: Sub ?U(:> {1}))[n] => Nat
@@ -312,7 +312,8 @@ impl Context {
                 for param in params.iter_mut() {
                     *param = self.deref_tp(mem::take(param))?;
                 }
-                Ok(Type::PolyTrait { name, params })
+                let t = Type::PolyTrait { name, params };
+                self.resolve_trait(t)
             }
             Type::Subr(mut subr) => {
                 match &mut subr.kind {
@@ -959,6 +960,7 @@ impl Context {
         sub_loc: Option<Location>,
         sup_loc: Option<Location>,
     ) -> TyCheckResult<()> {
+        erg_common::log!("trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj {

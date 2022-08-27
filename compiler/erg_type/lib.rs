@@ -1513,9 +1513,9 @@ impl Type {
         }
     }
 
-    pub fn is_basic_class(&self) -> bool {
+    pub fn is_simple_class(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_basic_class(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1536,9 +1536,7 @@ impl Type {
             | Self::Patch
             | Self::NotImplemented
             | Self::Ellipsis
-            | Self::Never
-            | Self::Subr(_)
-            | Self::Record(_) => true,
+            | Self::Never => true,
             _ => false,
         }
     }

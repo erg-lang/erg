@@ -464,20 +464,15 @@ impl Evaluator {
             }
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj { lhs, rhs } => {
-                match *lhs {
-                    Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                        let (sub, _sup) = fv.crack_bound_types().unwrap();
-                        if sub != Type::Never {
-                            return self.eval_t_params(mono_proj(sub, rhs), ctx, level);
-                        } else {
-                            return Ok(mono_proj(Type::FreeVar(fv), rhs));
-                        }
-                    }
+                // Currently Erg does not allow projection-types to be evaluated with type variables included.
+                // All type variables will be dereferenced or fail.
+                let lhs = match *lhs {
                     Type::FreeVar(fv) if fv.is_unbound() => {
-                        return Ok(mono_proj(Type::FreeVar(fv), rhs))
+                        fv.lift();
+                        ctx.deref_tyvar(Type::FreeVar(fv))?
                     }
-                    _ => {}
-                }
+                    _ => *lhs,
+                };
                 for (_ty, ty_ctx) in ctx.rec_get_nominal_super_type_ctxs(&lhs) {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ValueObj::Type(quant_t) = obj {
@@ -491,7 +486,7 @@ impl Evaluator {
                     }
                 }
                 if let Some(outer) = &ctx.outer {
-                    self.eval_t_params(mono_proj(*lhs, rhs), outer, level)
+                    self.eval_t_params(mono_proj(lhs, rhs), outer, level)
                 } else {
                     todo!(
                         "{lhs}.{rhs} not found in [{}]",
