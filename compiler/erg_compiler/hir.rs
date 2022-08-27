@@ -630,8 +630,16 @@ impl RecordAttrs {
         Self(vec![])
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Def> {
+        self.0.into_iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {

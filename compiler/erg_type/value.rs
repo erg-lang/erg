@@ -17,7 +17,7 @@ use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, class, poly_class, refinement};
+use crate::constructors::{array, class, poly_class, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -33,6 +33,7 @@ pub enum ValueObj {
     Bool(bool),
     Array(Rc<[ValueObj]>),
     Dict(Rc<[(ValueObj, ValueObj)]>),
+    Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
     Subr(ConstSubr),
@@ -79,6 +80,7 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
+            Self::Tuple(tup) => write!(f, "({})", fmt_iter(tup.iter())),
             Self::Code(code) => write!(f, "{code}"),
             Self::Record(rec) => {
                 write!(f, "{{")?;
@@ -134,6 +136,7 @@ impl Hash for ValueObj {
             Self::Bool(b) => b.hash(state),
             Self::Array(arr) => arr.hash(state),
             Self::Dict(dict) => dict.hash(state),
+            Self::Tuple(tup) => tup.hash(state),
             Self::Code(code) => code.hash(state),
             Self::Record(rec) => rec.hash(state),
             Self::Subr(subr) => subr.hash(state),
@@ -327,6 +330,15 @@ impl ValueObj {
                 }
                 bytes
             }
+            Self::Tuple(tup) => {
+                let mut bytes = Vec::with_capacity(tup.len());
+                bytes.push(DataTypePrefix::Tuple as u8);
+                bytes.append(&mut (tup.len() as u32).to_le_bytes().to_vec());
+                for obj in tup.iter().cloned() {
+                    bytes.append(&mut obj.into_bytes());
+                }
+                bytes
+            }
             Self::None => {
                 vec![DataTypePrefix::None as u8]
             }
@@ -359,6 +371,7 @@ impl ValueObj {
                 TyParam::value(arr.len()),
             ),
             Self::Dict(_dict) => todo!(),
+            Self::Tuple(tup) => tuple(tup.iter().map(|v| v.class()).collect()),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())

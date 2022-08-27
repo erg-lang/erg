@@ -432,7 +432,9 @@ impl CodeObj {
                     | Opcode::LOAD_GLOBAL
                     | Opcode::STORE_ATTR
                     | Opcode::LOAD_ATTR
-                    | Opcode::LOAD_METHOD => {
+                    | Opcode::LOAD_METHOD
+                    | Opcode::IMPORT_NAME
+                    | Opcode::IMPORT_FROM => {
                         instrs += &format!("{} ({})", arg, self.names.get(*arg as usize).unwrap());
                     }
                     Opcode::STORE_DEREF | Opcode::LOAD_DEREF => {

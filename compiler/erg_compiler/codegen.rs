@@ -225,6 +225,14 @@ fn convert_to_python_name(name: Str) -> Str {
         "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
+        "Nat" | "Nat!" => Str::ever("int"),
+        "Int" | "Int!" => Str::ever("int"),
+        "Float" | "Float!" => Str::ever("float"),
+        "Ratio" | "Ratio!" => Str::ever("float"),
+        "Complex" => Str::ever("complex"),
+        "Str" | "Str!" => Str::ever("str"),
+        "Bool" | "Bool!" => Str::ever("bool"),
+        "Array" | "Array!" => Str::ever("list"),
         _ => name,
     }
 }
@@ -299,6 +307,7 @@ impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
 pub struct CodeGenerator {
     cfg: ErgConfig,
     str_cache: CacheSet<str>,
+    namedtuple_loaded: bool,
     unit_size: usize,
     units: CodeGenStack,
     pub(crate) errs: CompileErrors,
@@ -309,6 +318,7 @@ impl CodeGenerator {
         Self {
             cfg,
             str_cache: CacheSet::new(),
+            namedtuple_loaded: false,
             unit_size: 0,
             units: CodeGenStack::empty(),
             errs: CompileErrors::empty(),
@@ -542,6 +552,26 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
         self.stack_inc();
+        Ok(())
+    }
+
+    fn emit_import_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        let name = self
+            .local_search(ident.inspect(), Name)
+            .unwrap_or_else(|| self.register_name(ident));
+        self.write_instr(IMPORT_NAME);
+        self.write_arg(name.idx as u8);
+        self.stack_dec(); // (level + from_list) -> module object
+        Ok(())
+    }
+
+    fn emit_import_from_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        let name = self
+            .local_search(ident.inspect(), Name)
+            .unwrap_or_else(|| self.register_name(ident));
+        self.write_instr(IMPORT_FROM);
+        self.write_arg(name.idx as u8);
+        // self.stack_inc(); (module object) -> attribute
         Ok(())
     }
 
@@ -1184,6 +1214,56 @@ impl CodeGenerator {
                 }
                 other => todo!("{other}"),
             },
+            Expr::Record(rec) => {
+                let attrs_len = rec.attrs.len();
+                // importing namedtuple
+                if !self.namedtuple_loaded {
+                    self.emit_load_const(0);
+                    self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
+                        Str::ever("namedtuple"),
+                    )])));
+                    let ident = Identifier::public("collections");
+                    self.emit_import_name_instr(ident).unwrap();
+                    let ident = Identifier::public("namedtuple");
+                    self.emit_import_from_instr(ident).unwrap();
+                    let ident = Identifier::private(Str::ever("#NamedTuple"));
+                    self.emit_store_instr(ident, Name);
+                    self.namedtuple_loaded = true;
+                }
+                // making record type
+                let ident = Identifier::private(Str::ever("#NamedTuple"));
+                self.emit_load_name_instr(ident).unwrap();
+                // record name, let it be anonymous
+                self.emit_load_const("Record");
+                for field in rec.attrs.iter() {
+                    self.emit_load_const(ValueObj::Str(
+                        field.sig.ident().unwrap().inspect().clone(),
+                    ));
+                }
+                self.write_instr(BUILD_LIST);
+                self.write_arg(attrs_len as u8);
+                if attrs_len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(attrs_len - 1);
+                }
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(2);
+                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                self.stack_dec_n((1 + 2 + 0) - 1);
+                let ident = Identifier::private(Str::ever("#rec"));
+                self.emit_store_instr(ident, Name);
+                // making record instance
+                let ident = Identifier::private(Str::ever("#rec"));
+                self.emit_load_name_instr(ident).unwrap();
+                for field in rec.attrs.into_iter() {
+                    self.codegen_frameless_block(field.body.block, vec![]);
+                }
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(attrs_len as u8);
+                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                self.stack_dec_n((1 + attrs_len + 0) - 1);
+            }
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),
