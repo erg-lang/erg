@@ -1,6 +1,6 @@
 [package]
 name = "erg_compiler"
-version = "0.2.8"
+version = "0.3.0"
 description = "Centimetre: the Erg compiler"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
