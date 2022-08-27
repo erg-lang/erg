@@ -449,7 +449,7 @@ impl ASTLowerer {
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
         if let Err(e) =
-            self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
+            self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
         {
             self.errs.push(e);
         }
@@ -493,6 +493,7 @@ impl ASTLowerer {
     }
 
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
+        log!("{GREEN}[DEBUG] the AST lowering process has started.");
         log!("{GREEN}[DEBUG] the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.ref_payload())?;
@@ -508,18 +509,17 @@ impl ASTLowerer {
         }
         let hir = HIR::new(ast.name, module);
         log!("HIR (not derefed):\n{hir}");
-        let hir = self.ctx.deref_toplevel(hir)?;
         log!(
-            "[DEBUG] {}() has completed, found errors: {}",
-            fn_name!(),
+            "[DEBUG] the type-checking process has completed, found errors: {}",
             self.errs.len()
         );
+        let hir = self.ctx.deref_toplevel(hir)?;
         if self.errs.is_empty() {
             log!("HIR:\n{hir}");
-            log!("[DEBUG] the type-checking process has completed.{RESET}");
+            log!("[DEBUG] the AST lowering process has completed.{RESET}");
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
-            log!("{RED}[DEBUG] the type-checking process has failed.{RESET}");
+            log!("{RED}[DEBUG] the AST lowering process has failed.{RESET}");
             Err(LowerErrors::from(self.errs.take_all()))
         }
     }

@@ -195,7 +195,7 @@ impl Context {
             .collect::<Vec<_>>();
         let mut return_t = branch_ts[0].ty.return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.rec_union(&return_t, arg_t.ty.return_t().unwrap());
+            return_t = self.rec_union(&return_t, &arg_t.ty.return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -414,12 +414,16 @@ impl Context {
                 Ok(Type::FreeVar(fv))
             }
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub, sup) = enum_unwrap!(
+                let (sub, sup, cyclic) = enum_unwrap!(
                     fv.crack_constraint().clone(),
-                    Constraint::Sandwiched { sub, sup }
+                    Constraint::Sandwiched {
+                        sub,
+                        sup,
+                        cyclicity
+                    }
                 );
                 let (new_sub, new_sup) = (self.resolve_trait(sub)?, self.resolve_trait(sup)?);
-                let new_constraint = Constraint::sandwiched(new_sub, new_sup);
+                let new_constraint = Constraint::sandwiched(new_sub, new_sup, cyclic);
                 fv.update_constraint(new_constraint);
                 Ok(Type::FreeVar(fv))
             }
@@ -543,10 +547,11 @@ impl Context {
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     let arg_t = pos_arg.expr.ref_t();
                     let param_t = &param_ty.ty;
-                    log!("{arg_t} <:? {param_t}");
                     self.sub_unify(arg_t, param_t, Some(pos_arg.loc()), None)
                         .map_err(|e| {
-                            log!("{RED}semi-unification failed with {callee} ({arg_t} <:? {param_t})");
+                            log!(
+                                "{RED}semi-unification failed with {callee}\n{arg_t} !<: {param_t}"
+                            );
                             log!("errno: {}{GREEN}", e.core.errno);
                             // REVIEW:
                             let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
@@ -818,63 +823,17 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn sort_type_pairs(
-        &self,
-        type_and_traits: impl Iterator<Item = TraitInstance>,
-    ) -> Vec<TraitInstance> {
-        let mut buffers: Vec<Vec<TraitInstance>> = vec![];
-        for t_trait in type_and_traits {
-            let mut found = false;
-            for buf in buffers.iter_mut() {
-                if buf
-                    .iter()
-                    .all(|pair| self.related(&pair.sup_trait, &t_trait.sub_type))
-                {
-                    found = true;
-                    buf.push(t_trait.clone());
-                    break;
-                }
-            }
-            if !found {
-                buffers.push(vec![t_trait]);
-            }
-        }
-        for buf in buffers.iter_mut() {
-            // this unwrap should be safe
-            buf.sort_by(|lhs, rhs| {
-                self.cmp_t(&lhs.sup_trait, &rhs.sup_trait)
-                    .try_into()
-                    .unwrap()
-            });
-        }
-        let mut concatenated = buffers.into_iter().flatten().collect::<Vec<_>>();
-        let mut idx = 0;
-        let len = concatenated.len();
-        while let Some(pair) = concatenated.get(idx) {
-            if let Some(pos) = concatenated
-                .iter()
-                .take(len - idx - 1)
-                .rposition(|p| self.supertype_of(&pair.sup_trait, &p.sup_trait))
-            {
-                let sup = concatenated.remove(idx);
-                concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
-            }
-            idx += 1;
-        }
-        concatenated
-    }
-
     pub(crate) fn rec_get_nominal_super_trait_ctxs<'a>(
         &'a self,
         t: &Type,
     ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
             ctx.super_traits.iter().map(|sup| {
-                log!("{sup}");
-                self.rec_get_nominal_type_ctx(&sup).unwrap()
+                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+                (sup, sup_ctx)
             })
         } else {
-            todo!()
+            todo!("{t} has no trait, or not a nominal type")
         }
     }
 
@@ -882,12 +841,17 @@ impl Context {
         &'a self,
         t: &Type,
     ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            ctx.super_classes
-                .iter()
-                .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap())
+        // if `t` is {S: Str | ...}, `ctx_t` will be Str
+        // else if `t` is Array(Int, 10), `ctx_t` will be Array(T, N) (if Array(Int, 10) is not specialized)
+        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+            // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
+            // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
+            ctx.super_classes.iter().map(|sup| {
+                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+                (sup, sup_ctx)
+            })
         } else {
-            todo!()
+            todo!("{t} has no class, or not a nominal type")
         }
     }
 
@@ -903,7 +867,7 @@ impl Context {
                     .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap()),
             )
         } else {
-            todo!()
+            todo!("{t} not found")
         }
     }
 
@@ -912,12 +876,8 @@ impl Context {
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
         match typ {
-            Type::Refinement(_) | Type::Quantified(_) => todo!(),
-            other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.mono_types.get(&typ.name()) {
-                    return Some((t, ctx));
-                }
-            }
+            Type::Refinement(refine) => return self.rec_get_nominal_type_ctx(&refine.t),
+            Type::Quantified(_) => todo!(),
             Type::PolyClass { name, params } => {
                 if let Some(params_and_ctxs) = self.poly_classes.get(name) {
                     for (ctx_t, ctx) in params_and_ctxs {
@@ -932,21 +892,21 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
+            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+                return self.rec_get_nominal_type_ctx(&Type)
+            }
+            // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
+            other if other.is_monomorphic() => {
+                if let Some((t, ctx)) = self.mono_types.get(&typ.name()) {
+                    return Some((t, ctx));
+                }
+            }
             _ => todo!(),
         }
         if let Some(outer) = &self.outer {
             outer.rec_get_nominal_type_ctx(typ)
         } else {
             None
-        }
-    }
-
-    pub(crate) fn rec_get_glue_patches(&self) -> Vec<&Context> {
-        let patches = self.patches.values().collect();
-        if let Some(outer) = &self.outer {
-            [patches, outer.rec_get_glue_patches()].concat()
-        } else {
-            patches
         }
     }
 

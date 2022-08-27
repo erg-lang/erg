@@ -1,17 +1,16 @@
 //! provides type-comparison
-use std::cmp::Ordering;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_type::constructors::or;
 use erg_type::free::fresh_varname;
-use erg_type::free::{Constraint, FreeKind, FreeTyVar};
+use erg_type::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
 use erg_type::typaram::{TyParam, TyParamOrdering};
 use erg_type::value::ValueObj::Inf;
 use erg_type::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
 use erg_common::Str;
-use erg_common::{assume_unreachable, enum_unwrap, log, set};
+use erg_common::{assume_unreachable, log, set};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -31,19 +30,18 @@ use super::ContextKind;
 
 impl Context {
     fn register_cache(&self, sub: &Type, sup: &Type, result: bool) {
-        if sub.has_unbound_var() || sup.has_unbound_var() {
-            return;
+        if sub.is_cachable() && sup.is_cachable() {
+            GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
         }
-        GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
     }
 
-    // TODO: linkされた型変数の場合、おそらくhitしない
     // TODO: is it impossible to avoid .clone()?
     fn inquire_cache(&self, sub: &Type, sup: &Type) -> Option<bool> {
-        if sub.has_unbound_var() || sup.has_unbound_var() {
-            return None;
+        if sub.is_cachable() && sup.is_cachable() {
+            GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()))
+        } else {
+            None
         }
-        GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()))
     }
 
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
@@ -77,7 +75,9 @@ impl Context {
                         .all(|(l, r)| self.eq_tp(l, r))
             }
             (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(tp) => return self.eq_tp(tp, other),
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                    return self.eq_tp(t, other)
+                }
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.get_type().unwrap();
@@ -229,6 +229,10 @@ impl Context {
             {
                 (Absolutely, true)
             }
+            (_, Type::FreeVar(fv)) | (Type::FreeVar(fv), _) => match fv.crack_bound_types() {
+                Some((Type::Never, Type::Obj)) => (Absolutely, true),
+                _ => (Maybe, false),
+            },
             (Type::MonoClass(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
             (lhs, rhs) if lhs.is_basic_class() && rhs.is_basic_class() => (Absolutely, false),
             _ => (Maybe, false),
@@ -242,7 +246,6 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!("{lhs} :>? {rhs}");
         if let Some(res) = self.inquire_cache(rhs, lhs) {
             return res;
         }
@@ -253,7 +256,6 @@ impl Context {
             }
             _ => {}
         }
-        log!("{lhs} :>? {rhs}");
         match self.trait_supertype_of(lhs, rhs) {
             (Absolutely, judge) => {
                 self.register_cache(rhs, lhs, judge);
@@ -261,23 +263,15 @@ impl Context {
             }
             _ => {}
         }
-        log!("{lhs} :>? {rhs}");
         for patch in self.patches.values() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
-                    let bounds = patch.type_params_bounds();
-                    let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-                    let target = Self::instantiate_t(tr_inst.sub_type.clone(), &mut tv_ctx);
-                    let impl_trait = Self::instantiate_t(tr_inst.sup_trait.clone(), &mut tv_ctx);
+                    todo!("{tr_inst}");
+                } else {
                     // e.g.
                     // P = Patch X, Impl: Ord
                     // Rhs <: X => Rhs <: Ord
                     // Ord <: Lhs => Rhs <: Ord <: Lhs
-                    if self.supertype_of(&target, rhs) && self.subtype_of(&impl_trait, lhs) {
-                        self.register_cache(&rhs, &lhs, true);
-                        return true;
-                    }
-                } else {
                     if self.supertype_of(&tr_inst.sub_type, rhs)
                         && self.subtype_of(&tr_inst.sup_trait, lhs)
                     {
@@ -327,6 +321,7 @@ impl Context {
                     return (Absolutely, true);
                 }
                 (Maybe, _) => {
+                    // nominal type同士の比較なので、nominal_supertype_ofは使わない
                     if self.structural_supertype_of(lhs, rhs_sup) {
                         return (Absolutely, true);
                     }
@@ -337,31 +332,29 @@ impl Context {
         (Maybe, false)
     }
 
-    /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
-    /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn _sup_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstance) -> bool {
-        // 一旦汎化して、自由にlinkできるようにする
-        let generalized = self.generalize_t(Type::FreeVar(free.clone()));
-        let quant = enum_unwrap!(generalized, Type::Quantified);
-        let mut ctx = TyVarContext::new(self.level, quant.bounds, self);
-        let inst = Self::instantiate_t(*quant.unbound_callable, &mut ctx);
-        let free = enum_unwrap!(inst, Type::FreeVar);
+    /// ```erg
+    /// assert sup_conforms(?E(<: Eq(?E)), base: Nat, sup_trait: Eq(Nat))
+    /// assert sup_conforms(?E(<: Eq(?R)), base: T, sup_trait: Eq(U))
+    /// ```
+    fn sup_conforms(&self, free: &FreeTyVar, base: &Type, sup_trait: &Type) -> bool {
         let (_sub, sup) = free.crack_bound_types().unwrap();
-        free.link(&inst_pair.sub_type);
-        self.supertype_of(&sup, &inst_pair.sup_trait)
+        free.forced_undoable_link(base);
+        let judge = self.supertype_of(&sup, sup_trait);
+        free.undo();
+        judge
     }
 
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
     fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstance) -> bool {
-        let generalized = self.generalize_t(Type::FreeVar(free.clone()));
-        let quant = enum_unwrap!(generalized, Type::Quantified);
-        let mut ctx = TyVarContext::new(self.level, quant.bounds, self);
-        let inst = Self::instantiate_t(*quant.unbound_callable, &mut ctx);
-        let free = enum_unwrap!(inst, Type::FreeVar);
         let (_sub, sup) = free.crack_bound_types().unwrap();
-        free.link(&inst_pair.sub_type);
-        self.subtype_of(&sup, &inst_pair.sup_trait)
+        log!("{free}");
+        free.forced_undoable_link(&inst_pair.sub_type);
+        log!("{free}");
+        let judge = self.subtype_of(&sup, &inst_pair.sup_trait);
+        free.undo();
+        log!("{free}");
+        judge
     }
 
     /// lhs :> rhs?
@@ -374,7 +367,6 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!("{lhs} :>? {rhs}");
         match (lhs, rhs) {
             (Subr(ls), Subr(rs))
                 if ls.kind.same_kind_as(&rs.kind)
@@ -395,12 +387,30 @@ impl Context {
             }
             // RefMut, OptionMut are invariant
             (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => self.supertype_of(lhs, rhs),
+            // ?T(<: Nat) !:> ?U(:> Int)
+            // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
+            (FreeVar(lfv), FreeVar(rfv)) => {
+                match (lfv.crack_bound_types(), rfv.crack_bound_types()) {
+                    (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
+                    _ => {
+                        if lfv.is_linked() {
+                            self.supertype_of(&lfv.crack(), rhs)
+                        } else if rfv.is_linked() {
+                            self.supertype_of(lhs, &rfv.crack())
+                        } else {
+                            false
+                        }
+                    }
+                }
+            }
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(lfv), rhs) => {
                 log!("{lhs} :>? {rhs}");
                 match &*lfv.borrow() {
-                    FreeKind::Linked(t) => self.supertype_of(t, rhs),
+                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                        self.supertype_of(t, rhs)
+                    }
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
@@ -408,7 +418,11 @@ impl Context {
                         // `(?T :> X) :> Y` is true
                         // `(?T :> Str) :> Int` is true (?T :> Str or Int)
                         // `(Nat <: ?T <: Ratio) :> Nat` can be true
-                        Constraint::Sandwiched { sup, .. } => self.supertype_of(sup, rhs),
+                        Constraint::Sandwiched { sup, cyclicity, .. } => match cyclicity {
+                            Cyclicity::Not => self.supertype_of(sup, rhs),
+                            Cyclicity::Super => self.cyclic_supertype_of(lfv, rhs),
+                            _ => todo!(),
+                        },
                         // (?v: Type, rhs): OK
                         // (?v: Nat, rhs): Something wrong
                         // Class <: Type, but Nat <!: Type (Nat: Type)
@@ -422,20 +436,12 @@ impl Context {
                         Constraint::Uninited => unreachable!(),
                     },
                 }
-                /*log!("{lfv} :>? {rhs}");
-                let super_traits = self.super_traits(rhs);
-                log!("super_traits: {}", erg_common::fmt_vec(&super_traits));
-                for inst_pair in super_traits.into_iter() {
-                    if self.sup_conforms(&lfv, inst_pair) {
-                        return true;
-                    }
-                }
-                false*/
             }
             (lhs, FreeVar(rfv)) => {
-                log!("{lhs} :>? {rhs}");
                 match &*rfv.borrow() {
-                    FreeKind::Linked(t) => self.supertype_of(lhs, t),
+                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                        self.supertype_of(lhs, t)
+                    }
                     FreeKind::Unbound { constraint, .. }
                     | FreeKind::NamedUnbound { constraint, .. } => match constraint {
                         // ?T cannot be `Never`
@@ -444,7 +450,14 @@ impl Context {
                         // `Str :> (?T <: Int)` is false
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
-                        Constraint::Sandwiched { sub, sup: _ } => self.supertype_of(lhs, sub),
+                        Constraint::Sandwiched {
+                            sub,
+                            sup: _,
+                            cyclicity,
+                        } => match cyclicity {
+                            Cyclicity::Not => self.supertype_of(lhs, sub),
+                            _ => todo!(),
+                        },
                         Constraint::TypeOf(t) => {
                             if self.supertype_of(&Type, t) {
                                 true
@@ -455,15 +468,6 @@ impl Context {
                         Constraint::Uninited => unreachable!(),
                     },
                 }
-                /*log!("here: {rfv}, {lhs}");
-                let super_traits = self.super_traits(lhs);
-                for inst_pair in super_traits.into_iter() {
-                    if self.sub_conforms(&rfv, inst_pair) {
-                        return true;
-                    }
-                }
-                false
-                */
             }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
@@ -510,6 +514,9 @@ impl Context {
             (l, Refinement(r)) => self.supertype_of(l, &r.t),
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
+                if l.preds.is_empty() {
+                    unreachable!()
+                }
                 if l.preds
                     .iter()
                     .any(|p| p.mentions(&l.var) && p.can_be_false())
@@ -584,8 +591,27 @@ impl Context {
             (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
                 panic!("Not instantiated type variable: {name}, l: {l}")
             }
+            (MonoProj { .. }, _) => todo!(),
+            (_, MonoProj { .. }) => todo!(),
             (_l, _r) => false,
         }
+    }
+
+    pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
+        // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
+        let (defined_rhs, _) = self.rec_get_nominal_type_ctx(rhs).unwrap();
+        let super_traits = self.rec_get_nominal_super_trait_ctxs(rhs);
+        for (sup_trait, _) in super_traits.into_iter() {
+            if self.sup_conforms(lhs, defined_rhs, sup_trait) {
+                return true;
+            }
+        }
+        for (sup_class, _) in self.rec_get_nominal_super_class_ctxs(rhs) {
+            if self.cyclic_supertype_of(lhs, sup_class) {
+                return true;
+            }
+        }
+        false
     }
 
     pub(crate) fn poly_supertype_of(
@@ -750,12 +776,7 @@ impl Context {
     }
 
     fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
-        if !self.structural_supertype_of(&lhs.t, &rhs.t)
-            && !self.structural_subtype_of(&lhs.t, &rhs.t)
-        {
-            log!("{lhs}\n{rhs}");
-            todo!()
-        } else {
+        if let Some(max) = self.rec_max(&lhs.t, &rhs.t) {
             let name = lhs.var.clone();
             let rhs_preds = rhs
                 .preds
@@ -765,9 +786,12 @@ impl Context {
             // FIXME: predの包含関係も考慮する
             RefinementType::new(
                 lhs.var.clone(),
-                *lhs.t.clone(),
+                max.clone(),
                 lhs.preds.clone().concat(rhs_preds),
             )
+        } else {
+            log!("{lhs}\n{rhs}");
+            todo!()
         }
     }
 
@@ -819,21 +843,24 @@ impl Context {
 
     pub(crate) fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
-            // |I: Nat| <: |I: Int|
+            // (?I: Nat) <: (?I: Int)
             (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => self.rec_subtype_of(lhs, rhs),
-            // |T <: Int| <: |T: Type|
+            // (?T <: Int) <: (?T: Type)
             (Constraint::Sandwiched { sub: Never, .. }, Constraint::TypeOf(Type)) => true,
-            // |Int <: T| <: |Nat <: T|
-            // |T <: Nat| <: |T <: Int|
-            // |Int <: T <: Ratio| <: |Nat <: T <: Complex|
+            // (Int <: ?T) <: (Nat <: ?U)
+            // (?T <: Nat) <: (?U <: Int)
+            // (Int <: ?T <: Ratio) <: (Nat <: ?U <: Complex)
+            // TODO: deny cyclic constraint
             (
                 Constraint::Sandwiched {
                     sub: lsub,
                     sup: lsup,
+                    ..
                 },
                 Constraint::Sandwiched {
                     sub: rsub,
                     sup: rsup,
+                    ..
                 },
             ) => self.rec_supertype_of(lsub, rsub) && self.rec_subtype_of(lsup, rsup),
             _ => false,
@@ -958,61 +985,6 @@ impl Context {
             Some(l) if l == lhs => TyParamOrdering::Less,
             Some(_) => TyParamOrdering::Greater,
             None => TyParamOrdering::NoRelation,
-        }
-    }
-
-    // TODO:
-    pub(crate) fn smallest_pair<I: Iterator<Item = TraitInstance>>(
-        &self,
-        type_and_traits: I,
-    ) -> Option<TraitInstance> {
-        let mut type_and_traits = type_and_traits.collect::<Vec<_>>();
-        // Avoid heavy sorting as much as possible for efficiency
-        let mut cheap_sort_succeed = true;
-        type_and_traits.sort_by(|lhs, rhs| {
-            match self.cmp_t(&lhs.sup_trait, &rhs.sup_trait).try_into() {
-                Ok(ord) => ord,
-                Err(_) => {
-                    cheap_sort_succeed = false;
-                    Ordering::Equal
-                }
-            }
-        });
-        let mut sorted = if cheap_sort_succeed {
-            type_and_traits
-        } else {
-            self.sort_type_pairs(type_and_traits.into_iter())
-        };
-        if sorted.first().is_some() {
-            Some(sorted.remove(0))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn smallest_ref_t<'t, I: Iterator<Item = &'t Type>>(
-        &self,
-        ts: I,
-    ) -> Option<&'t Type> {
-        let mut ts = ts.collect::<Vec<_>>();
-        // Avoid heavy sorting as much as possible for efficiency
-        let mut cheap_sort_succeed = true;
-        ts.sort_by(|lhs, rhs| match self.cmp_t(lhs, rhs).try_into() {
-            Ok(ord) => ord,
-            Err(_) => {
-                cheap_sort_succeed = false;
-                Ordering::Equal
-            }
-        });
-        let mut sorted = if cheap_sort_succeed {
-            ts
-        } else {
-            self.sort_types(ts.into_iter())
-        };
-        if sorted.first().is_some() {
-            Some(sorted.remove(0))
-        } else {
-            None
         }
     }
 }

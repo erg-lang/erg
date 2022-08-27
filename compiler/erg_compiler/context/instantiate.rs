@@ -6,8 +6,8 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, set, try_map};
-use erg_type::free::Constraint;
+use erg_common::{assume_unreachable, enum_unwrap, set, try_map};
+use erg_type::free::{Constraint, Cyclicity, FreeTyVar};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -122,11 +122,11 @@ impl TyVarContext {
                 })
                 .collect();
             let mut inst_defaults = vec![];
-            for c in temp_defaults
+            for template in temp_defaults
                 .into_iter()
                 .take(defined_params_len - given_params_len)
             {
-                let tp = self.instantiate_const_template(&tvar_name, name, c);
+                let tp = self.instantiate_const_template(&tvar_name, name, template);
                 self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
                 inst_defaults.push(tp);
             }
@@ -170,7 +170,7 @@ impl TyVarContext {
                     sup => sup,
                 };
                 let name = mid.name();
-                let constraint = Constraint::sandwiched(sub_instance, sup_instance);
+                let constraint = Constraint::sandwiched(sub_instance, sup_instance, Cyclicity::Not);
                 self.push_or_init_tyvar(
                     &name,
                     &named_free_var(name.clone(), self.level, constraint),
@@ -279,21 +279,21 @@ impl TyVarContext {
         }
     }
 
-    pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, t: &Type) {
+    pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, tv: &Type) {
         if let Some(inst) = self.tyvar_instances.get(name) {
-            // T<A> <: Eq(T<B>)
-            // T<B> is uninitialized
-            // T<B>.link(T<A>);
+            // T<tv> <: Eq(T<inst>)
+            // T<inst> is uninitialized
+            // T<inst>.link(T<tv>);
             // T <: Eq(T <: Eq(T <: ...))
-            if let Type::FreeVar(fv) = inst {
-                fv.link(t);
+            if let Type::FreeVar(fv_inst) = inst {
+                self.check_cyclicity_and_link(name, fv_inst, tv);
             } else {
                 todo!()
             }
         } else if let Some(inst) = self.typaram_instances.get(name) {
             if let TyParam::Type(inst) = inst {
-                if let Type::FreeVar(fv) = inst.as_ref() {
-                    fv.link(t);
+                if let Type::FreeVar(fv_inst) = inst.as_ref() {
+                    self.check_cyclicity_and_link(name, fv_inst, tv);
                 } else {
                     todo!()
                 }
@@ -301,7 +301,21 @@ impl TyVarContext {
                 todo!()
             }
         }
-        self.tyvar_instances.insert(name.clone(), t.clone());
+        self.tyvar_instances.insert(name.clone(), tv.clone());
+    }
+
+    fn check_cyclicity_and_link(&self, name: &str, fv_inst: &FreeTyVar, tv: &Type) {
+        let (sub, sup) = enum_unwrap!(tv, Type::FreeVar).crack_bound_types().unwrap();
+        let new_cyclicity = match (sup.contains_tvar(name), sub.contains_tvar(name)) {
+            (true, true) => Cyclicity::Both,
+            // T <: Super
+            (true, _) => Cyclicity::Super,
+            // T :> Sub
+            (false, true) => Cyclicity::Sub,
+            _ => Cyclicity::Not,
+        };
+        fv_inst.link(tv);
+        tv.update_cyclicity(new_cyclicity);
     }
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &Str, tp: &TyParam) {

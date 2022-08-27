@@ -38,6 +38,41 @@ pub trait HasLevel {
     fn lift(&self);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Cyclicity {
+    /// ?T :> F(?T)
+    Sub,
+    /// ?T <: F(?T)
+    Super,
+    /// ?T <: F(?T), :> G(?T)
+    Both,
+    Not,
+}
+
+use Cyclicity::*;
+
+impl Cyclicity {
+    pub const fn is_cyclic(&self) -> bool {
+        matches!(self, Sub | Super | Both)
+    }
+
+    pub const fn is_super_cyclic(&self) -> bool {
+        matches!(self, Super | Both)
+    }
+
+    pub const fn combine(self, other: Cyclicity) -> Cyclicity {
+        match (self, other) {
+            (Sub, Sub) => Sub,
+            (Super, Super) => Super,
+            (Both, Both) => Both,
+            (Not, Not) => Not,
+            (Not, _) => other,
+            (_, Not) => self,
+            (Sub, _) | (Super, _) | (Both, _) => Both,
+        }
+    }
+}
+
 // REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
@@ -48,6 +83,7 @@ pub enum Constraint {
     Sandwiched {
         sub: Type,
         sup: Type,
+        cyclicity: Cyclicity,
     },
     // : Int, ...
     TypeOf(Type),
@@ -66,21 +102,28 @@ impl LimitedDisplay for Constraint {
             return write!(f, "...");
         }
         match self {
-            Self::Sandwiched { sub, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
+            Self::Sandwiched {
+                sub,
+                sup,
+                cyclicity,
+            } => match (sub == &Type::Never, sup == &Type::Obj) {
                 (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
                 (true, false) => {
                     write!(f, "<: ")?;
-                    sup.limited_fmt(f, limit - 1)
+                    sup.limited_fmt(f, limit - 1)?;
+                    write!(f, "(cyclicity: {cyclicity:?})")
                 }
                 (false, true) => {
                     write!(f, ":> ")?;
-                    sub.limited_fmt(f, limit - 1)
+                    sub.limited_fmt(f, limit - 1)?;
+                    write!(f, "(cyclicity: {cyclicity:?})")
                 }
                 (false, false) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
                     write!(f, ", <: ")?;
-                    sup.limited_fmt(f, limit - 1)
+                    sup.limited_fmt(f, limit - 1)?;
+                    write!(f, "(cyclicity: {cyclicity:?})")
                 }
             },
             Self::TypeOf(t) => {
@@ -93,28 +136,39 @@ impl LimitedDisplay for Constraint {
 }
 
 impl Constraint {
-    pub const fn sandwiched(sub: Type, sup: Type) -> Self {
-        Self::Sandwiched { sub, sup }
+    pub const fn sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
+        Self::Sandwiched {
+            sub,
+            sup,
+            cyclicity,
+        }
     }
 
     pub fn type_of(t: Type) -> Self {
         if &t == &Type::Type {
-            Self::sandwiched(Type::Never, Type::Obj)
+            Self::sandwiched(Type::Never, Type::Obj, Not)
         } else {
             Self::TypeOf(t)
         }
     }
 
-    pub const fn subtype_of(sup: Type) -> Self {
-        Self::sandwiched(Type::Never, sup)
+    pub const fn subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
+        Self::sandwiched(Type::Never, sup, cyclicity)
     }
 
-    pub const fn supertype_of(sub: Type) -> Self {
-        Self::sandwiched(sub, Type::Obj)
+    pub const fn supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
+        Self::sandwiched(sub, Type::Obj, cyclicity)
     }
 
     pub const fn is_uninited(&self) -> bool {
         matches!(self, Self::Uninited)
+    }
+
+    pub const fn cyclicicty(&self) -> Cyclicity {
+        match self {
+            Self::Sandwiched { cyclicity, .. } => *cyclicity,
+            _ => Not,
+        }
     }
 
     pub fn get_type(&self) -> Option<&Type> {
@@ -123,6 +177,7 @@ impl Constraint {
             Self::Sandwiched {
                 sub: Type::Never,
                 sup: Type::Obj,
+                ..
             } => Some(&Type::Type),
             _ => None,
         }
@@ -144,7 +199,7 @@ impl Constraint {
 
     pub fn get_sub_sup_type(&self) -> Option<(&Type, &Type)> {
         match self {
-            Self::Sandwiched { sub, sup } => Some((sub, sup)),
+            Self::Sandwiched { sub, sup, .. } => Some((sub, sup)),
             _ => None,
         }
     }
@@ -155,11 +210,22 @@ impl Constraint {
             _ => None,
         }
     }
+
+    pub fn update_cyclicity(&mut self, new_cyclicity: Cyclicity) {
+        match self {
+            Self::Sandwiched { cyclicity, .. } => *cyclicity = cyclicity.combine(new_cyclicity),
+            _ => (),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FreeKind<T> {
     Linked(T),
+    UndoableLinked {
+        t: T,
+        previous: Box<FreeKind<T>>,
+    },
     Unbound {
         id: Id,
         lev: Level,
@@ -184,7 +250,7 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             return write!(f, "...");
         }
         match self {
-            Self::Linked(t) => t.limited_fmt(f, limit),
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => t.limited_fmt(f, limit),
             Self::NamedUnbound {
                 name,
                 lev,
@@ -256,6 +322,27 @@ impl<T> Free<T> {
     pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
         self.0.borrow_mut()
     }
+    /// very unsafe, use `force_replace` instead whenever possible
+    pub fn as_ptr(&self) -> *mut FreeKind<T> {
+        self.0.as_ptr()
+    }
+    pub fn force_replace(&self, new: FreeKind<T>) {
+        unsafe {
+            *self.0.as_ptr() = new;
+        }
+    }
+    pub fn can_borrow(&self) -> bool {
+        self.0.can_borrow()
+    }
+    pub fn can_borrow_mut(&self) -> bool {
+        self.0.can_borrow_mut()
+    }
+}
+
+impl<T: Clone> Free<T> {
+    pub fn clone_inner(&self) -> FreeKind<T> {
+        self.0.clone_inner()
+    }
 }
 
 impl<T: Clone + HasLevel> Free<T> {
@@ -285,11 +372,39 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn link(&self, to: &T) {
-        *self.0.borrow_mut() = FreeKind::Linked(to.clone());
+        *self.borrow_mut() = FreeKind::Linked(to.clone());
+    }
+
+    pub fn undoable_link(&self, to: &T) {
+        let prev = self.clone_inner();
+        let new = FreeKind::UndoableLinked {
+            t: to.clone(),
+            previous: Box::new(prev),
+        };
+        *self.borrow_mut() = new;
+    }
+
+    pub fn forced_undoable_link(&self, to: &T) {
+        let prev = self.clone_inner();
+        let new = FreeKind::UndoableLinked {
+            t: to.clone(),
+            previous: Box::new(prev),
+        };
+        self.force_replace(new);
+    }
+
+    pub fn undo(&self) {
+        match &*self.borrow() {
+            FreeKind::UndoableLinked { previous, .. } => {
+                let prev = *previous.clone();
+                self.force_replace(prev);
+            }
+            _ => panic!("cannot undo"),
+        }
     }
 
     pub fn update_level(&self, level: Level) {
-        match &mut *self.0.borrow_mut() {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } if level < *lev => {
                 *lev = level;
             }
@@ -301,11 +416,11 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn lift(&self) {
-        match &mut *self.0.borrow_mut() {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 *lev += 1;
             }
-            FreeKind::Linked(t) => {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                 if let Some(lev) = t.level() {
                     t.update_level(lev + 1);
                 }
@@ -314,14 +429,14 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn level(&self) -> Option<Level> {
-        match &*self.0.borrow() {
+        match &*self.borrow() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
-            FreeKind::Linked(t) => t.level(),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
         }
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        match &mut *self.0.borrow_mut() {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 *constraint = new_constraint;
             }
@@ -329,17 +444,17 @@ impl<T: Clone + HasLevel> Free<T> {
         }
     }
 
-    pub fn get_name(&self) -> Option<Str> {
-        match self.0.clone_inner() {
-            FreeKind::Linked(_) => panic!("the value is linked"),
+    pub fn get_unbound_name(&self) -> Option<Str> {
+        match self.clone_inner() {
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
             FreeKind::Unbound { .. } => None,
             FreeKind::NamedUnbound { name, .. } => Some(name),
         }
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
-        match self.0.clone_inner() {
-            FreeKind::Linked(_) => panic!("the value is linked"),
+        match self.clone_inner() {
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
             FreeKind::Unbound {
                 constraint, lev, ..
             } => (None, lev, constraint),
@@ -352,8 +467,8 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn unwrap_linked(self) -> T {
-        match self.0.clone_inner() {
-            FreeKind::Linked(t) => t,
+        match self.clone_inner() {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }
@@ -363,8 +478,8 @@ impl<T: Clone + HasLevel> Free<T> {
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
     pub fn crack(&self) -> Ref<'_, T> {
-        Ref::map(self.0.borrow(), |f| match f {
-            FreeKind::Linked(t) => t,
+        Ref::map(self.borrow(), |f| match f {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }
@@ -372,8 +487,8 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
-        Ref::map(self.0.borrow(), |f| match f {
-            FreeKind::Linked(_) => panic!("the value is linked"),
+        Ref::map(self.borrow(), |f| match f {
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 constraint
             }
@@ -381,36 +496,43 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn type_of(&self) -> Option<Type> {
-        self.0
-            .borrow()
+        self.borrow()
             .constraint()
             .and_then(|c| c.get_type().cloned())
     }
 
     pub fn crack_subtype(&self) -> Option<Type> {
-        self.0
-            .borrow()
+        self.borrow()
             .constraint()
             .and_then(|c| c.get_super_type().cloned())
     }
 
     pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
-        self.0
-            .borrow()
-            .constraint()
-            .and_then(|c| c.get_sub_sup_type().map(|(l, r)| (l.clone(), r.clone())))
+        self.borrow().constraint().and_then(|c| {
+            c.get_sub_sup_type()
+                .map(|(sub, sup)| (sub.clone(), sup.clone()))
+        })
     }
 
     pub fn is_unbound(&self) -> bool {
         matches!(
-            &*self.0.borrow(),
+            &*self.borrow(),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. }
         )
     }
 
+    pub fn cyclicity(&self) -> Cyclicity {
+        match self.clone_inner() {
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => Cyclicity::Not, // REVIEW: is this correct?
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                constraint.cyclicicty()
+            }
+        }
+    }
+
     pub fn constraint_is_typeof(&self) -> bool {
         matches!(
-            &*self.0.borrow(),
+            &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
             | FreeKind::NamedUnbound { constraint, .. } if constraint.get_type().is_some()
         )
@@ -418,7 +540,7 @@ impl<T: Clone + HasLevel> Free<T> {
 
     pub fn constraint_is_supertypeof(&self) -> bool {
         matches!(
-            &*self.0.borrow(),
+            &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
             | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_type().is_some()
         )
@@ -426,7 +548,7 @@ impl<T: Clone + HasLevel> Free<T> {
 
     pub fn constraint_is_subtypeof(&self) -> bool {
         matches!(
-            &*self.0.borrow(),
+            &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
             | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super_type().is_some()
         )
@@ -434,20 +556,33 @@ impl<T: Clone + HasLevel> Free<T> {
 
     pub fn constraint_is_sandwiched(&self) -> bool {
         matches!(
-            &*self.0.borrow(),
+            &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
             | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup_type().is_some()
         )
     }
 
     pub fn is_linked(&self) -> bool {
-        matches!(&*self.0.borrow(), FreeKind::Linked(_))
+        matches!(&*self.borrow(), FreeKind::Linked(_))
     }
 
     pub fn unbound_name(&self) -> Option<Str> {
-        match &*self.0.borrow() {
+        match &*self.borrow() {
             FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
             _ => None,
+        }
+    }
+}
+
+impl Free<Type> {
+    pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
+        match &mut *self.borrow_mut() {
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                constraint.update_cyclicity(new_cyclicity);
+            }
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                t.update_cyclicity(new_cyclicity)
+            }
         }
     }
 }
@@ -457,11 +592,11 @@ impl Free<TyParam> {
     where
         F: Fn(TyParam) -> TyParam,
     {
-        match &mut *self.0.borrow_mut() {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }
-            FreeKind::Linked(t) => {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                 *t = f(mem::take(t));
             }
         }

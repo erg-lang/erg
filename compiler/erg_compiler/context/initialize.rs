@@ -14,7 +14,7 @@ use Type::*;
 
 use erg_parser::ast::VarName;
 
-use crate::context::instantiate::ConstTemplate;
+use crate::context::instantiate::{ConstTemplate, TyVarContext};
 use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
@@ -61,25 +61,7 @@ impl Context {
 
     fn register_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         if t.typarams_len().is_none() {
-            if self.mono_types.contains_key(&t.name()) {
-                panic!("{} has already been registered", t.name());
-            } else {
-                let name = VarName::from_str(t.name());
-                self.locals
-                    .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-                self.consts.insert(name.clone(), ValueObj::t(t.clone()));
-                for impl_trait in ctx.super_traits.iter() {
-                    if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                        impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
-                    } else {
-                        self.trait_impls.insert(
-                            impl_trait.name(),
-                            vec![TraitInstance::new(t.clone(), impl_trait.clone())],
-                        );
-                    }
-                }
-                self.mono_types.insert(name, (t, ctx));
-            }
+            self.register_mono_type(t, ctx, muty);
         } else {
             if t.is_class() {
                 self.register_poly_class(t, ctx, muty);
@@ -91,7 +73,31 @@ impl Context {
         }
     }
 
+    fn register_mono_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
+        if self.mono_types.contains_key(&t.name()) {
+            panic!("{} has already been registered", t.name());
+        } else {
+            let name = VarName::from_str(t.name());
+            self.locals
+                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.consts.insert(name.clone(), ValueObj::t(t.clone()));
+            for impl_trait in ctx.super_traits.iter() {
+                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                } else {
+                    self.trait_impls.insert(
+                        impl_trait.name(),
+                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                    );
+                }
+            }
+            self.mono_types.insert(name, (t, ctx));
+        }
+    }
+
     fn register_poly_class(&mut self, t: Type, ctx: Self, muty: Mutability) {
+        let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
+        let t = Self::instantiate_t(t, &mut tv_ctx);
         if let Some(ctxs) = self.poly_classes.get_mut(&t.name()) {
             ctxs.push((t, ctx));
         } else {
@@ -117,6 +123,8 @@ impl Context {
         if self.poly_traits.contains_key(&t.name()) {
             panic!("{} has already been registered", t.name());
         } else {
+            let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
+            let t = Self::instantiate_t(t, &mut tv_ctx);
             let name = VarName::from_str(t.name());
             self.locals
                 .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
@@ -172,13 +180,17 @@ impl Context {
         immutizable.register_decl("ImmutType", Type, Public);
         let mut mutizable = Self::mono_trait("Mutizable", vec![], Self::TOP_LEVEL);
         mutizable.register_decl("MutType!", Type, Public);
-        let mut in_ = Self::poly_trait("In", vec![PS::t("T", NonDefault)], vec![], Self::TOP_LEVEL);
-        let op_t = fn1_met(
-            poly_trait("In", vec![ty_tp(mono_q("T"))]),
-            mono_q("T"),
-            Bool,
+        let mut in_ = Self::poly_trait(
+            "In",
+            vec![PS::t("T", NonDefault)],
+            vec![poly_trait("Input", vec![ty_tp(mono_q("T"))])],
+            Self::TOP_LEVEL,
         );
-        let op_t = quant(op_t, set! { static_instance("T", Type) });
+        let op_t = fn1_met(mono_q("T"), mono_q("I"), Bool);
+        let op_t = quant(
+            op_t,
+            set! { static_instance("T", Type), subtypeof(mono_q("I"), poly_trait("In", vec![ty_tp(mono_q("T"))])) },
+        );
         in_.register_decl("__in__", op_t, Public);
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
@@ -616,7 +628,7 @@ impl Context {
         let t = pr_met(class("Int!"), None, vec![f_t], vec![], class("Int!"));
         int_mut.register_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
-            "Int!",
+            "Nat!",
             vec![Nat, Obj],
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
@@ -919,12 +931,12 @@ impl Context {
         self.register_decl("__lorng__", op_t.clone(), Private);
         self.register_decl("__rorng__", op_t.clone(), Private);
         self.register_decl("__orng__", op_t, Private);
-        let op_t = bin_op(
-            mono_q("T"),
-            poly_trait("In", vec![ty_tp(mono_q("T"))]),
-            Bool,
+        // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
+        let op_t = bin_op(mono_q("T"), mono_q("I"), Bool);
+        let op_t = quant(
+            op_t,
+            set! { static_instance("T", Type), subtypeof(mono_q("I"), poly_trait("In", vec![ty_tp(mono_q("T"))])) },
         );
-        let op_t = quant(op_t, set! { static_instance("T", Type) });
         self.register_impl("__in__", op_t, Const, Private);
         /* unary */
         // TODO: Boolの+/-は警告を出したい

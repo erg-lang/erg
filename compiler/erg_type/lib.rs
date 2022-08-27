@@ -19,7 +19,9 @@ use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 use crate::codeobj::CodeObj;
 use crate::constructors::{and, class, int_interval, mono_q};
-use crate::free::{fresh_varname, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level};
+use crate::free::{
+    fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
+};
 use crate::typaram::{IntervalOp, TyParam};
 use crate::value::value_set::*;
 use crate::value::ValueObj;
@@ -279,6 +281,15 @@ impl TyBound {
         }
     }
 
+    pub fn is_cachable(&self) -> bool {
+        match self {
+            Self::Sandwiched { sub, mid, sup } => {
+                sub.is_cachable() && mid.is_cachable() && sup.is_cachable()
+            }
+            Self::Instance { t, .. } => t.is_cachable(),
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Sandwiched { sub, mid, sup } => {
@@ -505,6 +516,19 @@ impl Predicate {
         }
     }
 
+    pub fn is_cachable(&self) -> bool {
+        match self {
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.is_cachable(),
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.is_cachable() && rhs.is_cachable()
+            }
+            _ => true,
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Value(_) => false,
@@ -643,11 +667,8 @@ impl LimitedDisplay for SubrType {
             write!(f, "{}", fmt_option!(param.name, post ": "))?;
             param.ty.limited_fmt(f, limit - 1)?;
         }
-        for (i, default_param) in self.default_params.iter().enumerate() {
-            if i != 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{} |= ", default_param.name.as_ref().unwrap(),)?;
+        for default_param in self.default_params.iter() {
+            write!(f, ", {} |= ", default_param.name.as_ref().unwrap(),)?;
             default_param.ty.limited_fmt(f, limit - 1)?;
         }
         write!(f, ") {} ", self.kind.arrow())?;
@@ -864,6 +885,16 @@ impl SubrKind {
             Self::FuncMethod(t) => t.has_qvar(),
             Self::ProcMethod { before, after } => {
                 before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
+            }
+        }
+    }
+
+    pub fn is_cachable(&self) -> bool {
+        match self {
+            Self::Func | Self::Proc => true,
+            Self::FuncMethod(t) => t.is_cachable(),
+            Self::ProcMethod { before, after } => {
+                before.is_cachable() && after.as_ref().map(|t| t.is_cachable()).unwrap_or(true)
             }
         }
     }
@@ -1467,6 +1498,11 @@ impl Type {
     /// 本来は型環境が必要
     pub fn mutate(self) -> Self {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                fv.link(&t.mutate());
+                Self::FreeVar(fv)
+            }
             Self::Int => class("Int!"),
             Self::Nat => class("Nat!"),
             Self::Ratio => class("Ratio!"),
@@ -1479,6 +1515,7 @@ impl Type {
 
     pub fn is_basic_class(&self) -> bool {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_basic_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1508,6 +1545,7 @@ impl Type {
 
     pub fn is_class(&self) -> bool {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1540,6 +1578,7 @@ impl Type {
 
     pub fn is_trait(&self) -> bool {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_trait(),
             Self::MonoTrait(_) | Self::PolyTrait { .. } => true,
             _ => false,
         }
@@ -1567,6 +1606,7 @@ impl Type {
 
     pub fn is_nonelike(&self) -> bool {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
             Self::PolyClass { name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
@@ -1577,8 +1617,37 @@ impl Type {
         }
     }
 
+    pub fn contains_tvar(&self, name: &str) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(name),
+            Self::FreeVar(fv) if fv.constraint_is_typeof() => {
+                fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
+            }
+            Self::FreeVar(fv) => {
+                fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
+                    || fv
+                        .crack_bound_types()
+                        .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
+                        .unwrap_or(false)
+            }
+            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
+                for param in params.iter() {
+                    match param {
+                        TyParam::Type(t) if t.contains_tvar(name) => {
+                            return true;
+                        }
+                        _ => {}
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
     pub fn args_ownership(&self) -> ArgsOwnership {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().args_ownership(),
             Self::Subr(subr) => {
                 let self_ = subr.kind.self_t().map(|t| t.ownership());
                 let mut nd_args = vec![];
@@ -1609,6 +1678,7 @@ impl Type {
 
     pub fn ownership(&self) -> Ownership {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().ownership(),
             Self::Ref(_) => Ownership::Ref,
             Self::RefMut(_) => Ownership::RefMut,
             _ => Ownership::Owned,
@@ -1622,6 +1692,9 @@ impl Type {
             return lhs.clone();
         }
         match (lhs, rhs) {
+            (Self::FreeVar(_), _) | (_, Self::FreeVar(_)) => {
+                todo!()
+            }
             // { .i: Int } and { .s: Str } == { .i: Int, .s: Str }
             (Self::Record(l), Self::Record(r)) => Self::Record(l.clone().concat(r.clone())),
             (t, Self::Obj) | (Self::Obj, t) => t.clone(),
@@ -1685,7 +1758,7 @@ impl Type {
             Self::NotImplemented => Str::ever("NotImplemented"),
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
-                FreeKind::Linked(l) => l.name(),
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.name(),
                 FreeKind::NamedUnbound { name, .. } => name.clone(),
                 FreeKind::Unbound { id, .. } => Str::from(id.to_string()),
             }, // TODO: 中身がSomeなら表示したい
@@ -1765,6 +1838,40 @@ impl Type {
         }
     }
 
+    pub fn is_cachable(&self) -> bool {
+        match self {
+            Self::FreeVar(_) => false,
+            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.is_cachable(),
+            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.is_cachable() && rhs.is_cachable()
+            }
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().all(|t| t.is_cachable()) && return_t.is_cachable()
+            }
+            Self::Subr(subr) => {
+                subr.kind.is_cachable()
+                    && subr
+                        .non_default_params
+                        .iter()
+                        .all(|p| p.ty.has_unbound_var())
+                    && subr.default_params.iter().all(|p| p.ty.is_cachable())
+                    && subr.return_t.is_cachable()
+            }
+            Self::Record(r) => r.values().all(|t| t.is_cachable()),
+            Self::Refinement(refine) => {
+                refine.t.is_cachable() && refine.preds.iter().all(|p| p.is_cachable())
+            }
+            Self::Quantified(quant) => {
+                quant.unbound_callable.is_cachable() || quant.bounds.iter().all(|b| b.is_cachable())
+            }
+            Self::PolyClass { params, .. }
+            | Self::PolyTrait { params, .. }
+            | Self::PolyQVar { params, .. } => params.iter().all(|p| p.is_cachable()),
+            Self::MonoProj { lhs, .. } => lhs.is_cachable(),
+            _ => true,
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
@@ -1812,7 +1919,8 @@ impl Type {
 
     pub fn typarams_len(&self) -> Option<usize> {
         match self {
-            // REVIEw:
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams_len(),
+            // REVIEW:
             Self::Ref(_) | Self::RefMut(_) => Some(1),
             Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => Some(2),
             Self::Subr(subr) => Some(
@@ -1873,8 +1981,9 @@ impl Type {
         }
     }
 
-    pub const fn self_t(&self) -> Option<&Type> {
+    pub fn self_t(&self) -> Option<&Type> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => todo!("linked: {fv}"),
             Self::Subr(SubrType {
                 kind: SubrKind::FuncMethod(self_t) | SubrKind::ProcMethod { before: self_t, .. },
                 ..
@@ -1885,6 +1994,7 @@ impl Type {
 
     pub const fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
+            Self::FreeVar(_) => panic!("fv"),
             Self::Subr(SubrType {
                 non_default_params, ..
             }) => Some(non_default_params),
@@ -1895,6 +2005,7 @@ impl Type {
 
     pub const fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
+            Self::FreeVar(_) => panic!("fv"),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             _ => None,
         }
@@ -1902,6 +2013,7 @@ impl Type {
 
     pub const fn return_t(&self) -> Option<&Type> {
         match self {
+            Self::FreeVar(_) => panic!("fv"),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
@@ -1911,6 +2023,7 @@ impl Type {
 
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
+            Self::FreeVar(_) => panic!("fv"),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
@@ -1922,6 +2035,15 @@ impl Type {
         match self {
             Self::FreeVar(fv) => {
                 fv.update_constraint(new_constraint);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
+        match self {
+            Self::FreeVar(fv) => {
+                fv.update_cyclicity(new_cyclicity);
             }
             _ => {}
         }
