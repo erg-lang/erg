@@ -1541,6 +1541,11 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
+                if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" {
+                    let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
+                }
                 if self.nth_is(1, Colon) {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Colon));
