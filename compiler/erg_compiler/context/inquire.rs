@@ -901,7 +901,7 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
-            _ => todo!(),
+            other => todo!("{other}"),
         }
         if let Some(outer) = &self.outer {
             outer.rec_get_nominal_type_ctx(typ)

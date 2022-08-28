@@ -1136,8 +1136,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        self.sig.fmt_nest(f, level)?;
-        writeln!(f, " {}", self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

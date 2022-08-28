@@ -170,7 +170,7 @@ impl Context {
                     }
                     let vis = ident.vis();
                     let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
-                    self.params.push((Some(ident.name.clone()), vi));
+                    self.locals.insert(ident.name.clone(), vi);
                     Ok(())
                 }
             }
