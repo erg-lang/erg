@@ -7,7 +7,7 @@ import io as __io
 
 __server_socket = __socket.socket()
 # DummyVM will replace this __PORT__ with free port
-__server_socket.bind(('127.0.0.1', __PORT__)) 
+__server_socket.bind(('127.0.0.1', __PORT__))
 __server_socket.listen(1)
 (__client_socket, __client_address) = __server_socket.accept()
 
