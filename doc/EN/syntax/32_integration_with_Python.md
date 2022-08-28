@@ -1,5 +1,29 @@
 # Integration with Python
 
+## Export to Python
+
+When the Erg script is compiled, a .pyc file is generated, which can simply be imported as a Python module.
+However, variables set to private on the Erg side cannot be accessed from Python.
+
+```erg
+# foo.er
+.public = "this is a public variable"
+private = "this is a private variable"
+```
+
+```console
+erg --compile foo.er
+```
+
+```python
+import foo
+
+print(foo.public)
+print(foo.private) # AttributeError:
+```
+
+## Import from Python
+
 All objects imported from Python are by default of type `Object`. Since no comparisons can be made at this point, it is necessary to refine the type.
 
 ## Type Specification in the Standard Library

@@ -1,5 +1,29 @@
 # Pythonとの連携
 
+## Pythonへのexport
+
+Ergスクリプトをコンパイルすると.pycファイルが生成されますが、これは単純にPythonのモジュールとして読み込むことができます。
+ただし、Erg側で非公開に設定した変数はPythonからアクセスできません。
+
+```erg
+# foo.er
+.public = "this is a public variable"
+private = "this is a private variable"
+```
+
+```console
+erg --compile foo.er
+```
+
+```python
+import foo
+
+print(foo.public)
+print(foo.private) # AttributeError:
+```
+
+## Pythonからのimport
+
 Pythonから取り込んだオブジェクトはデフォルトですべて`Object`型になります。このままでは比較もできないので、型の絞り込みを行う必要があります。
 
 ## 標準ライブラリの型指定
