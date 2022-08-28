@@ -4,13 +4,17 @@
 use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
 use erg_common::get_hash;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{ParamTy, TyParam, Type};
-use erg_common::value::{ValueObj, Visibility};
+use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::{fn_name, log, switch_lang};
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
+
+use erg_type::constructors::{array, array_mut, class, func, poly_class, proc, quant};
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{Context, ContextKind, RegistrationMode};
 use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
@@ -42,16 +46,18 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
-        self.ctx.unify(expect, found, Some(loc), None).map_err(|_| {
-            LowerError::type_mismatch_error(
-                line!() as usize,
-                loc,
-                self.ctx.caused_by(),
-                name,
-                expect,
-                found,
-            )
-        })
+        self.ctx
+            .sub_unify(found, expect, None, Some(loc))
+            .map_err(|_| {
+                LowerError::type_mismatch_error(
+                    line!() as usize,
+                    loc,
+                    self.ctx.caused_by(),
+                    name,
+                    expect,
+                    found,
+                )
+            })
     }
 
     fn use_check(&self, expr: hir::Expr, mode: &str) -> LowerResult<hir::Expr> {
@@ -100,21 +106,42 @@ impl ASTLowerer {
 
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!("[DEBUG] entered {}({array})", fn_name!());
-        let mut hir_array = hir::NormalArray::new(
-            array.l_sqbr,
-            array.r_sqbr,
-            self.ctx.level,
-            hir::Args::empty(),
-        );
-        let inner_t = hir_array.t.ref_t().inner_ts().first().unwrap().clone();
+        let mut new_array = vec![];
         let (elems, _) = array.elems.into_iters();
+        let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            self.ctx
-                .sub_unify(elem.ref_t(), &inner_t, Some(elem.loc()), None)?;
-            hir_array.push(elem);
+            union = self.ctx.rec_union(&union, elem.ref_t());
+            if matches!(union, Type::Or(_, _)) {
+                return Err(LowerError::syntax_error(
+                    line!() as usize,
+                    elem.loc(),
+                    self.ctx.name.clone(),
+                    switch_lang!(
+                        "japanese" => "配列の要素は全て同じ型である必要があります",
+                        "simplified_chinese" => "数组元素必须全部是相同类型",
+                        "traditional_chinese" => "數組元素必須全部是相同類型",
+                        "english" => "all elements of an array must be of the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                ));
+            }
+            new_array.push(elem);
         }
-        Ok(hir_array)
+        Ok(hir::NormalArray::new(
+            array.l_sqbr,
+            array.r_sqbr,
+            union,
+            hir::Args::from(new_array),
+        ))
     }
 
     fn lower_array_with_length(
@@ -134,34 +161,34 @@ impl ASTLowerer {
         match maybe_len {
             Some(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly_class(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else {
-                    Type::array(elem.t(), TyParam::Value(v))
+                    array(elem.t(), TyParam::Value(v))
                 }
             }
-            Some(v @ ValueObj::Mut(_)) if v.class() == Type::mono("Nat!") => {
+            Some(v @ ValueObj::Mut(_)) if v.class() == class("Nat!") => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly_class(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else {
-                    Type::array_mut(elem.t(), TyParam::Value(v))
+                    array_mut(elem.t(), TyParam::Value(v))
                 }
             }
             Some(other) => todo!("{other} is not a Nat object"),
             // TODO: [T; !_]
             None => {
                 if elem.ref_t().is_mut() {
-                    Type::poly(
+                    poly_class(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    Type::array(elem.t(), TyParam::erased(Type::Nat))
+                    array(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }
@@ -171,7 +198,7 @@ impl ASTLowerer {
         log!("[DEBUG] entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());
-        self.ctx.grow("<record>", ContextKind::Record, Private)?;
+        self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
         for attr in record.attrs.into_iter() {
             let attr = self.lower_def(attr)?;
             hir_record.push(attr);
@@ -320,14 +347,14 @@ impl ASTLowerer {
             })?;
         self.pop_append_errs();
         let t = if is_procedural {
-            Type::proc(non_default_params, default_params, body.t())
+            proc(non_default_params, default_params, body.t())
         } else {
-            Type::func(non_default_params, default_params, body.t())
+            func(non_default_params, default_params, body.t())
         };
         let t = if bounds.is_empty() {
             t
         } else {
-            Type::quantified(t, bounds)
+            quant(t, bounds)
         };
         Ok(hir::Lambda::new(id, lambda.sig.params, lambda.op, body, t))
     }
@@ -422,7 +449,7 @@ impl ASTLowerer {
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
         if let Err(e) =
-            self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
+            self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
         {
             self.errs.push(e);
         }
@@ -466,6 +493,7 @@ impl ASTLowerer {
     }
 
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
+        log!("{GREEN}[DEBUG] the AST lowering process has started.");
         log!("{GREEN}[DEBUG] the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.ref_payload())?;
@@ -481,18 +509,17 @@ impl ASTLowerer {
         }
         let hir = HIR::new(ast.name, module);
         log!("HIR (not derefed):\n{hir}");
-        let hir = self.ctx.deref_toplevel(hir)?;
         log!(
-            "[DEBUG] {}() has completed, found errors: {}",
-            fn_name!(),
+            "[DEBUG] the type-checking process has completed, found errors: {}",
             self.errs.len()
         );
+        let hir = self.ctx.deref_toplevel(hir)?;
         if self.errs.is_empty() {
             log!("HIR:\n{hir}");
-            log!("[DEBUG] the type-checking process has completed.{RESET}");
+            log!("[DEBUG] the AST lowering process has completed.{RESET}");
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
-            log!("{RED}[DEBUG] the type-checking process has failed.{RESET}");
+            log!("{RED}[DEBUG] the AST lowering process has failed.{RESET}");
             Err(LowerErrors::from(self.errs.take_all()))
         }
     }

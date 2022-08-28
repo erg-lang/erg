@@ -5,7 +5,7 @@ ergコマンドにはtestというサブコマンドがあり、テスト実装�
 ## Testデコレータ(@Test)
 
 Ergではパッケージ中の`tests`ディレクトリか`*.test.er`ファイル中の`@Test`を付けたサブルーチンを`erg test`コマンドでテストする。
-`tests`のサブルーチンはブラックボックステスト、`*.test.er`のサブルーチンはホワイトボックステストを担当する。
+`tests`のサブルーチンはブラックボックステスト(非公開関数をテストしない)、`*.test.er`のサブルーチンはホワイトボックステスト(非公開関数もテストする)を担当する。
 
 ```erg
 # tests/test1.er
@@ -20,7 +20,7 @@ test_1_plus_n(n: Nat) =
 
 ## Doc Test
 
-Ergでは`#`, `#[`でコメント行となるが、`##`, `#[[`でdoc commentとなり、VSCodeなどエディタからコメントをmd表示できる。
+Ergでは`#`, `#[`以降がコメント行となるが、`##`, `#[[`でdoc commentとなり、VSCodeなどエディタからコメントをマークダウンで表示できる。
 さらにdoc comment中のソースコードはergと指定されていれば、erg testコマンドで自動テストされる。
 以下はテストの例である。
 
@@ -31,7 +31,7 @@ VM = ...
     execute commands.
     ```erg
     # VM in standard configuration
-    {vm1; ...} = import "tests/template"
+    {vm1; ...} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
@@ -42,4 +42,4 @@ VM = ...
     ...
 ```
 
-テストを行う際に使う典型的なオブジェクトは`tests/template`モジュールに定義する。
+テストの際に使う模擬オブジェクト(モックオブジェクト)は`tests/mock`モジュールに定義する。

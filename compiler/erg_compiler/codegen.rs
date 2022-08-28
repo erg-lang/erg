@@ -4,26 +4,28 @@
 use std::fmt;
 use std::process;
 
-use erg_common::cache::Cache;
-use erg_common::codeobj::{CodeObj, CodeObjFlags};
+use erg_common::cache::CacheSet;
 use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::opcode::Opcode;
-use erg_common::traits::{HasType, Locational, Stream};
-use erg_common::ty::{TypeCode, TypePair};
-use erg_common::value::ValueObj;
+use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
     debug_power_assert, enum_unwrap, fn_name_full, impl_stream_for_wrapper, log, switch_unreachable,
 };
+use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
 use erg_parser::ast::{Identifier, ParamPattern, Params, VarName, VarPattern};
 use erg_parser::token::{Token, TokenCategory, TokenKind};
 
+use erg_type::value::ValueObj;
+use erg_type::{HasType, TypeCode, TypePair};
+
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
+use crate::eval::eval_lit;
 use crate::hir::{
     Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
 };
@@ -223,6 +225,14 @@ fn convert_to_python_name(name: Str) -> Str {
         "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
+        "Nat" | "Nat!" => Str::ever("int"),
+        "Int" | "Int!" => Str::ever("int"),
+        "Float" | "Float!" => Str::ever("float"),
+        "Ratio" | "Ratio!" => Str::ever("float"),
+        "Complex" => Str::ever("complex"),
+        "Str" | "Str!" => Str::ever("str"),
+        "Bool" | "Bool!" => Str::ever("bool"),
+        "Array" | "Array!" => Str::ever("list"),
         _ => name,
     }
 }
@@ -296,7 +306,8 @@ impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
 #[derive(Debug)]
 pub struct CodeGenerator {
     cfg: ErgConfig,
-    str_cache: Cache<str>,
+    str_cache: CacheSet<str>,
+    namedtuple_loaded: bool,
     unit_size: usize,
     units: CodeGenStack,
     pub(crate) errs: CompileErrors,
@@ -306,7 +317,8 @@ impl CodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            str_cache: Cache::new(),
+            str_cache: CacheSet::new(),
+            namedtuple_loaded: false,
             unit_size: 0,
             units: CodeGenStack::empty(),
             errs: CompileErrors::empty(),
@@ -540,6 +552,26 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
         self.stack_inc();
+        Ok(())
+    }
+
+    fn emit_import_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        let name = self
+            .local_search(ident.inspect(), Name)
+            .unwrap_or_else(|| self.register_name(ident));
+        self.write_instr(IMPORT_NAME);
+        self.write_arg(name.idx as u8);
+        self.stack_dec(); // (level + from_list) -> module object
+        Ok(())
+    }
+
+    fn emit_import_from_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        let name = self
+            .local_search(ident.inspect(), Name)
+            .unwrap_or_else(|| self.register_name(ident));
+        self.write_instr(IMPORT_FROM);
+        self.write_arg(name.idx as u8);
+        // self.stack_inc(); (module object) -> attribute
         Ok(())
     }
 
@@ -850,7 +882,7 @@ impl CodeGenerator {
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Lit(lit) => {
-                self.emit_load_const(ValueObj::from(&lit));
+                self.emit_load_const(eval_lit(&lit));
                 self.write_instr(Opcode::COMPARE_OP);
                 self.write_arg(2); // ==
                 self.stack_dec();
@@ -934,7 +966,7 @@ impl CodeGenerator {
     }
 
     fn emit_call(&mut self, obj: Expr, method_name: Option<Token>, mut args: Args) {
-        let class = Str::rc(obj.ref_t().name()); // これは必ずmethodのあるクラスになっている
+        let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
         self.codegen_expr(obj);
         if let Some(method_name) = method_name {
@@ -1039,7 +1071,7 @@ impl CodeGenerator {
                 });
             }
             Expr::Accessor(Accessor::Attr(a)) => {
-                let class = Str::rc(a.obj.ref_t().name());
+                let class = a.obj.ref_t().name();
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
                 self.codegen_expr(*a.obj);
                 self.emit_load_attr_instr(
@@ -1182,6 +1214,56 @@ impl CodeGenerator {
                 }
                 other => todo!("{other}"),
             },
+            Expr::Record(rec) => {
+                let attrs_len = rec.attrs.len();
+                // importing namedtuple
+                if !self.namedtuple_loaded {
+                    self.emit_load_const(0);
+                    self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
+                        Str::ever("namedtuple"),
+                    )])));
+                    let ident = Identifier::public("collections");
+                    self.emit_import_name_instr(ident).unwrap();
+                    let ident = Identifier::public("namedtuple");
+                    self.emit_import_from_instr(ident).unwrap();
+                    let ident = Identifier::private(Str::ever("#NamedTuple"));
+                    self.emit_store_instr(ident, Name);
+                    self.namedtuple_loaded = true;
+                }
+                // making record type
+                let ident = Identifier::private(Str::ever("#NamedTuple"));
+                self.emit_load_name_instr(ident).unwrap();
+                // record name, let it be anonymous
+                self.emit_load_const("Record");
+                for field in rec.attrs.iter() {
+                    self.emit_load_const(ValueObj::Str(
+                        field.sig.ident().unwrap().inspect().clone(),
+                    ));
+                }
+                self.write_instr(BUILD_LIST);
+                self.write_arg(attrs_len as u8);
+                if attrs_len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(attrs_len - 1);
+                }
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(2);
+                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                self.stack_dec_n((1 + 2 + 0) - 1);
+                let ident = Identifier::private(Str::ever("#rec"));
+                self.emit_store_instr(ident, Name);
+                // making record instance
+                let ident = Identifier::private(Str::ever("#rec"));
+                self.emit_load_name_instr(ident).unwrap();
+                for field in rec.attrs.into_iter() {
+                    self.codegen_frameless_block(field.body.block, vec![]);
+                }
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(attrs_len as u8);
+                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                self.stack_dec_n((1 + attrs_len + 0) - 1);
+            }
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),

@@ -3,15 +3,15 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
+use erg_common::impl_display_from_debug;
+use erg_common::opcode::Opcode;
+use erg_common::python_util::detect_magic_number;
+use erg_common::serialize::*;
+use erg_common::Str;
+
 use crate::deserialize::{DeserializeResult, Deserializer};
-use crate::impl_display_from_debug;
-use crate::opcode::Opcode;
-use crate::python_util::detect_magic_number;
-use crate::serialize::*;
-use crate::traits::HasType;
-use crate::ty::{Type, TypePair};
 use crate::value::ValueObj;
-use crate::Str;
+use crate::{HasType, Type, TypePair};
 
 pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
     let mut tuple = vec![];
@@ -432,7 +432,9 @@ impl CodeObj {
                     | Opcode::LOAD_GLOBAL
                     | Opcode::STORE_ATTR
                     | Opcode::LOAD_ATTR
-                    | Opcode::LOAD_METHOD => {
+                    | Opcode::LOAD_METHOD
+                    | Opcode::IMPORT_NAME
+                    | Opcode::IMPORT_FROM => {
                         instrs += &format!("{} ({})", arg, self.names.get(*arg as usize).unwrap());
                     }
                     Opcode::STORE_DEREF | Opcode::LOAD_DEREF => {

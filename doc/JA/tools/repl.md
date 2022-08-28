@@ -6,6 +6,8 @@
 * typed: オブジェクトとその型を表示します。
 
 ```console
+$ erg repl --typed
+Erg interpreter ... (tags/?:, ...) on ...
 >>> 1
 1: {1}
 >>> id x = x

@@ -93,6 +93,19 @@ macro_rules! enum_unwrap {
     }};
 }
 
+#[macro_export]
+macro_rules! option_enum_unwrap {
+    ($ex: expr, $Enum: path $(,)*) => {{
+        if let $Enum(res) = $ex { Some(res) } else { None }
+    }};
+    ($ex: expr, $Enum: path :( $Cons: path :(_) ) $(,)*) => {{
+        if let $Enum($Cons(res)) = $ex { Some(res) } else { None }
+    }};
+    ($ex: expr, $Enum: path {$($fields: ident $(,)*)*}) => {{
+        if let $Enum{$($fields,)*} = $ex { Some(($($fields,)*)) } else { None }
+    }};
+}
+
 /// ```rust
 /// assert fmt_option!(Some(1)) == "1"
 /// assert fmt_option!(None) == ""

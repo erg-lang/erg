@@ -5,12 +5,12 @@ use erg_common::color::{GREEN, RED, RESET, YELLOW};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{Predicate, Type};
-use erg_common::value::Visibility;
-use erg_common::{fmt_iter, Str};
-use erg_common::{impl_stream_for_wrapper, switch_lang};
+use erg_common::vis::Visibility;
+use erg_common::{fmt_iter, impl_stream_for_wrapper, switch_lang, Str};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
+
+use erg_type::{Predicate, Type};
 
 use crate::hir::Expr;
 
@@ -233,6 +233,21 @@ impl CompileError {
 pub struct TyCheckError {
     pub core: ErrorCore,
     pub caused_by: Str,
+}
+
+impl ErrorDisplay for TyCheckError {
+    fn core(&self) -> &ErrorCore {
+        &self.core
+    }
+    fn input(&self) -> &Input {
+        &Input::Dummy
+    }
+    fn caused_by(&self) -> &str {
+        &self.caused_by
+    }
+    fn ref_inner(&self) -> Option<&Box<Self>> {
+        None
+    }
 }
 
 impl TyCheckError {

@@ -1,76 +1,26 @@
 //! defines `ValueObj` (used in the compiler, VM).
 //!
 //! コンパイラ、VM等で使われる(データも保持した)値オブジェクトを定義する
-use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::fmt::{self, Write};
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::Neg;
 use std::rc::Rc;
 
+use erg_common::dict::Dict;
+use erg_common::rccell::RcCell;
+use erg_common::serialize::*;
+use erg_common::set;
+use erg_common::vis::Field;
+use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
+use erg_common::{RcArray, Str};
+
 use crate::codeobj::CodeObj;
-use crate::dict::Dict;
-use crate::rccell::RcCell;
-use crate::serialize::*;
-use crate::set;
-use crate::traits::HasType;
-use crate::ty::{fresh_varname, ConstSubr, Predicate, TyParam, Type};
-use crate::{fmt_iter, impl_display_from_debug, switch_lang};
-use crate::{RcArray, Str};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Visibility {
-    Private,
-    Public,
-}
-
-impl Visibility {
-    pub const fn is_public(&self) -> bool {
-        matches!(self, Self::Public)
-    }
-    pub const fn is_private(&self) -> bool {
-        matches!(self, Self::Private)
-    }
-}
-
-/// same structure as `Identifier`, but only for Record fields.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Field {
-    vis: Visibility,
-    symbol: Str,
-}
-
-impl fmt::Display for Field {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.vis == Visibility::Public {
-            write!(f, ".{}", self.symbol)
-        } else {
-            write!(f, "{}", self.symbol)
-        }
-    }
-}
-
-impl Borrow<str> for Field {
-    #[inline]
-    fn borrow(&self) -> &str {
-        &self.symbol[..]
-    }
-}
-
-impl Borrow<Str> for Field {
-    #[inline]
-    fn borrow(&self) -> &Str {
-        &self.symbol
-    }
-}
-
-impl Field {
-    pub const fn new(vis: Visibility, symbol: Str) -> Self {
-        Field { vis, symbol }
-    }
-}
+use crate::constructors::{array, class, poly_class, refinement, tuple};
+use crate::free::fresh_varname;
+use crate::typaram::TyParam;
+use crate::{ConstSubr, HasType, Predicate, Type};
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
@@ -83,6 +33,7 @@ pub enum ValueObj {
     Bool(bool),
     Array(Rc<[ValueObj]>),
     Dict(Rc<[(ValueObj, ValueObj)]>),
+    Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
     Subr(ConstSubr),
@@ -120,16 +71,27 @@ impl fmt::Debug for ValueObj {
             }
             Self::Array(arr) => write!(f, "[{}]", fmt_iter(arr.iter())),
             Self::Dict(dict) => {
-                let mut s = "".to_string();
-                for (k, v) in dict.iter() {
-                    write!(s, "{k}: {v}, ")?;
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
                 }
-                s.pop();
-                s.pop();
-                write!(f, "[{s}]")
+                write!(f, "}}")
             }
+            Self::Tuple(tup) => write!(f, "({})", fmt_iter(tup.iter())),
             Self::Code(code) => write!(f, "{code}"),
-            Self::Record(rec) => write!(f, "{rec}"),
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in rec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Subr(subr) => write!(f, "{subr:?}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
@@ -174,6 +136,7 @@ impl Hash for ValueObj {
             Self::Bool(b) => b.hash(state),
             Self::Array(arr) => arr.hash(state),
             Self::Dict(dict) => dict.hash(state),
+            Self::Tuple(tup) => tup.hash(state),
             Self::Code(code) => code.hash(state),
             Self::Record(rec) => rec.hash(state),
             Self::Subr(subr) => subr.hash(state),
@@ -288,7 +251,7 @@ impl HasType for ValueObj {
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
         let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
-        Type::refinement(name, self.class(), set! {pred})
+        refinement(name, self.class(), set! {pred})
     }
     fn signature_t(&self) -> Option<&Type> {
         None
@@ -367,6 +330,15 @@ impl ValueObj {
                 }
                 bytes
             }
+            Self::Tuple(tup) => {
+                let mut bytes = Vec::with_capacity(tup.len());
+                bytes.push(DataTypePrefix::Tuple as u8);
+                bytes.append(&mut (tup.len() as u32).to_le_bytes().to_vec());
+                for obj in tup.iter().cloned() {
+                    bytes.append(&mut obj.into_bytes());
+                }
+                bytes
+            }
             Self::None => {
                 vec![DataTypePrefix::None as u8]
             }
@@ -394,11 +366,12 @@ impl ValueObj {
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
             // TODO:
-            Self::Array(arr) => Type::array(
+            Self::Array(arr) => array(
                 arr.iter().next().unwrap().class(),
                 TyParam::value(arr.len()),
             ),
             Self::Dict(_dict) => todo!(),
+            Self::Tuple(tup) => tuple(tup.iter().map(|v| v.class()).collect()),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
@@ -411,12 +384,12 @@ impl ValueObj {
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => Type::mono("Int!"),
-                Self::Nat(_) => Type::mono("Nat!"),
-                Self::Float(_) => Type::mono("Float!"),
-                Self::Str(_) => Type::mono("Str!"),
-                Self::Bool(_) => Type::mono("Bool!"),
-                Self::Array(arr) => Type::poly(
+                Self::Int(_) => class("Int!"),
+                Self::Nat(_) => class("Nat!"),
+                Self::Float(_) => class("Float!"),
+                Self::Str(_) => class("Str!"),
+                Self::Bool(_) => class("Bool!"),
+                Self::Array(arr) => poly_class(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),
@@ -667,5 +640,38 @@ impl ValueObj {
             (self_, Self::Mut(m)) => self_.try_ne(m.borrow().clone()),
             _ => None,
         }
+    }
+}
+
+pub mod value_set {
+    use crate::{Type, ValueObj};
+    use erg_common::set::Set;
+
+    // false -> SyntaxError
+    pub fn is_homogeneous(set: &Set<ValueObj>) -> bool {
+        let l_first = set.iter().next().unwrap().class();
+        set.iter().all(|c| c.class() == l_first)
+    }
+
+    pub fn inner_class(set: &Set<ValueObj>) -> Type {
+        set.iter().next().unwrap().class()
+    }
+
+    pub fn max(set: &Set<ValueObj>) -> Option<ValueObj> {
+        if !is_homogeneous(set) {
+            return None;
+        }
+        set.iter()
+            .max_by(|x, y| x.try_cmp(y).unwrap())
+            .map(Clone::clone)
+    }
+
+    pub fn min(set: &Set<ValueObj>) -> Option<ValueObj> {
+        if !is_homogeneous(set) {
+            return None;
+        }
+        set.iter()
+            .min_by(|x, y| x.try_cmp(y).unwrap())
+            .map(Clone::clone)
     }
 }

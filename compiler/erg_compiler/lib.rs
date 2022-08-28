@@ -9,7 +9,6 @@ pub mod effectcheck;
 pub mod error;
 pub mod eval;
 pub mod hir;
-pub mod initialize;
 pub mod lower;
 pub use lower::ASTLowerer;
 pub mod context;

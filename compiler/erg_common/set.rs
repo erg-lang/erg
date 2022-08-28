@@ -5,8 +5,6 @@ use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 
 use crate::fxhash::FxHashSet;
-use crate::ty::Type;
-use crate::value::ValueObj;
 use crate::{debug_fmt_iter, fmt_iter};
 
 #[macro_export]
@@ -24,19 +22,25 @@ pub struct Set<T> {
     elems: FxHashSet<T>,
 }
 
+// Use fast_eq for faster comparisons
+// より高速な比較はfast_eqを使うこと
 impl<T: Hash + Eq> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
-        self.len() == other.len() && self.iter().all(|key| other.contains(key))
+        if self.len() != other.len() {
+            return false;
+        }
+        self.iter()
+            .all(|l_key| other.iter().any(|r_key| l_key == r_key))
     }
 }
+
+impl<T: Hash + Eq> Eq for Set<T> {}
 
 impl<T> Default for Set<T> {
     fn default() -> Self {
         Self::new()
     }
 }
-
-impl<T: Hash + Eq> Eq for Set<T> {}
 
 impl<T: Hash> Hash for Set<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -119,6 +123,11 @@ impl<T: Hash + Eq> Set<T> {
     }
 
     #[inline]
+    pub fn fast_eq(&self, other: &Set<T>) -> bool {
+        self.elems == other.elems
+    }
+
+    #[inline]
     pub fn contains<Q>(&self, value: &Q) -> bool
     where
         T: Borrow<Q>,
@@ -188,35 +197,5 @@ impl<T: Hash + Ord> Set<T> {
 
     pub fn min(&self) -> Option<&T> {
         self.iter().min_by(|x, y| x.cmp(y))
-    }
-}
-
-impl Set<ValueObj> {
-    // false -> SyntaxError
-    pub fn is_homogeneous(&self) -> bool {
-        let l_first = self.iter().next().unwrap().class();
-        self.iter().all(|c| c.class() == l_first)
-    }
-
-    pub fn inner_class(&self) -> Type {
-        self.iter().next().unwrap().class()
-    }
-
-    pub fn max(&self) -> Option<ValueObj> {
-        if !self.is_homogeneous() {
-            return None;
-        }
-        self.iter()
-            .max_by(|x, y| x.try_cmp(y).unwrap())
-            .map(Clone::clone)
-    }
-
-    pub fn min(&self) -> Option<ValueObj> {
-        if !self.is_homogeneous() {
-            return None;
-        }
-        self.iter()
-            .min_by(|x, y| x.try_cmp(y).unwrap())
-            .map(Clone::clone)
     }
 }

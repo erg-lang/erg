@@ -1,24 +1,25 @@
 [package]
 name = "erg_compiler"
-version = "0.2.8"
+version = "0.3.0"
 description = "Centimetre: the Erg compiler"
 authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/src/erg_compiler"
+repository = "https://github.com/erg-lang/erg/tree/main/src/compiler/erg_compiler"
 documentation = "https://docs.rs/erg_compiler"
 homepage = "https://erg-lang.github.io/"
 
 [features]
 # when "debug" feature is turned on, that of parser will also be turned on.
-debug = [ "erg_common/debug", "erg_parser/debug" ]
-japanese = [ "erg_common/japanese", "erg_parser/japanese" ]
-simplified_chinese = [ "erg_common/simplified_chinese", "erg_parser/simplified_chinese" ]
-traditional_chinese = [ "erg_common/traditional_chinese", "erg_parser/traditional_chinese" ]
+debug = [ "erg_common/debug", "erg_parser/debug", "erg_type/debug" ]
+japanese = [ "erg_common/japanese", "erg_parser/japanese", "erg_type/japanese" ]
+simplified_chinese = [ "erg_common/simplified_chinese", "erg_parser/simplified_chinese", "erg_type/simplified_chinese" ]
+traditional_chinese = [ "erg_common/traditional_chinese", "erg_parser/traditional_chinese", "erg_type/traditional_chinese" ]
 
 [dependencies]
-erg_common = { version = "0.2.8", path = "../erg_common" }
-erg_parser = { version = "0.2.8", path = "../erg_parser" }
+erg_common = { version = "0.3.0", path = "../erg_common" }
+erg_parser = { version = "0.3.0", path = "../erg_parser" }
+erg_type = { version = "0.3.0", path = "../erg_type" }
 
 [lib]
 path = "lib.rs"

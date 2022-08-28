@@ -4,17 +4,74 @@ use erg_common::dict::Dict;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
 use erg_common::traits::Stream;
-use erg_common::ty::{OpKind, Predicate, SubrKind, TyBound, TyParam, Type};
-use erg_common::value::{Field, ValueObj};
+use erg_common::vis::Field;
 use erg_common::{fn_name, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
 use erg_parser::ast::*;
-use erg_parser::token::Token;
+use erg_parser::token::{Token, TokenKind};
 
-use crate::context::{Context, TyVarContext};
+use erg_type::constructors::{
+    enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t, var_args,
+};
+use erg_type::typaram::{OpKind, TyParam};
+use erg_type::value::ValueObj;
+use erg_type::{Predicate, SubrKind, TyBound, Type};
+
+use crate::context::instantiate::TyVarContext;
+use crate::context::Context;
 use crate::error::{EvalError, EvalResult, TyCheckResult};
+
+#[inline]
+pub fn type_from_token_kind(kind: TokenKind) -> Type {
+    use TokenKind::*;
+
+    match kind {
+        NatLit => Type::Nat,
+        IntLit => Type::Int,
+        RatioLit => Type::Ratio,
+        StrLit => Type::Str,
+        BoolLit => Type::Bool,
+        NoneLit => Type::NoneType,
+        NoImplLit => Type::NotImplemented,
+        EllipsisLit => Type::Ellipsis,
+        InfLit => Type::Inf,
+        other => panic!("this has not type: {other}"),
+    }
+}
+
+fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
+    match kind {
+        TokenKind::Plus => Ok(OpKind::Add),
+        TokenKind::Minus => Ok(OpKind::Sub),
+        TokenKind::Star => Ok(OpKind::Mul),
+        TokenKind::Slash => Ok(OpKind::Div),
+        TokenKind::Pow => Ok(OpKind::Pow),
+        TokenKind::Mod => Ok(OpKind::Mod),
+        TokenKind::DblEq => Ok(OpKind::Eq),
+        TokenKind::NotEq => Ok(OpKind::Ne),
+        TokenKind::Less => Ok(OpKind::Lt),
+        TokenKind::Gre => Ok(OpKind::Gt),
+        TokenKind::LessEq => Ok(OpKind::Le),
+        TokenKind::GreEq => Ok(OpKind::Ge),
+        TokenKind::AndOp => Ok(OpKind::And),
+        TokenKind::OrOp => Ok(OpKind::Or),
+        TokenKind::BitAnd => Ok(OpKind::BitAnd),
+        TokenKind::BitXor => Ok(OpKind::BitXor),
+        TokenKind::BitOr => Ok(OpKind::BitOr),
+        TokenKind::Shl => Ok(OpKind::Shl),
+        TokenKind::Shr => Ok(OpKind::Shr),
+        TokenKind::Mutate => Ok(OpKind::Mutate),
+        _other => Err(()),
+    }
+}
+
+#[inline]
+pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
+    let t = type_from_token_kind(lit.token.kind);
+    ValueObj::from_str(t, lit.token.content.clone())
+}
 
 /// SubstContext::new([?T; 0], Context(Array(T, N))) => SubstContext{ params: { T: ?T; N: 0 } }
 /// SubstContext::substitute([T; !N], Context(Array(T, N))): [?T; !0]
@@ -46,8 +103,8 @@ impl SubstContext {
         ctx: &Context,
     ) -> TyCheckResult<Type> {
         let bounds = ty_ctx.type_params_bounds();
-        let tv_ctx = TyVarContext::new(level, bounds, ctx);
-        let (inst, _) = Context::instantiate_t(quant_t, tv_ctx);
+        let mut tv_ctx = TyVarContext::new(level, bounds, ctx);
+        let inst = Context::instantiate_t(quant_t, &mut tv_ctx);
         for param in inst.typarams() {
             self.substitute_tp(&param, ty_ctx)?;
         }
@@ -59,7 +116,7 @@ impl SubstContext {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ty_ctx.unify_tp(param, v, None, None, false)?;
+                        ty_ctx.unify_tp(param, v, None, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
@@ -117,11 +174,6 @@ impl Evaluator {
         Self::default()
     }
 
-    #[inline]
-    pub(crate) fn eval_const_lit(&self, lit: &Literal) -> ValueObj {
-        ValueObj::from(lit)
-    }
-
     fn eval_const_acc(&self, _acc: &Accessor, ctx: &Context) -> Option<ValueObj> {
         match _acc {
             Accessor::Local(local) => {
@@ -142,9 +194,8 @@ impl Evaluator {
     fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
         match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
             (Expr::Lit(l), Expr::Lit(r)) => {
-                let op = OpKind::try_from(&bin.op).ok()?;
-                self.eval_bin_lit(op, ValueObj::from(l), ValueObj::from(r))
-                    .ok()
+                let op = try_get_op_kind_from_token(bin.op.kind).ok()?;
+                self.eval_bin_lit(op, eval_lit(l), eval_lit(r)).ok()
             }
             _ => None,
         }
@@ -153,8 +204,8 @@ impl Evaluator {
     fn eval_const_unary(&self, unary: &UnaryOp) -> Option<ValueObj> {
         match unary.args[0].as_ref() {
             Expr::Lit(lit) => {
-                let op = OpKind::try_from(&unary.op).ok()?;
-                self.eval_unary_lit(op, ValueObj::from(lit)).ok()
+                let op = try_get_op_kind_from_token(unary.op.kind).ok()?;
+                self.eval_unary_lit(op, eval_lit(lit)).ok()
             }
             _ => None,
         }
@@ -213,9 +264,9 @@ impl Evaluator {
         Some(ValueObj::Array(RcArray::from(elems)))
     }
 
-    fn eval_const_record(&self, _record: &Record, ctx: &Context) -> Option<ValueObj> {
+    fn eval_const_record(&self, record: &Record, ctx: &Context) -> Option<ValueObj> {
         let mut attrs = vec![];
-        for attr in _record.attrs.iter() {
+        for attr in record.attrs.iter() {
             if let Some(elem) = self.eval_const_block(&attr.body.block, ctx) {
                 let ident = match &attr.sig {
                     Signature::Var(var) => match &var.pat {
@@ -238,7 +289,7 @@ impl Evaluator {
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Some(self.eval_const_lit(lit)),
+            Expr::Lit(lit) => Some(eval_lit(lit)),
             Expr::Accessor(acc) => self.eval_const_acc(acc, ctx),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -397,7 +448,7 @@ impl Evaluator {
                     p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
                 }
                 let return_t = self.eval_t_params(*subr.return_t, ctx, level)?;
-                Ok(Type::subr(
+                Ok(subr_t(
                     kind,
                     subr.non_default_params,
                     subr.default_params,
@@ -409,12 +460,21 @@ impl Evaluator {
                 for pred in refine.preds.into_iter() {
                     preds.insert(self.eval_pred(pred, ctx)?);
                 }
-                Ok(Type::refinement(refine.var, *refine.t, preds))
+                Ok(refinement(refine.var, *refine.t, preds))
             }
             // [?T; 0].MutType! == [?T; !0]
             Type::MonoProj { lhs, rhs } => {
-                for ty_ctx in ctx.rec_sorted_sup_type_ctxs(&lhs) {
-                    if let Ok(obj) = ty_ctx.get_local(&Token::symbol(&rhs), &ctx.name) {
+                // Currently Erg does not allow projection-types to be evaluated with type variables included.
+                // All type variables will be dereferenced or fail.
+                let lhs = match *lhs {
+                    Type::FreeVar(fv) if fv.is_unbound() => {
+                        fv.lift();
+                        ctx.deref_tyvar(Type::FreeVar(fv))?
+                    }
+                    _ => *lhs,
+                };
+                for (_ty, ty_ctx) in ctx.rec_get_nominal_super_type_ctxs(&lhs) {
+                    if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &ctx.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
                             let t = subst_ctx.substitute(*quant_t, ty_ctx, level, ctx)?;
@@ -426,24 +486,31 @@ impl Evaluator {
                     }
                 }
                 if let Some(outer) = &ctx.outer {
-                    self.eval_t_params(Type::mono_proj(*lhs, rhs), outer, level)
+                    self.eval_t_params(mono_proj(lhs, rhs), outer, level)
                 } else {
                     todo!(
-                        "{lhs}.{rhs} not found in {}",
+                        "{lhs}.{rhs} not found in [{}]",
                         erg_common::fmt_iter(
-                            ctx.rec_sorted_sup_type_ctxs(&lhs).map(|ctx| &ctx.name)
+                            ctx.rec_get_nominal_super_type_ctxs(&lhs)
+                                .map(|(_, ctx)| &ctx.name)
                         )
                     )
                 }
             }
-            Type::Ref(l) => Ok(Type::ref_(self.eval_t_params(*l, ctx, level)?)),
-            Type::RefMut(l) => Ok(Type::ref_mut(self.eval_t_params(*l, ctx, level)?)),
-            Type::VarArgs(l) => Ok(Type::var_args(self.eval_t_params(*l, ctx, level)?)),
-            Type::Poly { name, mut params } => {
+            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, ctx, level)?)),
+            Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, ctx, level)?)),
+            Type::VarArgs(l) => Ok(var_args(self.eval_t_params(*l, ctx, level)?)),
+            Type::PolyClass { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p), ctx)?;
                 }
-                Ok(Type::poly(name, params))
+                Ok(poly_class(name, params))
+            }
+            Type::PolyTrait { name, mut params } => {
+                for p in params.iter_mut() {
+                    *p = self.eval_tp(&mem::take(p), ctx)?;
+                }
+                Ok(poly_trait(name, params))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
@@ -493,16 +560,11 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn get_tp_t(
-        &self,
-        p: &TyParam,
-        bounds: Option<&Set<TyBound>>,
-        ctx: &Context,
-    ) -> EvalResult<Type> {
+    pub(crate) fn get_tp_t(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
         let p = self.eval_tp(p, ctx)?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
-            TyParam::Value(v) => Ok(Type::enum_t(set![v])),
+            TyParam::Value(v) => Ok(enum_t(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.type_of() {
@@ -515,21 +577,13 @@ impl Evaluator {
             TyParam::Mono(name) => ctx
                 .consts
                 .get(&name)
-                .map(|v| Type::enum_t(set![v.clone()]))
+                .map(|v| enum_t(set![v.clone()]))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
-                if let Some(bs) = bounds {
-                    if let Some(bound) = bs.iter().find(|b| b.mentions_as_instance(&name)) {
-                        Ok(bound.t().clone())
-                    } else {
-                        todo!()
-                    }
-                } else {
-                    todo!()
-                }
+                panic!("Not instantiated type variable: {name}")
             }
             TyParam::UnaryOp { op, val } => match op {
-                OpKind::Mutate => Ok(self.get_tp_t(&val, bounds, ctx)?.mutate()),
+                OpKind::Mutate => Ok(self.get_tp_t(&val, ctx)?.mutate()),
                 _ => todo!(),
             },
             other => todo!("{other}"),

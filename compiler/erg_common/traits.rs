@@ -11,7 +11,6 @@ use std::vec::IntoIter;
 use crate::color::{GREEN, RESET};
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
-use crate::ty::Type;
 use crate::Str;
 use crate::{addr_eq, chomp, log, switch_unreachable};
 
@@ -297,6 +296,10 @@ pub trait ImmutableStream<T>: Sized {
     }
 }
 
+pub trait LimitedDisplay {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result;
+}
+
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
     src.ends_with(&['=', ':']) || src.ends_with("->") || src.ends_with("=>")
@@ -463,6 +466,13 @@ macro_rules! impl_locational {
             }
         }
     };
+    ($T: ty, $inner: ident) => {
+        impl Locational for $T {
+            fn loc(&self) -> Location {
+                self.$inner.loc()
+            }
+        }
+    };
 }
 
 pub trait NestedDisplay {
@@ -503,106 +513,6 @@ macro_rules! impl_nested_display_for_enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
                 match self {
                     $($Enum::$Variant(v) => v.fmt_nest(f, level),)*
-                }
-            }
-        }
-    }
-}
-
-/// cloneのコストがあるためなるべく.ref_tを使うようにすること
-/// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
-#[allow(unused_variables)]
-pub trait HasType {
-    fn ref_t(&self) -> &Type;
-    // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
-    fn signature_t(&self) -> Option<&Type>;
-    // 最後にHIR全体の型変数を消すために使う
-    fn ref_mut_t(&mut self) -> &mut Type;
-    fn signature_mut_t(&mut self) -> Option<&mut Type>;
-    #[inline]
-    fn t(&self) -> Type {
-        self.ref_t().clone()
-    }
-    #[inline]
-    fn inner_ts(&self) -> Vec<Type> {
-        self.ref_t().inner_ts()
-    }
-    #[inline]
-    fn lhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[0].ty
-    }
-    #[inline]
-    fn rhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[1].ty
-    }
-}
-
-#[macro_export]
-macro_rules! impl_t {
-    ($T: ty) => {
-        impl $crate::traits::HasType for $T {
-            #[inline]
-            fn ref_t(&self) -> &Type {
-                &self.t
-            }
-            #[inline]
-            fn ref_mut_t(&mut self) -> &mut Type {
-                &mut self.t
-            }
-            #[inline]
-            fn signature_t(&self) -> Option<&Type> {
-                None
-            }
-            #[inline]
-            fn signature_mut_t(&mut self) -> Option<&mut Type> {
-                None
-            }
-        }
-    };
-    ($T: ty, $sig_t: ident) => {
-        impl $crate::traits::HasType for $T {
-            #[inline]
-            fn ref_t(&self) -> &Type {
-                &self.t
-            }
-            #[inline]
-            fn ref_mut_t(&mut self) -> &mut Type {
-                &mut self.t
-            }
-            #[inline]
-            fn signature_t(&self) -> Option<&Type> {
-                Some(&self.$sig_t)
-            }
-            #[inline]
-            fn signature_mut_t(&mut self) -> Option<&mut Type> {
-                &mut self.$sig_t
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_t_for_enum {
-    ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl $crate::traits::HasType for $Enum {
-            fn ref_t(&self) -> &Type {
-                match self {
-                    $($Enum::$Variant(v) => v.ref_t(),)*
-                }
-            }
-            fn ref_mut_t(&mut self) -> &mut Type {
-                match self {
-                    $($Enum::$Variant(v) => v.ref_mut_t(),)*
-                }
-            }
-            fn signature_t(&self) -> Option<&Type> {
-                match self {
-                    $($Enum::$Variant(v) => v.signature_t(),)*
-                }
-            }
-            fn signature_mut_t(&mut self) -> Option<&mut Type> {
-                match self {
-                    $($Enum::$Variant(v) => v.signature_mut_t(),)*
                 }
             }
         }

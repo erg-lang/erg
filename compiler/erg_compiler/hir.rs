@@ -2,20 +2,25 @@
 use std::fmt;
 
 use erg_common::error::Location;
-use erg_common::traits::{HasType, Locational, NestedDisplay, Stream};
-use erg_common::ty::{Constraint, TyParam, Type};
-use erg_common::value::{Field, ValueObj, Visibility};
+use erg_common::traits::{Locational, NestedDisplay, Stream};
+use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
     enum_unwrap, impl_display_for_enum, impl_display_from_nested, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream_for_wrapper, impl_t, impl_t_for_enum,
+    impl_stream_for_wrapper,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::constructors::array;
+use erg_type::typaram::TyParam;
+use erg_type::value::ValueObj;
+use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
+
 use crate::error::readable_name;
+use crate::eval::type_from_token_kind;
 
 #[derive(Debug, Clone)]
 pub struct Literal {
@@ -43,7 +48,7 @@ impl Locational for Literal {
 
 impl From<Token> for Literal {
     fn from(token: Token) -> Self {
-        let data = ValueObj::from_str(Type::from(token.kind), token.content.clone());
+        let data = ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone());
         Self {
             t: data.t(),
             data,
@@ -53,16 +58,6 @@ impl From<Token> for Literal {
 }
 
 impl Literal {
-    pub fn new(c: ValueObj, lineno: usize, col: usize) -> Self {
-        let kind = TokenKind::from(&c);
-        let token = Token::new(kind, c.to_string(), lineno, col);
-        Self {
-            t: c.t(),
-            data: c,
-            token,
-        }
-    }
-
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
@@ -137,6 +132,16 @@ impl NestedDisplay for Args {
             fmt_lines(self.kw_args.iter(), f, level)?;
         }
         Ok(())
+    }
+}
+
+impl From<Vec<Expr>> for Args {
+    fn from(exprs: Vec<Expr>) -> Self {
+        Self {
+            pos_args: exprs.into_iter().map(PosArg::new).collect(),
+            kw_args: Vec::new(),
+            paren: None,
+        }
     }
 }
 
@@ -346,7 +351,7 @@ pub struct Attribute {
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({}).{}", self.obj, self.name.content)
+        write!(f, "({}).{}(: {})", self.obj, self.name.content, self.t)
     }
 }
 
@@ -373,7 +378,7 @@ pub struct Subscript {
 
 impl NestedDisplay for Subscript {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({})[{}]", self.obj, self.index)
+        write!(f, "({})[{}](: {})", self.obj, self.index, self.t)
     }
 }
 
@@ -453,7 +458,7 @@ pub struct ArrayWithLength {
 
 impl NestedDisplay for ArrayWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}; {}]", self.elem, self.len)
+        write!(f, "[{}; {}](: {})", self.elem, self.len, self.t)
     }
 }
 
@@ -484,7 +489,7 @@ pub struct ArrayComprehension {
 
 impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{} | {}]", self.elem, self.guard)
+        write!(f, "[{} | {}](: {})", self.elem, self.guard, self.t)
     }
 }
 
@@ -501,8 +506,10 @@ pub struct NormalArray {
 }
 
 impl NestedDisplay for NormalArray {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}]", self.elems)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "[")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{}](: {})", "    ".repeat(level), self.t)
     }
 }
 
@@ -511,13 +518,8 @@ impl_locational!(NormalArray, l_sqbr, r_sqbr);
 impl_t!(NormalArray);
 
 impl NormalArray {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, level: usize, elems: Args) -> Self {
-        let elem_t = elems
-            .pos_args
-            .first()
-            .map(|a| a.expr.t())
-            .unwrap_or_else(|| Type::free_var(level, Constraint::TypeOf(Type::Type)));
-        let t = Type::array(elem_t, TyParam::value(elems.len()));
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
+        let t = array(elem_t, TyParam::value(elems.len()));
         Self {
             l_sqbr,
             r_sqbr,
@@ -555,7 +557,7 @@ impl_t!(NormalDict);
 
 impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.attrs)
+        write!(f, "{{{}}}(: {})", self.attrs, self.t)
     }
 }
 
@@ -585,7 +587,11 @@ pub struct DictComprehension {
 
 impl NestedDisplay for DictComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}: {} | {}]", self.key, self.value, self.guard)
+        write!(
+            f,
+            "[{}: {} | {}](: {})",
+            self.key, self.value, self.guard, self.t
+        )
     }
 }
 
@@ -624,8 +630,16 @@ impl RecordAttrs {
         Self(vec![])
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Def> {
+        self.0.into_iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
@@ -689,7 +703,7 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`: {}:\n", self.op.content, self.sig_t)?;
+        write!(f, "`{}`(: {}):\n", self.op.content, self.sig_t)?;
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
@@ -771,7 +785,7 @@ impl HasType for UnaryOp {
 
 impl NestedDisplay for UnaryOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`: {}:", self.op, self.sig_t)?;
+        writeln!(f, "`{}`(: {}):", self.op, self.sig_t)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -800,7 +814,7 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "({}): {}:", self.obj, self.sig_t)?;
+        writeln!(f, "({})(: {}):", self.obj, self.sig_t)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -907,7 +921,7 @@ pub struct VarSignature {
 
 impl NestedDisplay for VarSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{} (: {})", self.pat, self.t)
+        write!(f, "{}(: {})", self.pat, self.t)
     }
 }
 
@@ -965,7 +979,7 @@ pub struct Lambda {
 
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{} {}", self.params, self.op.content)?;
+        writeln!(f, "{} {} (: {})", self.params, self.op.content, self.t)?;
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -1122,8 +1136,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        self.sig.fmt_nest(f, level)?;
-        writeln!(f, " {}", self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

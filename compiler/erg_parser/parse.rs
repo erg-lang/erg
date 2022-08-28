@@ -1645,10 +1645,6 @@ impl Parser {
             self.errs.push(err);
             return Err(());
         }
-        // REVIEW: need this?
-        while self.cur_is(Newline) {
-            self.skip();
-        }
         let body = self.try_reduce_block().map_err(|_| self.stack_dec())?;
         self.counter.inc();
         self.level -= 1;

@@ -5,8 +5,9 @@ use std::fmt;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
-use erg_common::ty::SubrKind;
-use erg_common::value::{Field, ValueObj, Visibility};
+use erg_common::vis::{Field, Visibility};
+// use erg_common::ty::SubrKind;
+// use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -46,25 +47,12 @@ impl NestedDisplay for Literal {
 }
 
 impl_display_from_nested!(Literal);
-
-impl Locational for Literal {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.token.loc()
-    }
-}
+impl_locational!(Literal, token);
 
 impl From<Token> for Literal {
     #[inline]
     fn from(token: Token) -> Self {
         Self { token }
-    }
-}
-
-impl From<&Literal> for ValueObj {
-    #[inline]
-    fn from(lit: &Literal) -> ValueObj {
-        ValueObj::from(&lit.token)
     }
 }
 
@@ -87,12 +75,7 @@ impl NestedDisplay for PosArg {
 }
 
 impl_display_from_nested!(PosArg);
-
-impl Locational for PosArg {
-    fn loc(&self) -> Location {
-        self.expr.loc()
-    }
-}
+impl_locational!(PosArg, expr);
 
 impl PosArg {
     pub const fn new(expr: Expr) -> Self {
@@ -114,12 +97,7 @@ impl NestedDisplay for KwArg {
 }
 
 impl_display_from_nested!(KwArg);
-
-impl Locational for KwArg {
-    fn loc(&self) -> Location {
-        Location::concat(&self.keyword, &self.expr)
-    }
-}
+impl_locational!(KwArg, keyword, expr);
 
 impl KwArg {
     pub const fn new(keyword: Token, expr: Expr) -> Self {
@@ -232,7 +210,7 @@ impl NestedDisplay for Local {
 }
 
 impl_display_from_nested!(Local);
-impl_locational!(Local, symbol, symbol);
+impl_locational!(Local, symbol);
 
 impl Local {
     pub const fn new(symbol: Token) -> Self {
@@ -420,8 +398,10 @@ pub struct NormalArray {
 }
 
 impl NestedDisplay for NormalArray {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}]", self.elems)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "[")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{}]", "    ".repeat(level))
     }
 }
 
@@ -808,13 +788,7 @@ impl NestedDisplay for ConstLocal {
 }
 
 impl_display_from_nested!(ConstLocal);
-
-impl Locational for ConstLocal {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.symbol.loc()
-    }
-}
+impl_locational!(ConstLocal, symbol);
 
 impl ConstLocal {
     pub const fn new(symbol: Token) -> Self {
@@ -1082,11 +1056,7 @@ impl NestedDisplay for ConstPosArg {
     }
 }
 
-impl Locational for ConstPosArg {
-    fn loc(&self) -> Location {
-        self.expr.loc()
-    }
-}
+impl_locational!(ConstPosArg, expr);
 
 impl ConstPosArg {
     pub const fn new(expr: ConstExpr) -> Self {
@@ -1106,11 +1076,7 @@ impl NestedDisplay for ConstKwArg {
     }
 }
 
-impl Locational for ConstKwArg {
-    fn loc(&self) -> Location {
-        Location::concat(&self.keyword, &self.expr)
-    }
-}
+impl_locational!(ConstKwArg, keyword, expr);
 
 impl ConstKwArg {
     pub const fn new(keyword: Token, expr: ConstExpr) -> Self {
@@ -1319,9 +1285,29 @@ impl ParamTySpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SubrKindSpec {
+    Func,
+    Proc,
+    FuncMethod(Box<TypeSpec>),
+    ProcMethod {
+        before: Box<TypeSpec>,
+        after: Option<Box<TypeSpec>>,
+    },
+}
+
+impl SubrKindSpec {
+    pub const fn arrow(&self) -> Str {
+        match self {
+            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
+            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTySpec {
-    pub kind: SubrKind,
+    pub kind: SubrKindSpec,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub defaults: Vec<ParamTySpec>,
@@ -1354,7 +1340,7 @@ impl Locational for SubrTySpec {
 
 impl SubrTySpec {
     pub fn new(
-        kind: SubrKind,
+        kind: SubrKindSpec,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
@@ -1461,7 +1447,7 @@ impl TypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self::Subr(SubrTySpec::new(
-            SubrKind::Func,
+            SubrKindSpec::Func,
             lparen,
             non_defaults,
             defaults,
@@ -1476,7 +1462,7 @@ impl TypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self::Subr(SubrTySpec::new(
-            SubrKind::Proc,
+            SubrKindSpec::Proc,
             lparen,
             non_defaults,
             defaults,
@@ -2403,8 +2389,7 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        self.sig.fmt_nest(f, level)?;
-        writeln!(f, " {}", self.body.op.content)?;
+        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }

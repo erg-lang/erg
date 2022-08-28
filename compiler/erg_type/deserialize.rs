@@ -2,16 +2,18 @@
 use std::process;
 use std::string::FromUtf8Error;
 
-use crate::cache::Cache;
+use erg_common::cache::CacheSet;
+use erg_common::config::{ErgConfig, Input};
+use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::serialize::DataTypePrefix;
+use erg_common::{fn_name, switch_lang};
+use erg_common::{RcArray, Str};
+
 use crate::codeobj::CodeObj;
-use crate::config::{ErgConfig, Input};
-use crate::error::{ErrorCore, ErrorKind, Location};
-use crate::serialize::DataTypePrefix;
-use crate::traits::HasType;
-use crate::ty::{TyParam, Type};
+use crate::constructors::array;
+use crate::typaram::TyParam;
 use crate::value::ValueObj;
-use crate::{fn_name, switch_lang};
-use crate::{RcArray, Str};
+use crate::{HasType, Type};
 
 #[derive(Debug)]
 pub struct DeserializeError {
@@ -96,17 +98,17 @@ pub type DeserializeResult<T> = Result<T, DeserializeError>;
 
 #[derive(Default)]
 pub struct Deserializer {
-    str_cache: Cache<str>,
-    arr_cache: Cache<[ValueObj]>,
-    dict_cache: Cache<[(ValueObj, ValueObj)]>,
+    str_cache: CacheSet<str>,
+    arr_cache: CacheSet<[ValueObj]>,
+    dict_cache: CacheSet<[(ValueObj, ValueObj)]>,
 }
 
 impl Deserializer {
     pub fn new() -> Self {
         Self {
-            str_cache: Cache::new(),
-            arr_cache: Cache::new(),
-            dict_cache: Cache::new(),
+            str_cache: CacheSet::new(),
+            arr_cache: CacheSet::new(),
+            dict_cache: CacheSet::new(),
         }
     }
 
@@ -294,7 +296,7 @@ impl Deserializer {
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
-                &Type::array(Type::Str, TyParam::erased(Type::Nat)),
+                &array(Type::Str, TyParam::erased(Type::Nat)),
                 other.ref_t(),
             )),
         }

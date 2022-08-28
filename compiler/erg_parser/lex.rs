@@ -1,7 +1,7 @@
 //! defines and implements `Lexer` (Tokenizer).
 use std::cmp::Ordering;
 
-use erg_common::cache::Cache;
+use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
 use erg_common::traits::{Locational, Runnable, Stream};
@@ -64,7 +64,7 @@ impl Runnable for LexerRunner {
 /// This can be used as an iterator or to generate a `TokenStream`.
 #[derive(Debug)]
 pub struct Lexer /*<'a>*/ {
-    str_cache: Cache<str>,
+    str_cache: CacheSet<str>,
     chars: Vec<char>,
     indent_stack: Vec<usize>,
     /// indicates the position in the entire source code
@@ -81,7 +81,7 @@ impl Lexer /*<'a>*/ {
     pub fn new(input: Input) -> Self {
         let normed = normalize_newline(&input.read());
         Lexer {
-            str_cache: Cache::new(),
+            str_cache: CacheSet::new(),
             chars: normed.chars().collect::<Vec<char>>(),
             indent_stack: vec![],
             cursor: 0,
@@ -94,7 +94,7 @@ impl Lexer /*<'a>*/ {
     pub fn from_str(src: Str) -> Self {
         let escaped = normalize_newline(&src);
         Lexer {
-            str_cache: Cache::new(),
+            str_cache: CacheSet::new(),
             chars: escaped.chars().collect::<Vec<char>>(),
             indent_stack: vec![],
             cursor: 0,

@@ -2,13 +2,11 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
-// use std::env::consts::{ARCH, OS};
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read};
 use std::process;
 
-// use crate::lazy::Lazy;
-use crate::stdin;
+use crate::stdin::GLOBAL_STDIN;
 use crate::Str;
 use crate::{power_assert, read_file};
 
@@ -76,7 +74,7 @@ impl Input {
                 Str::from(src)
             }
             Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => stdin::read(),
+            Self::REPL => GLOBAL_STDIN.read(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }
@@ -100,7 +98,7 @@ impl Input {
                 .iter()
                 .map(|s| Str::rc(*s))
                 .collect(),
-            Self::REPL => stdin::reread_lines(ln_begin, ln_end),
+            Self::REPL => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
     }
@@ -109,7 +107,7 @@ impl Input {
         match self {
             Self::File(_filename) => todo!(),
             Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => stdin::reread(),
+            Self::REPL => GLOBAL_STDIN.reread(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }

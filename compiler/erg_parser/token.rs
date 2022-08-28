@@ -8,8 +8,9 @@ use erg_common::error::Location;
 use erg_common::impl_displayable_stream_for_wrapper;
 use erg_common::str::Str;
 use erg_common::traits::{Locational, Stream};
-use erg_common::ty::{OpKind, Type};
-use erg_common::value::ValueObj;
+// use erg_common::ty::Type;
+// use erg_common::typaram::OpKind;
+// use erg_common::value::ValueObj;
 
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -162,40 +163,6 @@ pub enum TokenKind {
 
 use TokenKind::*;
 
-impl From<TokenKind> for Type {
-    #[inline]
-    fn from(tok: TokenKind) -> Type {
-        match tok {
-            NatLit => Type::Nat,
-            IntLit => Type::Int,
-            RatioLit => Type::Ratio,
-            StrLit => Type::Str,
-            BoolLit => Type::Bool,
-            NoneLit => Type::NoneType,
-            NoImplLit => Type::NotImplemented,
-            EllipsisLit => Type::Ellipsis,
-            InfLit => Type::Inf,
-            other => panic!("this has not type: {other}"),
-        }
-    }
-}
-
-impl From<&ValueObj> for TokenKind {
-    fn from(c: &ValueObj) -> TokenKind {
-        match c {
-            ValueObj::Int(_) => TokenKind::IntLit,
-            ValueObj::Nat(_) => TokenKind::NatLit,
-            ValueObj::Float(_) => TokenKind::RatioLit,
-            ValueObj::Str(_) => TokenKind::StrLit,
-            ValueObj::Bool(_) => TokenKind::BoolLit,
-            ValueObj::None => TokenKind::NoneLit,
-            ValueObj::Ellipsis => TokenKind::EllipsisLit,
-            ValueObj::Inf => TokenKind::InfLit,
-            _ => TokenKind::Illegal,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenCategory {
     Symbol,
@@ -315,50 +282,6 @@ pub struct Token {
     pub lineno: usize,
     /// a pointer from which the token starts (0 origin)
     pub col_begin: usize,
-}
-
-impl From<Token> for ValueObj {
-    #[inline]
-    fn from(tok: Token) -> ValueObj {
-        ValueObj::from_str(Type::from(tok.kind), tok.content)
-    }
-}
-
-impl From<&Token> for ValueObj {
-    #[inline]
-    fn from(tok: &Token) -> ValueObj {
-        ValueObj::from_str(Type::from(tok.kind), tok.content.clone())
-    }
-}
-
-impl TryFrom<&Token> for OpKind {
-    type Error = ();
-    #[inline]
-    fn try_from(tok: &Token) -> Result<Self, Self::Error> {
-        match tok.kind {
-            TokenKind::Plus => Ok(OpKind::Add),
-            TokenKind::Minus => Ok(OpKind::Sub),
-            TokenKind::Star => Ok(OpKind::Mul),
-            TokenKind::Slash => Ok(OpKind::Div),
-            TokenKind::Pow => Ok(OpKind::Pow),
-            TokenKind::Mod => Ok(OpKind::Mod),
-            TokenKind::DblEq => Ok(OpKind::Eq),
-            TokenKind::NotEq => Ok(OpKind::Ne),
-            TokenKind::Less => Ok(OpKind::Lt),
-            TokenKind::Gre => Ok(OpKind::Gt),
-            TokenKind::LessEq => Ok(OpKind::Le),
-            TokenKind::GreEq => Ok(OpKind::Ge),
-            TokenKind::AndOp => Ok(OpKind::And),
-            TokenKind::OrOp => Ok(OpKind::Or),
-            TokenKind::BitAnd => Ok(OpKind::BitAnd),
-            TokenKind::BitXor => Ok(OpKind::BitXor),
-            TokenKind::BitOr => Ok(OpKind::BitOr),
-            TokenKind::Shl => Ok(OpKind::Shl),
-            TokenKind::Shr => Ok(OpKind::Shr),
-            TokenKind::Mutate => Ok(OpKind::Mutate),
-            _other => Err(()),
-        }
-    }
 }
 
 impl fmt::Debug for Token {

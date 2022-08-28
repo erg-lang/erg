@@ -69,6 +69,24 @@ impl<T: ?Sized> RcCell<T> {
     pub fn borrow_mut(&self) -> RefMut<'_, T> {
         RefCell::borrow_mut(&self.0)
     }
+
+    #[inline]
+    pub fn as_ptr(&self) -> *mut T {
+        RefCell::as_ptr(&self.0)
+    }
+
+    #[inline]
+    pub fn try_borrow_mut(&self) -> Result<RefMut<'_, T>, std::cell::BorrowMutError> {
+        RefCell::try_borrow_mut(&self.0)
+    }
+
+    pub fn can_borrow(&self) -> bool {
+        RefCell::try_borrow(&self.0).is_ok()
+    }
+
+    pub fn can_borrow_mut(&self) -> bool {
+        RefCell::try_borrow_mut(&self.0).is_ok()
+    }
 }
 
 impl<T: Clone> RcCell<T> {

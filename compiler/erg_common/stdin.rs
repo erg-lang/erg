@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::io::{stdin, BufRead, BufReader};
+use std::thread::LocalKey;
 
 use crate::Str;
 
@@ -29,17 +30,25 @@ impl StdinReader {
 }
 
 thread_local! {
-    pub static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ lineno: 0, buf: vec![] });
+    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ lineno: 0, buf: vec![] });
 }
 
-pub fn read() -> Str {
-    READER.with(|s| s.borrow_mut().read())
-}
+#[derive(Debug)]
+pub struct GlobalStdin(LocalKey<RefCell<StdinReader>>);
 
-pub fn reread() -> Str {
-    READER.with(|s| s.borrow().reread())
-}
+pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(READER);
 
-pub fn reread_lines(ln_begin: usize, ln_end: usize) -> Vec<Str> {
-    READER.with(|s| s.borrow_mut().reread_lines(ln_begin, ln_end))
+impl GlobalStdin {
+    pub fn read(&'static self) -> Str {
+        self.0.with(|s| s.borrow_mut().read())
+    }
+
+    pub fn reread(&'static self) -> Str {
+        self.0.with(|s| s.borrow().reread())
+    }
+
+    pub fn reread_lines(&'static self, ln_begin: usize, ln_end: usize) -> Vec<Str> {
+        self.0
+            .with(|s| s.borrow_mut().reread_lines(ln_begin, ln_end))
+    }
 }

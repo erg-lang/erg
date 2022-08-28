@@ -1,13 +1,15 @@
 [package]
-name = "erg_parser"
+name = "erg_type"
 version = "0.3.0"
-description = "The Erg parser"
-authors = ["mtshiba <sbym1346@gmail.com>"]
+description = "APIs for Erg types"
+authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/src/erg_compiler/erg_parser"
-documentation = "https://docs.rs/erg_parser"
+repository = "https://github.com/erg-lang/erg/tree/main/compiler/erg_type"
+documentation = "https://docs.rs/erg_type"
 homepage = "https://erg-lang.github.io/"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 debug = [ "erg_common/debug" ]
@@ -20,7 +22,3 @@ erg_common = { version = "0.3.0", path = "../erg_common" }
 
 [lib]
 path = "lib.rs"
-
-[[bin]]
-name = "ergp"
-path = "main.rs"
