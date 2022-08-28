@@ -242,6 +242,7 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        log!("nominal_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         if let Some(res) = self.inquire_cache(rhs, lhs) {
             return res;
         }
@@ -403,7 +404,6 @@ impl Context {
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(lfv), rhs) => {
-                log!("{lhs} :>? {rhs}");
                 match &*lfv.borrow() {
                     FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                         self.supertype_of(t, rhs)

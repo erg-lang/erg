@@ -21,7 +21,7 @@ use erg_parser::token::TokenKind;
 use erg_type::constructors::*;
 use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use erg_type::value::ValueObj;
-use erg_type::{ParamTy, Predicate, SubrKind, TyBound, Type};
+use erg_type::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
 
 use crate::context::{Context, RegistrationMode};
 use crate::error::TyCheckResult;
@@ -817,17 +817,12 @@ impl Context {
                 let mut tv_ctx = TyVarContext::new(self.level, quant.bounds, &self);
                 let t = Self::instantiate_t(*quant.unbound_callable, &mut tv_ctx);
                 match &t {
-                    Type::Subr(subr) => {
-                        match (subr.kind.self_t(), callee.receiver_t()) {
-                            (Some(l), Some(r)) => {
-                                self.unify(l, r, None, Some(callee.loc()))?;
-                            }
-                            // if callee is a Module object or some named one
-                            (None, Some(r)) if self.rec_subtype_of(r, &class("Named")) => {}
-                            (None, None) => {}
-                            (l, r) => todo!("{l:?}, {r:?}"),
+                    Type::Subr(subr) => match subr.kind.self_t() {
+                        Some(l) => {
+                            self.unify(l, callee.ref_t(), None, Some(callee.loc()))?;
                         }
-                    }
+                        _ => {}
+                    },
                     _ => unreachable!(),
                 }
                 Ok(t)

@@ -929,7 +929,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) if self.structural_same_type_of(l, r) => Ok(()),
+            (l, r) if self.rec_same_type_of(l, r) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
                 line!() as usize,
                 l,

@@ -98,8 +98,8 @@ impl Context {
     fn register_poly_class(&mut self, t: Type, ctx: Self, muty: Mutability) {
         let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
         let t = Self::instantiate_t(t, &mut tv_ctx);
-        if let Some(ctxs) = self.poly_classes.get_mut(&t.name()) {
-            ctxs.push((t, ctx));
+        if let Some((_, root_ctx)) = self.poly_classes.get_mut(&t.name()) {
+            root_ctx.specializations.push((t, ctx));
         } else {
             let name = VarName::from_str(t.name());
             self.locals
@@ -115,7 +115,7 @@ impl Context {
                     );
                 }
             }
-            self.poly_classes.insert(name, vec![(t, ctx)]);
+            self.poly_classes.insert(name, (t, ctx));
         }
     }
 
@@ -608,7 +608,7 @@ impl Context {
         );
         let t = quant(
             t,
-            set! {static_instance("N", Nat), static_instance("T", class("Mutable"))},
+            set! {static_instance("N", Nat), static_instance("T", trait_("Mutable"))},
         );
         array_.register_impl("map!", t, Immutable, Public);
         let mut_type = ValueObj::t(poly_class(
@@ -735,6 +735,18 @@ impl Context {
             ],
             Self::TOP_LEVEL,
         );
+        let func = Self::mono_class(
+            "Function",
+            vec![Obj],
+            vec![trait_("Named")],
+            Self::TOP_LEVEL,
+        );
+        let qfunc = Self::mono_class(
+            "QuantifiedFunction",
+            vec![class("Function"), Obj],
+            vec![],
+            Self::TOP_LEVEL,
+        );
         self.register_type(Obj, obj, Const);
         // self.register_type(mono("Record"), vec![], record, Const);
         // self.register_type(mono("Class"), vec![], class, Const);
@@ -755,6 +767,8 @@ impl Context {
         self.register_type(class("Str!"), str_mut, Const);
         self.register_type(array_mut_t, array_mut, Const);
         self.register_type(range_t, range, Const);
+        self.register_type(class("Function"), func, Const);
+        self.register_type(class("QuantifiedFunction"), qfunc, Const);
     }
 
     fn init_builtin_funcs(&mut self) {
@@ -1008,7 +1022,7 @@ impl Context {
             proc(
                 vec![],
                 vec![
-                    param_t("a", class("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
+                    param_t("a", trait_("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
                     param_t("version", Int),
                 ],
                 NoneType,

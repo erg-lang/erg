@@ -11,7 +11,8 @@ use erg_common::{fn_name, log, switch_lang};
 use erg_parser::ast;
 use erg_parser::ast::AST;
 
-use erg_type::constructors::{array, array_mut, class, func, poly_class, proc, quant};
+use erg_type::constructors::{array, array_mut, class, free_var, func, poly_class, proc, quant};
+use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, Type};
@@ -136,10 +137,15 @@ impl ASTLowerer {
             }
             new_array.push(elem);
         }
+        let elem_t = if union == Type::Never {
+            free_var(self.ctx.level, Constraint::type_of(Type::Type))
+        } else {
+            union
+        };
         Ok(hir::NormalArray::new(
             array.l_sqbr,
             array.r_sqbr,
-            union,
+            elem_t,
             hir::Args::from(new_array),
         ))
     }

@@ -145,7 +145,7 @@ impl Constraint {
     }
 
     pub fn type_of(t: Type) -> Self {
-        if &t == &Type::Type {
+        if t == Type::Type {
             Self::sandwiched(Type::Never, Type::Obj, Not)
         } else {
             Self::TypeOf(t)

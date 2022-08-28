@@ -230,6 +230,8 @@ pub struct Context {
     // patchによってsuper class/traitになったものはここに含まれない
     pub(crate) super_classes: Vec<Type>, // if self is a patch, means patch classes
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
+    // specialized contexts, If self is a type
+    pub(crate) specializations: Vec<(Type, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -257,7 +259,7 @@ pub struct Context {
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
     // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
-    pub(crate) poly_classes: Dict<VarName, Vec<(Type, Context)>>,
+    pub(crate) poly_classes: Dict<VarName, (Type, Context)>,
     // Traits cannot be specialized
     pub(crate) poly_traits: Dict<VarName, (Type, Context)>,
     // patches can be accessed like normal records
@@ -359,6 +361,7 @@ impl Context {
             outer: outer.map(Box::new),
             super_classes,
             super_traits,
+            specializations: vec![],
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
