@@ -1,8 +1,19 @@
 # 記名的部分型 vs. 構造的部分型
 
 ```erg
-# SST
 Months = 0..12
+
+# NST
+MonthsClass = Class Months
+MonthsClass.
+    name self =
+        match self:
+            1 -> "January"
+            2 -> "February"
+            3 -> "March"
+            ...
+
+# SST
 MonthsImpl = Patch Months
 MonthsImpl.
     name self =
@@ -10,15 +21,6 @@ MonthsImpl.
             1 -> "January"
             2 -> "February"
             3 -> "March"
-            ...
-# NST
-MonthsClass = Class Months
-MonthsClass.
-    name self =
-        match self:
-            1 -> "january"
-            2 -> "february"
-            3 -> "march"
             ...
 
 assert 12 in Months
