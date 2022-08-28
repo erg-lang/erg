@@ -2269,6 +2269,15 @@ impl LambdaSignature {
             bounds,
         }
     }
+
+    pub fn do_sig(do_symbol: &Token) -> Self {
+        let parens = Some((do_symbol.clone(), do_symbol.clone()));
+        Self::new(
+            Params::new(vec![], vec![], parens),
+            None,
+            TypeBoundSpecs::empty(),
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
