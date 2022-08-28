@@ -1,7 +1,6 @@
 # Special Type(Self, Super)
 
-`Self` represents itself types.
-It can be used simply as an alias, however note that its meaning changes in derived types (it refers to the derived own type).
+`Self` represents itself types. It can be used simply as an alias, however note that its meaning changes in derived types (it refers to the derived own type).
 
 ```erg
 @Inheritable

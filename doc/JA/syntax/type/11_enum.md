@@ -36,7 +36,7 @@ enum Status { Ok, Error }
 Status = {"Ok", "Error"}
 ```
 
-Rustとの相違点は、構造的部分型を採用しているというところにあります。
+Rustとの相違点は、構造的部分型(SST)を採用しているというところにあります。
 
 ```rust
 // StatusとExtraStatusの間にはなんの関係もない

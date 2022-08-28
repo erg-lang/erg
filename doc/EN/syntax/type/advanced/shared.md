@@ -14,12 +14,12 @@ normal_area.push(new NormalMember())
 console.log(vip_area) # [NormalMember]
 ```
 
-A "NormalMember" has entered the "vip_area". It is an obvious bug, however what went wrong?
-The cause is the shared reference [denatured](. /variance.md). The `normal_area` is created by copying the `vip_area`, but in doing so the type has changed.
+A NormalMember has entered the vip_area. It is an obvious bug, however what went wrong?
+The cause is the shared reference [denatured](./variance.md). The `normal_area` is created by copying the `vip_area`, but in doing so the type has changed.
 But `VIPMember` inherits from `NormalMember`, so `VIPMember[] <: NormalMember[]`, and this is not a problem.
 The relation `VIPMember[] <: NormalMember[]` is fine for immutable objects. However, if you perform a destructive operation like the one above, there will be a breakdown.
 
-In Erg, such code is played back thanks to the ownership system.
+In Erg, such code is played back due to the ownership system.
 
 ```erg
 NormalMember = Class()
