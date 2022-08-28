@@ -53,6 +53,7 @@ enum PosOrKwArg {
 pub enum Side {
     LhsAssign,
     LhsLambda,
+    Do,
     Rhs,
 }
 
@@ -156,6 +157,15 @@ impl Parser {
     /// `(Rhs) , (LhsLambda) ->`
     /// `(Rhs) (LhsLambda) -> (Rhs);`
     fn cur_side(&self) -> Side {
+        match self.peek() {
+            Some(t) => {
+                let name = &t.inspect()[..];
+                if name == "do" || name == "do!" {
+                    return Side::Do;
+                }
+            }
+            _ => {}
+        }
         // 以降に=, ->などがないならすべて右辺値
         let opt_equal_pos = self.tokens.iter().skip(1).position(|t| t.is(Equal));
         let opt_arrow_pos = self
@@ -1655,6 +1665,29 @@ impl Parser {
         Ok(Lambda::new(sig, op, body, self.counter))
     }
 
+    fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {
+        debug_call_info!(self);
+        let do_symbol = self.lpop();
+        let sig = LambdaSignature::do_sig(&do_symbol);
+        let op = match &do_symbol.inspect()[..] {
+            "do" => Token::from_str(FuncArrow, "->"),
+            "do!" => Token::from_str(ProcArrow, "=>"),
+            _ => todo!(),
+        };
+        if self.cur_is(Colon) {
+            self.lpop();
+            let body = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+            self.counter.inc();
+            self.level -= 1;
+            Ok(Lambda::new(sig, op, body, self.counter))
+        } else {
+            let expr = self.try_reduce_expr().map_err(|_| self.stack_dec())?;
+            let block = Block::new(vec![expr]);
+            self.level -= 1;
+            Ok(Lambda::new(sig, op, block, self.counter))
+        }
+    }
+
     fn try_reduce_expr(&mut self) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
@@ -1666,6 +1699,11 @@ impl Parser {
             }
             Side::LhsLambda => {
                 let lambda = self.try_reduce_lambda().map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Expr::Lambda(lambda))
+            }
+            Side::Do => {
+                let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(Expr::Lambda(lambda))
             }
