@@ -7,9 +7,9 @@ NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # same as {S | N: Nat; S: StrWithLe
 NonEmptyArray = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: Array(_, N); N > 0}
 ```
 
-The standard form of a quantified dependent types are `K(A, ... | Pred)`. ``K`` is a type constructor, `A, B` are type arguments, and `Pred` is a conditional expression.
+The standard form of quantified dependent types are `K(A, ... | Pred)`. ``K`` is a type constructor, `A, B` are type arguments, and `Pred` is a conditional expression.
 
-Quantified dependent types as a left-hand side value can only define methods in the same module as the original type.
+Quantified dependent types as left-hand side values can only define methods in the same module as the original type.
 
 ```erg
 K A: Nat = Class ...
@@ -19,7 +19,7 @@ K(A | A >= 1).
     method ref! self(A ~> A+1) = ...
 ```
 
-Quantified dependent types as a right-hand side value require that the type variable to be used be declared in the type variable list (`||`).
+Quantified dependent types as right-hand side values require that the type variable to be used be declared in the type variable list (`||`).
 
 ```erg
 # T is a concrete type

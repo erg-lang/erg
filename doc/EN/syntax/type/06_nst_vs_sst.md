@@ -1,6 +1,8 @@
 # Nominal Subtyping vs. Structural Subtyping
 
 ```erg
+Months = 0..12
+
 # NST
 MonthsClass = Class Months
 MonthsClass.
@@ -12,7 +14,6 @@ MonthsClass.
             ...
 
 # SST
-Months = 0..12
 MonthsImpl = Patch Months
 MonthsImpl.
     name self =
