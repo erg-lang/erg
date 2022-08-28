@@ -811,6 +811,8 @@ impl CodeGenerator {
             // no else block
             let idx_end = self.cur_block().lasti;
             self.edit_code(idx_pop_jump_if_false + 1, idx_end / 2);
+            self.emit_load_const(ValueObj::None);
+            self.stack_dec();
             self.stack_dec();
         }
         Ok(())
