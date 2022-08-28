@@ -84,6 +84,7 @@ impl OwnershipChecker {
     fn check_expr(&mut self, expr: &Expr, ownership: Ownership) {
         match expr {
             Expr::Def(def) => {
+                log!("define: {}", def.sig);
                 self.define(def);
                 let name = match &def.sig {
                     Signature::Var(var) => {
@@ -102,42 +103,24 @@ impl OwnershipChecker {
                 self.path_stack.pop();
             }
             Expr::Accessor(Accessor::Local(local)) => {
-                for n in 0..self.path_stack.len() {
-                    if let Some(moved_loc) =
-                        self.nth_outer_scope(n).dropped_vars.get(local.inspect())
-                    {
-                        let moved_loc = *moved_loc;
-                        self.errs.push(OwnershipError::move_error(
-                            line!() as usize,
-                            local.inspect(),
-                            local.loc(),
-                            moved_loc,
-                            self.full_path(),
-                        ));
-                    }
-                }
+                self.check_if_dropped(local.inspect(), local.loc());
                 if expr.ref_t().is_mut() && ownership.is_owned() {
-                    log!("dropped: {}", local.inspect());
+                    log!(
+                        "drop: {} (in {})",
+                        local.inspect(),
+                        local.ln_begin().unwrap_or(0)
+                    );
                     self.drop(local.inspect(), expr.loc());
                 }
             }
             Expr::Accessor(Accessor::Public(public)) => {
-                for n in 0..self.path_stack.len() {
-                    if let Some(moved_loc) =
-                        self.nth_outer_scope(n).dropped_vars.get(public.inspect())
-                    {
-                        let moved_loc = *moved_loc;
-                        self.errs.push(OwnershipError::move_error(
-                            line!() as usize,
-                            public.inspect(),
-                            public.loc(),
-                            moved_loc,
-                            self.full_path(),
-                        ));
-                    }
-                }
+                self.check_if_dropped(public.inspect(), public.loc());
                 if expr.ref_t().is_mut() && ownership.is_owned() {
-                    log!("dropped: {}", public.inspect());
+                    log!(
+                        "drop: {} (in {})",
+                        public.inspect(),
+                        public.ln_begin().unwrap_or(0)
+                    );
                     self.drop(public.inspect(), expr.loc());
                 }
             }
@@ -148,7 +131,6 @@ impl OwnershipChecker {
             Expr::Accessor(_a) => todo!(),
             // TODO: referenced
             Expr::Call(call) => {
-                self.check_expr(&call.obj, ownership);
                 let args_ownership = call.signature_t().unwrap().args_ownership();
                 match args_ownership {
                     ArgsOwnership::Args {
@@ -156,8 +138,8 @@ impl OwnershipChecker {
                         non_defaults,
                         defaults,
                     } => {
-                        if let Some(ownership) = self_ {
-                            self.check_expr(&call.obj, ownership);
+                        if let Some(self_ownership) = self_ {
+                            self.check_expr(&call.obj, self_ownership);
                         }
                         let (nd_ownerships, d_ownerships): (Vec<_>, Vec<_>) = non_defaults
                             .iter()
@@ -279,6 +261,21 @@ impl OwnershipChecker {
             }
         }
         panic!("variable not found: {name}");
+    }
+
+    fn check_if_dropped(&mut self, name: &Str, loc: Location) {
+        for n in 0..self.path_stack.len() {
+            if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(name) {
+                let moved_loc = *moved_loc;
+                self.errs.push(OwnershipError::move_error(
+                    line!() as usize,
+                    name,
+                    loc,
+                    moved_loc,
+                    self.full_path(),
+                ));
+            }
+        }
     }
 }
 

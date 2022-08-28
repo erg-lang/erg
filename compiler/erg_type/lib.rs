@@ -965,6 +965,36 @@ pub enum ArgsOwnership {
     VarArgsDefault(Ownership),
 }
 
+impl fmt::Display for ArgsOwnership {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Args {
+                self_,
+                non_defaults,
+                defaults,
+            } => {
+                if let Some(self_) = self_ {
+                    write!(f, "({self_:?}).")?;
+                }
+                write!(f, "(")?;
+                for (i, o) in non_defaults.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{o:?}")?;
+                }
+                for o in defaults.iter() {
+                    write!(f, ", {o:?} |= ?")?;
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+            Self::VarArgs(o) => write!(f, "...{o:?}"),
+            Self::VarArgsDefault(o) => write!(f, "...{o:?} |= ?"),
+        }
+    }
+}
+
 impl ArgsOwnership {
     pub const fn args(
         self_: Option<Ownership>,

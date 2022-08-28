@@ -389,8 +389,8 @@ impl Context {
             ..
         }) = t
         {
-            let receiver_t = callee.receiver_t().unwrap();
-            self.reunify(receiver_t, after, Some(callee.loc()), None)?;
+            log!("{}, {}", callee.ref_t(), after);
+            self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
         }
         Ok(())
     }
@@ -876,15 +876,15 @@ impl Context {
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
         match typ {
-            Type::Refinement(refine) => return self.rec_get_nominal_type_ctx(&refine.t),
-            Type::Quantified(_) => todo!(),
-            Type::PolyClass { name, params } => {
-                if let Some(params_and_ctxs) = self.poly_classes.get(name) {
-                    for (ctx_t, ctx) in params_and_ctxs {
-                        if self.poly_supertype_of(typ, &ctx_t.typarams(), params) {
-                            return Some((ctx_t, ctx));
-                        }
-                    }
+            Type::Refinement(refine) => {
+                return self.rec_get_nominal_type_ctx(&refine.t);
+            }
+            Type::Quantified(_) => {
+                return self.rec_get_nominal_type_ctx(&class("QuantifiedFunction"));
+            }
+            Type::PolyClass { name, params: _ } => {
+                if let Some((t, ctx)) = self.poly_classes.get(name) {
+                    return Some((t, ctx));
                 }
             }
             Type::PolyTrait { name, params: _ } => {
