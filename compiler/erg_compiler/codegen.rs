@@ -27,7 +27,7 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::eval::eval_lit;
 use crate::hir::{
-    Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, VarSignature, HIR,
+    Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -1215,6 +1215,23 @@ impl CodeGenerator {
                     }
                 }
                 other => todo!("{other}"),
+            },
+            // TODO: tuple comprehension
+            // TODO: tuples can be const
+            Expr::Tuple(tup) => match tup {
+                Tuple::Normal(mut tup) => {
+                    let len = tup.elems.len();
+                    while let Some(arg) = tup.elems.try_remove_pos(0) {
+                        self.codegen_expr(arg.expr);
+                    }
+                    self.write_instr(BUILD_TUPLE);
+                    self.write_arg(len as u8);
+                    if len == 0 {
+                        self.stack_inc();
+                    } else {
+                        self.stack_dec_n(len - 1);
+                    }
+                }
             },
             Expr::Record(rec) => {
                 let attrs_len = rec.attrs.len();

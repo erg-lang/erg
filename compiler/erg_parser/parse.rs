@@ -519,7 +519,9 @@ impl Parser {
     #[inline]
     fn try_reduce_decl(&mut self) -> ParseResult<Signature> {
         debug_call_info!(self);
-        if self.peek().unwrap().category_is(TC::LEnclosure) {
+        if self.peek().unwrap().category_is(TC::LEnclosure)
+            || self.nth(1).map(|n| n.is(Comma)).unwrap_or(false)
+        {
             let var = self.try_reduce_var_sig().map_err(|_| self.stack_dec())?;
             self.level -= 1;
             return Ok(Signature::Var(var));
@@ -940,8 +942,39 @@ impl Parser {
         match self.peek() {
             Some(t) if t.is(Symbol) => {
                 let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(VarPattern::Ident(ident))
+                if self.peek().map(|t| t.is(Comma)).unwrap_or(false) {
+                    let pat = VarPattern::Ident(ident);
+                    let mut idents = vec![VarSignature::new(pat, None)];
+                    loop {
+                        match self.peek() {
+                            Some(t) if t.is(Comma) => {
+                                self.skip();
+                                let pat = self
+                                    .try_reduce_var_pattern()
+                                    .map_err(|_| self.stack_dec())?;
+                                // ()なしのTupleの場合はflatten
+                                match pat {
+                                    VarPattern::Tuple(tuple) if tuple.paren.is_none() => {
+                                        idents.extend(tuple.elems.elems);
+                                    }
+                                    other => {
+                                        let var_sig = VarSignature::new(other, None);
+                                        idents.push(var_sig);
+                                    }
+                                }
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                    let tuple_pat = VarTuplePattern::new(None, Vars::new(idents));
+                    self.level -= 1;
+                    return Ok(VarPattern::Tuple(tuple_pat));
+                } else {
+                    self.level -= 1;
+                    Ok(VarPattern::Ident(ident))
+                }
             }
             Some(t) if t.is(UBar) => {
                 self.level -= 1;
@@ -967,12 +1000,18 @@ impl Parser {
                 }
             }
             Some(t) if t.is(LParen) => {
-                self.skip();
-                let pat = self
+                let lparen = self.lpop();
+                let mut pat = self
                     .try_reduce_var_pattern()
                     .map_err(|_| self.stack_dec())?;
                 if self.cur_is(RParen) {
-                    self.skip();
+                    let rparen = self.lpop();
+                    match &mut pat {
+                        VarPattern::Tuple(tuple) => {
+                            tuple.paren = Some((lparen, rparen));
+                        }
+                        _ => {}
+                    }
                     self.level -= 1;
                     Ok(pat)
                 } else {
@@ -2075,9 +2114,14 @@ impl Parser {
                         return Err(());
                     }
                     match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
-                        PosOrKwArg::Pos(arg) => {
-                            args.push_pos(arg);
-                        }
+                        PosOrKwArg::Pos(arg) => match arg.expr {
+                            Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
+                                args.extend_pos(tup.elems.into_iters().0);
+                            }
+                            other => {
+                                args.push_pos(PosArg::new(other));
+                            }
+                        },
                         PosOrKwArg::Kw(_arg) => todo!(),
                     }
                 }

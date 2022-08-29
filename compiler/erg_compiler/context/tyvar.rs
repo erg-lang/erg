@@ -399,6 +399,14 @@ impl Context {
                 }
                 _ => todo!(),
             },
+            hir::Expr::Tuple(tuple) => match tuple {
+                hir::Tuple::Normal(tup) => {
+                    for elem in tup.elems.pos_args.iter_mut() {
+                        self.deref_expr_t(&mut elem.expr)?;
+                    }
+                    Ok(())
+                }
+            },
             hir::Expr::Dict(_dict) => {
                 todo!()
             }

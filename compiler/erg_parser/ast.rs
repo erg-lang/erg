@@ -184,6 +184,13 @@ impl Args {
         self.pos_args.push(arg);
     }
 
+    pub fn extend_pos<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = PosArg>,
+    {
+        self.pos_args.extend(iter);
+    }
+
     pub fn remove_pos(&mut self, index: usize) -> PosArg {
         self.pos_args.remove(index)
     }
@@ -538,6 +545,14 @@ pub enum Tuple {
 impl_nested_display_for_enum!(Tuple; Normal);
 impl_display_for_enum!(Tuple; Normal);
 impl_locational_for_enum!(Tuple; Normal);
+
+impl Tuple {
+    pub fn paren(&self) -> Option<&(Token, Token)> {
+        match self {
+            Self::Normal(tuple) => tuple.elems.paren.as_ref(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
@@ -1767,7 +1782,7 @@ impl VarArrayPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarTuplePattern {
-    paren: Option<(Token, Token)>,
+    pub(crate) paren: Option<(Token, Token)>,
     pub(crate) elems: Vars,
 }
 
@@ -1956,7 +1971,7 @@ impl VarSignature {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vars {
-    elems: Vec<VarSignature>,
+    pub(crate) elems: Vec<VarSignature>,
 }
 
 impl NestedDisplay for Vars {
