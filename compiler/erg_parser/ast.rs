@@ -100,7 +100,7 @@ pub struct KwArg {
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "{}:", self.keyword)?;
+        writeln!(f, "{}: ", self.keyword.content)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -124,6 +124,7 @@ pub struct Args {
 impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args.iter(), f, level)?;
+        writeln!(f, "")?;
         fmt_lines(self.kw_args.iter(), f, level)
     }
 }
@@ -1098,7 +1099,7 @@ pub struct ConstApp {
 
 impl NestedDisplay for ConstApp {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "({})", self.acc)?;
+        writeln!(f, "{}:", self.acc)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -1165,7 +1166,7 @@ pub struct ConstKwArg {
 
 impl NestedDisplay for ConstKwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}: {}", self.keyword.inspect(), self.expr)
+        write!(f, "{}: {}", self.keyword.content, self.expr)
     }
 }
 
@@ -1187,6 +1188,7 @@ pub struct ConstArgs {
 impl NestedDisplay for ConstArgs {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args(), f, level)?;
+        writeln!(f, "")?;
         fmt_lines(self.kw_args(), f, level)
     }
 }
