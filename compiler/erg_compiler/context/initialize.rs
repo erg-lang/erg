@@ -1038,7 +1038,16 @@ impl Context {
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_import = nd_func(vec![param_t("path", Str)], Module);
-        let t_log = nd_func(vec![param_t("objs", var_args(Obj))], NoneType);
+        let t_log = func(
+            vec![param_t("objects", var_args(ref_(Obj)))],
+            vec![
+                param_t("sep", Str),
+                param_t("end", Str),
+                param_t("file", class("Write")),
+                param_t("flush", Bool),
+            ],
+            NoneType,
+        );
         let t_pyimport = nd_func(vec![param_t("path", Str)], Module);
         let t_quit = func(vec![], vec![param_t("code", Int)], NoneType);
         self.register_impl("abs", t_abs, Const, Private);
