@@ -11,7 +11,7 @@ use Visibility::*;
 use erg_type::{ArgsOwnership, HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
-use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, HIR};
+use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WrapperKind {
@@ -185,6 +185,13 @@ impl OwnershipChecker {
                     }
                 }
                 _ => todo!(),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(arr) => {
+                    for a in arr.elems.pos_args.iter() {
+                        self.check_expr(&a.expr, ownership);
+                    }
+                }
             },
             Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {

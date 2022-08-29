@@ -200,6 +200,24 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_tuple(&mut self, tuple: ast::Tuple) -> LowerResult<hir::Tuple> {
+        log!("[DEBUG] entered {}({tuple})", fn_name!());
+        match tuple {
+            ast::Tuple::Normal(tup) => Ok(hir::Tuple::Normal(self.lower_normal_tuple(tup)?)),
+        }
+    }
+
+    fn lower_normal_tuple(&mut self, tuple: ast::NormalTuple) -> LowerResult<hir::NormalTuple> {
+        log!("[DEBUG] entered {}({tuple})", fn_name!());
+        let mut new_tuple = vec![];
+        let (elems, _) = tuple.elems.into_iters();
+        for elem in elems {
+            let elem = self.lower_expr(elem.expr)?;
+            new_tuple.push(elem);
+        }
+        Ok(hir::NormalTuple::new(hir::Args::from(new_tuple)))
+    }
+
     fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
         log!("[DEBUG] entered {}({record})", fn_name!());
         let mut hir_record =
@@ -477,6 +495,7 @@ impl ASTLowerer {
         match expr {
             ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
+            ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),

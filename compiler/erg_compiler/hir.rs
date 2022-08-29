@@ -14,7 +14,7 @@ use erg_common::{
 use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::array;
+use erg_type::constructors::{array, tuple};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
@@ -544,6 +544,42 @@ impl_nested_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
+
+#[derive(Debug, Clone)]
+pub struct NormalTuple {
+    pub elems: Args,
+    t: Type,
+}
+
+impl NestedDisplay for NormalTuple {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "(")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{})(: {})", "    ".repeat(level), self.t)
+    }
+}
+
+impl_display_from_nested!(NormalTuple);
+impl_locational!(NormalTuple, elems);
+impl_t!(NormalTuple);
+
+impl NormalTuple {
+    pub fn new(elems: Args) -> Self {
+        let t = tuple(elems.pos_args.iter().map(|a| a.expr.t()).collect());
+        Self { elems, t }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Tuple {
+    Normal(NormalTuple),
+    // Comprehension(TupleComprehension),
+}
+
+impl_nested_display_for_enum!(Tuple; Normal);
+impl_display_for_enum!(Tuple; Normal);
+impl_locational_for_enum!(Tuple; Normal);
+impl_t_for_enum!(Tuple; Normal);
 
 #[derive(Debug, Clone)]
 pub struct NormalDict {
@@ -1174,6 +1210,7 @@ pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
     Array(Array),
+    Tuple(Tuple),
     // Set(Set),
     Dict(Dict),
     Record(Record),
@@ -1185,10 +1222,10 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {
