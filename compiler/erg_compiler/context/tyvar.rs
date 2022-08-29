@@ -384,8 +384,14 @@ impl Context {
                     hir::Accessor::Attr(attr) => {
                         self.deref_expr_t(&mut attr.obj)?;
                     }
+                    hir::Accessor::TupleAttr(attr) => {
+                        self.deref_expr_t(&mut attr.obj)?;
+                    }
+                    hir::Accessor::Subscr(subscr) => {
+                        self.deref_expr_t(&mut subscr.obj)?;
+                        self.deref_expr_t(&mut subscr.index)?;
+                    }
                     hir::Accessor::Local(_) | hir::Accessor::Public(_) => {}
-                    _ => todo!(),
                 }
                 Ok(())
             }

@@ -6,7 +6,7 @@ use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Locational;
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
@@ -36,48 +36,24 @@ use Visibility::*;
 impl Context {
     pub(crate) fn validate_var_sig_t(
         &self,
-        sig: &ast::VarSignature,
+        ident: &ast::Identifier,
+        t_spec: Option<&ast::TypeSpec>,
         body_t: &Type,
         mode: RegistrationMode,
     ) -> TyCheckResult<()> {
-        let spec_t = self.instantiate_var_sig_t(sig, None, mode)?;
-        match &sig.pat {
-            ast::VarPattern::Discard(token) => {
-                if self
-                    .sub_unify(body_t, &spec_t, None, Some(sig.loc()))
-                    .is_err()
-                {
-                    return Err(TyCheckError::type_mismatch_error(
-                        line!() as usize,
-                        token.loc(),
-                        self.caused_by(),
-                        "_",
-                        &spec_t,
-                        body_t,
-                    ));
-                }
-            }
-            ast::VarPattern::Ident(ident) => {
-                if self
-                    .sub_unify(body_t, &spec_t, None, Some(sig.loc()))
-                    .is_err()
-                {
-                    return Err(TyCheckError::type_mismatch_error(
-                        line!() as usize,
-                        ident.loc(),
-                        self.caused_by(),
-                        ident.inspect(),
-                        &spec_t,
-                        body_t,
-                    ));
-                }
-            }
-            ast::VarPattern::Array(a) => {
-                for (elem, inf_elem_t) in a.iter().zip(body_t.inner_ts().iter()) {
-                    self.validate_var_sig_t(elem, inf_elem_t, mode)?;
-                }
-            }
-            _ => todo!(),
+        let spec_t = self.instantiate_var_sig_t(t_spec, None, mode)?;
+        if self
+            .sub_unify(body_t, &spec_t, None, Some(ident.loc()))
+            .is_err()
+        {
+            return Err(TyCheckError::type_mismatch_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                &spec_t,
+                body_t,
+            ));
         }
         Ok(())
     }

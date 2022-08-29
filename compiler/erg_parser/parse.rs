@@ -738,59 +738,6 @@ impl Parser {
         Ok(acc)
     }
 
-    fn try_reduce_elems_pattern(&mut self) -> ParseResult<Vars> {
-        debug_call_info!(self);
-        let mut elems = Vars::empty();
-        match self.peek() {
-            Some(t) if t.is_block_op() => {
-                self.level -= 1;
-                return Ok(Vars::empty());
-            }
-            Some(_) => {
-                let elem = self.try_reduce_var_sig().map_err(|_| self.stack_dec())?;
-                elems.push(elem);
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-        loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
-                    self.skip();
-                    let elem = self.try_reduce_var_sig().map_err(|_| self.stack_dec())?;
-                    elems.push(elem);
-                }
-                Some(t) if t.category_is(TC::BinOp) => {
-                    log!("[DEBUG] error caused by: {}", fn_name!());
-                    let err = ParseError::syntax_error(
-                        line!() as usize,
-                        t.loc(),
-                        switch_lang!(
-                            "japanese" => "左辺値の中で中置演算子は使えません",
-                            "simplified_chinese" => "二元运算符不能用于左值",
-                            "traditional_chinese" => "二元運算符不能用於左值",
-                            "english" => "Binary operators cannot be used in left-values",
-                        ),
-                        None,
-                    );
-                    self.next_expr();
-                    self.level -= 1;
-                    self.errs.push(err);
-                    return Err(());
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
-        self.level -= 1;
-        Ok(elems)
-    }
-
     fn opt_reduce_params(&mut self) -> Option<ParseResult<Params>> {
         match self.peek() {
             Some(t)
@@ -983,8 +930,14 @@ impl Parser {
             Some(t) if t.is(LSqBr) => {
                 let l_sqbr = self.lpop();
                 let elems = self
-                    .try_reduce_elems_pattern()
+                    .try_reduce_var_pattern()
                     .map_err(|_| self.stack_dec())?;
+                let elems = match elems {
+                    VarPattern::Tuple(tuple) if tuple.paren.is_none() => {
+                        Vars::new(tuple.elems.elems)
+                    }
+                    other => Vars::new(vec![VarSignature::new(other, None)]),
+                };
                 if self.cur_is(RSqBr) {
                     let r_sqbr = self.lpop();
                     self.level -= 1;
@@ -1021,6 +974,24 @@ impl Parser {
                     self.errs.push(err);
                     Err(())
                 }
+            }
+            Some(t) if t.category_is(TC::BinOp) || t.category_is(TC::UnaryOp) => {
+                log!("[DEBUG] error caused by: {}", fn_name!());
+                let err = ParseError::syntax_error(
+                    line!() as usize,
+                    t.loc(),
+                    switch_lang!(
+                        "japanese" => "左辺値の中で演算子は使えません",
+                        "simplified_chinese" => "运算符不能用于左值",
+                        "traditional_chinese" => "運算符不能用於左值",
+                        "english" => "Operators cannot be used in left-values",
+                    ),
+                    None,
+                );
+                self.next_expr();
+                self.level -= 1;
+                self.errs.push(err);
+                return Err(());
             }
             _ => {
                 self.level -= 1;
@@ -2017,7 +1988,22 @@ impl Parser {
             return Err(());
         }
         let arr = match inner {
-            ArrayInner::Normal(elems) => Array::Normal(NormalArray::new(l_sqbr, r_sqbr, elems)),
+            ArrayInner::Normal(mut elems) => {
+                let elems = if elems
+                    .pos_args()
+                    .get(0)
+                    .map(|pos| match &pos.expr {
+                        Expr::Tuple(tup) => tup.paren().is_none(),
+                        _ => false,
+                    })
+                    .unwrap_or(false)
+                {
+                    enum_unwrap!(elems.remove_pos(0).expr, Expr::Tuple:(Tuple::Normal:(_))).elems
+                } else {
+                    elems
+                };
+                Array::Normal(NormalArray::new(l_sqbr, r_sqbr, elems))
+            }
             ArrayInner::WithLength(elem, len) => {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
