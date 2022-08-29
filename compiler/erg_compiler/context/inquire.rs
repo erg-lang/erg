@@ -43,7 +43,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let spec_t = self.instantiate_var_sig_t(t_spec, None, mode)?;
         if self
-            .sub_unify(body_t, &spec_t, None, Some(ident.loc()))
+            .sub_unify(body_t, &spec_t, None, Some(ident.loc()), None)
             .is_err()
         {
             return Err(TyCheckError::type_mismatch_error(
@@ -154,7 +154,7 @@ impl Context {
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
         if self
-            .sub_unify(match_target_expr_t, &union_pat_t, None, None)
+            .sub_unify(match_target_expr_t, &union_pat_t, None, None, None)
             .is_err()
         {
             return Err(TyCheckError::match_error(
@@ -523,30 +523,34 @@ impl Context {
                 for (param_ty, pos_arg) in params.clone().zip(pos_args) {
                     let arg_t = pos_arg.expr.ref_t();
                     let param_t = &param_ty.ty;
-                    self.sub_unify(arg_t, param_t, Some(pos_arg.loc()), None)
-                        .map_err(|e| {
-                            log!(
-                                "{RED}semi-unification failed with {callee}\n{arg_t} !<: {param_t}"
-                            );
-                            log!("errno: {}{GREEN}", e.core.errno);
-                            // REVIEW:
-                            let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
-                            let name = name
-                                + "::"
-                                + param_ty
-                                    .name
-                                    .as_ref()
-                                    .map(|s| readable_name(&s[..]))
-                                    .unwrap_or("");
-                            TyCheckError::type_mismatch_error(
-                                line!() as usize,
-                                e.core.loc,
-                                e.caused_by,
-                                &name[..],
-                                param_t,
-                                arg_t,
-                            )
-                        })?;
+                    self.sub_unify(
+                        arg_t,
+                        param_t,
+                        Some(pos_arg.loc()),
+                        None,
+                        param_ty.name.as_ref(),
+                    )
+                    .map_err(|e| {
+                        log!("{RED}semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
+                        log!("errno: {}{GREEN}", e.core.errno);
+                        // REVIEW:
+                        let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                        let name = name
+                            + "::"
+                            + param_ty
+                                .name
+                                .as_ref()
+                                .map(|s| readable_name(&s[..]))
+                                .unwrap_or("");
+                        TyCheckError::type_mismatch_error(
+                            line!() as usize,
+                            e.core.loc,
+                            e.caused_by,
+                            &name[..],
+                            param_t,
+                            arg_t,
+                        )
+                    })?;
                     if let Some(name) = &param_ty.name {
                         if passed_params.contains(name) {
                             return Err(TyCheckError::multiple_args_error(
@@ -571,8 +575,14 @@ impl Context {
                     param_ts
                 };
                 for kw_arg in kw_args.iter() {
-                    if let Some(param_ty) = param_ts.get(kw_arg.keyword.inspect()) {
-                        self.sub_unify(kw_arg.expr.ref_t(), param_ty, Some(kw_arg.loc()), None)?;
+                    if let Some(param_t) = param_ts.get(kw_arg.keyword.inspect()) {
+                        self.sub_unify(
+                            kw_arg.expr.ref_t(),
+                            param_t,
+                            Some(kw_arg.loc()),
+                            None,
+                            Some(kw_arg.keyword.inspect()),
+                        )?;
                     } else {
                         return Err(TyCheckError::unexpected_kw_arg_error(
                             line!() as usize,

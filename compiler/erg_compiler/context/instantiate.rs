@@ -380,7 +380,7 @@ impl Context {
             free_var(self.level, Constraint::type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
-            self.sub_unify(&eval_t, &spec_t, None, t_spec.map(|s| s.loc()))?;
+            self.sub_unify(&eval_t, &spec_t, None, t_spec.map(|s| s.loc()), None)?;
         }
         Ok(spec_t)
     }
@@ -430,6 +430,7 @@ impl Context {
                 &spec_return_t,
                 None,
                 sig.return_t_spec.as_ref().map(|s| s.loc()),
+                None,
             )?;
         }
         Ok(if sig.ident.is_procedural() {
@@ -468,6 +469,7 @@ impl Context {
                 &spec_t,
                 None,
                 sig.t_spec.as_ref().map(|s| s.loc()),
+                None,
             )?;
         }
         Ok(spec_t)

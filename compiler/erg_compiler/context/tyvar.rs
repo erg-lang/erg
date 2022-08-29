@@ -737,7 +737,7 @@ impl Context {
                             if self.rec_subtype_of(sup, t) {
                                 *sup = t.clone();
                             } else {
-                                self.sub_unify(t, sup, rhs_loc, lhs_loc)?;
+                                self.sub_unify(t, sup, rhs_loc, lhs_loc, None)?;
                             }
                         }
                     }
@@ -973,6 +973,7 @@ impl Context {
         maybe_sup: &Type,
         sub_loc: Option<Location>,
         sup_loc: Option<Location>,
+        param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         erg_common::log!("trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         // In this case, there is no new information to be gained
@@ -990,16 +991,16 @@ impl Context {
                 line!() as usize,
                 loc,
                 self.caused_by(),
-                "<???>",
+                param_name.unwrap_or(&Str::ever("_")),
                 maybe_sup,
                 maybe_sub,
             ));
         }
         match (maybe_sub, maybe_sup) {
             (Type::FreeVar(lfv), _) if lfv.is_linked() =>
-                self.sub_unify(&lfv.crack(), maybe_sup, sub_loc, sup_loc),
+                self.sub_unify(&lfv.crack(), maybe_sup, sub_loc, sup_loc, param_name),
             (_, Type::FreeVar(rfv)) if rfv.is_linked() =>
-                self.sub_unify(maybe_sub, &rfv.crack(), sub_loc, sup_loc),
+                self.sub_unify(maybe_sub, &rfv.crack(), sub_loc, sup_loc, param_name),
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))

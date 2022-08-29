@@ -247,7 +247,7 @@ impl Context {
         let non_default_params = t.non_default_params().unwrap();
         let default_params = t.default_params().unwrap();
         if let Some(spec_ret_t) = t.return_t() {
-            self.sub_unify(body_t, spec_ret_t, None, Some(sig.loc()))
+            self.sub_unify(body_t, spec_ret_t, None, Some(sig.loc()), None)
                 .map_err(|e| {
                     TyCheckError::return_type_error(
                         line!() as usize,

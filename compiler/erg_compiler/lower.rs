@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, get_hash};
-use erg_common::{fn_name, log, switch_lang};
+use erg_common::{fn_name, log, switch_lang, Str};
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
@@ -43,12 +43,12 @@ impl ASTLowerer {
     fn return_t_check(
         &self,
         loc: Location,
-        name: &str,
+        name: &Str,
         expect: &Type,
         found: &Type,
     ) -> LowerResult<()> {
         self.ctx
-            .sub_unify(found, expect, None, Some(loc))
+            .sub_unify(found, expect, None, Some(loc), Some(name))
             .map_err(|_| {
                 LowerError::type_mismatch_error(
                     line!() as usize,
