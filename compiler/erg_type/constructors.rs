@@ -33,7 +33,8 @@ pub fn dict(k_t: Type, v_t: Type) -> Type {
 }
 
 pub fn tuple(args: Vec<Type>) -> Type {
-    poly_class("Tuple", args.into_iter().map(TyParam::t).collect())
+    let name = format!("Tuple{}", args.len());
+    poly_class(name, args.into_iter().map(TyParam::t).collect())
 }
 
 #[inline]

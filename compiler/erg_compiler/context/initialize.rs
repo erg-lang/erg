@@ -623,11 +623,177 @@ impl Context {
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
         );
-        // TODO: make Tuple1(A), Tuple2(A, B), ... etc.
-        let tuple = Self::mono_class(
+        // TODO: make Tuple6, Tuple7, ... etc.
+        let tuple_ = Self::mono_class(
             "Tuple",
             vec![Obj],
             vec![poly_trait("Eq", vec![ty_tp(class("Tuple"))])],
+            Self::TOP_LEVEL,
+        );
+        let tuple1 = Self::poly_class(
+            "Tuple1",
+            vec![PS::t_nd("A")],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class("Tuple1", vec![ty_tp(mono_q("A"))]))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple2 = Self::poly_class(
+            "Tuple2",
+            vec![PS::t_nd("A"), PS::t_nd("B")],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple2",
+                    vec![ty_tp(mono_q("A")), ty_tp(mono_q("B"))],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple3 = Self::poly_class(
+            "Tuple3",
+            vec![PS::t_nd("A"), PS::t_nd("B"), PS::t_nd("C")],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple3",
+                    vec![ty_tp(mono_q("A")), ty_tp(mono_q("B")), ty_tp(mono_q("C"))],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple4 = Self::poly_class(
+            "Tuple4",
+            vec![PS::t_nd("A"), PS::t_nd("B"), PS::t_nd("C"), PS::t_nd("D")],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple4",
+                    vec![
+                        ty_tp(mono_q("A")),
+                        ty_tp(mono_q("B")),
+                        ty_tp(mono_q("C")),
+                        ty_tp(mono_q("D")),
+                    ],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple5 = Self::poly_class(
+            "Tuple5",
+            vec![
+                PS::t_nd("A"),
+                PS::t_nd("B"),
+                PS::t_nd("C"),
+                PS::t_nd("D"),
+                PS::t_nd("E"),
+            ],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple5",
+                    vec![
+                        ty_tp(mono_q("A")),
+                        ty_tp(mono_q("B")),
+                        ty_tp(mono_q("C")),
+                        ty_tp(mono_q("D")),
+                        ty_tp(mono_q("E")),
+                    ],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple6 = Self::poly_class(
+            "Tuple6",
+            vec![
+                PS::t_nd("A"),
+                PS::t_nd("B"),
+                PS::t_nd("C"),
+                PS::t_nd("D"),
+                PS::t_nd("E"),
+                PS::t_nd("F"),
+            ],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple6",
+                    vec![
+                        ty_tp(mono_q("A")),
+                        ty_tp(mono_q("B")),
+                        ty_tp(mono_q("C")),
+                        ty_tp(mono_q("D")),
+                        ty_tp(mono_q("E")),
+                        ty_tp(mono_q("F")),
+                    ],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple7 = Self::poly_class(
+            "Tuple7",
+            vec![
+                PS::t_nd("A"),
+                PS::t_nd("B"),
+                PS::t_nd("C"),
+                PS::t_nd("D"),
+                PS::t_nd("E"),
+                PS::t_nd("F"),
+                PS::t_nd("G"),
+            ],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple7",
+                    vec![
+                        ty_tp(mono_q("A")),
+                        ty_tp(mono_q("B")),
+                        ty_tp(mono_q("C")),
+                        ty_tp(mono_q("D")),
+                        ty_tp(mono_q("E")),
+                        ty_tp(mono_q("F")),
+                        ty_tp(mono_q("G")),
+                    ],
+                ))],
+            )],
+            Self::TOP_LEVEL,
+        );
+        let tuple8 = Self::poly_class(
+            "Tuple8",
+            vec![
+                PS::t_nd("A"),
+                PS::t_nd("B"),
+                PS::t_nd("C"),
+                PS::t_nd("D"),
+                PS::t_nd("E"),
+                PS::t_nd("F"),
+                PS::t_nd("G"),
+                PS::t_nd("H"),
+            ],
+            vec![class("Tuple"), Obj],
+            vec![poly_trait(
+                "Eq",
+                vec![ty_tp(poly_class(
+                    "Tuple8",
+                    vec![
+                        ty_tp(mono_q("A")),
+                        ty_tp(mono_q("B")),
+                        ty_tp(mono_q("C")),
+                        ty_tp(mono_q("D")),
+                        ty_tp(mono_q("E")),
+                        ty_tp(mono_q("F")),
+                        ty_tp(mono_q("G")),
+                        ty_tp(mono_q("H")),
+                    ],
+                ))],
+            )],
             Self::TOP_LEVEL,
         );
         int_mut.register_const("ImmutType", ValueObj::t(Int));
@@ -766,6 +932,68 @@ impl Context {
         self.register_type(Type, type_, Const);
         self.register_type(Module, module, Const);
         self.register_type(array_t, array_, Const);
+        self.register_type(tuple(vec![mono_q("A")]), tuple1, Const);
+        self.register_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);
+        self.register_type(
+            tuple(vec![mono_q("A"), mono_q("B"), mono_q("C")]),
+            tuple3,
+            Const,
+        );
+        self.register_type(
+            tuple(vec![mono_q("A"), mono_q("B"), mono_q("C"), mono_q("D")]),
+            tuple4,
+            Const,
+        );
+        self.register_type(
+            tuple(vec![
+                mono_q("A"),
+                mono_q("B"),
+                mono_q("C"),
+                mono_q("D"),
+                mono_q("E"),
+            ]),
+            tuple5,
+            Const,
+        );
+        self.register_type(
+            tuple(vec![
+                mono_q("A"),
+                mono_q("B"),
+                mono_q("C"),
+                mono_q("D"),
+                mono_q("E"),
+                mono_q("F"),
+            ]),
+            tuple6,
+            Const,
+        );
+        self.register_type(
+            tuple(vec![
+                mono_q("A"),
+                mono_q("B"),
+                mono_q("C"),
+                mono_q("D"),
+                mono_q("E"),
+                mono_q("F"),
+                mono_q("G"),
+            ]),
+            tuple7,
+            Const,
+        );
+        self.register_type(
+            tuple(vec![
+                mono_q("A"),
+                mono_q("B"),
+                mono_q("C"),
+                mono_q("D"),
+                mono_q("E"),
+                mono_q("F"),
+                mono_q("G"),
+                mono_q("H"),
+            ]),
+            tuple8,
+            Const,
+        );
         self.register_type(class("Int!"), int_mut, Const);
         self.register_type(class("Nat!"), nat_mut, Const);
         self.register_type(class("Float!"), float_mut, Const);
@@ -774,7 +1002,7 @@ impl Context {
         self.register_type(class("Str!"), str_mut, Const);
         self.register_type(array_mut_t, array_mut, Const);
         self.register_type(range_t, range, Const);
-        self.register_type(class("Tuple"), tuple, Const);
+        self.register_type(class("Tuple"), tuple_, Const);
         self.register_type(class("Function"), func, Const);
         self.register_type(class("QuantifiedFunction"), qfunc, Const);
     }
