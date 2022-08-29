@@ -109,7 +109,7 @@ impl KwArg {
 pub struct Args {
     pos_args: Vec<PosArg>,
     kw_args: Vec<KwArg>,
-    paren: Option<(Token, Token)>,
+    pub paren: Option<(Token, Token)>,
 }
 
 impl NestedDisplay for Args {
@@ -367,6 +367,10 @@ impl Accessor {
         Self::Attr(Attribute::new(obj, name))
     }
 
+    pub fn tuple_attr(obj: Expr, index: Literal) -> Self {
+        Self::TupleAttr(TupleAttribute::new(obj, index))
+    }
+
     pub fn subscr(obj: Expr, index: Expr) -> Self {
         Self::Subscr(Subscript::new(obj, index))
     }
@@ -502,6 +506,38 @@ pub enum Array {
 impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalTuple {
+    pub elems: Args,
+}
+
+impl NestedDisplay for NormalTuple {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "(")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{})", "    ".repeat(level))
+    }
+}
+
+impl_display_from_nested!(NormalTuple);
+impl_locational!(NormalTuple, elems, elems);
+
+impl NormalTuple {
+    pub fn new(elems: Args) -> Self {
+        Self { elems }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Tuple {
+    Normal(NormalTuple),
+    // Comprehension(TupleComprehension),
+}
+
+impl_nested_display_for_enum!(Tuple; Normal);
+impl_display_for_enum!(Tuple; Normal);
+impl_locational_for_enum!(Tuple; Normal);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
@@ -833,6 +869,30 @@ impl ConstAttribute {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstTupleAttribute {
+    tup: Box<ConstExpr>,
+    index: Literal,
+}
+
+impl NestedDisplay for ConstTupleAttribute {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}.{}", self.tup, self.index)
+    }
+}
+
+impl_display_from_nested!(ConstTupleAttribute);
+impl_locational!(ConstTupleAttribute, tup, index);
+
+impl ConstTupleAttribute {
+    pub fn new(tup: ConstExpr, index: Literal) -> Self {
+        Self {
+            tup: Box::new(tup),
+            index,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstSubscript {
     obj: Box<ConstExpr>,
     index: Box<ConstExpr>,
@@ -861,12 +921,13 @@ pub enum ConstAccessor {
     Local(ConstLocal),
     SelfDot(ConstLocal),
     Attr(ConstAttribute),
+    TupleAttr(ConstTupleAttribute),
     Subscr(ConstSubscript),
 }
 
-impl_nested_display_for_enum!(ConstAccessor; Local, SelfDot, Attr, Subscr);
+impl_nested_display_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(ConstAccessor);
-impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, Subscr);
+impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr);
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
@@ -2426,6 +2487,7 @@ pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
     Array(Array),
+    Tuple(Tuple),
     Dict(Dict),
     Set(Set),
     Record(Record),
@@ -2437,9 +2499,9 @@ pub enum Expr {
     Def(Def),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {

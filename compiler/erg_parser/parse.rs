@@ -686,10 +686,24 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.is(Dot) => {
                     self.skip();
-                    let symbol = self.lpop();
-                    debug_power_assert!(symbol.is(Symbol));
-                    let attr = Local::new(symbol);
-                    acc = Accessor::attr(Expr::Accessor(acc), attr);
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let attr = Local::new(token);
+                            acc = Accessor::attr(Expr::Accessor(acc), attr);
+                        }
+                        NatLit => {
+                            let attr = Literal::from(token);
+                            acc = Accessor::tuple_attr(Expr::Accessor(acc), attr);
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
                 }
                 Some(t) if t.is(LSqBr) => {
                     self.skip();
@@ -1778,6 +1792,14 @@ impl Parser {
                                 }
                             }
                         }
+                        Some(t) if t.is(Comma) => {
+                            let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let tup = self
+                                .try_reduce_tuple(first_elem)
+                                .map_err(|_| self.stack_dec())?;
+                            self.level -= 1;
+                            return Ok(Expr::Tuple(tup));
+                        }
                         _ => {
                             if stack.len() <= 1 {
                                 break;
@@ -1852,18 +1874,24 @@ impl Parser {
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(LParen) => {
-                self.skip();
-                let expr = self.try_reduce_expr().map_err(|_| self.stack_dec())?;
+                let lparen = self.lpop();
                 if self.cur_is(RParen) {
-                    self.skip();
+                    let rparen = self.lpop();
+                    let args = Args::new(vec![], vec![], Some((lparen, rparen)));
+                    let unit = Tuple::Normal(NormalTuple::new(args));
                     self.level -= 1;
-                    Ok(expr)
-                } else {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
+                    return Ok(Expr::Tuple(unit));
                 }
+                let mut expr = self.try_reduce_expr().map_err(|_| self.stack_dec())?;
+                let rparen = self.lpop();
+                match &mut expr {
+                    Expr::Tuple(Tuple::Normal(tup)) => {
+                        tup.elems.paren = Some((lparen, rparen));
+                    }
+                    _ => {}
+                }
+                self.level -= 1;
+                Ok(expr)
             }
             Some(t) if t.is(LSqBr) => {
                 let array = self.try_reduce_array().map_err(|_| self.stack_dec())?;
@@ -2031,6 +2059,47 @@ impl Parser {
 
     fn try_reduce_set(&mut self, _l_brace: Token, _first: Expr) -> ParseResult<Set> {
         todo!()
+    }
+
+    fn try_reduce_tuple(&mut self, first_elem: Expr) -> ParseResult<Tuple> {
+        debug_call_info!(self);
+        let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
+        loop {
+            match self.peek() {
+                Some(t) if t.is(Comma) => {
+                    self.skip();
+                    if self.cur_is(Comma) {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                    match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+                        PosOrKwArg::Pos(arg) => {
+                            args.push_pos(arg);
+                        }
+                        PosOrKwArg::Kw(_arg) => todo!(),
+                    }
+                }
+                Some(t) if t.is(Newline) => {
+                    while self.cur_is(Newline) {
+                        self.skip();
+                    }
+                    match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+                        PosOrKwArg::Pos(arg) => {
+                            args.push_pos(arg);
+                        }
+                        PosOrKwArg::Kw(_arg) => todo!(),
+                    }
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        let tup = Tuple::Normal(NormalTuple::new(args));
+        self.level -= 1;
+        Ok(tup)
     }
 
     #[inline]
