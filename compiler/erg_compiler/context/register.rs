@@ -1,6 +1,6 @@
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Locational;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
@@ -45,16 +45,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn declare_var(
-        &mut self,
-        sig: &ast::VarSignature,
-        opt_t: Option<Type>,
-        id: Option<DefId>,
-    ) -> TyCheckResult<()> {
-        self.declare_var_pat(sig, opt_t, id)
-    }
-
-    fn declare_var_pat(
+    fn declare_var(
         &mut self,
         sig: &ast::VarSignature,
         opt_t: Option<Type>,
@@ -81,23 +72,12 @@ impl Context {
                     }
                     let vis = ident.vis();
                     let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-                    let sig_t = self.instantiate_var_sig_t(sig, opt_t, PreRegister)?;
+                    let sig_t =
+                        self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
                     self.decls
                         .insert(ident.name.clone(), VarInfo::new(sig_t, muty, vis, kind));
                     Ok(())
                 }
-            }
-            ast::VarPattern::Array(a) => {
-                if let Some(opt_ts) = opt_t.and_then(|t| t.non_default_params().cloned()) {
-                    for (elem, p) in a.iter().zip(opt_ts.into_iter()) {
-                        self.declare_var_pat(elem, Some(p.ty), None)?;
-                    }
-                } else {
-                    for elem in a.iter() {
-                        self.declare_var_pat(elem, None, None)?;
-                    }
-                }
-                Ok(())
             }
             _ => todo!(),
         }
@@ -136,53 +116,34 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn assign_var(
-        &mut self,
-        sig: &ast::VarSignature,
-        id: DefId,
-        body_t: &Type,
-    ) -> TyCheckResult<()> {
-        self.assign_var_sig(sig, body_t, id)
-    }
-
-    fn assign_var_sig(
+    pub(crate) fn assign_var_sig(
         &mut self,
         sig: &ast::VarSignature,
         body_t: &Type,
         id: DefId,
     ) -> TyCheckResult<()> {
-        self.validate_var_sig_t(sig, body_t, Normal)?;
-        let muty = Mutability::from(&sig.inspect().unwrap()[..]);
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            _ => todo!(),
+        };
+        self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
+        let muty = Mutability::from(&ident.inspect()[..]);
         let generalized = self.generalize_t(body_t.clone());
-        match &sig.pat {
-            ast::VarPattern::Discard(_token) => Ok(()),
-            ast::VarPattern::Ident(ident) => {
-                if self.registered(ident.inspect(), ident.is_const()) {
-                    Err(TyCheckError::reassign_error(
-                        line!() as usize,
-                        ident.loc(),
-                        self.caused_by(),
-                        ident.inspect(),
-                    ))
-                } else {
-                    if self.decls.remove(ident.inspect()).is_some() {
-                        // something to do?
-                    }
-                    let vis = ident.vis();
-                    let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
-                    self.locals.insert(ident.name.clone(), vi);
-                    Ok(())
-                }
+        if self.registered(ident.inspect(), ident.is_const()) {
+            Err(TyCheckError::reassign_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            ))
+        } else {
+            if self.decls.remove(ident.inspect()).is_some() {
+                // something to do?
             }
-            ast::VarPattern::Array(arr) => {
-                for (elem, inf) in arr.iter().zip(generalized.inner_ts().iter()) {
-                    let id = DefId(get_hash(&(&self.name, elem)));
-                    self.assign_var_sig(elem, inf, id)?;
-                }
-                Ok(())
-            }
-            ast::VarPattern::Tuple(_) => todo!(),
-            ast::VarPattern::Record { .. } => todo!(),
+            let vis = ident.vis();
+            let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
+            self.locals.insert(ident.name.clone(), vi);
+            Ok(())
         }
     }
 
@@ -225,46 +186,8 @@ impl Context {
                     Ok(())
                 }
             }
-            ast::ParamPattern::Array(arr) => {
-                let mut array_nth = 0;
-                let array_outer = if let Some(outer) = outer {
-                    ParamIdx::nested(outer, nth)
-                } else {
-                    ParamIdx::Nth(nth)
-                };
-                if let Some(decl_t) = opt_decl_t {
-                    for (elem, p) in arr
-                        .elems
-                        .non_defaults
-                        .iter()
-                        .zip(decl_t.ty.non_default_params().unwrap())
-                    {
-                        self.assign_param(elem, Some(array_outer.clone()), array_nth, Some(p))?;
-                        array_nth += 1;
-                    }
-                    for (elem, p) in arr
-                        .elems
-                        .defaults
-                        .iter()
-                        .zip(decl_t.ty.default_params().unwrap())
-                    {
-                        self.assign_param(elem, Some(array_outer.clone()), array_nth, Some(p))?;
-                        array_nth += 1;
-                    }
-                } else {
-                    for elem in arr.elems.non_defaults.iter() {
-                        self.assign_param(elem, Some(array_outer.clone()), array_nth, None)?;
-                        array_nth += 1;
-                    }
-                    for elem in arr.elems.defaults.iter() {
-                        self.assign_param(elem, Some(array_outer.clone()), array_nth, None)?;
-                        array_nth += 1;
-                    }
-                }
-                Ok(())
-            }
             ast::ParamPattern::Lit(_) => Ok(()),
-            _ => todo!(),
+            _ => unreachable!(),
         }
     }
 
@@ -427,8 +350,8 @@ impl Context {
     ) -> TyCheckResult<()> {
         match mod_name {
             hir::Expr::Lit(lit) => {
-                if self.rec_subtype_of(&lit.data.class(), &Str) {
-                    let name = enum_unwrap!(lit.data.clone(), ValueObj::Str);
+                if self.rec_subtype_of(&lit.value.class(), &Str) {
+                    let name = enum_unwrap!(lit.value.clone(), ValueObj::Str);
                     match &name[..] {
                         "math" => {
                             self.mods.insert(var_name.clone(), Self::init_py_math_mod());

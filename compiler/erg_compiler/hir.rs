@@ -11,7 +11,7 @@ use erg_common::{
     impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, VarPattern};
+use erg_parser::ast::{fmt_lines, DefId, Identifier, Params};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
@@ -24,8 +24,8 @@ use crate::eval::type_from_token_kind;
 
 #[derive(Debug, Clone)]
 pub struct Literal {
-    pub data: ValueObj, // for constant folding
-    pub token: Token,   // for Locational
+    pub value: ValueObj,
+    pub token: Token, // for Locational
     t: Type,
 }
 
@@ -33,7 +33,7 @@ impl_t!(Literal);
 
 impl NestedDisplay for Literal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.token)
+        write!(f, "{} (: {})", self.token.content, self.t)
     }
 }
 
@@ -51,7 +51,7 @@ impl From<Token> for Literal {
         let data = ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone());
         Self {
             t: data.t(),
-            data,
+            value: data,
             token,
         }
     }
@@ -369,10 +369,38 @@ impl Attribute {
     }
 }
 
+/// e.g. obj.0, obj.1
+#[derive(Clone, Debug)]
+pub struct TupleAttribute {
+    pub obj: Box<Expr>,
+    pub index: Literal,
+    t: Type,
+}
+
+impl NestedDisplay for TupleAttribute {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "({}).{}", self.obj, self.index)
+    }
+}
+
+impl_display_from_nested!(TupleAttribute);
+impl_locational!(TupleAttribute, obj, index);
+impl_t!(TupleAttribute);
+
+impl TupleAttribute {
+    pub fn new(obj: Expr, index: Literal, t: Type) -> Self {
+        Self {
+            obj: Box::new(obj),
+            index,
+            t,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Subscript {
-    obj: Box<Expr>,
-    index: Box<Expr>,
+    pub(crate) obj: Box<Expr>,
+    pub(crate) index: Box<Expr>,
     t: Type,
 }
 
@@ -401,13 +429,14 @@ pub enum Accessor {
     Local(Local),
     Public(Public),
     Attr(Attribute),
+    TupleAttr(TupleAttribute),
     Subscr(Subscript),
 }
 
-impl_nested_display_for_enum!(Accessor; Local, Public, Attr, Subscr);
+impl_nested_display_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, Public, Attr, Subscr);
-impl_t_for_enum!(Accessor; Local, Public, Attr, Subscr);
+impl_locational_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_t_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token, t: Type) -> Self {
@@ -433,6 +462,10 @@ impl Accessor {
                 .obj
                 .var_full_name()
                 .map(|n| n + "." + readable_name(attr.name.inspect())),
+            Self::TupleAttr(t_attr) => t_attr
+                .obj
+                .var_full_name()
+                .map(|n| n + "." + t_attr.index.token.inspect()),
             Self::Subscr(_) | Self::Public(_) => todo!(),
         }
     }
@@ -711,7 +744,7 @@ impl Record {
     pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         let rec = attrs
             .iter()
-            .map(|def| (Field::from(def.sig.ident().unwrap()), def.body.block.t()))
+            .map(|def| (Field::from(def.sig.ident()), def.body.block.t()))
             .collect();
         let t = Type::Record(rec);
         Self {
@@ -724,7 +757,7 @@ impl Record {
 
     pub fn push(&mut self, attr: Def) {
         let t = enum_unwrap!(&mut self.t, Type::Record);
-        t.insert(Field::from(attr.sig.ident().unwrap()), attr.body.block.t());
+        t.insert(Field::from(attr.sig.ident()), attr.body.block.t());
         self.attrs.push(attr);
     }
 }
@@ -951,30 +984,30 @@ impl Locational for Block {
 
 #[derive(Debug, Clone, Hash)]
 pub struct VarSignature {
-    pub pat: VarPattern,
+    pub ident: Identifier,
     pub t: Type,
 }
 
 impl NestedDisplay for VarSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}(: {})", self.pat, self.t)
+        write!(f, "{}(: {})", self.ident, self.t)
     }
 }
 
 impl_display_from_nested!(VarSignature);
-impl_locational!(VarSignature, pat, pat);
+impl_locational!(VarSignature, ident);
 
 impl VarSignature {
-    pub const fn new(pat: VarPattern, t: Type) -> Self {
-        Self { pat, t }
+    pub const fn new(ident: Identifier, t: Type) -> Self {
+        Self { ident, t }
     }
 
-    pub fn inspect(&self) -> Option<&Str> {
-        self.pat.inspect()
+    pub fn inspect(&self) -> &Str {
+        self.ident.inspect()
     }
 
     pub fn vis(&self) -> Visibility {
-        self.pat.vis()
+        self.ident.vis()
     }
 }
 
@@ -1057,29 +1090,29 @@ impl Signature {
 
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Var(v) => v.pat.is_const(),
+            Self::Var(v) => v.ident.is_const(),
             Self::Subr(s) => s.ident.is_const(),
         }
     }
 
     pub fn is_procedural(&self) -> bool {
         match self {
-            Self::Var(v) => v.pat.is_procedural(),
+            Self::Var(v) => v.ident.is_procedural(),
             Self::Subr(s) => s.ident.is_procedural(),
         }
     }
 
     pub const fn vis(&self) -> Visibility {
         match self {
-            Self::Var(v) => v.pat.vis(),
+            Self::Var(v) => v.ident.vis(),
             Self::Subr(s) => s.ident.vis(),
         }
     }
 
-    pub fn ident(&self) -> Option<&Identifier> {
+    pub fn ident(&self) -> &Identifier {
         match self {
-            Self::Var(v) => v.pat.ident(),
-            Self::Subr(s) => Some(&s.ident),
+            Self::Var(v) => &v.ident,
+            Self::Subr(s) => &s.ident,
         }
     }
 }

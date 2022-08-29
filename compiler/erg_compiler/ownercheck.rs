@@ -87,13 +87,7 @@ impl OwnershipChecker {
                 log!("define: {}", def.sig);
                 self.define(def);
                 let name = match &def.sig {
-                    Signature::Var(var) => {
-                        if let Some(name) = var.inspect() {
-                            name.clone()
-                        } else {
-                            Str::ever("::<instant>")
-                        }
-                    }
+                    Signature::Var(var) => var.inspect().clone(),
                     Signature::Subr(subr) => subr.ident.inspect().clone(),
                 };
                 self.path_stack.push((name, def.sig.vis()));
@@ -102,33 +96,7 @@ impl OwnershipChecker {
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
             }
-            Expr::Accessor(Accessor::Local(local)) => {
-                self.check_if_dropped(local.inspect(), local.loc());
-                if expr.ref_t().is_mut() && ownership.is_owned() {
-                    log!(
-                        "drop: {} (in {})",
-                        local.inspect(),
-                        local.ln_begin().unwrap_or(0)
-                    );
-                    self.drop(local.inspect(), expr.loc());
-                }
-            }
-            Expr::Accessor(Accessor::Public(public)) => {
-                self.check_if_dropped(public.inspect(), public.loc());
-                if expr.ref_t().is_mut() && ownership.is_owned() {
-                    log!(
-                        "drop: {} (in {})",
-                        public.inspect(),
-                        public.ln_begin().unwrap_or(0)
-                    );
-                    self.drop(public.inspect(), expr.loc());
-                }
-            }
-            Expr::Accessor(Accessor::Attr(a)) => {
-                // REVIEW: is ownership the same?
-                self.check_expr(&a.obj, ownership)
-            }
-            Expr::Accessor(_a) => todo!(),
+            Expr::Accessor(acc) => self.check_acc(acc, ownership),
             // TODO: referenced
             Expr::Call(call) => {
                 let args_ownership = call.signature_t().unwrap().args_ownership();
@@ -222,6 +190,42 @@ impl OwnershipChecker {
         }
     }
 
+    fn check_acc(&mut self, acc: &Accessor, ownership: Ownership) {
+        match acc {
+            Accessor::Local(local) => {
+                self.check_if_dropped(local.inspect(), local.loc());
+                if acc.ref_t().is_mut() && ownership.is_owned() {
+                    log!(
+                        "drop: {} (in {})",
+                        local.inspect(),
+                        local.ln_begin().unwrap_or(0)
+                    );
+                    self.drop(local.inspect(), acc.loc());
+                }
+            }
+            Accessor::Public(public) => {
+                self.check_if_dropped(public.inspect(), public.loc());
+                if acc.ref_t().is_mut() && ownership.is_owned() {
+                    log!(
+                        "drop: {} (in {})",
+                        public.inspect(),
+                        public.ln_begin().unwrap_or(0)
+                    );
+                    self.drop(public.inspect(), acc.loc());
+                }
+            }
+            Accessor::Attr(attr) => {
+                // REVIEW: is ownership the same?
+                self.check_expr(&attr.obj, ownership)
+            }
+            Accessor::TupleAttr(t_attr) => self.check_expr(&t_attr.obj, ownership),
+            Accessor::Subscr(subscr) => {
+                self.check_expr(&subscr.obj, ownership);
+                self.check_expr(&subscr.index, ownership);
+            }
+        }
+    }
+
     /// TODO: このメソッドを呼ぶとき、スコープを再帰的に検索する
     #[inline]
     fn current_scope(&mut self) -> &mut LocalVars {
@@ -246,9 +250,9 @@ impl OwnershipChecker {
     fn define(&mut self, def: &Def) {
         match &def.sig {
             Signature::Var(sig) => {
-                for name in sig.pat.inspects() {
-                    self.current_scope().alive_vars.insert(name.clone());
-                }
+                self.current_scope()
+                    .alive_vars
+                    .insert(sig.inspect().clone());
             }
             Signature::Subr(sig) => {
                 self.current_scope()

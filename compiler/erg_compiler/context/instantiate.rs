@@ -370,17 +370,17 @@ impl ConstTemplate {
 impl Context {
     pub(crate) fn instantiate_var_sig_t(
         &self,
-        sig: &ast::VarSignature,
+        t_spec: Option<&TypeSpec>,
         opt_eval_t: Option<Type>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
-        let spec_t = if let Some(s) = sig.t_spec.as_ref() {
+        let spec_t = if let Some(s) = t_spec {
             self.instantiate_typespec(s, mode)?
         } else {
             free_var(self.level, Constraint::type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
-            self.sub_unify(&eval_t, &spec_t, None, sig.t_spec.as_ref().map(|s| s.loc()))?;
+            self.sub_unify(&eval_t, &spec_t, None, t_spec.map(|s| s.loc()))?;
         }
         Ok(spec_t)
     }

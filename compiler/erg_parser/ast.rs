@@ -42,7 +42,7 @@ pub struct Literal {
 
 impl NestedDisplay for Literal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.token)
+        write!(f, "{}", self.token.content)
     }
 }
 
@@ -57,6 +57,15 @@ impl From<Token> for Literal {
 }
 
 impl Literal {
+    pub const fn new(token: Token) -> Self {
+        Self { token }
+    }
+
+    pub fn nat(n: usize, line: usize) -> Self {
+        let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0);
+        Self { token }
+    }
+
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
@@ -224,8 +233,16 @@ impl Local {
         Self { symbol }
     }
 
-    pub fn dummy(name: &'static str) -> Self {
-        Self::new(Token::from_str(TokenKind::Symbol, name))
+    pub fn static_dummy(name: &'static str) -> Self {
+        Self::new(Token::static_symbol(name))
+    }
+
+    pub fn dummy(name: &str) -> Self {
+        Self::new(Token::symbol(name))
+    }
+
+    pub fn dummy_with_line(name: &str, line: usize) -> Self {
+        Self::new(Token::new(TokenKind::Symbol, Str::rc(name), line, 0))
     }
 
     // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
@@ -326,8 +343,8 @@ impl TupleAttribute {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Subscript {
-    obj: Box<Expr>,
-    index: Box<Expr>,
+    pub obj: Box<Expr>,
+    pub index: Box<Expr>,
 }
 
 impl NestedDisplay for Subscript {
@@ -1640,6 +1657,10 @@ impl VarName {
         Self(Token::from_str(TokenKind::Symbol, &symbol))
     }
 
+    pub fn from_str_and_line(symbol: Str, line: usize) -> Self {
+        Self(Token::new(TokenKind::Symbol, &symbol, line, 0))
+    }
+
     #[inline]
     pub fn is_const(&self) -> bool {
         self.0
@@ -1718,6 +1739,10 @@ impl Identifier {
 
     pub fn private(name: Str) -> Self {
         Self::new(None, VarName::from_str(name))
+    }
+
+    pub fn private_with_line(name: Str, line: usize) -> Self {
+        Self::new(None, VarName::from_str_and_line(name, line))
     }
 
     pub fn is_const(&self) -> bool {
@@ -2407,10 +2432,10 @@ impl_display_from_nested!(Signature);
 impl_locational_for_enum!(Signature; Var, Subr);
 
 impl Signature {
-    pub fn name_as_str(&self) -> &Str {
+    pub fn name_as_str(&self) -> Option<&Str> {
         match self {
-            Self::Var(var) => var.pat.inspect().unwrap(),
-            Self::Subr(subr) => subr.ident.inspect(),
+            Self::Var(var) => var.pat.inspect(),
+            Self::Subr(subr) => Some(subr.ident.inspect()),
         }
     }
 

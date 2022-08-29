@@ -17,8 +17,8 @@ use erg_common::{
 use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
-use erg_parser::ast::{Identifier, ParamPattern, Params, VarName, VarPattern};
-use erg_parser::token::{Token, TokenCategory, TokenKind};
+use erg_parser::ast::{Identifier, ParamPattern, Params, VarName};
+use erg_parser::token::{Token, TokenKind};
 
 use erg_type::value::ValueObj;
 use erg_type::{HasType, TypeCode, TypePair};
@@ -680,50 +680,20 @@ impl CodeGenerator {
             .collect()
     }
 
-    fn emit_var_pat(&mut self, pat: VarPattern, op: &Token) {
-        match pat {
-            VarPattern::Ident(ident) => {
-                if op.category_is(TokenCategory::DefOp) {
-                    self.emit_store_instr(ident, Name);
-                } else {
-                    todo!()
-                }
-            }
-            VarPattern::Array(a) => {
-                if op.category_is(TokenCategory::DefOp) {
-                    // TODO: UNPACK_EX
-                    self.write_instr(UNPACK_SEQUENCE);
-                    self.write_arg(a.len() as u8);
-                    self.stack_inc_n(a.len() - 1);
-                    for sig in a.into_iter() {
-                        self.emit_var_pat(sig.pat, op);
-                    }
-                } else {
-                    switch_unreachable!()
-                }
-            }
-            _ => todo!(),
-        }
-    }
-
     fn emit_mono_type_def(&mut self, sig: VarSignature, body: DefBody) {
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let ident = match sig.pat {
-            VarPattern::Ident(ident) => ident,
-            _ => todo!(),
-        };
-        let code = self.codegen_typedef_block(ident.inspect().clone(), body.block);
+        let code = self.codegen_typedef_block(sig.inspect().clone(), body.block);
         self.emit_load_const(code);
-        self.emit_load_const(ident.inspect().clone());
+        self.emit_load_const(sig.inspect().clone());
         self.write_instr(Opcode::MAKE_FUNCTION);
         self.write_arg(0);
-        self.emit_load_const(ident.inspect().clone());
+        self.emit_load_const(sig.inspect().clone());
         self.write_instr(Opcode::CALL_FUNCTION);
         self.write_arg(2);
         self.stack_dec_n((1 + 2) - 1);
-        self.emit_store_instr(ident, Name);
+        self.emit_store_instr(sig.ident, Name);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
@@ -735,7 +705,7 @@ impl CodeGenerator {
         } else {
             self.codegen_frameless_block(body.block, vec![]);
         }
-        self.emit_var_pat(sig.pat, &body.op);
+        self.emit_store_instr(sig.ident, Name);
     }
 
     fn emit_subr_def(&mut self, sig: SubrSignature, body: DefBody) {
@@ -1026,7 +996,7 @@ impl CodeGenerator {
     }
 
     fn codegen_expr(&mut self, expr: Expr) {
-        if expr.ln_begin().unwrap() > self.cur_block().prev_lineno {
+        if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.cur_block().lasti - self.cur_block().prev_lasti;
             let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
             if ld != 0 {
@@ -1058,33 +1028,9 @@ impl CodeGenerator {
         }
         match expr {
             Expr::Lit(lit) => {
-                self.emit_load_const(lit.data);
+                self.emit_load_const(lit.value);
             }
-            Expr::Accessor(Accessor::Local(local)) => {
-                self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-            }
-            Expr::Accessor(Accessor::Public(public)) => {
-                let ident = Identifier::new(Some(public.dot), VarName::new(public.name));
-                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
-            }
-            Expr::Accessor(Accessor::Attr(a)) => {
-                let class = a.obj.ref_t().name();
-                let uniq_obj_name = a.obj.__name__().map(Str::rc);
-                self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(
-                    &class,
-                    uniq_obj_name.as_ref().map(|s| &s[..]),
-                    a.name.content.clone(),
-                )
-                .unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
-            }
+            Expr::Accessor(acc) => self.codegen_acc(acc),
             Expr::Def(def) => match def.sig {
                 Signature::Subr(sig) => self.emit_subr_def(sig, def.body),
                 Signature::Var(sig) => self.emit_var_def(sig, def.body),
@@ -1255,9 +1201,7 @@ impl CodeGenerator {
                 // record name, let it be anonymous
                 self.emit_load_const("Record");
                 for field in rec.attrs.iter() {
-                    self.emit_load_const(ValueObj::Str(
-                        field.sig.ident().unwrap().inspect().clone(),
-                    ));
+                    self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
                 }
                 self.write_instr(BUILD_LIST);
                 self.write_arg(attrs_len as u8);
@@ -1291,6 +1235,50 @@ impl CodeGenerator {
                     "".into(),
                 ));
                 self.crash("cannot compile this expression at this time");
+            }
+        }
+    }
+
+    fn codegen_acc(&mut self, acc: Accessor) {
+        match acc {
+            Accessor::Local(local) => {
+                self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+            }
+            Accessor::Public(public) => {
+                let ident = Identifier::new(Some(public.dot), VarName::new(public.name));
+                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
+                    self.errs.push(err);
+                });
+            }
+            Accessor::Attr(a) => {
+                let class = a.obj.ref_t().name();
+                let uniq_obj_name = a.obj.__name__().map(Str::rc);
+                self.codegen_expr(*a.obj);
+                self.emit_load_attr_instr(
+                    &class,
+                    uniq_obj_name.as_ref().map(|s| &s[..]),
+                    a.name.content.clone(),
+                )
+                .unwrap_or_else(|err| {
+                    self.errs.push(err);
+                });
+            }
+            Accessor::TupleAttr(t_attr) => {
+                self.codegen_expr(*t_attr.obj);
+                self.emit_load_const(t_attr.index.value);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            Accessor::Subscr(subscr) => {
+                self.codegen_expr(*subscr.obj);
+                self.codegen_expr(*subscr.index);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
             }
         }
     }
@@ -1440,6 +1428,9 @@ impl CodeGenerator {
             print_point = self.cur_block().lasti;
             self.emit_load_name_instr(Identifier::public("print"))
                 .unwrap();
+            // Consistency will be taken later (when NOP replacing)
+            // 後で(NOP書き換え時)整合性を取る
+            self.stack_dec();
         }
         for expr in hir.module.into_iter() {
             self.codegen_expr(expr);
@@ -1450,14 +1441,15 @@ impl CodeGenerator {
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
         if self.input().is_repl() {
-            if self.cur_block().stack_len == 1 {
+            if self.cur_block().stack_len == 0 {
                 // remains `print`, nothing to be printed
                 self.edit_code(print_point, Opcode::NOP as usize);
             } else {
+                self.stack_inc();
                 self.write_instr(CALL_FUNCTION);
                 self.write_arg(1_u8);
             }
-            self.stack_dec();
+            self.stack_dec_n(self.cur_block().stack_len as usize);
         }
         if self.cur_block().stack_len == 0 {
             self.emit_load_const(ValueObj::None);

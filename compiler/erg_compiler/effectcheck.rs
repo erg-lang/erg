@@ -114,16 +114,8 @@ impl SideEffectChecker {
 
     fn check_def(&mut self, def: &Def) {
         let name_and_vis = match &def.sig {
-            Signature::Var(var) =>
-            // TODO: visibility
-            {
-                if let Some(name) = var.inspect() {
-                    (name.clone(), Private)
-                } else {
-                    (Str::ever("::<instant>"), Private)
-                }
-            }
-            Signature::Subr(subr) => (subr.ident.inspect().clone(), Private),
+            Signature::Var(var) => (var.inspect().clone(), var.vis()),
+            Signature::Subr(subr) => (subr.ident.inspect().clone(), subr.ident.vis()),
         };
         self.path_stack.push(name_and_vis);
         // TODO: support raw identifier (``)

@@ -82,6 +82,7 @@ pub fn fmt_indent(s: String, depth: usize) -> String {
     s.split('\n').map(|s| indent.clone() + s).collect()
 }
 
+/// 複数のオブジェクトからなるハッシュを得たい場合はタプルか配列で渡す
 pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {
     let mut s = fxhash::FxHasher::default();
     t.hash(&mut s);

@@ -3,9 +3,9 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
-use erg_common::get_hash;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
+use erg_common::{enum_unwrap, get_hash};
 use erg_common::{fn_name, log, switch_lang};
 
 use erg_parser::ast;
@@ -234,38 +234,61 @@ impl ASTLowerer {
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!("[DEBUG] entered {}({acc})", fn_name!());
         match acc {
-            ast::Accessor::Local(n) => {
+            ast::Accessor::Local(local) => {
                 // `match` is an untypable special form
                 // `match`は型付け不可能な特殊形式
-                let (t, __name__) = if &n.inspect()[..] == "match" {
+                let (t, __name__) = if &local.inspect()[..] == "match" {
                     (Type::Failure, None)
                 } else {
                     (
-                        self.ctx.rec_get_var_t(&n.symbol, Private, &self.ctx.name)?,
-                        self.ctx.get_local_uniq_obj_name(&n.symbol),
+                        self.ctx
+                            .rec_get_var_t(&local.symbol, Private, &self.ctx.name)?,
+                        self.ctx.get_local_uniq_obj_name(&local.symbol),
                     )
                 };
-                let acc = hir::Accessor::Local(hir::Local::new(n.symbol, __name__, t));
+                let acc = hir::Accessor::Local(hir::Local::new(local.symbol, __name__, t));
                 Ok(acc)
             }
-            ast::Accessor::Public(n) => {
+            ast::Accessor::Public(public) => {
                 let (t, __name__) = (
-                    self.ctx.rec_get_var_t(&n.symbol, Public, &self.ctx.name)?,
-                    self.ctx.get_local_uniq_obj_name(&n.symbol),
+                    self.ctx
+                        .rec_get_var_t(&public.symbol, Public, &self.ctx.name)?,
+                    self.ctx.get_local_uniq_obj_name(&public.symbol),
                 );
-                let public = hir::Public::new(n.dot, n.symbol, __name__, t);
+                let public = hir::Public::new(public.dot, public.symbol, __name__, t);
                 let acc = hir::Accessor::Public(public);
                 Ok(acc)
             }
-            ast::Accessor::Attr(a) => {
-                let obj = self.lower_expr(*a.obj)?;
+            ast::Accessor::Attr(attr) => {
+                let obj = self.lower_expr(*attr.obj)?;
                 let t = self
                     .ctx
-                    .rec_get_attr_t(&obj, &a.name.symbol, &self.ctx.name)?;
-                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, a.name.symbol, t));
+                    .rec_get_attr_t(&obj, &attr.name.symbol, &self.ctx.name)?;
+                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, attr.name.symbol, t));
                 Ok(acc)
             }
-            _ => todo!(),
+            ast::Accessor::TupleAttr(t_attr) => {
+                let obj = self.lower_expr(*t_attr.obj)?;
+                let index = hir::Literal::from(t_attr.index.token);
+                let n = enum_unwrap!(index.value, ValueObj::Nat);
+                let t = enum_unwrap!(
+                    obj.ref_t().typarams().get(n as usize).unwrap().clone(),
+                    TyParam::Type
+                );
+                let acc = hir::Accessor::TupleAttr(hir::TupleAttribute::new(obj, index, *t));
+                Ok(acc)
+            }
+            ast::Accessor::Subscr(subscr) => {
+                let obj = self.lower_expr(*subscr.obj)?;
+                let index = self.lower_expr(*subscr.index)?;
+                // FIXME: 配列とは限らない！
+                let t = enum_unwrap!(
+                    obj.ref_t().typarams().get(0).unwrap().clone(),
+                    TyParam::Type
+                );
+                let acc = hir::Accessor::Subscr(hir::Subscript::new(obj, index, *t));
+                Ok(acc)
+            }
         }
     }
 
@@ -385,16 +408,21 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!("[DEBUG] entered {}({})", fn_name!(), def.sig);
-        // FIXME: Instant
-        self.ctx
-            .grow(def.sig.name_as_str(), ContextKind::Instant, Private)?;
-        let res = match def.sig {
-            ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
-            ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
-        };
-        // TODO: Context上の関数に型境界情報を追加
-        self.pop_append_errs();
-        res
+        if let Some(name) = def.sig.name_as_str() {
+            self.ctx.grow(name, ContextKind::Instant, Private)?;
+            let res = match def.sig {
+                ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
+                ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
+            };
+            // TODO: Context上の関数に型境界情報を追加
+            self.pop_append_errs();
+            res
+        } else {
+            match def.sig {
+                ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
+                ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
+            }
+        }
     }
 
     fn lower_var_def(
@@ -413,9 +441,14 @@ impl ASTLowerer {
             .unwrap()
             .get_current_scope_var(sig.inspect().unwrap())
             .map(|vi| vi.t.clone());
-        let name = sig.pat.inspect().unwrap();
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            _ => unreachable!(),
+        };
         if let Some(expect_body_t) = opt_expect_body_t {
-            if let Err(e) = self.return_t_check(sig.loc(), name, &expect_body_t, found_body_t) {
+            if let Err(e) =
+                self.return_t_check(sig.loc(), ident.inspect(), &expect_body_t, found_body_t)
+            {
                 self.errs.push(e);
             }
         }
@@ -425,24 +458,20 @@ impl ASTLowerer {
             .outer
             .as_mut()
             .unwrap()
-            .assign_var(&sig, id, found_body_t)?;
+            .assign_var_sig(&sig, found_body_t, id)?;
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
-                if let ast::VarPattern::Ident(ident) = &sig.pat {
-                    if call.is_import_call() {
-                        self.ctx
-                            .outer
-                            .as_mut()
-                            .unwrap()
-                            .import_mod(&ident.name, &call.args.pos_args.first().unwrap().expr)?;
-                    }
-                } else {
-                    todo!()
+                if call.is_import_call() {
+                    self.ctx
+                        .outer
+                        .as_mut()
+                        .unwrap()
+                        .import_mod(&ident.name, &call.args.pos_args.first().unwrap().expr)?;
                 }
             }
             _other => {}
         }
-        let sig = hir::VarSignature::new(sig.pat, found_body_t.clone());
+        let sig = hir::VarSignature::new(ident.clone(), found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
