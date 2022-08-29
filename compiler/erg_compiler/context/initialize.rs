@@ -623,6 +623,13 @@ impl Context {
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
         );
+        // TODO: make Tuple1(A), Tuple2(A, B), ... etc.
+        let tuple = Self::mono_class(
+            "Tuple",
+            vec![Obj],
+            vec![poly_trait("Eq", vec![ty_tp(class("Tuple"))])],
+            Self::TOP_LEVEL,
+        );
         int_mut.register_const("ImmutType", ValueObj::t(Int));
         let f_t = param_t("f", func(vec![param_t("old", Int)], vec![], Int));
         let t = pr_met(class("Int!"), None, vec![f_t], vec![], NoneType);
@@ -767,6 +774,7 @@ impl Context {
         self.register_type(class("Str!"), str_mut, Const);
         self.register_type(array_mut_t, array_mut, Const);
         self.register_type(range_t, range, Const);
+        self.register_type(class("Tuple"), tuple, Const);
         self.register_type(class("Function"), func, Const);
         self.register_type(class("QuantifiedFunction"), qfunc, Const);
     }
