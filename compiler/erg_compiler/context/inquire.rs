@@ -1,7 +1,6 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::color::{GREEN, RED};
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
 use erg_common::levenshtein::levenshtein;
@@ -365,7 +364,7 @@ impl Context {
             ..
         }) = t
         {
-            log!("{}, {}", callee.ref_t(), after);
+            log!(info "{}, {}", callee.ref_t(), after);
             self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
         }
         Ok(())
@@ -531,8 +530,8 @@ impl Context {
                         param_ty.name.as_ref(),
                     )
                     .map_err(|e| {
-                        log!("{RED}semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                        log!("errno: {}{GREEN}", e.core.errno);
+                        log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
+                        log!(err "errno: {}", e.core.errno);
                         // REVIEW:
                         let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
                         let name = name
@@ -625,13 +624,13 @@ impl Context {
             fmt_slice(kw_args)
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
-        log!("Substituted:\ninstance: {instance}");
+        log!(info "Substituted:\ninstance: {instance}");
         let res = self.eval.eval_t_params(instance, &self, self.level)?;
-        log!("Params evaluated:\nres: {res}\n");
+        log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
-        log!("Propagated:\nres: {res}\n");
+        log!(info "Propagated:\nres: {res}\n");
         let res = self.resolve_trait(res)?;
-        log!("Trait resolved:\nres: {res}\n");
+        log!(info "Trait resolved:\nres: {res}\n");
         Ok(res)
     }
 

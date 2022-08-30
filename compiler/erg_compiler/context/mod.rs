@@ -524,7 +524,7 @@ impl Context {
         } else {
             format!("{parent}::{name}", parent = self.name)
         };
-        log!("{}: current namespace: {name}", fn_name!());
+        log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
         self.name = name.into();
         self.kind = kind;
@@ -544,7 +544,7 @@ impl Context {
         }
         if let Some(parent) = &mut self.outer {
             *self = mem::take(parent);
-            log!("{}: current namespace: {}", fn_name!(), self.name);
+            log!(info "{}: current namespace: {}", fn_name!(), self.name);
             if !uninited_errs.is_empty() {
                 Err(uninited_errs)
             } else {

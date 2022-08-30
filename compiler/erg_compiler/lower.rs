@@ -1,7 +1,6 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
-use erg_common::color::{GREEN, RED, RESET};
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
@@ -95,7 +94,7 @@ impl ASTLowerer {
     }
 
     fn lower_array(&mut self, array: ast::Array) -> LowerResult<hir::Array> {
-        log!("[DEBUG] entered {}({array})", fn_name!());
+        log!(info "entered {}({array})", fn_name!());
         match array {
             ast::Array::Normal(arr) => Ok(hir::Array::Normal(self.lower_normal_array(arr)?)),
             ast::Array::WithLength(arr) => {
@@ -106,7 +105,7 @@ impl ASTLowerer {
     }
 
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
-        log!("[DEBUG] entered {}({array})", fn_name!());
+        log!(info "entered {}({array})", fn_name!());
         let mut new_array = vec![];
         let (elems, _) = array.elems.into_iters();
         let mut union = Type::Never;
@@ -154,7 +153,7 @@ impl ASTLowerer {
         &mut self,
         array: ast::ArrayWithLength,
     ) -> LowerResult<hir::ArrayWithLength> {
-        log!("[DEBUG] entered {}({array})", fn_name!());
+        log!(info "entered {}({array})", fn_name!());
         let elem = self.lower_expr(array.elem.expr)?;
         let array_t = self.gen_array_with_length_type(&elem, &array.len);
         let len = self.lower_expr(*array.len)?;
@@ -201,14 +200,14 @@ impl ASTLowerer {
     }
 
     fn lower_tuple(&mut self, tuple: ast::Tuple) -> LowerResult<hir::Tuple> {
-        log!("[DEBUG] entered {}({tuple})", fn_name!());
+        log!(info "entered {}({tuple})", fn_name!());
         match tuple {
             ast::Tuple::Normal(tup) => Ok(hir::Tuple::Normal(self.lower_normal_tuple(tup)?)),
         }
     }
 
     fn lower_normal_tuple(&mut self, tuple: ast::NormalTuple) -> LowerResult<hir::NormalTuple> {
-        log!("[DEBUG] entered {}({tuple})", fn_name!());
+        log!(info "entered {}({tuple})", fn_name!());
         let mut new_tuple = vec![];
         let (elems, _) = tuple.elems.into_iters();
         for elem in elems {
@@ -219,7 +218,7 @@ impl ASTLowerer {
     }
 
     fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
-        log!("[DEBUG] entered {}({record})", fn_name!());
+        log!(info "entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());
         self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
@@ -232,7 +231,7 @@ impl ASTLowerer {
     }
 
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
-        log!("[DEBUG] entered {}({acc})", fn_name!());
+        log!(info "entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Local(local) => {
                 // `match` is an untypable special form
@@ -293,7 +292,7 @@ impl ASTLowerer {
     }
 
     fn lower_bin(&mut self, bin: ast::BinOp) -> LowerResult<hir::BinOp> {
-        log!("[DEBUG] entered {}({bin})", fn_name!());
+        log!(info "entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
         let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
@@ -306,7 +305,7 @@ impl ASTLowerer {
     }
 
     fn lower_unary(&mut self, unary: ast::UnaryOp) -> LowerResult<hir::UnaryOp> {
-        log!("[DEBUG] entered {}({unary})", fn_name!());
+        log!(info "entered {}({unary})", fn_name!());
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [arg];
@@ -317,7 +316,7 @@ impl ASTLowerer {
     }
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!("[DEBUG] entered {}({}(...))", fn_name!(), call.obj);
+        log!(info "entered {}({}(...))", fn_name!(), call.obj);
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
@@ -342,7 +341,7 @@ impl ASTLowerer {
     }
 
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
-        log!("[DEBUG] entered {}({lambda})", fn_name!());
+        log!(info "entered {}({lambda})", fn_name!());
         let is_procedural = lambda.is_procedural();
         let id = get_hash(&lambda.sig);
         let name = format!("<lambda_{id}>");
@@ -407,7 +406,7 @@ impl ASTLowerer {
     }
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
-        log!("[DEBUG] entered {}({})", fn_name!(), def.sig);
+        log!(info "entered {}({})", fn_name!(), def.sig);
         if let Some(name) = def.sig.name_as_str() {
             self.ctx.grow(name, ContextKind::Instant, Private)?;
             let res = match def.sig {
@@ -430,7 +429,7 @@ impl ASTLowerer {
         sig: ast::VarSignature,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
-        log!("[DEBUG] entered {}({sig})", fn_name!());
+        log!(info "entered {}({sig})", fn_name!());
         self.ctx.preregister(body.block.ref_payload())?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
@@ -482,7 +481,7 @@ impl ASTLowerer {
         sig: ast::SubrSignature,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
-        log!("[DEBUG] entered {}({sig})", fn_name!());
+        log!(info "entered {}({sig})", fn_name!());
         let t = self
             .ctx
             .outer
@@ -490,8 +489,8 @@ impl ASTLowerer {
             .unwrap()
             .get_current_scope_var(sig.ident.inspect())
             .unwrap_or_else(|| {
-                log!("{}\n", sig.ident.inspect());
-                log!("{}\n", self.ctx.outer.as_ref().unwrap());
+                log!(info "{}\n", sig.ident.inspect());
+                log!(info "{}\n", self.ctx.outer.as_ref().unwrap());
                 panic!()
             }) // FIXME: or instantiate
             .t
@@ -520,7 +519,7 @@ impl ASTLowerer {
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
-        log!("[DEBUG] entered {}", fn_name!());
+        log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
@@ -537,7 +536,7 @@ impl ASTLowerer {
     }
 
     fn lower_block(&mut self, ast_block: ast::Block) -> LowerResult<hir::Block> {
-        log!("[DEBUG] entered {}", fn_name!());
+        log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
         for expr in ast_block.into_iter() {
             let expr = self.lower_expr(expr)?;
@@ -547,8 +546,8 @@ impl ASTLowerer {
     }
 
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
-        log!("{GREEN}[DEBUG] the AST lowering process has started.");
-        log!("{GREEN}[DEBUG] the type-checking process has started.");
+        log!(info "the AST lowering process has started.");
+        log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.ref_payload())?;
         for expr in ast.module.into_iter() {
@@ -562,18 +561,19 @@ impl ASTLowerer {
             }
         }
         let hir = HIR::new(ast.name, module);
-        log!("HIR (not derefed):\n{hir}");
+        log!(info "HIR (not derefed):\n{hir}");
         log!(
-            "[DEBUG] the type-checking process has completed, found errors: {}",
+            c GREEN,
+            "the type-checking process has completed, found errors: {}",
             self.errs.len()
         );
         let hir = self.ctx.deref_toplevel(hir)?;
         if self.errs.is_empty() {
-            log!("HIR:\n{hir}");
-            log!("[DEBUG] the AST lowering process has completed.{RESET}");
+            log!(info "HIR:\n{hir}");
+            log!(info "the AST lowering process has completed.");
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
-            log!("{RED}[DEBUG] the AST lowering process has failed.{RESET}");
+            log!(err "the AST lowering process has failed.");
             Err(LowerErrors::from(self.errs.take_all()))
         }
     }

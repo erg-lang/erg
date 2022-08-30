@@ -2,7 +2,6 @@
 //! SideEffectCheckerを実装
 //! 関数や不変型に副作用がないかチェックする
 
-use erg_common::color::{GREEN, RESET};
 use erg_common::log;
 use erg_common::traits::Stream;
 use erg_common::vis::Visibility;
@@ -78,7 +77,7 @@ impl SideEffectChecker {
     pub fn check(mut self, hir: HIR) -> EffectResult<HIR> {
         self.path_stack.push((hir.name.clone(), Private));
         self.block_stack.push(Module);
-        log!("{GREEN}[DEBUG] the side-effects checking process has started.{RESET}");
+        log!(info "the side-effects checking process has started.{RESET}");
         // トップレベルでは副作用があっても問題なく、純粋性違反がないかのみチェックする
         for expr in hir.module.iter() {
             match expr {
@@ -104,7 +103,7 @@ impl SideEffectChecker {
                 other => todo!("{other}"),
             }
         }
-        log!("{GREEN}[DEBUG] the side-effects checking process has completed, found errors: {}{RESET}", self.errs.len());
+        log!(info "the side-effects checking process has completed, found errors: {}{RESET}", self.errs.len());
         if self.errs.is_empty() {
             Ok(hir)
         } else {

@@ -5,7 +5,6 @@ use std::fmt;
 use std::process;
 
 use erg_common::cache::CacheSet;
-use erg_common::color::{GREEN, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::opcode::Opcode;
@@ -378,13 +377,13 @@ impl CodeGenerator {
     fn write_instr(&mut self, code: Opcode) {
         self.mut_cur_block_codeobj().code.push(code as u8);
         self.mut_cur_block().lasti += 1;
-        // log!("wrote: {}", code);
+        // log!(info "wrote: {}", code);
     }
 
     fn write_arg(&mut self, code: u8) {
         self.mut_cur_block_codeobj().code.push(code);
         self.mut_cur_block().lasti += 1;
-        // log!("wrote: {}", code);
+        // log!(info "wrote: {}", code);
     }
 
     fn stack_inc(&mut self) {
@@ -1414,7 +1413,7 @@ impl CodeGenerator {
     }
 
     pub fn codegen(&mut self, hir: HIR) -> CodeObj {
-        log!("{GREEN}[DEBUG] the code-generating process has started.{RESET}");
+        log!(info "the code-generating process has started.{RESET}");
         self.unit_size += 1;
         self.units.push(CodeGenUnit::new(
             self.unit_size,
@@ -1482,7 +1481,7 @@ impl CodeGenerator {
                 self.mut_cur_block().prev_lineno += ld;
             }
         }
-        log!("{GREEN}[DEBUG] the code-generating process has completed.{RESET}");
+        log!(info "the code-generating process has completed.{RESET}");
         unit.codeobj
     }
 }
