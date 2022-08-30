@@ -1001,7 +1001,7 @@ impl Context {
         erg_common::log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
-        if maybe_sub == &Type::Never || maybe_sup == &Type::Obj {
+        if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
             return Ok(());
         }
         let maybe_sub_is_sub = self.rec_subtype_of(maybe_sub, maybe_sup);
