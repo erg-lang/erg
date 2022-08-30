@@ -40,7 +40,7 @@ impl Context {
         if sub.is_cachable() && sup.is_cachable() {
             let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
             if res.is_some() {
-                log!("cache hit");
+                log!(info "cache hit");
             }
             res
         } else {
@@ -242,7 +242,7 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!("nominal_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
+        log!(info "nominal_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         if let Some(res) = self.inquire_cache(rhs, lhs) {
             return res;
         }
@@ -345,12 +345,12 @@ impl Context {
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
     fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstance) -> bool {
         let (_sub, sup) = free.crack_bound_types().unwrap();
-        log!("{free}");
+        log!(info "{free}");
         free.forced_undoable_link(&inst_pair.sub_type);
-        log!("{free}");
+        log!(info "{free}");
         let judge = self.subtype_of(&sup, &inst_pair.sup_trait);
         free.undo();
-        log!("{free}");
+        log!(info "{free}");
         judge
     }
 
@@ -364,7 +364,7 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!("structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
+        log!(info "structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         match (lhs, rhs) {
             (Subr(ls), Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
                 if ls.kind.self_t().is_some() {
@@ -632,7 +632,7 @@ impl Context {
                     self.subtype_of(l, r)
                 }
                 (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                    // if matches!(r.as_ref(), &Type::Refinement(_)) { log!("{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
+                    // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
                     self.supertype_of(l, r)
                 }
                 // Invariant
@@ -788,7 +788,7 @@ impl Context {
                 lhs.preds.clone().concat(rhs_preds),
             )
         } else {
-            log!("{lhs}\n{rhs}");
+            log!(info "{lhs}\n{rhs}");
             todo!()
         }
     }

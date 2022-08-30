@@ -303,7 +303,7 @@ impl Context {
             }
             // TODO: visibility
             let vi = VarInfo::new(found_t, muty, Private, VarKind::Defined(id));
-            log!("Registered {}::{name}: {}", self.name, &vi.t);
+            log!(info "Registered {}::{name}: {}", self.name, &vi.t);
             self.params.push((Some(name.clone()), vi));
             Ok(())
         }

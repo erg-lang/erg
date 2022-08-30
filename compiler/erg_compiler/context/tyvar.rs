@@ -975,7 +975,7 @@ impl Context {
         sup_loc: Option<Location>,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        erg_common::log!("trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        erg_common::log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj {

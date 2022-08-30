@@ -1,4 +1,3 @@
-use erg_common::color::{GREEN, RESET};
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::log;
@@ -57,7 +56,7 @@ impl OwnershipChecker {
     // moveされた後の変数が使用されていないかチェックする
     // ProceduralでないメソッドでRefMutが使われているかはSideEffectCheckerでチェックする
     pub fn check(mut self, hir: HIR) -> OwnershipResult<HIR> {
-        log!("{GREEN}[DEBUG] the ownership checking process has started.{RESET}");
+        log!(info "the ownership checking process has started.{RESET}");
         self.path_stack.push((hir.name.clone(), Private));
         self.dict
             .insert(Str::from(self.full_path()), LocalVars::default());
@@ -84,7 +83,7 @@ impl OwnershipChecker {
     fn check_expr(&mut self, expr: &Expr, ownership: Ownership) {
         match expr {
             Expr::Def(def) => {
-                log!("define: {}", def.sig);
+                log!(info "define: {}", def.sig);
                 self.define(def);
                 let name = match &def.sig {
                     Signature::Var(var) => var.inspect().clone(),

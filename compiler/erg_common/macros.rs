@@ -271,16 +271,85 @@ macro_rules! debug_enum_assert {
 }
 
 #[macro_export]
+macro_rules! debug_info {
+    ($output:ident) => {{
+        #[allow(unused_imports)]
+        use $crate::color::{CYAN, RESET};
+        write!($output, "[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!()).unwrap();
+    }};
+    () => {{
+        #[allow(unused_imports)]
+        use $crate::color::{CYAN, RESET};
+        print!("[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!());
+    }}
+}
+
+/// Debug log utility.
+/// directives:
+///     c: colored output
+///     f: file specified
+///     f+c: file specified and colored (e.g. colored output to stderr)
+///     info: info logging, (comprehensive shorthand for "c GREEN")
+///     info_f: file version of info
+///     err: error logging, (comprehensive shorthand for "c RED")
+///     err_f: file version of err
+#[macro_export]
 macro_rules! log {
-    (f $output: ident, $($arg: tt)*) => {
-        if cfg!(feature = "debug") { write!($output, "{}:{:04}: ", file!(), line!()).unwrap();
+    (info $($arg: tt)*) => {{
+        $crate::log!(c GREEN, $($arg)*);
+    }};
+
+    (err $($arg: tt)*) => {{
+        $crate::log!(c RED, $($arg)*);
+    }};
+
+    (info_f $output:ident, $($arg: tt)*) => {{
+        $crate::log!(f+c $output, GREEN, $($arg)*);
+    }};
+
+    (err_f $output:ident, $($arg: tt)*) => {{
+        $crate::log!(f+c $output, RED, $($arg)*);
+    }};
+
+    (f $output: ident, $($arg: tt)*) => {{
+        if cfg!(feature = "debug") {
+            use $crate::color::RESET;
+            $crate::debug_info!($output);
             write!($output, $($arg)*).unwrap();
+            write!($output, "{}", RESET).unwrap(); // color color anyway
             $output.flush().unwrap();
         }
-    };
-    ($($arg: tt)*) => {
-        if cfg!(feature = "debug") { print!("{}:{:04}: ", file!(), line!()); println!($($arg)*); }
-    };
+    }};
+
+    (c $color:ident, $($arg: tt)*) => {{
+        if cfg!(feature = "debug") {
+            use $crate::color::*;
+            $crate::debug_info!();
+            print!("{}", $color);
+            println!($($arg)*);
+            print!("{}", RESET); // reset color anyway
+        }
+    }};
+
+    (f+c $output:ident, $color:ident, $($arg: tt)*) => {{
+        if cfg!(feature = "debug") {
+            use $crate::color::*;
+            $crate::debug_info!($output);
+            write!($output, "{}", $color).unwrap();
+            write!($output, $($arg)*).unwrap();
+            write!($output, "{}", RESET).unwrap(); // reset color anyway
+            $output.flush().unwrap();
+        }
+    }};
+
+    ($($arg: tt)*) => {{
+        if cfg!(feature = "debug") {
+            use $crate::color::*;
+            $crate::debug_info!();
+            println!($($arg)*);
+            print!("{}", RESET); // reset color anyway
+        }
+    }};
 }
 
 #[macro_export]

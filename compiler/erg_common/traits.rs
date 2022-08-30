@@ -8,7 +8,6 @@ use std::process;
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
-use crate::color::{GREEN, RESET};
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::Str;
@@ -343,7 +342,7 @@ pub trait Runnable: Sized {
             Input::REPL => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
-                log!(f output, "{GREEN}[DEBUG] The REPL has started.{RESET}\n");
+                log!(info_f output, "The REPL has started.\n");
                 output
                     .write_all(instance.start_message().as_bytes())
                     .unwrap();
@@ -354,7 +353,7 @@ pub trait Runnable: Sized {
                     let line = chomp(&instance.input().read());
                     if &line[..] == ":quit" || &line[..] == ":exit" {
                         instance.finish();
-                        log!(f output, "{GREEN}[DEBUG] The REPL has finished successfully.{RESET}\n");
+                        log!(info_f output, "The REPL has finished successfully.\n");
                         process::exit(0);
                     }
                     lines.push_str(&line);
@@ -376,7 +375,7 @@ pub trait Runnable: Sized {
                                 .unwrap_or(false)
                             {
                                 instance.finish();
-                                log!(f output, "{GREEN}[DEBUG] The REPL has finished successfully.{RESET}\n");
+                                log!(info_f output, "The REPL has finished successfully.\n");
                                 process::exit(0);
                             }
                             errs.fmt_all_stderr();

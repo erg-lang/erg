@@ -5,7 +5,6 @@
 use std::fmt::Debug;
 use std::mem;
 
-use erg_common::color::{GREEN, RED, RESET};
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
 use erg_common::error::Location;
@@ -31,7 +30,8 @@ macro_rules! debug_call_info {
     ($self: ident) => {
         $self.level += 1;
         log!(
-            "[DEBUG]\n{} ({}) entered {}, cur: {}",
+            c GREEN,
+            "\n{} ({}) entered {}, cur: {}",
             " ".repeat($self.level),
             $self.level,
             fn_name!(),
@@ -286,7 +286,7 @@ impl Parser {
 
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
         let loc = self.peek().unwrap().loc();
-        log!("{RED}[DEBUG] error caused by: {caused_by}{GREEN}");
+        log!(err "error caused by: {caused_by}");
         self.next_expr();
         ParseError::simple_syntax_error(0, loc)
     }
@@ -366,8 +366,8 @@ impl Parser {
         if self.tokens.is_empty() {
             return Ok(AST::new(mod_name, Module::empty()));
         }
-        log!("{GREEN}[DEBUG] the parsing process has started.");
-        log!("token stream: {}", self.tokens);
+        log!(info "the parsing process has started.");
+        log!(info "token stream: {}", self.tokens);
         let module = match self.try_reduce_module() {
             Ok(module) => module,
             Err(_) => {
@@ -380,13 +380,13 @@ impl Parser {
                 .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
             return Err(mem::take(&mut self.errs));
         }
-        log!("[DEBUG] the parsing process has completed.");
-        log!("AST:\n{module}");
-        log!("[DEBUG] the desugaring process has started.");
+        log!(info "the parsing process has completed.");
+        log!(info "AST:\n{module}");
+        log!(info "the desugaring process has started.");
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
-        log!("AST (desugared):\n{module}");
-        log!("[DEBUG] the desugaring process has completed.{RESET}");
+        log!(info "AST (desugared):\n{module}");
+        log!(info "the desugaring process has completed.{RESET}");
         if self.errs.is_empty() {
             Ok(AST::new(mod_name, module))
         } else {
@@ -976,7 +976,7 @@ impl Parser {
                 }
             }
             Some(t) if t.category_is(TC::BinOp) || t.category_is(TC::UnaryOp) => {
-                log!("[DEBUG] error caused by: {}", fn_name!());
+                log!(info "error caused by: {}", fn_name!());
                 let err = ParseError::syntax_error(
                     line!() as usize,
                     t.loc(),
