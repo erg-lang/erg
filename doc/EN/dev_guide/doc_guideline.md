@@ -1,5 +1,7 @@
 # format
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/doc_guideline.md%26commit_hash%3D3b9be7ad98476f68859ef0deeb5adb24f4155068)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/doc_guideline.md&commit_hash=3b9be7ad98476f68859ef0deeb5adb24f4155068)
+
 Any document that does not follow the rules below is subject to correction.
 
 * Always include definitions, meanings, or links to terms that appear for the first time in the document.

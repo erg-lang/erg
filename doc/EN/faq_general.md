@@ -1,5 +1,8 @@
 # Erg FAQ
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3Dfd4afc4fe1f302e11d48a9168b8aaa6b6d7dfbf4)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=fd4afc4fe1f302e11d48a9168b8aaa6b6d7dfbf4)
+
 This FAQ is intended for the general Erg beginner.
 For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
 [Here](./dev_guide/faq_syntax.md) for more information.
