@@ -396,23 +396,29 @@ impl Context {
             .non_defaults
             .iter()
             .map(|p| {
-                ParamTy::new(
+                ParamTy::pos(
                     p.inspect().cloned(),
                     self.instantiate_param_sig_t(p, None, mode).unwrap(),
                 )
             })
             .collect::<Vec<_>>();
+        let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
+            let va_t = self.instantiate_param_sig_t(var_args, None, mode)?;
+            Some(ParamTy::pos(var_args.inspect().cloned(), va_t))
+        } else {
+            None
+        };
         let defaults = sig
             .params
             .defaults
             .iter()
             .map(|p| {
-                ParamTy::new(
-                    p.inspect().cloned(),
+                ParamTy::kw(
+                    p.inspect().unwrap().clone(),
                     self.instantiate_param_sig_t(p, None, mode).unwrap(),
                 )
             })
-            .collect::<Vec<_>>();
+            .collect();
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             self.instantiate_typespec(s, mode)?
         } else {
@@ -434,9 +440,9 @@ impl Context {
             )?;
         }
         Ok(if sig.ident.is_procedural() {
-            proc(non_defaults, defaults, spec_return_t)
+            proc(non_defaults, var_args, defaults, spec_return_t)
         } else {
-            func(non_defaults, defaults, spec_return_t)
+            func(non_defaults, var_args, defaults, spec_return_t)
         })
     }
 
@@ -463,9 +469,9 @@ impl Context {
                 }
             }
         };
-        if let Some(decl_t) = opt_decl_t {
+        if let Some(decl_pt) = opt_decl_t {
             self.sub_unify(
-                &decl_t.ty,
+                &decl_pt.typ(),
                 &spec_t,
                 None,
                 sig.t_spec.as_ref().map(|s| s.loc()),
@@ -548,7 +554,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
         let t = self.instantiate_typespec(&p.ty, mode)?;
-        Ok(ParamTy::new(
+        Ok(ParamTy::pos(
             p.name.as_ref().map(|t| t.inspect().to_owned()),
             t,
         ))
@@ -614,13 +620,21 @@ impl Context {
                 let non_defaults = try_map(subr.non_defaults.iter(), |p| {
                     self.instantiate_func_param_spec(p, mode)
                 })?;
+                let var_args = subr
+                    .var_args
+                    .as_ref()
+                    .map(|p| self.instantiate_func_param_spec(p, mode))
+                    .transpose()?;
                 let defaults = try_map(subr.defaults.iter(), |p| {
                     self.instantiate_func_param_spec(p, mode)
-                })?;
+                })?
+                .into_iter()
+                .collect();
                 let return_t = self.instantiate_typespec(&subr.return_t, mode)?;
                 Ok(subr_t(
                     self.instantiate_subr_kind(&subr.kind)?,
                     non_defaults,
+                    var_args,
                     defaults,
                     return_t,
                 ))
@@ -762,14 +776,24 @@ impl Context {
                     }
                     other => other,
                 };
-                for p in subr.non_default_params.iter_mut() {
-                    p.ty = Self::instantiate_t(mem::take(&mut p.ty), tv_ctx);
+                for pt in subr.non_default_params.iter_mut() {
+                    *pt.typ_mut() = Self::instantiate_t(mem::take(pt.typ_mut()), tv_ctx);
                 }
-                for p in subr.default_params.iter_mut() {
-                    p.ty = Self::instantiate_t(mem::take(&mut p.ty), tv_ctx);
+                if let Some(var_args) = subr.var_params.as_mut() {
+                    *var_args.typ_mut() =
+                        Self::instantiate_t(mem::take(var_args.typ_mut()), tv_ctx);
+                }
+                for pt in subr.default_params.iter_mut() {
+                    *pt.typ_mut() = Self::instantiate_t(mem::take(pt.typ_mut()), tv_ctx);
                 }
                 let return_t = Self::instantiate_t(*subr.return_t, tv_ctx);
-                subr_t(kind, subr.non_default_params, subr.default_params, return_t)
+                subr_t(
+                    kind,
+                    subr.non_default_params,
+                    subr.var_params.map(|p| *p),
+                    subr.default_params,
+                    return_t,
+                )
             }
             Record(mut dict) => {
                 for v in dict.values_mut() {
@@ -784,10 +808,6 @@ impl Context {
             RefMut(t) => {
                 let t = Self::instantiate_t(*t, tv_ctx);
                 ref_mut(t)
-            }
-            VarArgs(t) => {
-                let t = Self::instantiate_t(*t, tv_ctx);
-                var_args(t)
             }
             MonoProj { lhs, rhs } => {
                 let lhs = Self::instantiate_t(*lhs, tv_ctx);

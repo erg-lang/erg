@@ -1405,6 +1405,7 @@ pub struct SubrTySpec {
     pub kind: SubrKindSpec,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
+    pub var_args: Option<Box<ParamTySpec>>,
     pub defaults: Vec<ParamTySpec>,
     pub return_t: Box<TypeSpec>,
 }
@@ -1413,8 +1414,9 @@ impl fmt::Display for SubrTySpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "({}, ? {}) {} {}",
+            "({}, {}, |= {}) {} {}",
             fmt_vec(&self.non_defaults),
+            fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
             self.kind.arrow(),
             self.return_t
@@ -1438,6 +1440,7 @@ impl SubrTySpec {
         kind: SubrKindSpec,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
+        var_args: Option<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
         return_t: TypeSpec,
     ) -> Self {
@@ -1445,6 +1448,7 @@ impl SubrTySpec {
             kind,
             lparen,
             non_defaults,
+            var_args: var_args.map(Box::new),
             defaults,
             return_t: Box::new(return_t),
         }
@@ -1538,6 +1542,7 @@ impl TypeSpec {
     pub fn func(
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
+        var_args: Option<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
         return_t: TypeSpec,
     ) -> Self {
@@ -1545,6 +1550,7 @@ impl TypeSpec {
             SubrKindSpec::Func,
             lparen,
             non_defaults,
+            var_args,
             defaults,
             return_t,
         ))
@@ -1553,6 +1559,7 @@ impl TypeSpec {
     pub fn proc(
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
+        var_args: Option<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
         return_t: TypeSpec,
     ) -> Self {
@@ -1560,6 +1567,7 @@ impl TypeSpec {
             SubrKindSpec::Proc,
             lparen,
             non_defaults,
+            var_args,
             defaults,
             return_t,
         ))
@@ -2186,6 +2194,7 @@ impl ParamSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<ParamSignature>,
+    pub var_args: Option<Box<ParamSignature>>,
     pub defaults: Vec<ParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
@@ -2194,8 +2203,9 @@ impl fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({}, {})",
+            "({}, {}, {})",
             fmt_vec(&self.non_defaults),
+            fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults)
         )
     }
@@ -2203,6 +2213,7 @@ impl fmt::Display for Params {
 
 impl Locational for Params {
     fn loc(&self) -> Location {
+        // FIXME: varargs
         if let Some((l, r)) = &self.parens {
             Location::concat(l, r)
         } else if !self.non_defaults.is_empty() {
@@ -2216,13 +2227,15 @@ impl Locational for Params {
 }
 
 impl Params {
-    pub const fn new(
+    pub fn new(
         non_defaults: Vec<ParamSignature>,
+        var_args: Option<ParamSignature>,
         defaults: Vec<ParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
+            var_args: var_args.map(Box::new),
             defaults,
             parens,
         }
@@ -2232,10 +2245,11 @@ impl Params {
         self,
     ) -> (
         Vec<ParamSignature>,
+        Option<Box<ParamSignature>>,
         Vec<ParamSignature>,
         Option<(Token, Token)>,
     ) {
-        (self.non_defaults, self.defaults, self.parens)
+        (self.non_defaults, self.var_args, self.defaults, self.parens)
     }
 
     #[inline]
@@ -2376,7 +2390,7 @@ impl LambdaSignature {
     pub fn do_sig(do_symbol: &Token) -> Self {
         let parens = Some((do_symbol.clone(), do_symbol.clone()));
         Self::new(
-            Params::new(vec![], vec![], parens),
+            Params::new(vec![], None, vec![], parens),
             None,
             TypeBoundSpecs::empty(),
         )

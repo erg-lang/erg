@@ -1,7 +1,6 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
@@ -16,7 +15,7 @@ use erg_parser::ast;
 use erg_parser::token::Token;
 
 use erg_type::constructors::{
-    class, func, mono_proj, poly_class, ref_, ref_mut, refinement, subr_t, var_args,
+    class, func, mono_proj, poly_class, ref_, ref_mut, refinement, subr_t,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -168,13 +167,13 @@ impl Context {
             .skip(1)
             .map(|a| ParamTy::anonymous(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
-        let mut return_t = branch_ts[0].ty.return_t().unwrap().clone();
+        let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.rec_union(&return_t, &arg_t.ty.return_t().unwrap());
+            return_t = self.rec_union(&return_t, &arg_t.typ().return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
-        let t = func(param_ts, vec![], return_t);
+        let t = func(param_ts, None, vec![], return_t);
         Ok(t)
     }
 
@@ -435,18 +434,28 @@ impl Context {
             Type::Subr(subr) => {
                 let mut new_non_default_params = Vec::with_capacity(subr.non_default_params.len());
                 for param in subr.non_default_params.into_iter() {
-                    let t = self.resolve_trait(param.ty)?;
-                    new_non_default_params.push(ParamTy::new(param.name, t));
+                    let (name, ty) = param.deconstruct();
+                    let ty = self.resolve_trait(ty)?;
+                    new_non_default_params.push(ParamTy::pos(name, ty));
                 }
+                let var_args = if let Some(va) = subr.var_params {
+                    let (name, ty) = va.deconstruct();
+                    let ty = self.resolve_trait(ty)?;
+                    Some(ParamTy::pos(name, ty))
+                } else {
+                    None
+                };
                 let mut new_default_params = Vec::with_capacity(subr.default_params.len());
                 for param in subr.default_params.into_iter() {
-                    let t = self.resolve_trait(param.ty)?;
-                    new_default_params.push(ParamTy::new(param.name, t));
+                    let (name, ty) = param.deconstruct();
+                    let ty = self.resolve_trait(ty)?;
+                    new_default_params.push(ParamTy::kw(name.unwrap(), ty));
                 }
                 let new_return_t = self.resolve_trait(*subr.return_t)?;
                 let t = subr_t(
                     subr.kind, // TODO: resolve self
                     new_non_default_params,
+                    var_args,
                     new_default_params,
                     new_return_t,
                 );
@@ -467,10 +476,6 @@ impl Context {
             Type::RefMut(t) => {
                 let new_t = self.resolve_trait(*t)?;
                 Ok(ref_mut(new_t))
-            }
-            Type::VarArgs(t) => {
-                let new_t = self.resolve_trait(*t)?;
-                Ok(var_args(new_t))
             }
             Type::Callable { .. } => todo!(),
             Type::And(_, _) | Type::Or(_, _) | Type::Not(_, _) => todo!(),
@@ -503,7 +508,9 @@ impl Context {
                     obj.clone()
                 };
                 let params_len = subr.non_default_params.len() + subr.default_params.len();
-                if params_len < pos_args.len() + kw_args.len() {
+                if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
+                    && subr.var_params.is_none()
+                {
                     return Err(TyCheckError::too_many_args_error(
                         line!() as usize,
                         callee.loc(),
@@ -515,87 +522,178 @@ impl Context {
                     ));
                 }
                 let mut passed_params = set! {};
-                let params = subr
-                    .non_default_params
-                    .iter()
-                    .chain(subr.default_params.iter());
-                for (param_ty, pos_arg) in params.clone().zip(pos_args) {
-                    let arg_t = pos_arg.expr.ref_t();
-                    let param_t = &param_ty.ty;
-                    self.sub_unify(
-                        arg_t,
-                        param_t,
-                        Some(pos_arg.loc()),
-                        None,
-                        param_ty.name.as_ref(),
-                    )
-                    .map_err(|e| {
-                        log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                        log!(err "errno: {}", e.core.errno);
-                        // REVIEW:
-                        let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
-                        let name = name
-                            + "::"
-                            + param_ty
-                                .name
-                                .as_ref()
-                                .map(|s| readable_name(&s[..]))
-                                .unwrap_or("");
-                        TyCheckError::type_mismatch_error(
-                            line!() as usize,
-                            e.core.loc,
-                            e.caused_by,
-                            &name[..],
-                            param_t,
-                            arg_t,
-                        )
-                    })?;
-                    if let Some(name) = &param_ty.name {
-                        if passed_params.contains(name) {
-                            return Err(TyCheckError::multiple_args_error(
-                                line!() as usize,
-                                callee.loc(),
-                                &callee.to_string(),
-                                self.caused_by(),
-                                name,
-                            ));
-                        } else {
-                            passed_params.insert(name);
-                        }
-                    }
-                }
-                let param_ts = {
-                    let mut param_ts = Dict::new();
-                    for param_ty in params {
-                        if let Some(name) = &param_ty.name {
-                            param_ts.insert(name, &param_ty.ty);
-                        }
-                    }
-                    param_ts
-                };
-                for kw_arg in kw_args.iter() {
-                    if let Some(param_t) = param_ts.get(kw_arg.keyword.inspect()) {
-                        self.sub_unify(
-                            kw_arg.expr.ref_t(),
-                            param_t,
-                            Some(kw_arg.loc()),
-                            None,
-                            Some(kw_arg.keyword.inspect()),
+                if pos_args.len() >= subr.non_default_params.len() {
+                    let (non_default_args, var_args) =
+                        pos_args.split_at(subr.non_default_params.len());
+                    for (nd_arg, nd_param) in
+                        non_default_args.iter().zip(subr.non_default_params.iter())
+                    {
+                        self.substitute_pos_arg(
+                            &callee,
+                            &nd_arg.expr,
+                            nd_param,
+                            &mut passed_params,
                         )?;
-                    } else {
-                        return Err(TyCheckError::unexpected_kw_arg_error(
-                            line!() as usize,
-                            kw_arg.keyword.loc(),
-                            &callee.to_string(),
-                            self.caused_by(),
-                            kw_arg.keyword.inspect(),
-                        ));
                     }
+                    if let Some(var_param) = subr.var_params.as_ref() {
+                        for var_arg in var_args.iter() {
+                            self.substitute_var_arg(&callee, &var_arg.expr, var_param)?;
+                        }
+                    } else {
+                        for (arg, pt) in var_args.iter().zip(subr.default_params.iter()) {
+                            self.substitute_pos_arg(&callee, &arg.expr, pt, &mut passed_params)?;
+                        }
+                    }
+                    for kw_arg in kw_args.iter() {
+                        self.substitute_kw_arg(
+                            &callee,
+                            kw_arg,
+                            &subr.default_params,
+                            &mut passed_params,
+                        )?;
+                    }
+                } else {
+                    let missing_len = subr.non_default_params.len() - pos_args.len();
+                    let missing_params = subr
+                        .non_default_params
+                        .iter()
+                        .rev()
+                        .take(missing_len)
+                        .rev()
+                        .map(|pt| pt.name().cloned().unwrap_or(Str::ever("")))
+                        .collect();
+                    return Err(TyCheckError::args_missing_error(
+                        line!() as usize,
+                        callee.loc(),
+                        &callee.to_string(),
+                        self.caused_by(),
+                        missing_len,
+                        missing_params,
+                    ));
                 }
                 Ok(())
             }
             other => todo!("{other}"),
         }
+    }
+
+    fn substitute_pos_arg(
+        &self,
+        callee: &hir::Expr,
+        arg: &hir::Expr,
+        param: &ParamTy,
+        passed_params: &mut Set<Str>,
+    ) -> TyCheckResult<()> {
+        let arg_t = arg.ref_t();
+        let param_t = &param.typ();
+        self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
+            .map_err(|e| {
+                log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
+                log!(err "errno: {}", e.core.errno);
+                // REVIEW:
+                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
+                TyCheckError::type_mismatch_error(
+                    line!() as usize,
+                    e.core.loc,
+                    e.caused_by,
+                    &name[..],
+                    param_t,
+                    arg_t,
+                )
+            })?;
+        if let Some(name) = param.name() {
+            if passed_params.contains(name) {
+                return Err(TyCheckError::multiple_args_error(
+                    line!() as usize,
+                    callee.loc(),
+                    &callee.to_string(),
+                    self.caused_by(),
+                    name,
+                ));
+            } else {
+                passed_params.insert(name.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn substitute_var_arg(
+        &self,
+        callee: &hir::Expr,
+        arg: &hir::Expr,
+        param: &ParamTy,
+    ) -> TyCheckResult<()> {
+        let arg_t = arg.ref_t();
+        let param_t = &param.typ();
+        self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
+            .map_err(|e| {
+                log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
+                log!(err "errno: {}", e.core.errno);
+                // REVIEW:
+                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
+                TyCheckError::type_mismatch_error(
+                    line!() as usize,
+                    e.core.loc,
+                    e.caused_by,
+                    &name[..],
+                    param_t,
+                    arg_t,
+                )
+            })
+    }
+
+    fn substitute_kw_arg(
+        &self,
+        callee: &hir::Expr,
+        arg: &hir::KwArg,
+        default_params: &Vec<ParamTy>,
+        passed_params: &mut Set<Str>,
+    ) -> TyCheckResult<()> {
+        let arg_t = arg.expr.ref_t();
+        let kw_name = arg.keyword.inspect();
+        if passed_params.contains(&kw_name[..]) {
+            return Err(TyCheckError::multiple_args_error(
+                line!() as usize,
+                callee.loc(),
+                &callee.to_string(),
+                self.caused_by(),
+                arg.keyword.inspect(),
+            ));
+        } else {
+            passed_params.insert(kw_name.clone());
+        }
+        if let Some(pt) = default_params
+            .iter()
+            .find(|pt| pt.name().unwrap() == kw_name)
+        {
+            self.sub_unify(arg_t, pt.typ(), Some(arg.loc()), None, Some(kw_name))
+                .map_err(|e| {
+                    log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
+                    log!(err "errno: {}", e.core.errno);
+                    // REVIEW:
+                    let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                    let name = name + "::" + readable_name(kw_name);
+                    TyCheckError::type_mismatch_error(
+                        line!() as usize,
+                        e.core.loc,
+                        e.caused_by,
+                        &name[..],
+                        pt.typ(),
+                        arg_t,
+                    )
+                })?;
+        } else {
+            return Err(TyCheckError::unexpected_kw_arg_error(
+                line!() as usize,
+                arg.keyword.loc(),
+                &callee.to_string(),
+                self.caused_by(),
+                kw_name,
+            ));
+        }
+        Ok(())
     }
 
     pub(crate) fn get_call_t(

@@ -201,14 +201,17 @@ impl Context {
                 .non_defaults
                 .iter()
                 .zip(decl_subr_t.non_default_params.iter())
-                .chain(
-                    params
-                        .defaults
-                        .iter()
-                        .zip(decl_subr_t.default_params.iter()),
-                )
                 .enumerate()
             {
+                self.assign_param(sig, None, nth, Some(pt))?;
+            }
+            for (nth, (sig, pt)) in params
+                .defaults
+                .iter()
+                .zip(decl_subr_t.default_params.iter())
+                .enumerate()
+            {
+                // TODO: .clone()
                 self.assign_param(sig, None, nth, Some(pt))?;
             }
         } else {
@@ -245,6 +248,7 @@ impl Context {
             .map(|v| &v.t)
             .unwrap();
         let non_default_params = t.non_default_params().unwrap();
+        let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
         if let Some(spec_ret_t) = t.return_t() {
             self.sub_unify(body_t, spec_ret_t, None, Some(sig.loc()), None)
@@ -270,12 +274,14 @@ impl Context {
             let sub_t = if sig.ident.is_procedural() {
                 proc(
                     non_default_params.clone(),
+                    var_args.as_ref().map(|v| *(*v).clone()),
                     default_params.clone(),
                     body_t.clone(),
                 )
             } else {
                 func(
                     non_default_params.clone(),
+                    var_args.as_ref().map(|v| *(*v).clone()),
                     default_params.clone(),
                     body_t.clone(),
                 )

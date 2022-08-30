@@ -169,13 +169,18 @@ impl Context {
                     .map(|t| self.supertype_of(&Type, t))
                     .unwrap_or(true)
                     && subr
-                        .default_params
-                        .iter()
-                        .all(|pt| self.supertype_of(&Type, &pt.ty))
-                    && subr
                         .non_default_params
                         .iter()
-                        .all(|pt| self.supertype_of(&Type, &pt.ty))
+                        .all(|pt| self.supertype_of(&Type, &pt.typ()))
+                    && subr
+                        .default_params
+                        .iter()
+                        .all(|pt| self.supertype_of(&Type, &pt.typ()))
+                    && subr
+                        .var_params
+                        .as_ref()
+                        .map(|va| self.supertype_of(&Type, &va.typ()))
+                        .unwrap_or(true)
                     && self.supertype_of(&Type, &subr.return_t),
             ),
             (
@@ -367,6 +372,22 @@ impl Context {
         log!(info "structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         match (lhs, rhs) {
             (Subr(ls), Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
+                let kw_check = || {
+                    for lpt in ls.default_params.iter() {
+                        if let Some(rpt) = rs
+                            .default_params
+                            .iter()
+                            .find(|rpt| rpt.name() == lpt.name())
+                        {
+                            if !self.subtype_of(lpt.typ(), rpt.typ()) {
+                                return false;
+                            }
+                        } else {
+                            return false;
+                        }
+                    }
+                    true
+                };
                 if ls.kind.self_t().is_some() {
                     todo!("method type is not supported yet")
                 }
@@ -377,14 +398,15 @@ impl Context {
                 && self.supertype_of(&ls.return_t, &rs.return_t) // covariant
                 && ls.non_default_params.iter()
                     .zip(rs.non_default_params.iter())
-                    .all(|(l, r)| self.subtype_of(&l.ty, &r.ty))
-                && ls.default_params.iter()
-                    .zip(rs.default_params.iter())
-                    .all(|(l, r)| self.subtype_of(&l.ty, &r.ty))
+                    .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                && ls.var_params.as_ref().zip(rs.var_params.as_ref()).map(|(l, r)| {
+                    self.subtype_of(l.typ(), r.typ())
+                }).unwrap_or(true)
+                && kw_check()
                 // contravariant
             }
             // RefMut, OptionMut are invariant
-            (Ref(lhs), Ref(rhs)) | (VarArgs(lhs), VarArgs(rhs)) => self.supertype_of(lhs, rhs),
+            (Ref(lhs), Ref(rhs)) => self.supertype_of(lhs, rhs),
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
             (FreeVar(lfv), FreeVar(rfv)) => {
@@ -549,7 +571,6 @@ impl Context {
             }
             (_lhs, Not(_, _)) => todo!(),
             (Not(_, _), _rhs) => todo!(),
-            (VarArgs(lhs), rhs) => self.supertype_of(lhs, rhs),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             // REVIEW: RefMut is invariant, maybe
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),

@@ -13,7 +13,7 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t, var_args,
+    enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
@@ -441,16 +441,21 @@ impl Evaluator {
                     }
                     other => other,
                 };
-                for p in subr.non_default_params.iter_mut() {
-                    p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
+                for pt in subr.non_default_params.iter_mut() {
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), ctx, level)?;
                 }
-                for p in subr.default_params.iter_mut() {
-                    p.ty = self.eval_t_params(mem::take(&mut p.ty), ctx, level)?;
+                if let Some(var_args) = subr.var_params.as_mut() {
+                    *var_args.typ_mut() =
+                        self.eval_t_params(mem::take(var_args.typ_mut()), ctx, level)?;
+                }
+                for pt in subr.default_params.iter_mut() {
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), ctx, level)?;
                 }
                 let return_t = self.eval_t_params(*subr.return_t, ctx, level)?;
                 Ok(subr_t(
                     kind,
                     subr.non_default_params,
+                    subr.var_params.map(|v| *v),
                     subr.default_params,
                     return_t,
                 ))
@@ -499,7 +504,6 @@ impl Evaluator {
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, ctx, level)?)),
             Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, ctx, level)?)),
-            Type::VarArgs(l) => Ok(var_args(self.eval_t_params(*l, ctx, level)?)),
             Type::PolyClass { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p), ctx)?;
