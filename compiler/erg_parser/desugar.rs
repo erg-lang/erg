@@ -178,58 +178,57 @@ impl Desugarer {
         let mut new = Module::with_capacity(module.len());
         while let Some(chunk) = module.lpop() {
             match chunk {
-                Expr::Def(def) => {
-                    if let Signature::Var(v) = def.sig {
-                        match &v.pat {
-                            VarPattern::Tuple(tup) => {
-                                let buf_name = self.fresh_var_name();
-                                let buf_sig = Signature::Var(VarSignature::new(
-                                    VarPattern::Ident(Identifier::private_with_line(
-                                        Str::rc(&buf_name),
-                                        v.ln_begin().unwrap(),
-                                    )),
-                                    v.t_spec,
-                                ));
-                                let buf_def = Def::new(buf_sig, def.body);
-                                new.push(Expr::Def(buf_def));
-                                for (n, elem) in tup.elems.iter().enumerate() {
-                                    self.desugar_nested_var_pattern(
-                                        &mut new,
-                                        elem,
-                                        &buf_name,
-                                        BufIndex::Tuple(n),
-                                    );
-                                }
-                            }
-                            VarPattern::Array(arr) => {
-                                let buf_name = self.fresh_var_name();
-                                let buf_sig = Signature::Var(VarSignature::new(
-                                    VarPattern::Ident(Identifier::private_with_line(
-                                        Str::rc(&buf_name),
-                                        v.ln_begin().unwrap(),
-                                    )),
-                                    v.t_spec,
-                                ));
-                                let buf_def = Def::new(buf_sig, def.body);
-                                new.push(Expr::Def(buf_def));
-                                for (n, elem) in arr.elems.iter().enumerate() {
-                                    self.desugar_nested_var_pattern(
-                                        &mut new,
-                                        elem,
-                                        &buf_name,
-                                        BufIndex::Array(n),
-                                    );
-                                }
-                            }
-                            VarPattern::Record(_rec) => todo!(),
-                            VarPattern::Ident(_i) => {
-                                let def = Def::new(Signature::Var(v), def.body);
-                                new.push(Expr::Def(def));
-                            }
-                            _ => {}
+                Expr::Def(Def {
+                    sig: Signature::Var(v),
+                    body,
+                }) => match &v.pat {
+                    VarPattern::Tuple(tup) => {
+                        let buf_name = self.fresh_var_name();
+                        let buf_sig = Signature::Var(VarSignature::new(
+                            VarPattern::Ident(Identifier::private_with_line(
+                                Str::rc(&buf_name),
+                                v.ln_begin().unwrap(),
+                            )),
+                            v.t_spec,
+                        ));
+                        let buf_def = Def::new(buf_sig, body);
+                        new.push(Expr::Def(buf_def));
+                        for (n, elem) in tup.elems.iter().enumerate() {
+                            self.desugar_nested_var_pattern(
+                                &mut new,
+                                elem,
+                                &buf_name,
+                                BufIndex::Tuple(n),
+                            );
                         }
                     }
-                }
+                    VarPattern::Array(arr) => {
+                        let buf_name = self.fresh_var_name();
+                        let buf_sig = Signature::Var(VarSignature::new(
+                            VarPattern::Ident(Identifier::private_with_line(
+                                Str::rc(&buf_name),
+                                v.ln_begin().unwrap(),
+                            )),
+                            v.t_spec,
+                        ));
+                        let buf_def = Def::new(buf_sig, body);
+                        new.push(Expr::Def(buf_def));
+                        for (n, elem) in arr.elems.iter().enumerate() {
+                            self.desugar_nested_var_pattern(
+                                &mut new,
+                                elem,
+                                &buf_name,
+                                BufIndex::Array(n),
+                            );
+                        }
+                    }
+                    VarPattern::Record(_rec) => todo!(),
+                    VarPattern::Ident(_i) => {
+                        let def = Def::new(Signature::Var(v), body);
+                        new.push(Expr::Def(def));
+                    }
+                    _ => {}
+                },
                 other => {
                     new.push(other);
                 }
