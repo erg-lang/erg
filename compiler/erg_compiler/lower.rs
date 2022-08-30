@@ -340,6 +340,7 @@ impl ASTLowerer {
         Ok(hir::Call::new(obj, call.method_name, hir_args, t))
     }
 
+    /// TODO: varargs
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
         let is_procedural = lambda.is_procedural();
@@ -375,14 +376,12 @@ impl ASTLowerer {
         let non_default_params = non_default_params
             .into_iter()
             .map(|(name, vi)| {
-                ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
+                ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
             .collect();
         let default_params = default_params
             .into_iter()
-            .map(|(name, vi)| {
-                ParamTy::new(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
-            })
+            .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
         let bounds = self
             .ctx
@@ -393,9 +392,9 @@ impl ASTLowerer {
             })?;
         self.pop_append_errs();
         let t = if is_procedural {
-            proc(non_default_params, default_params, body.t())
+            proc(non_default_params, None, default_params, body.t())
         } else {
-            func(non_default_params, default_params, body.t())
+            func(non_default_params, None, default_params, body.t())
         };
         let t = if bounds.is_empty() {
             t

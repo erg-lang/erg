@@ -6,7 +6,7 @@ use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{fmt_iter, impl_stream_for_wrapper, switch_lang, Str};
+use erg_common::{fmt_iter, fmt_vec, impl_stream_for_wrapper, switch_lang, Str};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -671,6 +671,32 @@ total expected params:  {GREEN}{params_len}{RESET}
 passed positional args: {RED}{pos_args_len}{RESET}
 passed keyword args:    {RED}{kw_args_len}{RESET}"
                     ),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn args_missing_error(
+        errno: usize,
+        loc: Location,
+        callee_name: &str,
+        caused_by: Str,
+        missing_len: usize,
+        missing_params: Vec<Str>,
+    ) -> Self {
+        let name = readable_name(callee_name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}に渡された引数が{missing_len}個足りません({})。", fmt_vec(&missing_params)),
+                    "simplified_chinese" => format!("{name}没有提供{missing_len}个参数({})。", fmt_vec(&missing_params)),
+                    "traditional_chinese" => format!("{name}沒有提供{missing_len}個參數({})。", fmt_vec(&missing_params)),
+                    "english" => format!("missing {missing_len} positional argument(s) for {name}: {}", fmt_vec(&missing_params)),
                 ),
                 None,
             ),

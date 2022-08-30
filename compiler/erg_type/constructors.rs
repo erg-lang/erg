@@ -2,7 +2,7 @@ use crate::*;
 
 #[inline]
 pub const fn param_t(name: &'static str, ty: Type) -> ParamTy {
-    ParamTy::new(Some(Str::ever(name)), ty)
+    ParamTy::kw(Str::ever(name), ty)
 }
 
 #[inline]
@@ -35,11 +35,6 @@ pub fn dict(k_t: Type, v_t: Type) -> Type {
 pub fn tuple(args: Vec<Type>) -> Type {
     let name = format!("Tuple{}", args.len());
     poly_class(name, args.into_iter().map(TyParam::t).collect())
-}
-
-#[inline]
-pub fn var_args(elem_t: Type) -> Type {
-    Type::VarArgs(Box::new(elem_t))
 }
 
 #[inline]
@@ -118,12 +113,14 @@ pub fn option_mut(t: Type) -> Type {
 pub fn subr_t(
     kind: SubrKind,
     non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
         kind,
         non_default_params,
+        var_params,
         default_params,
         return_t,
     ))
@@ -131,19 +128,21 @@ pub fn subr_t(
 
 pub fn func(
     non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
         SubrKind::Func,
         non_default_params,
+        var_params,
         default_params,
         return_t,
     ))
 }
 
 pub fn func1(param_t: Type, return_t: Type) -> Type {
-    func(vec![ParamTy::anonymous(param_t)], vec![], return_t)
+    func(vec![ParamTy::anonymous(param_t)], None, vec![], return_t)
 }
 
 pub fn kind1(param: Type) -> Type {
@@ -153,6 +152,7 @@ pub fn kind1(param: Type) -> Type {
 pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
     func(
         vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        None,
         vec![],
         return_t,
     )
@@ -161,117 +161,91 @@ pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
 pub fn bin_op(l: Type, r: Type, return_t: Type) -> Type {
     nd_func(
         vec![
-            ParamTy::named(Str::ever("lhs"), l.clone()),
-            ParamTy::named(Str::ever("rhs"), r.clone()),
+            ParamTy::kw(Str::ever("lhs"), l.clone()),
+            ParamTy::kw(Str::ever("rhs"), r.clone()),
         ],
+        None,
         return_t,
     )
 }
 
-pub fn anon_param_func(
-    non_default_params: Vec<Type>,
-    default_params: Vec<Type>,
-    return_t: Type,
-) -> Type {
-    let non_default_params = non_default_params
-        .into_iter()
-        .map(ParamTy::anonymous)
-        .collect();
-    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-    func(non_default_params, default_params, return_t)
-}
-
 pub fn proc(
     non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
         SubrKind::Proc,
         non_default_params,
+        var_params,
         default_params,
         return_t,
     ))
 }
 
 pub fn proc1(param_t: Type, return_t: Type) -> Type {
-    proc(vec![ParamTy::anonymous(param_t)], vec![], return_t)
+    proc(vec![ParamTy::anonymous(param_t)], None, vec![], return_t)
 }
 
 pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
     proc(
         vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        None,
         vec![],
         return_t,
     )
 }
 
-pub fn anon_param_proc(
-    non_default_params: Vec<Type>,
-    default_params: Vec<Type>,
-    return_t: Type,
-) -> Type {
-    let non_default_params = non_default_params
-        .into_iter()
-        .map(ParamTy::anonymous)
-        .collect();
-    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-    proc(non_default_params, default_params, return_t)
-}
-
 pub fn fn_met(
     self_t: Type,
     non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
         SubrKind::FuncMethod(Box::new(self_t)),
         non_default_params,
+        var_params,
         default_params,
         return_t,
     ))
 }
 
 pub fn fn0_met(self_t: Type, return_t: Type) -> Type {
-    fn_met(self_t, vec![], vec![], return_t)
+    fn_met(self_t, vec![], None, vec![], return_t)
 }
 
 pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
-    fn_met(self_t, vec![ParamTy::anonymous(input_t)], vec![], return_t)
-}
-
-pub fn anon_param_fn_met(
-    self_t: Type,
-    non_default_params: Vec<Type>,
-    default_params: Vec<Type>,
-    return_t: Type,
-) -> Type {
-    let non_default_params = non_default_params
-        .into_iter()
-        .map(ParamTy::anonymous)
-        .collect();
-    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-    fn_met(self_t, non_default_params, default_params, return_t)
+    fn_met(
+        self_t,
+        vec![ParamTy::anonymous(input_t)],
+        None,
+        vec![],
+        return_t,
+    )
 }
 
 pub fn pr_met(
     self_before: Type,
     self_after: Option<Type>,
     non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
         SubrKind::pr_met(self_before, self_after),
         non_default_params,
+        var_params,
         default_params,
         return_t,
     ))
 }
 
 pub fn pr0_met(self_before: Type, self_after: Option<Type>, return_t: Type) -> Type {
-    pr_met(self_before, self_after, vec![], vec![], return_t)
+    pr_met(self_before, self_after, vec![], None, vec![], return_t)
 }
 
 pub fn pr1_met(self_before: Type, self_after: Option<Type>, input_t: Type, return_t: Type) -> Type {
@@ -279,41 +253,21 @@ pub fn pr1_met(self_before: Type, self_after: Option<Type>, input_t: Type, retur
         self_before,
         self_after,
         vec![ParamTy::anonymous(input_t)],
+        None,
         vec![],
-        return_t,
-    )
-}
-
-pub fn anon_param_pr_met(
-    self_before: Type,
-    self_after: Option<Type>,
-    non_default_params: Vec<Type>,
-    default_params: Vec<Type>,
-    return_t: Type,
-) -> Type {
-    let non_default_params = non_default_params
-        .into_iter()
-        .map(ParamTy::anonymous)
-        .collect();
-    let default_params = default_params.into_iter().map(ParamTy::anonymous).collect();
-    pr_met(
-        self_before,
-        self_after,
-        non_default_params,
-        default_params,
         return_t,
     )
 }
 
 /// function type with non-default parameters
 #[inline]
-pub fn nd_func(params: Vec<ParamTy>, ret: Type) -> Type {
-    func(params, vec![], ret)
+pub fn nd_func(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> Type {
+    func(params, var_params, vec![], ret)
 }
 
 #[inline]
-pub fn nd_proc(params: Vec<ParamTy>, ret: Type) -> Type {
-    proc(params, vec![], ret)
+pub fn nd_proc(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> Type {
+    proc(params, var_params, vec![], ret)
 }
 
 pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {

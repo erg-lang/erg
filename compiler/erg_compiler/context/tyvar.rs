@@ -134,19 +134,30 @@ impl Context {
                     }
                     other => other,
                 };
-                subr.non_default_params.iter_mut().for_each(|p| {
-                    p.ty = self.generalize_t_inner(mem::take(&mut p.ty), bounds, lazy_inits);
+                subr.non_default_params.iter_mut().for_each(|nd_param| {
+                    *nd_param.typ_mut() =
+                        self.generalize_t_inner(mem::take(nd_param.typ_mut()), bounds, lazy_inits);
                 });
-                subr.default_params.iter_mut().for_each(|p| {
-                    p.ty = self.generalize_t_inner(mem::take(&mut p.ty), bounds, lazy_inits);
+                if let Some(var_args) = &mut subr.var_params {
+                    *var_args.typ_mut() =
+                        self.generalize_t_inner(mem::take(var_args.typ_mut()), bounds, lazy_inits);
+                }
+                subr.default_params.iter_mut().for_each(|d_param| {
+                    *d_param.typ_mut() =
+                        self.generalize_t_inner(mem::take(d_param.typ_mut()), bounds, lazy_inits);
                 });
                 let return_t = self.generalize_t_inner(*subr.return_t, bounds, lazy_inits);
-                subr_t(kind, subr.non_default_params, subr.default_params, return_t)
+                subr_t(
+                    kind,
+                    subr.non_default_params,
+                    subr.var_params.map(|x| *x),
+                    subr.default_params,
+                    return_t,
+                )
             }
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
             RefMut(t) => ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            VarArgs(t) => var_args(self.generalize_t_inner(*t, bounds, lazy_inits)),
             PolyClass { name, mut params } => {
                 let params = params
                     .iter_mut()
@@ -328,12 +339,14 @@ impl Context {
                     }
                     _ => {}
                 }
-                let params = subr
-                    .non_default_params
-                    .iter_mut()
-                    .chain(subr.default_params.iter_mut());
-                for param in params {
-                    param.ty = self.deref_tyvar(mem::take(&mut param.ty))?;
+                for param in subr.non_default_params.iter_mut() {
+                    *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
+                }
+                if let Some(var_args) = &mut subr.var_params {
+                    *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+                }
+                for d_param in subr.default_params.iter_mut() {
+                    *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
                 }
                 subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
                 Ok(Type::Subr(subr))
@@ -345,10 +358,6 @@ impl Context {
             Type::RefMut(t) => {
                 let t = self.deref_tyvar(*t)?;
                 Ok(ref_mut(t))
-            }
-            Type::VarArgs(t) => {
-                let t = self.deref_tyvar(*t)?;
-                Ok(var_args(t))
             }
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
@@ -794,13 +803,27 @@ impl Context {
                     .iter()
                     .zip(rs.non_default_params.iter())
                 {
-                    self.unify(&l.ty, &r.ty, lhs_loc, rhs_loc)?;
+                    self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
+                }
+                for (l, r) in ls.var_params.as_ref().zip(rs.var_params.as_ref()) {
+                    self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
+                }
+                for lpt in ls.default_params.iter() {
+                    if let Some(rpt) = rs
+                        .default_params
+                        .iter()
+                        .find(|rpt| rpt.name() == lpt.name())
+                    {
+                        self.unify(lpt.typ(), rpt.typ(), lhs_loc, rhs_loc)?;
+                    } else {
+                        todo!()
+                    }
                 }
                 self.unify(&ls.return_t, &rs.return_t, lhs_loc, rhs_loc)
             }
-            (Type::Ref(l), Type::Ref(r))
-            | (Type::RefMut(l), Type::RefMut(r))
-            | (VarArgs(l), VarArgs(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
+                self.unify(l, r, lhs_loc, rhs_loc)
+            }
             // REVIEW:
             (Type::Ref(l), r) | (Type::RefMut(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
             (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.unify(l, r, lhs_loc, rhs_loc),
@@ -885,9 +908,9 @@ impl Context {
             (l, Type::FreeVar(fv)) if fv.is_linked() => {
                 self.reunify(l, &fv.crack(), bef_loc, aft_loc)
             }
-            (Type::Ref(l), Type::Ref(r))
-            | (Type::RefMut(l), Type::RefMut(r))
-            | (Type::VarArgs(l), Type::VarArgs(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
+                self.reunify(l, r, bef_loc, aft_loc)
+            }
             // REVIEW:
             (Type::Ref(l), r) | (Type::RefMut(l), r) => self.reunify(l, r, bef_loc, aft_loc),
             (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.reunify(l, r, bef_loc, aft_loc),
@@ -1136,11 +1159,13 @@ impl Context {
             }
             (Type::FreeVar(_fv), _r) => todo!(),
             (Type::Subr(lsub), Type::Subr(rsub)) => {
-                lsub.default_params.iter().zip(rsub.default_params.iter()).try_for_each(|(l, r)| {
-                    self.unify(&l.ty, &r.ty, sub_loc, sup_loc)
-                })?;
+                for lpt in lsub.default_params.iter() {
+                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                        self.unify(lpt.typ(), rpt.typ(), sub_loc, sup_loc)?;
+                    } else { todo!() }
+                }
                 lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(
-                    |(l, r)| self.unify(&l.ty, &r.ty, sub_loc, sup_loc),
+                    |(l, r)| self.unify(l.typ(), r.typ(), sub_loc, sup_loc),
                 )?;
                 self.unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc)?;
                 return Ok(());

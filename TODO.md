@@ -20,24 +20,28 @@
     * [x] Variable Pattern
     * [x] Literal Pattern
     * [x] Array Pattern
-    * [ ] Tuple Pattern
+    * [x] Tuple Pattern
     * [ ] Record Pattern
     * [ ] Data Type Pattern
     * [ ] Refinement Pattern
   * [x] Function call
-    * [ ] Keyword arguments
+    * [x] Positional arguments
+    * [x] Keyword arguments
+    * [x] Variable length arguments
   * [x] Array literal
-  * [ ] Record literal
-  * [ ] Set literal
+  * [x] Record literal
+  * [x] Set literal
   * [ ] Dict literal
-  * [ ] Tuple literal
-  * [ ] Variable visibility
+  * [x] Tuple literal
+  * [x] Variable visibility
   * [ ] Raw identifier
   * [x] Lambda function
-    * [ ] lambda function with indentation
-  * [ ] do/do!
-  * [x] Function definition
-  * [x] Procedure definition
+    * [x] lambda function with indentation
+  * [x] do/do!
+  * [ ] Function/Procedure definition
+    * [x] Positional arguments
+    * [ ] Variable length arguments
+    * [ ] Keyword arguments
   * [ ] Method definition
   * [ ] Type definition
     * [ ] Class definition
@@ -71,9 +75,11 @@
     * [x] Nominal subtyping
   * [ ] Module system
     * [ ] Load Builtin Module
+      * [x] `math` (partially)
+      * [x] `random` (partially)
     * [ ] Load User Module
     * [ ] Recursive module
-    * [ ] Visibility check
+    * [x] Visibility check
   * [x] Patching
   * [ ] Rank-2 type
 * [ ] Implement a side-effect checker
@@ -85,7 +91,8 @@
   * [x] Implement a borrow checker
   * [ ] Implement a cycle-reference detector
 * [ ] Implement a compile-time evaluator
-  * [ ] Compiletime operator
+  * [x] Builtin (Compile-time) perators
+  * [ ] Compile-time operator
   * [ ] Compile-time function
 * [ ] Maintain unit tests
 * [ ] Implement a Python parser

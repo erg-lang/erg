@@ -134,7 +134,7 @@ impl Desugarer {
                             ));
                             let param =
                                 ParamSignature::new(ParamPattern::VarName(param), None, None);
-                            let params = Params::new(vec![param], vec![], None);
+                            let params = Params::new(vec![param], None, vec![], None);
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},
                                 name,

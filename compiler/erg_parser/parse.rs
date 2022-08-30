@@ -772,6 +772,7 @@ impl Parser {
                 self.level -= 1;
                 return Ok(Params::new(
                     non_default_params,
+                    None,
                     default_params,
                     Some(parens),
                 ));
@@ -779,7 +780,7 @@ impl Parser {
             Some(t) if t.is_block_op() => {
                 if lp.is_none() {
                     self.level -= 1;
-                    return Ok(Params::new(non_default_params, default_params, None));
+                    return Ok(Params::new(non_default_params, None, default_params, None));
                 }
                 // TODO: RParen not found
                 else {
@@ -809,6 +810,9 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.is(Comma) => {
                     self.skip();
+                    if self.cur_is(Spread) {
+                        todo!("user-defined subroutine with a variable length parameter is not supported yet")
+                    }
                     let param = self.try_reduce_param_sig().map_err(|_| self.stack_dec())?;
                     match (param.has_default(), default_appeared) {
                         (true, true) => {
@@ -858,6 +862,7 @@ impl Parser {
                         self.level -= 1;
                         return Ok(Params::new(
                             non_default_params,
+                            None,
                             default_params,
                             Some((lp, rp)),
                         ));
@@ -871,7 +876,7 @@ impl Parser {
                 }
                 _ if lp.is_none() => {
                     self.level -= 1;
-                    return Ok(Params::new(non_default_params, default_params, None));
+                    return Ok(Params::new(non_default_params, None, default_params, None));
                 }
                 _ => {
                     self.level -= 1;
@@ -1182,9 +1187,9 @@ impl Parser {
                     self.skip();
                     let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
                     typ = if is_func {
-                        TypeSpec::func(None, vec![ParamTySpec::anonymous(typ)], vec![], rhs)
+                        TypeSpec::func(None, vec![ParamTySpec::anonymous(typ)], None, vec![], rhs)
                     } else {
-                        TypeSpec::proc(None, vec![ParamTySpec::anonymous(typ)], vec![], rhs)
+                        TypeSpec::proc(None, vec![ParamTySpec::anonymous(typ)], None, vec![], rhs)
                     };
                 }
                 _ => {
@@ -1247,9 +1252,9 @@ impl Parser {
                 let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 if is_func {
-                    Ok(TypeSpec::func(lparen, non_defaults, vec![], rhs))
+                    Ok(TypeSpec::func(lparen, non_defaults, None, vec![], rhs))
                 } else {
-                    Ok(TypeSpec::proc(lparen, non_defaults, vec![], rhs))
+                    Ok(TypeSpec::proc(lparen, non_defaults, None, vec![], rhs))
                 }
             }
             _ => {

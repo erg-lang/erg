@@ -275,13 +275,21 @@ macro_rules! debug_info {
     ($output:ident) => {{
         #[allow(unused_imports)]
         use $crate::color::{CYAN, RESET};
-        write!($output, "[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!()).unwrap();
+        write!(
+            $output,
+            "[{}DEBUG{}] {}:{:04}: ",
+            CYAN,
+            RESET,
+            file!(),
+            line!()
+        )
+        .unwrap();
     }};
     () => {{
         #[allow(unused_imports)]
         use $crate::color::{CYAN, RESET};
         print!("[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!());
-    }}
+    }};
 }
 
 /// Debug log utility.

@@ -47,11 +47,11 @@ pub trait HasType {
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[0].ty
+        &self.ref_t().non_default_params().unwrap()[0].typ()
     }
     #[inline]
     fn rhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[1].ty
+        &self.ref_t().non_default_params().unwrap()[1].typ()
     }
 }
 
@@ -605,35 +605,62 @@ impl Predicate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ParamTy {
-    pub name: Option<Str>,
-    pub ty: Type,
+pub enum ParamTy {
+    Pos { name: Option<Str>, ty: Type },
+    Kw { name: Str, ty: Type },
 }
 
 impl fmt::Display for ParamTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(name) = &self.name {
-            write!(f, "{}: {}", name, self.ty)
-        } else {
-            write!(f, "{}", self.ty)
+        match self {
+            Self::Pos { name, ty } => {
+                if let Some(name) = name {
+                    write!(f, "{}", name)?;
+                }
+                write!(f, ": {}", ty)
+            }
+            Self::Kw { name, ty } => write!(f, "{}: {}", name, ty),
         }
     }
 }
 
 impl ParamTy {
-    pub const fn new(name: Option<Str>, ty: Type) -> Self {
-        Self { name, ty }
+    pub const fn pos(name: Option<Str>, ty: Type) -> Self {
+        Self::Pos { name, ty }
     }
 
-    pub const fn named(name: Str, ty: Type) -> Self {
-        Self {
-            name: Some(name),
-            ty,
-        }
+    pub const fn kw(name: Str, ty: Type) -> Self {
+        Self::Kw { name, ty }
     }
 
     pub const fn anonymous(ty: Type) -> Self {
-        Self::new(None, ty)
+        Self::pos(None, ty)
+    }
+
+    pub fn name(&self) -> Option<&Str> {
+        match self {
+            Self::Pos { name, .. } => name.as_ref(),
+            Self::Kw { name, .. } => Some(name),
+        }
+    }
+
+    pub const fn typ(&self) -> &Type {
+        match self {
+            Self::Pos { ty, .. } | Self::Kw { ty, .. } => ty,
+        }
+    }
+
+    pub fn typ_mut(&mut self) -> &mut Type {
+        match self {
+            Self::Pos { ty, .. } | Self::Kw { ty, .. } => ty,
+        }
+    }
+
+    pub fn deconstruct(self) -> (Option<Str>, Type) {
+        match self {
+            Self::Pos { name, ty } => (name, ty),
+            Self::Kw { name, ty } => (Some(name), ty),
+        }
     }
 }
 
@@ -644,7 +671,9 @@ impl ParamTy {
 pub struct SubrType {
     pub kind: SubrKind,
     pub non_default_params: Vec<ParamTy>,
+    pub var_params: Option<Box<ParamTy>>,
     pub default_params: Vec<ParamTy>,
+    // var_kw_params: Option<(Str, Box<Type>)>,
     pub return_t: Box<Type>,
 }
 
@@ -664,12 +693,19 @@ impl LimitedDisplay for SubrType {
             if i != 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", fmt_option!(param.name, post ": "))?;
-            param.ty.limited_fmt(f, limit - 1)?;
+            write!(f, "{}", fmt_option!(param.name(), post ": "))?;
+            param.typ().limited_fmt(f, limit - 1)?;
         }
-        for default_param in self.default_params.iter() {
-            write!(f, ", {} |= ", default_param.name.as_ref().unwrap(),)?;
-            default_param.ty.limited_fmt(f, limit - 1)?;
+        if let Some(var_params) = &self.var_params {
+            if self.non_default_params.len() != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "...")?;
+            var_params.typ().limited_fmt(f, limit - 1)?;
+        }
+        for pt in self.default_params.iter() {
+            write!(f, ", {} |= ", pt.name().unwrap())?;
+            pt.typ().limited_fmt(f, limit - 1)?;
         }
         write!(f, ") {} ", self.kind.arrow())?;
         self.return_t.limited_fmt(f, limit - 1)
@@ -680,24 +716,71 @@ impl SubrType {
     pub fn new(
         kind: SubrKind,
         non_default_params: Vec<ParamTy>,
+        var_params: Option<ParamTy>,
         default_params: Vec<ParamTy>,
         return_t: Type,
     ) -> Self {
         Self {
             kind,
             non_default_params,
+            var_params: var_params.map(Box::new),
             default_params,
             return_t: Box::new(return_t),
         }
     }
 
-    pub fn varargs_idx(&self) -> (Option<usize>, Option<usize>) {
-        (
+    pub fn contains_tvar(&self, name: &str) -> bool {
+        self.kind.contains_tvar(name)
+            || self
+                .non_default_params
+                .iter()
+                .any(|pt| pt.typ().contains_tvar(name))
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().contains_tvar(name))
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().contains_tvar(name))
+            || self.return_t.contains_tvar(name)
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        self.kind.has_qvar()
+            || self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().has_qvar())
+                .unwrap_or(false)
+            || self.default_params.iter().any(|pt| pt.typ().has_qvar())
+            || self.return_t.has_qvar()
+    }
+
+    pub fn typarams(&self) -> Vec<TyParam> {
+        [
+            self.kind
+                .self_t()
+                .map(|t| TyParam::t(t.clone()))
+                .into_iter()
+                .collect(),
             self.non_default_params
                 .iter()
-                .position(|t| t.ty.is_varargs()),
-            self.default_params.iter().position(|t| t.ty.is_varargs()),
-        )
+                .map(|pt| TyParam::t(pt.typ().clone()))
+                .collect::<Vec<_>>(),
+            self.var_params
+                .as_ref()
+                .map(|pt| TyParam::t(pt.typ().clone()))
+                .into_iter()
+                .collect(),
+            self.default_params
+                .iter()
+                .map(|pt| TyParam::t(pt.typ().clone()))
+                .collect(),
+        ]
+        .concat()
     }
 }
 
@@ -889,6 +972,20 @@ impl SubrKind {
         }
     }
 
+    pub fn contains_tvar(&self, name: &str) -> bool {
+        match self {
+            Self::Func | Self::Proc => false,
+            Self::FuncMethod(t) => t.contains_tvar(name),
+            Self::ProcMethod { before, after } => {
+                before.contains_tvar(name)
+                    || after
+                        .as_ref()
+                        .map(|t| t.contains_tvar(name))
+                        .unwrap_or(false)
+            }
+        }
+    }
+
     pub fn is_cachable(&self) -> bool {
         match self {
             Self::Func | Self::Proc => true,
@@ -955,55 +1052,47 @@ impl Ownership {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ArgsOwnership {
-    Args {
-        self_: Option<Ownership>,
-        non_defaults: Vec<Ownership>,
-        defaults: Vec<Ownership>,
-    },
-    VarArgs(Ownership), // TODO: defaults
-    VarArgsDefault(Ownership),
+pub struct ArgsOwnership {
+    pub self_: Option<Ownership>,
+    pub non_defaults: Vec<Ownership>,
+    pub var_params: Option<Ownership>,
+    pub defaults: Vec<(Str, Ownership)>,
 }
 
 impl fmt::Display for ArgsOwnership {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Args {
-                self_,
-                non_defaults,
-                defaults,
-            } => {
-                if let Some(self_) = self_ {
-                    write!(f, "({self_:?}).")?;
-                }
-                write!(f, "(")?;
-                for (i, o) in non_defaults.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{o:?}")?;
-                }
-                for o in defaults.iter() {
-                    write!(f, ", {o:?} |= ?")?;
-                }
-                write!(f, ")")?;
-                Ok(())
-            }
-            Self::VarArgs(o) => write!(f, "...{o:?}"),
-            Self::VarArgsDefault(o) => write!(f, "...{o:?} |= ?"),
+        if let Some(self_) = self.self_.as_ref() {
+            write!(f, "({self_:?}).")?;
         }
+        write!(f, "(")?;
+        for (i, o) in self.non_defaults.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{o:?}")?;
+        }
+        if let Some(o) = self.var_params.as_ref() {
+            write!(f, ", ...{o:?}")?;
+        }
+        for (name, o) in self.defaults.iter() {
+            write!(f, ", {name} |= {o:?}")?;
+        }
+        write!(f, ")")?;
+        Ok(())
     }
 }
 
 impl ArgsOwnership {
-    pub const fn args(
+    pub const fn new(
         self_: Option<Ownership>,
         non_defaults: Vec<Ownership>,
-        defaults: Vec<Ownership>,
+        var_params: Option<Ownership>,
+        defaults: Vec<(Str, Ownership)>,
     ) -> Self {
-        Self::Args {
+        Self {
             self_,
             non_defaults,
+            var_params,
             defaults,
         }
     }
@@ -1039,7 +1128,6 @@ pub enum Type {
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut(Box<Type>),
-    VarArgs(Box<Type>), // ...T
     Subr(SubrType),
     // CallableはProcの上位型なので、変数に!をつける
     Callable {
@@ -1111,9 +1199,7 @@ impl PartialEq for Type {
                 l == r
             }
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
-            (Self::Ref(l), Self::Ref(r))
-            | (Self::RefMut(l), Self::RefMut(r))
-            | (Self::VarArgs(l), Self::VarArgs(r)) => l == r,
+            (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l == r,
             (Self::Subr(l), Self::Subr(r)) => l == r,
             (
                 Self::Callable {
@@ -1252,10 +1338,6 @@ impl LimitedDisplay for Type {
                 write!(f, " or ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::VarArgs(t) => {
-                write!(f, "...")?;
-                t.limited_fmt(f, limit - 1)
-            }
             Self::PolyClass { name, params } | Self::PolyTrait { name, params } => {
                 write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
@@ -1369,7 +1451,7 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => {
+            Self::Ref(t) | Self::RefMut(t) => {
                 vec![t.as_ref().clone()]
             }
             // Self::And(ts) | Self::Or(ts) => ,
@@ -1401,7 +1483,7 @@ impl HasLevel for Type {
     fn update_level(&self, level: Level) {
         match self {
             Self::FreeVar(v) => v.update_level(level),
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.update_level(level),
+            Self::Ref(t) | Self::RefMut(t) => t.update_level(level),
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.update_level(level);
@@ -1410,12 +1492,14 @@ impl HasLevel for Type {
             }
             Self::Subr(subr) => {
                 subr.kind.update_level(level);
-                for p in subr
-                    .non_default_params
-                    .iter()
-                    .chain(subr.default_params.iter())
-                {
-                    p.ty.update_level(level);
+                for pt in subr.non_default_params.iter() {
+                    pt.typ().update_level(level);
+                }
+                subr.var_params
+                    .as_ref()
+                    .map(|pt| pt.typ().update_level(level));
+                for pt in subr.default_params.iter() {
+                    pt.typ().update_level(level);
                 }
                 subr.return_t.update_level(level);
             }
@@ -1455,7 +1539,7 @@ impl HasLevel for Type {
     fn lift(&self) {
         match self {
             Self::FreeVar(v) => v.lift(),
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.lift(),
+            Self::Ref(t) | Self::RefMut(t) => t.lift(),
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.lift();
@@ -1464,12 +1548,12 @@ impl HasLevel for Type {
             }
             Self::Subr(subr) => {
                 subr.kind.lift();
-                for p in subr
-                    .non_default_params
-                    .iter()
-                    .chain(subr.default_params.iter())
-                {
-                    p.ty.lift();
+                for pt in subr.non_default_params.iter() {
+                    pt.typ().lift();
+                }
+                subr.var_params.as_ref().map(|pt| pt.typ().lift());
+                for pt in subr.default_params.iter() {
+                    pt.typ().lift();
                 }
                 subr.return_t.lift();
             }
@@ -1669,6 +1753,7 @@ impl Type {
                 }
                 false
             }
+            Self::Subr(subr) => subr.contains_tvar(name),
             _ => false,
         }
     }
@@ -1680,25 +1765,24 @@ impl Type {
                 let self_ = subr.kind.self_t().map(|t| t.ownership());
                 let mut nd_args = vec![];
                 for nd_param in subr.non_default_params.iter() {
-                    let ownership = match &nd_param.ty {
+                    let ownership = match nd_param.typ() {
                         Self::Ref(_) => Ownership::Ref,
                         Self::RefMut(_) => Ownership::RefMut,
-                        Self::VarArgs(t) => return ArgsOwnership::VarArgs(t.ownership()),
                         _ => Ownership::Owned,
                     };
                     nd_args.push(ownership);
                 }
+                let var_args = subr.var_params.as_ref().map(|t| t.typ().ownership());
                 let mut d_args = vec![];
                 for d_param in subr.default_params.iter() {
-                    let ownership = match &d_param.ty {
+                    let ownership = match d_param.typ() {
                         Self::Ref(_) => Ownership::Ref,
                         Self::RefMut(_) => Ownership::RefMut,
-                        Self::VarArgs(t) => return ArgsOwnership::VarArgsDefault(t.ownership()),
                         _ => Ownership::Owned,
                     };
-                    d_args.push(ownership);
+                    d_args.push((d_param.name().unwrap().clone(), ownership));
                 }
-                ArgsOwnership::args(self_, nd_args, d_args)
+                ArgsOwnership::new(self_, nd_args, var_args, d_args)
             }
             _ => todo!(),
         }
@@ -1775,7 +1859,6 @@ impl Type {
             }) => Str::ever("ProcMethod"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
-            Self::VarArgs(_) => Str::ever("VarArgs"),
             Self::PolyClass { name, .. }
             | Self::PolyTrait { name, .. }
             | Self::PolyQVar { name, .. } => name.clone(),
@@ -1808,10 +1891,6 @@ impl Type {
         matches!(self, Self::FreeVar(_))
     }
 
-    pub const fn is_varargs(&self) -> bool {
-        matches!(self, Self::VarArgs(_))
-    }
-
     pub fn is_monomorphic(&self) -> bool {
         match self.typarams_len() {
             Some(0) | None => true,
@@ -1837,19 +1916,14 @@ impl Type {
                     fv.crack().has_qvar()
                 }
             }
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.has_qvar(),
+            Self::Ref(t) | Self::RefMut(t) => t.has_qvar(),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.has_qvar() || rhs.has_qvar()
             }
             Self::Callable { param_ts, return_t } => {
                 param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
             }
-            Self::Subr(subr) => {
-                subr.kind.has_qvar()
-                    || subr.non_default_params.iter().any(|pt| pt.ty.has_qvar())
-                    || subr.default_params.iter().any(|pt| pt.ty.has_qvar())
-                    || subr.return_t.has_qvar()
-            }
+            Self::Subr(subr) => subr.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
             Self::Refinement(refine) => {
                 refine.t.has_qvar() || refine.preds.iter().any(|pred| pred.has_qvar())
@@ -1869,7 +1943,7 @@ impl Type {
     pub fn is_cachable(&self) -> bool {
         match self {
             Self::FreeVar(_) => false,
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.is_cachable(),
+            Self::Ref(t) | Self::RefMut(t) => t.is_cachable(),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.is_cachable() && rhs.is_cachable()
             }
@@ -1881,8 +1955,13 @@ impl Type {
                     && subr
                         .non_default_params
                         .iter()
-                        .all(|p| p.ty.has_unbound_var())
-                    && subr.default_params.iter().all(|p| p.ty.is_cachable())
+                        .all(|pt| pt.typ().has_unbound_var())
+                    && subr
+                        .var_params
+                        .as_ref()
+                        .map(|pt| pt.typ().has_unbound_var())
+                        .unwrap_or(false)
+                    && subr.default_params.iter().all(|pt| pt.typ().is_cachable())
                     && subr.return_t.is_cachable()
             }
             Self::Record(r) => r.values().all(|t| t.is_cachable()),
@@ -1909,7 +1988,7 @@ impl Type {
                     fv.crack().has_unbound_var()
                 }
             }
-            Self::Ref(t) | Self::RefMut(t) | Self::VarArgs(t) => t.has_unbound_var(),
+            Self::Ref(t) | Self::RefMut(t) => t.has_unbound_var(),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.has_unbound_var() || rhs.has_unbound_var()
             }
@@ -1921,8 +2000,16 @@ impl Type {
                     || subr
                         .non_default_params
                         .iter()
-                        .any(|p| p.ty.has_unbound_var())
-                    || subr.default_params.iter().any(|p| p.ty.has_unbound_var())
+                        .any(|pt| pt.typ().has_unbound_var())
+                    || subr
+                        .var_params
+                        .as_ref()
+                        .map(|pt| pt.typ().has_unbound_var())
+                        .unwrap_or(false)
+                    || subr
+                        .default_params
+                        .iter()
+                        .any(|pt| pt.typ().has_unbound_var())
                     || subr.return_t.has_unbound_var()
             }
             Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
@@ -1954,6 +2041,7 @@ impl Type {
             Self::Subr(subr) => Some(
                 subr.kind.inner_len()
                     + subr.non_default_params.len()
+                    + subr.var_params.as_ref().map(|_| 1).unwrap_or(0)
                     + subr.default_params.len()
                     + 1,
             ),
@@ -1973,34 +2061,7 @@ impl Type {
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
-            Self::Subr(subr) => {
-                if let Some(self_t) = subr.kind.self_t() {
-                    [
-                        vec![TyParam::t(self_t.clone())],
-                        subr.non_default_params
-                            .iter()
-                            .map(|t| TyParam::t(t.ty.clone()))
-                            .collect(),
-                        subr.default_params
-                            .iter()
-                            .map(|t| TyParam::t(t.ty.clone()))
-                            .collect(),
-                    ]
-                    .concat()
-                } else {
-                    [
-                        subr.non_default_params
-                            .iter()
-                            .map(|t| TyParam::t(t.ty.clone()))
-                            .collect::<Vec<_>>(),
-                        subr.default_params
-                            .iter()
-                            .map(|t| TyParam::t(t.ty.clone()))
-                            .collect(),
-                    ]
-                    .concat()
-                }
-            }
+            Self::Subr(subr) => subr.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
             Self::PolyClass { params, .. }
             | Self::PolyTrait { params, .. }
@@ -2026,6 +2087,18 @@ impl Type {
             Self::Subr(SubrType {
                 non_default_params, ..
             }) => Some(non_default_params),
+            Self::Callable { param_ts: _, .. } => todo!(),
+            _ => None,
+        }
+    }
+
+    pub const fn var_args(&self) -> Option<&Box<ParamTy>> {
+        match self {
+            Self::FreeVar(_) => panic!("fv"),
+            Self::Subr(SubrType {
+                var_params: var_args,
+                ..
+            }) => var_args.as_ref(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }

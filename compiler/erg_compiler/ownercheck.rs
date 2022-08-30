@@ -7,7 +7,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
-use erg_type::{ArgsOwnership, HasType, Ownership};
+use erg_type::{HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, Tuple, HIR};
@@ -98,43 +98,37 @@ impl OwnershipChecker {
             Expr::Accessor(acc) => self.check_acc(acc, ownership),
             // TODO: referenced
             Expr::Call(call) => {
-                let args_ownership = call.signature_t().unwrap().args_ownership();
-                match args_ownership {
-                    ArgsOwnership::Args {
-                        self_,
-                        non_defaults,
-                        defaults,
-                    } => {
-                        if let Some(self_ownership) = self_ {
-                            self.check_expr(&call.obj, self_ownership);
-                        }
-                        let (nd_ownerships, d_ownerships): (Vec<_>, Vec<_>) = non_defaults
-                            .iter()
-                            .enumerate()
-                            .partition(|(i, _)| *i == call.args.pos_args.len());
-                        for (parg, (_, ownership)) in
-                            call.args.pos_args.iter().zip(nd_ownerships.into_iter())
-                        {
-                            self.check_expr(&parg.expr, *ownership);
-                        }
-                        for (kwarg, (_, ownership)) in call
-                            .args
-                            .kw_args
-                            .iter()
-                            .zip(d_ownerships.into_iter().chain(defaults.iter().enumerate()))
-                        {
-                            self.check_expr(&kwarg.expr, *ownership);
-                        }
+                let args_owns = call.signature_t().unwrap().args_ownership();
+                if let Some(ownership) = args_owns.self_ {
+                    self.check_expr(&call.obj, ownership);
+                }
+                let (non_default_args, var_args) =
+                    call.args.pos_args.split_at(args_owns.non_defaults.len());
+                for (nd_arg, ownership) in
+                    non_default_args.iter().zip(args_owns.non_defaults.iter())
+                {
+                    self.check_expr(&nd_arg.expr, *ownership);
+                }
+                if let Some(ownership) = args_owns.var_params.as_ref() {
+                    for var_arg in var_args.iter() {
+                        self.check_expr(&var_arg.expr, *ownership);
                     }
-                    ArgsOwnership::VarArgs(ownership) => {
-                        for parg in call.args.pos_args.iter() {
-                            self.check_expr(&parg.expr, ownership);
-                        }
-                        for kwarg in call.args.kw_args.iter() {
-                            self.check_expr(&kwarg.expr, ownership);
-                        }
+                } else {
+                    let kw_args = var_args;
+                    for (arg, (_, ownership)) in kw_args.iter().zip(args_owns.defaults.iter()) {
+                        self.check_expr(&arg.expr, *ownership);
                     }
-                    other => todo!("{other:?}"),
+                }
+                for kw_arg in call.args.kw_args.iter() {
+                    if let Some((_, ownership)) = args_owns
+                        .defaults
+                        .iter()
+                        .find(|(k, _)| k == kw_arg.keyword.inspect())
+                    {
+                        self.check_expr(&kw_arg.expr, *ownership);
+                    } else {
+                        todo!()
+                    }
                 }
             }
             // TODO: referenced
