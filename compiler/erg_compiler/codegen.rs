@@ -196,8 +196,13 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Array!", _, "push!") => Str::ever("append"),
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
+        ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
+        ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),
         ("Module", Some("random"), "choice!") => Str::ever("choice"),
+        ("Module", Some("sys"), "setrecurtionlimit!") => Str::ever("setrecurtionlimit"),
+        ("Module", Some("time"), "sleep!") => Str::ever("sleep"),
+        ("Module", Some("time"), "time!") => Str::ever("time"),
         _ => name,
     }
 }

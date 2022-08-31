@@ -30,3 +30,8 @@ A: `Never` is an "impossible" type. A subroutine that produces a runtime error h
 
 `!` is not a marker for the product of a side-effect, but for an object that can cause a side-effect.
 Procedure `p!` and mutable type `T!` can cause side effects, but if the return value of `p!()`, for example, is of type `Int`, it itself no longer causes side effects.
+
+## When I try to use the Python API, I get a type error in Erg for code that was valid in Python. What does this mean?
+
+A: The Erg API is typed as closely as possible to the Python API specification, but there are some cases that cannot be fully expressed.
+Also, input that is valid according to the specification but deemed undesirable (for example, inputting a float when an int should be inputted) may be treated as a type error at the discretion of the Erg development team.

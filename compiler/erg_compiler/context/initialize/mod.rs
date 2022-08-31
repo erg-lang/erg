@@ -1,8 +1,13 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
+pub mod importlib;
+pub mod io;
 pub mod math;
 pub mod random;
+pub mod socket;
+pub mod sys;
+pub mod time;
 
 use erg_common::set;
 use erg_common::vis::Visibility;
@@ -545,6 +550,18 @@ impl Context {
                 None,
                 vec![],
                 Str,
+            ),
+            Immutable,
+            Public,
+        );
+        str_.register_impl(
+            "encode",
+            fn_met(
+                Str,
+                vec![],
+                None,
+                vec![param_t("encoding", Str), param_t("errors", Str)],
+                class("Bytes"),
             ),
             Immutable,
             Public,

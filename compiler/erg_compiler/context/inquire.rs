@@ -297,7 +297,7 @@ impl Context {
                     obj.__name__().unwrap_or("?"),
                     obj.ref_t(),
                     method_name.inspect(),
-                    self.get_similar_attr(obj.ref_t(), method_name.inspect()),
+                    self.get_similar_attr_from_singular(obj, method_name.inspect()),
                 ));
             }
             // TODO: patch
@@ -812,6 +812,19 @@ impl Context {
         } else {
             Some(most_similar_name)
         }
+    }
+
+    pub(crate) fn get_similar_attr_from_singular<'a>(
+        &'a self,
+        obj: &hir::Expr,
+        name: &str,
+    ) -> Option<&'a Str> {
+        if let Some(ctx) = self.rec_get_singular_ctx(obj) {
+            if let Some(name) = ctx.get_similar_name(name) {
+                return Some(name);
+            }
+        }
+        None
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
