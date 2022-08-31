@@ -14,7 +14,7 @@ print! john # <Person object>
 print! classof(john) # Person
 ```
 
-`Class`に与えられる型を要件型(この場合は`{.name = Str; .age = Nat}`)といいます。
+`Class`に与えられる型(通常はレコード)を要件型(この場合は`{.name = Str; .age = Nat}`)といいます。
 インスタンスは`クラス名::__new__ {属性名 = 値; ...}`で生成できます。
 `{.name = "John Smith"; .age = 25}`は単なるレコードですが、`Person.new`を通すことで`Person`インスタンスに変換されるわけです。
 このようなインスタンスを生成するサブルーチンはコンストラクタと呼ばれます。
