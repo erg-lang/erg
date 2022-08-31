@@ -284,6 +284,22 @@ impl Context {
                     return Ok(vi.t());
                 }
             }
+            if let Some(ctx) = self.rec_get_singular_ctx(obj) {
+                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
+                    return Ok(vi.t());
+                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
+                    return Ok(vi.t());
+                }
+                return Err(TyCheckError::singular_no_attr_error(
+                    line!() as usize,
+                    method_name.loc(),
+                    namespace.clone(),
+                    obj.__name__().unwrap_or("?"),
+                    obj.ref_t(),
+                    method_name.inspect(),
+                    self.get_similar_attr(obj.ref_t(), method_name.inspect()),
+                ));
+            }
             // TODO: patch
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
@@ -990,6 +1006,15 @@ impl Context {
             outer.rec_get_nominal_type_ctx(typ)
         } else {
             None
+        }
+    }
+
+    fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
+        match obj.ref_t() {
+            Type::Module => self.rec_get_mod(obj.__name__()?),
+            Type::Class => todo!(),
+            Type::Trait => todo!(),
+            _ => None,
         }
     }
 
