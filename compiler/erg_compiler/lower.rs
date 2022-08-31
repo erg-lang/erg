@@ -4,8 +4,7 @@
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{enum_unwrap, get_hash};
-use erg_common::{fn_name, log, switch_lang, Str};
+use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
@@ -33,7 +32,7 @@ pub struct ASTLowerer {
 impl ASTLowerer {
     pub fn new() -> Self {
         Self {
-            ctx: Context::new_root_module(),
+            ctx: Context::new_main_module(),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
@@ -316,7 +315,7 @@ impl ASTLowerer {
     }
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!(info "entered {}({}(...))", fn_name!(), call.obj);
+        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(pre ".", call.method_name));
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
@@ -337,6 +336,8 @@ impl ASTLowerer {
             &hir_args.kw_args,
             &self.ctx.name,
         )?;
+        log!(err "{}", obj);
+        log!(err "{:?}", call.method_name);
         Ok(hir::Call::new(obj, call.method_name, hir_args, t))
     }
 

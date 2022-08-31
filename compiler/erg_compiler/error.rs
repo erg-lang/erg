@@ -442,6 +442,42 @@ impl TyCheckError {
         )
     }
 
+    pub fn singular_no_attr_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        obj_name: &str,
+        obj_t: &Type,
+        name: &str,
+        similar_name: Option<&Str>,
+    ) -> Self {
+        let hint = similar_name.map(|n| {
+            let n = readable_name(n);
+            switch_lang!(
+                "japanese" => format!("似た名前の属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
+                "english" => format!("has a similar name attribute: {n}"),
+            )
+            .into()
+        });
+        Self::new(
+            ErrorCore::new(
+                errno,
+                AttributeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{obj_name}(: {obj_t})に{RED}{name}{RESET}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{RED}{name}{RESET}"),
+                    "traditional_chinese" => format!("{obj_name}(: {obj_t})沒有屬性{RED}{name}{RESET}"),
+                    "english" => format!("{obj_name}(: {obj_t}) has no attribute {RED}{name}{RESET}"),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
+
     pub fn callable_impl_error<'a, C: Locational + Display>(
         errno: usize,
         callee: &C,

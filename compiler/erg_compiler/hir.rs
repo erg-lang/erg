@@ -6,7 +6,7 @@ use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
-    enum_unwrap, impl_display_for_enum, impl_display_from_nested, impl_locational,
+    enum_unwrap, fmt_option, impl_display_for_enum, impl_display_from_nested, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_stream_for_wrapper,
 };
@@ -883,7 +883,13 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "({})(: {}):", self.obj, self.sig_t)?;
+        writeln!(
+            f,
+            "({}){}(: {}):",
+            self.obj,
+            fmt_option!(pre ".", self.method_name),
+            self.sig_t
+        )?;
         self.args.fmt_nest(f, level + 1)
     }
 }

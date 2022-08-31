@@ -26,7 +26,8 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::eval::eval_lit;
 use crate::hir::{
-    Accessor, Args, Array, Block, DefBody, Expr, Signature, SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, Block, Call, DefBody, Expr, Local, Signature, SubrSignature, Tuple,
+    VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -898,14 +899,28 @@ impl CodeGenerator {
         Ok(pop_jump_points)
     }
 
-    fn emit_call_special(&mut self, name: VarName, mut args: Args) -> CompileResult<()> {
-        match &name.inspect()[..] {
+    fn emit_call(&mut self, call: Call) {
+        if let Some(method_name) = call.method_name {
+            self.emit_call_method(*call.obj, method_name, call.args);
+        } else {
+            match *call.obj {
+                Expr::Accessor(Accessor::Local(local)) => {
+                    self.emit_call_local(local, call.args).unwrap()
+                }
+                other => todo!("calling {other}"),
+            }
+        }
+    }
+
+    fn emit_call_local(&mut self, local: Local, mut args: Args) -> CompileResult<()> {
+        match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             _ => {
+                let name = VarName::new(local.name);
                 let ident = Identifier::new(None, name);
                 self.emit_load_name_instr(ident).unwrap_or_else(|e| {
                     self.errs.push(e);
@@ -936,20 +951,18 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_call(&mut self, obj: Expr, method_name: Option<Token>, mut args: Args) {
+    fn emit_call_method(&mut self, obj: Expr, method_name: Token, mut args: Args) {
         let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
         self.codegen_expr(obj);
-        if let Some(method_name) = method_name {
-            self.emit_load_method_instr(
-                &class,
-                uniq_obj_name.as_ref().map(|s| &s[..]),
-                method_name.content,
-            )
-            .unwrap_or_else(|err| {
-                self.errs.push(err);
-            });
-        }
+        self.emit_load_method_instr(
+            &class,
+            uniq_obj_name.as_ref().map(|s| &s[..]),
+            method_name.content,
+        )
+        .unwrap_or_else(|err| {
+            self.errs.push(err);
+        });
         let argc = args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
         while let Some(arg) = args.try_remove_pos(0) {
@@ -1135,15 +1148,7 @@ impl CodeGenerator {
                     _ => {}
                 }
             }
-            Expr::Call(call) => match *call.obj {
-                Expr::Accessor(Accessor::Local(local)) => {
-                    let name = VarName::new(local.name);
-                    self.emit_call_special(name, call.args).unwrap();
-                }
-                obj => {
-                    self.emit_call(obj, call.method_name, call.args);
-                }
-            },
+            Expr::Call(call) => self.emit_call(call),
             // TODO: list comprehension
             Expr::Array(arr) => match arr {
                 Array::Normal(mut arr) => {

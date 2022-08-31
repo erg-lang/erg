@@ -1,6 +1,9 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
+pub mod math;
+pub mod random;
+
 use erg_common::set;
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -1272,49 +1275,6 @@ impl Context {
         // ord.register_impl("__ge__", op_t,         Const, Public);
     }
 
-    pub(crate) fn init_py_math_mod() -> Self {
-        let mut math = Context::module("math".into(), 10);
-        math.register_impl("pi", Float, Immutable, Public);
-        math.register_impl("tau", Float, Immutable, Public);
-        math.register_impl("e", Float, Immutable, Public);
-        math.register_impl("sin", func1(Float, Float), Immutable, Public);
-        math.register_impl("cos", func1(Float, Float), Immutable, Public);
-        math.register_impl("tan", func1(Float, Float), Immutable, Public);
-        math
-    }
-
-    pub(crate) fn init_py_random_mod() -> Self {
-        let mut random = Context::module("random".into(), 10);
-        random.register_impl(
-            "seed!",
-            proc(
-                vec![],
-                None,
-                vec![
-                    param_t("a", trait_("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
-                    param_t("version", Int),
-                ],
-                NoneType,
-            ),
-            Immutable,
-            Public,
-        );
-        random.register_impl(
-            "randint!",
-            nd_proc(vec![param_t("a", Int), param_t("b", Int)], None, Int),
-            Immutable,
-            Public,
-        );
-        let t = nd_proc(
-            vec![param_t("seq", poly_trait("Seq", vec![ty_tp(mono_q("T"))]))],
-            None,
-            mono_q("T"),
-        );
-        let t = quant(t, set! {static_instance("T", Type)});
-        random.register_impl("choice!", t, Immutable, Public);
-        random
-    }
-
     pub(crate) fn init_builtins() -> Self {
         // TODO: capacityを正確に把握する
         let mut ctx = Context::module("<builtins>".into(), 40);
@@ -1327,7 +1287,7 @@ impl Context {
         ctx
     }
 
-    pub fn new_root_module() -> Self {
+    pub fn new_main_module() -> Self {
         Context::new(
             "<module>".into(),
             ContextKind::Module,

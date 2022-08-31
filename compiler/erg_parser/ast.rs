@@ -798,7 +798,9 @@ pub struct Call {
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         write!(f, "({})", self.obj)?;
-        write!(f, "{}", fmt_option!(pre ".", self.method_name))?;
+        if let Some(method_name) = self.method_name.as_ref() {
+            write!(f, ".{}", method_name.content)?;
+        }
         writeln!(f, ":")?;
         self.args.fmt_nest(f, level + 1)
     }
