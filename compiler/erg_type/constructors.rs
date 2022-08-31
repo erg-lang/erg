@@ -141,6 +141,10 @@ pub fn func(
     ))
 }
 
+pub fn func0(return_t: Type) -> Type {
+    func(vec![], None, vec![], return_t)
+}
+
 pub fn func1(param_t: Type, return_t: Type) -> Type {
     func(vec![ParamTy::anonymous(param_t)], None, vec![], return_t)
 }
@@ -182,6 +186,10 @@ pub fn proc(
         default_params,
         return_t,
     ))
+}
+
+pub fn proc0(return_t: Type) -> Type {
+    proc(vec![], None, vec![], return_t)
 }
 
 pub fn proc1(param_t: Type, return_t: Type) -> Type {

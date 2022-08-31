@@ -359,12 +359,29 @@ impl Context {
                 if self.rec_subtype_of(&lit.value.class(), &Str) {
                     let name = enum_unwrap!(lit.value.clone(), ValueObj::Str);
                     match &name[..] {
+                        "importlib" => {
+                            self.mods
+                                .insert(var_name.clone(), Self::init_py_importlib_mod());
+                        }
+                        "io" => {
+                            self.mods.insert(var_name.clone(), Self::init_py_io_mod());
+                        }
                         "math" => {
                             self.mods.insert(var_name.clone(), Self::init_py_math_mod());
                         }
                         "random" => {
                             self.mods
                                 .insert(var_name.clone(), Self::init_py_random_mod());
+                        }
+                        "socket" => {
+                            self.mods
+                                .insert(var_name.clone(), Self::init_py_socket_mod());
+                        }
+                        "sys" => {
+                            self.mods.insert(var_name.clone(), Self::init_py_sys_mod());
+                        }
+                        "time" => {
+                            self.mods.insert(var_name.clone(), Self::init_py_time_mod());
                         }
                         other => todo!("importing {other}"),
                     }
