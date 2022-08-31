@@ -1011,7 +1011,8 @@ impl Context {
 
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
         match obj.ref_t() {
-            Type::Module => self.rec_get_mod(obj.__name__()?),
+            // TODO: attr
+            Type::Module => self.rec_get_mod(&obj.var_full_name()?),
             Type::Class => todo!(),
             Type::Trait => todo!(),
             _ => None,
