@@ -33,7 +33,7 @@ pub struct ASTLowerer {
 impl ASTLowerer {
     pub fn new() -> Self {
         Self {
-            ctx: Context::new_root_module(),
+            ctx: Context::new_main_module(),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
