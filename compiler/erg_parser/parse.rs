@@ -50,13 +50,6 @@ enum PosOrKwArg {
     Kw(KwArg),
 }
 
-pub enum Side {
-    LhsAssign,
-    LhsLambda,
-    Do,
-    Rhs,
-}
-
 pub enum ArrayInner {
     Normal(Args),
     WithLength(PosArg, Expr),
@@ -132,141 +125,8 @@ impl Parser {
         self.nth(idx).map(|t| t.is(kind)).unwrap_or(false)
     }
 
-    fn nth_category(&self, idx: usize) -> Option<TokenCategory> {
-        self.nth(idx).map(|t| t.category())
-    }
-
-    /// `+1`: true
-    /// `+ 1`: false
-    /// `F()`: true
-    /// `F ()`: false
-    fn cur_is_in_contact_with_next(&self) -> bool {
-        let cur_loc = self.peek().unwrap().ln_end().unwrap();
-        let next_loc = self.nth(1).unwrap().ln_end().unwrap();
-        cur_loc + 1 == next_loc
-    }
-
-    /// returns if the current position is a left-hand side value.
-    ///
-    /// ```
-    /// f(x: Int) = { y = x+1; z = [v: Int, w: Int] -> w + x }
-    /// LhsAssign |      Rhs       |   LhsLambda    |   Rhs
-    /// ```
-    /// `(Rhs) ; (LhsAssign) =`
-    /// `(Rhs) ; (LhsLambda) ->`
-    /// `(Rhs) , (LhsLambda) ->`
-    /// `(Rhs) (LhsLambda) -> (Rhs);`
-    fn cur_side(&self) -> Side {
-        match self.peek() {
-            Some(t) => {
-                let name = &t.inspect()[..];
-                if name == "do" || name == "do!" {
-                    return Side::Do;
-                }
-            }
-            _ => {}
-        }
-        // 以降に=, ->などがないならすべて右辺値
-        let opt_equal_pos = self.tokens.iter().skip(1).position(|t| t.is(Equal));
-        let opt_arrow_pos = self
-            .tokens
-            .iter()
-            .skip(1)
-            .position(|t| t.category_is(TC::LambdaOp));
-        let opt_sep_pos = self
-            .tokens
-            .iter()
-            .skip(1)
-            .position(|t| t.category_is(TC::Separator));
-        match (opt_equal_pos, opt_arrow_pos, opt_sep_pos) {
-            (Some(equal), Some(arrow), Some(sep)) => {
-                let min = [equal, arrow, sep].into_iter().min().unwrap();
-                if min == sep {
-                    Side::Rhs
-                } else if min == equal {
-                    Side::LhsAssign
-                } else {
-                    // (cur) -> ... = ... ;
-                    if equal < sep {
-                        Side::LhsAssign
-                    }
-                    // (cur) -> ... ; ... =
-                    else if self.arrow_distance(0, 0) == 1 {
-                        Side::LhsLambda
-                    } else {
-                        Side::Rhs
-                    }
-                }
-            }
-            // (cur) = ... -> ...
-            // (cur) -> ... = ...
-            (Some(_eq), Some(_arrow), None) => Side::LhsAssign,
-            // (cur) = ... ;
-            // (cur) ; ... =
-            (Some(equal), None, Some(sep)) => {
-                if equal < sep {
-                    Side::LhsAssign
-                } else {
-                    Side::Rhs
-                }
-            }
-            (None, Some(arrow), Some(sep)) => {
-                // (cur) -> ... ;
-                if arrow < sep {
-                    if self.arrow_distance(0, 0) == 1 {
-                        Side::LhsLambda
-                    } else {
-                        Side::Rhs
-                    }
-                }
-                // (cur) ; ... ->
-                else {
-                    Side::Rhs
-                }
-            }
-            (Some(_eq), None, None) => Side::LhsAssign,
-            (None, Some(_arrow), None) => {
-                if self.arrow_distance(0, 0) == 1 {
-                    Side::LhsLambda
-                } else {
-                    Side::Rhs
-                }
-            }
-            (None, None, Some(_)) | (None, None, None) => Side::Rhs,
-        }
-    }
-
-    /// `->`: 0
-    /// `i ->`: 1
-    /// `i: Int ->`: 1
-    /// `a: Array(Int) ->`: 1
-    /// `(i, j) ->`: 1
-    /// `F () ->`: 2
-    /// `F() ->`: 1
-    /// `if True, () ->`: 3
-    fn arrow_distance(&self, cur: usize, enc_nest_level: usize) -> usize {
-        match self.nth_category(cur).unwrap() {
-            TC::LambdaOp => 0,
-            TC::LEnclosure => {
-                if self.nth_category(cur + 1).unwrap() == TC::REnclosure {
-                    1 + self.arrow_distance(cur + 2, enc_nest_level)
-                } else {
-                    self.arrow_distance(cur + 1, enc_nest_level + 1)
-                }
-            }
-            TC::REnclosure => self.arrow_distance(cur + 1, enc_nest_level - 1),
-            _ => match self.nth_category(cur + 1).unwrap() {
-                TC::SpecialBinOp => self.arrow_distance(cur + 1, enc_nest_level),
-                TC::LEnclosure if self.cur_is_in_contact_with_next() => {
-                    self.arrow_distance(cur + 2, enc_nest_level + 1)
-                }
-                _ if enc_nest_level == 0 => 1 + self.arrow_distance(cur + 1, enc_nest_level),
-                _ => self.arrow_distance(cur + 1, enc_nest_level),
-            },
-        }
-    }
-
     /// 解析を諦めて次の解析できる要素に移行する
+    /// give up parsing and move to the next element that can be parsed
     fn next_expr(&mut self) {
         while let Some(t) = self.peek() {
             match t.category() {
@@ -1080,6 +940,10 @@ impl Parser {
                     return Err(());
                 }
             }
+            Some(t) if t.is(LBrace) => {
+                // let elems = self.try_reduce_record_pattern().map_err(|_| self.stack_dec())?;
+                todo!("record pattern")
+            }
             Some(t) if t.is(LParen) => {
                 self.skip();
                 let pat = self
@@ -1694,6 +1558,37 @@ impl Parser {
         Ok(Lambda::new(sig, op, body, self.counter))
     }
 
+    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<MethodDefs> {
+        debug_call_info!(self);
+        if self.cur_is(Indent) {
+            self.skip();
+        } else {
+            todo!()
+        }
+        let first = self.try_reduce_def().map_err(|_| self.stack_dec())?;
+        let mut defs = vec![first];
+        loop {
+            match self.peek() {
+                Some(t) if t.category_is(TC::Separator) => {
+                    self.skip();
+                    if self.cur_is(Dedent) {
+                        self.skip();
+                        break;
+                    }
+                    let def = self.try_reduce_def().map_err(|_| self.stack_dec())?;
+                    defs.push(def);
+                }
+                _ => todo!(),
+            }
+        }
+        let defs = RecordAttrs::from(defs);
+        let class = self
+            .convert_rhs_to_type_spec(class)
+            .map_err(|_| self.stack_dec())?;
+        self.level -= 1;
+        Ok(MethodDefs::new(class, vis, defs))
+    }
+
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {
         debug_call_info!(self);
         let do_symbol = self.lpop();
@@ -1721,142 +1616,167 @@ impl Parser {
     fn try_reduce_expr(&mut self, winding: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
-        match self.cur_side() {
-            Side::LhsAssign => {
-                let def = self.try_reduce_def().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(Expr::Def(def))
-            }
-            Side::LhsLambda => {
-                let lambda = self.try_reduce_lambda().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(Expr::Lambda(lambda))
-            }
-            Side::Do => {
-                let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(Expr::Lambda(lambda))
-            }
-            Side::Rhs => {
-                stack.push(ExprOrOp::Expr(
-                    self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
-                ));
-                loop {
-                    match self.peek() {
-                        Some(op) if op.category_is(TC::BinOp) => {
-                            let op_prec = op.kind.precedence();
-                            if stack.len() >= 2 {
-                                while let Some(ExprOrOp::Op(prev_op)) = stack.get(stack.len() - 2) {
-                                    if prev_op.category_is(TC::BinOp)
-                                        && prev_op.kind.precedence() >= op_prec
-                                    {
-                                        let rhs =
-                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                        let prev_op =
-                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                                        let lhs =
-                                            enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                        let bin = BinOp::new(prev_op, lhs, rhs);
-                                        stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
-                                    } else {
-                                        break;
-                                    }
-                                    if stack.len() <= 1 {
-                                        break;
-                                    }
-                                }
+        stack.push(ExprOrOp::Expr(
+            self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+        ));
+        loop {
+            match self.peek() {
+                Some(op) if op.category_is(TC::DefOp) => {
+                    let op = self.lpop();
+                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let sig = self.convert_rhs_to_sig(lhs).map_err(|_| self.stack_dec())?;
+                    self.counter.inc();
+                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let body = DefBody::new(op, block, self.counter);
+                    stack.push(ExprOrOp::Expr(Expr::Def(Def::new(sig, body))));
+                }
+                Some(op) if op.category_is(TC::LambdaOp) => {
+                    let op = self.lpop();
+                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let sig = self
+                        .convert_rhs_to_lambda_sig(lhs)
+                        .map_err(|_| self.stack_dec())?;
+                    self.counter.inc();
+                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
+                        sig,
+                        op,
+                        block,
+                        self.counter,
+                    ))));
+                }
+                Some(op) if op.category_is(TC::BinOp) => {
+                    let op_prec = op.kind.precedence();
+                    if stack.len() >= 2 {
+                        while let Some(ExprOrOp::Op(prev_op)) = stack.get(stack.len() - 2) {
+                            if prev_op.category_is(TC::BinOp)
+                                && prev_op.kind.precedence() >= op_prec
+                            {
+                                let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                let prev_op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                                let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                let bin = BinOp::new(prev_op, lhs, rhs);
+                                stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            } else {
+                                break;
                             }
-                            stack.push(ExprOrOp::Op(self.lpop()));
-                            stack.push(ExprOrOp::Expr(
-                                self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
-                            ));
-                        }
-                        Some(t) if t.category_is(TC::DefOp) => {
-                            switch_unreachable!()
-                        }
-                        Some(t) if t.is(Dot) => {
-                            self.skip();
-                            match self.lpop() {
-                                symbol if symbol.is(Symbol) => {
-                                    let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
-                                        expr
-                                    } else {
-                                        self.level -= 1;
-                                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                                        self.errs.push(err);
-                                        return Err(());
-                                    };
-                                    if let Some(args) = self
-                                        .opt_reduce_args()
-                                        .transpose()
-                                        .map_err(|_| self.stack_dec())?
-                                    {
-                                        let call = Call::new(obj, Some(symbol), args);
-                                        stack.push(ExprOrOp::Expr(Expr::Call(call)));
-                                    } else {
-                                        let acc = Accessor::attr(obj, Local::new(symbol));
-                                        stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
-                                    }
-                                }
-                                other => {
-                                    self.restore(other);
-                                    self.level -= 1;
-                                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                                    self.errs.push(err);
-                                    return Err(());
-                                }
-                            }
-                        }
-                        Some(t) if t.is(Comma) && winding => {
-                            let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let tup = self
-                                .try_reduce_tuple(first_elem)
-                                .map_err(|_| self.stack_dec())?;
-                            self.level -= 1;
-                            return Ok(Expr::Tuple(tup));
-                        }
-                        _ => {
                             if stack.len() <= 1 {
                                 break;
                             }
-                            // else if stack.len() == 2 { switch_unreachable!() }
-                            else {
-                                while stack.len() >= 3 {
-                                    let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                    let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                    let bin = BinOp::new(op, lhs, rhs);
-                                    stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
-                                }
-                            }
+                        }
+                    }
+                    stack.push(ExprOrOp::Op(self.lpop()));
+                    stack.push(ExprOrOp::Expr(
+                        self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+                    ));
+                }
+                Some(t) if t.is(DblColon) => {
+                    let dbl_colon = self.lpop();
+                    match self.lpop() {
+                        line_break if line_break.is(Newline) => {
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let defs = self
+                                .try_reduce_method_defs(maybe_class, dbl_colon)
+                                .map_err(|_| self.stack_dec())?;
+                            return Ok(Expr::MethodDefs(defs));
+                        }
+                        other => {
+                            self.restore(other);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
                         }
                     }
                 }
-                match stack.pop() {
-                    Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
-                        self.level -= 1;
-                        Ok(expr)
+                Some(t) if t.is(Dot) => {
+                    let dot = self.lpop();
+                    match self.lpop() {
+                        symbol if symbol.is(Symbol) => {
+                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
+                                expr
+                            } else {
+                                self.level -= 1;
+                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                self.errs.push(err);
+                                return Err(());
+                            };
+                            if let Some(args) = self
+                                .opt_reduce_args()
+                                .transpose()
+                                .map_err(|_| self.stack_dec())?
+                            {
+                                let call = Call::new(obj, Some(symbol), args);
+                                stack.push(ExprOrOp::Expr(Expr::Call(call)));
+                            } else {
+                                let acc = Accessor::attr(obj, Local::new(symbol));
+                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                            }
+                        }
+                        line_break if line_break.is(Newline) => {
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let defs = self
+                                .try_reduce_method_defs(maybe_class, dot)
+                                .map_err(|_| self.stack_dec())?;
+                            return Ok(Expr::MethodDefs(defs));
+                        }
+                        other => {
+                            self.restore(other);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
                     }
-                    Some(ExprOrOp::Expr(expr)) => {
-                        let extra = stack.pop().unwrap();
-                        let loc = match extra {
-                            ExprOrOp::Expr(expr) => expr.loc(),
-                            ExprOrOp::Op(op) => op.loc(),
-                        };
-                        self.warns
-                            .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-                        self.level -= 1;
-                        Ok(expr)
+                }
+                Some(t) if t.is(Comma) && winding => {
+                    let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let tup = self
+                        .try_reduce_tuple(first_elem)
+                        .map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    return Ok(Expr::Tuple(tup));
+                }
+                _ => {
+                    if stack.len() <= 1 {
+                        break;
                     }
-                    Some(ExprOrOp::Op(op)) => {
-                        self.level -= 1;
-                        self.errs
-                            .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
-                        Err(())
+                    // else if stack.len() == 2 { switch_unreachable!() }
+                    else {
+                        while stack.len() >= 3 {
+                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let bin = BinOp::new(op, lhs, rhs);
+                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                        }
                     }
-                    _ => switch_unreachable!(),
                 }
             }
+        }
+        match stack.pop() {
+            Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
+                self.level -= 1;
+                Ok(expr)
+            }
+            Some(ExprOrOp::Expr(expr)) => {
+                let extra = stack.pop().unwrap();
+                let loc = match extra {
+                    ExprOrOp::Expr(expr) => expr.loc(),
+                    ExprOrOp::Op(op) => op.loc(),
+                };
+                self.warns
+                    .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
+                self.level -= 1;
+                Ok(expr)
+            }
+            Some(ExprOrOp::Op(op)) => {
+                self.level -= 1;
+                self.errs
+                    .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                Err(())
+            }
+            _ => switch_unreachable!(),
         }
     }
 
@@ -2040,7 +1960,7 @@ impl Parser {
                 self.level -= 1;
                 Ok(BraceContainer::Record(record))
             }
-            Expr::Decl(_) => todo!(), // invalid syntax
+            Expr::TypeAsc(_) => todo!(), // invalid syntax
             other => {
                 let set = self
                     .try_reduce_set(l_brace, other)
@@ -2173,5 +2093,223 @@ impl Parser {
                 Err(())
             }
         }
+    }
+
+    /// Call: F(x) -> SubrSignature: F(x)
+    fn convert_rhs_to_sig(&mut self, rhs: Expr) -> ParseResult<Signature> {
+        debug_call_info!(self);
+        match rhs {
+            Expr::Accessor(accessor) => {
+                let var = self
+                    .convert_accessor_to_var_sig(accessor)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
+            Expr::Call(call) => {
+                let subr = self
+                    .convert_call_to_subr_sig(call)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Signature::Subr(subr))
+            }
+            Expr::Array(array) => {
+                let array_pat = self
+                    .convert_array_to_array_pat(array)
+                    .map_err(|_| self.stack_dec())?;
+                let var = VarSignature::new(VarPattern::Array(array_pat), None);
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
+            Expr::Record(record) => {
+                let record_pat = self
+                    .convert_record_to_record_pat(record)
+                    .map_err(|_| self.stack_dec())?;
+                let var = VarSignature::new(VarPattern::Record(record_pat), None);
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
+            Expr::Tuple(tuple) => {
+                let tuple_pat = self
+                    .convert_tuple_to_tuple_pat(tuple)
+                    .map_err(|_| self.stack_dec())?;
+                let var = VarSignature::new(VarPattern::Tuple(tuple_pat), None);
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
+            Expr::TypeAsc(tasc) => {
+                let sig = self
+                    .convert_type_asc_to_sig(tasc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(sig)
+            }
+            _ => todo!(), // Error
+        }
+    }
+
+    fn convert_call_to_subr_sig(&mut self, _call: Call) -> ParseResult<SubrSignature> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_accessor_to_var_sig(&mut self, _accessor: Accessor) -> ParseResult<VarSignature> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_array_to_array_pat(&mut self, _array: Array) -> ParseResult<VarArrayPattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_record_to_record_pat(&mut self, _record: Record) -> ParseResult<VarRecordPattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_tuple_to_tuple_pat(&mut self, _tuple: Tuple) -> ParseResult<VarTuplePattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_type_asc_to_sig(&mut self, _tasc: TypeAscription) -> ParseResult<Signature> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
+        debug_call_info!(self);
+        match rhs {
+            Expr::Accessor(accessor) => {
+                let param = self
+                    .convert_accessor_to_param_sig(accessor)
+                    .map_err(|_| self.stack_dec())?;
+                let params = Params::new(vec![param], None, vec![], None);
+                self.level -= 1;
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
+            Expr::Tuple(tuple) => {
+                let params = self
+                    .convert_tuple_to_params(tuple)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
+            Expr::Array(array) => {
+                let arr = self
+                    .convert_array_to_param_pat(array)
+                    .map_err(|_| self.stack_dec())?;
+                let param = ParamSignature::new(ParamPattern::Array(arr), None, None);
+                let params = Params::new(vec![param], None, vec![], None);
+                self.level -= 1;
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
+            Expr::Record(record) => {
+                let rec = self
+                    .convert_record_to_param_pat(record)
+                    .map_err(|_| self.stack_dec())?;
+                let param = ParamSignature::new(ParamPattern::Record(rec), None, None);
+                let params = Params::new(vec![param], None, vec![], None);
+                self.level -= 1;
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
+            Expr::TypeAsc(tasc) => {
+                let sig = self
+                    .convert_type_asc_to_lambda_sig(tasc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(sig)
+            }
+            _ => todo!(), // Error
+        }
+    }
+
+    fn convert_accessor_to_param_sig(
+        &mut self,
+        _accessor: Accessor,
+    ) -> ParseResult<ParamSignature> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_tuple_to_params(&mut self, _tuple: Tuple) -> ParseResult<Params> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_array_to_param_pat(&mut self, _array: Array) -> ParseResult<ParamArrayPattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_record_to_param_pat(&mut self, _record: Record) -> ParseResult<ParamRecordPattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_type_asc_to_lambda_sig(
+        &mut self,
+        _tasc: TypeAscription,
+    ) -> ParseResult<LambdaSignature> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_rhs_to_type_spec(&mut self, rhs: Expr) -> ParseResult<TypeSpec> {
+        match rhs {
+            Expr::Accessor(acc) => {
+                let predecl = self
+                    .convert_accessor_to_predecl_type_spec(acc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::PreDeclTy(predecl))
+            }
+            Expr::Call(call) => {
+                let predecl = self
+                    .convert_call_to_predecl_type_spec(call)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::PreDeclTy(predecl))
+            }
+            Expr::Lambda(lambda) => {
+                let lambda = self
+                    .convert_lambda_to_subr_type_spec(lambda)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::Subr(lambda))
+            }
+            Expr::Array(array) => {
+                let array = self
+                    .convert_array_to_array_type_spec(array)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::Array(array))
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn convert_accessor_to_predecl_type_spec(
+        &mut self,
+        _accessor: Accessor,
+    ) -> ParseResult<PreDeclTypeSpec> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_call_to_predecl_type_spec(&mut self, _call: Call) -> ParseResult<PreDeclTypeSpec> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_lambda_to_subr_type_spec(&mut self, _lambda: Lambda) -> ParseResult<SubrTypeSpec> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_array_to_array_type_spec(&mut self, _array: Array) -> ParseResult<ArrayTypeSpec> {
+        debug_call_info!(self);
+        todo!()
     }
 }
