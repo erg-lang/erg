@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D8586bf6f02bd04fd5c823b3a476238881ef037de)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=8586bf6f02bd04fd5c823b3a476238881ef037de)
 
 A class in Erg is roughly a type that can create its own elements (instances).
 Here is an example of a simple class.
@@ -21,6 +21,14 @@ Instances can be created with `<Class name>::__new__ {<attribute name> = <value>
 `{.name = "John Smith"; .age = 25}` is just a record, but it is converted to a `Person` instance by passing `Person.new`.
 The subroutine that creates such an instance is called a constructor.
 In the class above, the `.new` method is defined so that field names, etc. can be omitted.
+
+Note that the following definition without line breaks will result in a syntax error.
+
+```erg
+Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
+```
+
+> __Warning__: This is a recently added specification and may not be followed in subsequent documents. If you find it, please report it.
 
 ## Instance and class attributes
 
@@ -99,7 +107,8 @@ You can create an inherited class by using `Inherit`. The type on the left-hand 
 ```erg
 MyStr = Inherit Str
 # other: You can use MyStr if you set ``other: Str''.
-MyStr.`-` self, other: Str = self.replace other, ""
+MyStr.
+    `-` self, other: Str = self.replace other, ""
 
 abc = MyStr.new("abc")
 # Comparison here gets an upcast
@@ -170,11 +179,13 @@ When writing large programs, it is often the case that the structure of an objec
 ```erg
 Dog = {.name = Str; .age = Nat}
 DogImpl = Patch Dog
-DogImpl.bark = log "Yelp!"
+DogImpl.
+    bark = log "Yelp!"
 ...
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
-PersonImpl.greet self = log "Hello, my name is {self.name}."
+PersonImpl.
+    greet self = log "Hello, my name is {self.name}."
 
 john = {.name = "John Smith"; .age = 20}
 john.bark() # "Yelp!"
@@ -262,8 +273,7 @@ assert x1 == x2
 A class is a subtype of a requirement type. methods (including patch methods) of the requirement type can be used in the class.
 
 ```erg
-T = Trait ...
-T.foo: Foo
+T = Trait {.foo = Foo}
 C = Class(... , impl: T)
 C.
     foo = foo
@@ -271,7 +281,7 @@ C.
 assert C < T
 assert C.foo == foo
 assert not T < C
-T.foo # AttributeError
+assert T.foo == Foo
 ```
 
 <p align='center'>
