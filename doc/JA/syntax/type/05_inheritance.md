@@ -5,7 +5,8 @@
 
 ```erg
 NewInt = Inherit Int
-NewInt.plus1 self = self + 1
+NewInt.
+    plus1 self = self + 1
 
 assert NewInt.new(1).plus1() == 2
 assert NewInt.new(1) + NewInt.new(1) == 2
@@ -35,11 +36,12 @@ Ergでは例外的に`Never`型の継承はできない設計となっている�
 
 ```erg
 Number = Class Int or Float or Complex
-Number.abs(self): Float =
-    match self:
-        i: Int -> i.abs().into Float
-        f: Float -> f.abs()
-        c: Complex -> c.abs().into Float
+Number.
+    abs(self): Float =
+        match self:
+            i: Int -> i.abs().into Float
+            f: Float -> f.abs()
+            c: Complex -> c.abs().into Float
 
 # matchの選択肢でc: Complexは現れ得ない
 RealNumber = Inherit Number, Excluding: Complex
