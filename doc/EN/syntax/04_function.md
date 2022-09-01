@@ -170,12 +170,21 @@ f 1 = ...
 f x: Int or Str = ...
 ```
 
-Also, like `match`, it must be exhaustive. For emergency, you can use `fib _ = not_implemented()`.
+Also, like `match`, it must also be exhaustive.
 
 ```erg
 fib 0 = 0
 fib 1 = 1
 # PatternError: pattern of fib's parameter is not exhaustive
+```
+
+However, it can be made exhaustive by explicitly specifying the type using the [refinement type](./type/12_refinement.md) described later.
+
+```erg
+fib: 0..1 -> 0..1
+fib 0 = 0
+fib 1 = 1
+# OK
 ```
 
 ## Recursive functions
