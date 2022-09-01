@@ -57,7 +57,8 @@ Add R = Trait {
     .`_+_` = Self.(R) -> Self.AddO
 }
 ClosedAdd = Subsume Add(Self)
-Sub R, O = Trait {
+Sub R = Trait {
+    .SubO = Type
     .`_-_` = Self.(R) -> O
 }
 ClosedSub = Subsume Sub(Self)
@@ -135,6 +136,45 @@ SafeDiv R, O = Subsume Div, {
     @Override
     .`/` = Self.(R) -> O
 }
+```
+
+## APIの重複するトレイトの実装と解決
+
+実際の`Add`, `Sub`, `Mul`の定義はこのようになっています。
+
+```erg
+Add R = Trait {
+    .Output = Type
+    .`_+_` = Self.(R) -> .Output
+}
+Sub R = Trait {
+    .Output = Type
+    .`_-_` = Self.(R) -> .Output
+}
+Mul R = Trait {
+    .Output = Type
+    .`*` = Self.(R) -> .Output
+}
+```
+
+`.Output`という変数の名前が重複しています。これら複数のトレイトを同時に実装したい場合、以下のように指定します。
+
+```erg
+P = Class {.x = Int; .y = Int}
+# P|Self <: Add(P)|はP|<: Add(P)|に省略可能
+P|Self <: Add(P)|.
+    Output = P
+    `_+_` self, other = P.new {.x = self.x + other.x; .y = self.y + other.y}
+P|Self <: Mul(Int)|.
+    Output = P
+    `*` self, other = P.new {.x = self.x * other; .y = self.y * other}
+```
+
+このようにして実装した重複のあるAPIは、使用時は殆どの場合型推論されますが、`||`で明示的に型指定することで解決もできます。
+
+```erg
+print! P.Output # TypeError: ambiguous type resolution
+print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
 ## Appendix: Rustのトレイトとの違い
