@@ -664,7 +664,11 @@ impl Iterator for Lexer /*<'a>*/ {
                         _ => self.accept(Closed, ".."),
                     }
                 }
-                Some(c) if c.is_ascii_digit() => Some(self.lex_ratio(".".into())),
+                // prev_token is Symbol => TupleAttribute
+                // else: RatioLit (e.g. .0)
+                Some(c) if c.is_ascii_digit() && !self.prev_token.is(Symbol) => {
+                    Some(self.lex_ratio(".".into()))
+                }
                 _ => self.accept(Dot, "."),
             },
             Some(',') => self.accept(Comma, ","),
@@ -672,6 +676,10 @@ impl Iterator for Lexer /*<'a>*/ {
                 Some(':') => {
                     self.consume();
                     self.accept(DblColon, "::")
+                }
+                Some('=') => {
+                    self.consume();
+                    self.accept(Walrus, ":=")
                 }
                 Some('>') => {
                     self.consume();
@@ -693,10 +701,6 @@ impl Iterator for Lexer /*<'a>*/ {
                 Some('|') => {
                     self.consume();
                     self.accept(BitOr, "||")
-                }
-                Some('=') => {
-                    self.consume();
-                    self.accept(OrEqual, "|=")
                 }
                 _ => self.accept(VBar, "|"),
             },

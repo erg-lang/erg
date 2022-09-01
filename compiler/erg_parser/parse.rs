@@ -272,7 +272,7 @@ impl Parser {
                 Some(t) if t.is(Indent) || t.is(Dedent) => {
                     switch_unreachable!()
                 }
-                Some(_) => match self.try_reduce_expr(true) {
+                Some(_) => match self.try_reduce_chunk(true) {
                     Ok(expr) => {
                         chunks.push(expr);
                     }
@@ -290,7 +290,7 @@ impl Parser {
         let mut block = Block::with_capacity(2);
         // single line block
         if !self.cur_is(Newline) {
-            let chunk = self.try_reduce_expr(true).map_err(|_| self.stack_dec())?;
+            let chunk = self.try_reduce_chunk(true).map_err(|_| self.stack_dec())?;
             block.push(chunk);
             self.level -= 1;
             return Ok(block);
@@ -312,7 +312,7 @@ impl Parser {
                     } else if t.is(EOF) {
                         break;
                     }
-                    match self.try_reduce_expr(true) {
+                    match self.try_reduce_chunk(true) {
                         Ok(expr) => {
                             block.push(expr);
                             if self.cur_is(Dedent) {
@@ -454,7 +454,7 @@ impl Parser {
         Ok(acc)
     }
 
-    fn _validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
+    fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Local(local)) => {
@@ -480,12 +480,12 @@ impl Parser {
     }
 
     fn _validate_const_pos_arg(&mut self, arg: PosArg) -> ParseResult<ConstPosArg> {
-        let expr = self._validate_const_expr(arg.expr)?;
+        let expr = self.validate_const_expr(arg.expr)?;
         Ok(ConstPosArg::new(expr))
     }
 
     fn _validate_const_kw_arg(&mut self, arg: KwArg) -> ParseResult<ConstKwArg> {
-        let expr = self._validate_const_expr(arg.expr)?;
+        let expr = self.validate_const_expr(arg.expr)?;
         Ok(ConstKwArg::new(arg.keyword, expr))
     }
 
@@ -599,8 +599,7 @@ impl Parser {
                     || t.category_is(TC::Caret)
                     || t.is(LParen)
                     || t.is(LSqBr)
-                    || t.is(LBrace)
-                    || t.is(Colon) =>
+                    || t.is(LBrace) =>
             {
                 Some(self.try_reduce_args())
             }
@@ -733,28 +732,33 @@ impl Parser {
                     self.level -= 1;
                     return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
                 }
-                if self.nth_is(1, Colon) {
+                if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
-                    debug_power_assert!(self.cur_is(Colon));
-                    if self.nth_is(1, Newline) {
-                        self.level -= 1;
-                        // colon style call
-                        Ok(PosOrKwArg::Pos(PosArg::new(Expr::Accessor(acc))))
+                    // TODO: type specification
+                    debug_power_assert!(self.cur_is(Walrus));
+                    self.skip();
+                    let kw = if let Accessor::Local(n) = acc {
+                        n.symbol
                     } else {
-                        self.skip();
-                        let kw = if let Accessor::Local(n) = acc {
-                            n.symbol
-                        } else {
-                            self.next_expr();
-                            self.level -= 1;
-                            let err = ParseError::simple_syntax_error(0, acc.loc());
-                            self.errs.push(err);
-                            return Err(());
-                        };
-                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                        self.next_expr();
                         self.level -= 1;
-                        Ok(PosOrKwArg::Kw(KwArg::new(kw, expr)))
-                    }
+                        let err = ParseError::simple_syntax_error(0, acc.loc());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    let t_spec = if self.cur_is(Colon) {
+                        self.skip();
+                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                        let t_spec = self
+                            .convert_rhs_to_type_spec(expr)
+                            .map_err(|_| self.stack_dec())?;
+                        Some(t_spec)
+                    } else {
+                        None
+                    };
+                    let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    Ok(PosOrKwArg::Kw(KwArg::new(kw, t_spec, expr)))
                 } else {
                     let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                     self.level -= 1;
@@ -774,9 +778,9 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                if self.nth_is(1, Colon) {
+                if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
-                    debug_power_assert!(self.cur_is(Colon));
+                    debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let keyword = if let Accessor::Local(n) = acc {
                         n.symbol
@@ -787,9 +791,19 @@ impl Parser {
                             .push(ParseError::simple_syntax_error(0, acc.loc()));
                         return Err(());
                     };
+                    let t_spec = if self.cur_is(Colon) {
+                        self.skip();
+                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                        let t_spec = self
+                            .convert_rhs_to_type_spec(expr)
+                            .map_err(|_| self.stack_dec())?;
+                        Some(t_spec)
+                    } else {
+                        None
+                    };
                     let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                     self.level -= 1;
-                    Ok(KwArg::new(keyword, expr))
+                    Ok(KwArg::new(keyword, t_spec, expr))
                 } else {
                     let loc = t.loc();
                     self.level -= 1;
@@ -863,8 +877,7 @@ impl Parser {
         }
     }
 
-    /// winding: true => parse paren-less tuple
-    fn try_reduce_expr(&mut self, winding: bool) -> ParseResult<Expr> {
+    fn try_reduce_chunk(&mut self, winding: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
@@ -895,6 +908,16 @@ impl Parser {
                         block,
                         self.counter,
                     ))));
+                }
+                Some(op) if op.is(Colon) => {
+                    let _op = self.lpop();
+                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let t_spec = self
+                        .convert_rhs_to_type_spec(t_spec)
+                        .map_err(|_| self.stack_dec())?;
+                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, t_spec));
+                    stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
                     let op_prec = op.kind.precedence();
@@ -985,8 +1008,149 @@ impl Parser {
                     let tup = self
                         .try_reduce_tuple(first_elem)
                         .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    return Ok(Expr::Tuple(tup));
+                    stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                _ => {
+                    if stack.len() <= 1 {
+                        break;
+                    }
+                    // else if stack.len() == 2 { switch_unreachable!() }
+                    else {
+                        while stack.len() >= 3 {
+                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let bin = BinOp::new(op, lhs, rhs);
+                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                        }
+                    }
+                }
+            }
+        }
+        match stack.pop() {
+            Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
+                self.level -= 1;
+                Ok(expr)
+            }
+            Some(ExprOrOp::Expr(expr)) => {
+                let extra = stack.pop().unwrap();
+                let loc = match extra {
+                    ExprOrOp::Expr(expr) => expr.loc(),
+                    ExprOrOp::Op(op) => op.loc(),
+                };
+                self.warns
+                    .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
+                self.level -= 1;
+                Ok(expr)
+            }
+            Some(ExprOrOp::Op(op)) => {
+                self.level -= 1;
+                self.errs
+                    .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                Err(())
+            }
+            _ => switch_unreachable!(),
+        }
+    }
+
+    /// winding: true => parse paren-less tuple
+    fn try_reduce_expr(&mut self, winding: bool) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let mut stack = Vec::<ExprOrOp>::new();
+        stack.push(ExprOrOp::Expr(
+            self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+        ));
+        loop {
+            match self.peek() {
+                Some(op) if op.category_is(TC::LambdaOp) => {
+                    let op = self.lpop();
+                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let sig = self
+                        .convert_rhs_to_lambda_sig(lhs)
+                        .map_err(|_| self.stack_dec())?;
+                    self.counter.inc();
+                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
+                        sig,
+                        op,
+                        block,
+                        self.counter,
+                    ))));
+                }
+                Some(op) if op.is(Colon) => {
+                    let _op = self.lpop();
+                    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let t_spec = self
+                        .convert_rhs_to_type_spec(t_spec)
+                        .map_err(|_| self.stack_dec())?;
+                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, t_spec));
+                    stack.push(ExprOrOp::Expr(expr));
+                }
+                Some(op) if op.category_is(TC::BinOp) => {
+                    let op_prec = op.kind.precedence();
+                    if stack.len() >= 2 {
+                        while let Some(ExprOrOp::Op(prev_op)) = stack.get(stack.len() - 2) {
+                            if prev_op.category_is(TC::BinOp)
+                                && prev_op.kind.precedence() >= op_prec
+                            {
+                                let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                let prev_op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                                let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                                let bin = BinOp::new(prev_op, lhs, rhs);
+                                stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            } else {
+                                break;
+                            }
+                            if stack.len() <= 1 {
+                                break;
+                            }
+                        }
+                    }
+                    stack.push(ExprOrOp::Op(self.lpop()));
+                    stack.push(ExprOrOp::Expr(
+                        self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+                    ));
+                }
+                Some(t) if t.is(Dot) => {
+                    self.lpop();
+                    match self.lpop() {
+                        symbol if symbol.is(Symbol) => {
+                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
+                                expr
+                            } else {
+                                self.level -= 1;
+                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                self.errs.push(err);
+                                return Err(());
+                            };
+                            if let Some(args) = self
+                                .opt_reduce_args()
+                                .transpose()
+                                .map_err(|_| self.stack_dec())?
+                            {
+                                let call = Call::new(obj, Some(symbol), args);
+                                stack.push(ExprOrOp::Expr(Expr::Call(call)));
+                            } else {
+                                let acc = Accessor::attr(obj, Local::new(symbol));
+                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                            }
+                        }
+                        other => {
+                            self.restore(other);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(Comma) && winding => {
+                    let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let tup = self
+                        .try_reduce_tuple(first_elem)
+                        .map_err(|_| self.stack_dec())?;
+                    stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
                 _ => {
                     if stack.len() <= 1 {
@@ -1131,10 +1295,8 @@ impl Parser {
     fn try_reduce_call_or_acc(&mut self) -> ParseResult<Expr> {
         debug_call_info!(self);
         let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
-        log!(err "{acc}");
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
-            log!(err "{args}");
             let (obj, method_name) = match acc {
                 Accessor::Attr(attr) => (*attr.obj, Some(attr.name.symbol)),
                 Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
@@ -1144,7 +1306,6 @@ impl Parser {
             self.level -= 1;
             Ok(Expr::Call(call))
         } else {
-            log!(err "not args");
             self.level -= 1;
             Ok(Expr::Accessor(acc))
         }
@@ -1296,17 +1457,6 @@ impl Parser {
                         PosOrKwArg::Kw(_arg) => todo!(),
                     }
                 }
-                Some(t) if t.is(Newline) => {
-                    while self.cur_is(Newline) {
-                        self.skip();
-                    }
-                    match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
-                        PosOrKwArg::Pos(arg) => {
-                            args.push_pos(arg);
-                        }
-                        PosOrKwArg::Kw(_arg) => todo!(),
-                    }
-                }
                 _ => {
                     break;
                 }
@@ -1384,14 +1534,24 @@ impl Parser {
         }
     }
 
-    fn convert_call_to_subr_sig(&mut self, _call: Call) -> ParseResult<SubrSignature> {
-        debug_call_info!(self);
-        todo!()
-    }
-
     fn convert_accessor_to_var_sig(&mut self, _accessor: Accessor) -> ParseResult<VarSignature> {
         debug_call_info!(self);
-        todo!()
+        match _accessor {
+            Accessor::Local(local) => {
+                let pat = VarPattern::Ident(Identifier::new(None, VarName::new(local.symbol)));
+                self.level -= 1;
+                Ok(VarSignature::new(pat, None))
+            }
+            Accessor::Public(public) => {
+                let pat = VarPattern::Ident(Identifier::new(
+                    Some(public.dot),
+                    VarName::new(public.symbol),
+                ));
+                self.level -= 1;
+                Ok(VarSignature::new(pat, None))
+            }
+            other => todo!("{other}"),
+        }
     }
 
     fn convert_array_to_array_pat(&mut self, _array: Array) -> ParseResult<VarArrayPattern> {
@@ -1404,14 +1564,212 @@ impl Parser {
         todo!()
     }
 
-    fn convert_tuple_to_tuple_pat(&mut self, _tuple: Tuple) -> ParseResult<VarTuplePattern> {
+    fn convert_tuple_to_tuple_pat(&mut self, tuple: Tuple) -> ParseResult<VarTuplePattern> {
+        debug_call_info!(self);
+        let mut vars = Vars::empty();
+        match tuple {
+            Tuple::Normal(tup) => {
+                let (pos_args, _kw_args, paren) = tup.elems.deconstruct();
+                for arg in pos_args {
+                    let sig = self
+                        .convert_rhs_to_sig(arg.expr)
+                        .map_err(|_| self.stack_dec())?;
+                    match sig {
+                        Signature::Var(var) => {
+                            vars.push(var);
+                        }
+                        other => todo!("{other}"),
+                    }
+                }
+                let tuple = VarTuplePattern::new(paren, vars);
+                self.level -= 1;
+                Ok(tuple)
+            }
+        }
+    }
+
+    fn convert_type_asc_to_sig(&mut self, tasc: TypeAscription) -> ParseResult<Signature> {
+        debug_call_info!(self);
+        let sig = self
+            .convert_rhs_to_sig(*tasc.expr)
+            .map_err(|_| self.stack_dec())?;
+        let sig = match sig {
+            Signature::Var(var) => {
+                let var = VarSignature::new(var.pat, Some(tasc.t_spec));
+                Signature::Var(var)
+            }
+            Signature::Subr(subr) => {
+                let subr = SubrSignature::new(
+                    subr.decorators,
+                    subr.ident,
+                    subr.params,
+                    Some(tasc.t_spec),
+                    subr.bounds,
+                );
+                Signature::Subr(subr)
+            }
+        };
+        self.level -= 1;
+        Ok(sig)
+    }
+
+    fn convert_call_to_subr_sig(&mut self, call: Call) -> ParseResult<SubrSignature> {
+        debug_call_info!(self);
+        let ident = match *call.obj {
+            Expr::Accessor(acc) => self
+                .convert_accessor_to_ident(acc)
+                .map_err(|_| self.stack_dec())?,
+            other => todo!("{other}"), // Error
+        };
+        let params = self
+            .convert_args_to_params(call.args)
+            .map_err(|_| self.stack_dec())?;
+        let sig = SubrSignature::new(set! {}, ident, params, None, TypeBoundSpecs::empty());
+        self.level -= 1;
+        Ok(sig)
+    }
+
+    fn convert_accessor_to_ident(&mut self, _accessor: Accessor) -> ParseResult<Identifier> {
+        debug_call_info!(self);
+        let ident = match _accessor {
+            Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
+            Accessor::Public(public) => {
+                Identifier::new(Some(public.dot), VarName::new(public.symbol))
+            }
+            other => todo!("{other}"), // Error
+        };
+        self.level -= 1;
+        Ok(ident)
+    }
+
+    fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {
+        debug_call_info!(self);
+        let (pos_args, kw_args, parens) = args.deconstruct();
+        let mut params = Params::new(vec![], None, vec![], parens);
+        for arg in pos_args.into_iter() {
+            let nd_param = self
+                .convert_pos_arg_to_non_default_param(arg)
+                .map_err(|_| self.stack_dec())?;
+            params.non_defaults.push(nd_param);
+        }
+        // TODO: varargs
+        for arg in kw_args.into_iter() {
+            let d_param = self
+                .convert_kw_arg_to_default_param(arg)
+                .map_err(|_| self.stack_dec())?;
+            params.defaults.push(d_param);
+        }
+        self.level -= 1;
+        Ok(params)
+    }
+
+    fn convert_pos_arg_to_non_default_param(&mut self, arg: PosArg) -> ParseResult<ParamSignature> {
+        debug_call_info!(self);
+        let param = self
+            .convert_rhs_to_param(arg.expr)
+            .map_err(|_| self.stack_dec())?;
+        self.level -= 1;
+        Ok(param)
+    }
+
+    fn convert_rhs_to_param(&mut self, expr: Expr) -> ParseResult<ParamSignature> {
+        debug_call_info!(self);
+        match expr {
+            Expr::Accessor(Accessor::Local(local)) => {
+                let name = VarName::new(local.symbol);
+                let pat = ParamPattern::VarName(name);
+                let param = ParamSignature::new(pat, None, None);
+                self.level -= 1;
+                Ok(param)
+            }
+            Expr::Lit(lit) => {
+                let pat = ParamPattern::Lit(lit);
+                let param = ParamSignature::new(pat, None, None);
+                self.level -= 1;
+                Ok(param)
+            }
+            Expr::Array(array) => {
+                let array_pat = self
+                    .convert_array_to_param_array_pat(array)
+                    .map_err(|_| self.stack_dec())?;
+                let pat = ParamPattern::Array(array_pat);
+                let param = ParamSignature::new(pat, None, None);
+                self.level -= 1;
+                Ok(param)
+            }
+            Expr::Record(record) => {
+                let record_pat = self
+                    .convert_record_to_param_record_pat(record)
+                    .map_err(|_| self.stack_dec())?;
+                let pat = ParamPattern::Record(record_pat);
+                let param = ParamSignature::new(pat, None, None);
+                self.level -= 1;
+                Ok(param)
+            }
+            Expr::Tuple(tuple) => {
+                let tuple_pat = self
+                    .convert_tuple_to_param_tuple_pat(tuple)
+                    .map_err(|_| self.stack_dec())?;
+                let pat = ParamPattern::Tuple(tuple_pat);
+                let param = ParamSignature::new(pat, None, None);
+                self.level -= 1;
+                Ok(param)
+            }
+            Expr::TypeAsc(tasc) => {
+                let param = self
+                    .convert_type_asc_to_param_pattern(tasc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(param)
+            }
+            other => todo!("{other}"), // Error
+        }
+    }
+
+    fn convert_kw_arg_to_default_param(&mut self, arg: KwArg) -> ParseResult<ParamSignature> {
+        debug_call_info!(self);
+        let pat = ParamPattern::VarName(VarName::new(arg.keyword));
+        let expr = self.validate_const_expr(arg.expr)?;
+        let param = ParamSignature::new(pat, arg.t_spec, Some(expr));
+        self.level -= 1;
+        Ok(param)
+    }
+
+    fn convert_array_to_param_array_pat(
+        &mut self,
+        _array: Array,
+    ) -> ParseResult<ParamArrayPattern> {
         debug_call_info!(self);
         todo!()
     }
 
-    fn convert_type_asc_to_sig(&mut self, _tasc: TypeAscription) -> ParseResult<Signature> {
+    fn convert_record_to_param_record_pat(
+        &mut self,
+        _record: Record,
+    ) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
+    }
+
+    fn convert_tuple_to_param_tuple_pat(
+        &mut self,
+        _tuple: Tuple,
+    ) -> ParseResult<ParamTuplePattern> {
+        debug_call_info!(self);
+        todo!()
+    }
+
+    fn convert_type_asc_to_param_pattern(
+        &mut self,
+        tasc: TypeAscription,
+    ) -> ParseResult<ParamSignature> {
+        debug_call_info!(self);
+        let param = self
+            .convert_rhs_to_param(*tasc.expr)
+            .map_err(|_| self.stack_dec())?;
+        let param = ParamSignature::new(param.pat, Some(tasc.t_spec), None);
+        self.level -= 1;
+        Ok(param)
     }
 
     fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
@@ -1469,9 +1827,28 @@ impl Parser {
         todo!()
     }
 
-    fn convert_tuple_to_params(&mut self, _tuple: Tuple) -> ParseResult<Params> {
+    fn convert_tuple_to_params(&mut self, tuple: Tuple) -> ParseResult<Params> {
         debug_call_info!(self);
-        todo!()
+        match tuple {
+            Tuple::Normal(tup) => {
+                let (pos_args, kw_args, paren) = tup.elems.deconstruct();
+                let mut params = Params::new(vec![], None, vec![], paren);
+                for arg in pos_args {
+                    let param = self
+                        .convert_pos_arg_to_non_default_param(arg)
+                        .map_err(|_| self.stack_dec())?;
+                    params.non_defaults.push(param);
+                }
+                for arg in kw_args {
+                    let param = self
+                        .convert_kw_arg_to_default_param(arg)
+                        .map_err(|_| self.stack_dec())?;
+                    params.defaults.push(param);
+                }
+                self.level -= 1;
+                Ok(params)
+            }
+        }
     }
 
     fn convert_array_to_param_pat(&mut self, _array: Array) -> ParseResult<ParamArrayPattern> {
@@ -1493,6 +1870,7 @@ impl Parser {
     }
 
     fn convert_rhs_to_type_spec(&mut self, rhs: Expr) -> ParseResult<TypeSpec> {
+        debug_call_info!(self);
         match rhs {
             Expr::Accessor(acc) => {
                 let predecl = self
@@ -1528,10 +1906,18 @@ impl Parser {
 
     fn convert_accessor_to_predecl_type_spec(
         &mut self,
-        _accessor: Accessor,
+        accessor: Accessor,
     ) -> ParseResult<PreDeclTypeSpec> {
         debug_call_info!(self);
-        todo!()
+        let t_spec = match accessor {
+            Accessor::Local(local) => PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
+                VarName::new(local.symbol),
+                ConstArgs::empty(),
+            )),
+            other => todo!("{other}"),
+        };
+        self.level -= 1;
+        Ok(t_spec)
     }
 
     fn convert_call_to_predecl_type_spec(&mut self, _call: Call) -> ParseResult<PreDeclTypeSpec> {

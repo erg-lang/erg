@@ -95,12 +95,18 @@ impl PosArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KwArg {
     pub keyword: Token,
+    pub t_spec: Option<TypeSpec>,
     pub expr: Expr,
 }
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "{}: ", self.keyword.content)?;
+        writeln!(
+            f,
+            "{}{} := ",
+            self.keyword.content,
+            fmt_option!(pre ": ", self.t_spec)
+        )?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -109,8 +115,12 @@ impl_display_from_nested!(KwArg);
 impl_locational!(KwArg, keyword, expr);
 
 impl KwArg {
-    pub const fn new(keyword: Token, expr: Expr) -> Self {
-        Self { keyword, expr }
+    pub const fn new(keyword: Token, t_spec: Option<TypeSpec>, expr: Expr) -> Self {
+        Self {
+            keyword,
+            t_spec,
+            expr,
+        }
     }
 }
 
@@ -1174,7 +1184,7 @@ pub struct ConstKwArg {
 
 impl NestedDisplay for ConstKwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}: {}", self.keyword.content, self.expr)
+        write!(f, "{} := {}", self.keyword.content, self.expr)
     }
 }
 
@@ -1422,7 +1432,7 @@ impl fmt::Display for SubrTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "({}, {}, |= {}) {} {}",
+            "({}, {}, := {}) {} {}",
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
@@ -2080,6 +2090,20 @@ impl ParamArrayPattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ParamTuplePattern {
+    pub elems: Params,
+}
+
+impl NestedDisplay for ParamTuplePattern {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({})", self.elems)
+    }
+}
+
+impl_display_from_nested!(ParamTuplePattern);
+impl_locational!(ParamTuplePattern, elems);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     l_brace: Token,
     pub(crate) elems: Params,
@@ -2116,12 +2140,12 @@ pub enum ParamPattern {
     VarArgsName(VarName),
     Lit(Literal),
     Array(ParamArrayPattern),
-    // Tuple(),
+    Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
 }
 
-impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Record);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Record);
+impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple Record);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -2165,7 +2189,7 @@ impl NestedDisplay for ParamSignature {
         if let Some(default_val) = &self.opt_default_val {
             write!(
                 f,
-                "{}{} |= {}",
+                "{}{} := {}",
                 self.pat,
                 fmt_option!(pre ": ", self.t_spec),
                 default_val
@@ -2180,7 +2204,9 @@ impl_display_from_nested!(ParamSignature);
 
 impl Locational for ParamSignature {
     fn loc(&self) -> Location {
-        if let Some(t_spec) = &self.t_spec {
+        if let Some(default) = &self.opt_default_val {
+            Location::concat(&self.pat, default)
+        } else if let Some(t_spec) = &self.t_spec {
             Location::concat(&self.pat, t_spec)
         } else {
             self.pat.loc()
@@ -2237,6 +2263,8 @@ impl Locational for Params {
             Location::concat(l, r)
         } else if !self.non_defaults.is_empty() {
             Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
+        } else if let Some(var_args) = &self.var_args {
+            Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
         } else if !self.defaults.is_empty() {
             Location::concat(&self.defaults[0], self.defaults.last().unwrap())
         } else {
@@ -2524,6 +2552,15 @@ impl NestedDisplay for TypeAscription {
 
 impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
+
+impl TypeAscription {
+    pub fn new(expr: Expr, t_spec: TypeSpec) -> Self {
+        Self {
+            expr: Box::new(expr),
+            t_spec,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefBody {
