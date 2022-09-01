@@ -32,7 +32,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 このようなときにちょうどよいのが幽霊型である。幽霊型はサイズ0の型を一般化した型である。
 
 ```erg
-Nil T = Class(Impl: Phantom T)
+Nil T = Class(Impl := Phantom T)
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 
@@ -46,7 +46,7 @@ assert nil.__size__ == 0
 この場合も、`state`はオブジェクトの実体に現れないハリボテの型変数である。
 
 ```erg
-VM! State: {"stopped", "running"}! = Class(..., Impl: Phantom! State)
+VM! State: {"stopped", "running"}! = Class(..., Impl := Phantom! State)
 VM!("stopped").
     start ref! self("stopped" ~> "running") =
         self.do_something!()

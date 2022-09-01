@@ -138,7 +138,7 @@ Point = Inherit {x = Int; y = Int}
 p = Point.{x = 1; y = 2}
 Point.{x; y} = p
 
-Nil T = Class Impl: Phantom T
+Nil T = Class Impl := Phantom T
 Cons T = Inherit {head = T; rest = List T}
 List T = Enum Nil(T), Cons(T)
 List T.

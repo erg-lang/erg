@@ -133,11 +133,11 @@ K T = Class(...)
 assert not K(Str) <= K(Object)
 assert not K(Str) >= K(Object)
 
-InputStream T = Class ..., Impl: Inputs(T)
+InputStream T = Class ..., Impl := Inputs(T)
 # Objectを受け入れるストリームは、Strを受け入れるともみなせる
 assert InputStream(Str) > InputStream(Object)
 
-OutputStream T = Class ..., Impl: Outputs(T)
+OutputStream T = Class ..., Impl := Outputs(T)
 # Strを出力するストリームは、Objectを出力するともみなせる
 assert OutputStream(Str) < OutputStream(Object)
 ```

@@ -7,10 +7,10 @@ Ergでは __アドホック多相__ をサポートしない。すなわち、�
 Add1 = Trait {
     .add1: Self.() -> Self
 }
-IntAdd1 = Patch Int, Impl: Add1
+IntAdd1 = Patch Int, Impl := Add1
 IntAdd1.
     add1 self = self + 1
-RatioAdd1 = Patch Ratio, Impl: Add1
+RatioAdd1 = Patch Ratio, Impl := Add1
 RatioAdd1.
     add1 self = self + 1.0
 
@@ -35,7 +35,7 @@ assert add1(1.0) == 2.0
 ```erg
 C = Class {.x = Int; .y = Int}
 C.
-    new(x, y |= 0) = Self::__new__ {.x; .y}
+    new(x, y := 0) = Self::__new__ {.x; .y}
 
 assert C.new(0, 0) == C.new(0)
 ```
@@ -62,7 +62,7 @@ id "str" # TypeError: id is not implemented for Str
 
 ```erg
 f x: Int = ...
-f(x: Int, y |= 0) = ...
+f(x: Int, y := 0) = ...
 
 f(1) # which is chosen?
 ```

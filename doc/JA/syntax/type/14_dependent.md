@@ -32,7 +32,7 @@ f x =
     print! f::x, module::x
 
 # Phantom型は型引数と同じ値になるPhantomという属性を持っている
-T X: Int = Class Impl: Phantom X
+T X: Int = Class Impl := Phantom X
 T(X).
     x self = self::Phantom
 
@@ -44,7 +44,7 @@ T(1).x() # 1
 
 ```erg
 # `Id`は不変型なので遷移させることはできないことに注意
-VM!(State: {"stopped", "running"}! |= _, Id: Nat |= _) = Class(..., Impl: Phantom! State)
+VM!(State: {"stopped", "running"}! := _, Id: Nat := _) = Class(..., Impl := Phantom! State)
 VM!().
     # 変わらない変数は`_`を渡せば省略可能, デフォルト引数にしておけば書く必要すらない
     start! ref! self("stopped" ~> "running") =

@@ -114,15 +114,15 @@ ClassはInt, Bool, Strなど
 
 Complex以外の例として、Vector, Matrix, TensorはNum(Matrix, Tensorの*はそれぞれdot, productと同じ)
 
-### Complex (= Inherit(Object, Impl: Num))
+### Complex (= Inherit(Object, Impl := Num))
 
 * `imag: Ratio`: 虚部を返す
 * `real: Ratio`: 実部を返す
 * `conjugate self -> Complex`: 共役複素数を返す
 
-### Float (= Inherit(FloatComplex, Impl: Num))
+### Float (= Inherit(FloatComplex, Impl := Num))
 
-### Ratio (= Inherit(Complex, Impl: Num))
+### Ratio (= Inherit(Complex, Impl := Num))
 
 * `numerator: Int`: 分子を返す
 * `denominator: Int`: 分母を返す

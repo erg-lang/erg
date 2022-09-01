@@ -44,7 +44,7 @@ Sub = Trait {
     .`_-_` = Self.(Self) -> Self
 }
 
-C = Class({i = Int}, Impl: Add and Sub)
+C = Class({i = Int}, Impl := Add and Sub)
 C.
     @Impl Add
     `_+_` self, other = C.new {i = self::i + other::i}
@@ -66,9 +66,9 @@ Add R = Trait {
 @Attach AddForInt, AddForOdd
 ClosedAdd = Subsume Add(Self)
 
-AddForInt = Patch(Int, Impl: ClosedAdd)
+AddForInt = Patch(Int, Impl := ClosedAdd)
 AddForInt.AddO = Int
-AddForOdd = Patch(Odd, Impl: ClosedAdd)
+AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 

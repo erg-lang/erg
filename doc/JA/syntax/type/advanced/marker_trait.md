@@ -17,7 +17,7 @@ Person = Class {.name = Str; .age = Nat} and Light
 ```erg
 M = Subsume Marker
 
-MarkedInt = Inherit Int, Impl: M
+MarkedInt = Inherit Int, Impl := M
 
 i = MarkedInt.new(2)
 assert i + 1 == 2
@@ -27,5 +27,5 @@ assert i in M
 マーカークラスは`Excluding`引数で外すことも可能である。
 
 ```erg
-NInt = Inherit MarkedInt, Impl: N, Excluding: M
+NInt = Inherit MarkedInt, Impl := N, Excluding: M
 ```

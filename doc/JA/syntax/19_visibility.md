@@ -141,7 +141,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 {Foo; ...} = import "foo"
 
 FooImpl = Patch Foo
-FooImpl::
+FooImpl :=:
     private self = pass
 FooImpl.
     public self = self::private()

@@ -42,10 +42,10 @@
     l2[10] # IndexError: `l2` has 7 elements but was accessed the 11th element
 
     2.times! do!:
-        print! "hello, ", end: ""
+        print! "hello, ", end := ""
     # => hello, hello,
     -2.times! do!:
-        print! "hello, ", end: ""
+        print! "hello, ", end := ""
     # TypeError: `.times!` is a method of `Nat` (0 or more Int), not `Int`
 
     {Meter; Sec; meter; yard; sec; ...} = import "unit"

@@ -110,7 +110,7 @@ Reverse = Trait {
     .reverse = Self.() -> Self
 }
 
-StrReverse = Patch Str, Impl: Reverse
+StrReverse = Patch Str, Impl := Reverse
 StrReverse.
     reverse self =
         self.iter().rev().collect(Str)
@@ -125,7 +125,7 @@ NumericStr = Inherit Str
 NumericStr.
     ...
 
-NumStrRev = Patch NumericStr, Impl: Reverse
+NumStrRev = Patch NumericStr, Impl := Reverse
 NumStrRev.
     ...
 # DuplicatePatchError: NumericStr is already associated with `Reverse`
@@ -157,7 +157,7 @@ Reverse = Trait {
     .reverse = Self.() -> Self
 }
 
-StrReverse = Patch(Str, Impl: Reverse)
+StrReverse = Patch(Str, Impl := Reverse)
 StrReverse.
     reverse self =
         self.iter().rev().collect(Str)
