@@ -516,6 +516,7 @@ impl Context {
                 // trait_("Rational"),
                 // trait_("Integral"),
                 poly_trait("Eq", vec![ty_tp(Bool)]),
+                poly_trait("Add", vec![ty_tp(Bool)]),
                 trait_("Ord"),
                 // mono("SelfAdd"),
                 // mono("SelfSub"),
