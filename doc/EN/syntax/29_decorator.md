@@ -37,7 +37,7 @@ Use to override an attribute, which by default Erg will fail if you try to defin
 
 ## Impl
 
-Indicates implementation of the argument trace.
+Indicates implementation of traits.
 
 ```erg
 ClosedAdd = Trait {
@@ -47,11 +47,11 @@ ClosedSub = Trait {
     . `_-_` = Self.(Self) -> Self
 }
 
-C = Class({i = Int}, Impl: ClosedAdd and ClosedSub)
+C = Class {i = Int}
 C.
-    @Impl Add.
+    @Impl ClosedAdd
     `_+_` self, other = C.new {i = self::i + other::i}
-    @Impl Sub
+    @Impl ClosedSub
     `_-_` self, other = C.new {i = self::i - other::}
 ```
 
@@ -70,9 +70,9 @@ Add R = Trait {
 @Attach AddForInt, AddForOdd
 ClosedAdd = Subsume Add(Self)
 
-AddForInt = Patch(Int, Impl: ClosedAdd)
+AddForInt = Patch(Int, Impl := ClosedAdd)
 AddForInt.AddO = Int
-AddForOdd = Patch(Odd, Impl: ClosedAdd)
+AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 
@@ -86,7 +86,7 @@ assert Int.AddO == Int
 assert Odd.AddO == Even
 ```
 
-Internally, they are only connected together using the trait's `.attach` method. If there is a conflict, it can be removed using the trace's `.detach` method.
+Internally, they are only connected together using the trait's `.attach` method. If there is a conflict, it can be removed using the trait's `.detach` method.
 
 ```erg
 @Attach X

@@ -27,7 +27,7 @@ Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
 Point2D = Class {.x = Int; .y = Int}
 ```
 
-Traits, like structural types, can apply operations such as composition, substitution, and elimination (e.g. `T and U`). The resulting trace is called an instant trace.
+Traits, like structural types, can apply operations such as composition, substitution, and elimination (e.g. `T and U`). The resulting trait is called an instant trait.
 
 ```erg
 T = Trait {.x = Int}
@@ -49,7 +49,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 
 ## Trait inclusion
 
-The expansion operator `...` allows you to define a trace that contains a certain trace as a supertype. This is called the __subsumption__ of a trace.
+The expansion operator `...` allows you to define a trait that contains a certain trait as a supertype. This is called the __subsumption__ of a trait.
 In the example below, `BinAddSub` subsumes `BinAdd` and `BinSub`.
 This corresponds to Inheritance in a class, but unlike Inheritance, multiple base types can be combined using `and`. Traits that are partially excluded by `not` are also allowed.
 
@@ -87,7 +87,7 @@ assert add(C.new(1), C.new(2)) == C.new(3)
 ```
 
 Nominal traits cannot be used simply by implementing a request method, but must be explicitly declared to have been implemented.
-In the following example, `add` cannot be used with an argument of type `C` because there is no explicit declaration of implementation. It must be `C = Class {i = Int}, Impl: Add`.
+In the following example, `add` cannot be used with an argument of type `C` because there is no explicit declaration of implementation. It must be `C = Class {i = Int}, Impl := Add`.
 
 ```erg
 Add = Trait {

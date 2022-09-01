@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D8586bf6f02bd04fd5c823b3a476238881ef037de)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=8586bf6f02bd04fd5c823b3a476238881ef037de)
 
 Inheritance allows you to define a new class that adds functionality or specialization to an existing class.
-Inheritance is similar to inclusion in a trace. The inherited class becomes a subtype of the original class.
+Inheritance is similar to inclusion in a trait. The inherited class becomes a subtype of the original class.
 
 ```erg
 NewInt = Inherit Int
@@ -126,7 +126,7 @@ Although it is not possible to replace traits at inheritance time, there are exa
 For example, `Int`, a subtype of `Real` (which implements `Add()`), appears to reimplement `Add()`.
 
 ```erg
-Int = Class ... , Impl: Add() and ...
+Int = Class ... , Impl := Add() and ...
 ```
 
 But in fact `Add()` in `Real` stands for `Add(Real, Real)`, and in `Int` it is just overwritten by `Add(Int, Int)`.

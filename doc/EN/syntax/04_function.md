@@ -85,10 +85,10 @@ f x:
 
 Default parameters are used when some parameters are mostly fixed and you want to be able to omit them.
 
-Default parameters are specified by `|=`(or-assign operator). If `base` is not specified, assign `math.E` to `base`.
+Default parameters are specified by `:=`(walrus operator). If `base` is not specified, assign `math.E` to `base`.
 
 ```erg
-math_log x: Ratio, base |= math.E = ...
+math_log x: Ratio, base := math.E = ...
 
 assert math_log(100, 10) == 2
 assert math_log(100) == math_log(100, math.E)
@@ -97,7 +97,7 @@ assert math_log(100) == math_log(100, math.E)
 Note that there is a distinction between specifying no argument and assigning `None`.
 
 ```erg
-p! x |= 0 = print!
+p! x := 0 = print!
 p!(2) # 2
 p!() # 0
 p!(None) # None
@@ -106,20 +106,20 @@ p!(None) # None
 Can also be used with type specification and patterns.
 
 ```erg
-math_log x, base: Ratio |= math.E = ...
-f [x, y] |= [1, 2] = ...
+math_log x, base: Ratio := math.E = ...
+f [x, y] := [1, 2] = ...
 ```
 
 However, within the default arguments, it is not possible to call the procedures (described later) or assign mutable objects.
 
 ```erg
-f x |= p! 1 = ... # NG
+f x := p! 1 = ... # NG
 ```
 
 Also, the argument just defined cannot be used as the value passed to the default argument.
 
 ```erg
-f x |= 1, y |= x = ... # NG
+f x := 1, y := x = ... # NG
 ```
 
 ## Variable-length arguments
