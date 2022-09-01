@@ -13,7 +13,7 @@ use erg_common::{enum_unwrap, get_hash, set};
 use crate::ast::{
     Accessor, Args, Block, Call, Def, DefBody, DefId, Expr, Identifier, Lambda, LambdaSignature,
     Literal, Local, Module, ParamPattern, ParamSignature, Params, PosArg, Signature, SubrSignature,
-    TypeBoundSpecs, VarName, VarPattern, VarSignature,
+    TypeBoundSpecs, TypeSpec, VarName, VarPattern, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -63,66 +63,16 @@ impl Desugarer {
                     if let Some(Expr::Def(previous)) = new.last() {
                         if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str()
                         {
-                            let mut previous = enum_unwrap!(new.pop().unwrap(), Expr::Def);
+                            let previous = enum_unwrap!(new.pop().unwrap(), Expr::Def);
                             let name = def.sig.ident().unwrap().clone();
-                            let op = Token::from_str(TokenKind::FuncArrow, "->");
+                            let id = def.body.id;
+                            let op = def.body.op.clone();
                             let (call, return_t_spec) = if previous.body.block.len() == 1
                                 && previous.body.block.first().unwrap().is_match_call()
                             {
-                                let mut call =
-                                    enum_unwrap!(previous.body.block.remove(0), Expr::Call);
-                                let sig = enum_unwrap!(def.sig, Signature::Subr);
-                                let return_t_spec = sig.return_t_spec;
-                                let first_arg = sig.params.non_defaults.first().unwrap();
-                                // 最後の定義の引数名を関数全体の引数名にする
-                                if let Some(name) = first_arg.inspect() {
-                                    call.args.remove_pos(0);
-                                    let arg = PosArg::new(Expr::local(
-                                        name,
-                                        first_arg.ln_begin().unwrap(),
-                                        first_arg.col_begin().unwrap(),
-                                    ));
-                                    call.args.insert_pos(0, arg);
-                                }
-                                let sig = LambdaSignature::new(
-                                    sig.params,
-                                    return_t_spec.clone(),
-                                    sig.bounds,
-                                );
-                                let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
-                                call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
-                                (call, return_t_spec)
+                                self.add_arg_to_match_call(previous, def)
                             } else {
-                                let sig = enum_unwrap!(previous.sig, Signature::Subr);
-                                let match_symbol = Expr::static_local("match");
-                                let sig =
-                                    LambdaSignature::new(sig.params, sig.return_t_spec, sig.bounds);
-                                let first_branch = Lambda::new(
-                                    sig,
-                                    op.clone(),
-                                    previous.body.block,
-                                    previous.body.id,
-                                );
-                                let sig = enum_unwrap!(def.sig, Signature::Subr);
-                                let return_t_spec = sig.return_t_spec;
-                                let sig = LambdaSignature::new(
-                                    sig.params,
-                                    return_t_spec.clone(),
-                                    sig.bounds,
-                                );
-                                let second_branch =
-                                    Lambda::new(sig, op, def.body.block, def.body.id);
-                                let args = Args::new(
-                                    vec![
-                                        PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
-                                        PosArg::new(Expr::Lambda(first_branch)),
-                                        PosArg::new(Expr::Lambda(second_branch)),
-                                    ],
-                                    vec![],
-                                    None,
-                                );
-                                let call = Call::new(match_symbol, None, args);
-                                (call, return_t_spec)
+                                self.gen_match_call(previous, def)
                             };
                             let param_name = enum_unwrap!(&call.args.pos_args().iter().next().unwrap().expr, Expr::Accessor:(Accessor::Local:(_))).inspect();
                             // FIXME: multiple params
@@ -142,11 +92,7 @@ impl Desugarer {
                                 return_t_spec,
                                 TypeBoundSpecs::empty(),
                             ));
-                            let body = DefBody::new(
-                                def.body.op,
-                                Block::new(vec![Expr::Call(call)]),
-                                def.body.id,
-                            );
+                            let body = DefBody::new(op, Block::new(vec![Expr::Call(call)]), id);
                             let def = Def::new(sig, body);
                             new.push(Expr::Def(def));
                         } else {
@@ -162,6 +108,51 @@ impl Desugarer {
             }
         }
         new
+    }
+
+    fn add_arg_to_match_call(&self, mut previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
+        let op = Token::from_str(TokenKind::FuncArrow, "->");
+        let mut call = enum_unwrap!(previous.body.block.remove(0), Expr::Call);
+        let sig = enum_unwrap!(def.sig, Signature::Subr);
+        let return_t_spec = sig.return_t_spec;
+        let first_arg = sig.params.non_defaults.first().unwrap();
+        // 最後の定義の引数名を関数全体の引数名にする
+        if let Some(name) = first_arg.inspect() {
+            call.args.remove_pos(0);
+            let arg = PosArg::new(Expr::local(
+                name,
+                first_arg.ln_begin().unwrap(),
+                first_arg.col_begin().unwrap(),
+            ));
+            call.args.insert_pos(0, arg);
+        }
+        let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
+        let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
+        call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
+        (call, return_t_spec)
+    }
+
+    fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
+        let op = Token::from_str(TokenKind::FuncArrow, "->");
+        let sig = enum_unwrap!(previous.sig, Signature::Subr);
+        let match_symbol = Expr::static_local("match");
+        let sig = LambdaSignature::new(sig.params, sig.return_t_spec, sig.bounds);
+        let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
+        let sig = enum_unwrap!(def.sig, Signature::Subr);
+        let return_t_spec = sig.return_t_spec;
+        let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
+        let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
+        let args = Args::new(
+            vec![
+                PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
+                PosArg::new(Expr::Lambda(first_branch)),
+                PosArg::new(Expr::Lambda(second_branch)),
+            ],
+            vec![],
+            None,
+        );
+        let call = Call::new(match_symbol, None, args);
+        (call, return_t_spec)
     }
 
     /// `f 0 = 1` -> `f _: {0} = 1`
@@ -315,11 +306,15 @@ impl Desugarer {
         todo!()
     }
 
-    /// `show! x: Show := print! x` -> `show! x: '1 | '1 <: Show := print! x`
-    fn desugar_trait_parameter(&self, _mod: Module) -> Module {
-        todo!()
-    }
-
+    /// ```erg
+    /// @deco
+    /// f x = ...
+    /// ```
+    /// ↓
+    /// ```erg
+    /// _f x = ...
+    /// f = deco _f
+    /// ```
     fn desugar_decorators(&self, _mod: Module) -> Module {
         todo!()
     }
