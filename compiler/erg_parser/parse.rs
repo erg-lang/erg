@@ -8,6 +8,7 @@ use std::mem;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
 use erg_common::error::Location;
+use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
@@ -376,151 +377,6 @@ impl Parser {
         Ok(decs)
     }
 
-    #[inline]
-    fn try_reduce_decl(&mut self) -> ParseResult<Signature> {
-        debug_call_info!(self);
-        if self.peek().unwrap().category_is(TC::LEnclosure)
-            || self.nth(1).map(|n| n.is(Comma)).unwrap_or(false)
-        {
-            let var = self.try_reduce_var_sig().map_err(|_| self.stack_dec())?;
-            self.level -= 1;
-            return Ok(Signature::Var(var));
-        }
-        let decorators = self.opt_reduce_decorators().map_err(|_| self.stack_dec())?;
-        let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-        // TODO: parse bounds |...|
-        let bounds = TypeBoundSpecs::empty();
-        if self.cur_is(VBar) {
-            todo!("type bounds are not supported yet");
-        }
-        if let Some(params) = self
-            .opt_reduce_params()
-            .transpose()
-            .map_err(|_| self.stack_dec())?
-        {
-            let t_spec = if self.cur_is(Colon) {
-                self.skip();
-                Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-            } else {
-                None
-            };
-            self.level -= 1;
-            Ok(Signature::Subr(SubrSignature::new(
-                decorators, ident, params, t_spec, bounds,
-            )))
-        } else {
-            if !bounds.is_empty() {
-                let err = ParseError::syntax_error(
-                    0,
-                    self.peek().unwrap().loc(),
-                    switch_lang!(
-                        "japanese" => "変数宣言で型制約は使えません",
-                        "simplified_chinese" => "变量声明中不允许类型约束",
-                        "traditional_chinese" => "變量聲明中不允許類型約束",
-                        "english" => "Cannot use type bounds in a declaration of a variable",
-                    ),
-                    None,
-                );
-                self.next_expr();
-                self.level -= 1;
-                self.errs.push(err);
-                return Err(());
-            }
-            let t_spec = if ident.is_const() {
-                if self.cur_is(SubtypeOf) {
-                    self.skip();
-                    Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-                } else {
-                    None
-                }
-            } else if self.cur_is(Colon) {
-                self.skip();
-                Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-            } else {
-                None
-            };
-            self.level -= 1;
-            Ok(Signature::Var(VarSignature::new(
-                VarPattern::Ident(ident),
-                t_spec,
-            )))
-        }
-    }
-
-    #[inline]
-    fn try_reduce_var_sig(&mut self) -> ParseResult<VarSignature> {
-        debug_call_info!(self);
-        let pat = self
-            .try_reduce_var_pattern()
-            .map_err(|_| self.stack_dec())?;
-        let t_spec = if self.cur_is(Colon) {
-            self.skip();
-            Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-        } else {
-            None
-        };
-        if self.cur_is(VBar) {
-            todo!()
-        }
-        self.level -= 1;
-        Ok(VarSignature::new(pat, t_spec))
-    }
-
-    /// default_param ::= non_default_param `|=` const_expr
-    fn try_reduce_param_sig(&mut self) -> ParseResult<ParamSignature> {
-        debug_call_info!(self);
-        let lhs = self
-            .try_reduce_non_default_param_sig()
-            .map_err(|_| self.stack_dec())?;
-        if self.cur_is(OrEqual) {
-            self.skip();
-            let val = self.try_reduce_const_expr().map_err(|_| self.stack_dec())?;
-            self.level -= 1;
-            Ok(ParamSignature::new(lhs.pat, lhs.t_spec, Some(val)))
-        } else {
-            self.level -= 1;
-            Ok(ParamSignature::new(lhs.pat, lhs.t_spec, None))
-        }
-    }
-
-    #[inline]
-    fn try_reduce_non_default_param_sig(&mut self) -> ParseResult<ParamSignature> {
-        debug_call_info!(self);
-        let pat = self
-            .try_reduce_param_pattern()
-            .map_err(|_| self.stack_dec())?;
-        let t_spec = if self.cur_is(Colon) {
-            self.skip();
-            Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-        } else {
-            None
-        };
-        self.level -= 1;
-        Ok(ParamSignature::new(pat, t_spec, None))
-    }
-
-    #[inline]
-    fn try_reduce_lambda_sig(&mut self) -> ParseResult<LambdaSignature> {
-        debug_call_info!(self);
-        let bounds = match self.peek() {
-            Some(t) if t.is(VBar) => {
-                self.skip();
-                self.try_reduce_bounds().map_err(|_| self.stack_dec())?
-            }
-            _ => TypeBoundSpecs::empty(),
-        };
-        let params = self.try_reduce_params().map_err(|_| self.stack_dec())?;
-        let return_t = match self.peek() {
-            Some(t) if t.is(Colon) => {
-                self.skip();
-                Some(self.try_reduce_type_spec().map_err(|_| self.stack_dec())?)
-            }
-            _ => None,
-        };
-        self.level -= 1;
-        Ok(LambdaSignature::new(params, return_t, bounds))
-    }
-
     fn try_reduce_acc(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
         let mut acc = match self.peek() {
@@ -598,568 +454,7 @@ impl Parser {
         Ok(acc)
     }
 
-    fn opt_reduce_params(&mut self) -> Option<ParseResult<Params>> {
-        match self.peek() {
-            Some(t)
-                if t.category_is(TC::Literal)
-                    || t.is(Symbol)
-                    || t.category_is(TC::UnaryOp)
-                    || t.is(Dot)
-                    || t.category_is(TC::Caret)
-                    || t.is(LParen)
-                    || t.is(LSqBr)
-                    || t.is(LBrace) =>
-            {
-                Some(self.try_reduce_params())
-            }
-            _ => None,
-        }
-    }
-
-    fn try_reduce_params(&mut self) -> ParseResult<Params> {
-        debug_call_info!(self);
-        let lp = if self.cur_is(TokenKind::LParen) {
-            Some(self.lpop())
-        } else {
-            None
-        };
-        let mut non_default_params = vec![];
-        let mut default_params = vec![];
-        let mut default_appeared = false;
-        match self.peek() {
-            Some(t) if t.is(RParen) => {
-                let parens = (lp.unwrap(), self.lpop());
-                self.level -= 1;
-                return Ok(Params::new(
-                    non_default_params,
-                    None,
-                    default_params,
-                    Some(parens),
-                ));
-            }
-            Some(t) if t.is_block_op() => {
-                if lp.is_none() {
-                    self.level -= 1;
-                    return Ok(Params::new(non_default_params, None, default_params, None));
-                }
-                // TODO: RParen not found
-                else {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-            Some(_) => {
-                let param = self.try_reduce_param_sig().map_err(|_| self.stack_dec())?;
-                if param.has_default() {
-                    default_appeared = true;
-                    default_params.push(param);
-                } else {
-                    non_default_params.push(param);
-                }
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-        loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
-                    self.skip();
-                    if self.cur_is(Spread) {
-                        todo!("user-defined subroutine with a variable length parameter is not supported yet")
-                    }
-                    let param = self.try_reduce_param_sig().map_err(|_| self.stack_dec())?;
-                    match (param.has_default(), default_appeared) {
-                        (true, true) => {
-                            default_params.push(param);
-                        }
-                        (true, false) => {
-                            default_appeared = true;
-                            default_params.push(param);
-                        }
-                        (false, true) => {
-                            self.level -= 1;
-                            let err = ParseError::syntax_error(
-                                0,
-                                param.loc(),
-                                // TODO: switch_lang!
-                                "non-default argument follows default argument",
-                                None,
-                            );
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                        (false, false) => {
-                            non_default_params.push(param);
-                        }
-                    }
-                }
-                Some(t) if t.category_is(TC::BinOp) => {
-                    let err = ParseError::syntax_error(
-                        line!() as usize,
-                        t.loc(),
-                        switch_lang!(
-                            "japanese" => "仮引数の中で中置演算子は使えません",
-                            "simplified_chinese" => "参数中不能使用二元运算符",
-                            "traditional_chinese" => "參數中不能使用二元運算符",
-                            "english" => "Binary operators cannot be used in parameters",
-                        ),
-                        None,
-                    );
-                    self.next_expr();
-                    self.level -= 1;
-                    self.errs.push(err);
-                    return Err(());
-                }
-                Some(t) if t.is(TokenKind::RParen) => {
-                    let rp = self.lpop();
-                    if let Some(lp) = lp {
-                        self.level -= 1;
-                        return Ok(Params::new(
-                            non_default_params,
-                            None,
-                            default_params,
-                            Some((lp, rp)),
-                        ));
-                    } else {
-                        self.level -= 1;
-                        // LParen not found
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                }
-                _ if lp.is_none() => {
-                    self.level -= 1;
-                    return Ok(Params::new(non_default_params, None, default_params, None));
-                }
-                _ => {
-                    self.level -= 1;
-                    // TODO: RParen not found
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-        }
-    }
-
-    fn try_reduce_var_pattern(&mut self) -> ParseResult<VarPattern> {
-        debug_call_info!(self);
-        match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-                if self.peek().map(|t| t.is(Comma)).unwrap_or(false) {
-                    let pat = VarPattern::Ident(ident);
-                    let mut idents = vec![VarSignature::new(pat, None)];
-                    loop {
-                        match self.peek() {
-                            Some(t) if t.is(Comma) => {
-                                self.skip();
-                                let pat = self
-                                    .try_reduce_var_pattern()
-                                    .map_err(|_| self.stack_dec())?;
-                                // ()なしのTupleの場合はflatten
-                                match pat {
-                                    VarPattern::Tuple(tuple) if tuple.paren.is_none() => {
-                                        idents.extend(tuple.elems.elems);
-                                    }
-                                    other => {
-                                        let var_sig = VarSignature::new(other, None);
-                                        idents.push(var_sig);
-                                    }
-                                }
-                            }
-                            _ => {
-                                break;
-                            }
-                        }
-                    }
-                    let tuple_pat = VarTuplePattern::new(None, Vars::new(idents));
-                    self.level -= 1;
-                    return Ok(VarPattern::Tuple(tuple_pat));
-                } else {
-                    self.level -= 1;
-                    Ok(VarPattern::Ident(ident))
-                }
-            }
-            Some(t) if t.is(UBar) => {
-                self.level -= 1;
-                Ok(VarPattern::Discard(self.lpop()))
-            }
-            Some(t) if t.is(LSqBr) => {
-                let l_sqbr = self.lpop();
-                let elems = self
-                    .try_reduce_var_pattern()
-                    .map_err(|_| self.stack_dec())?;
-                let elems = match elems {
-                    VarPattern::Tuple(tuple) if tuple.paren.is_none() => {
-                        Vars::new(tuple.elems.elems)
-                    }
-                    other => Vars::new(vec![VarSignature::new(other, None)]),
-                };
-                if self.cur_is(RSqBr) {
-                    let r_sqbr = self.lpop();
-                    self.level -= 1;
-                    Ok(VarPattern::Array(VarArrayPattern::new(
-                        l_sqbr, elems, r_sqbr,
-                    )))
-                } else {
-                    self.level -= 1;
-                    // TODO: error report: RSqBr not found
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    Err(())
-                }
-            }
-            Some(t) if t.is(LParen) => {
-                let lparen = self.lpop();
-                let mut pat = self
-                    .try_reduce_var_pattern()
-                    .map_err(|_| self.stack_dec())?;
-                if self.cur_is(RParen) {
-                    let rparen = self.lpop();
-                    match &mut pat {
-                        VarPattern::Tuple(tuple) => {
-                            tuple.paren = Some((lparen, rparen));
-                        }
-                        _ => {}
-                    }
-                    self.level -= 1;
-                    Ok(pat)
-                } else {
-                    self.level -= 1;
-                    // TODO: error report: RParen not found
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    Err(())
-                }
-            }
-            Some(t) if t.category_is(TC::BinOp) || t.category_is(TC::UnaryOp) => {
-                log!(info "error caused by: {}", fn_name!());
-                let err = ParseError::syntax_error(
-                    line!() as usize,
-                    t.loc(),
-                    switch_lang!(
-                        "japanese" => "左辺値の中で演算子は使えません",
-                        "simplified_chinese" => "运算符不能用于左值",
-                        "traditional_chinese" => "運算符不能用於左值",
-                        "english" => "Operators cannot be used in left-values",
-                    ),
-                    None,
-                );
-                self.next_expr();
-                self.level -= 1;
-                self.errs.push(err);
-                return Err(());
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-    }
-
-    fn try_reduce_param_pattern(&mut self) -> ParseResult<ParamPattern> {
-        debug_call_info!(self);
-        match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-                if let Some(dot) = &ident.dot {
-                    let loc = dot.loc();
-                    self.level -= 1;
-                    self.errs.push(ParseError::syntax_error(
-                        line!() as usize,
-                        loc,
-                        switch_lang!(
-                            "japanese" => "仮引数に`.`は使えません",
-                            "simplified_chinese" => "参数不能使用点(`.`)",
-                            "traditional_chinese" => "參數不能使用點(`.`)",
-                            "english" => "`.` is not allowed in parameters",
-                        ),
-                        None,
-                    ));
-                    return Err(());
-                }
-                self.level -= 1;
-                Ok(ParamPattern::VarName(ident.name))
-            }
-            Some(t) if t.is(UBar) => {
-                self.level -= 1;
-                Ok(ParamPattern::Discard(self.lpop()))
-            }
-            Some(t) if t.category_is(TC::Literal) => {
-                let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                // TODO: range pattern
-                Ok(ParamPattern::Lit(lit))
-            }
-            Some(t) if t.is(Spread) => {
-                self.skip();
-                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-                if let Some(dot) = &ident.dot {
-                    let loc = dot.loc();
-                    self.level -= 1;
-                    self.errs.push(ParseError::syntax_error(
-                        line!() as usize,
-                        loc,
-                        switch_lang!(
-                            "japanese" => "仮引数に`.`は使えません",
-                            "simplified_chinese" => "参数不能使用点(`.`)",
-                            "traditional_chinese" => "參數不能使用點(`.`)",
-                            "english" => "`.` is not allowed in parameters",
-                        ),
-                        None,
-                    ));
-                    return Err(());
-                }
-                self.level -= 1;
-                Ok(ParamPattern::VarArgsName(ident.name))
-            }
-            Some(t) if t.is(LSqBr) => {
-                let l_sqbr = self.lpop();
-                let elems = self.try_reduce_params().map_err(|_| self.stack_dec())?;
-                if self.cur_is(RSqBr) {
-                    let r_sqbr = self.lpop();
-                    self.level -= 1;
-                    Ok(ParamPattern::Array(ParamArrayPattern::new(
-                        l_sqbr, elems, r_sqbr,
-                    )))
-                } else {
-                    self.level -= 1;
-                    // TODO: error report: RSqBr not found
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-            Some(t) if t.is(LBrace) => {
-                // let elems = self.try_reduce_record_pattern().map_err(|_| self.stack_dec())?;
-                todo!("record pattern")
-            }
-            Some(t) if t.is(LParen) => {
-                self.skip();
-                let pat = self
-                    .try_reduce_param_pattern()
-                    .map_err(|_| self.stack_dec())?;
-                if self.cur_is(RParen) {
-                    self.skip();
-                    self.level -= 1;
-                    Ok(pat)
-                } else {
-                    self.level -= 1;
-                    // TODO: error report: RParen not found
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-    }
-
-    // TODO: set type
-    fn try_reduce_type_spec(&mut self) -> ParseResult<TypeSpec> {
-        debug_call_info!(self);
-        let mut typ = match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                let simple = self
-                    .try_reduce_simple_type_spec()
-                    .map_err(|_| self.stack_dec())?;
-                // not finished
-                TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple))
-            }
-            Some(t) if t.category_is(TC::Literal) => {
-                let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
-                let lhs = ConstExpr::Lit(lit);
-                let maybe_op = self.lpop();
-                let op = if maybe_op.is(Closed)
-                    || maybe_op.is(LeftOpen)
-                    || maybe_op.is(RightOpen)
-                    || maybe_op.is(Open)
-                {
-                    maybe_op
-                } else {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                };
-                // TODO: maybe Name
-                let rhs = ConstExpr::Lit(self.try_reduce_lit().map_err(|_| self.stack_dec())?);
-                TypeSpec::interval(op, lhs, rhs)
-            }
-            Some(t) if t.is(LParen) => {
-                let func_type_spec = self.try_reduce_func_type().map_err(|_| self.stack_dec())?;
-                func_type_spec
-            }
-            Some(t) if t.is(LSqBr) => {
-                self.skip();
-                let mut tys = vec![self.try_reduce_type_spec().map_err(|_| self.stack_dec())?];
-                loop {
-                    match self.peek() {
-                        Some(t) if t.is(Comma) => {
-                            self.skip();
-                            let t = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-                            tys.push(t);
-                        }
-                        Some(t) if t.is(RSqBr) => {
-                            self.skip();
-                            break;
-                        }
-                        _ => {
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                TypeSpec::Tuple(tys)
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        };
-        loop {
-            match self.peek() {
-                Some(t) if t.is(AndOp) => {
-                    let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-                    typ = TypeSpec::and(typ, rhs);
-                }
-                Some(t) if t.is(OrOp) => {
-                    let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-                    typ = TypeSpec::or(typ, rhs);
-                }
-                Some(t) if t.category_is(TC::LambdaOp) => {
-                    let is_func = t.is(FuncArrow);
-                    self.skip();
-                    let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-                    typ = if is_func {
-                        TypeSpec::func(None, vec![ParamTySpec::anonymous(typ)], None, vec![], rhs)
-                    } else {
-                        TypeSpec::proc(None, vec![ParamTySpec::anonymous(typ)], None, vec![], rhs)
-                    };
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
-        self.level -= 1;
-        Ok(typ)
-    }
-
-    fn try_reduce_func_type_param(&mut self) -> ParseResult<ParamTySpec> {
-        debug_call_info!(self);
-        if self.cur_is(Symbol) && self.nth_is(1, Colon) {
-            // TODO: handle `.`
-            let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-            self.skip();
-            let typ = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-            self.level -= 1;
-            Ok(ParamTySpec::new(Some(ident.name.into_token()), typ))
-        } else {
-            let ty_spec = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-            self.level -= 1;
-            Ok(ParamTySpec::anonymous(ty_spec))
-        }
-    }
-
-    // TODO: default parameters
-    fn try_reduce_func_type(&mut self) -> ParseResult<TypeSpec> {
-        debug_call_info!(self);
-        let lparen = Some(self.lpop());
-        let mut non_defaults = vec![self
-            .try_reduce_func_type_param()
-            .map_err(|_| self.stack_dec())?];
-        loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
-                    self.skip();
-                    non_defaults.push(
-                        self.try_reduce_func_type_param()
-                            .map_err(|_| self.stack_dec())?,
-                    );
-                }
-                Some(t) if t.is(RParen) => {
-                    self.skip();
-                    break;
-                }
-                _ => {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-        }
-        match self.peek() {
-            Some(t) if t.category_is(TC::LambdaOp) => {
-                let is_func = t.is(FuncArrow);
-                self.skip();
-                let rhs = self.try_reduce_type_spec().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                if is_func {
-                    Ok(TypeSpec::func(lparen, non_defaults, None, vec![], rhs))
-                } else {
-                    Ok(TypeSpec::proc(lparen, non_defaults, None, vec![], rhs))
-                }
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-    }
-
-    #[inline]
-    fn try_reduce_simple_type_spec(&mut self) -> ParseResult<SimpleTypeSpec> {
-        debug_call_info!(self);
-        match self.peek() {
-            Some(t) if t.is(Symbol) => {
-                // TODO: handle dot (`.`)
-                let ident = self.try_reduce_ident().map_err(|_| self.stack_dec())?;
-                if let Some(res) = self.opt_reduce_args() {
-                    let args = self.validate_const_args(res?)?;
-                    self.level -= 1;
-                    Ok(SimpleTypeSpec::new(ident.name, args))
-                } else {
-                    self.level -= 1;
-                    Ok(SimpleTypeSpec::new(ident.name, ConstArgs::empty()))
-                }
-            }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-    }
-
-    fn try_reduce_bounds(&mut self) -> ParseResult<TypeBoundSpecs> {
-        todo!()
-    }
-
-    fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
+    fn _validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Local(local)) => {
@@ -1184,22 +479,22 @@ impl Parser {
         }
     }
 
-    fn validate_const_pos_arg(&mut self, arg: PosArg) -> ParseResult<ConstPosArg> {
-        let expr = self.validate_const_expr(arg.expr)?;
+    fn _validate_const_pos_arg(&mut self, arg: PosArg) -> ParseResult<ConstPosArg> {
+        let expr = self._validate_const_expr(arg.expr)?;
         Ok(ConstPosArg::new(expr))
     }
 
-    fn validate_const_kw_arg(&mut self, arg: KwArg) -> ParseResult<ConstKwArg> {
-        let expr = self.validate_const_expr(arg.expr)?;
+    fn _validate_const_kw_arg(&mut self, arg: KwArg) -> ParseResult<ConstKwArg> {
+        let expr = self._validate_const_expr(arg.expr)?;
         Ok(ConstKwArg::new(arg.keyword, expr))
     }
 
     // exprが定数式か確認する
-    fn validate_const_args(&mut self, args: Args) -> ParseResult<ConstArgs> {
+    fn _validate_const_args(&mut self, args: Args) -> ParseResult<ConstArgs> {
         let (pos, kw, paren) = args.deconstruct();
         let mut const_args = ConstArgs::new(vec![], vec![], paren);
         for arg in pos.into_iter() {
-            match self.validate_const_pos_arg(arg) {
+            match self._validate_const_pos_arg(arg) {
                 Ok(arg) => {
                     const_args.push_pos(arg);
                 }
@@ -1207,7 +502,7 @@ impl Parser {
             }
         }
         for arg in kw.into_iter() {
-            match self.validate_const_kw_arg(arg) {
+            match self._validate_const_kw_arg(arg) {
                 Ok(arg) => {
                     const_args.push_kw(arg);
                 }
@@ -1316,9 +611,9 @@ impl Parser {
     /// 引数はインデントで区切ることができる(ただしコンマに戻すことはできない)
     ///
     /// ```
-    /// x = if true, 1, 2
+    /// x = if True, 1, 2
     /// # is equal to
-    /// x = if true:
+    /// x = if True:
     ///     1
     ///     2
     /// ```
@@ -1512,52 +807,6 @@ impl Parser {
         }
     }
 
-    fn try_reduce_const_expr(&mut self) -> ParseResult<ConstExpr> {
-        debug_call_info!(self);
-        let expr = self.try_reduce_expr(true).map_err(|_| self.stack_dec())?;
-        self.level -= 1;
-        self.validate_const_expr(expr)
-    }
-
-    #[inline]
-    fn try_reduce_def(&mut self) -> ParseResult<Def> {
-        debug_call_info!(self);
-        let sig = self.try_reduce_decl().map_err(|_| self.stack_dec())?;
-        match self.peek() {
-            Some(t) if t.is(Equal) => {
-                let op = self.lpop();
-                self.counter.inc();
-                let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
-                let body = DefBody::new(op, block, self.counter);
-                self.level -= 1;
-                Ok(Def::new(sig, body))
-            }
-            _other => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                return Err(());
-            }
-        }
-    }
-
-    #[inline]
-    fn try_reduce_lambda(&mut self) -> ParseResult<Lambda> {
-        debug_call_info!(self);
-        let sig = self.try_reduce_lambda_sig().map_err(|_| self.stack_dec())?;
-        let op = self.lpop();
-        if op.category() != TC::LambdaOp {
-            self.level -= 1;
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            return Err(());
-        }
-        let body = self.try_reduce_block().map_err(|_| self.stack_dec())?;
-        self.counter.inc();
-        self.level -= 1;
-        Ok(Lambda::new(sig, op, body, self.counter))
-    }
-
     fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<MethodDefs> {
         debug_call_info!(self);
         if self.cur_is(Indent) {
@@ -1565,7 +814,8 @@ impl Parser {
         } else {
             todo!()
         }
-        let first = self.try_reduce_def().map_err(|_| self.stack_dec())?;
+        let first = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+        let first = option_enum_unwrap!(first, Expr::Def).unwrap_or_else(|| todo!());
         let mut defs = vec![first];
         loop {
             match self.peek() {
@@ -1575,7 +825,8 @@ impl Parser {
                         self.skip();
                         break;
                     }
-                    let def = self.try_reduce_def().map_err(|_| self.stack_dec())?;
+                    let def = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
                     defs.push(def);
                 }
                 _ => todo!(),
@@ -1791,22 +1042,27 @@ impl Parser {
                 self.level -= 1;
                 Ok(Expr::Lit(lit))
             }
+            Some(t) if t.is(AtSign) => {
+                let decos = self.opt_reduce_decorators()?;
+                let expr = self.try_reduce_expr(false)?;
+                let def = option_enum_unwrap!(expr, Expr::Def).unwrap_or_else(|| todo!());
+                let mut subr_sig =
+                    option_enum_unwrap!(def.sig, Signature::Subr).unwrap_or_else(|| todo!());
+                subr_sig.decorators = decos;
+                let expr = Expr::Def(Def::new(Signature::Subr(subr_sig), def.body));
+                Ok(expr)
+            }
             Some(t) if t.is(Symbol) || t.is(Dot) => {
-                let acc = self
+                let call_or_acc = self
                     .try_reduce_call_or_acc()
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(acc)
+                Ok(call_or_acc)
             }
             Some(t) if t.category_is(TC::UnaryOp) => {
                 let unaryop = self.try_reduce_unary().map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(Expr::UnaryOp(unaryop))
-            }
-            Some(t) if t.category_is(TC::Caret) => {
-                let lambda = self.try_reduce_lambda().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(LParen) => {
                 let lparen = self.lpop();
@@ -1875,8 +1131,10 @@ impl Parser {
     fn try_reduce_call_or_acc(&mut self) -> ParseResult<Expr> {
         debug_call_info!(self);
         let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+        log!(err "{acc}");
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
+            log!(err "{args}");
             let (obj, method_name) = match acc {
                 Accessor::Attr(attr) => (*attr.obj, Some(attr.name.symbol)),
                 Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
@@ -1886,6 +1144,7 @@ impl Parser {
             self.level -= 1;
             Ok(Expr::Call(call))
         } else {
+            log!(err "not args");
             self.level -= 1;
             Ok(Expr::Accessor(acc))
         }
@@ -1989,7 +1248,8 @@ impl Parser {
                             todo!()
                         }
                     }
-                    let def = self.try_reduce_def().map_err(|_| self.stack_dec())?;
+                    let def = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
                     attrs.push(def);
                 }
                 Some(term) if term.is(RBrace) => {
@@ -2058,30 +1318,6 @@ impl Parser {
     }
 
     #[inline]
-    fn try_reduce_ident(&mut self) -> ParseResult<Identifier> {
-        debug_call_info!(self);
-        self.level -= 1;
-        match self.peek() {
-            Some(t) if t.is(Dot) => {
-                let dot = self.lpop();
-                // TODO:
-                assert!(self.cur_category_is(TC::Symbol));
-                let ident = Identifier::new(Some(dot), VarName::new(self.lpop()));
-                Ok(ident)
-            }
-            Some(t) if t.is(Symbol) => {
-                let ident = Identifier::new(None, VarName::new(self.lpop()));
-                Ok(ident)
-            }
-            _ => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                Err(())
-            }
-        }
-    }
-
-    #[inline]
     fn try_reduce_lit(&mut self) -> ParseResult<Literal> {
         debug_call_info!(self);
         self.level -= 1;
@@ -2144,7 +1380,7 @@ impl Parser {
                 self.level -= 1;
                 Ok(sig)
             }
-            _ => todo!(), // Error
+            other => todo!("{other}"), // Error
         }
     }
 
@@ -2221,7 +1457,7 @@ impl Parser {
                 self.level -= 1;
                 Ok(sig)
             }
-            _ => todo!(), // Error
+            other => todo!("{other}"), // Error
         }
     }
 
@@ -2286,7 +1522,7 @@ impl Parser {
                 self.level -= 1;
                 Ok(TypeSpec::Array(array))
             }
-            _ => todo!(),
+            other => todo!("{other}"),
         }
     }
 
