@@ -385,7 +385,7 @@ impl Context {
         // let mut class = Self::mono_class("Class", vec![Type, Obj], Self::TOP_LEVEL);
         let mut int = Self::mono_class(
             "Int",
-            vec![Obj],
+            vec![Ratio, Obj],
             vec![
                 trait_("Ord"),
                 poly_trait("Eq", vec![ty_tp(Int)]),
@@ -415,7 +415,7 @@ impl Context {
         int.register_impl("Imag", Int, Const, Public);
         let mut nat = Self::mono_class(
             "Nat",
-            vec![Int, Obj],
+            vec![Int, Ratio, Obj],
             vec![
                 trait_("Ord"),
                 poly_trait("Eq", vec![ty_tp(Nat)]),
@@ -510,7 +510,7 @@ impl Context {
         ratio.register_impl("Imag", Ratio, Const, Public);
         let mut bool_ = Self::mono_class(
             "Bool",
-            vec![Nat, Int, Obj],
+            vec![Nat, Int, Ratio, Obj],
             vec![
                 trait_("Num"),
                 // trait_("Rational"),
@@ -646,7 +646,7 @@ impl Context {
         array_.register_const("MutType!", mut_type);
         let mut int_mut = Self::mono_class(
             "Int!",
-            vec![Int, Obj],
+            vec![Int, class("Ratio!"), Obj],
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
         );
@@ -829,7 +829,7 @@ impl Context {
         int_mut.register_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
             "Nat!",
-            vec![Nat, Obj],
+            vec![Nat, class("Int!"), class("Ratio!"), Obj],
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
         );
@@ -867,7 +867,7 @@ impl Context {
         ratio_mut.register_impl("update!", t, Immutable, Public);
         let mut bool_mut = Self::mono_class(
             "Bool!",
-            vec![Bool, Obj],
+            vec![Bool, class("Nat!"), class("Int!"), class("Ratio!"), Obj],
             vec![trait_("Mutable")],
             Self::TOP_LEVEL,
         );
