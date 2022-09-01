@@ -20,6 +20,14 @@ print! classof(john) # Person
 このようなインスタンスを生成するサブルーチンはコンストラクタと呼ばれます。
 上のクラスでは、フィールド名等を省略できるように`.new`メソッドを定義しています。
 
+以下のように改行せず定義すると文法エラーになるので注意してください。
+
+```erg
+Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
+```
+
+> __Warning__: これは最近追加された仕様なので、以降のドキュメントでは守られていない場合があります。見つけた場合は報告してください。
+
 ## インスタンス属性、クラス属性
 
 Pythonやその他の言語では、以下のようにブロック側でインスタンス属性を定義することが多いが、このような書き方はErgでは別の意味になるので注意が必要である。
@@ -79,7 +87,8 @@ alice.greet() # Hello, My name is Alice.
 
 ```erg
 C = Class {.i = Int}
-C.i = 1 # AttributeError: `.i` is already defined in instance fields
+C.
+    i = 1 # AttributeError: `.i` is already defined in instance fields
 ```
 
 ## Class, Type
@@ -98,7 +107,8 @@ Ergではクラスメソッドを追加したりはできませんが、[パッ�
 ```erg
 MyStr = Inherit Str
 # other: StrとしておけばMyStrでもOK
-MyStr.`-` self, other: Str = self.replace other, ""
+MyStr.
+    `-` self, other: Str = self.replace other, ""
 
 abc = MyStr.new("abc")
 # ここの比較はアップキャストが入る
@@ -169,11 +179,13 @@ ErgではクラスでNSTを実現します。NSTの利点として、堅牢性�
 ```erg
 Dog = {.name = Str; .age = Nat}
 DogImpl = Patch Dog
-DogImpl.bark = log "Yelp!"
+DogImpl.
+    bark = log "Yelp!"
 ...
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
-PersonImpl.greet self = log "Hello, my name is {self.name}."
+PersonImpl.
+    greet self = log "Hello, my name is {self.name}."
 
 john = {.name = "John Smith"; .age = 20}
 john.bark() # "Yelp!"
@@ -184,10 +196,12 @@ john.bark() # "Yelp!"
 
 ```erg
 Dog = Class {.name = Str; .age = Nat}
-Dog.bark = log "Yelp!"
+Dog.
+    bark = log "Yelp!"
 ...
 Person = Class {.name = Str; .age = Nat}
-Person.greet self = log "Hello, my name is {self.name}."
+Person.
+    greet self = log "Hello, my name is {self.name}."
 
 john = Person.new {.name = "John Smith"; .age = 20}
 john.bark() # TypeError: `Person` object has no method `.bark`
@@ -261,16 +275,15 @@ assert x1 == x2
 クラスは、要件型のサブタイプです。要件型のメソッド(パッチメソッド含む)を使用できます。
 
 ```erg
-T = Trait ...
-T.foo: Foo
-C = Class(..., impl: T)
+T = Trait {.foo = Foo}
+C = Class(..., Impl: T)
 C.
     foo = foo
     bar x = ...
 assert C < T
 assert C.foo == foo
 assert not T < C
-T.foo # AttributeError
+assert T.foo == Foo
 ```
 
 <p align='center'>
