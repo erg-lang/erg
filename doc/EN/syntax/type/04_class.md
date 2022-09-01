@@ -16,7 +16,7 @@ print! john # <Person object>
 print! classof(john) # Person
 ```
 
-The type given to `Class` is called the requirement type (in this case `{.name = Str; .age = Nat}`).
+The type given to `Class` (normally a record type) is called the requirement type (in this case `{.name = Str; .age = Nat}`).
 Instances can be created with `<Class name>::__new__ {<attribute name> = <value>; ...}` can be created with.
 `{.name = "John Smith"; .age = 25}` is just a record, but it is converted to a `Person` instance by passing `Person.new`.
 The subroutine that creates such an instance is called a constructor.

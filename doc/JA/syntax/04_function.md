@@ -169,12 +169,21 @@ f 1 = ...
 f x: Int or Str = ...
 ```
 
-また、`match`と同じく網羅性がなくてはなりません。応急的には`fib _ = not_implemented()`とすればよいでしょう。
+また、`match`と同じく網羅性がなくてはなりません。
 
 ```erg
 fib 0 = 0
 fib 1 = 1
 # PatternError: pattern of fib's parameter is not exhaustive
+```
+
+しかし、上のような場合でも、後述する[篩型](./type/12_refinement.md)を使って明示的に型指定することで、網羅性を獲得できます。
+
+```erg
+fib: 0..1 -> 0..1
+fib 0 = 0
+fib 1 = 1
+# OK
 ```
 
 ## 再帰関数
