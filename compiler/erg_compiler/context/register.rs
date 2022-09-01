@@ -393,6 +393,7 @@ impl Context {
                         "import::name",
                         &Str,
                         mod_name.ref_t(),
+                        self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
                     ));
                 }
             }

@@ -55,6 +55,7 @@ impl ASTLowerer {
                     name,
                     expect,
                     found,
+                    self.ctx.get_type_mismatch_hint(expect, found),
                 )
             })
     }
@@ -336,8 +337,6 @@ impl ASTLowerer {
             &hir_args.kw_args,
             &self.ctx.name,
         )?;
-        log!(err "{}", obj);
-        log!(err "{:?}", call.method_name);
         Ok(hir::Call::new(obj, call.method_name, hir_args, t))
     }
 

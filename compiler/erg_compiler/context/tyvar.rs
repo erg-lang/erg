@@ -1017,6 +1017,7 @@ impl Context {
                 param_name.unwrap_or(&Str::ever("_")),
                 maybe_sup,
                 maybe_sub,
+                self.get_type_mismatch_hint(maybe_sup, maybe_sub),
             ));
         }
         match (maybe_sub, maybe_sup) {

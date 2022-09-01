@@ -51,6 +51,7 @@ impl Context {
                 ident.inspect(),
                 &spec_t,
                 body_t,
+                self.get_type_mismatch_hint(&spec_t, body_t),
             ));
         }
         Ok(())
@@ -120,6 +121,7 @@ impl Context {
                     "match",
                     &class("LambdaFunc"),
                     t,
+                    self.get_type_mismatch_hint(&class("LambdaFunc"), t),
                 ));
             }
         }
@@ -616,6 +618,7 @@ impl Context {
                     &name[..],
                     param_t,
                     arg_t,
+                    self.get_type_mismatch_hint(param_t, arg_t),
                 )
             })?;
         if let Some(name) = param.name() {
@@ -656,6 +659,7 @@ impl Context {
                     &name[..],
                     param_t,
                     arg_t,
+                    self.get_type_mismatch_hint(param_t, arg_t),
                 )
             })
     }
@@ -698,6 +702,7 @@ impl Context {
                         &name[..],
                         pt.typ(),
                         arg_t,
+                        self.get_type_mismatch_hint(pt.typ(), arg_t),
                     )
                 })?;
         } else {
