@@ -320,9 +320,9 @@ impl Context {
         for expr in block.iter() {
             if let ast::Expr::Def(def) = expr {
                 let id = Some(def.body.id);
-                let eval_body_t = || {
-                    self.eval
-                        .eval_const_block(&def.body.block, self)
+                let __name__ = def.sig.ident().map(|i| i.inspect());
+                let mut eval_body_t = || {
+                    self.eval_const_block(&def.body.block, __name__)
                         .map(|c| enum_t(set![c]))
                 };
                 match &def.sig {

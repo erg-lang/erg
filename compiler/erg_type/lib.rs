@@ -129,12 +129,31 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserConstSubr {
-    code: CodeObj,
+    code: CodeObj, // may be this should be HIR or AST block
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ValueArgs {
+    pub pos_args: Vec<ValueObj>,
+    pub kw_args: Dict<Str, ValueObj>,
+}
+
+impl ValueArgs {
+    pub const fn new(pos_args: Vec<ValueObj>, kw_args: Dict<Str, ValueObj>) -> Self {
+        ValueArgs { pos_args, kw_args }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
-    subr: fn(Vec<ValueObj>) -> ValueObj,
+    subr: fn(ValueArgs, Option<Str>) -> ValueObj,
+    t: Type,
+}
+
+impl BuiltinConstSubr {
+    pub const fn new(subr: fn(ValueArgs, Option<Str>) -> ValueObj, t: Type) -> Self {
+        Self { subr, t }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -144,10 +163,17 @@ pub enum ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn call(&self, args: Vec<ValueObj>) -> ValueObj {
+    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> ValueObj {
         match self {
             ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => (builtin.subr)(args),
+            ConstSubr::Builtin(builtin) => (builtin.subr)(args, __name__),
+        }
+    }
+
+    pub fn class(&self) -> Type {
+        match self {
+            ConstSubr::User(_user) => todo!(),
+            ConstSubr::Builtin(builtin) => builtin.t.clone(),
         }
     }
 }

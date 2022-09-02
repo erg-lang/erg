@@ -162,7 +162,7 @@ impl ASTLowerer {
     }
 
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval.eval_const_expr(len, &self.ctx);
+        let maybe_len = self.ctx.eval_const_expr(len, None);
         match maybe_len {
             Some(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
@@ -537,7 +537,7 @@ impl ASTLowerer {
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
+            // ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             other => todo!("{other}"),
         }
     }

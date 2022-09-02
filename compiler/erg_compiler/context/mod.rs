@@ -33,7 +33,6 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::eval::Evaluator;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use Visibility::*;
@@ -254,7 +253,6 @@ pub struct Context {
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
-    pub(crate) eval: Evaluator,
     // {"Nat": ctx, "Int": ctx, ...}
     pub(crate) mono_types: Dict<VarName, (Type, Context)>,
     // Implementation Contexts for Polymorphic Types
@@ -296,7 +294,6 @@ impl fmt::Display for Context {
             .field("decls", &self.decls)
             .field("locals", &self.params)
             .field("consts", &self.consts)
-            .field("eval", &self.eval)
             .field("mono_types", &self.mono_types)
             .field("poly_types", &self.poly_classes)
             .field("patches", &self.patches)
@@ -370,7 +367,6 @@ impl Context {
             decls: Dict::default(),
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
-            eval: Evaluator::default(),
             mono_types: Dict::default(),
             poly_classes: Dict::default(),
             poly_traits: Dict::default(),

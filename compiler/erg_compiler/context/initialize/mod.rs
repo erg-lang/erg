@@ -1,6 +1,7 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
+pub mod const_func;
 pub mod importlib;
 pub mod io;
 pub mod math;
@@ -13,15 +14,16 @@ use erg_common::set;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 
-use erg_type::constructors::*;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
-use erg_type::Type;
+use erg_type::{constructors::*, BuiltinConstSubr, ConstSubr};
+use erg_type::{HasType, Type};
 use ParamSpec as PS;
 use Type::*;
 
 use erg_parser::ast::VarName;
 
+use crate::context::initialize::const_func::{class_func, inherit_func, inheritable_func};
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
 use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
@@ -55,7 +57,11 @@ impl Context {
         if self.consts.get(name).is_some() {
             panic!("already registered: {name}");
         } else {
+            // TODO: visibility (not always private)
+            // TODO: kind (not always Builtin)
+            let vi = VarInfo::new(obj.t(), Const, Private, Builtin);
             self.consts.insert(VarName::from_static(name), obj);
+            self.locals.insert(VarName::from_static(name), vi);
         }
     }
 
@@ -1106,6 +1112,17 @@ impl Context {
         self.register_impl("quit", t_quit, Const, Private);
     }
 
+    fn init_builtin_const_funcs(&mut self) {
+        let class = ConstSubr::Builtin(BuiltinConstSubr::new(class_func, func1(Type, Type)));
+        self.register_const("Class", ValueObj::Subr(class));
+        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(inherit_func, func1(Type, Type)));
+        self.register_const("Inherit", ValueObj::Subr(inherit));
+        // decorators
+        let inheritable =
+            ConstSubr::Builtin(BuiltinConstSubr::new(inheritable_func, func1(Type, Type)));
+        self.register_const("Inheritable", ValueObj::Subr(inheritable));
+    }
+
     fn init_builtin_procs(&mut self) {
         let t_print = proc(
             vec![],
@@ -1297,6 +1314,7 @@ impl Context {
         // TODO: capacityを正確に把握する
         let mut ctx = Context::module("<builtins>".into(), 40);
         ctx.init_builtin_funcs();
+        ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
         ctx.init_builtin_operators();
         ctx.init_builtin_traits();

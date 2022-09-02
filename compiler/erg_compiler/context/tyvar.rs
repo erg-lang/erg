@@ -534,7 +534,7 @@ impl Context {
                     .get_type()
                     .unwrap()
                     .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
-                let tp_t = self.eval.get_tp_t(tp, self)?;
+                let tp_t = self.get_tp_t(tp)?;
                 if self.rec_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {

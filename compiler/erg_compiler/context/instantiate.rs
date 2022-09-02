@@ -608,9 +608,9 @@ impl Context {
                     _ => assume_unreachable!(),
                 };
                 let l = self.instantiate_const_expr(lhs);
-                let l = self.eval.eval_tp(&l, self)?;
+                let l = self.eval_tp(&l)?;
                 let r = self.instantiate_const_expr(rhs);
-                let r = self.eval.eval_tp(&r, self)?;
+                let r = self.eval_tp(&r)?;
                 if let Some(Greater) = self.rec_try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }

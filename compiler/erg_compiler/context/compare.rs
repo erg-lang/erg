@@ -92,7 +92,7 @@ impl Context {
             (l, r) if l == r => return true,
             _ => {}
         }
-        self.eval.shallow_eq_tp(lhs, rhs, self)
+        self.shallow_eq_tp(lhs, rhs)
     }
 
     /// e.g.
@@ -676,7 +676,7 @@ impl Context {
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
-                if let Ok(l) = self.eval.eval_bin_tp(*op, lhs, rhs) {
+                if let Ok(l) = self.eval_bin_tp(*op, lhs, rhs) {
                     self.rec_try_cmp(&l, r)
                 } else { Some(Any) }
             },
@@ -690,8 +690,8 @@ impl Context {
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
                 r @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
             ) /* if v.is_unbound() */ => {
-                let l_t = self.eval.get_tp_t(l, self).unwrap();
-                let r_t = self.eval.get_tp_t(r, self).unwrap();
+                let l_t = self.get_tp_t(l).unwrap();
+                let r_t = self.get_tp_t(r).unwrap();
                 if self.rec_supertype_of(&l_t, &r_t) || self.rec_subtype_of(&l_t, &r_t) {
                     Some(Any)
                 } else { Some(NotEqual) }
@@ -702,7 +702,7 @@ impl Context {
             // try_cmp((n: 2.._), 1) -> Some(Greater)
             // try_cmp((n: -1.._), 1) -> Some(Any)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
-                let t = self.eval.get_tp_t(l, self).unwrap();
+                let t = self.get_tp_t(l).unwrap();
                 let inf = self.rec_inf(&t);
                 let sup = self.rec_sup(&t);
                 if let (Some(inf), Some(sup)) = (inf, sup) {
@@ -888,7 +888,7 @@ impl Context {
 
     #[inline]
     fn type_of(&self, p: &TyParam) -> Type {
-        self.eval.get_tp_t(p, self).unwrap()
+        self.get_tp_t(p).unwrap()
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない

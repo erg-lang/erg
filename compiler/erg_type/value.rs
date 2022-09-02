@@ -376,7 +376,7 @@ impl ValueObj {
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
-            Self::Subr(_) => todo!(),
+            Self::Subr(subr) => subr.class(),
             Self::Type(_) => Type::Type,
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,

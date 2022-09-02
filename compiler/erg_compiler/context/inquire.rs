@@ -744,7 +744,8 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval.eval_t_params(instance, &self, self.level)?;
+        let level = self.level;
+        let res = self.eval_t_params(instance, level)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
