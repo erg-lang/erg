@@ -2,13 +2,7 @@
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
 pub mod const_func;
-pub mod importlib;
-pub mod io;
-pub mod math;
-pub mod random;
-pub mod socket;
-pub mod sys;
-pub mod time;
+pub mod py_mods;
 
 use erg_common::set;
 use erg_common::vis::Visibility;
