@@ -1,0 +1,3 @@
+[alias]
+r = "run"
+rd = "run --features debug"
