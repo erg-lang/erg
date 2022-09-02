@@ -5,4 +5,4 @@
 
 ## レコード型の合成
 
-合成されたレコード型は平坦化できます。例えば、`{...{.name = Str; .age = Nat}; ...{.name = Str; .id = Nat}}`は`{.name = Str; .age = Nat; .id = Nat}`となります。
+合成されたレコード型は平坦化できます。例えば、`{..::{.name = Str; .age = Nat}; ..::{.name = Str; .id = Nat}}`は`{.name = Str; .age = Nat; .id = Nat}`となります。

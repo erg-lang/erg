@@ -1370,7 +1370,6 @@ impl Parser {
                 todo!()
             }
         }
-        // TODO: K: V
         let first = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
