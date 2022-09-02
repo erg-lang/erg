@@ -64,7 +64,7 @@ pub enum ArrayInner {
 pub enum BraceContainer {
     Set(Set),
     Dict(Dict),
-    Record(NormalRecord),
+    Record(Record),
 }
 
 /// Perform recursive descent parsing.
@@ -1410,12 +1410,20 @@ impl Parser {
         match first {
             Expr::Def(def) => {
                 let record = self
-                    .try_reduce_record(l_brace, def)
+                    .try_reduce_normal_record(l_brace, def)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(BraceContainer::Record(record))
+                Ok(BraceContainer::Record(Record::Normal(record)))
             }
-            Expr::TypeAsc(_) => todo!(), // invalid syntax
+            // Dict
+            Expr::TypeAsc(_) => todo!(),
+            Expr::Accessor(acc) if self.cur_is(Semi) => {
+                let record = self
+                    .try_reduce_shortened_record(l_brace, acc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(BraceContainer::Record(Record::Shortened(record)))
+            }
             other => {
                 let set = self
                     .try_reduce_set(l_brace, other)
@@ -1426,7 +1434,11 @@ impl Parser {
         }
     }
 
-    fn try_reduce_record(&mut self, l_brace: Token, first: Def) -> ParseResult<NormalRecord> {
+    fn try_reduce_normal_record(
+        &mut self,
+        l_brace: Token,
+        first: Def,
+    ) -> ParseResult<NormalRecord> {
         debug_call_info!(self);
         let mut attrs = vec![first];
         loop {
@@ -1453,6 +1465,54 @@ impl Parser {
                     self.level -= 1;
                     let attrs = RecordAttrs::from(attrs);
                     return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                }
+                _ => todo!(),
+            }
+        }
+    }
+
+    fn try_reduce_shortened_record(
+        &mut self,
+        l_brace: Token,
+        first: Accessor,
+    ) -> ParseResult<ShortenedRecord> {
+        debug_call_info!(self);
+        let first = match first {
+            Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
+            Accessor::Public(public) => {
+                Identifier::new(Some(public.dot), VarName::new(public.symbol))
+            }
+            other => todo!("{other}"), // syntax error
+        };
+        let mut idents = vec![first];
+        loop {
+            match self.peek() {
+                Some(t) if t.category_is(TC::Separator) => {
+                    self.skip();
+                    if self.cur_is(Dedent) {
+                        self.skip();
+                        if self.cur_is(RBrace) {
+                            let r_brace = self.lpop();
+                            self.level -= 1;
+                            return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
+                        } else {
+                            todo!()
+                        }
+                    }
+                    let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+                    let acc = match acc {
+                        Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
+                        Accessor::Public(public) => {
+                            Identifier::new(Some(public.dot), VarName::new(public.symbol))
+                        }
+                        other => todo!("{other}"), // syntax error
+                    };
+                    idents.push(acc);
+                }
+                Some(term) if term.is(RBrace) => {
+                    let r_brace = self.lpop();
+                    self.level -= 1;
+                    return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                 }
                 _ => todo!(),
             }
@@ -1594,10 +1654,7 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_record_pat(
-        &mut self,
-        _record: NormalRecord,
-    ) -> ParseResult<VarRecordPattern> {
+    fn convert_record_to_record_pat(&mut self, _record: Record) -> ParseResult<VarRecordPattern> {
         debug_call_info!(self);
         todo!()
     }
@@ -1809,7 +1866,7 @@ impl Parser {
 
     fn convert_record_to_param_record_pat(
         &mut self,
-        _record: NormalRecord,
+        _record: Record,
     ) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
@@ -1920,10 +1977,7 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_param_pat(
-        &mut self,
-        _record: NormalRecord,
-    ) -> ParseResult<ParamRecordPattern> {
+    fn convert_record_to_param_pat(&mut self, _record: Record) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
     }

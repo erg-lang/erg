@@ -11,9 +11,11 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, set};
 
 use crate::ast::{
-    Accessor, Args, Block, Call, Def, DefBody, DefId, Expr, Identifier, Lambda, LambdaSignature,
-    Literal, Local, Module, ParamPattern, ParamSignature, Params, PosArg, Signature, SubrSignature,
-    TypeBoundSpecs, TypeSpec, VarName, VarPattern, VarSignature,
+    Accessor, Args, Array, BinOp, Block, Call, Def, DefBody, DefId, Expr, Identifier, KwArg,
+    Lambda, LambdaSignature, Literal, Local, MethodDefs, Module, NormalArray, NormalRecord,
+    NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
+    ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
+    UnaryOp, VarName, VarPattern, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -46,7 +48,9 @@ impl Desugarer {
 
     pub fn desugar(&mut self, module: Module) -> Module {
         let module = self.desugar_multiple_pattern_def(module);
-        self.desugar_pattern(module)
+        let module = self.desugar_pattern(module);
+        let module = self.desugar_shortened_record(module);
+        module
     }
 
     fn desugar_ubar_lambda(&self, _module: Module) -> Module {
@@ -304,6 +308,149 @@ impl Desugarer {
             }
             _ => {}
         }
+    }
+
+    /// `{x; y}` -> `{x = x; y = y}`
+    fn desugar_shortened_record(&self, mut module: Module) -> Module {
+        let mut new = Module::with_capacity(module.len());
+        while let Some(chunk) = module.lpop() {
+            new.push(self.rec_desugar_shortened_record(chunk));
+        }
+        new
+    }
+
+    fn rec_desugar_shortened_record(&self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Record(Record::Shortened(rec)) => {
+                let rec = self.desugar_shortened_record_inner(rec);
+                Expr::Record(Record::Normal(rec))
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let (elems, _, _) = arr.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
+                        .collect();
+                    let elems = Args::new(elems, vec![], None);
+                    let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
+                    Expr::Array(Array::Normal(arr))
+                }
+                _ => todo!(),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    let (elems, _, paren) = tup.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
+                        .collect();
+                    let new_tup = Args::new(elems, vec![], paren);
+                    let tup = NormalTuple::new(new_tup);
+                    Expr::Tuple(Tuple::Normal(tup))
+                }
+            },
+            Expr::Set(set) => {
+                todo!("{set}")
+            }
+            Expr::Dict(dict) => {
+                todo!("{dict}")
+            }
+            Expr::BinOp(binop) => {
+                let mut args = vec![];
+                for arg in binop.args.into_iter() {
+                    args.push(self.rec_desugar_shortened_record(*arg));
+                }
+                let lhs = args.remove(0);
+                let rhs = args.remove(0);
+                Expr::BinOp(BinOp::new(binop.op, lhs, rhs))
+            }
+            Expr::UnaryOp(unaryop) => {
+                let mut args = vec![];
+                for arg in unaryop.args.into_iter() {
+                    args.push(self.rec_desugar_shortened_record(*arg));
+                }
+                let expr = args.remove(0);
+                Expr::UnaryOp(UnaryOp::new(unaryop.op, expr))
+            }
+            Expr::Call(call) => {
+                let obj = self.rec_desugar_shortened_record(*call.obj);
+                let (pos_args, kw_args, paren) = call.args.deconstruct();
+                let pos_args = pos_args
+                    .into_iter()
+                    .map(|arg| PosArg::new(self.rec_desugar_shortened_record(arg.expr)))
+                    .collect();
+                let kw_args = kw_args
+                    .into_iter()
+                    .map(|arg| {
+                        let expr = self.rec_desugar_shortened_record(arg.expr);
+                        KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+                    })
+                    .collect();
+                let args = Args::new(pos_args, kw_args, paren);
+                Expr::Call(Call::new(obj, call.method_name, args))
+            }
+            Expr::Def(def) => {
+                let mut chunks = vec![];
+                for chunk in def.body.block.into_iter() {
+                    chunks.push(self.rec_desugar_shortened_record(chunk));
+                }
+                let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
+                Expr::Def(Def::new(def.sig, body))
+            }
+            Expr::Lambda(lambda) => {
+                let mut chunks = vec![];
+                for chunk in lambda.body.into_iter() {
+                    chunks.push(self.rec_desugar_shortened_record(chunk));
+                }
+                let body = Block::new(chunks);
+                Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
+            }
+            Expr::TypeAsc(tasc) => {
+                let expr = self.rec_desugar_shortened_record(*tasc.expr);
+                Expr::TypeAsc(TypeAscription::new(expr, tasc.t_spec))
+            }
+            Expr::MethodDefs(method_defs) => {
+                let mut new_defs = vec![];
+                for def in method_defs.defs.into_iter() {
+                    let mut chunks = vec![];
+                    for chunk in def.body.block.into_iter() {
+                        chunks.push(self.rec_desugar_shortened_record(chunk));
+                    }
+                    let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
+                    new_defs.push(Def::new(def.sig, body));
+                }
+                let new_defs = RecordAttrs::from(new_defs);
+                Expr::MethodDefs(MethodDefs::new(
+                    method_defs.class,
+                    method_defs.vis,
+                    new_defs,
+                ))
+            }
+            // TODO: Accessorにも一応レコードを入れられる
+            other => other,
+        }
+    }
+
+    fn desugar_shortened_record_inner(&self, rec: ShortenedRecord) -> NormalRecord {
+        let mut attrs = vec![];
+        for attr in rec.idents.into_iter() {
+            let var = VarSignature::new(VarPattern::Ident(attr.clone()), None);
+            let sig = Signature::Var(var);
+            let body = DefBody::new(
+                Token::from_str(TokenKind::Equal, "="),
+                Block::new(vec![Expr::local(
+                    attr.inspect(),
+                    attr.ln_begin().unwrap(),
+                    attr.col_begin().unwrap(),
+                )]),
+                DefId(get_hash(&(&sig, attr.inspect()))),
+            );
+            let def = Def::new(sig, body);
+            attrs.push(def);
+        }
+        let attrs = RecordAttrs::new(attrs);
+        NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
     }
 
     /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`

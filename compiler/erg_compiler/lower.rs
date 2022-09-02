@@ -217,7 +217,15 @@ impl ASTLowerer {
         Ok(hir::NormalTuple::new(hir::Args::from(new_tuple)))
     }
 
-    fn lower_record(&mut self, record: ast::NormalRecord) -> LowerResult<hir::Record> {
+    fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
+        log!(info "entered {}({record})", fn_name!());
+        match record {
+            ast::Record::Normal(rec) => self.lower_normal_record(rec),
+            ast::Record::Shortened(_rec) => unreachable!(), // should be desugared
+        }
+    }
+
+    fn lower_normal_record(&mut self, record: ast::NormalRecord) -> LowerResult<hir::Record> {
         log!(info "entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());

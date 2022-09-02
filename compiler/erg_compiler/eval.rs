@@ -264,7 +264,14 @@ impl Evaluator {
         Some(ValueObj::Array(RcArray::from(elems)))
     }
 
-    fn eval_const_record(&self, record: &NormalRecord, ctx: &Context) -> Option<ValueObj> {
+    fn eval_const_record(&self, record: &Record, ctx: &Context) -> Option<ValueObj> {
+        match record {
+            Record::Normal(rec) => self.eval_const_normal_record(rec, ctx),
+            Record::Shortened(_rec) => unreachable!(), // should be desugared
+        }
+    }
+
+    fn eval_const_normal_record(&self, record: &NormalRecord, ctx: &Context) -> Option<ValueObj> {
         let mut attrs = vec![];
         for attr in record.attrs.iter() {
             if let Some(elem) = self.eval_const_block(&attr.body.block, ctx) {

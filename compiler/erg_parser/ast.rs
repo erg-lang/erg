@@ -6,8 +6,6 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
-// use erg_common::ty::SubrKind;
-// use erg_common::value::{Field, ValueObj, Visibility};
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -675,6 +673,10 @@ impl From<Vec<Def>> for RecordAttrs {
 }
 
 impl RecordAttrs {
+    pub const fn new(attrs: Vec<Def>) -> Self {
+        Self(attrs)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
     }
@@ -714,11 +716,44 @@ impl NormalRecord {
 
 /// e.g. {x; y; z} (syntax sugar of {x = x; y = y; z = z})
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SimpleRecord {
+pub struct ShortenedRecord {
     pub l_brace: Token,
     pub r_brace: Token,
-    idents: Vec<Identifier>,
+    pub idents: Vec<Identifier>,
 }
+
+impl NestedDisplay for ShortenedRecord {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{")?;
+        for ident in self.idents.iter() {
+            write!(f, "{}; ", ident)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+impl_display_from_nested!(ShortenedRecord);
+impl_locational!(ShortenedRecord, l_brace, r_brace);
+
+impl ShortenedRecord {
+    pub const fn new(l_brace: Token, r_brace: Token, idents: Vec<Identifier>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            idents,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Record {
+    Normal(NormalRecord),
+    Shortened(ShortenedRecord),
+}
+
+impl_nested_display_for_enum!(Record; Normal, Shortened);
+impl_display_for_enum!(Record; Normal, Shortened);
+impl_locational_for_enum!(Record; Normal, Shortened);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
@@ -2610,7 +2645,8 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
+        self.sig.fmt_nest(f, level)?;
+        writeln!(f, " {}", self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }
@@ -2671,7 +2707,7 @@ pub enum Expr {
     Tuple(Tuple),
     Dict(Dict),
     Set(Set),
-    Record(NormalRecord),
+    Record(Record),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
