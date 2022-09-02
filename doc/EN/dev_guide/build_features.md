@@ -11,3 +11,11 @@ Independent of Rust's `debug_assertions` flag.
 
 Set the system language to Japanese.
 In this build, Erg internal options, help (help, copyright, license, etc.) and error messages are guaranteed to be in Japanese.
+
+## simplified_chinese
+
+Set the system language to Simplified Chinese.
+
+## traditional_chinese
+
+Set the system language to Traditional Chinese.

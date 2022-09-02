@@ -86,10 +86,10 @@ Pythonのライブラリには継承されることを前提に設計されて�
 
 ```erg
 # If T is a subtype of a structural trait...
-# f: |T <: Structural Trait {.`_+_`: Self.(Self) -> Self; .`_-_`: Self.(Self) -> Self| (T, T) -> T
+# f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x
 # T is a subtype of a nominal trait
-# g: |T <: Add and Sub| (T, T) -> T
+# g: |T <: Add() and Sub()| (T, T) -> T
 g|T| x, y: T = x + y - x
 ```
 

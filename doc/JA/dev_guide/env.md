@@ -1,19 +1,19 @@
-# Development Environment
+# 開発環境
 
-## Need to install
+## インストールが必要なもの
 
 * Rust (installed with rustup)
 
-  * ver >= 1.58.0
+  * ver >= 1.63.0
   * 2021 edition
 
 * [pre-commit](https://pre-commit.com/)
 
-* Python3 interpreter
+* Python3インタープリタ
 
-## Recommended
+## 推奨
 
-* Editor: Visual Studio Code
-* VSCode Extensions: Rust-analyzer, GitLens, Git Graph, GitHub Pull Requests and Issues, Markdown All in One, markdownlint
+* エディタ: Visual Studio Code
+* VSCode拡張機能: Rust-analyzer, GitLens, Git Graph, GitHub Pull Requests and Issues, Markdown All in One, markdownlint
 * OS: Windows 10/11 | Ubuntu 20.04/22.04 | MacOS Monterey
-* Others: pyenv
+* その他: pyenv, mold

@@ -15,7 +15,8 @@
    │ │ ├─ python: Ergの開発に必要なPythonの知識
    │ │ ├─ syntax: Ergの文法
    │ │ └─ tools: Ergのコマンドラインツールに関して
-   │ └─ JA
+   │ └─┬ JA
+   │  ...
    ├─ examples: サンプルコード
    ├─ library: Ergスクリプトによるライブラリ
    ├─ src: main.rsとドライバの置かれたディレクトリ

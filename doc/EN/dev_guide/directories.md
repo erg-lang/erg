@@ -17,7 +17,8 @@
    │ │ ├─ python: Knowledge of Python required for Erg development
    │ │ ├─ syntax: syntax of Erg
    │ │ └─ tools: about Erg's CLI tools
-   │ └─ JA
+   │ └─┬ JA
+   │  ...
    ├─ examples: sample code
    ├─ library: Erg libraries
    ├─ src: main.rs & driver
