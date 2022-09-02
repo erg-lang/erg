@@ -125,7 +125,7 @@ Inherited!.
 例えば`Real`(`Add()`を実装する)のサブタイプである`Int`では`Add()`を再実装しているようにみえます。
 
 ```erg
-Int = Class ..., Impl: Add() and ...
+Int = Class ..., Impl := Add() and ...
 ```
 
 しかし実際は`Real`の`Add()`は`Add(Real, Real)`の略で、`Int`では`Add(Int, Int)`で上書きしているだけです。

@@ -34,7 +34,7 @@ f x =
     print! f::x, module::x
 
 # Phantom types have an attribute called Phantom that has the same value as the type argument
-T X: Int = Class Impl: Phantom X
+T X: Int = Class Impl := Phantom X
 T(X).
     x self = self::Phantom
 
@@ -46,7 +46,7 @@ Transitions are specified with `~>`.
 
 ```erg
 # Note that `Id` is an immutable type and cannot be transitioned.
-VM!(State: {"stopped", "running"}! |= _, Id: Nat |= _) = Class(... State).
+VM!(State: {"stopped", "running"}! := _, Id: Nat := _) = Class(... State).
 VM!().
     # Variables that do not change can be omitted by passing `_`.
     start! ref! self("stopped" ~> "running") =

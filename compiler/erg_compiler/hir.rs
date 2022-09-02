@@ -97,7 +97,7 @@ pub struct KwArg {
 
 impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "{}:", self.keyword)?;
+        writeln!(f, "{} := ", self.keyword)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }

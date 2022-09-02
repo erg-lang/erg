@@ -513,6 +513,7 @@ impl TyCheckError {
         name: &str,
         expect: &Type,
         found: &Type,
+        hint: Option<Str>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -525,7 +526,7 @@ impl TyCheckError {
                     "traditional_chinese" => format!("{name}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
                     "english" => format!("the type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
                 ),
-                None,
+                hint,
             ),
             caused_by,
         )

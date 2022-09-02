@@ -2,17 +2,17 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D317b5973c354984891523d14a5e6e8f1cc3923ec)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=317b5973c354984891523d14a5e6e8f1cc3923ec)
 
-Erg does not support __ad hoc polymorphism__. That is, multiple definitions of functions and Kinds (overloading) are not possible. However, you can reproduce the overloading behavior by using a combination of a trace class and a patch.
+Erg does not support __ad hoc polymorphism__. That is, multiple definitions of functions and Kinds (overloading) are not possible. However, you can reproduce the overloading behavior by using a combination of a trait and a patch.
 You can use traits instead of trait classes, but then all types that implement `.add1` will be covered.
 
 ```erg
 Add1 = Trait {
     .add1: Self.() -> Self
 }
-IntAdd1 = Patch Int, Impl: Add1
+IntAdd1 = Patch Int, Impl := Add1
 IntAdd1.
     add1 self = self + 1
-RatioAdd1 = Patch Ratio, Impl: Add1
+RatioAdd1 = Patch Ratio, Impl := Add1
 RatioAdd1.
     add1 self = self + 1.0
 
@@ -37,7 +37,7 @@ Also, overloading of types with different numbers of arguments can be reproduced
 ```erg
 C = Class {.x = Int; .y = Int}
 C.
-    new(x, y |= 0) = Self::__new__ {.x; .y}
+    new(x, y := 0) = Self::__new__ {.x; .y}
 
 assert C.new(0, 0) == C.new(0)
 ```
@@ -64,7 +64,7 @@ Second, it is incompatible with default arguments. When a function with default 
 
 ```erg
 f x: Int = ...
-f(x: Int, y |= 0) = ...
+f(x: Int, y := 0) = ...
 
 f(1) # which is chosen?
 ```

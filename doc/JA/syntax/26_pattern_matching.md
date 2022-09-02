@@ -135,20 +135,20 @@ f {x: Int; y: Int} = ...
 
 ```erg
 Point = Inherit {x = Int; y = Int}
-p = Point.{x = 1; y = 2}
-Point.{x; y} = p
+p = Point::{x = 1; y = 2}
+Point::{x; y} = p
 
-Nil T = Class Impl: Phantom T
+Nil T = Class Impl := Phantom T
 Cons T = Inherit {head = T; rest = List T}
 List T = Enum Nil(T), Cons(T)
 List T.
     first self =
         match self:
-            Cons.{head; ...} -> x
+            Cons::{head; ...} -> x
             _ -> ...
     second self =
         match self:
-            Cons.{rest=Cons.{head; ...}; ...} -> head
+            Cons::{rest=Cons::{head; ...}; ...} -> head
             _ -> ...
 ```
 

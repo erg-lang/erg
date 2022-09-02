@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
 ](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
 
-> __Info__: This document is incomplete. It has not been proofread (style, correct links, mistranslation, etc.). Also, Erg's syntax may be change destructively during version 0.*, and the documentation may not have been updated accordingly. Please be aware of this beforehand.
+> __Warning__: This document is incomplete. It has not been proofread (style, correct links, mistranslation, etc.). Also, Erg's syntax may be change destructively during version 0.*, and the documentation may not have been updated accordingly. Please be aware of this beforehand.
 > If you find any errors in this document, please report then to [here form](https://forms.gle/HtLYRfYzWCAaeTGb6) or [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new). We would appreciate your suggestions.
 >
 > [The Erg book original version (Japanese)](http://mtshiba.me/TheErgBook/)

@@ -701,6 +701,9 @@ impl CodeGenerator {
         self.emit_store_instr(sig.ident, Name);
     }
 
+    // NOTE: use `TypeVar`, `Generic` in `typing` module
+    // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
+
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
         if body.is_type() {
             return self.emit_mono_type_def(sig, body);

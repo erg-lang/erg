@@ -53,7 +53,7 @@ assert not c in D
 ## Subtyping of subroutines
 
 Arguments and return values of subroutines take only a single class.
-In other words, you cannot directly specify a structural type or a trace as the type of a function.
+In other words, you cannot directly specify a structural type or a trait as the type of a function.
 It must be specified as "a single class that is a subtype of that type" using the partial type specification.
 
 ```erg
@@ -66,7 +66,7 @@ f2 x, y: Add = x + y
 f3<A <: Add> x, y: A = x + y
 ```
 
-Type inference in subroutines also follows this rule. When a variable in a subroutine has an unspecified type, the compiler first checks to see if it is an instance of one of the classes, and if not, looks for a match in the scope of the trace. If it still cannot find one, a compile error occurs. This error can be resolved by using a structural type, but since inferring an anonymous type may have unintended consequences for the programmer, it is designed to be explicitly specified by the programmer with `Structural`.
+Type inference in subroutines also follows this rule. When a variable in a subroutine has an unspecified type, the compiler first checks to see if it is an instance of one of the classes, and if not, looks for a match in the scope of the trait. If it still cannot find one, a compile error occurs. This error can be resolved by using a structural type, but since inferring an anonymous type may have unintended consequences for the programmer, it is designed to be explicitly specified by the programmer with `Structural`.
 
 ## Class upcasting
 

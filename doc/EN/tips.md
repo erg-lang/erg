@@ -47,15 +47,15 @@ If you implement `Singleton`, classes and instances are identical.
 Also, if you use `Enum`, the type of choice is automatically defined as a redirect attribute.
 
 ```erg
-Ok = Class Impl: Singleton
-Err = Class Impl: Singleton
+Ok = Class Impl := Singleton
+Err = Class Impl := Singleton
 ErrWithInfo = Inherit {info = Str}
 Status = Enum Ok, Err, ErrWithInfo
 stat: Status = Status.cons(ErrWithInfo) {info = "error caused by ..."}
 match! stat:
     Status.Ok -> ...
     Status.Err -> ...
-    Status.ErrWithInfo.{info;} -> ...
+    Status.ErrWithInfo::{info} -> ...
 ```
 
 ```erg

@@ -244,7 +244,12 @@ impl Desugarer {
                 Accessor::subscr(obj, Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())))
             }
             BufIndex::Record(attr) => {
-                Accessor::attr(obj, Local::dummy_with_line(attr, sig.ln_begin().unwrap()))
+                // TODO: visibility
+                Accessor::attr(
+                    obj,
+                    Token::from_str(TokenKind::Dot, "."),
+                    Local::dummy_with_line(attr, sig.ln_begin().unwrap()),
+                )
             }
         };
         let id = DefId(get_hash(&(&acc, buf_name)));

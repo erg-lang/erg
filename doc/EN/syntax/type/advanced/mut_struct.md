@@ -5,7 +5,7 @@
 The ``T!`` type is described as a box type that can be replaced by any ``T`` type object.
 
 ```erg
-Particle!State: {"base", "excited"}! = Class(... Impl: Phantom State)
+Particle!State: {"base", "excited"}! = Class(... Impl := Phantom State)
 Particle!
     # This method moves the State from "base" to "excited".
     apply_electric_field!(ref! self("base" ~> "excited"), field: Vector) = ...
@@ -33,7 +33,7 @@ Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ArrayWithLen
 Mutable structure types can of course be user-defined. Note, however, that there are some differences from invariant structure types in terms of the construction method.
 
 ```erg
-Nil T = Class(Impl: Phantom T)
+Nil T = Class(Impl := Phantom T)
 List T, !0 = Inherit Nil T
 List T, N: Nat! = Class {head = T; rest = List(T, !N-1)}
 List(T, !N).

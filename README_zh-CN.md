@@ -45,10 +45,10 @@
     l2[10] # 下标错误：`l2`只有7个元素，但却被访问了第11个元素
 
     2.times! do!:
-        print! "hello, ", end: ""
+        print! "hello, ", end := ""
     # => hello, hello,
     -2.times! do!:
-        print! "hello, ", end: ""
+        print! "hello, ", end := ""
     # 类型错误：`.times!`是`Nat`(0或更大整数)的方法，不是`Int`的
 
     {Meter; Sec; meter; yard; sec; ...} = import "unit"

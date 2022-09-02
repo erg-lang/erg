@@ -41,7 +41,7 @@ T = Trait {
     .f = (x: Int, y: Int): Int
 }
 
-C = Class(U, Impl: T)
+C = Class(U, Impl := T)
 C.f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
 ```
 

@@ -1,9 +1,8 @@
 # The Grammar of Erg (ver 0.1.0, provisional)
-special_op ::= '=' | '->' | '=>' | '.' | ',' | ':' | '|>' | '&'
+special_op ::= '=' | '->' | '=>' | '.' | ',' | ':' | '::' | '|>' | '&'
 separator ::= ';' | '\n'
 escape ::= '\'
 comment_marker ::= '#'
-comment ::= '#' .* '\n'
 reserved_symbol ::= special_op | separator | comment_marker
 number ::= [0-9]
 first_last_dight ::= number
@@ -28,7 +27,8 @@ parenthesis ::= '(' | ')'
 bracket ::= '{' | '}'
 square_bracket ::= '[' | ']'
 enclosure ::= parenthesis | bracket | square_bracket
-infix_op ::= '+' | '-' | '*' | '/' | '//' | '**' | '%' | '&&' | '||' | '^^' | '<' | '<=' | '>' | '>='
+infix_op ::= '+' | '-' | '*' | '/' | '//' | '**'
+        | '%' | '&&' | '||' | '^^' | '<' | '<=' | '>' | '>='
         | 'and' | 'or' | 'is' | 'as' | 'isnot' | 'in' | 'notin' | 'dot' | 'cross'
 prefix_op ::= '+' | '-' | '*' | '**' | '..' | '..<' | '~' | '&' | '!'
 postfix_op ::= '?' | '..' | '<..'
@@ -68,10 +68,21 @@ decorator ::= call
 lambda_func ::= params_opt_t '->' body
 lambda_proc ::= params_opt_t '=>' body
 lambda ::= lambda_func | lambda_proc
-array ::= '[' enc_args ']'
+normal_array ::= '[' enc_args ']'
 array_comprehension ::= '[' expr | (generator)+ ']'
-anonymous_type ::= '{' enc_args '}'
+array ::= normal_array | array_comprehension
+record ::= '{' '=' '}'
+    | '{' def (';' def)* ';'? '}'
+set ::= '{' '}'
+    | '{' expr (',' expr)* ','? '}'
+dict ::= '{' ':' '}'
+    | '{' symbol ':' expr (',' symbol ':' expr)* ','? '}'
+tuple ::= '(' ')'
+    | '(' expr (',' expr)* ','? ')'
 indent ::= /* ... */
-expr ::= accessor | literal | prefix | infix | postfix | call | def | lambda
+expr ::= accessor | literal
+    | prefix | infix | postfix
+    | array | record | set | dict | tuple
+    | call | def | lambda
 line ::= expr separator+
 program ::= expr? | (line | comment)*

@@ -2,6 +2,7 @@
 //! `Context` is used for type inference and type checking.
 pub mod cache;
 pub mod compare;
+pub mod hint;
 pub mod initialize;
 pub mod inquire;
 pub mod instantiate;

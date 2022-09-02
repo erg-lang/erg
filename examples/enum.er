@@ -1,20 +1,20 @@
-LitExpr = Class {.i = Int}, Impl: Show
+LitExpr = Class {.i = Int}, Impl := Show
 LitExpr.
     new i = Self::__new__ {.i;}
     show &self = "{self.i}"
-AddExpr = Class {.lhs = Expr, .rhs = Expr}, Impl: Show
+AddExpr = Class {.lhs = Expr, .rhs = Expr}, Impl := Show
 AddExpr.
     new lhs, rhs = Self::__new__ {.lhs; .rhs}
     show &self = "{self.lhs} + {self.rhs}"
-SubExpr = Class {.lhs = Expr, .rhs = Expr}, Impl: Show
+SubExpr = Class {.lhs = Expr, .rhs = Expr}, Impl := Show
 SubExpr.
     new lhs, rhs = Self::__new__ {.lhs; .rhs}
     show &self = "{self.lhs} - {self.rhs}"
-PosExpr = Class {.expr = Expr}, Impl: Show
+PosExpr = Class {.expr = Expr}, Impl := Show
 PosExpr.
     new expr = Self::__new__ {.expr;}
     show &self = "+{self.expr}"
-NegExpr = Class {.expr = Expr}, Impl: Show
+NegExpr = Class {.expr = Expr}, Impl := Show
 NegExpr.
     new expr = Self::__new__ {.expr;}
     show &self = "-{self.expr}"

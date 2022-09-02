@@ -215,8 +215,8 @@ age = match person:
 
 ```erg
 Point = Inherit {x = Int; y = Int}
-p = Point.{x = 1; y = 2}
-Point.{x; y} = p
+p = Point::{x = 1; y = 2}
+Point::{x; y} = p
 ```
 
 ## 内包表記

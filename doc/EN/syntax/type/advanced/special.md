@@ -42,7 +42,7 @@ Add R = Trait {
 }
 ClosedAdd = Subsume Add(Self)
 
-ClosedAddForInt = Patch(Int, Impl: ClosedAdd)
+ClosedAddForInt = Patch(Int, Impl := ClosedAdd)
 ClosedAddForInt.
     AddO = Int
 

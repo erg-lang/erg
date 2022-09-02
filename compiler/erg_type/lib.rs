@@ -704,7 +704,7 @@ impl LimitedDisplay for SubrType {
             var_params.typ().limited_fmt(f, limit - 1)?;
         }
         for pt in self.default_params.iter() {
-            write!(f, ", {} |= ", pt.name().unwrap())?;
+            write!(f, ", {} := ", pt.name().unwrap())?;
             pt.typ().limited_fmt(f, limit - 1)?;
         }
         write!(f, ") {} ", self.kind.arrow())?;
@@ -1075,7 +1075,7 @@ impl fmt::Display for ArgsOwnership {
             write!(f, ", ...{o:?}")?;
         }
         for (name, o) in self.defaults.iter() {
-            write!(f, ", {name} |= {o:?}")?;
+            write!(f, ", {name} := {o:?}")?;
         }
         write!(f, ")")?;
         Ok(())

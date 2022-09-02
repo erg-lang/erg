@@ -105,8 +105,8 @@ pub enum TokenKind {
     CrossOp,
     /// =
     Equal,
-    /// |=
-    OrEqual,
+    /// :=
+    Walrus,
     /// ->
     FuncArrow,
     /// =>
@@ -175,7 +175,7 @@ pub enum TokenCategory {
     LEnclosure,
     /// ) } } Dedent
     REnclosure,
-    /// , : :: :> <: . |> |=
+    /// , : :: :> <: . |> :=
     SpecialBinOp,
     /// =
     DefOp,
@@ -212,7 +212,7 @@ impl TokenKind {
             | InfLit => TokenCategory::Literal,
             PrePlus | PreMinus | PreBitNot | Mutate => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
-            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | OrEqual => {
+            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus => {
                 TokenCategory::SpecialBinOp
             }
             Equal => TokenCategory::DefOp,
@@ -250,7 +250,7 @@ impl TokenKind {
             FuncArrow | ProcArrow => 60,           // -> =>
             Colon | SupertypeOf | SubtypeOf => 50, // : :> <:
             Comma => 40,                           // ,
-            Equal | OrEqual => 20,                 // = |=
+            Equal | Walrus => 20,                  // = :=
             Newline | Semi => 10,                  // \n ;
             LParen | LBrace | LSqBr | Indent => 0, // ( { [ Indent
             _ => return None,

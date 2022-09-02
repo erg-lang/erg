@@ -1,4 +1,4 @@
-# Interval begin, end: WellOrder
+# Interval begin, end := WellOrder
 
 整列集合型(WellOrder)の部分型を表す型です。Interval型にはPreOpen(x<..y)などの派生型が存在します。
 

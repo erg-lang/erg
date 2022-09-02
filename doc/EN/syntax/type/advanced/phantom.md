@@ -34,7 +34,7 @@ This code passes compilation. But it's a little tricky to understand the intent,
 In such a case, a phantom type is just what you need. A phantom type is a generalized type of size 0.
 
 ```erg
-Nil T = Class(Impl: Phantom T)
+Nil T = Class(Impl := Phantom T)
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 

@@ -70,7 +70,7 @@ You can also use a subtype specification when defining a class to statically che
 
 ```erg
 # Class C is a subtype of Show
-C = Class Object, Impl: Show
+C = Class Object, Impl := Show
 C.show self = ... # Show's required attributes.
 ```
 

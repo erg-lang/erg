@@ -8,7 +8,7 @@ Add R = Trait {
     .AddO = Type
 }
 
-AddForInt = Patch(Int, Impl: Add Int)
+AddForInt = Patch(Int, Impl := Add Int)
 AddForInt.
     AddO = Int
 ```

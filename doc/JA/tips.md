@@ -44,15 +44,15 @@ FinalWrapper.
 また、`Enum`を使うと、その選択肢となる型がリダイレクト属性として自動的に定義されます。
 
 ```erg
-Ok = Class Impl: Singleton
-Err = Class Impl: Singleton
+Ok = Class Impl := Singleton
+Err = Class Impl := Singleton
 ErrWithInfo = Inherit {info = Str}
 Status = Enum Ok, Err, ErrWithInfo
 stat: Status = Status.cons(ErrWithInfo) {info = "error caused by ..."}
 match! stat:
     Status.Ok -> ...
     Status.Err -> ...
-    Status.ErrWithInfo.{info;} -> ...
+    Status.ErrWithInfo::{info;} -> ...
 ```
 
 ```erg

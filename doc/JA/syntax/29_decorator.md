@@ -17,7 +17,21 @@ X = ...
 X = deco(X)
 ```
 
-Ergでは変数の再代入が出来ないので、上のようなコードは通らず、デコレータが必要なのです。
+Ergでは変数の再代入が出来ないので、上のようなコードは通りません。
+単なる変数の場合は`X = deco(...)`と同じなのですが、インスタントブロックやサブルーチンの場合はそうすることができないので、デコレータが必要になってきます。
+
+```erg
+@deco
+f x =
+    y = ...
+    x + y
+
+# コードが横長になるのを防ぐこともできる
+@LongNameDeco1
+@LongNameDeco2
+C = Class ...
+```
+
 以下に、頻出の組み込みデコレータを紹介します。
 
 ## Inheritable
@@ -44,7 +58,7 @@ Sub = Trait {
     .`_-_` = Self.(Self) -> Self
 }
 
-C = Class({i = Int}, Impl: Add and Sub)
+C = Class({i = Int}, Impl := Add and Sub)
 C.
     @Impl Add
     `_+_` self, other = C.new {i = self::i + other::i}
@@ -66,9 +80,9 @@ Add R = Trait {
 @Attach AddForInt, AddForOdd
 ClosedAdd = Subsume Add(Self)
 
-AddForInt = Patch(Int, Impl: ClosedAdd)
+AddForInt = Patch(Int, Impl := ClosedAdd)
 AddForInt.AddO = Int
-AddForOdd = Patch(Odd, Impl: ClosedAdd)
+AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 

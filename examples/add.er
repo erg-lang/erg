@@ -1,4 +1,4 @@
-Point = Class {x = Int; y = Int}, Impl: Add() and Eq()
+Point = Class {x = Int; y = Int}, Impl := Add() and Eq()
 Point.
     new x, y = Self::__new__ {x; y}
     norm &self = self::x**2 + self::y**2

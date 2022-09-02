@@ -3,8 +3,8 @@
 ErgはOr型をクラス化することで一般化代数的データ型(GADTs)を作成出来ます。
 
 ```erg
-Nil T = Class(Impl: Phantom T)
-Cons T = Class {head = T; rest = List T}, Impl: Unpack
+Nil T = Class(Impl := Phantom T)
+Cons T = Class {head = T; rest = List T}, Impl := Unpack
 List T: Type = Class(Nil T or Cons T)
 List.
     nil|T|() = Self(T).new Nil(T).new()
@@ -30,8 +30,8 @@ _: List Int = cons 1, i
 
 ```erg
 List: (Type, {"Empty", "Nonempty"}) -> Type
-List T, "Empty" = Class(Impl: Phantom T)
-List T, "Nonempty" = Class {head = T; rest = List(T, _)}, Impl: Unpack
+List T, "Empty" = Class(Impl := Phantom T)
+List T, "Nonempty" = Class {head = T; rest = List(T, _)}, Impl := Unpack
 List.
     nil|T|() = Self(T, "Empty").new Nil(T).new()
     cons head, rest | T = Self(T, "Nonempty").new {head; rest}
@@ -48,8 +48,8 @@ Ergではさらに精密化して、長さを持つリストを定義できま�
 
 ```erg
 List: (Type, Nat) -> Type
-List T, 0 = Class(Impl: Phantom T)
-List T, N = Class {head = T; rest = List(T, N-1)}, Impl: Unpack
+List T, 0 = Class(Impl := Phantom T)
+List T, N = Class {head = T; rest = List(T, N-1)}, Impl := Unpack
 List.
     nil|T|() = Self(T, 0).new Nil(T).new()
     cons head, rest | T, N = Self(T, N).new {head; rest}

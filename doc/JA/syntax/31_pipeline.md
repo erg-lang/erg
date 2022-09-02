@@ -15,7 +15,7 @@ assert f(g(x, y)) == ((x, y) |> g |> f)
 rand = -1.0..1.0 |>.sample!()
 log rand # 0.2597...
 
-1+1*2 |>.times do log("a", end: "") # aaa
+1+1*2 |>.times do log("a", end := "") # aaa
 
 evens = 1..100 |>.iter |>.filter i -> i % 2 == 0 |>.collect Array
 # パイプライン演算子を使わずに実装する場合、

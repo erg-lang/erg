@@ -46,10 +46,10 @@
     l2[10] # IndexError: `l2`は7つの要素を持っていますが、11番目の要素のアクセスしようとしています
 
     2.times! do!:
-        print! "hello, ", end: ""
+        print! "hello, ", end := ""
     # => hello, hello,
     -2.times! do!:
-        print! "hello,", end: ""
+        print! "hello,", end := ""
     # TypeError: `.times!`は`Nat`(0以上のInt)のメソッドです、`Int`ではありません
 
     {Meter; Sec; meter; yard; sec; ...} = import "unit"

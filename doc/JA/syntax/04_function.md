@@ -84,10 +84,10 @@ f x:
 
 ある引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
 
-デフォルト引数は`|=`(or-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
+デフォルト引数は`:=`(or-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
 
 ```erg
-math_log x: Ratio, base |= math.E = ...
+math_log x: Ratio, base := math.E = ...
 
 assert math_log(100, 10) == 2
 assert math_log(100) == math_log(100, math.E)
@@ -96,7 +96,7 @@ assert math_log(100) == math_log(100, math.E)
 引数を指定しないことと`None`を代入することは区別されるので注意してください。
 
 ```erg
-p! x |= 0 = print! x
+p! x := 0 = print! x
 p!(2) # 2
 p!() # 0
 p!(None) # None
@@ -105,20 +105,20 @@ p!(None) # None
 型指定、パターンと併用することもできます。
 
 ```erg
-math_log x, base: Ratio |= math.E = ...
-f [x, y] |= [1, 2] = ...
+math_log x, base: Ratio := math.E = ...
+f [x, y] := [1, 2] = ...
 ```
 
 しかしデフォルト引数内では、後述するプロシージャを呼び出したり、可変オブジェクトを代入したりすることができません。
 
 ```erg
-f x |= p! 1 = ... # NG
+f x := p! 1 = ... # NG
 ```
 
 また、定義したばかりの引数はデフォルト引数に渡す値として使えません。
 
 ```erg
-f x |= 1, y |= x = ... # NG
+f x := 1, y := x = ... # NG
 ```
 
 ## 可変長引数
