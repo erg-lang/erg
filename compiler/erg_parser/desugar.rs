@@ -367,20 +367,14 @@ impl Desugarer {
                 todo!("{dict}")
             }
             Expr::BinOp(binop) => {
-                let mut args = vec![];
-                for arg in binop.args.into_iter() {
-                    args.push(self.rec_desugar_shortened_record(*arg));
-                }
-                let lhs = args.remove(0);
-                let rhs = args.remove(0);
+                let mut args = binop.args.into_iter();
+                let lhs = self.rec_desugar_shortened_record(*args.next().unwrap());
+                let rhs = self.rec_desugar_shortened_record(*args.next().unwrap());
                 Expr::BinOp(BinOp::new(binop.op, lhs, rhs))
             }
             Expr::UnaryOp(unaryop) => {
-                let mut args = vec![];
-                for arg in unaryop.args.into_iter() {
-                    args.push(self.rec_desugar_shortened_record(*arg));
-                }
-                let expr = args.remove(0);
+                let mut args = unaryop.args.into_iter();
+                let expr = self.rec_desugar_shortened_record(*args.next().unwrap());
                 Expr::UnaryOp(UnaryOp::new(unaryop.op, expr))
             }
             Expr::Call(call) => {

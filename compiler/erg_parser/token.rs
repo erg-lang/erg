@@ -103,6 +103,10 @@ pub enum TokenKind {
     DotOp,
     /// `cross` (vector product)
     CrossOp,
+    /// `ref` (special unary)
+    RefOp,
+    /// `ref!` (special unary)
+    RefMutOp,
     /// =
     Equal,
     /// :=
@@ -210,7 +214,7 @@ impl TokenKind {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
             | InfLit => TokenCategory::Literal,
-            PrePlus | PreMinus | PreBitNot | Mutate => TokenCategory::UnaryOp,
+            PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus => {
                 TokenCategory::SpecialBinOp
@@ -234,16 +238,16 @@ impl TokenKind {
 
     pub const fn precedence(&self) -> Option<usize> {
         let prec = match self {
-            Dot | DblColon => 200,                                  // .
-            Pow => 190,                                             // **
-            PrePlus | PreMinus | PreBitNot => 180,                  // (unary) + - * ~
-            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170, // * / // % cross dot
-            Plus | Minus => 160,                                    // + -
-            Shl | Shr => 150,                                       // << >>
-            BitAnd => 140,                                          // &&
-            BitXor => 130,                                          // ^^
-            BitOr => 120,                                           // ||
-            Closed | LeftOpen | RightOpen | Open => 100,            // range operators
+            Dot | DblColon => 200,                                    // .
+            Pow => 190,                                               // **
+            PrePlus | PreMinus | PreBitNot | RefOp | RefMutOp => 180, // (unary) + - * ~ ref ref!
+            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170,   // * / // % cross dot
+            Plus | Minus => 160,                                      // + -
+            Shl | Shr => 150,                                         // << >>
+            BitAnd => 140,                                            // &&
+            BitXor => 130,                                            // ^^
+            BitOr => 120,                                             // ||
+            Closed | LeftOpen | RightOpen | Open => 100,              // range operators
             Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
             AndOp => 80,                           // and
             OrOp => 70,                            // or

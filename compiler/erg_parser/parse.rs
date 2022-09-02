@@ -1692,22 +1692,51 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_record_pat(&mut self, _record: Record) -> ParseResult<VarRecordPattern> {
+    fn convert_record_to_record_pat(&mut self, record: Record) -> ParseResult<VarRecordPattern> {
         debug_call_info!(self);
-        match _record {
-            Record::Normal(_rec) => {
-                todo!()
+        match record {
+            Record::Normal(rec) => {
+                let mut pats = vec![];
+                for mut attr in rec.attrs.into_iter() {
+                    let lhs =
+                        option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
+                    let lhs =
+                        option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+                    assert_eq!(attr.body.block.len(), 1);
+                    let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
+                        .unwrap_or_else(|| todo!());
+                    let rhs = self
+                        .convert_accessor_to_ident(rhs)
+                        .map_err(|_| self.stack_dec())?;
+                    pats.push(VarRecordAttr::new(lhs, rhs));
+                }
+                let attrs = VarRecordAttrs::new(pats);
+                self.level -= 1;
+                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
-            _ => todo!(),
+            Record::Shortened(rec) => {
+                let mut pats = vec![];
+                for ident in rec.idents.into_iter() {
+                    pats.push(VarRecordAttr::new(ident.clone(), ident));
+                }
+                let attrs = VarRecordAttrs::new(pats);
+                self.level -= 1;
+                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
+            }
         }
     }
 
     fn convert_data_pack_to_data_pack_pat(
         &mut self,
-        _pack: DataPack,
+        pack: DataPack,
     ) -> ParseResult<VarDataPackPattern> {
         debug_call_info!(self);
-        todo!()
+        let class = option_enum_unwrap!(*pack.class, Expr::Accessor).unwrap_or_else(|| todo!());
+        let args = self
+            .convert_record_to_record_pat(pack.args)
+            .map_err(|_| self.stack_dec())?;
+        self.level -= 1;
+        Ok(VarDataPackPattern::new(class, args))
     }
 
     fn convert_tuple_to_tuple_pat(&mut self, tuple: Tuple) -> ParseResult<VarTuplePattern> {
@@ -1868,30 +1897,26 @@ impl Parser {
                 self.level -= 1;
                 Ok(param)
             }
-            Expr::Call(mut call) => match *call.obj {
-                Expr::Accessor(Accessor::Local(local)) => match &local.inspect()[..] {
-                    "ref" => {
-                        assert_eq!(call.args.len(), 1);
-                        let var = call.args.remove_pos(0).expr;
-                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
-                            .unwrap_or_else(|| todo!());
-                        let pat = ParamPattern::Ref(VarName::new(var.symbol));
-                        let param = ParamSignature::new(pat, None, None);
-                        self.level -= 1;
-                        Ok(param)
-                    }
-                    "ref!" => {
-                        assert_eq!(call.args.len(), 1);
-                        let var = call.args.remove_pos(0).expr;
-                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
-                            .unwrap_or_else(|| todo!());
-                        let pat = ParamPattern::RefMut(VarName::new(var.symbol));
-                        let param = ParamSignature::new(pat, None, None);
-                        self.level -= 1;
-                        Ok(param)
-                    }
-                    other => todo!("{other}"),
-                },
+            Expr::UnaryOp(unary) => match unary.op.kind {
+                TokenKind::RefOp => {
+                    let var = unary.args.into_iter().next().unwrap();
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Local:(_)))
+                        .unwrap_or_else(|| todo!());
+                    let pat = ParamPattern::Ref(VarName::new(var.symbol));
+                    let param = ParamSignature::new(pat, None, None);
+                    self.level -= 1;
+                    Ok(param)
+                }
+                TokenKind::RefMutOp => {
+                    let var = unary.args.into_iter().next().unwrap();
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Local:(_)))
+                        .unwrap_or_else(|| todo!());
+                    let pat = ParamPattern::RefMut(VarName::new(var.symbol));
+                    let param = ParamSignature::new(pat, None, None);
+                    self.level -= 1;
+                    Ok(param)
+                }
+                // Spread
                 other => todo!("{other}"),
             },
             other => todo!("{other}"), // Error

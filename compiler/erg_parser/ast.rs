@@ -1987,6 +1987,12 @@ impl NestedDisplay for VarRecordAttr {
 impl_display_from_nested!(VarRecordAttr);
 impl_locational!(VarRecordAttr, lhs, rhs);
 
+impl VarRecordAttr {
+    pub const fn new(lhs: Identifier, rhs: Identifier) -> Self {
+        Self { lhs, rhs }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttrs {
     pub(crate) elems: Vec<VarRecordAttr>,
@@ -2038,7 +2044,7 @@ impl VarRecordPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarDataPackPattern {
-    pub class: Identifier, // TODO: allow Attribute
+    pub class: Accessor, // TODO: allow polymorphic
     pub args: VarRecordPattern,
 }
 
@@ -2051,7 +2057,7 @@ impl fmt::Display for VarDataPackPattern {
 impl_locational!(VarDataPackPattern, class, args);
 
 impl VarDataPackPattern {
-    pub const fn new(class: Identifier, args: VarRecordPattern) -> Self {
+    pub const fn new(class: Accessor, args: VarRecordPattern) -> Self {
         Self { class, args }
     }
 }
@@ -2275,6 +2281,7 @@ pub enum ParamPattern {
     Array(ParamArrayPattern),
     Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
+    // DataPack(ParamDataPackPattern),
     Ref(VarName),
     RefMut(VarName),
     // e.g. `a` of `[...a, b] = [1, 2, 3]` (a == [1, 2], b == 3)
