@@ -1,6 +1,6 @@
 # Trait
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D76e2e858c300a614067fd1aa6934e5d8ceb71226)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=76e2e858c300a614067fd1aa6934e5d8ceb71226)
 
 Trait is a nominal type that adds a type attribute requirement to record types.
 It is similar to the Abstract Base Class (ABC) in Python, but with the distinction of being able to perform algebraic operations.
@@ -138,6 +138,45 @@ SafeDiv R, O = Subsume Div, {
     @Override
     . `/` = Self.(R) -> O
 }
+```
+
+## Implementing and resolving duplicate traits in the API
+
+The actual definitions of `Add`, `Sub`, and `Mul` look like this.
+
+```erg
+Add R = Trait {
+    .Output = Type
+    . `_+_` = Self.(R) -> .Output
+}
+Sub R = Trait {
+    .Output = Type
+    . `_-_` = Self.(R) -> .Output
+}
+Mul R = Trait {
+    .Output = Type
+    . `*` = Self.(R) -> .Output
+}
+```
+
+`.Output` is duplicated. If you want to implement these multiple traits at the same time, specify the following.
+
+```erg
+P = Class {.x = Int; .y = Int}
+# P|Self <: Add(P)| can be abbreviated to P|<: Add(P)|
+P|Self <: Add(P)|.
+    Output = P
+    `_+_` self, other = P.new {.x = self.x + other.x; .y = self.y + other.y}
+P|Self <: Mul(Int)|.
+    Output = P
+    `*` self, other = P.new {.x = self.x * other; .y = self.y * other}
+```
+
+Duplicate APIs implemented in this way are almost always type inferred when used, but can also be resolved by explicitly specifying the type with `||`.
+
+```erg
+print! P.Output # TypeError: ambiguous type
+print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
 ## Appendix: Differences from Rust traits
