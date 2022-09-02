@@ -20,7 +20,21 @@ X = ...
 X = deco(X)
 ```
 
-Since Erg does not allow reassignment, the above code will not pass, and a decorator is required.
+Erg does not allow reassignment of variables, so the above code will not pass.
+For a simple variable, `X = deco(...)` is the same, but for instant blocks and subroutines, you can't do that, so you need decorators.
+
+```erg
+@deco
+f x = ...
+    y = ...
+    x + y
+
+# Can also prevent code from going horizontal.
+@LongNameDeco1
+@LongNameDeco2
+C = Class ...
+```
+
 Here are some frequently used built-in decorators.
 
 ## Inheritable

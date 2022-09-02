@@ -212,7 +212,7 @@ macro_rules! impl_stream_for_wrapper {
             }
         }
 
-        impl erg_common::traits::Stream<$Inner> for $Strc {
+        impl $crate::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> {
                 self.0
@@ -232,7 +232,7 @@ macro_rules! impl_stream_for_wrapper {
 #[macro_export]
 macro_rules! impl_stream {
     ($Strc: ident, $Inner: ident, $field: ident) => {
-        impl erg_common::traits::Stream<$Inner> for $Strc {
+        impl $crate::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> {
                 self.$field

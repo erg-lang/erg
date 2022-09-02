@@ -64,7 +64,7 @@ pub enum ArrayInner {
 pub enum BraceContainer {
     Set(Set),
     Dict(Dict),
-    Record(Record),
+    Record(NormalRecord),
 }
 
 /// Perform recursive descent parsing.
@@ -372,6 +372,11 @@ impl Parser {
         let mut decs = set![];
         while let Some(deco) = self.opt_reduce_decorator().map_err(|_| self.stack_dec())? {
             decs.insert(deco);
+            if self.cur_is(Newline) {
+                self.skip();
+            } else {
+                todo!()
+            }
         }
         self.level -= 1;
         Ok(decs)
@@ -403,16 +408,43 @@ impl Parser {
         loop {
             match self.peek() {
                 Some(t) if t.is(Dot) => {
-                    self.skip();
+                    let vis = self.lpop();
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
                             let attr = Local::new(token);
-                            acc = Accessor::attr(Expr::Accessor(acc), attr);
+                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
                         }
                         NatLit => {
                             let attr = Literal::from(token);
                             acc = Accessor::tuple_attr(Expr::Accessor(acc), attr);
+                        }
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(DblColon) => {
+                    let vis = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let attr = Local::new(token);
+                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
+                        }
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
                         }
                         _ => {
                             self.restore(token);
@@ -477,39 +509,6 @@ impl Parser {
                 Err(())
             }
         }
-    }
-
-    fn _validate_const_pos_arg(&mut self, arg: PosArg) -> ParseResult<ConstPosArg> {
-        let expr = self.validate_const_expr(arg.expr)?;
-        Ok(ConstPosArg::new(expr))
-    }
-
-    fn _validate_const_kw_arg(&mut self, arg: KwArg) -> ParseResult<ConstKwArg> {
-        let expr = self.validate_const_expr(arg.expr)?;
-        Ok(ConstKwArg::new(arg.keyword, expr))
-    }
-
-    // exprが定数式か確認する
-    fn _validate_const_args(&mut self, args: Args) -> ParseResult<ConstArgs> {
-        let (pos, kw, paren) = args.deconstruct();
-        let mut const_args = ConstArgs::new(vec![], vec![], paren);
-        for arg in pos.into_iter() {
-            match self._validate_const_pos_arg(arg) {
-                Ok(arg) => {
-                    const_args.push_pos(arg);
-                }
-                Err(e) => return Err(e),
-            }
-        }
-        for arg in kw.into_iter() {
-            match self._validate_const_kw_arg(arg) {
-                Ok(arg) => {
-                    const_args.push_kw(arg);
-                }
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(const_args)
     }
 
     /// For parsing elements of arrays and tuples
@@ -595,12 +594,13 @@ impl Parser {
                 if t.category_is(TC::Literal)
                     || t.is(Symbol)
                     || t.category_is(TC::UnaryOp)
-                    || t.is(Dot)
-                    || t.category_is(TC::Caret)
                     || t.is(LParen)
                     || t.is(LSqBr)
                     || t.is(LBrace) =>
             {
+                Some(self.try_reduce_args())
+            }
+            Some(t) if (t.is(Dot) || t.is(DblColon)) && !self.nth_is(1, Newline) => {
                 Some(self.try_reduce_args())
             }
             _ => None,
@@ -828,7 +828,7 @@ impl Parser {
         } else {
             todo!()
         }
-        let first = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+        let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         let first = option_enum_unwrap!(first, Expr::Def).unwrap_or_else(|| todo!());
         let mut defs = vec![first];
         loop {
@@ -839,7 +839,7 @@ impl Parser {
                         self.skip();
                         break;
                     }
-                    let def = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
                     let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
                     defs.push(def);
                 }
@@ -945,26 +945,7 @@ impl Parser {
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
-                    let dbl_colon = self.lpop();
-                    match self.lpop() {
-                        line_break if line_break.is(Newline) => {
-                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let defs = self
-                                .try_reduce_method_defs(maybe_class, dbl_colon)
-                                .map_err(|_| self.stack_dec())?;
-                            return Ok(Expr::MethodDefs(defs));
-                        }
-                        other => {
-                            self.restore(other);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                Some(t) if t.is(Dot) => {
-                    let dot = self.lpop();
+                    let vis = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
@@ -983,14 +964,54 @@ impl Parser {
                                 let call = Call::new(obj, Some(symbol), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, Local::new(symbol));
+                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
                         line_break if line_break.is(Newline) => {
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
-                                .try_reduce_method_defs(maybe_class, dot)
+                                .try_reduce_method_defs(maybe_class, vis)
+                                .map_err(|_| self.stack_dec())?;
+                            return Ok(Expr::MethodDefs(defs));
+                        }
+                        other => {
+                            self.restore(other);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(Dot) => {
+                    let vis = self.lpop();
+                    match self.lpop() {
+                        symbol if symbol.is(Symbol) => {
+                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
+                                expr
+                            } else {
+                                self.level -= 1;
+                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                self.errs.push(err);
+                                return Err(());
+                            };
+                            if let Some(args) = self
+                                .opt_reduce_args()
+                                .transpose()
+                                .map_err(|_| self.stack_dec())?
+                            {
+                                let call = Call::new(obj, Some(symbol), args);
+                                stack.push(ExprOrOp::Expr(Expr::Call(call)));
+                            } else {
+                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                            }
+                        }
+                        line_break if line_break.is(Newline) => {
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let defs = self
+                                .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
                             return Ok(Expr::MethodDefs(defs));
                         }
@@ -1113,7 +1134,7 @@ impl Parser {
                     ));
                 }
                 Some(t) if t.is(Dot) => {
-                    self.lpop();
+                    let vis = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
@@ -1132,7 +1153,7 @@ impl Parser {
                                 let call = Call::new(obj, Some(symbol), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, Local::new(symbol));
+                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1208,13 +1229,28 @@ impl Parser {
             }
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
-                let expr = self.try_reduce_expr(false)?;
-                let def = option_enum_unwrap!(expr, Expr::Def).unwrap_or_else(|| todo!());
-                let mut subr_sig =
-                    option_enum_unwrap!(def.sig, Signature::Subr).unwrap_or_else(|| todo!());
-                subr_sig.decorators = decos;
-                let expr = Expr::Def(Def::new(Signature::Subr(subr_sig), def.body));
-                Ok(expr)
+                let expr = self.try_reduce_chunk(false)?;
+                let mut def = option_enum_unwrap!(expr, Expr::Def).unwrap_or_else(|| todo!());
+                match def.sig {
+                    Signature::Subr(mut subr) => {
+                        subr.decorators = decos;
+                        let expr = Expr::Def(Def::new(Signature::Subr(subr), def.body));
+                        Ok(expr)
+                    }
+                    Signature::Var(var) => {
+                        let mut last = def.body.block.pop().unwrap();
+                        for deco in decos.into_iter() {
+                            last = Expr::Call(Call::new(
+                                deco.into_expr(),
+                                None,
+                                Args::new(vec![PosArg::new(last)], vec![], None),
+                            ));
+                        }
+                        def.body.block.push(last);
+                        let expr = Expr::Def(Def::new(Signature::Var(var), def.body));
+                        Ok(expr)
+                    }
+                }
             }
             Some(t) if t.is(Symbol) || t.is(Dot) => {
                 let call_or_acc = self
@@ -1370,7 +1406,7 @@ impl Parser {
                 todo!()
             }
         }
-        let first = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+        let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
                 let record = self
@@ -1390,7 +1426,7 @@ impl Parser {
         }
     }
 
-    fn try_reduce_record(&mut self, l_brace: Token, first: Def) -> ParseResult<Record> {
+    fn try_reduce_record(&mut self, l_brace: Token, first: Def) -> ParseResult<NormalRecord> {
         debug_call_info!(self);
         let mut attrs = vec![first];
         loop {
@@ -1403,12 +1439,12 @@ impl Parser {
                             let r_brace = self.lpop();
                             self.level -= 1;
                             let attrs = RecordAttrs::from(attrs);
-                            return Ok(Record::new(l_brace, r_brace, attrs));
+                            return Ok(NormalRecord::new(l_brace, r_brace, attrs));
                         } else {
                             todo!()
                         }
                     }
-                    let def = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
                     let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
                     attrs.push(def);
                 }
@@ -1416,7 +1452,7 @@ impl Parser {
                     let r_brace = self.lpop();
                     self.level -= 1;
                     let attrs = RecordAttrs::from(attrs);
-                    return Ok(Record::new(l_brace, r_brace, attrs));
+                    return Ok(NormalRecord::new(l_brace, r_brace, attrs));
                 }
                 _ => todo!(),
             }
@@ -1558,7 +1594,10 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_record_pat(&mut self, _record: Record) -> ParseResult<VarRecordPattern> {
+    fn convert_record_to_record_pat(
+        &mut self,
+        _record: NormalRecord,
+    ) -> ParseResult<VarRecordPattern> {
         debug_call_info!(self);
         todo!()
     }
@@ -1721,6 +1760,32 @@ impl Parser {
                 self.level -= 1;
                 Ok(param)
             }
+            Expr::Call(mut call) => match *call.obj {
+                Expr::Accessor(Accessor::Local(local)) => match &local.inspect()[..] {
+                    "ref" => {
+                        assert_eq!(call.args.len(), 1);
+                        let var = call.args.remove_pos(0).expr;
+                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
+                            .unwrap_or_else(|| todo!());
+                        let pat = ParamPattern::Ref(VarName::new(var.symbol));
+                        let param = ParamSignature::new(pat, None, None);
+                        self.level -= 1;
+                        Ok(param)
+                    }
+                    "ref!" => {
+                        assert_eq!(call.args.len(), 1);
+                        let var = call.args.remove_pos(0).expr;
+                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
+                            .unwrap_or_else(|| todo!());
+                        let pat = ParamPattern::RefMut(VarName::new(var.symbol));
+                        let param = ParamSignature::new(pat, None, None);
+                        self.level -= 1;
+                        Ok(param)
+                    }
+                    other => todo!("{other}"),
+                },
+                other => todo!("{other}"),
+            },
             other => todo!("{other}"), // Error
         }
     }
@@ -1744,7 +1809,7 @@ impl Parser {
 
     fn convert_record_to_param_record_pat(
         &mut self,
-        _record: Record,
+        _record: NormalRecord,
     ) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
@@ -1855,7 +1920,10 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_param_pat(&mut self, _record: Record) -> ParseResult<ParamRecordPattern> {
+    fn convert_record_to_param_pat(
+        &mut self,
+        _record: NormalRecord,
+    ) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
     }

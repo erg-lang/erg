@@ -179,6 +179,10 @@ impl Args {
         self.pos_args.is_empty() && self.kw_args.is_empty()
     }
 
+    pub fn len(&self) -> usize {
+        self.pos_args.len() + self.kw_args.len()
+    }
+
     pub fn kw_is_empty(&self) -> bool {
         self.kw_args.is_empty()
     }
@@ -306,12 +310,13 @@ impl Public {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
+    pub vis: Token,
     pub name: Local,
 }
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}).{}", self.obj, self.name)
+        write!(f, "({}){}{}", self.obj, self.vis.inspect(), self.name)
     }
 }
 
@@ -319,9 +324,10 @@ impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, name);
 
 impl Attribute {
-    pub fn new(obj: Expr, name: Local) -> Self {
+    pub fn new(obj: Expr, vis: Token, name: Local) -> Self {
         Self {
             obj: Box::new(obj),
+            vis,
             name,
         }
     }
@@ -398,8 +404,8 @@ impl Accessor {
         Self::Public(Public::new(dot, symbol))
     }
 
-    pub fn attr(obj: Expr, name: Local) -> Self {
-        Self::Attr(Attribute::new(obj, name))
+    pub fn attr(obj: Expr, vis: Token, name: Local) -> Self {
+        Self::Attr(Attribute::new(obj, vis, name))
     }
 
     pub fn tuple_attr(obj: Expr, index: Literal) -> Self {
@@ -679,13 +685,13 @@ impl RecordAttrs {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Record {
+pub struct NormalRecord {
     pub l_brace: Token,
     pub r_brace: Token,
     pub attrs: RecordAttrs,
 }
 
-impl NestedDisplay for Record {
+impl NestedDisplay for NormalRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{{")?;
         self.attrs.fmt_nest(f, level + 1)?;
@@ -693,10 +699,10 @@ impl NestedDisplay for Record {
     }
 }
 
-impl_display_from_nested!(Record);
-impl_locational!(Record, l_brace, r_brace);
+impl_display_from_nested!(NormalRecord);
+impl_locational!(NormalRecord, l_brace, r_brace);
 
-impl Record {
+impl NormalRecord {
     pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
             l_brace,
@@ -704,6 +710,14 @@ impl Record {
             attrs,
         }
     }
+}
+
+/// e.g. {x; y; z} (syntax sugar of {x = x; y = y; z = z})
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SimpleRecord {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    idents: Vec<Identifier>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1649,6 +1663,14 @@ impl Decorator {
     pub const fn new(expr: Expr) -> Self {
         Self(expr)
     }
+
+    pub fn expr(&self) -> &Expr {
+        &self.0
+    }
+
+    pub fn into_expr(self) -> Expr {
+        self.0
+    }
 }
 
 /// symbol as a left value
@@ -2142,10 +2164,13 @@ pub enum ParamPattern {
     Array(ParamArrayPattern),
     Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
+    Ref(VarName),
+    RefMut(VarName),
+    VarArgs(VarName),
 }
 
-impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple Record);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record);
+impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -2646,7 +2671,7 @@ pub enum Expr {
     Tuple(Tuple),
     Dict(Dict),
     Set(Set),
-    Record(Record),
+    Record(NormalRecord),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),

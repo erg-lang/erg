@@ -1,17 +1,17 @@
 @Inheritable
 Point2D = Class {x = Int; y = Int}
 Point2D.
-    new x, y = Self::__new__ {x; y}
+    new x, y = Self::__new__ {x = x; y = y}
     norm ref self = self::x**2 + self::y**2
 
-Point3D = Inherit Point2D, Additional: {z = Int}
+Point3D = Inherit Point2D, Additional := {z = Int}
 Point3D.
     @Override
-    new x, y, z = Self::__new__ {x; y; z}
+    new x, y, z = Self::__new__ {x = x; y = y; z = z}
     @Override
     norm ref self = self::x**2 + self::y**2 + self::z**2
 
-UnpackPoint2D = Class {x = Int; y = Int}, Impl: Unpack
+UnpackPoint2D = Class {x = Int; y = Int}, Impl := Unpack
 
 p = UnpackPoint2D::{x = 1; y = 2}
-UnpackPoint2D::{x; y} = p
+UnpackPoint2D::{x = x; y = x} = p
