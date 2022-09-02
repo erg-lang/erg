@@ -441,6 +441,13 @@ impl Parser {
                             let attr = Local::new(token);
                             acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
                         }
+                        // DataPack
+                        LBrace => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        // MethodDefs
                         Newline => {
                             self.restore(token);
                             self.restore(vis);
@@ -600,7 +607,11 @@ impl Parser {
             {
                 Some(self.try_reduce_args())
             }
-            Some(t) if (t.is(Dot) || t.is(DblColon)) && !self.nth_is(1, Newline) => {
+            Some(t)
+                if (t.is(Dot) || t.is(DblColon))
+                    && !self.nth_is(1, Newline)
+                    && !self.nth_is(1, LBrace) =>
+            {
                 Some(self.try_reduce_args())
             }
             _ => None,
@@ -973,7 +984,25 @@ impl Parser {
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
-                            return Ok(Expr::MethodDefs(defs));
+                            let expr = Expr::MethodDefs(defs);
+                            assert_eq!(stack.len(), 0);
+                            self.level -= 1;
+                            return Ok(expr);
+                        }
+                        l_brace if l_brace.is(LBrace) => {
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            self.restore(l_brace);
+                            let container = self
+                                .try_reduce_brace_container()
+                                .map_err(|_| self.stack_dec())?;
+                            match container {
+                                BraceContainer::Record(args) => {
+                                    let pack = DataPack::new(maybe_class, args);
+                                    stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
+                                }
+                                BraceContainer::Dict(dict) => todo!("{dict}"),
+                                BraceContainer::Set(set) => todo!("{set}"),
+                            }
                         }
                         other => {
                             self.restore(other);
@@ -1397,6 +1426,7 @@ impl Parser {
     /// Set, Dict, Record
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
+        assert!(self.cur_is(LBrace));
         let l_brace = self.lpop();
         if self.cur_is(Newline) {
             self.skip();
@@ -1610,6 +1640,14 @@ impl Parser {
                 self.level -= 1;
                 Ok(Signature::Var(var))
             }
+            Expr::DataPack(pack) => {
+                let data_pack = self
+                    .convert_data_pack_to_data_pack_pat(pack)
+                    .map_err(|_| self.stack_dec())?;
+                let var = VarSignature::new(VarPattern::DataPack(data_pack), None);
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
             Expr::Tuple(tuple) => {
                 let tuple_pat = self
                     .convert_tuple_to_tuple_pat(tuple)
@@ -1655,6 +1693,19 @@ impl Parser {
     }
 
     fn convert_record_to_record_pat(&mut self, _record: Record) -> ParseResult<VarRecordPattern> {
+        debug_call_info!(self);
+        match _record {
+            Record::Normal(_rec) => {
+                todo!()
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn convert_data_pack_to_data_pack_pat(
+        &mut self,
+        _pack: DataPack,
+    ) -> ParseResult<VarDataPackPattern> {
         debug_call_info!(self);
         todo!()
     }

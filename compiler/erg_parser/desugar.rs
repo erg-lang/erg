@@ -11,8 +11,8 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, set};
 
 use crate::ast::{
-    Accessor, Args, Array, BinOp, Block, Call, Def, DefBody, DefId, Expr, Identifier, KwArg,
-    Lambda, LambdaSignature, Literal, Local, MethodDefs, Module, NormalArray, NormalRecord,
+    Accessor, Args, Array, BinOp, Block, Call, DataPack, Def, DefBody, DefId, Expr, Identifier,
+    KwArg, Lambda, LambdaSignature, Literal, Local, MethodDefs, Module, NormalArray, NormalRecord,
     NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
     ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
     UnaryOp, VarName, VarPattern, VarSignature,
@@ -324,6 +324,16 @@ impl Desugarer {
             Expr::Record(Record::Shortened(rec)) => {
                 let rec = self.desugar_shortened_record_inner(rec);
                 Expr::Record(Record::Normal(rec))
+            }
+            Expr::DataPack(pack) => {
+                if let Record::Shortened(rec) = pack.args {
+                    let class = self.rec_desugar_shortened_record(*pack.class);
+                    let rec = self.desugar_shortened_record_inner(rec);
+                    let args = Record::Normal(rec);
+                    Expr::DataPack(DataPack::new(class, args))
+                } else {
+                    Expr::DataPack(pack)
+                }
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {

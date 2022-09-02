@@ -6,13 +6,13 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
-use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_stream, impl_stream_for_wrapper,
 };
+use erg_common::{fmt_vec_split_with, Str};
 
 use crate::token::{Token, TokenKind};
 
@@ -888,6 +888,36 @@ impl Call {
         Self {
             obj: Box::new(obj),
             method_name,
+            args,
+        }
+    }
+}
+
+/// e.g. `Data::{x = 1; y = 2}`
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DataPack {
+    pub class: Box<Expr>,
+    pub args: Record,
+}
+
+impl NestedDisplay for DataPack {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{}::{}", self.class, self.args)
+    }
+}
+
+impl_display_from_nested!(DataPack);
+
+impl Locational for DataPack {
+    fn loc(&self) -> Location {
+        Location::concat(self.class.as_ref(), &self.args)
+    }
+}
+
+impl DataPack {
+    pub fn new(class: Expr, args: Record) -> Self {
+        Self {
+            class: Box::new(class),
             args,
         }
     }
@@ -1943,28 +1973,86 @@ impl VarTuplePattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarRecordAttr {
+    lhs: Identifier,
+    rhs: Identifier,
+}
+
+impl NestedDisplay for VarRecordAttr {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} = {}", self.lhs, self.rhs)
+    }
+}
+
+impl_display_from_nested!(VarRecordAttr);
+impl_locational!(VarRecordAttr, lhs, rhs);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarRecordAttrs {
+    pub(crate) elems: Vec<VarRecordAttr>,
+}
+
+impl NestedDisplay for VarRecordAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec_split_with(&self.elems, "; "))
+    }
+}
+
+impl_display_from_nested!(VarRecordAttrs);
+impl_stream!(VarRecordAttrs, VarRecordAttr, elems);
+
+impl VarRecordAttrs {
+    pub const fn new(elems: Vec<VarRecordAttr>) -> Self {
+        Self { elems }
+    }
+
+    pub const fn empty() -> Self {
+        Self::new(vec![])
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordPattern {
     l_brace: Token,
-    // TODO: レコード専用の構造体を作る
-    pub(crate) elems: Vars,
+    pub(crate) attrs: VarRecordAttrs,
     r_brace: Token,
 }
 
 impl fmt::Display for VarRecordPattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{{}}}", self.elems)
+        write!(f, "{{{}}}", self.attrs)
     }
 }
 
 impl_locational!(VarRecordPattern, l_brace, r_brace);
 
 impl VarRecordPattern {
-    pub const fn new(l_brace: Token, elems: Vars, r_brace: Token) -> Self {
+    pub const fn new(l_brace: Token, attrs: VarRecordAttrs, r_brace: Token) -> Self {
         Self {
             l_brace,
-            elems,
+            attrs,
             r_brace,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarDataPackPattern {
+    pub class: Identifier, // TODO: allow Attribute
+    pub args: VarRecordPattern,
+}
+
+impl fmt::Display for VarDataPackPattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.class, self.args)
+    }
+}
+
+impl_locational!(VarDataPackPattern, class, args);
+
+impl VarDataPackPattern {
+    pub const fn new(class: Identifier, args: VarRecordPattern) -> Self {
+        Self { class, args }
     }
 }
 
@@ -1978,6 +2066,8 @@ pub enum VarPattern {
     Tuple(VarTuplePattern),
     // e.g. `{name; age}`, `{_; [car, cdr]}`
     Record(VarRecordPattern),
+    // e.g. `Data::{x, y}`
+    DataPack(VarDataPackPattern),
 }
 
 impl NestedDisplay for VarPattern {
@@ -1988,30 +2078,19 @@ impl NestedDisplay for VarPattern {
             Self::Array(a) => write!(f, "{}", a),
             Self::Tuple(t) => write!(f, "{}", t),
             Self::Record(r) => write!(f, "{}", r),
+            Self::DataPack(d) => write!(f, "{}", d),
         }
     }
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record);
+impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
             Self::Ident(ident) => Some(ident.inspect()),
             _ => None,
-        }
-    }
-
-    pub fn inspects(&self) -> Vec<&Str> {
-        match self {
-            Self::Ident(ident) => vec![ident.inspect()],
-            Self::Array(VarArrayPattern { elems, .. })
-            | Self::Tuple(VarTuplePattern { elems, .. })
-            | Self::Record(VarRecordPattern { elems, .. }) => {
-                elems.iter().flat_map(|s| s.pat.inspects()).collect()
-            }
-            _ => vec![],
         }
     }
 
@@ -2191,26 +2270,27 @@ impl ParamRecordPattern {
 pub enum ParamPattern {
     Discard(Token),
     VarName(VarName),
-    // TODO: ConstField(),
-    // e.g. `a` of `[*a, b] = [1, 2, 3]` (a == [1, 2], b == 3)
-    //      `b` of `[a, *b] = [1, 2, 3]` (a == 1, b == [2, 3])
-    VarArgsName(VarName),
+    // TODO: ConstAttr(),
     Lit(Literal),
     Array(ParamArrayPattern),
     Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
     Ref(VarName),
     RefMut(VarName),
+    // e.g. `a` of `[...a, b] = [1, 2, 3]` (a == [1, 2], b == 3)
+    //      `b` of `[a, ...b] = [1, 2, 3]` (a == 1, b == [2, 3])
     VarArgs(VarName),
 }
 
-impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl_display_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
-            Self::VarName(n) | Self::VarArgsName(n) => Some(n.inspect()),
+            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => {
+                Some(n.inspect())
+            }
             _ => None,
         }
     }
@@ -2222,7 +2302,9 @@ impl ParamPattern {
     pub fn is_procedural(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgsName(n) => n.is_procedural(),
+            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => {
+                n.is_procedural()
+            }
             _ => false,
         }
     }
@@ -2230,7 +2312,7 @@ impl ParamPattern {
     pub fn is_const(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgsName(n) => n.is_const(),
+            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => n.is_const(),
             _ => false,
         }
     }
@@ -2711,15 +2793,16 @@ pub enum Expr {
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
+    DataPack(DataPack),
     Lambda(Lambda),
     TypeAsc(TypeAscription),
     Def(Def),
     MethodDefs(MethodDefs),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, TypeAsc, Def, MethodDefs);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, MethodDefs);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, TypeAsc, Def, MethodDefs);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, MethodDefs);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
