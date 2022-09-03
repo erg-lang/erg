@@ -3,9 +3,9 @@ use std::mem;
 use erg_common::dict::Dict;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Field;
-use erg_common::{dict, fn_name, set};
+use erg_common::{dict, fn_name, option_enum_unwrap, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
@@ -13,11 +13,11 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t,
+    class, enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{Predicate, SubrKind, TyBound, Type, ValueArgs};
+use erg_type::{HasType, Predicate, SubrKind, TyBound, Type, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::Context;
@@ -41,7 +41,7 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
     }
 }
 
-fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
+fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
     match kind {
         TokenKind::Plus => Ok(OpKind::Add),
         TokenKind::Minus => Ok(OpKind::Sub),
@@ -63,7 +63,7 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
         TokenKind::Shl => Ok(OpKind::Shl),
         TokenKind::Shr => Ok(OpKind::Shr),
         TokenKind::Mutate => Ok(OpKind::Mutate),
-        _other => Err(()),
+        _other => todo!("{_other}"),
     }
 }
 
@@ -166,44 +166,58 @@ impl SubstContext {
 }
 
 impl Context {
-    fn eval_const_acc(&self, _acc: &Accessor) -> Option<ValueObj> {
-        match _acc {
+    fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
+        match acc {
             Accessor::Local(local) => {
                 if let Some(val) = self.rec_get_const_obj(local.inspect()) {
-                    Some(val.clone())
+                    Ok(val.clone())
                 } else {
-                    None
+                    if local.is_const() {
+                        Err(EvalError::no_var_error(
+                            line!() as usize,
+                            local.loc(),
+                            self.caused_by(),
+                            local.inspect(),
+                            self.get_similar_name(local.inspect()),
+                        ))
+                    } else {
+                        Err(EvalError::not_const_expr(
+                            line!() as usize,
+                            acc.loc(),
+                            self.caused_by(),
+                        ))
+                    }
                 }
             }
             Accessor::Attr(attr) => {
-                let _obj = self.eval_const_expr(&attr.obj, None)?;
+                let _obj = self.eval_const_expr(&attr.obj, None);
                 todo!()
             }
             _ => todo!(),
         }
     }
 
-    fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
+    fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
         match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
             (Expr::Lit(l), Expr::Lit(r)) => {
-                let op = try_get_op_kind_from_token(bin.op.kind).ok()?;
-                self.eval_bin_lit(op, eval_lit(l), eval_lit(r)).ok()
+                let op = try_get_op_kind_from_token(bin.op.kind)?;
+                self.eval_bin_lit(op, eval_lit(l), eval_lit(r))
             }
-            _ => None,
+            _ => todo!(),
         }
     }
 
-    fn eval_const_unary(&self, unary: &UnaryOp) -> Option<ValueObj> {
+    fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
         match unary.args[0].as_ref() {
             Expr::Lit(lit) => {
-                let op = try_get_op_kind_from_token(unary.op.kind).ok()?;
-                self.eval_unary_lit(op, eval_lit(lit)).ok()
+                let op = try_get_op_kind_from_token(unary.op.kind)?;
+                self.eval_unary_lit(op, eval_lit(lit))
             }
-            _ => None,
+            _ => todo!(),
         }
     }
 
-    fn eval_args(&self, args: &Args, __name__: Option<&Str>) -> Option<ValueArgs> {
+    fn eval_args(&self, args: &Args, __name__: Option<&Str>) -> EvalResult<ValueArgs> {
         let mut evaluated_pos_args = vec![];
         for arg in args.pos_args().iter() {
             let val = self.eval_const_expr(&arg.expr, __name__)?;
@@ -214,96 +228,116 @@ impl Context {
             let val = self.eval_const_expr(&arg.expr, __name__)?;
             evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
         }
-        Some(ValueArgs::new(evaluated_pos_args, evaluated_kw_args))
+        Ok(ValueArgs::new(evaluated_pos_args, evaluated_kw_args))
     }
 
-    fn eval_const_call(&self, call: &Call, __name__: Option<&Str>) -> Option<ValueObj> {
+    fn eval_const_call(&self, call: &Call, __name__: Option<&Str>) -> EvalResult<ValueObj> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
-                Accessor::Local(name) if name.is_const() => {
-                    if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name.inspect()) {
-                        let subr = subr.clone();
-                        let args = self.eval_args(&call.args, __name__)?;
-                        Some(subr.call(args, __name__.map(|n| n.clone())))
-                    } else {
-                        None
-                    }
+                Accessor::Local(name) => {
+                    let obj =
+                        self.rec_get_const_obj(&name.inspect())
+                            .ok_or(EvalError::no_var_error(
+                                line!() as usize,
+                                name.loc(),
+                                self.caused_by(),
+                                name.inspect(),
+                                self.get_similar_name(name.inspect()),
+                            ))?;
+                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
+                        .ok_or(EvalError::type_mismatch_error(
+                            line!() as usize,
+                            name.loc(),
+                            self.caused_by(),
+                            name.inspect(),
+                            &class("Subroutine"),
+                            &obj.t(),
+                            None,
+                        ))?
+                        .clone();
+                    let args = self.eval_args(&call.args, __name__)?;
+                    Ok(subr.call(args, __name__.map(|n| n.clone())))
                 }
-                Accessor::Local(_) => None,
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
                 Accessor::Public(_name) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
             }
         } else {
-            None
-        }
-    }
-
-    fn eval_const_def(&mut self, def: &Def) -> Option<ValueObj> {
-        if def.is_const() {
             todo!()
         }
-        None
     }
 
-    fn eval_const_array(&self, arr: &Array) -> Option<ValueObj> {
+    fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
+        if def.is_const() {
+            let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
+            let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
+            erg_common::log!();
+            self.register_const(__name__, obj);
+            Ok(ValueObj::None)
+        } else {
+            Err(EvalError::not_const_expr(
+                line!() as usize,
+                def.body.block.loc(),
+                self.caused_by(),
+            ))
+        }
+    }
+
+    fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
         let mut elems = vec![];
         match arr {
             Array::Normal(arr) => {
                 for elem in arr.elems.pos_args().iter() {
-                    if let Some(elem) = self.eval_const_expr(&elem.expr, None) {
-                        elems.push(elem);
-                    } else {
-                        return None;
-                    }
+                    let elem = self.eval_const_expr(&elem.expr, None)?;
+                    elems.push(elem);
                 }
             }
             _ => {
-                return None;
+                todo!()
             }
         }
-        Some(ValueObj::Array(RcArray::from(elems)))
+        Ok(ValueObj::Array(RcArray::from(elems)))
     }
 
-    fn eval_const_record(&mut self, record: &Record) -> Option<ValueObj> {
+    fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
             Record::Shortened(_rec) => unreachable!(), // should be desugared
         }
     }
 
-    fn eval_const_normal_record(&mut self, record: &NormalRecord) -> Option<ValueObj> {
+    fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
         let mut attrs = vec![];
+        let mut record_ctx = Context::default(); // TODO: include outer context
         for attr in record.attrs.iter() {
             let name = attr.sig.ident().map(|i| i.inspect());
-            if let Some(elem) = self.eval_const_block(&attr.body.block, name) {
-                let ident = match &attr.sig {
-                    Signature::Var(var) => match &var.pat {
-                        VarPattern::Ident(ident) => {
-                            Field::new(ident.vis(), ident.inspect().clone())
-                        }
-                        _ => todo!(),
-                    },
+            let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
+            let ident = match &attr.sig {
+                Signature::Var(var) => match &var.pat {
+                    VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
                     _ => todo!(),
-                };
-                attrs.push((ident, elem));
-            } else {
-                return None;
-            }
+                },
+                _ => todo!(),
+            };
+            attrs.push((ident, elem));
         }
-        Some(ValueObj::Record(attrs.into_iter().collect()))
+        Ok(ValueObj::Record(attrs.into_iter().collect()))
     }
 
-    pub(crate) fn eval_const_expr(&self, expr: &Expr, __name__: Option<&Str>) -> Option<ValueObj> {
+    pub(crate) fn eval_const_expr(
+        &self,
+        expr: &Expr,
+        __name__: Option<&Str>,
+    ) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Some(eval_lit(lit)),
+            Expr::Lit(lit) => Ok(eval_lit(lit)),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call, __name__),
             Expr::Array(arr) => self.eval_const_array(arr),
-            Expr::Record(rec) => todo!("{rec}"), // self.eval_const_record(rec),
+            Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => todo!("{lambda}"),
             other => todo!("{other}"),
         }
@@ -315,9 +349,9 @@ impl Context {
         &mut self,
         expr: &Expr,
         __name__: Option<&Str>,
-    ) -> Option<ValueObj> {
+    ) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Some(eval_lit(lit)),
+            Expr::Lit(lit) => Ok(eval_lit(lit)),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -334,7 +368,7 @@ impl Context {
         &mut self,
         block: &Block,
         __name__: Option<&Str>,
-    ) -> Option<ValueObj> {
+    ) -> EvalResult<ValueObj> {
         for chunk in block.iter().rev().skip(1).rev() {
             self.eval_const_chunk(chunk, __name__)?;
         }

@@ -2846,7 +2846,7 @@ impl Expr {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Module(Vec<Expr>);
+pub struct Module(Block);
 
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -2860,7 +2860,31 @@ impl Locational for Module {
     }
 }
 
-impl_stream_for_wrapper!(Module, Expr);
+impl Stream<Expr> for Module {
+    fn payload(self) -> Vec<Expr> {
+        self.0.payload()
+    }
+    fn ref_payload(&self) -> &Vec<Expr> {
+        self.0.ref_payload()
+    }
+    fn ref_mut_payload(&mut self) -> &mut Vec<Expr> {
+        self.0.ref_mut_payload()
+    }
+}
+
+impl Module {
+    pub const fn empty() -> Self {
+        Self(Block::empty())
+    }
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Block::with_capacity(capacity))
+    }
+
+    pub fn block(&self) -> &Block {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub struct AST {

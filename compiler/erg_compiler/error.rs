@@ -1019,6 +1019,24 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn not_const_expr(errno: usize, loc: Location, caused_by: Str) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NotConstExpr,
+                loc,
+                switch_lang!(
+                    "japanese" => "定数式ではありません",
+                    "simplified_chinese" => "不是常量表达式",
+                    "traditional_chinese" => "不是常量表達式",
+                    "english" => "not a constant expression",
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]

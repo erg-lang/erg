@@ -164,7 +164,7 @@ impl ASTLowerer {
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
         let maybe_len = self.ctx.eval_const_expr(len, None);
         match maybe_len {
-            Some(v @ ValueObj::Nat(_)) => {
+            Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
                     poly_class(
                         "ArrayWithMutType!",
@@ -174,7 +174,7 @@ impl ASTLowerer {
                     array(elem.t(), TyParam::Value(v))
                 }
             }
-            Some(v @ ValueObj::Mut(_)) if v.class() == class("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == class("Nat!") => {
                 if elem.ref_t().is_mut() {
                     poly_class(
                         "ArrayWithMutTypeAndLength!",
@@ -184,9 +184,9 @@ impl ASTLowerer {
                     array_mut(elem.t(), TyParam::Value(v))
                 }
             }
-            Some(other) => todo!("{other} is not a Nat object"),
-            // TODO: [T; !_]
-            None => {
+            Ok(other) => todo!("{other} is not a Nat object"),
+            // REVIEW: is it ok to ignore the error?
+            Err(_e) => {
                 if elem.ref_t().is_mut() {
                     poly_class(
                         "ArrayWithMutType!",
@@ -366,12 +366,10 @@ impl ASTLowerer {
                 self.pop_append_errs();
                 e
             })?;
-        self.ctx
-            .preregister(lambda.body.ref_payload())
-            .map_err(|e| {
-                self.pop_append_errs();
-                e
-            })?;
+        self.ctx.preregister(&lambda.body).map_err(|e| {
+            self.pop_append_errs();
+            e
+        })?;
         let body = self.lower_block(lambda.body).map_err(|e| {
             self.pop_append_errs();
             e
@@ -437,7 +435,7 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        self.ctx.preregister(body.block.ref_payload())?;
+        self.ctx.preregister(&body.block)?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let opt_expect_body_t = self
@@ -503,7 +501,7 @@ impl ASTLowerer {
             .t
             .clone();
         self.ctx.assign_params(&sig.params, None)?;
-        self.ctx.preregister(body.block.ref_payload())?;
+        self.ctx.preregister(&body.block)?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
@@ -556,7 +554,7 @@ impl ASTLowerer {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
-        self.ctx.preregister(ast.module.ref_payload())?;
+        self.ctx.preregister(ast.module.block())?;
         for expr in ast.module.into_iter() {
             match self.lower_expr(expr).and_then(|e| self.use_check(e, mode)) {
                 Ok(expr) => {

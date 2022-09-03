@@ -1,6 +1,6 @@
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::traits::Locational;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
@@ -315,30 +315,72 @@ impl Context {
         }
     }
 
-    // 再帰サブルーチン/型の推論を可能にするため、予め登録しておく
-    pub(crate) fn preregister(&mut self, block: &[ast::Expr]) -> TyCheckResult<()> {
+    // To allow forward references and recursive definitions
+    pub(crate) fn preregister(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         for expr in block.iter() {
             if let ast::Expr::Def(def) = expr {
                 let id = Some(def.body.id);
                 let __name__ = def.sig.ident().map(|i| i.inspect());
-                let mut eval_body_t = || {
-                    self.eval_const_block(&def.body.block, __name__)
-                        .map(|c| enum_t(set![c]))
-                };
                 match &def.sig {
                     ast::Signature::Subr(sig) => {
-                        let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
-                            Some(self.instantiate_typespec(spec, PreRegister)?)
+                        let const_t = if sig.is_const() {
+                            match self.eval_const_block(&def.body.block, __name__) {
+                                Ok(obj) => {
+                                    self.register_const(__name__.unwrap(), obj.clone());
+                                    Some(enum_t(set![obj]))
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
                         } else {
-                            eval_body_t()
+                            None
+                        };
+                        let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
+                            let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                            if let Some(const_t) = const_t {
+                                self.sub_unify(
+                                    &const_t,
+                                    &spec_t,
+                                    Some(def.body.loc()),
+                                    None,
+                                    None,
+                                )?;
+                            }
+                            Some(spec_t)
+                        } else {
+                            const_t
                         };
                         self.declare_sub(sig, opt_ret_t, id)?;
                     }
                     ast::Signature::Var(sig) if sig.is_const() => {
-                        let t = if let Some(spec) = sig.t_spec.as_ref() {
-                            Some(self.instantiate_typespec(spec, PreRegister)?)
+                        let const_t = if sig.is_const() {
+                            match self.eval_const_block(&def.body.block, __name__) {
+                                Ok(obj) => {
+                                    self.register_const(__name__.unwrap(), obj.clone());
+                                    Some(enum_t(set![obj]))
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
                         } else {
-                            eval_body_t()
+                            None
+                        };
+                        let t = if let Some(spec) = sig.t_spec.as_ref() {
+                            let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                            if let Some(const_t) = const_t {
+                                self.sub_unify(
+                                    &const_t,
+                                    &spec_t,
+                                    Some(def.body.loc()),
+                                    None,
+                                    None,
+                                )?;
+                            }
+                            Some(spec_t)
+                        } else {
+                            const_t
                         };
                         self.declare_var(sig, t, id)?;
                     }

@@ -47,15 +47,15 @@ impl Context {
         }
     }
 
-    fn register_const(&mut self, name: &'static str, obj: ValueObj) {
+    pub(crate) fn register_const(&mut self, name: &str, obj: ValueObj) {
         if self.consts.get(name).is_some() {
             panic!("already registered: {name}");
         } else {
             // TODO: visibility (not always private)
             // TODO: kind (not always Builtin)
             let vi = VarInfo::new(obj.t(), Const, Private, Builtin);
-            self.consts.insert(VarName::from_static(name), obj);
-            self.locals.insert(VarName::from_static(name), vi);
+            self.consts.insert(VarName::from_str(Str::rc(name)), obj);
+            self.locals.insert(VarName::from_str(Str::rc(name)), vi);
         }
     }
 

@@ -35,6 +35,7 @@ pub enum ErrorKind {
     PurityError,
     HasEffect,
     MoveError,
+    NotConstExpr,
     /* compile warnings */
     AttributeWarning = 60,
     CastWarning,
