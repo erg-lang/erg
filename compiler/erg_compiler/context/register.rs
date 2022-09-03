@@ -24,7 +24,8 @@ use RegistrationMode::*;
 use Visibility::*;
 
 impl Context {
-    fn registered(&self, name: &Str, recursive: bool) -> bool {
+    /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
+    fn registered(&self, name: &Str, is_const: bool) -> bool {
         if self.params.iter().any(|(maybe_name, _)| {
             maybe_name
                 .as_ref()
@@ -34,9 +35,9 @@ impl Context {
         {
             return true;
         }
-        if recursive {
+        if is_const {
             if let Some(outer) = &self.outer {
-                outer.registered(name, recursive)
+                outer.registered(name, is_const)
             } else {
                 false
             }
@@ -45,7 +46,7 @@ impl Context {
         }
     }
 
-    fn declare_var(
+    fn _declare_var(
         &mut self,
         sig: &ast::VarSignature,
         opt_t: Option<Type>,
@@ -122,6 +123,10 @@ impl Context {
         body_t: &Type,
         id: DefId,
     ) -> TyCheckResult<()> {
+        // already defined as const
+        if sig.is_const() {
+            return Ok(());
+        }
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
             _ => todo!(),
@@ -236,6 +241,10 @@ impl Context {
         id: DefId,
         body_t: &Type,
     ) -> TyCheckResult<()> {
+        // already defined as const
+        if sig.is_const() {
+            return Ok(());
+        }
         let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
@@ -323,22 +332,16 @@ impl Context {
                 let __name__ = def.sig.ident().map(|i| i.inspect());
                 match &def.sig {
                     ast::Signature::Subr(sig) => {
-                        let const_t = if sig.is_const() {
-                            match self.eval_const_block(&def.body.block, __name__) {
-                                Ok(obj) => {
-                                    self.register_const(__name__.unwrap(), obj.clone());
-                                    Some(enum_t(set![obj]))
-                                }
-                                Err(e) => {
-                                    return Err(e);
-                                }
-                            }
-                        } else {
-                            None
-                        };
-                        let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
-                            let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                            if let Some(const_t) = const_t {
+                        if sig.is_const() {
+                            let (obj, const_t) =
+                                match self.eval_const_block(&def.body.block, __name__) {
+                                    Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                                    Err(e) => {
+                                        return Err(e);
+                                    }
+                                };
+                            if let Some(spec) = sig.return_t_spec.as_ref() {
+                                let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                                 self.sub_unify(
                                     &const_t,
                                     &spec_t,
@@ -347,42 +350,30 @@ impl Context {
                                     None,
                                 )?;
                             }
-                            Some(spec_t)
+                            self.register_const(__name__.unwrap(), obj);
                         } else {
-                            const_t
-                        };
-                        self.declare_sub(sig, opt_ret_t, id)?;
+                            let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
+                                let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                                Some(spec_t)
+                            } else {
+                                None
+                            };
+                            self.declare_sub(sig, opt_ret_t, id)?;
+                        }
                     }
                     ast::Signature::Var(sig) if sig.is_const() => {
-                        let const_t = if sig.is_const() {
-                            match self.eval_const_block(&def.body.block, __name__) {
-                                Ok(obj) => {
-                                    self.register_const(__name__.unwrap(), obj.clone());
-                                    Some(enum_t(set![obj]))
-                                }
-                                Err(e) => {
-                                    return Err(e);
-                                }
+                        let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__)
+                        {
+                            Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                            Err(e) => {
+                                return Err(e);
                             }
-                        } else {
-                            None
                         };
-                        let t = if let Some(spec) = sig.t_spec.as_ref() {
+                        if let Some(spec) = sig.t_spec.as_ref() {
                             let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                            if let Some(const_t) = const_t {
-                                self.sub_unify(
-                                    &const_t,
-                                    &spec_t,
-                                    Some(def.body.loc()),
-                                    None,
-                                    None,
-                                )?;
-                            }
-                            Some(spec_t)
-                        } else {
-                            const_t
-                        };
-                        self.declare_var(sig, t, id)?;
+                            self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
+                        }
+                        self.register_const(__name__.unwrap(), obj);
                     }
                     _ => {}
                 }

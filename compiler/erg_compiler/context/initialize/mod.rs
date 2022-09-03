@@ -10,8 +10,8 @@ use erg_common::Str;
 
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
+use erg_type::Type;
 use erg_type::{constructors::*, BuiltinConstSubr, ConstSubr};
-use erg_type::{HasType, Type};
 use ParamSpec as PS;
 use Type::*;
 
@@ -53,7 +53,7 @@ impl Context {
         } else {
             // TODO: visibility (not always private)
             // TODO: kind (not always Builtin)
-            let vi = VarInfo::new(obj.t(), Const, Private, Builtin);
+            let vi = VarInfo::new(enum_t(set! {obj.clone()}), Const, Private, Builtin);
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
         }

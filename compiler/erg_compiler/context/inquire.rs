@@ -1,7 +1,7 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::ErrorCore;
+use erg_common::error::{ErrorCore, ErrorKind};
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
@@ -226,30 +226,14 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         let self_t = obj.t();
-        match self_t {
-            Type => todo!(),
-            Type::Record(rec) => {
-                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
-                if let Some(attr) = rec.get(&Field::new(Public, name.inspect().clone())) {
-                    return Ok(attr.clone());
-                } else {
-                    let t = Type::Record(rec);
-                    return Err(TyCheckError::no_attr_error(
-                        line!() as usize,
-                        name.loc(),
-                        namespace.clone(),
-                        &t,
-                        name.inspect(),
-                        self.get_similar_attr(&t, name.inspect()),
-                    ));
-                }
-            }
-            Module => {
-                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
-                let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
+        match self.get_attr_t_from_t(obj, &self_t, name, namespace) {
+            Ok(t) => {
                 return Ok(t);
             }
-            _ => {}
+            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) => {
+                return Err(e);
+            }
         }
         for (_, ctx) in self.rec_get_nominal_super_type_ctxs(&self_t) {
             if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
@@ -268,6 +252,44 @@ impl Context {
                 name.inspect(),
                 self.get_similar_attr(&self_t, name.inspect()),
             ))
+        }
+    }
+
+    fn get_attr_t_from_t(
+        &self,
+        obj: &hir::Expr,
+        t: &Type,
+        name: &Token,
+        namespace: &Str,
+    ) -> TyCheckResult<Type> {
+        match t {
+            Type => todo!(),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.get_attr_t_from_t(obj, &fv.crack(), name, namespace)
+            }
+            Type::Refinement(refine) => self.get_attr_t_from_t(obj, &refine.t, name, namespace),
+            Type::Record(record) => {
+                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
+                if let Some(attr) = record.get(&Field::new(Public, name.inspect().clone())) {
+                    Ok(attr.clone())
+                } else {
+                    let t = Type::Record(record.clone());
+                    Err(TyCheckError::no_attr_error(
+                        line!() as usize,
+                        name.loc(),
+                        namespace.clone(),
+                        &t,
+                        name.inspect(),
+                        self.get_similar_attr(&t, name.inspect()),
+                    ))
+                }
+            }
+            Module => {
+                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
+                let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
+                Ok(t)
+            }
+            _ => Err(TyCheckError::dummy(line!() as usize)),
         }
     }
 

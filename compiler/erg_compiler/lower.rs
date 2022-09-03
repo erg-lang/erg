@@ -450,10 +450,14 @@ impl ASTLowerer {
             _ => unreachable!(),
         };
         if let Some(expect_body_t) = opt_expect_body_t {
-            if let Err(e) =
-                self.return_t_check(sig.loc(), ident.inspect(), &expect_body_t, found_body_t)
-            {
-                self.errs.push(e);
+            // TODO: expect_body_t is smaller for constants
+            // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
+            if !sig.is_const() {
+                if let Err(e) =
+                    self.return_t_check(sig.loc(), ident.inspect(), &expect_body_t, found_body_t)
+                {
+                    self.errs.push(e);
+                }
             }
         }
         let id = body.id;
@@ -493,11 +497,7 @@ impl ASTLowerer {
             .as_ref()
             .unwrap()
             .get_current_scope_var(sig.ident.inspect())
-            .unwrap_or_else(|| {
-                log!(info "{}\n", sig.ident.inspect());
-                log!(info "{}\n", self.ctx.outer.as_ref().unwrap());
-                panic!()
-            }) // FIXME: or instantiate
+            .unwrap()
             .t
             .clone();
         self.ctx.assign_params(&sig.params, None)?;
@@ -505,10 +505,12 @@ impl ASTLowerer {
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
-        if let Err(e) =
-            self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
-        {
-            self.errs.push(e);
+        if !sig.is_const() {
+            if let Err(e) =
+                self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
+            {
+                self.errs.push(e);
+            }
         }
         let id = body.id;
         self.ctx

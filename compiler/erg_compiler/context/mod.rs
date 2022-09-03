@@ -214,7 +214,7 @@ pub enum RegistrationMode {
 /// Represents the context of the current scope
 ///
 /// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Context {
     pub(crate) name: Str,
     pub(crate) kind: ContextKind,
@@ -495,6 +495,20 @@ impl Context {
             ContextKind::Module,
             vec![],
             None,
+            vec![],
+            vec![],
+            capacity,
+            Self::TOP_LEVEL,
+        )
+    }
+
+    #[inline]
+    pub fn instant(name: Str, capacity: usize, outer: Context) -> Self {
+        Self::with_capacity(
+            name,
+            ContextKind::Instant,
+            vec![],
+            Some(outer),
             vec![],
             vec![],
             capacity,

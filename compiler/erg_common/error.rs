@@ -36,6 +36,7 @@ pub enum ErrorKind {
     HasEffect,
     MoveError,
     NotConstExpr,
+    DummyError,
     /* compile warnings */
     AttributeWarning = 60,
     CastWarning,
@@ -317,8 +318,18 @@ impl ErrorCore {
         }
     }
 
+    pub fn dummy(errno: usize) -> Self {
+        Self::new(
+            errno,
+            DummyError,
+            Location::Line(errno as usize),
+            "<dummy>",
+            None,
+        )
+    }
+
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::bug(line as usize, Location::Unknown, fn_name, line)
+        Self::bug(line as usize, Location::Line(line as usize), fn_name, line)
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {

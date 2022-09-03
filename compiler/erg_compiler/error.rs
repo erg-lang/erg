@@ -255,6 +255,10 @@ impl TyCheckError {
         Self { core, caused_by }
     }
 
+    pub fn dummy(errno: usize) -> Self {
+        Self::new(ErrorCore::dummy(errno), "".into())
+    }
+
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
         Self::new(ErrorCore::unreachable(fn_name, line), "".into())
     }
@@ -657,10 +661,10 @@ impl TyCheckError {
                 AssignError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("定数{name}には再代入できません"),
-                    "simplified_chinese" => format!("不能为不可变变量{name}分配两次"),
-                    "traditional_chinese" => format!("不能為不可變變量{name}分配兩次"),
-                    "english" => format!("cannot assign twice to the immutable variable {name}"),
+                    "japanese" => format!("変数{name}に再代入されています"),
+                    "simplified_chinese" => format!("不能为变量{name}分配两次"),
+                    "traditional_chinese" => format!("不能為變量{name}分配兩次"),
+                    "english" => format!("cannot assign twice to the variable {name}"),
                 ),
                 None,
             ),

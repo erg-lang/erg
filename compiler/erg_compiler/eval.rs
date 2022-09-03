@@ -309,7 +309,8 @@ impl Context {
 
     fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
         let mut attrs = vec![];
-        let mut record_ctx = Context::default(); // TODO: include outer context
+        // HACK: should avoid cloning
+        let mut record_ctx = Context::instant(Str::ever("<unnamed record>"), 2, self.clone());
         for attr in record.attrs.iter() {
             let name = attr.sig.ident().map(|i| i.inspect());
             let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
