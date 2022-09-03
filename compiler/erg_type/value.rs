@@ -92,7 +92,7 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
-            Self::Subr(subr) => write!(f, "{subr:?}"),
+            Self::Subr(subr) => write!(f, "{subr}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
             Self::Ellipsis => write!(f, "Ellipsis"),

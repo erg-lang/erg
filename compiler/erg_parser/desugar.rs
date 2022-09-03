@@ -50,6 +50,7 @@ impl Desugarer {
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);
         let module = self.desugar_shortened_record(module);
+        // let module = self.desugar_self(module);
         module
     }
 
@@ -499,21 +500,20 @@ impl Desugarer {
         NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
     }
 
-    /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
-    fn desugar_refinement_pattern(&self, _mod: Module) -> Module {
+    fn desugar_self(&self, mut module: Module) -> Module {
+        let mut new = Module::with_capacity(module.len());
+        while let Some(chunk) = module.lpop() {
+            new.push(self.rec_desugar_self(chunk));
+        }
+        new
+    }
+
+    fn rec_desugar_self(&self, _expr: Expr) -> Expr {
         todo!()
     }
 
-    /// ```erg
-    /// @deco
-    /// f x = ...
-    /// ```
-    /// ↓
-    /// ```erg
-    /// _f x = ...
-    /// f = deco _f
-    /// ```
-    fn desugar_decorators(&self, _mod: Module) -> Module {
+    /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
+    fn desugar_refinement_pattern(&self, _mod: Module) -> Module {
         todo!()
     }
 }

@@ -162,6 +162,15 @@ pub enum ConstSubr {
     Builtin(BuiltinConstSubr),
 }
 
+impl fmt::Display for ConstSubr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConstSubr::User(_) => write!(f, "<user-defined const subroutine>"),
+            ConstSubr::Builtin(_) => write!(f, "<builtin const subroutine>"),
+        }
+    }
+}
+
 impl ConstSubr {
     pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> ValueObj {
         match self {
