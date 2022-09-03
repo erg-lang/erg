@@ -18,7 +18,7 @@ use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{and, class, int_interval, mono_q};
+use crate::constructors::{and, int_interval, mono, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
@@ -1149,8 +1149,7 @@ pub enum Type {
     NotImplemented,
     Ellipsis, // これはクラスのほうで型推論用のマーカーではない
     Never,    // {}
-    MonoClass(Str),
-    MonoTrait(Str),
+    Mono(Str),
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut(Box<Type>),
@@ -1173,14 +1172,10 @@ pub enum Type {
     And(Box<Type>, Box<Type>),
     Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
-    PolyClass {
+    Poly {
         name: Str,
         params: Vec<TyParam>,
-    }, // T(params)
-    PolyTrait {
-        name: Str,
-        params: Vec<TyParam>,
-    }, // T(params)
+    },
     /* Special types (inference-time types) */
     MonoQVar(Str), // QuantifiedTyの中で使う一般化型変数、利便性のためMonoとは区別する
     PolyQVar {
@@ -1221,9 +1216,7 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::MonoClass(l), Self::MonoClass(r)) | (Self::MonoTrait(l), Self::MonoTrait(r)) => {
-                l == r
-            }
+            (Self::Mono(l), Self::Mono(r)) => l == r,
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l == r,
             (Self::Subr(l), Self::Subr(r)) => l == r,
@@ -1255,11 +1248,7 @@ impl PartialEq for Type {
             | (Self::Not(ll, lr), Self::Not(rl, rr))
             | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll == rl && lr == rr,
             (
-                Self::PolyClass {
-                    name: ln,
-                    params: lps,
-                }
-                | Self::PolyTrait {
+                Self::Poly {
                     name: ln,
                     params: lps,
                 }
@@ -1267,11 +1256,7 @@ impl PartialEq for Type {
                     name: ln,
                     params: lps,
                 },
-                Self::PolyClass {
-                    name: rn,
-                    params: rps,
-                }
-                | Self::PolyTrait {
+                Self::Poly {
                     name: rn,
                     params: rps,
                 }
@@ -1316,7 +1301,7 @@ impl LimitedDisplay for Type {
             return write!(f, "...");
         }
         match self {
-            Self::MonoClass(name) | Self::MonoTrait(name) => write!(f, "{name}"),
+            Self::Mono(name) => write!(f, "{name}"),
             Self::Ref(t) | Self::RefMut(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1364,7 +1349,7 @@ impl LimitedDisplay for Type {
                 write!(f, " or ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::PolyClass { name, params } | Self::PolyTrait { name, params } => {
+            Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
                     if i > 0 {
@@ -1453,7 +1438,7 @@ impl From<&str> for Type {
             "Inf" => Self::Inf,
             "NegInf" => Self::NegInf,
             "_" => Self::Obj,
-            other => Self::MonoClass(Str::rc(other)),
+            other => Self::Mono(Str::rc(other)),
         }
     }
 }
@@ -1483,9 +1468,7 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
-            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
-                params.iter().filter_map(get_t_from_tp).collect()
-            }
+            Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
     }
@@ -1538,7 +1521,7 @@ impl HasLevel for Type {
                     t.update_level(level);
                 }
             }
-            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
+            Self::Poly { params, .. } => {
                 for p in params.iter() {
                     p.update_level(level);
                 }
@@ -1592,7 +1575,7 @@ impl HasLevel for Type {
                     t.lift();
                 }
             }
-            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
+            Self::Poly { params, .. } => {
                 for p in params.iter() {
                     p.lift();
                 }
@@ -1643,12 +1626,12 @@ impl Type {
                 fv.link(&t.mutate());
                 Self::FreeVar(fv)
             }
-            Self::Int => class("Int!"),
-            Self::Nat => class("Nat!"),
-            Self::Ratio => class("Ratio!"),
-            Self::Float => class("Float!"),
-            Self::Bool => class("Bool!"),
-            Self::Str => class("Str!"),
+            Self::Int => mono("Int!"),
+            Self::Nat => mono("Nat!"),
+            Self::Ratio => mono("Ratio!"),
+            Self::Float => mono("Float!"),
+            Self::Bool => mono("Bool!"),
+            Self::Str => mono("Str!"),
             _ => todo!(),
         }
     }
@@ -1682,49 +1665,6 @@ impl Type {
         }
     }
 
-    pub fn is_class(&self) -> bool {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class(),
-            Self::Refinement(refine) => refine.t.is_class(),
-            Self::Obj
-            | Self::Int
-            | Self::Nat
-            | Self::Ratio
-            | Self::Float
-            | Self::Bool
-            | Self::Str
-            | Self::NoneType
-            | Self::Code
-            | Self::Module
-            | Self::Frame
-            | Self::Error
-            | Self::Inf
-            | Self::NegInf
-            | Self::Type
-            | Self::Class
-            | Self::Trait
-            | Self::Patch
-            | Self::NotImplemented
-            | Self::Ellipsis
-            | Self::Never
-            | Self::Subr(_)
-            | Self::Callable { .. }
-            | Self::Record(_)
-            | Self::Quantified(_) => true,
-            Self::MonoClass(_) | Self::PolyClass { .. } => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_trait(&self) -> bool {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_trait(),
-            Self::Refinement(refine) => refine.t.is_trait(),
-            Self::MonoTrait(_) | Self::PolyTrait { .. } => true,
-            _ => false,
-        }
-    }
-
     pub fn is_mut(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
@@ -1734,11 +1674,9 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::MonoClass(name)
-            | Self::MonoTrait(name)
+            Self::Mono(name)
             | Self::MonoQVar(name)
-            | Self::PolyClass { name, .. }
-            | Self::PolyTrait { name, .. }
+            | Self::Poly { name, .. }
             | Self::PolyQVar { name, .. }
             | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
             Self::Refinement(refine) => refine.t.is_mut(),
@@ -1750,11 +1688,11 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
-            Self::PolyClass { name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
+            Self::Poly { name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
                 inner_t.is_nonelike()
             }
-            Self::PolyClass { name, params } if &name[..] == "Tuple" => params.is_empty(),
+            Self::Poly { name, params } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             _ => false,
         }
@@ -1773,7 +1711,7 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
+            Self::Poly { params, .. } => {
                 for param in params.iter() {
                     match param {
                         TyParam::Type(t) if t.contains_tvar(name) => {
@@ -1870,7 +1808,7 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::MonoClass(name) | Self::MonoTrait(name) | Self::MonoQVar(name) => name.clone(),
+            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
             Self::And(_, _) => Str::ever("And"),
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
@@ -1894,9 +1832,7 @@ impl Type {
             }) => Str::ever("ProcMethod"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
-            Self::PolyClass { name, .. }
-            | Self::PolyTrait { name, .. }
-            | Self::PolyQVar { name, .. } => name.clone(),
+            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.name(),
             Self::Quantified(_) => Str::ever("Quantified"),
@@ -1967,9 +1903,7 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|tb| tb.has_qvar())
             }
-            Self::PolyClass { params, .. } | Self::PolyTrait { params, .. } => {
-                params.iter().any(|tp| tp.has_qvar())
-            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::MonoProj { lhs, .. } => lhs.has_qvar(),
             _ => false,
         }
@@ -2006,9 +1940,9 @@ impl Type {
             Self::Quantified(quant) => {
                 quant.unbound_callable.is_cachable() || quant.bounds.iter().all(|b| b.is_cachable())
             }
-            Self::PolyClass { params, .. }
-            | Self::PolyTrait { params, .. }
-            | Self::PolyQVar { params, .. } => params.iter().all(|p| p.is_cachable()),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+                params.iter().all(|p| p.is_cachable())
+            }
             Self::MonoProj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
@@ -2055,9 +1989,9 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|b| b.has_unbound_var())
             }
-            Self::PolyClass { params, .. }
-            | Self::PolyTrait { params, .. }
-            | Self::PolyQVar { params, .. } => params.iter().any(|p| p.has_unbound_var()),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+                params.iter().any(|p| p.has_unbound_var())
+            }
             Self::MonoProj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
@@ -2082,9 +2016,7 @@ impl Type {
                     + 1,
             ),
             Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
-            Self::PolyClass { params, .. }
-            | Self::PolyTrait { params, .. }
-            | Self::PolyQVar { params, .. } => Some(params.len()),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => Some(params.len()),
             _ => None,
         }
     }
@@ -2100,9 +2032,7 @@ impl Type {
             }
             Self::Subr(subr) => subr.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
-            Self::PolyClass { params, .. }
-            | Self::PolyTrait { params, .. }
-            | Self::PolyQVar { params, .. } => params.clone(),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => params.clone(),
             _ => vec![],
         }
     }
@@ -2227,7 +2157,7 @@ impl From<&Type> for TypeCode {
             Type::Float => Self::Float64,
             Type::Bool => Self::Bool,
             Type::Str => Self::Str,
-            Type::MonoClass(name) => match &name[..] {
+            Type::Mono(name) => match &name[..] {
                 "Int!" => Self::Int32,
                 "Nat!" => Self::Nat64,
                 "Float!" => Self::Float64,
@@ -2235,7 +2165,7 @@ impl From<&Type> for TypeCode {
                 "Str!" => Self::Str,
                 _ => Self::Other,
             },
-            Type::PolyClass { name, .. } => match &name[..] {
+            Type::Poly { name, .. } => match &name[..] {
                 "Array" | "Array!" => Self::Array,
                 "Func" => Self::Func,
                 "Proc" => Self::Proc,
@@ -2404,98 +2334,98 @@ impl TypePair {
             (Type::Int, Type::Float) => Self::IntFloat,
             (Type::Int, Type::Str) => Self::IntStr,
             (Type::Int, Type::Bool) => Self::IntBool,
-            (Type::Int, Type::PolyClass { name, .. }) if &name[..] == "Array" => Self::IntArray,
-            (Type::Int, Type::PolyClass { name, .. }) if &name[..] == "Func" => Self::IntFunc,
-            (Type::Int, Type::PolyClass { name, .. }) if &name[..] == "Proc" => Self::IntProc,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Array" => Self::IntArray,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Func" => Self::IntFunc,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::IntProc,
             (Type::Nat, Type::Int) => Self::NatInt,
             (Type::Nat, Type::Nat) => Self::NatNat,
             (Type::Nat, Type::Float) => Self::NatFloat,
             (Type::Nat, Type::Str) => Self::NatStr,
             (Type::Nat, Type::Bool) => Self::NatBool,
-            (Type::Nat, Type::PolyClass { name, .. }) if &name[..] == "Array" => Self::NatArray,
-            (Type::Nat, Type::PolyClass { name, .. }) if &name[..] == "Func" => Self::NatFunc,
-            (Type::Nat, Type::PolyClass { name, .. }) if &name[..] == "Proc" => Self::NatProc,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Array" => Self::NatArray,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Func" => Self::NatFunc,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::NatProc,
             (Type::Float, Type::Int) => Self::FloatInt,
             (Type::Float, Type::Nat) => Self::FloatNat,
             (Type::Float, Type::Float) => Self::FloatFloat,
             (Type::Float, Type::Str) => Self::FloatStr,
             (Type::Float, Type::Bool) => Self::FloatBool,
-            (Type::Float, Type::PolyClass { name, .. }) if &name[..] == "Array" => Self::FloatArray,
-            (Type::Float, Type::PolyClass { name, .. }) if &name[..] == "Func" => Self::FloatFunc,
-            (Type::Float, Type::PolyClass { name, .. }) if &name[..] == "Proc" => Self::FloatProc,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Array" => Self::FloatArray,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Func" => Self::FloatFunc,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::FloatProc,
             (Type::Bool, Type::Int) => Self::BoolInt,
             (Type::Bool, Type::Nat) => Self::BoolNat,
             (Type::Bool, Type::Float) => Self::BoolFloat,
             (Type::Bool, Type::Str) => Self::BoolStr,
             (Type::Bool, Type::Bool) => Self::BoolBool,
-            (Type::Bool, Type::PolyClass { name, .. }) if &name[..] == "Array" => Self::BoolArray,
-            (Type::Bool, Type::PolyClass { name, .. }) if &name[..] == "Func" => Self::BoolFunc,
-            (Type::Bool, Type::PolyClass { name, .. }) if &name[..] == "Proc" => Self::BoolProc,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Array" => Self::BoolArray,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Func" => Self::BoolFunc,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::BoolProc,
             (Type::Str, Type::Int) => Self::StrInt,
             (Type::Str, Type::Nat) => Self::StrNat,
             (Type::Str, Type::Float) => Self::StrFloat,
             (Type::Str, Type::Bool) => Self::StrBool,
             (Type::Str, Type::Str) => Self::StrStr,
-            (Type::Str, Type::PolyClass { name, .. }) if &name[..] == "Array" => Self::StrArray,
-            (Type::Str, Type::PolyClass { name, .. }) if &name[..] == "Func" => Self::StrFunc,
-            (Type::Str, Type::PolyClass { name, .. }) if &name[..] == "Proc" => Self::StrProc,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Array" => Self::StrArray,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Func" => Self::StrFunc,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::StrProc,
             // 要素数は検査済みなので、気にする必要はない
-            (Type::PolyClass { name, .. }, Type::Int) if &name[..] == "Array" => Self::ArrayInt,
-            (Type::PolyClass { name, .. }, Type::Nat) if &name[..] == "Array" => Self::ArrayNat,
-            (Type::PolyClass { name, .. }, Type::Float) if &name[..] == "Array" => Self::ArrayFloat,
-            (Type::PolyClass { name, .. }, Type::Str) if &name[..] == "Array" => Self::ArrayStr,
-            (Type::PolyClass { name, .. }, Type::Bool) if &name[..] == "Array" => Self::ArrayBool,
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Array" => Self::ArrayInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Array" => Self::ArrayNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Array" => Self::ArrayFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Array" => Self::ArrayStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Array" => Self::ArrayBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Array" && &rn[..] == "Array" =>
             {
                 Self::ArrayArray
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Array" && &rn[..] == "Func" =>
             {
                 Self::ArrayFunc
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Array" && &rn[..] == "Proc" =>
             {
                 Self::ArrayProc
             }
-            (Type::PolyClass { name, .. }, Type::Int) if &name[..] == "Func" => Self::FuncInt,
-            (Type::PolyClass { name, .. }, Type::Nat) if &name[..] == "Func" => Self::FuncNat,
-            (Type::PolyClass { name, .. }, Type::Float) if &name[..] == "Func" => Self::FuncFloat,
-            (Type::PolyClass { name, .. }, Type::Str) if &name[..] == "Func" => Self::FuncStr,
-            (Type::PolyClass { name, .. }, Type::Bool) if &name[..] == "Func" => Self::FuncBool,
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Func" => Self::FuncInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Func" => Self::FuncNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Func" => Self::FuncFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Func" => Self::FuncStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Func" => Self::FuncBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Func" && &rn[..] == "Array" =>
             {
                 Self::FuncArray
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Func" && &rn[..] == "Func" =>
             {
                 Self::FuncFunc
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Func" && &rn[..] == "Proc" =>
             {
                 Self::FuncProc
             }
-            (Type::PolyClass { name, .. }, Type::Int) if &name[..] == "Proc" => Self::ProcInt,
-            (Type::PolyClass { name, .. }, Type::Nat) if &name[..] == "Proc" => Self::ProcNat,
-            (Type::PolyClass { name, .. }, Type::Float) if &name[..] == "Proc" => Self::ProcFloat,
-            (Type::PolyClass { name, .. }, Type::Str) if &name[..] == "Proc" => Self::ProcStr,
-            (Type::PolyClass { name, .. }, Type::Bool) if &name[..] == "Proc" => Self::ProcBool,
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Proc" => Self::ProcInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Proc" => Self::ProcNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Proc" => Self::ProcFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Proc" => Self::ProcStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Proc" => Self::ProcBool,
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Proc" && &rn[..] == "Array" =>
             {
                 Self::ProcArray
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Proc" && &rn[..] == "Func" =>
             {
                 Self::ProcFunc
             }
-            (Type::PolyClass { name: ln, .. }, Type::PolyClass { name: rn, .. })
+            (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Proc" && &rn[..] == "Proc" =>
             {
                 Self::ProcProc

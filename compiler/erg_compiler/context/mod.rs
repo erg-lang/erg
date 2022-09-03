@@ -84,7 +84,7 @@ pub enum TyParamIdx {
 impl TyParamIdx {
     pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
         match search_from {
-            Type::PolyClass { params, .. } => {
+            Type::Poly { params, .. } => {
                 for (i, tp) in params.iter().enumerate() {
                     match tp {
                         TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),

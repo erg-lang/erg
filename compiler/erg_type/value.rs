@@ -17,7 +17,7 @@ use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, class, poly_class, refinement, tuple};
+use crate::constructors::{array, mono, poly, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -384,12 +384,12 @@ impl ValueObj {
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => class("Int!"),
-                Self::Nat(_) => class("Nat!"),
-                Self::Float(_) => class("Float!"),
-                Self::Str(_) => class("Str!"),
-                Self::Bool(_) => class("Bool!"),
-                Self::Array(arr) => poly_class(
+                Self::Int(_) => mono("Int!"),
+                Self::Nat(_) => mono("Nat!"),
+                Self::Float(_) => mono("Float!"),
+                Self::Str(_) => mono("Str!"),
+                Self::Bool(_) => mono("Bool!"),
+                Self::Array(arr) => poly(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),

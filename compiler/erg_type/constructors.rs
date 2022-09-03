@@ -21,25 +21,25 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
 }
 
 pub fn array(elem_t: Type, len: TyParam) -> Type {
-    poly_class("Array", vec![TyParam::t(elem_t), len])
+    poly("Array", vec![TyParam::t(elem_t), len])
 }
 
 pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
-    poly_class("Array!", vec![TyParam::t(elem_t), len])
+    poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
 pub fn dict(k_t: Type, v_t: Type) -> Type {
-    poly_class("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+    poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
 }
 
 pub fn tuple(args: Vec<Type>) -> Type {
     let name = format!("Tuple{}", args.len());
-    poly_class(name, args.into_iter().map(TyParam::t).collect())
+    poly(name, args.into_iter().map(TyParam::t).collect())
 }
 
 #[inline]
 pub fn range(t: Type) -> Type {
-    poly_class("Range", vec![TyParam::t(t)])
+    poly("Range", vec![TyParam::t(t)])
 }
 
 pub fn enum_t(s: Set<ValueObj>) -> Type {
@@ -91,7 +91,7 @@ pub fn int_interval<P: Into<TyParam>, Q: Into<TyParam>>(op: IntervalOp, l: P, r:
 }
 
 pub fn iter(t: Type) -> Type {
-    poly_class("Iter", vec![TyParam::t(t)])
+    poly("Iter", vec![TyParam::t(t)])
 }
 
 pub fn ref_(t: Type) -> Type {
@@ -103,11 +103,11 @@ pub fn ref_mut(t: Type) -> Type {
 }
 
 pub fn option(t: Type) -> Type {
-    poly_class("Option", vec![TyParam::t(t)])
+    poly("Option", vec![TyParam::t(t)])
 }
 
 pub fn option_mut(t: Type) -> Type {
-    poly_class("Option!", vec![TyParam::t(t)])
+    poly("Option!", vec![TyParam::t(t)])
 }
 
 pub fn subr_t(
@@ -286,13 +286,8 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn class<S: Into<Str>>(name: S) -> Type {
-    Type::MonoClass(name.into())
-}
-
-#[inline]
-pub fn trait_<S: Into<Str>>(name: S) -> Type {
-    Type::MonoTrait(name.into())
+pub fn mono<S: Into<Str>>(name: S) -> Type {
+    Type::Mono(name.into())
 }
 
 #[inline]
@@ -301,16 +296,8 @@ pub fn mono_q<S: Into<Str>>(name: S) -> Type {
 }
 
 #[inline]
-pub fn poly_class<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::PolyClass {
-        name: name.into(),
-        params,
-    }
-}
-
-#[inline]
-pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::PolyTrait {
+pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::Poly {
         name: name.into(),
         params,
     }

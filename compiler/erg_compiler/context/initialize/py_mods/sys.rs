@@ -1,6 +1,6 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{array, array_mut, class, func0, func1, proc1};
+use erg_type::constructors::{array, array_mut, func0, func1, mono, proc1};
 use erg_type::typaram::TyParam;
 use erg_type::Type;
 use Type::*;
@@ -33,17 +33,17 @@ impl Context {
         );
         sys.register_impl("platform", Str, Immutable, Public);
         sys.register_impl("prefix", Str, Immutable, Public);
-        sys.register_impl("ps1", class("Str!"), Immutable, Public);
-        sys.register_impl("ps2", class("Str!"), Immutable, Public);
+        sys.register_impl("ps1", mono("Str!"), Immutable, Public);
+        sys.register_impl("ps2", mono("Str!"), Immutable, Public);
         sys.register_impl(
             "setrecursionlimit!",
             proc1(Int, NoneType),
             Immutable,
             Public,
         );
-        sys.register_impl("stderr", class("TextIOWrapper!"), Immutable, Public);
-        sys.register_impl("stdin", class("TextIOWrapper!"), Immutable, Public);
-        sys.register_impl("stdout", class("TextIOWrapper!"), Immutable, Public);
+        sys.register_impl("stderr", mono("TextIOWrapper!"), Immutable, Public);
+        sys.register_impl("stdin", mono("TextIOWrapper!"), Immutable, Public);
+        sys.register_impl("stdout", mono("TextIOWrapper!"), Immutable, Public);
         sys.register_impl("version", Str, Immutable, Public);
         sys
     }

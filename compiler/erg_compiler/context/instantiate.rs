@@ -105,7 +105,7 @@ impl TyVarContext {
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(&name) {
             let (_, ctx) = ctx
-                .rec_get_nominal_type_ctx(&poly_trait(name.clone(), params.clone()))
+                .rec_get_nominal_type_ctx(&poly(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = ctx.params.len();
             let given_params_len = params.len();
@@ -130,9 +130,9 @@ impl TyVarContext {
                 self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
                 inst_defaults.push(tp);
             }
-            poly_trait(name, [inst_non_defaults, inst_defaults].concat())
+            poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            poly_trait(
+            poly(
                 name,
                 params
                     .into_iter()
@@ -154,18 +154,16 @@ impl TyVarContext {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub_instance = match sub {
-                    Type::PolyTrait { name, params } => {
+                    Type::Poly { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
-                    Type::PolyClass { .. } => todo!(),
                     Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
                     sub => sub,
                 };
                 let sup_instance = match sup {
-                    Type::PolyTrait { name, params } => {
+                    Type::Poly { name, params } => {
                         self.instantiate_poly(mid.name(), &name, params, ctx)
                     }
-                    Type::PolyClass { .. } => todo!(),
                     Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
                     sup => sup,
                 };
@@ -178,8 +176,7 @@ impl TyVarContext {
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
-                    Type::PolyClass { .. } => todo!(),
-                    Type::PolyTrait { name, params } => {
+                    Type::Poly { name, params } => {
                         self.instantiate_poly(name.clone(), &name, params, ctx)
                     }
                     t => t,
@@ -510,10 +507,10 @@ impl Context {
                     let len = self.instantiate_const_expr(&len.expr);
                     Ok(array(t, len))
                 } else {
-                    Ok(class("GenericArray"))
+                    Ok(mono("GenericArray"))
                 }
             }
-            other if simple.args.is_empty() => Ok(class(Str::rc(other))),
+            other if simple.args.is_empty() => Ok(mono(Str::rc(other))),
             other => {
                 // FIXME: kw args
                 let params = simple.args.pos_args().map(|arg| match &arg.expr {
@@ -523,7 +520,7 @@ impl Context {
                     }
                 });
                 // FIXME: if type is a trait
-                Ok(poly_class(Str::rc(other), params.collect()))
+                Ok(poly(Str::rc(other), params.collect()))
             }
         }
     }
@@ -543,7 +540,7 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> TyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(class(name.inspect())),
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
             _ => todo!(),
         }
     }
@@ -813,17 +810,11 @@ impl Context {
                 let lhs = Self::instantiate_t(*lhs, tv_ctx);
                 mono_proj(lhs, rhs)
             }
-            PolyClass { name, mut params } => {
+            Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = Self::instantiate_tp(mem::take(param), tv_ctx);
                 }
-                poly_class(name, params)
-            }
-            PolyTrait { name, mut params } => {
-                for param in params.iter_mut() {
-                    *param = Self::instantiate_tp(mem::take(param), tv_ctx);
-                }
-                poly_trait(name, params)
+                poly(name, params)
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")

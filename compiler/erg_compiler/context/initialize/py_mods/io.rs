@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 use erg_common::Str;
 
-use erg_type::constructors::{class, pr0_met};
+use erg_type::constructors::{mono, pr0_met};
 use erg_type::Type;
 use Type::*;
 
@@ -16,11 +16,11 @@ impl Context {
         let mut string_io = Context::mono_class(Str::ever("StringIO!"), vec![Obj], vec![], 0);
         string_io.register_impl(
             "getvalue!",
-            pr0_met(class("StringIO!"), None, Str),
+            pr0_met(mono("StringIO!"), None, Str),
             Immutable,
             Public,
         );
-        io.register_type(class("StringIO!"), string_io, Const);
+        io.register_type(mono("StringIO!"), string_io, Const);
         io
     }
 }

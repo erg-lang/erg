@@ -12,9 +12,7 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{
-    class, enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t,
-};
+use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, SubrKind, TyBound, Type, ValueArgs};
@@ -250,7 +248,7 @@ impl Context {
                             name.loc(),
                             self.caused_by(),
                             name.inspect(),
-                            &class("Subroutine"),
+                            &mono("Subroutine"),
                             &obj.t(),
                             None,
                         ))?
@@ -565,17 +563,11 @@ impl Context {
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
             Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, level)?)),
-            Type::PolyClass { name, mut params } => {
+            Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p))?;
                 }
-                Ok(poly_class(name, params))
-            }
-            Type::PolyTrait { name, mut params } => {
-                for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p))?;
-                }
-                Ok(poly_trait(name, params))
+                Ok(poly(name, params))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),

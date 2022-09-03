@@ -14,9 +14,7 @@ use ast::VarName;
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use erg_type::constructors::{
-    class, func, mono_proj, poly_class, ref_, ref_mut, refinement, subr_t,
-};
+use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
@@ -119,9 +117,9 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &class("LambdaFunc"),
+                    &mono("LambdaFunc"),
                     t,
-                    self.get_type_mismatch_hint(&class("LambdaFunc"), t),
+                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
                 ));
             }
         }
@@ -441,10 +439,10 @@ impl Context {
                 fv.update_constraint(new_constraint);
                 Ok(Type::FreeVar(fv))
             }
-            Type::PolyTrait { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
+            Type::Poly { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
                 let t_name = name.clone();
                 let t_params = params.clone();
-                let maybe_trait = Type::PolyTrait { name, params };
+                let maybe_trait = Type::Poly { name, params };
                 let mut min = Type::Obj;
                 for pair in self.rec_get_trait_impls(&t_name) {
                     if self.rec_supertype_of(&pair.sup_trait, &maybe_trait) {
@@ -466,7 +464,7 @@ impl Context {
                             }
                         }
                     }
-                    Ok(poly_class(t_name, new_params))
+                    Ok(poly(t_name, new_params))
                 } else {
                     Ok(min)
                 }
@@ -969,7 +967,7 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn rec_get_nominal_super_trait_ctxs<'a>(
+    pub(crate) fn rec_get_nominal_super_classctxs<'a>(
         &'a self,
         t: &Type,
     ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
@@ -1026,9 +1024,9 @@ impl Context {
                 return self.rec_get_nominal_type_ctx(&refine.t);
             }
             Type::Quantified(_) => {
-                return self.rec_get_nominal_type_ctx(&class("QuantifiedFunction"));
+                return self.rec_get_nominal_type_ctx(&mono("QuantifiedFunction"));
             }
-            Type::PolyClass { name, params: _ } | Type::PolyTrait { name, params: _ } => {
+            Type::Poly { name, params: _ } => {
                 if let Some((t, ctx)) = self.poly_types.get(name) {
                     return Some((t, ctx));
                 }

@@ -10,7 +10,7 @@ use erg_parser::ast;
 use erg_parser::ast::AST;
 
 use erg_parser::token::{Token, TokenKind};
-use erg_type::constructors::{array, array_mut, class, free_var, func, poly_class, proc, quant};
+use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
@@ -167,7 +167,7 @@ impl ASTLowerer {
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
-                    poly_class(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -175,9 +175,9 @@ impl ASTLowerer {
                     array(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == class("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut() {
-                    poly_class(
+                    poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -189,7 +189,7 @@ impl ASTLowerer {
             // REVIEW: is it ok to ignore the error?
             Err(_e) => {
                 if elem.ref_t().is_mut() {
-                    poly_class(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )

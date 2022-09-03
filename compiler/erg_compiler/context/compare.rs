@@ -184,44 +184,44 @@ impl Context {
                     && self.supertype_of(&Type, &subr.return_t),
             ),
             (
-                Type::MonoClass(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Func,
                     ..
                 }),
             ) if &n[..] == "GenericFunc" => (Absolutely, true),
             (
-                Type::MonoClass(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Proc,
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
             (
-                Type::MonoClass(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::FuncMethod(_),
                     ..
                 }),
             ) if &n[..] == "GenericFuncMethod" => (Absolutely, true),
             (
-                Type::MonoClass(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::ProcMethod { .. },
                     ..
                 }),
             ) if &n[..] == "GenericProcMethod" => (Absolutely, true),
-            (Type::MonoClass(l), Type::PolyClass { name: r, .. })
+            (Type::Mono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericArray" && &r[..] == "Array" =>
             {
                 (Absolutely, true)
             }
-            (Type::MonoClass(l), Type::PolyClass { name: r, .. })
+            (Type::Mono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericDict" && &r[..] == "Dict" =>
             {
                 (Absolutely, true)
             }
-            (Type::MonoClass(l), Type::MonoClass(r))
+            (Type::Mono(l), Type::Mono(r))
                 if &l[..] == "GenericCallable"
                     && (&r[..] == "GenericFunc"
                         || &r[..] == "GenericProc"
@@ -234,7 +234,7 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Type::MonoClass(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
             (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
             _ => (Maybe, false),
         }
@@ -258,7 +258,7 @@ impl Context {
             }
             _ => {}
         }
-        match self.trait_supertype_of(lhs, rhs) {
+        match self.classsupertype_of(lhs, rhs) {
             (Absolutely, judge) => {
                 self.register_cache(rhs, lhs, judge);
                 return judge;
@@ -292,9 +292,6 @@ impl Context {
     }
 
     fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        if !lhs.is_class() || !rhs.is_class() {
-            return (Maybe, false);
-        }
         for (rhs_sup, _) in self.rec_get_nominal_super_class_ctxs(rhs) {
             match self.cheap_supertype_of(lhs, rhs_sup) {
                 (Absolutely, true) => {
@@ -313,11 +310,8 @@ impl Context {
 
     // e.g. Eq(Nat) :> Nat
     // Nat.super_traits = [Add(Nat), Eq(Nat), ...]
-    fn trait_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        if !lhs.is_trait() {
-            return (Maybe, false);
-        }
-        for (rhs_sup, _) in self.rec_get_nominal_super_trait_ctxs(rhs) {
+    fn classsupertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
+        for (rhs_sup, _) in self.rec_get_nominal_super_classctxs(rhs) {
             match self.cheap_supertype_of(lhs, rhs_sup) {
                 (Absolutely, true) => {
                     return (Absolutely, true);
@@ -575,26 +569,11 @@ impl Context {
             // REVIEW: RefMut is invariant, maybe
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),
             (
-                PolyClass {
+                Poly {
                     name: ln,
                     params: lparams,
                 },
-                PolyClass {
-                    name: rn,
-                    params: rparams,
-                },
-            ) => {
-                if ln != rn || lparams.len() != rparams.len() {
-                    return false;
-                }
-                self.poly_supertype_of(lhs, lparams, rparams)
-            }
-            (
-                PolyTrait {
-                    name: ln,
-                    params: lparams,
-                },
-                PolyTrait {
+                Poly {
                     name: rn,
                     params: rparams,
                 },
@@ -619,7 +598,7 @@ impl Context {
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
         let (defined_rhs, _) = self.rec_get_nominal_type_ctx(rhs).unwrap();
-        let super_traits = self.rec_get_nominal_super_trait_ctxs(rhs);
+        let super_traits = self.rec_get_nominal_super_classctxs(rhs);
         for (sup_trait, _) in super_traits.into_iter() {
             if self.sup_conforms(lhs, defined_rhs, sup_trait) {
                 return true;
