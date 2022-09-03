@@ -258,9 +258,7 @@ pub struct Context {
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
     // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
-    pub(crate) poly_classes: Dict<VarName, (Type, Context)>,
-    // Traits cannot be specialized
-    pub(crate) poly_traits: Dict<VarName, (Type, Context)>,
+    pub(crate) poly_types: Dict<VarName, (Type, Context)>,
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
@@ -295,7 +293,7 @@ impl fmt::Display for Context {
             .field("locals", &self.params)
             .field("consts", &self.consts)
             .field("mono_types", &self.mono_types)
-            .field("poly_types", &self.poly_classes)
+            .field("poly_types", &self.poly_types)
             .field("patches", &self.patches)
             .field("mods", &self.mods)
             .finish()
@@ -368,8 +366,7 @@ impl Context {
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
             mono_types: Dict::default(),
-            poly_classes: Dict::default(),
-            poly_traits: Dict::default(),
+            poly_types: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
             _nlocals: 0,

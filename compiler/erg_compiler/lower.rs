@@ -535,7 +535,7 @@ impl ASTLowerer {
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            // ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
+            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             other => todo!("{other}"),
         }
     }

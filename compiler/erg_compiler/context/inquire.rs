@@ -1000,13 +1000,8 @@ impl Context {
             Type::Quantified(_) => {
                 return self.rec_get_nominal_type_ctx(&class("QuantifiedFunction"));
             }
-            Type::PolyClass { name, params: _ } => {
-                if let Some((t, ctx)) = self.poly_classes.get(name) {
-                    return Some((t, ctx));
-                }
-            }
-            Type::PolyTrait { name, params: _ } => {
-                if let Some((t, ctx)) = self.poly_traits.get(name) {
+            Type::PolyClass { name, params: _ } | Type::PolyTrait { name, params: _ } => {
+                if let Some((t, ctx)) = self.poly_types.get(name) {
                     return Some((t, ctx));
                 }
             }

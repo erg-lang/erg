@@ -71,13 +71,7 @@ impl Context {
         if t.typarams_len().is_none() {
             self.register_mono_type(t, ctx, muty);
         } else {
-            if t.is_class() {
-                self.register_poly_class(t, ctx, muty);
-            } else if t.is_trait() {
-                self.register_poly_trait(t, ctx, muty);
-            } else {
-                todo!()
-            }
+            self.register_poly_type(t, ctx, muty);
         }
     }
 
@@ -103,10 +97,10 @@ impl Context {
         }
     }
 
-    fn register_poly_class(&mut self, t: Type, ctx: Self, muty: Mutability) {
+    fn register_poly_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
         let t = Self::instantiate_t(t, &mut tv_ctx);
-        if let Some((_, root_ctx)) = self.poly_classes.get_mut(&t.name()) {
+        if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
             root_ctx.specializations.push((t, ctx));
         } else {
             let name = VarName::from_str(t.name());
@@ -123,31 +117,7 @@ impl Context {
                     );
                 }
             }
-            self.poly_classes.insert(name, (t, ctx));
-        }
-    }
-
-    fn register_poly_trait(&mut self, t: Type, ctx: Self, muty: Mutability) {
-        if self.poly_traits.contains_key(&t.name()) {
-            panic!("{} has already been registered", t.name());
-        } else {
-            let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
-            let t = Self::instantiate_t(t, &mut tv_ctx);
-            let name = VarName::from_str(t.name());
-            self.locals
-                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
-            self.consts.insert(name.clone(), ValueObj::t(t.clone()));
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls.insert(
-                        impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            self.poly_traits.insert(name, (t, ctx));
+            self.poly_types.insert(name, (t, ctx));
         }
     }
 
