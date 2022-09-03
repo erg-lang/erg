@@ -1,7 +1,5 @@
 # Patch
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/07_patch.md%26commit_hash%3D2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/07_patch.md&commit_hash=2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)
-
 Erg does not allow modification of existing types and classes.
 This means, it is not possible to define additional methods in a class, nor to perform specialization (a language feature that monomorphizes a polymorphically declared type and defines a dedicated method, as in C++).
 However, there are many situations where you may want to add feature to an existing type or class, and there is a function called "patching" that allows you to do this.

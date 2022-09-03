@@ -1,8 +1,5 @@
 # Integration with Python
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/32_integration_with_Python.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/32_integration_with_Python.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 ## Export to Python
 
 When the Erg script is compiled, a .pyc file is generated, which can simply be imported as a Python module.
