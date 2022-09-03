@@ -1639,7 +1639,6 @@ impl Type {
     pub fn is_simple_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
-            Self::Refinement(refine) => refine.t.is_simple_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
