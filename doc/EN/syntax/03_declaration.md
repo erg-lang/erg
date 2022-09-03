@@ -1,8 +1,5 @@
 # Declaration
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/03_declaration.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/03_declaration.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 Declaration is the syntax for specifying the type of variable to be used.
 Declarations can be made anywhere in the code, but declarations alone do not refer to the variables. They must be initialized.
 After the assignment, the declaration can be checked to ensure that the type is compatible with the object to which it is assigned.

@@ -1,7 +1,5 @@
 # Kind
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D317b5973c354984891523d14a5e6e8f1cc3923ec)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=317b5973c354984891523d14a5e6e8f1cc3923ec)
-
 Everything is typed in Erg. Types themselves are no exception. __kind__ represents the “type of type”. For example, `Int` belongs to `Type`, just as `1` belongs to `Int`. `Type` is the simplest kind, the __atomic kind__. In type-theoretic notation, `Type` corresponds to `*`.
 
 In the concept of kind, what is practically important is one or more kinds (multinomial kind). One-term kind, for example `Option`, belongs to it. A unary kind is represented as `Type -> Type` [<sup id="f1">1</sup>](#1). A __container__ such as `Array` or `Option` is specifically a polynomial kind that takes a type as an argument.

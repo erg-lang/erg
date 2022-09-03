@@ -1,7 +1,5 @@
 # Overloading
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D317b5973c354984891523d14a5e6e8f1cc3923ec)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=317b5973c354984891523d14a5e6e8f1cc3923ec)
-
 Erg does not support __ad hoc polymorphism__. That is, multiple definitions of functions and Kinds (overloading) are not possible. However, you can reproduce the overloading behavior by using a combination of a trait and a patch.
 You can use traits instead of trait classes, but then all types that implement `.add1` will be covered.
 
