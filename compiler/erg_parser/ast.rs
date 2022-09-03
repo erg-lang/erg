@@ -1976,8 +1976,8 @@ impl VarTuplePattern {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttr {
-    lhs: Identifier,
-    rhs: Identifier,
+    pub lhs: Identifier,
+    pub rhs: VarSignature,
 }
 
 impl NestedDisplay for VarRecordAttr {
@@ -1990,7 +1990,7 @@ impl_display_from_nested!(VarRecordAttr);
 impl_locational!(VarRecordAttr, lhs, rhs);
 
 impl VarRecordAttr {
-    pub const fn new(lhs: Identifier, rhs: Identifier) -> Self {
+    pub const fn new(lhs: Identifier, rhs: VarSignature) -> Self {
         Self { lhs, rhs }
     }
 }
@@ -2046,7 +2046,7 @@ impl VarRecordPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarDataPackPattern {
-    pub class: Accessor, // TODO: allow polymorphic
+    pub class: TypeSpec,
     pub args: VarRecordPattern,
 }
 
@@ -2059,7 +2059,7 @@ impl fmt::Display for VarDataPackPattern {
 impl_locational!(VarDataPackPattern, class, args);
 
 impl VarDataPackPattern {
-    pub const fn new(class: Accessor, args: VarRecordPattern) -> Self {
+    pub const fn new(class: TypeSpec, args: VarRecordPattern) -> Self {
         Self { class, args }
     }
 }

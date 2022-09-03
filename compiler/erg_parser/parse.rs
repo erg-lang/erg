@@ -1706,7 +1706,7 @@ impl Parser {
                     let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
                         .unwrap_or_else(|| todo!());
                     let rhs = self
-                        .convert_accessor_to_ident(rhs)
+                        .convert_accessor_to_var_sig(rhs)
                         .map_err(|_| self.stack_dec())?;
                     pats.push(VarRecordAttr::new(lhs, rhs));
                 }
@@ -1717,7 +1717,8 @@ impl Parser {
             Record::Shortened(rec) => {
                 let mut pats = vec![];
                 for ident in rec.idents.into_iter() {
-                    pats.push(VarRecordAttr::new(ident.clone(), ident));
+                    let rhs = VarSignature::new(VarPattern::Ident(ident.clone()), None);
+                    pats.push(VarRecordAttr::new(ident.clone(), rhs));
                 }
                 let attrs = VarRecordAttrs::new(pats);
                 self.level -= 1;
@@ -1731,7 +1732,9 @@ impl Parser {
         pack: DataPack,
     ) -> ParseResult<VarDataPackPattern> {
         debug_call_info!(self);
-        let class = option_enum_unwrap!(*pack.class, Expr::Accessor).unwrap_or_else(|| todo!());
+        let class = self
+            .convert_rhs_to_type_spec(*pack.class)
+            .map_err(|_| self.stack_dec())?;
         let args = self
             .convert_record_to_record_pat(pack.args)
             .map_err(|_| self.stack_dec())?;

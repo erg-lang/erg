@@ -15,7 +15,7 @@ use crate::ast::{
     KwArg, Lambda, LambdaSignature, Literal, Local, MethodDefs, Module, NormalArray, NormalRecord,
     NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
     ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
-    UnaryOp, VarName, VarPattern, VarSignature,
+    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -164,6 +164,19 @@ impl Desugarer {
         todo!()
     }
 
+    fn gen_buf_name_and_sig(
+        &mut self,
+        line: usize,
+        t_spec: Option<TypeSpec>,
+    ) -> (String, Signature) {
+        let buf_name = self.fresh_var_name();
+        let buf_sig = Signature::Var(VarSignature::new(
+            VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
+            t_spec,
+        ));
+        (buf_name, buf_sig)
+    }
+
     /// `[i, j] = [1, 2]` -> `i = 1; j = 2`
     /// `[i, j] = l` -> `i = l[0]; j = l[1]`
     /// `[i, [j, k]] = l` -> `i = l[0]; j = l[1][0]; k = l[1][1]`
@@ -178,14 +191,8 @@ impl Desugarer {
                     body,
                 }) => match &v.pat {
                     VarPattern::Tuple(tup) => {
-                        let buf_name = self.fresh_var_name();
-                        let buf_sig = Signature::Var(VarSignature::new(
-                            VarPattern::Ident(Identifier::private_with_line(
-                                Str::rc(&buf_name),
-                                v.ln_begin().unwrap(),
-                            )),
-                            v.t_spec,
-                        ));
+                        let (buf_name, buf_sig) =
+                            self.gen_buf_name_and_sig(v.ln_begin().unwrap(), v.t_spec);
                         let buf_def = Def::new(buf_sig, body);
                         new.push(Expr::Def(buf_def));
                         for (n, elem) in tup.elems.iter().enumerate() {
@@ -198,14 +205,8 @@ impl Desugarer {
                         }
                     }
                     VarPattern::Array(arr) => {
-                        let buf_name = self.fresh_var_name();
-                        let buf_sig = Signature::Var(VarSignature::new(
-                            VarPattern::Ident(Identifier::private_with_line(
-                                Str::rc(&buf_name),
-                                v.ln_begin().unwrap(),
-                            )),
-                            v.t_spec,
-                        ));
+                        let (buf_name, buf_sig) =
+                            self.gen_buf_name_and_sig(v.ln_begin().unwrap(), v.t_spec);
                         let buf_def = Def::new(buf_sig, body);
                         new.push(Expr::Def(buf_def));
                         for (n, elem) in arr.elems.iter().enumerate() {
@@ -217,7 +218,36 @@ impl Desugarer {
                             );
                         }
                     }
-                    VarPattern::Record(_rec) => todo!(),
+                    VarPattern::Record(rec) => {
+                        let (buf_name, buf_sig) =
+                            self.gen_buf_name_and_sig(v.ln_begin().unwrap(), v.t_spec);
+                        let buf_def = Def::new(buf_sig, body);
+                        new.push(Expr::Def(buf_def));
+                        for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
+                            self.desugar_nested_var_pattern(
+                                &mut new,
+                                rhs,
+                                &buf_name,
+                                BufIndex::Record(lhs.inspect()),
+                            );
+                        }
+                    }
+                    VarPattern::DataPack(pack) => {
+                        let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
+                            v.ln_begin().unwrap(),
+                            Some(pack.class.clone()), // TODO: これだとvの型指定の意味がなくなる
+                        );
+                        let buf_def = Def::new(buf_sig, body);
+                        new.push(Expr::Def(buf_def));
+                        for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
+                            self.desugar_nested_var_pattern(
+                                &mut new,
+                                rhs,
+                                &buf_name,
+                                BufIndex::Record(lhs.inspect()),
+                            );
+                        }
+                    }
                     VarPattern::Ident(_i) => {
                         let def = Def::new(Signature::Var(v), body);
                         new.push(Expr::Def(def));
@@ -262,14 +292,7 @@ impl Desugarer {
         let body = DefBody::new(op, block, id);
         match &sig.pat {
             VarPattern::Tuple(tup) => {
-                let buf_name = self.fresh_var_name();
-                let buf_sig = Signature::Var(VarSignature::new(
-                    VarPattern::Ident(Identifier::private_with_line(
-                        Str::rc(&buf_name),
-                        sig.ln_begin().unwrap(),
-                    )),
-                    None,
-                ));
+                let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), None);
                 let buf_def = Def::new(buf_sig, body);
                 new_module.push(Expr::Def(buf_def));
                 for (n, elem) in tup.elems.iter().enumerate() {
@@ -282,14 +305,7 @@ impl Desugarer {
                 }
             }
             VarPattern::Array(arr) => {
-                let buf_name = self.fresh_var_name();
-                let buf_sig = Signature::Var(VarSignature::new(
-                    VarPattern::Ident(Identifier::private_with_line(
-                        Str::rc(&buf_name),
-                        sig.ln_begin().unwrap(),
-                    )),
-                    None,
-                ));
+                let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), None);
                 let buf_def = Def::new(buf_sig, body);
                 new_module.push(Expr::Def(buf_def));
                 for (n, elem) in arr.elems.iter().enumerate() {
@@ -301,7 +317,33 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Record(_rec) => todo!(),
+            VarPattern::Record(rec) => {
+                let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), None);
+                let buf_def = Def::new(buf_sig, body);
+                new_module.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        new_module,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs.inspect()),
+                    );
+                }
+            }
+            VarPattern::DataPack(pack) => {
+                let (buf_name, buf_sig) =
+                    self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), Some(pack.class.clone()));
+                let buf_def = Def::new(buf_sig, body);
+                new_module.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        new_module,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs.inspect()),
+                    );
+                }
+            }
             VarPattern::Ident(_ident) => {
                 let def = Def::new(Signature::Var(sig.clone()), body);
                 new_module.push(Expr::Def(def));
