@@ -2773,7 +2773,7 @@ pub struct MethodDefs {
 
 impl NestedDisplay for MethodDefs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{}{}", self.class, self.vis)?;
+        writeln!(f, "{}{}", self.class, self.vis.content)?;
         self.defs.fmt_nest(f, level + 1)
     }
 }

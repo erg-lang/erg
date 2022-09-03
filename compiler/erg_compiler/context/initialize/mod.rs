@@ -146,6 +146,7 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
+        let unpack = Self::mono_trait("Unpack", vec![], Self::TOP_LEVEL);
         let named = Self::mono_trait("Named", vec![], Self::TOP_LEVEL);
         let mut mutable = Self::mono_trait("Mutable", vec![], Self::TOP_LEVEL);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
@@ -289,6 +290,7 @@ impl Context {
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         div.register_decl("__div__", op_t, Public);
         div.register_decl("DivO", Type, Public);
+        self.register_type(trait_("Unpack"), unpack, Const);
         self.register_type(trait_("Named"), named, Const);
         self.register_type(trait_("Mutable"), mutable, Const);
         self.register_type(trait_("Immutizable"), immutizable, Const);

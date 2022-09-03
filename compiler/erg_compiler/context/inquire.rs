@@ -539,6 +539,12 @@ impl Context {
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<()> {
         match instance {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.substitute_call(obj, method_name, &fv.crack(), pos_args, kw_args)
+            }
+            Type::Refinement(refine) => {
+                self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
+            }
             Type::Subr(subr) => {
                 let callee = if let Some(name) = method_name {
                     let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Ellipsis);

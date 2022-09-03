@@ -1656,6 +1656,7 @@ impl Type {
     pub fn is_simple_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
+            Self::Refinement(refine) => refine.t.is_simple_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1684,6 +1685,7 @@ impl Type {
     pub fn is_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class(),
+            Self::Refinement(refine) => refine.t.is_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1717,6 +1719,7 @@ impl Type {
     pub fn is_trait(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_trait(),
+            Self::Refinement(refine) => refine.t.is_trait(),
             Self::MonoTrait(_) | Self::PolyTrait { .. } => true,
             _ => false,
         }
@@ -1738,6 +1741,7 @@ impl Type {
             | Self::PolyTrait { name, .. }
             | Self::PolyQVar { name, .. }
             | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
+            Self::Refinement(refine) => refine.t.is_mut(),
             _ => false,
         }
     }
@@ -1751,6 +1755,7 @@ impl Type {
                 inner_t.is_nonelike()
             }
             Self::PolyClass { name, params } if &name[..] == "Tuple" => params.is_empty(),
+            Self::Refinement(refine) => refine.t.is_nonelike(),
             _ => false,
         }
     }
@@ -1780,6 +1785,8 @@ impl Type {
                 false
             }
             Self::Subr(subr) => subr.contains_tvar(name),
+            // TODO: preds
+            Self::Refinement(refine) => refine.t.contains_tvar(name),
             _ => false,
         }
     }
@@ -1787,6 +1794,7 @@ impl Type {
     pub fn args_ownership(&self) -> ArgsOwnership {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().args_ownership(),
+            Self::Refinement(refine) => refine.t.args_ownership(),
             Self::Subr(subr) => {
                 let self_ = subr.kind.self_t().map(|t| t.ownership());
                 let mut nd_args = vec![];
@@ -1817,6 +1825,7 @@ impl Type {
     pub fn ownership(&self) -> Ownership {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().ownership(),
+            Self::Refinement(refine) => refine.t.ownership(),
             Self::Ref(_) => Ownership::Ref,
             Self::RefMut(_) => Ownership::RefMut,
             _ => Ownership::Owned,
@@ -2061,6 +2070,7 @@ impl Type {
     pub fn typarams_len(&self) -> Option<usize> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams_len(),
+            Self::Refinement(refine) => refine.t.typarams_len(),
             // REVIEW:
             Self::Ref(_) | Self::RefMut(_) => Some(1),
             Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => Some(2),
@@ -2083,6 +2093,7 @@ impl Type {
         match self {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => vec![],
+            Self::Refinement(refine) => refine.t.typarams(),
             Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
@@ -2099,6 +2110,7 @@ impl Type {
     pub fn self_t(&self) -> Option<&Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => todo!("linked: {fv}"),
+            Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(SubrType {
                 kind: SubrKind::FuncMethod(self_t) | SubrKind::ProcMethod { before: self_t, .. },
                 ..
@@ -2110,6 +2122,7 @@ impl Type {
     pub const fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
+            Self::Refinement(refine) => refine.t.non_default_params(),
             Self::Subr(SubrType {
                 non_default_params, ..
             }) => Some(non_default_params),
@@ -2121,6 +2134,7 @@ impl Type {
     pub const fn var_args(&self) -> Option<&Box<ParamTy>> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
+            Self::Refinement(refine) => refine.t.var_args(),
             Self::Subr(SubrType {
                 var_params: var_args,
                 ..
@@ -2133,6 +2147,7 @@ impl Type {
     pub const fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
+            Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             _ => None,
         }
@@ -2141,6 +2156,7 @@ impl Type {
     pub const fn return_t(&self) -> Option<&Type> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
+            Self::Refinement(refine) => refine.t.return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
@@ -2151,6 +2167,7 @@ impl Type {
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
+            Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
