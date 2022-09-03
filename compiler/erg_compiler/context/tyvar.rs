@@ -490,6 +490,22 @@ impl Context {
                 }
                 Ok(())
             }
+            hir::Expr::MethodDefs(method_defs) => {
+                for def in method_defs.defs.iter_mut() {
+                    match &mut def.sig {
+                        hir::Signature::Var(var) => {
+                            var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                        }
+                        hir::Signature::Subr(subr) => {
+                            subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                        }
+                    }
+                    for chunk in def.body.block.iter_mut() {
+                        self.deref_expr_t(chunk)?;
+                    }
+                }
+                Ok(())
+            }
         }
     }
 

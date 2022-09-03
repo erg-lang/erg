@@ -11,7 +11,7 @@ use erg_common::{
     impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Identifier, Params};
+use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, TypeSpec};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
@@ -688,6 +688,14 @@ impl NestedDisplay for RecordAttrs {
     }
 }
 
+impl_display_from_nested!(RecordAttrs);
+
+impl Locational for RecordAttrs {
+    fn loc(&self) -> Location {
+        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+    }
+}
+
 impl From<Vec<Def>> for RecordAttrs {
     fn from(attrs: Vec<Def>) -> Self {
         Self(attrs)
@@ -1245,6 +1253,48 @@ impl Def {
 }
 
 #[derive(Debug, Clone)]
+pub struct MethodDefs {
+    pub class: TypeSpec,
+    pub vis: Token,        // `.` or `::`
+    pub defs: RecordAttrs, // TODO: allow declaration
+}
+
+impl NestedDisplay for MethodDefs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "{}{}", self.class, self.vis.content)?;
+        self.defs.fmt_nest(f, level + 1)
+    }
+}
+
+impl_display_from_nested!(MethodDefs);
+impl_locational!(MethodDefs, class, defs);
+
+impl HasType for MethodDefs {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
+impl MethodDefs {
+    pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
+        Self { class, vis, defs }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
@@ -1259,12 +1309,13 @@ pub enum Expr {
     Lambda(Lambda),
     Decl(Decl),
     Def(Def),
+    MethodDefs(MethodDefs),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {
