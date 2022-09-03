@@ -1,2 +1,1 @@
-The following sections describe more advanced type systems. Beginners do not need to read the entire section.
-
+In the following, we will discuss more advanced type systems. Beginners do not have to read all the sections.

@@ -1,22 +1,22 @@
-# Error Handling
+# error handling system
 
-Mainly uses Result type.
-Erg will throw away Error type objects (not supported at top level).
+Mainly use Result type.
+In Erg, an error occurs if you throw away an Error type object (not supported at the top level).
 
-## Exceptions, Interoperation with Python
+## Exceptions, interop with Python
 
-Erg does not have an exception mechanism (Exception).
+Erg does not have an exception mechanism (Exception). When importing a Python function
 
-* Set the return value as `T or Error` type.
-* set the return value to `T or Panic` type (which may raise an error at runtime).
+* Set return value to `T or Error` type
+* `T or Panic` type (may cause runtime error)
 
-The latter is the default for `pyimport`. If you want to import as the former, use
-If you want to import as the former, specify `Error` in `pyimport`'s `exception_type` (`exception_type: {Error, Panic}`).
+There are two options, `pyimport` defaults to the latter. If you want to import as the former, use
+Specify `Error` in `pyimport` `exception_type` (`exception_type: {Error, Panic}`).
 
 ## Exceptions and Result types
 
-The `Result` type represents a value that may be an error. Error handling with `Result` is superior to the exception mechanism in several ways.
-First, you can tell from the type definition that a subroutine may raise an error, and it is obvious when you actually use it.
+The `Result` type represents values ​​that may be errors. Error handling with `Result` is superior to the exception mechanism in several ways.
+First of all, it's obvious from the type definition that the subroutine might throw an error, and it's also obvious when you actually use it.
 
 ```python
 # Python
@@ -28,31 +28,31 @@ except e:
     print(e)
 ```
 
-In the above example, it is not clear from the code alone which function sends the exception. Even going back to the function definition, it is difficult to determine if the function raises the exception.
+In the above example, it is not possible to tell from this code alone which function raised the exception. Even going back to the function definition, it's hard to tell if the function throws an exception.
 
-```erg
+``` erg
 # Erg
-try!
-    do!
-        x = foo!()? .bar()?
-        y = baz!
+try!:
+    do!:
+        x = foo!()?.bar()
+        y = baz!()
         qux!()?
     e =>
-        print!
+        print! e
 ```
 
-On the flip side, we can see that `foo!` and `qux!` can produce errors in this example.
-To be precise, `y` could also be of type `Result`, but we will have to deal with that eventually in order to use the values inside.
+On the other hand, in this example we can see that `foo!` and `qux!` can raise an error.
+Precisely `y` could also be of type `Result`, but you'll have to deal with it eventually to use the value inside.
 
-That is not the only advantage of using the `Result` type. The `Result` type is also thread-safe. This means that error information can be passed around (easily) during parallel execution.
+The benefits of using the `Result` type don't stop there. The `Result` type is also thread-safe. This means that error information can be (easily) passed between parallel executions.
 
 ## Context
 
-Unlike exceptions, the `Error`/`Result` types by themselves do not have side-effects, so they do not have context, but the `.context` method can be used to add information to the `Error` object. The `.context` method is a type of method that creates a new `Error` object by consuming the `Error` object itself. It is chainable and can hold multiple contexts.
+Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
 
-```erg
+``` erg
 f() =
-    todo() \f}
+    todo() \
         .context "to be implemented in ver 1.2" \
         .context "and more hints ..."
 
@@ -62,23 +62,22 @@ f()
 # hint: and more hints ...
 ```
 
-Note that `Error` attributes such as `.msg`, `.kind`, etc., are not secondary and are not context and cannot be overwritten as they were when they were first generated.
+Note that `Error` attributes such as `.msg` and `.kind` are not secondary, so they are not context and cannot be overridden as they were originally created.
 
-## Stack Trace
+## Stack trace
 
-The `Result` type has been adopted by many other languages because of its convenience, but it has the disadvantage that the source of the error is harder to identify than the exception mechanism.
-Therefore, Erg has an attribute `.stack` on the `Error` object to reproduce a pseudo-exception mechanism-like stack trace.
-
-`.stack` is an array of caller objects. Each time an Error object is `return`ed (including by `?`) it stacks its calling subroutine on the `.stack`.
+The `Result` type is often used in other languages ​​because of its convenience, but it has the disadvantage of making it difficult to understand the source of an error compared to the exception mechanism.
+Therefore, in Erg, the `Error` object has an attribute called `.stack`, and reproduces a pseudo-exception mechanism-like stack trace.
+`.stack` is an array of caller objects. Each time an Error object is `returned` (including by `?`) it pushes its calling subroutine onto the `.stack`.
 And if it is `?`ed or `.unwrap`ed in a context where `return` is not possible, it will panic with a traceback.
 
-```erg
+``` erg
 f x =
     ...
     y = foo.try_some(x)?
     ...
 
-g x = ...
+g x =
     y = f(x)?
     ...
 
@@ -89,19 +88,19 @@ i = g(1)?
 # 10 | y = foo.try_some(x)?
 # module::f, line 23, file "foo.er"
 # 23 | y = f(x)?
-# module::g, line 40, file "foo.er"?
+# module::g, line 40, file "foo.er"
 # 40 | i = g(1)?
 # Error: ...
 ```
 
 ## Panic
 
-Erg also has a mechanism called __panicking__ to deal with unrecoverable errors.
-Unrecoverable errors are errors caused by external factors such as software/hardware malfunctions, errors that are so fatal that it makes no sense to continue executing the code, or errors that the programmer did not anticipate. When such an error occurs, the program is terminated on the spot because it cannot be restored to the normal system through the programmer's efforts. This is called "panicking".
+Erg also has a mechanism for dealing with unrecoverable errors called __panicing__.
+An unrecoverable error is an error caused by an external factor such as a software/hardware malfunction, an error so fatal that it makes no sense to continue executing the code, or an error unexpected by the programmer. Etc. If this happens, the program will be terminated immediately, because the programmer's efforts cannot restore normal operation. This is called "panicing".
 
-Panicking is done with the `panic` function.
+Panic is done with the `panic` function.
 
-```erg
+``` erg
 panic "something went wrong!"
 ```
 

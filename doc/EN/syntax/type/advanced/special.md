@@ -1,22 +1,22 @@
-# Special Type(Self, Super)
+# Special types (Self, Super)
 
-`Self` represents itself types. It can be used simply as an alias, however note that its meaning changes in derived types (it refers to the derived own type).
+`Self` represents its own type. You can just use it as an alias, but note that the meaning changes in derived types (refers to the own type).
 
-```erg
+``` erg
 @Inheritable
 C = Class()
 C.
-    new_self() = Self.new()
+    new_self() = Self. new()
     new_c() = C.new()
 D = Inherit C
 
-classof D.new_self() # D
-classof D.new_c() # C
+classof D. new_self() # D
+classof D. new_c() # C
 ```
 
-`Super` represents types of base classes. The method itself refers to the base class, however the instance uses its own type.
+`Super` represents the type of the base class. The method itself refers to the base class, but the instance uses its own type.
 
-```erg
+``` erg
 @Inheritable
 C = Class()
 
@@ -25,15 +25,15 @@ D.
     new_super() = Super.new()
     new_c() = C.new()
 
-classof D.new_super() # D
-classof D.new_c() # C
+classof D. new_super() # D
+classof D. new_c() # C
 ```
 
-## Special Type Variable
+## special type variables
 
-`Self` and `Super` can be used as type variables in structural types and traits. It refers to a class, which is a subtype of that type. That is, `Self` in type `T` means `Self <: T`.
+`Self` and `Super` can be used as type variables in structured types and traits. This refers to classes that are subtypes of that type. That is, `Self` in type `T` means `Self <: T`.
 
-```erg
+``` erg
 Add R = Trait {
     .AddO = Type
     .`_+_`: Self, R -> Self.AddO

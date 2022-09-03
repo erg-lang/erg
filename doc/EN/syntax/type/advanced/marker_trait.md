@@ -1,20 +1,20 @@
 # Marker Trait
 
-A marker trait is a trait with no required attributes. That is, it can be Impl without implementing a method.
-It may seem meaningless without the required attribute, but it registers the information that it belongs to that trait, so that patch methods can be used and the compiler can give it special treatment.
+Marker traits are traits without required attributes. That is, you can Impl without implementing any method.
+It seems meaningless without the required attribute, but since the information that it belongs to the trait is registered, you can use the patch method or get special treatment by the compiler.
 
-All marker traits are encompassed by the `Marker` trait.
-The `Light` provided in the standard is a kind of marker trait.
+All marker traits are subsumed by the `Marker` trait.
+`Light` provided as standard is a kind of marker trait.
 
-```erg
+``` erg
 Light = Subsume Marker
 ```
 
-```erg
+``` erg
 Person = Class {.name = Str; .age = Nat} and Light
 ```
 
-```erg
+``` erg
 M = Subsume Marker
 
 MarkedInt = Inherit Int, Impl := M
@@ -24,8 +24,8 @@ assert i + 1 == 2
 assert i in M
 ```
 
-The marker class can also be removed with the `Excluding` argument.
+Marker classes can also be excluded with the `Excluding` argument.
 
-```erg
+``` erg
 NInt = Inherit MarkedInt, Impl := N, Excluding: M
 ```

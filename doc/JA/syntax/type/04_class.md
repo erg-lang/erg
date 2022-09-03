@@ -233,7 +233,7 @@ print! C.new({i = 1}).bar # <method bar>
 
 ## データクラスとの違い
 
-クラスには、レコードクラスに`Class`を通した通常のクラスと、レコードクラスを継承(`Inherit`)したデータクラスがあります。
+クラスには、レコードを要求型とする`Class`を通した通常のクラスと、レコードを継承(`Inherit`)したデータクラスがあります。
 データクラスはレコードの機能を受け継いでおり、分解代入ができる、`==`や`hash`がデフォルトで実装されているなどの特徴があります。
 逆に独自の同値関係やフォーマット表示を定義したい場合は通常のクラスを使用するとよいでしょう。
 
@@ -245,9 +245,9 @@ print! c # <C object>
 c == d # TypeError: `==` is not implemented for `C`
 
 D = Inherit {i = Int}
-e = D.new {i = 1}
-f = D.new {i = 2}
-print! e # D{i = 1}
+e = D::{i = 1} # e = D.new {i = 1}と同じ
+f = D::{i = 2}
+print! e # D(i = 1)
 assert e != f
 ```
 
