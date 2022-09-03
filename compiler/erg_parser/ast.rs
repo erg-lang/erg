@@ -897,6 +897,7 @@ impl Call {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DataPack {
     pub class: Box<Expr>,
+    pub connector: Token,
     pub args: Record,
 }
 
@@ -915,9 +916,10 @@ impl Locational for DataPack {
 }
 
 impl DataPack {
-    pub fn new(class: Expr, args: Record) -> Self {
+    pub fn new(class: Expr, connector: Token, args: Record) -> Self {
         Self {
             class: Box::new(class),
+            connector,
             args,
         }
     }

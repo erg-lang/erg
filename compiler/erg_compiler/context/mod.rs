@@ -192,6 +192,7 @@ pub enum ContextKind {
     Func,
     Proc,
     Class,
+    MethodDefs,
     Trait,
     StructuralTrait,
     Patch(Type),
@@ -230,8 +231,8 @@ pub struct Context {
     // patchによってsuper class/traitになったものはここに含まれない
     pub(crate) super_classes: Vec<Type>, // if self is a patch, means patch classes
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
-    // specialized contexts, If self is a type
-    pub(crate) specializations: Vec<(Type, Context)>,
+    // method definitions, if the context is a type
+    pub(crate) method_defs: Vec<(Type, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -357,7 +358,7 @@ impl Context {
             outer: outer.map(Box::new),
             super_classes,
             super_traits,
-            specializations: vec![],
+            method_defs: vec![],
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
@@ -539,7 +540,7 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn pop(&mut self) -> Result<(), TyCheckErrors> {
+    pub(crate) fn pop(&mut self) -> Result<Context, TyCheckErrors> {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
@@ -551,12 +552,14 @@ impl Context {
             ));
         }
         if let Some(parent) = &mut self.outer {
-            *self = mem::take(parent);
+            let parent = mem::take(parent);
+            let ctx = mem::take(self);
+            *self = *parent;
             log!(info "{}: current namespace: {}", fn_name!(), self.name);
             if !uninited_errs.is_empty() {
                 Err(uninited_errs)
             } else {
-                Ok(())
+                Ok(ctx)
             }
         } else {
             Err(TyCheckErrors::from(TyCheckError::checker_bug(

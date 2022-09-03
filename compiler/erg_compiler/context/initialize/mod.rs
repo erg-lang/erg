@@ -101,7 +101,7 @@ impl Context {
         let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
         let t = Self::instantiate_t(t, &mut tv_ctx);
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
-            root_ctx.specializations.push((t, ctx));
+            root_ctx.method_defs.push((t, ctx));
         } else {
             let name = VarName::from_str(t.name());
             self.locals

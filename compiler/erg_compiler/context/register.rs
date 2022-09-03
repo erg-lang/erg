@@ -328,56 +328,53 @@ impl Context {
     pub(crate) fn preregister(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         for expr in block.iter() {
             if let ast::Expr::Def(def) = expr {
-                let id = Some(def.body.id);
-                let __name__ = def.sig.ident().map(|i| i.inspect());
-                match &def.sig {
-                    ast::Signature::Subr(sig) => {
-                        if sig.is_const() {
-                            let (obj, const_t) =
-                                match self.eval_const_block(&def.body.block, __name__) {
-                                    Ok(obj) => (obj.clone(), enum_t(set! {obj})),
-                                    Err(e) => {
-                                        return Err(e);
-                                    }
-                                };
-                            if let Some(spec) = sig.return_t_spec.as_ref() {
-                                let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                                self.sub_unify(
-                                    &const_t,
-                                    &spec_t,
-                                    Some(def.body.loc()),
-                                    None,
-                                    None,
-                                )?;
-                            }
-                            self.register_const(__name__.unwrap(), obj);
-                        } else {
-                            let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
-                                let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                                Some(spec_t)
-                            } else {
-                                None
-                            };
-                            self.declare_sub(sig, opt_ret_t, id)?;
+                self.preregister_def(def)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
+        let id = Some(def.body.id);
+        let __name__ = def.sig.ident().map(|i| i.inspect());
+        match &def.sig {
+            ast::Signature::Subr(sig) => {
+                if sig.is_const() {
+                    let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
+                        Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                        Err(e) => {
+                            return Err(e);
                         }
+                    };
+                    if let Some(spec) = sig.return_t_spec.as_ref() {
+                        let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                        self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
-                    ast::Signature::Var(sig) if sig.is_const() => {
-                        let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__)
-                        {
-                            Ok(obj) => (obj.clone(), enum_t(set! {obj})),
-                            Err(e) => {
-                                return Err(e);
-                            }
-                        };
-                        if let Some(spec) = sig.t_spec.as_ref() {
-                            let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                            self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
-                        }
-                        self.register_const(__name__.unwrap(), obj);
-                    }
-                    _ => {}
+                    self.register_const(__name__.unwrap(), obj);
+                } else {
+                    let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
+                        let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                        Some(spec_t)
+                    } else {
+                        None
+                    };
+                    self.declare_sub(sig, opt_ret_t, id)?;
                 }
             }
+            ast::Signature::Var(sig) if sig.is_const() => {
+                let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
+                    Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                    Err(e) => {
+                        return Err(e);
+                    }
+                };
+                if let Some(spec) = sig.t_spec.as_ref() {
+                    let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                    self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
+                }
+                self.register_const(__name__.unwrap(), obj);
+            }
+            _ => {}
         }
         Ok(())
     }

@@ -9,6 +9,7 @@ use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, S
 use erg_parser::ast;
 use erg_parser::ast::AST;
 
+use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{array, array_mut, class, free_var, func, poly_class, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -338,14 +339,36 @@ impl ASTLowerer {
             hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr)?));
         }
         let obj = self.lower_expr(*call.obj)?;
-        let t = self.ctx.get_call_t(
+        let sig_t = self.ctx.get_call_t(
             &obj,
             &call.method_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.ctx.name,
         )?;
-        Ok(hir::Call::new(obj, call.method_name, hir_args, t))
+        Ok(hir::Call::new(obj, call.method_name, hir_args, sig_t))
+    }
+
+    fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
+        log!(info "entered {}({pack})", fn_name!());
+        let class = self.lower_expr(*pack.class)?;
+        let args = self.lower_record(pack.args)?;
+        let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
+        let method_name = Token::new(
+            TokenKind::Symbol,
+            Str::rc("new"),
+            pack.connector.lineno,
+            pack.connector.col_begin,
+        );
+        let sig_t = self.ctx.get_call_t(
+            &class,
+            &Some(method_name.clone()),
+            &args,
+            &[],
+            &self.ctx.name,
+        )?;
+        let args = hir::Args::new(args, vec![], None);
+        Ok(hir::Call::new(class, Some(method_name), args, sig_t))
     }
 
     /// TODO: varargs
@@ -523,6 +546,40 @@ impl ASTLowerer {
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }
 
+    fn lower_method_defs(&mut self, method_defs: ast::MethodDefs) -> LowerResult<hir::MethodDefs> {
+        log!(info "entered {}({method_defs})", fn_name!());
+        let mut hir_defs = hir::RecordAttrs::new();
+        let class = self
+            .ctx
+            .instantiate_typespec(&method_defs.class, RegistrationMode::Normal)?;
+        self.ctx
+            .grow(&class.name(), ContextKind::MethodDefs, Private)?;
+        for def in method_defs.defs.iter() {
+            self.ctx.preregister_def(def)?;
+        }
+        for def in method_defs.defs.into_iter() {
+            let def = self.lower_def(def)?;
+            hir_defs.push(def);
+        }
+        match self.ctx.pop() {
+            Ok(ctx) => {
+                if let Some((_, class_root)) = self.ctx.poly_types.get_mut(&class.name()) {
+                    class_root.method_defs.push((class, ctx));
+                } else {
+                    todo!()
+                }
+            }
+            Err(mut errs) => {
+                self.errs.append(&mut errs);
+            }
+        }
+        Ok(hir::MethodDefs::new(
+            method_defs.class,
+            method_defs.vis,
+            hir_defs,
+        ))
+    }
+
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
@@ -536,8 +593,10 @@ impl ASTLowerer {
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
+            ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
+            ast::Expr::MethodDefs(defs) => Ok(hir::Expr::MethodDefs(self.lower_method_defs(defs)?)),
             other => todo!("{other}"),
         }
     }

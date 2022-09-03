@@ -997,7 +997,7 @@ impl Parser {
                                 .map_err(|_| self.stack_dec())?;
                             match container {
                                 BraceContainer::Record(args) => {
-                                    let pack = DataPack::new(maybe_class, args);
+                                    let pack = DataPack::new(maybe_class, vis, args);
                                     stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
                                 }
                                 BraceContainer::Dict(dict) => todo!("{dict}"),

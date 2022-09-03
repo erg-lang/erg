@@ -330,7 +330,7 @@ impl Desugarer {
                     let class = self.rec_desugar_shortened_record(*pack.class);
                     let rec = self.desugar_shortened_record_inner(rec);
                     let args = Record::Normal(rec);
-                    Expr::DataPack(DataPack::new(class, args))
+                    Expr::DataPack(DataPack::new(class, pack.connector, args))
                 } else {
                     Expr::DataPack(pack)
                 }
