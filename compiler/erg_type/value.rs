@@ -22,6 +22,73 @@ use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TypeKind {
+    Class,
+    InheritedClass,
+    Trait,
+    SubsumedTrait,
+    StructuralTrait,
+}
+
+/// Class
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct GenTypeObj {
+    pub kind: TypeKind,
+    pub t: Type,
+    pub require_or_sup: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+    pub additional: Option<Box<TypeObj>>,
+}
+
+impl fmt::Display for GenTypeObj {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{:?} {}>", self.kind, self.t)
+    }
+}
+
+impl GenTypeObj {
+    pub fn new(
+        kind: TypeKind,
+        t: Type,
+        require_or_sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        Self {
+            kind,
+            t,
+            require_or_sup: Box::new(require_or_sup),
+            impls: impls.map(Box::new),
+            additional: additional.map(Box::new),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TypeObj {
+    Builtin(Type),
+    Gen(GenTypeObj),
+}
+
+impl fmt::Display for TypeObj {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TypeObj::Builtin(t) => write!(f, "{t}"),
+            TypeObj::Gen(t) => write!(f, "{t}"),
+        }
+    }
+}
+
+impl TypeObj {
+    pub const fn typ(&self) -> &Type {
+        match self {
+            TypeObj::Builtin(t) => t,
+            TypeObj::Gen(t) => &t.t,
+        }
+    }
+}
+
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
 #[derive(Clone, PartialEq, Default)]
@@ -37,7 +104,7 @@ pub enum ValueObj {
     Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
     Subr(ConstSubr),
-    Type(Box<Type>),
+    Type(TypeObj),
     None,
     Ellipsis,
     NotImplemented,
@@ -263,7 +330,23 @@ impl HasType for ValueObj {
 
 impl ValueObj {
     pub fn t(t: Type) -> Self {
-        ValueObj::Type(Box::new(t))
+        ValueObj::Type(TypeObj::Builtin(t))
+    }
+
+    pub fn gen_t(
+        kind: TypeKind,
+        t: Type,
+        require_or_sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        ValueObj::Type(TypeObj::Gen(GenTypeObj::new(
+            kind,
+            t,
+            require_or_sup,
+            impls,
+            additional,
+        )))
     }
 
     pub fn is_num(&self) -> bool {

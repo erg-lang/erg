@@ -78,8 +78,8 @@ impl TyVarContext {
     ) -> TyParam {
         match ct {
             ConstTemplate::Obj(o) => match o {
-                ValueObj::Type(t) if t.is_mono_q() => {
-                    if &t.name()[..] == "Self" {
+                ValueObj::Type(t) if t.typ().is_mono_q() => {
+                    if &t.typ().name()[..] == "Self" {
                         let constraint = Constraint::type_of(Type);
                         let t = named_free_var(Str::rc(var_name), self.level, constraint);
                         TyParam::t(t)
@@ -87,7 +87,7 @@ impl TyVarContext {
                         todo!()
                     }
                 }
-                ValueObj::Type(t) => TyParam::t(*t.clone()),
+                ValueObj::Type(t) => TyParam::t(t.typ().clone()),
                 v => TyParam::Value(v.clone()),
             },
             ConstTemplate::App { .. } => {

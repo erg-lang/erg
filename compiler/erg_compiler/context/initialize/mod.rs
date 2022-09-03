@@ -48,7 +48,7 @@ impl Context {
     }
 
     pub(crate) fn register_const(&mut self, name: &str, obj: ValueObj) {
-        if self.consts.get(name).is_some() {
+        if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {name}");
         } else {
             // TODO: visibility (not always private)
@@ -78,6 +78,8 @@ impl Context {
     fn register_mono_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         if self.mono_types.contains_key(&t.name()) {
             panic!("{} has already been registered", t.name());
+        } else if self.rec_get_const_obj(&t.name()).is_some() {
+            panic!("{} has already been registered as const", t.name());
         } else {
             let name = VarName::from_str(t.name());
             self.locals
@@ -97,6 +99,7 @@ impl Context {
         }
     }
 
+    // FIXME: MethodDefsと再代入は違う
     fn register_poly_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
         let t = Self::instantiate_t(t, &mut tv_ctx);
@@ -1061,9 +1064,21 @@ impl Context {
     }
 
     fn init_builtin_const_funcs(&mut self) {
-        let class = ConstSubr::Builtin(BuiltinConstSubr::new(class_func, func1(Type, Type)));
+        let class_t = func(
+            vec![param_t("Requirement", Type)],
+            None,
+            vec![param_t("Impl", Type)],
+            Type,
+        );
+        let class = ConstSubr::Builtin(BuiltinConstSubr::new(class_func, class_t));
         self.register_const("Class", ValueObj::Subr(class));
-        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(inherit_func, func1(Type, Type)));
+        let inherit_t = func(
+            vec![param_t("Super", Type)],
+            None,
+            vec![param_t("Impl", Type), param_t("Additional", Type)],
+            Type,
+        );
+        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(inherit_func, inherit_t));
         self.register_const("Inherit", ValueObj::Subr(inherit));
         // decorators
         let inheritable =

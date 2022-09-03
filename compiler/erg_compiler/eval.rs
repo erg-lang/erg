@@ -541,7 +541,8 @@ impl Context {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                            let t = subst_ctx.substitute(*quant_t, ty_ctx, level, self)?;
+                            let t =
+                                subst_ctx.substitute(quant_t.typ().clone(), ty_ctx, level, self)?;
                             let t = self.eval_t_params(t, level)?;
                             return Ok(t);
                         } else {
