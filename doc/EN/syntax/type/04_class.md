@@ -229,9 +229,9 @@ print! {i = 1}.bar # <method bar>
 C.new({i = 1}).bar # <method bar>
 ```
 
-## Difference from data class
+## Difference from Data Class
 
-There are two types of classes: regular classes, which are record classes through `Class`, and data classes, which inherit (`Inherit`) from record classes.
+There are two types of classes: regular classes, which are generated with `Class(record)`, and data classes, which are generated with `Inherit(record)`.
 The data class inherits the functionality of the record class and has features such as decomposition assignment, `==` and `hash` implemented by default, etc. On the other hand, the data class has its own equivalence relation and format display.
 On the other hand, if you want to define your own equivalence relations or formatting displays, you should use the normal class.
 
@@ -243,9 +243,9 @@ print! c # <C object>
 c == d # TypeError: `==` is not implemented for `C`
 
 D = Inherit {i = Int}
-e = D.new {i = 1}
-f = D.new {i = 2}
-print! e # D{i = 1}
+e = D::{i = 1} # same as `e = D.new {i = 1}`
+f = D::{i = 2}
+print! e # D(i=1)
 assert e ! = f
 ```
 
