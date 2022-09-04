@@ -1,6 +1,6 @@
 # Typeof, classof
 
-`Typeof` is a function that can peek into Erg's type inference system, and its behavior is complex.
+`Typeof` 是一个可以窥探 Erg 类型推断系统的函数，它的行为很复杂
 
 ```python
 assert Typeof(1) == {I: Int | I == 1}
@@ -16,10 +16,10 @@ assert Typeof(J) == {i = Int}
 assert {X: C | X == I} < C and C <= {i = Int}
 ```
 
-The `Typeof` function returns the derived type, not the class of the object.
-So for instance `I: C` of class `C = Class T`, `Typeof(I) == T`.
-A value class does not have a corresponding record type. To solve this problem, value classes are supposed to be record types that have a `__valueclass_tag__` attribute.
-Note that you cannot access this attribute, nor can you define a `__valueclass_tag__` attribute on a user-defined type.
+`Typeof` 函数返回派生类型，而不是对象的类。
+因此，例如 `C = Class T` 类的`I: C`，`Typeof(I) == T`。
+值类没有对应的记录类型。 为了解决这个问题，值类应该是具有 `__valueclass_tag__` 属性的记录类型。
+请注意，您不能访问此属性，也不能在用户定义的类型上定义 `__valueclass_tag__` 属性。
 
 ```python
 i: Int = ...
@@ -28,15 +28,15 @@ s: Str = ...
 assert Typeof(s) == {__valueclass_tag__ = Phantom Str}
 ```
 
-`Typeof` outputs only structured types. I explained that structured types include attribute types, sieve types, and (true) algebraic types.
-These are independent types (inference precedence exists) and inference conflicts do not occur.
-Attribute types and algebraic types can span multiple classes, while sieve types are subtypes of a single class.
-Erg infers object types as sieve types as much as possible, and when that is not possible, expands sieve base classes to structured types (see below).
+`Typeof` 仅输出结构化类型。 我解释说结构化类型包括属性类型、筛类型和（真正的）代数类型。
+这些是独立的类型（存在推理优先级），不会发生推理冲突。
+属性类型和代数类型可以跨越多个类，而筛类型是单个类的子类型。
+Erg 尽可能将对象类型推断为筛类型，如果不可能，则将筛基类扩展为结构化类型（见下文）。
 
-## structured
+## 结构化的
 
-All classes can be converted to derived types. This is called __structuring__. The structured type of a class can be obtained with the `Structure` function.
-If a class is defined with `C = Class T` (all classes are defined in this form) then `Structure(C) == T`.
+所有类都可以转换为派生类型。 这称为 __结构化__。 类的结构化类型可以通过 `Structure` 函数获得。
+如果一个类是用`C = Class T`定义的（所有类都以这种形式定义），那么`Structure(C) == T`。
 
 ```python
 C = Class {i = Int}
@@ -47,13 +47,13 @@ Nat = Class {I: Int | I >= 0}
 assert Structure(Nat) == {I: Int | I >= 0}
 Option T = Class (T or NoneType)
 assert Structure(Option Int) == Or(Int, NoneType)
-assert Structure(Option) # TypeError: only monomorphized types can be structured
-# You can't actually define a record with __valueclass_tag__, but conceptually
+assert Structure(Option) # 类型错误：只能构造单态类型
+# 你实际上不能用 __valueclass_tag__ 定义一条记录，但在概念上
 assert Structure(Int) == {__valueclass_tag__ = Phantom Int}
 assert Structure(Str) == {__valueclass_tag__ = Phantom Str}
 assert Structure((Nat, Nat)) == {__valueclass_tag__ = Phantom(Tuple(Nat, Nat))}
 assert Structure(Nat -> Nat) == {__valueclass_tag__ = Phantom(Func(Nat, Nat))}
-# Marker classes are also record types with __valueclass_tag__
+# 标记类也是带有 __valueclass_tag__ 的记录类型
 M = Inherit Marker
 assert Structure(M) == {__valueclass_tag__ = Phantom M}
 D = Inherit(C and M)

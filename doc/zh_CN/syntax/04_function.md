@@ -286,5 +286,5 @@ f((a, b)) # OK
 The function type `T -> U` is actually the syntax sugar of `(T,) -> U`.
 
 <p align='center'>
-    <a href='./03_declaration.md'>Previous</a> | <a href='./05_builtin_funcs.md'>Next</a>
+    <a href='./03_declaration.md'>上一页</a> | <a href='./05_builtin_funcs.md'>下一页</a>
 </p>

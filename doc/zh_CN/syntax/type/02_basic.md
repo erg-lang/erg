@@ -1,62 +1,62 @@
-# Basic syntax for types
+# 类型的基本语法
 
-## Type specification
+## 类型规范
 
-In Erg, the type of a variable can be specified after `:` as follows. This can be done at the same time as an assignment.
+在 Erg 中，可以在 `:` 之后指定变量的类型，如下所示。这可以与作业同时完成。
 
 ```python
-i: Int # Declare the variable i to be of type Int
+i: Int # 将变量 i 声明为 Int 类型
 i: Int = 1
-j = 1 # type specification can be omitted
+j = 1 # 类型说明可以省略
 ```
 
-You can also specify a type for ordinary expressions.
+您还可以指定普通表达式的类型。
 
 ```python
 i = 1: Int
 f([1, "a"]: [Int or Str])
 ```
 
-For simple variable assignments, most type specifications can be omitted.
-Type specifications are more useful when defining subroutines and types.
+对于简单的变量赋值，大多数类型说明可以省略。
+在定义子例程和类型时，类型规范更有用。
 
 ```python
-# Type specification for parameters
+# 参数的类型规范
 f x, y: Array Int = ...
 T X, Y: Array Int = ...
 ```
 
-Note that in the above case, `x, y` are both `Array Int`.
+请注意，在上述情况下，`x, y` 都是 `Array Int`。
 
 ```python
-# The value of a capital variable must be a constant expression
+# 大写变量的值必须是常量表达式
 f X: Int = X
 ```
 
-Alternatively, if you don't need complete information about the type argument, you can omit it with `_`.
+或者，如果你不需要关于类型参数的完整信息，你可以用 `_` 省略它
 
 ```python
 g v: [T; _] = ...
 ```
 
-Note, however, `_` at a type specification implies `Object`.
+但是请注意，类型规范中的 `_` 意味着 `Object`。
 
 ```python
-f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
+f x: _, y: Int = x + y # 类型错误：Object 和 Int 之间没有实现 +
 ```
 
-## Subtype specification
+## 子类型规范
 
-In addition to the `:` (type declaration operator), Erg also allows you to specify the relationship between types by using `<:` (partial type declaration operator).
-The left side of `<:` can only specify a class. Use `Subtypeof` or similar operators to compare structural types.
+除了 `:`（类型声明运算符），Erg 还允许您使用 `<:`（部分类型声明运算符）来指定类型之间的关系。
+`<:` 的左边只能指定一个类。 使用 `Subtypeof` 或类似的运算符来比较结构类型。
 
-This is also often used when defining subroutines or types, rather than simply specifying variables.
+这也经常在定义子例程或类型时使用，而不是简单地指定变量。
 
 ```python
-# Subtype specification of an argument
+# 参数的子类型规范
 f X <: T = ...
 
-# Subtype specification of the required attribute (.Iterator attribute is required to be a subtype of type Iterator)
+# 所需属性的子类型规范（.Iterator 属性必须是 Iterator 类型的子类型）
 Iterable T = Trait {
     .Iterator = {Iterator} # {Iterator} == {I: Type | I <: Iterator}
     .iter = Self.() -> Self.Iterator T
@@ -64,15 +64,15 @@ Iterable T = Trait {
 }
 ```
 
-You can also use a subtype specification when defining a class to statically check whether the class is a subtype of the specified type.
+也可以在定义类时使用子类型规范来静态检查该类是否是指定类型的子类型。
 
 ```python
-# Class C is a subtype of Show
+# C 类是 Show 的子类型
 C = Class Object, Impl := Show
-C.show self = ... # Show's required attributes.
+C.show self = ... # 显示所需的属性。
 ```
 
-You can also specify a subtype only in specific cases.
+您也可以仅在特定情况下指定子类型
 
 ```python
 K T: Eq
@@ -84,17 +84,17 @@ K(Int).
     show self = ...
 ```
 
-Subtype specification is recommended when implementing structural types.
-This is because, due to the nature of structural subtyping, typo or type specification errors will not cause errors when implementing required attributes.
+实现结构类型时建议使用子类型规范。
+这是因为，由于结构子类型的性质，拼写错误或类型规范错误在实现所需属性时不会导致错误
 
 ```python
 C = Class Object
-C.shoe self = ... # Show is not implemented due to Typo (it is considered just a unique method).
+C.shoe self = ... # Show 由于 Typo 没有实现（它被认为只是一种独特的方法）
 ```
 
-## Attribute definitions
+## 属性定义
 
-Attributes can be defined for traits and classes only in modules.
+只能在模块中为特征和类定义属性
 
 ```python
 C = Class()
@@ -105,7 +105,7 @@ c = C.new()
 assert c.pub_attr == "this is public"
 ```
 
-The syntax for defining a batch definition is called a batch definition, in which a newline is added after `C.` or `C::` and the definitions are grouped together below the indentation.
+定义批处理定义的语法称为批处理定义，其中在 `C.` 或 `C::` 之后添加换行符，并且定义在缩进下方组合在一起
 
 ```python
 C = Class()
@@ -113,7 +113,7 @@ C.pub1 = ...
 C.pub2 = ...
 C::priv1 = ...
 C::priv2 = ...
-# is equivalent to
+# 相当于
 C = Class()
 C.
     pub1 = ...
@@ -123,9 +123,9 @@ C::
     priv2 = ...
 ```
 
-## Aliasing
+## 别名
 
-Types can be aliased. This allows long types, such as record types, to be shortened.
+类型可以有别名。 这允许缩短长类型，例如记录类型
 
 ```python
 Id = Int
@@ -134,28 +134,28 @@ IorS = Int or Str
 Vector = Array Int
 ```
 
-Also, when displaying errors, the compiler will use aliases for composite types (in the above example, right-hand-side types other than the first) if they are defined.
+此外，当显示错误时，如果定义了复合类型（在上面的示例中，右侧类型不是第一个类型），编译器将为它们使用别名。
 
-However, only one alias of the same type is allowed per module, and multiple aliases will result in a warning.
-This means that types with different purposes should be defined as separate types.
-The purpose is also to prevent adding aliases on top of types that already have aliases.
+但是，每个模块只允许一个相同类型的别名，多个别名将导致警告。
+这意味着应将具有不同用途的类型定义为单独的类型。
+目的还在于防止在已经具有别名的类型之上添加别名。
 
 ```python
 Id = Int
-UserId = Int # TypeWarning: duplicate aliases: Id and UserId
+UserId = Int # 类型警告：重复别名：Id 和 UserId
 
 Ids = Array Id
-Ints = Array Int # TypeWarning: duplicate aliases: Isd and Ints
+Ints = Array Int # 类型警告：重复别名：Isd 和 Ints
 
 IorS = Int or Str
 IorSorB = IorS or Bool
-IorSorB_ = Int or Str or Bool # TypeWarning: duplicate aliases: IorSorB and IorSorB_
+IorSorB_ = Int or Str or Bool # 类型警告：重复别名：IorSorB 和 IorSorB_
 
 Point2D = {x = Int; y = Int}
 Point3D = {.... Point2D; z = Int}
-Point = {x = Int; y = Int; z = Int} # TypeWarning: duplicate aliases: Point3D and Point
+Point = {x = Int; y = Int; z = Int} # 类型警告：重复别名：Point3D 和 Point
 ```
 
 <p align='center'>
-    <a href='./01_type_system.md'>Previous</a> | <a href='./03_trait.md'>Next</a>
+    <a href='./01_type_system.md'>上一页</a> | <a href='./03_trait.md'>下一页</a>
 </p>

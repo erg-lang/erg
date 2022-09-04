@@ -42,5 +42,5 @@ mut_set.insert!(4)
 ```
 
 <p align='center'>
-    <a href='./13_record.md'>Previous</a> | <a href='./15_type.md'>Next</a>
+    <a href='./13_record.md'>上一页</a> | <a href='./15_type.md'>下一页</a>
 </p>

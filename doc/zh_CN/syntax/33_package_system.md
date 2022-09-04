@@ -79,5 +79,5 @@ baz = import "baz"
 ```
 
 <p align='center'>
-    <a href='./32_integration_with_Python.md'>Previous</a> | <a href='./34_generator.md'>Next</a>
+    <a href='./32_integration_with_Python.md'>上一页</a> | <a href='./34_generator.md'>下一页</a>
 </p>

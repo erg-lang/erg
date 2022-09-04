@@ -145,5 +145,5 @@ assert 1m / 1s == 1 (m/s)
 ```
 
 <p align='center'>
-    <a href='./00_basic.md'>Previous</a> | <a href='./02_name.md'>Next</a>
+    <a href='./00_basic.md'>上一页</a> | <a href='./02_name.md'>下一页</a>
 </p>

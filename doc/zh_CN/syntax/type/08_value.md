@@ -1,6 +1,6 @@
-# Value Type
+# 值类型
 
-Value types are Erg built-in types that can be evaluated at compile time, specifically:
+值类型是可以在编译时评估的 Erg 内置类型，具体来说：
 
 ```python
 Value = (
@@ -21,17 +21,17 @@ Value = (
 )
 ```
 
-Value-type objects, constants, and compile-time subroutines applied to them are called __constant expressions__.
+应用于它们的值类型对象、常量和编译时子例程称为 __constant 表达式__。
 
 ```python
 1, 1.0, 1+2im, True, None, "aaa", [1, 2, 3], Fib(12)
 ```
 
-Be careful with subroutines. Subroutines may or may not be value types.
-Since the substance of a subroutine is just a pointer, it can be treated as a value [<sup id="f1">1</sup>](#1), but when compiling something that is not a subroutine cannot be used in a constant context. is not a value type because it doesn't make much sense.
+小心子程序。子例程可能是也可能不是值类型。
+由于子程序的实质只是一个指针，因此可以将其视为一个值[<sup id="f1">1</sup>](#1)，但是在编译不是子程序的东西时不能使用 在恒定的上下文中。 不是值类型，因为它没有多大意义。
 
-Types classified as value types may be added in the future.
+将来可能会添加归类为值类型的类型。
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> The term "value type" in Erg differs from the definition in other languages. There is no concept of memory within pure Erg semantics, and it is incorrect to state that it is a value type because it is placed on the stack, or that it is not a value type because it is actually a pointer. A value type only means that it is a `Value` type or its subtypes. [↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> Erg 中的术语“值类型”与其他语言中的定义不同。 纯 Erg 语义中没有内存的概念，并且因为它被放置在堆栈上而说它是值类型，或者因为它实际上是一个指针而说它不是值类型是不正确的。 值类型仅表示它是“值”类型或其子类型。 [↩](#f1)</span>

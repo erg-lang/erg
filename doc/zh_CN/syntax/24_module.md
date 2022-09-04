@@ -38,5 +38,5 @@ Since module types are also record types, deconstruction assignment is possible.
 ```
 
 <p align='center'>
-     <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
+     <a href='./23_closure.md'>上一页</a> | <a href='./25_object_system.md'>下一页</a>
 </p>

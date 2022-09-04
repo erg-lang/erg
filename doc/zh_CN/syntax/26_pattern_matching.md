@@ -189,5 +189,5 @@ There is no set pattern. Because the set has no way to uniquely retrieve the ele
 You can retrieve them by iterator, but the order is not guaranteed.
 
 <p align='center'>
-    <a href='./25_object_system.md'>Previous</a> | <a href='./27_comprehension.md'>Next</a>
+    <a href='./25_object_system.md'>上一页</a> | <a href='./27_comprehension.md'>下一页</a>
 </p>

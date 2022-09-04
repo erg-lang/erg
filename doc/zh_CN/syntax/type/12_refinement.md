@@ -1,9 +1,9 @@
-# Refinement Type
+# 细化类型
 
-Refinement type is a type constrained by a predicate expression. Enumeration types and interval types are syntax sugar of refinement types.
+细化类型是受谓词表达式约束的类型。 枚举类型和区间类型是细化类型的语法糖。
 
-The standard form of a refinement type is `{Elem: Type | (Pred)*}`. This means that the type is a type whose elements are `Elem` satisfying `Pred`.
-The type that can be used for the sifting type is [Const type](./advanced/const.md) only.
+细化类型的标准形式是`{Elem: Type | （预）*}`。 这意味着该类型是其元素为满足 `Pred` 的 `Elem` 的类型。
+可用于筛选类型的类型仅为 [Const type](./advanced/const.md)。
 
 ```python
 Nat = 0.. _
@@ -14,32 +14,32 @@ Char = StrWithLen 1
 Array3OrMore == {A: Array _, N | N >= 3}
 ```
 
-When there are multiple preds, they can be separated by `;` or `and` or `or`. `;` and `and` mean the same thing.
+当有多个 pred 时，可以用 `;` 或 `and` 或 `or` 分隔。 `;` 和 `and` 的意思是一样的。
 
-The elements of `Odd` are `1, 3, 5, 7, 9, ...`.
-It is called a refinement type because it is a type whose elements are part of an existing type as if it were a refinement.
+`Odd` 的元素是 `1, 3, 5, 7, 9, ...`。
+它被称为细化类型，因为它的元素是现有类型的一部分，就好像它是细化一样。
 
-The `Pred` is called a (left-hand side) predicate expression. Like assignment expressions, it does not return a meaningful value, and only a pattern can be placed on the left-hand side.
-That is, expressions such as `X**2 - 5X + 6 == 0` cannot be used as refinement-type predicate expressions. In this respect, it differs from a right-hand-side predicate expression.
+`Pred` 被称为（左侧）谓词表达式。 和赋值表达式一样，它不返回有意义的值，左侧只能放置一个模式。
+也就是说，诸如`X**2 - 5X + 6 == 0`之类的表达式不能用作细化类型的谓词表达式。 在这方面，它不同于右侧的谓词表达式。
 
 ```python
-{X: Int | X**2 - 5X + 6 == 0} # SyntaxError: the predicate form is invalid. Only names can be on the left-hand side
+{X: Int | X**2 - 5X + 6 == 0} # 语法错误：谓词形式无效。 只有名字可以在左边
 ```
 
-If you know how to solve quadratic equations, you would expect the above refinement form to be equivalent to `{2, 3}`.
-However, the Erg compiler has very little knowledge of algebra, so it cannot solve the predicate on the right.
+如果你知道如何解二次方程，你会期望上面的细化形式等价于`{2, 3}`。
+但是，Erg 编译器对代数的了解很少，因此无法解决右边的谓词。
 
-## Smart Cast
+## 智能投射
 
-It's nice that you defined `Odd`, but as it is, it doesn't look like it can be used much outside of literals. To promote an odd number in a normal `Int` object to `Odd`, i.e., to downcast an `Int` to `Odd`, you need to pass the constructor of `Odd`.
-For refinement types, the normal constructor `.new` may panic, and there is an auxiliary constructor called `.try_new` that returns a `Result` type.
+很高兴您定义了 `Odd`，但事实上，它看起来不能在文字之外使用太多。 要将普通 `Int` 对象中的奇数提升为 `Odd`，即将 `Int` 向下转换为 `Odd`，您需要传递 `Odd` 的构造函数。
+对于细化类型，普通构造函数 `.new` 可能会出现恐慌，并且有一个名为 `.try_new` 的辅助构造函数返回一个 `Result` 类型。
 
 ```python
 i = Odd.new (0..10).sample!()
 i: Odd # or Panic
 ```
 
-It can also be used as a type specification in `match`.
+它也可以用作 `match` 中的类型说明。
 
 ```python
 # i: 0..10
@@ -51,12 +51,12 @@ match i:
         log "i: Nat"
 ```
 
-However, Erg cannot currently make sub-decisions such as `Even` because it was not `Odd`, etc.
+但是，Erg 目前无法做出诸如“偶数”之类的子决策，因为它不是“奇数”等。
 
-## Enumerated, Interval and Sift Types
+## 枚举、区间和筛选类型
 
-The enumerative/interval types introduced before are syntax sugar of the refinement type.
-`{a, b, ...}` is `{I: Typeof(a) | I == a or I == b or ... }`, and `a..b` is desugarized to `{I: Typeof(a) | I >= a and I <= b}`.
+前面介绍的枚举/区间类型是细化类型的语法糖。
+`{a, b, ...}` 是 `{I: Typeof(a) | I == a 或 I == b 或 ... }`，并且 `a..b` 被去糖化为 `{I: Typeof(a) | 我 >= a 和我 <= b}`。
 
 ```python
 {1, 2} == {I: Int | I == 1 or I == 2}
@@ -64,12 +64,12 @@ The enumerative/interval types introduced before are syntax sugar of the refinem
 1... <10 == {I: Int | I >= 1 and I < 10}
 ```
 
-## Refinement pattern
+## 细化模式
 
-Just as `_: {X}` can be rewritten as `X` (constant pattern), `_: {X: T | Pred}` can be rewritten as `X: T | Pred`.
+正如 `_: {X}` 可以重写为 `X`（常量模式），`_: {X: T | Pred}` 可以重写为`X: T | Pred`
 
 ```python
-# method `.m` is defined for arrays of length 3 or greater
+# 方法 `.m` 是为长度为 3 或更大的数组定义的
 Array(T, N | N >= 3)
     .m(&self) = ...
 ```

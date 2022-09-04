@@ -78,5 +78,5 @@ Objects that are not subroutines and types.
 Monomorphic entities (`1`, `"a"`, etc.) are also called value objects, polymorphic entities (`[1, 2, 3], {"a": 1}`) are also called container objects .
 
 <p align='center'>
-    <a href='./24_module.md'>Previous</a> | <a href='./26_pattern_matching.md'>Next</a>
+    <a href='./24_module.md'>上一页</a> | <a href='./26_pattern_matching.md'>下一页</a>
 </p>

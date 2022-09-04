@@ -106,5 +106,5 @@ However, such restrictions are a natural specification in languages ​​withou
 Erg is designed to prevent unintentional memory leaks, and will issue an error if the memory checker detects a circular reference. In most cases, this error can be resolved with a weak reference `Weak`. However, since it is not possible to generate objects with circular structures such as cyclic graphs, we plan to implement an API that can generate circular references as unsafe operations.
 
 <p align='center'>
-    <a href='./17_mutability.md'>Previous</a> | <a href='./19_visibility.md'>Next</a>
+    <a href='./17_mutability.md'>上一页</a> | <a href='./19_visibility.md'>下一页</a>
 </p>

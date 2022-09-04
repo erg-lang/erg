@@ -160,5 +160,5 @@ print! C # <class C>
 ```
 
 <p align='center'>
-    <a href='./01_literal.md'>Previous</a> | <a href='./03_declaration.md'>Next</a>
+    <a href='./01_literal.md'>上一页</a> | <a href='./03_declaration.md'>下一页</a>
 </p>

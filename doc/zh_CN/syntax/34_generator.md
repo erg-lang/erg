@@ -31,5 +31,5 @@ make_g: () => Generator!
 ```
 
 <p align='center'>
-    <a href='./33_package_system.md'>Previous</a> | Next
+    <a href='./33_package_system.md'>上一页</a> | Next
 </p>

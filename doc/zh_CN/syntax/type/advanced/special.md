@@ -1,6 +1,6 @@
-# Special types (Self, Super)
+# 特殊类型（Self、Super）
 
-`Self` represents its own type. You can just use it as an alias, but note that the meaning changes in derived types (refers to the own type).
+`Self` 代表它自己的类型。 您可以将其用作别名，但请注意派生类型的含义会发生变化（指的是自己的类型）。
 
 ```python
 @Inheritable
@@ -14,7 +14,7 @@ classof D. new_self() # D
 classof D. new_c() # C
 ```
 
-`Super` represents the type of the base class. The method itself refers to the base class, but the instance uses its own type.
+`Super` 表示基类的类型。方法本身引用基类，但实例使用自己的类型。
 
 ```python
 @Inheritable
@@ -29,9 +29,9 @@ classof D. new_super() # D
 classof D. new_c() # C
 ```
 
-## special type variables
+## 特殊类型变量
 
-`Self` and `Super` can be used as type variables in structured types and traits. This refers to classes that are subtypes of that type. That is, `Self` in type `T` means `Self <: T`.
+`Self` 和 `Super` 可以用作结构化类型和特征中的类型变量。 这指的是作为该类型子类型的类。 也就是说，`T` 类型中的`Self` 表示`Self <: T`。
 
 ```python
 Add R = Trait {

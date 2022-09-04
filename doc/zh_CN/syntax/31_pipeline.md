@@ -28,5 +28,5 @@ __evens = 1..100 \
 ```
 
 <p align='center'>
-    <a href='./30_error_handling.md'>Previous</a> | <a href='./32_integration_with_Python.md'>Next</a>
+    <a href='./30_error_handling.md'>上一页</a> | <a href='./32_integration_with_Python.md'>下一页</a>
 </p>

@@ -10,5 +10,5 @@ Although in pure Erg semantics no difference can be found between objects with t
 ```
 
 <p align='center'>
-    <a href='./08_procedure.md'>Previous</a> | <a href='./10_array.md'>Next</a>
+    <a href='./08_procedure.md'>上一页</a> | <a href='./10_array.md'>下一页</a>
 </p>

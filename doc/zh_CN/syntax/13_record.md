@@ -195,5 +195,5 @@ john + 1
 ```
 
 <p align='center'>
-    <a href='./12_tuple.md'>Previous</a> | <a href='./14_set.md'>Next</a>
+    <a href='./12_tuple.md'>上一页</a> | <a href='./14_set.md'>下一页</a>
 </p>

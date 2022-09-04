@@ -91,5 +91,5 @@ id = |T| x: T -> x
 ```
 
 <p align='center'>
-    <a href='./20_naming_rule.md'>Previous</a> | <a href='./22_subroutine.md'>Next</a>
+    <a href='./20_naming_rule.md'>上一页</a> | <a href='./22_subroutine.md'>下一页</a>
 </p>

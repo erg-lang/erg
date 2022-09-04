@@ -116,5 +116,5 @@ Indicates that the variable specification is obsolete and deprecated.
 Indicates that this is a test subroutine. Test subroutines are run with the `erg test` command.
 
 <p align='center'>
-    <a href='./28_spread_syntax.md'>Previous</a> | <a href='./30_error_handling.md'>Next</a>
+    <a href='./28_spread_syntax.md'>上一页</a> | <a href='./30_error_handling.md'>下一页</a>
 </p>

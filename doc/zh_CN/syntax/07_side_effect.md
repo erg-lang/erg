@@ -117,5 +117,5 @@ print! "this will be printed immediately"
 If there is no feedback to the program, or in other words, if no external object can use the internal information, then the "leakage" of the information may be allowed. It is only necessary that the information not be "propagated".
 
 <p align='center'>
-    <a href='./06_operator.md'>Previous</a> | <a href='./08_procedure.md'>Next</a>
+    <a href='./06_operator.md'>上一页</a> | <a href='./08_procedure.md'>下一页</a>
 </p>

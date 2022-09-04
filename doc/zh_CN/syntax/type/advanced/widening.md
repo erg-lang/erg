@@ -1,14 +1,14 @@
-# Type Widening
+# 类型加宽
 
-For example, define the polycorrelation coefficient as follows.
+例如，定义多相关系数如下。
 
 ```python
 ids|T|(x: T, y: T) = x, y
 ```
 
-There's nothing wrong with assigning a pair of instances of the same class.
-When you assign an instance pair of another class that has a containment relationship, it is upcast to the larger one and becomes the same type.
-Also, it is easy to understand that an error will occur if another class that is not in the containment relationship is assigned.
+分配同一类的一对实例并没有错。
+当您分配另一个具有包含关系的类的实例对时，它会向上转换为较大的类并成为相同的类型。
+另外，很容易理解，如果分配了另一个不在包含关系中的类，就会发生错误。
 
 ```python
 assert ids(1, 2) == (1, 2)
@@ -16,7 +16,7 @@ assert ids(1, 2.0) == (1.0, 2.0)
 ids(1, "a") #TypeError
 ```
 
-Now, what about types that have different derived types?
+现在，具有不同派生类型的类型呢?
 
 ```python
 i: Int or Str
@@ -24,7 +24,7 @@ j: Int or NoneType
 ids(i, j) # ?
 ```
 
-Before explaining this, we have to focus on the fact that Erg's type system doesn't actually look at (runtime) classes.
+在解释这一点之前，我们必须关注 Erg 的类型系统实际上并不关注（运行时）类这一事实。
 
 ```python
 1: {__valueclass_tag__ = Phantom Int}
@@ -33,60 +33,60 @@ Before explaining this, we have to focus on the fact that Erg's type system does
 "a": {__valueclass_tag__ = Phantom Str}
 ids(1, 2): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phantom Int} == {__valueclass_tag__ = Phantom Int}
 ids(1, 2.0): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phantom Ratio} == {__valueclass_tag__ = Phantom Ratio} # Int < Ratio
-ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phantom Str} == Never # TypeError
+ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phantom Str} == Never # 类型错误
 ```
 
-I don't see the class because it may not be seen exactly, because in Erg the class of an object belongs to runtime information.
-For example, the class of an `Int or Str` type object is either `Int` or `Str`, but you can only know which one it is by executing it.
-Of course, the class of an object of type `Int` is defined as `Int`, but in this case as well, what is visible from the type system is the structural type `{__valueclass_tag__ = Int}` of `Int`.
+我看不到该类，因为它可能无法准确看到，因为在 Erg 中，对象的类属于运行时信息。
+例如，一个`Int`或Str`类型的对象的类是`Int`或`Str`，但你只有通过执行才能知道它是哪一个。
+当然，`Int` 类型的对象的类被定义为 `Int`，但是在这种情况下，从类型系统中可见的是 `Int` 的结构类型 `{__valueclass_tag__ = Int}`。
 
-Now let's go back to another structured type example. In conclusion, the above code will result in a TypeError as the type does not match.
-However, if you do type expansion with type annotations, compilation will pass.
+现在让我们回到另一个结构化类型示例。 总之，上述代码将导致类型错误，因为类型不匹配。
+但是，如果您使用类型注释进行类型扩展，编译将通过。
 
 ```python
 i: Int or Str
 j: Int or NoneType
-ids(i, j) # TypeError: types of i and j not matched
-# hint: try type widening (e.g. ids<Int or Str or NoneType>)
+ids(i, j) # 类型错误：i 和 j 的类型不匹配
+# 提示：尝试扩大类型（例如 ids<Int or Str or NoneType>）
 ids<Int or Str or NoneType>(i, j) # OK
 ```
 
-`A and B` have the following possibilities.
+`A 和 B` 有以下可能性。
 
-* `A and B == A`: when `A <: B` or `A == B`.
-* `A and B == B`: when `A :> B` or `A == B`.
-* `A and B == {}`: when `!(A :> B)` and `!(A <: B)`.
+* `A and B == A`：当`A <: B`或`A == B`时。
+* `A and B == B`：当 `A :> B` 或 `A == B` 时。
+* `A and B == {}`：当 `!(A :> B)` 和 `!(A <: B)` 时。
 
-`A or B` has the following possibilities.
+`A 或 B` 具有以下可能性。
 
-* `A or B == A`: when `A :> B` or `A == B`.
-* `A or B == B`: when `A <: B` or `A == B`.
-* `A or B` is irreducible (independent types): if `!(A :> B)` and `!(A <: B)`.
+* `A 或 B == A`：当`A :> B` 或`A == B` 时。
+* `A or B == B`：当`A <: B`或`A == B`时。
+* `A 或 B` 是不可约的（独立类型）：如果 `!(A :> B)` 和 `!(A <: B)`。
 
-## Type widening in subroutine definitions
+## 子程序定义中的类型扩展
 
-Erg defaults to an error if return types do not match.
+如果返回类型不匹配，Erg 默认会出错。
 
 ```python
 parse_to_int s: Str =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
-    ... # return Int object
-# TypeError: mismatched types of return values
-# 3 | do parse_to_int::return error("not numeric")
+... # 返回 Int 对象
+# 类型错误：返回值类型不匹配
+# 3 | 做 parse_to_int::return error("not numeric")
 # └─ Error
 # 4 | ...
 # └ Int
 ```
 
-In order to solve this, it is necessary to explicitly specify the return type as Or type.
+为了解决这个问题，需要将返回类型显式指定为 Or 类型
 
 ```python
 parse_to_int(s: Str): Int or Error =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
-    ... # return Int object
+    ... # 返回 Int 对象
 ```
 
-This is by design so that you don't unintentionally mix a subroutine's return type with another type.
-However, if the return value type option is a type with an inclusion relationship such as `Int` or `Nat`, it will be aligned to the larger one.
+这是设计使然，这样您就不会无意中将子例程的返回类型与另一种类型混合。
+但是，如果返回值类型选项是具有包含关系的类型，例如 `Int` 或 `Nat`，它将与较大的对齐。

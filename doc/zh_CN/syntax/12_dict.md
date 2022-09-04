@@ -63,5 +63,5 @@ valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```
 
 <p align='center'>
-    <a href='./11_tuple.md'>Previous</a> | <a href='./13_record.md'>Next</a>
+    <a href='./11_tuple.md'>上一页</a> | <a href='./13_record.md'>下一页</a>
 </p>

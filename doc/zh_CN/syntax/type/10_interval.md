@@ -1,35 +1,35 @@
-# Interval Type
+# 间隔类型
 
-The most basic use of `Range` objects is as iterator.
+`Range` 对象最基本的用途是作为迭代器。
 
 ```python
 for! 0..9, i =>
     print! i
 ```
 
-Note that unlike Python, it includes a end number.
+请注意，与 Python 不同，它包含一个结束编号。
 
-However, this is not only use for the `Range` objects. It can also be used the type. Such a type is called the Interval type.
+然而，这不仅仅用于 `Range` 对象。 也可以使用类型。 这种类型称为Interval类型。
 
 ```python
 i: 0..10 = 2
 ```
 
-The `Nat` type is equivalent to `0..<Inf` and, `Int` and `Ratio` are equivalent to `-Inf<..<Inf`,
-`0..<Inf` can also be written `0.._`. `_` means any instance of `Int` type.
+`Nat` 类型等价于 `0..<Inf` 并且，`Int` 和 `Ratio` 等价于 `-Inf<..<Inf`，
+`0..<Inf` 也可以写成 `0.._`。 `_` 表示任何 `Int` 类型的实例。
 
-Since it is can also be used as iterator, it can be specified in reverse order, such as `10..0`, however `<..`, `..<` and `<..<` cannot be reversed.
+由于它也可以用作迭代器，所以可以倒序指定，例如`10..0`，但是`<..`、`..<`和`<..<`不能倒序
 
 ```python
 a = 0..10 # OK
 b = 0..<10 # OK
 c = 10..0 # OK
-d = 10<..0 # Syntax error
-e = 10..<0 # Syntax error
-f = 10<..<0 # Syntax error
+d = 10<..0 # 语法错误
+e = 10..<0 # 语法错误
+f = 10<..<0 # 语法错误
 ```
 
-A Range operator can be used for non-numeric types, as long as they are `Ord` immutable types.
+Range 运算符可用于非数字类型，只要它们是“Ord”不可变类型
 
 ```python
 Alphabet = "A".."z"

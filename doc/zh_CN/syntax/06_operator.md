@@ -25,5 +25,5 @@ function = `->` # SyntaxError: cannot bind `->` operator, this is a special form
 ```
 
 <p align='center'>
-    <a href='./05_builtin_funcs.md'>Previous</a> | <a href='./07_side_effect.md'>Next</a>
+    <a href='./05_builtin_funcs.md'>上一页</a> | <a href='./07_side_effect.md'>下一页</a>
 </p>

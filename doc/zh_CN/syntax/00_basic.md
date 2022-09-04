@@ -144,5 +144,5 @@ x \
 ```
 
 <p align='center'>
-    Previous | <a href='./01_literal.md'>Next</a>
+    上一页 | <a href='./01_literal.md'>下一页</a>
 </p>
