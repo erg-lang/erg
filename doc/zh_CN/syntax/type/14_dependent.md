@@ -1,10 +1,10 @@
-# dependent type
+# 依赖类型
 
-Dependent types are a feature that can be said to be the biggest feature of Erg.
-A dependent type is a type that takes a value as an argument. Ordinary polymorphic types can take only types as arguments, but dependent types relax that restriction.
+依赖类型是一个特性，可以说是 Erg 的最大特性。
+依赖类型是将值作为参数的类型。 普通的多态类型只能将类型作为参数，但依赖类型放宽了这个限制。
 
-Dependent types are equivalent to `[T; N]` (`Array(T, N)`).
-This type is determined not only by the content type `T` but also by the number of contents `N`. `N` contains an object of type `Nat`.
+依赖类型等价于`[T; N]`（`数组（T，N）`）。
+这种类型不仅取决于内容类型“T”，还取决于内容数量“N”。 `N` 包含一个`Nat` 类型的对象。
 
 ```python
 a1 = [1, 2, 3]
@@ -14,7 +14,7 @@ assert a1 in [Nat; 4]
 assert a1 + a2 in [Nat; 7]
 ```
 
-If the type object passed in the function argument is related to the return type, write:
+如果函数参数中传递的类型对象与返回类型有关，则写：
 
 ```python
 narray: |N: Nat| {N} -> [{N}; N]
@@ -22,16 +22,16 @@ narray(N: Nat): [N; N] = [N; N]
 assert array(3) == [3, 3, 3]
 ```
 
-When defining a dependent type, all type arguments must be constants.
+定义依赖类型时，所有类型参数都必须是常量。
 
-Dependent types themselves exist in existing languages, but Erg has the feature of defining procedural 方法 on dependent types.
+依赖类型本身存在于现有语言中，但 Erg 具有在依赖类型上定义过程方法的特性
 
 ```python
 x=1
 f x =
     print! f::x, module::x
 
-# The Phantom type has an attribute called Phantom whose value is the same as the type argument
+# Phantom 类型有一个名为 Phantom 的属性，其值与类型参数相同
 T X: Int = Class Impl := Phantom X
 T(X).
     x self = self::Phantom
@@ -39,19 +39,19 @@ T(X).
 T(1).x() # 1
 ```
 
-Type arguments of mutable dependent types can be transitioned by method application.
-Transition specification is done with `~>`.
+可变依赖类型的类型参数可以通过方法应用程序进行转换。
+转换规范是用 `~>` 完成的
 
 ```python
-# Note that `Id` is an immutable type and cannot be transitioned
+# 注意 `Id` 是不可变类型，不能转换
 VM!(State: {"stopped", "running"}! := _, Id: Nat := _) = Class(..., Impl := Phantom! State)
 VM!().
-    # Variables that do not change can be omitted by passing `_`.
+    # 不改变的变量可以通过传递`_`省略。
     start! ref! self("stopped" ~> "running") =
         self.initialize_something!()
         self::set_phantom!("running")
 
-# You can also cut out by type argument (only in the module where it's defined)
+# 你也可以按类型参数切出（仅在定义它的模块中）
 VM!.new() = VM!(!"stopped", 1).new()
 VM!("running" ~> "running").stop!ref!self =
     self.close_something!()
@@ -60,15 +60,15 @@ VM!("running" ~> "running").stop!ref!self =
 vm = VM!.new()
 vm.start!()
 vm.stop!()
-vm.stop!() # TypeError: VM!(!"stopped", 1) doesn't have .stop!()
-# hint: VM!(!"running", 1) has .stop!()
+vm.stop!() # 类型错误：VM!(!"stopped", 1) 没有 .stop!()
+# 提示：VM!(!"running", 1) 有 .stop!()
 ```
 
-You can also embed or inherit existing types to create dependent types.
+您还可以嵌入或继承现有类型以创建依赖类型。
 
 ```python
 MyArray(T, N) = Inherit[T; N]
 
-# The type of self: Self(T, N) changes in conjunction with .array
+# self 的类型：Self(T, N) 与 .array 一起变化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```

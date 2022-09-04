@@ -1,1 +1,1 @@
-In the following, we will discuss more advanced type systems. Beginners do not have to read all the sections.
+下面，我们将讨论更高级的类型系统。 初学者不必阅读所有部分。

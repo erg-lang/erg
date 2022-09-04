@@ -1,6 +1,6 @@
-# Subtyping
+# 子类型
 
-In Erg, class inclusion can be determined with the comparison operators `<`, `>`.
+在 Erg 中，可以使用比较运算符 `<`、`>` 确定类包含。
 
 ```python
 Nat < Int
@@ -11,20 +11,20 @@ Int < Object
 {I: Int | I >= 1} < {I: Int | I >= 0}
 ```
 
-Note that this has a different meaning than the `<:` operator. It declares that the class on the left-hand side is a subtype of the type on the right-hand side, and is meaningful only at compile-time.
+请注意，这与 `<:` 运算符的含义不同。 它声明左侧的类是右侧类型的子类型，并且仅在编译时才有意义。
 
 ```python
-C <: T # T: StructuralType
+C <: T # T: 结构类型
 f|D <: E| ...
 
 assert F < G
 ```
 
-You can also specify `Self <: Add` for a polymorphic subtype specification, for example ``Self(R, O) <: Add(R, O)``.
+您还可以为多态子类型规范指定 `Self <: Add`，例如 `Self(R, O) <: Add(R, O)`。
 
-## Structural types and class type relationships
+## 结构类型和类类型关系
 
-Structural types are types for structural typing and are considered to be the same object if they have the same structure.
+结构类型是结构类型的类型，如果它们具有相同的结构，则被认为是相同的对象。
 
 ```python
 T = Structural {i = Int}
@@ -36,23 +36,23 @@ assert t in T
 assert t in U
 ```
 
-In contrast, classes are types for notational typing and cannot be compared structurally to types and instances.
+相反，类是符号类型的类型，不能在结构上与类型和实例进行比较
 
 ```python
 C = Class {i = Int}
 D = Class {i = Int}
 
-assert C == D # TypeError: cannot compare classes
+assert C == D # 类型错误：无法比较类
 c = C.new {i = 1}
 assert c in C
 assert not c in D
 ```
 
-## Subtyping of subroutines
+## 子程序的子类型化
 
-Arguments and return values of subroutines take only a single class.
-In other words, you cannot directly specify a structural type or a trait as the type of a function.
-It must be specified as "a single class that is a subtype of that type" using the partial type specification.
+子例程的参数和返回值只采用一个类。
+换句话说，您不能直接将结构类型或特征指定为函数的类型。
+必须使用部分类型规范将其指定为“作为该类型子类型的单个类”。
 
 ```python
 # OK
@@ -60,13 +60,13 @@ f1 x, y: Int = x + y
 # NG
 f2 x, y: Add = x + y
 # OK
-# A is some concrete class
+# A 是一些具体的类
 f3<A <: Add> x, y: A = x + y
 ```
 
-Type inference in subroutines also follows this rule. When a variable in a subroutine has an unspecified type, the compiler first checks to see if it is an instance of one of the classes, and if not, looks for a match in the scope of the trait. If it still cannot find one, a compile error occurs. This error can be resolved by using a structural type, but since inferring an anonymous type may have unintended consequences for the programmer, it is designed to be explicitly specified by the programmer with `Structural`.
+子程序中的类型推断也遵循此规则。 当子例程中的变量具有未指定的类型时，编译器首先检查它是否是其中一个类的实例，如果不是，则在特征范围内查找匹配项。 如果仍然找不到，则会发生编译错误。 此错误可以通过使用结构类型来解决，但由于推断匿名类型可能会给程序员带来意想不到的后果，因此它被设计为由程序员使用 `Structural` 显式指定。
 
-## Class upcasting
+## 类向上转换
 
 ```python
 i: Int

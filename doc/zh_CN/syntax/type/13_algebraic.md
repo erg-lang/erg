@@ -41,45 +41,45 @@ True = Bool not {False}
 OneTwoThree = {1, 2, 3, 4, 5, 6} - {4, 5, 6, 7, 8, 9, 10}
 ```
 
-＃＃ 补充
+## 补充
 
 补码类型是通过 `not` 操作得到的，这是一个一元操作。 `not T` 类型是 `{=} not T` 的简写。
 类型为“非 T”的交集等价于 Diff，类型为“非 T”的 Diff 等价于交集。
 但是，不推荐这种写法。
 
 ```python
-# the simplest definition of the non-zero number type
+# 非零数类型的最简单定义
 NonZero = Not {0}
-# deprecated styles
+# 不推荐使用的样式
 {True} == Bool and not {False} # 1 == 2 + - 1
 Bool == {True} not not {False} # 2 == 1 - -1
 ```
 
-## True Algebraic type
+## 真代数类型
 
-There are two algebraic types: apparent algebraic types that can be simplified and true algebraic types that cannot be further simplified.
-The "apparent algebraic types" include `or` and `and` of Enum, Interval, and the Record types.
-These are not true algebraic types because they are simplified, and using them as type specifiers will result in a Warning; to eliminate the Warning, you must either simplify them or define their types.
+有两种代数类型：可以简化的表观代数类型和不能进一步简化的真实代数类型。
+“表观代数类型”包括 Enum、Interval 和 Record 类型的 `or` 和 `and`。
+这些不是真正的代数类型，因为它们被简化了，并且将它们用作类型说明符将导致警告； 要消除警告，您必须简化它们或定义它们的类型。
 
 ```python
 assert {1, 2, 3} or {2, 3} == {1, 2, 3}
 assert {1, 2, 3} and {2, 3} == {2, 3}
 assert -2..-1 or 1..2 == {-2, -1, 1, 2}
 
-i: {1, 2} or {3, 4} = 1 # TypeWarning: {1, 2} or {3, 4} can be simplified to {1, 2, 3, 4}
+i: {1, 2} or {3, 4} = 1 # 类型警告：{1, 2} 或 {3, 4} 可以简化为 {1, 2, 3, 4}
 p: {x = Int, ...} and {y = Int; ...} = {x = 1; y = 2; z = 3}
-# TypeWaring: {x = Int, ...} and {y = Int; ...} can be simplified to {x = Int; y = Int; ...}
+# 类型警告：{x = Int, ...} 和 {y = Int; ...} 可以简化为 {x = Int; y = 整数； ...}
 
 Point1D = {x = Int; ...}
 Point2D = Point1D and {y = Int; ...} # == {x = Int; y = Int; ...}
 q: Point2D = {x = 1; y = 2; z = 3}
 ```
 
-True algebraic types include the types `Or` and `And`. Classes such as `or` between classes are of type `Or`.
+真正的代数类型包括类型“或”和“与”。 类之间的“或”等类属于“或”类型。
 
 ```python
 assert Int or Str == Or(Int, Str)
 assert Int and Marker == And(Int, Marker)
 ```
 
-Diff, Complement types are not true algebraic types because they can always be simplified.
+Diff, Complement 类型不是真正的代数类型，因为它们总是可以被简化。

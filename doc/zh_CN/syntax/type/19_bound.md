@@ -1,13 +1,13 @@
-# Type Bound
+# 类型绑定
 
-Type bounds add conditions to type specifications. A function that realizes this is a guard (guard clause).
-This feature is available for function signatures, anonymous function signatures, as well as sieve types.
-Guards are written after the return type.
+类型边界为类型规范添加条件。 实现这一点的函数是守卫（守卫子句）。
+此功能可用于函数签名、匿名函数签名以及筛选类型。
+守卫写在返回类型之后。
 
-## Predicate
+## 谓词
 
-You can specify the condition that the variable satisfies with an expression (predicate expression) that returns `Bool`.
-Only [value objects](./08_value.md) and operators can be used. Compile-time functions may be supported in future versions.
+您可以使用返回 `Bool` 的表达式（谓词表达式）指定变量满足的条件。
+只能使用 [值对象](./08_value.md) 和运算符。 未来版本可能会支持编译时函数
 
 ```python
 f a: [T; N] | T, N, N > 5 = ...
