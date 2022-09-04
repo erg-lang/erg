@@ -2,14 +2,14 @@
 
 A type that represents a subtype of the well-ordered set type (WellOrder). The Interval type has derived types such as PreOpen(x<..y).
 
-``` erg
+```python
 Months = 1..12
 Alphabet = "a".."z"
 Weekdays = Monday..Friday
 Winter = November..December or January..February
 ```
 
-``` erg
+```python
 0..1 # integer range
 0.0..1.0 # real (rational) range
 # or same for 0/1..1/1

@@ -8,7 +8,7 @@ A type that represents "may fail".
 
 Extract it expecting the contents to be `T` type. If it is `None`, output `msg` and panic.
 
-``` erg
+```python
 x = "...".parse(Int).into(Option Int)
 x.unwrap() # UnwrappingError: unwrapped a None value
 x.unwrap("failed to convert from string to number") # UnwrappingError: failed to convert from string to number

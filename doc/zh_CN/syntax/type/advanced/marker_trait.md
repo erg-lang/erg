@@ -6,15 +6,15 @@ It seems meaningless without the required attribute, but since the information t
 All marker traits are subsumed by the `Marker` trait.
 `Light` provided as standard is a kind of marker trait.
 
-``` erg
+```python
 Light = Subsume Marker
 ```
 
-``` erg
+```python
 Person = Class {.name = Str; .age = Nat} and Light
 ```
 
-``` erg
+```python
 M = Subsume Marker
 
 MarkedInt = Inherit Int, Impl := M
@@ -26,6 +26,6 @@ assert i in M
 
 Marker classes can also be excluded with the `Excluding` argument.
 
-``` erg
+```python
 NInt = Inherit MarkedInt, Impl := N, Excluding: M
 ```

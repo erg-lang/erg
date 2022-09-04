@@ -5,7 +5,7 @@ This struct contains the complete type information for every expression in the s
 AST has a one-to-one correspondence with the source code (as plain text), but HIR has unnecessary code information removed and omitted type information added, so HIR can be converted to source code is difficult to restore.
 Let's see an example of HIR in the code below.
 
-``` erg
+```python
 v = ![]
 for! 0..10, i =>
     v.push!i
@@ -14,7 +14,7 @@ log v.sum()
 
 The AST generated from this code looks like this:
 
-``` erg
+```python
 AST(Module[
     VarDef{
         sig: VarSignature {
@@ -71,7 +71,7 @@ AST(Module[
 
 And the HIR generated from the AST looks like this:
 
-``` erg
+```python
 HIR(Module[
     VarDef{
         sig: VarSignature {

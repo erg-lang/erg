@@ -2,7 +2,7 @@
 
 `L..R` class.
 
-``` erg
+```python
 IntRange L, R: Int == L..R
 ```
 
@@ -12,7 +12,7 @@ IntRange L, R: Int == L..R
 
 normal addition. Addition of `Int` and `Nat` is defined here under the pretense that it is defined in each class.
 
-``` erg
+```python
 0..10 + 1..12 == 1..22
 Int + 0..10 == _..|Int|_ + 0..10 == _..|Int|_ == Int
 Nat + Nat == 0.._ + 0.._ == 0.._ == Nat

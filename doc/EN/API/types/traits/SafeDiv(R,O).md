@@ -1,6 +1,6 @@
 # SafeDiv R, O
 
-``` erg
+```python
 SafeDiv R, O = Subsume Div, {
      @Override
      .`/` = Self.(R) -> O

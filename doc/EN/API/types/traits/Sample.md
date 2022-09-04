@@ -6,7 +6,7 @@ Note that this is a trait that assumes that you want an appropriate instance for
 
 All major value classes implement `Sample`. It is also implemented in tuple types, record types, Or types, and sieve types that are composed of `Sample` classes.
 
-``` erg
+```python
 assert Int. sample() == 42
 assert Str. sample() == "example"
 # Int is sampled in 64bit range by default
@@ -16,7 +16,7 @@ print! {x = Int; y = Int}.sample!() # {x = -32432892, y = 78458576891}
 
 Below is an implementation example of `Sample`.
 
-``` erg
+```python
 EmailAddress = Class {header = Str; domain = Str}, Impl=Sample and Show
 @Impl Show
 Email address.

@@ -2,7 +2,7 @@
 
 `Self` represents its own type. You can just use it as an alias, but note that the meaning changes in derived types (refers to the own type).
 
-``` erg
+```python
 @Inheritable
 C = Class()
 C.
@@ -16,7 +16,7 @@ classof D. new_c() # C
 
 `Super` represents the type of the base class. The method itself refers to the base class, but the instance uses its own type.
 
-``` erg
+```python
 @Inheritable
 C = Class()
 
@@ -33,7 +33,7 @@ classof D. new_c() # C
 
 `Self` and `Super` can be used as type variables in structured types and traits. This refers to classes that are subtypes of that type. That is, `Self` in type `T` means `Self <: T`.
 
-``` erg
+```python
 Add R = Trait {
     .AddO = Type
     .`_+_`: Self, R -> Self.AddO

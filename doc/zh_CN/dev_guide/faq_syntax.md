@@ -14,7 +14,7 @@ id[T: Type] [t]: [T] = t
 y = id[Int] # 这是一个功能吗？
 # <>版
 id<T: Type> {t: T} = t
-y = (id<Int, 1> 1) # これはタプル?
+y = (id<Int, 1> 1) # 这是一个元组吗？
 # {}版
 id{T: Type} {t: T} = t
 y = id{Int} # 这是一个功能吗？
@@ -79,10 +79,10 @@ Python 的库中有一些类设计为继承，如果完全取消继承，这些�
 
 
 ```python
-# If T is a subtype of a structural trait...
+# 如果 T 是结构特征的子类型...
 # f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x
-# T is a subtype of a nominal trait
+# T 是名义特征的子类型
 # g: |T <: Add() and Sub()| (T, T) -> T
 g|T| x, y: T = x + y - x
 ```

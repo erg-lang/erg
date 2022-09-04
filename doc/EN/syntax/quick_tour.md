@@ -10,7 +10,7 @@ Please think that the parts not mentioned are the same as Python.
 
 Variables are defined with `=`. As with Haskell, variables once defined cannot be changed. However, it can be shadowed in another scope.
 
-``` erg
+```python
 i = 0
 if True:
     i = 1
@@ -20,7 +20,7 @@ assert i == 0
 Anything starting with an uppercase letter is a constant. Only things that can be computed at compile time can be constants.
 Also, a constant is identical in all scopes since its definition.
 
-``` erg
+```python
 PI = 3.141592653589793
 match random.random!(0..10):
     PIs:
@@ -32,7 +32,7 @@ match random.random!(0..10):
 Unlike Python, only the variable type can be declared first.
 Of course, the declared type and the type of the object actually assigned to must be compatible.
 
-``` erg
+```python
 i: Int
 i = 10
 ```
@@ -41,7 +41,7 @@ i = 10
 
 You can define it just like in Haskell.
 
-``` erg
+```python
 fib0 = 0
 fib1 = 1
 fibn = fib(n - 1) + fib(n - 2)
@@ -49,7 +49,7 @@ fibn = fib(n - 1) + fib(n - 2)
 
 An anonymous function can be defined like this:
 
-``` erg
+```python
 i -> i + 1
 assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 ```
@@ -62,7 +62,7 @@ The Erg-specific operators are:
 
 It's like `ref` in Ocaml.
 
-``` erg
+```python
 i = !0
 i.update! x -> x + 1
 assert i == 1
@@ -72,13 +72,13 @@ assert i == 1
 
 Subroutines with side effects are called procedures and are marked with `!`.
 
-``` erg
+```python
 print! 1 # 1
 ```
 
 ## generic function (polycorrelation)
 
-``` erg
+```python
 id|T|(x: T): T = x
 id(1): Int
 id("a"): Str
@@ -88,7 +88,7 @@ id("a"): Str
 
 You can use the equivalent of records in ML-like languages ​​(or object literals in JS).
 
-``` erg
+```python
 p = {x = 1; y = 2}
 ```
 
@@ -96,7 +96,7 @@ p = {x = 1; y = 2}
 
 Ergs are owned by mutable objects (objects mutated with the `!` operator) and cannot be rewritten from multiple places.
 
-``` erg
+```python
 i = !0
 j = i
 assert j == 0
@@ -109,13 +109,13 @@ Immutable objects, on the other hand, can be referenced from multiple places.
 
 Prefixing a variable with `.` makes it a public variable and allows it to be referenced from external modules.
 
-``` erg
+```python
 # foo.er
 .x = 1
 y = 1
 ```
 
-``` erg
+```python
 foo = import "foo"
 assert foo.x == 1
 foo.y # VisibilityError
@@ -125,7 +125,7 @@ foo.y # VisibilityError
 
 ### variable pattern
 
-``` erg
+```python
 # basic assignments
 i = 1
 # with type
@@ -137,7 +137,7 @@ fn: Int -> Int = x -> x + 1
 
 ### Literal patterns
 
-``` erg
+```python
 # if `i` cannot be determined to be 1 at compile time, TypeError occurs.
 # shorthand of `_: {1} = i`
 1 = i
@@ -154,7 +154,7 @@ fibn: Nat = fibn-1 + fibn-2
 
 ### constant pattern
 
-``` erg
+```python
 PI = 3.141592653589793
 E = 2.718281828459045
 num = PI
@@ -166,7 +166,7 @@ name = match num:
 
 ### discard (wildcard) pattern
 
-``` erg
+```python
 _ = 1
 _: Int = 1
 right(_, r) = r
@@ -176,7 +176,7 @@ right(_, r) = r
 
 Used in combination with the tuple/array/record pattern described later.
 
-``` erg
+```python
 [i,...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
@@ -185,7 +185,7 @@ assert first(1, 2, 3) == 1
 
 ### Tuple pattern
 
-``` erg
+```python
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
 # If not nested, () can be omitted (1, 2 are treated as (1, 2))
@@ -194,14 +194,14 @@ m, n = 1, 2
 
 ### array pattern
 
-``` erg
+```python
 length[] = 0
 length[_, ...rest] = 1 + lengthrest
 ```
 
 #### record pattern
 
-``` erg
+```python
 {sin; cos; tan; ...} = import "math"
 {*} = import "math" # import all
 
@@ -213,7 +213,7 @@ age = match person:
 
 ### Data class pattern
 
-``` erg
+```python
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
@@ -221,7 +221,7 @@ Point::{x; y} = p
 
 ## Comprehensions
 
-``` erg
+```python
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
@@ -234,7 +234,7 @@ Erg does not support multiple/multilevel inheritance.
 They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and methods as equals.
 Also, it does not involve implementation.
 
-``` erg
+```python
 XY = Trait {x = Int; y = Int}
 Z = Trait {z = Int}
 XYZ = XY and Z
@@ -254,13 +254,13 @@ You can give implementations to classes and traits.
 
 A predicate expression can be type-restricted.
 
-``` erg
+```python
 Nat = {I: Int | I >= 0}
 ```
 
 ## parametric type with value (dependent type)
 
-``` erg
+```python
 a: [Int; 3]
 b: [Int; 4]
 a + b: [Int; 7]

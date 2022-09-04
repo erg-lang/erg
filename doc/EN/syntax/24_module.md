@@ -7,7 +7,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 .i = 1
 ```
 
-``` erg
+```python
 # Defining the foo module is almost the same as defining this record
 foo = {.i = 1}
 ```
@@ -21,7 +21,7 @@ assert foo.i == 1
 
 Since module types are also record types, deconstruction assignment is possible.
 
-``` erg
+```python
 {sin; cos; ...} = import "math"
 ```
 

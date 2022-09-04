@@ -34,7 +34,7 @@ print! L # <kind L>
 `=` 运算符的返回值为“未定义”。
 函数中的多个赋值和 `=` 会导致语法错误。
 
-``` erg
+```python
 i = j = 1 # SyntaxError: 不允许多次赋值
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
 # 提示：您的意思是关键字参数（`x: 1`）吗？
@@ -152,7 +152,7 @@ assert True.then(choice) == 1
 
 展开嵌套集合。它也可以用于模式匹配。
 
-``` erg
+```python
 [x, ...y] = [1, 2, 3]
 assert x == 1 and y == [2, 3]
 assert [x, ...y] == [1, 2, 3]

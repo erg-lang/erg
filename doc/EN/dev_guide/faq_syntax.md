@@ -11,7 +11,7 @@ This is because shared mutable state is prone to bugs and even violates type saf
 
 This is because `<>` and `[]` cause syntax conflicts.
 
-``` erg
+```python
 # version []
 id[T: Type] [t]: [T] = t
 y = id[Int] # is this a function?
@@ -30,7 +30,7 @@ y = id|Int| # OK
 
 This is because Erg is designed so that the type itself can also be treated as a value.
 
-``` erg
+```python
 A = [Int; 3]
 assert A[2] == Int
 T = (Int, Str)
@@ -53,7 +53,7 @@ Because in many cases error handling with the `Result` type is a better solution
 
 In Erg, the `?` operator makes writing error-free.
 
-``` erg
+```python
 read_file!() =
     f = open!("foo.txt")? # Returns an error immediately if it fails, so f is of type File
     f.read_all!()
@@ -84,7 +84,7 @@ However, in Erg, classes are final by default and multiple/multilevel inheritanc
 
 Pointing to structural traits by default complicates typing and can introduce behavior unintended by the programmer.
 
-``` erg
+```python
 # If T is a subtype of a structural trait...
 # f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T.
 f|T| x, y: T = x + y - x

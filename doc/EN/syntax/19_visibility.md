@@ -4,12 +4,12 @@ Erg variables have the concept of __visibility__.
 All the variables we've seen so far are called __private variables__. This is an externally invisible variable.
 For example, a private variable defined in the `foo` module cannot be referenced by another module.
 
-``` erg
+```python
 # foo.er
 x = "this is an invisible variable"
 ```
 
-``` erg
+```python
 #bar.er
 foo = import "foo"
 foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
@@ -18,12 +18,12 @@ foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
 On the other hand, there are also __public variables__, which can be referenced from the outside.
 Public variables are defined with `.`.
 
-``` erg
+```python
 # foo.er
 .x = "this is a visible variable"
 ```
 
-``` erg
+```python
 #bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
@@ -31,7 +31,7 @@ assert foo.x == "this is a visible variable"
 
 You don't need to add anything to private variables, but you can also add `::` or `self::` (`Self::` for types etc.) to indicate that they are private. increase. It can also be `module::` if it is a module.
 
-``` erg
+```python
 ::x = "this is an invisible variable"
 assert ::x == x
 assert self ::x == ::x
@@ -40,7 +40,7 @@ assert module::x == ::x
 
 In the context of purely sequential execution, private variables are almost synonymous with local variables. It can be referenced from the inner scope.
 
-``` erg
+```python
 ::x = "this is a private variable"
 y =
     x + 1 # exactly module::x
@@ -50,7 +50,7 @@ By using `::`, you can distinguish variables with the same name within the scope
 Specify the scope of the variable you want to refer to on the left. Specify `module` for the top level.
 If not specified, the innermost variable is referenced as usual.
 
-``` erg
+```python
 ::x = 0
 assert x == 0
 y =
@@ -66,7 +66,7 @@ y =
 
 In the anonymous subroutine scope, `self` specifies its own scope.
 
-``` erg
+```python
 x = 0
 f = x ->
     log module::x, self::x
@@ -75,7 +75,7 @@ f1# 0 1
 
 `::` is also responsible for accessing private instance attributes.
 
-``` erg
+```python
 x = 0
 C = Class {x = Int}
 C.
@@ -89,12 +89,12 @@ C.
 
 A class defined in one module can actually define methods from an external module.
 
-``` erg
+```python
 # foo.er
 .Foo = Class()
 ```
 
-``` erg
+```python
 #bar.er
 {Foo; ...} = import "foo"
 
@@ -113,7 +113,7 @@ However, both of those methods are only available within that module.
 Private methods defined externally are visible to methods of the `Foo` class only within the defining module.
 Public methods are exposed outside the class, but not outside the module.
 
-``` erg
+```python
 # baz.er
 {Foo; ...} = import "foo"
 
@@ -124,7 +124,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 Also, methods cannot be defined in the type to be re-exported.
 This is to avoid confusion about methods being found or not found depending on the module they are imported from.
 
-``` erg
+```python
 #bar.er
 {.Foo; ...} = import "foo"
 
@@ -136,7 +136,7 @@ Foo.
 
 If you want to do something like this, define a [patch](./type/07_patch.md).
 
-``` erg
+```python
 #bar.er
 {Foo; ...} = import "foo"
 
@@ -147,7 +147,7 @@ Foo Impl.
     public self = self::private()
 ```
 
-``` erg
+```python
 # baz.er
 {Foo; ...} = import "foo"
 {FooImpl; ...} = import "bar"
@@ -161,7 +161,7 @@ foo.public()
 Variable visibility is not limited to complete public/private.
 You can also publish with restrictions.
 
-``` erg
+```python
 # foo.er
 .record = {
     .a = {
@@ -179,7 +179,7 @@ _ = .record.a.y # OK
 _ = .record.a.z # OK
 ```
 
-``` erg
+```python
 foo = import "foo"
 _ = foo.record.a.x # VisibilityError
 _ = foo.record.a.y # VisibilityError

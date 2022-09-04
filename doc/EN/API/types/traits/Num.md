@@ -2,7 +2,7 @@
 
 ## definition
 
-``` erg
+```python
 Num R = Add(R) and Sub(R) and Mul(R) and Eq
 Num = Num Self
 ```

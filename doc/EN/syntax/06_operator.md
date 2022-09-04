@@ -5,7 +5,7 @@ Operators are symbols that represent operations. Operands are things to the (lef
 Operators are a kind of function, and thus are themselves first-class objects that can be bound to variables. When binding, it is necessary to enclose it with ``.
 For `+` (and `-`), there are both unary and binary operators, so `_+_`(binary operation)/`+_`(unary operation ) must be specified.
 
-``` erg
+```python
 add = `+` # SyntaxError: specify `_+_` or `+_`
 add=`_+_`
 assert f(1, 2) == 3
@@ -17,7 +17,7 @@ assert g(1, 2) == 2
 
 Some fundamental operators, called special forms, cannot be bound.
 
-``` erg
+```python
 def = `=` # SyntaxError: cannot bind `=` operator, this is a special form
 # NG: def x, 1
 function = `->` # SyntaxError: cannot bind `->` operator, this is a special form

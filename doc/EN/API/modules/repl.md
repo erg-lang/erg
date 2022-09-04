@@ -18,7 +18,7 @@ View information about an object in a browser. Can be used offline.
 
 Infers a function given its arguments and return value.
 
-``` erg
+```python
 1.guess((1,), 2) # <Int.__add__ method>
 [1, 2].guess((3, 4), [1, 2, 3, 4]) # <Array(T, N).concat method>
 ```

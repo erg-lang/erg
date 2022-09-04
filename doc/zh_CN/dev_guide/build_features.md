@@ -1,19 +1,21 @@
-# `erg` build features
+# `erg` 构建功能
 
-## debug
+## 调试
 
-Enter debug mode. As a result, the behavior inside Erg is sequentially displayed in the log.
-Independent of Rust's `debug_assertions` flag.
+进入调试模式。结果，Erg 内部的行为顺序显示在日志中。
+独立于 Rust 的 `debug_assertions` 标志。
 
 ## japanese
 
-Set the system language to Japanese.
-Erg internal options, help (help, copyright, license, etc.) and error display are guaranteed to be Japanese.
+将系统语言设置为日语。
+Erg 内部选项、帮助（帮助、版权、许可证等）和错误显示为日语。
 
 ## simplified_chinese
 
-Set the system language to Simplified Chinese.
+将系统语言设置为简体中文。
+Erg 内部选项、帮助（帮助、版权、许可证等）和错误显示为简体中文。
 
 ## traditional_chinese
 
-Set the system language to Traditional Chinese.
+将系统语言设置为繁体中文。
+Erg 内部选项、帮助（帮助、版权、许可证等）和错误显示为繁体中文。

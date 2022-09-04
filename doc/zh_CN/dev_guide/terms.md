@@ -1,11 +1,10 @@
-# Glossary
+# 词汇表
 
-## symbol
+## 象征
 
 ### &excl;
 
-A marker added to the end of an identifier to indicate that it is a procedure or variable type.
-Or the mutating operator.
+添加到标识符末尾的标记以指示它是过程，变量类型或变异运算符。
 
 ### [&#35;](../syntax/00_basic.md/# comment)
 
@@ -235,9 +234,9 @@ Or the mutating operator.
 
 ### [Assertion]
 
-To check (typically at runtime) whether a condition is true in code. This is done using the `assert` function, etc.
+检查（通常在运行时）代码中的条件是否为真。 这是使用 `assert` 函数等来完成的。
 
-``` erg
+```python
 sum = !0
 for! 0..10, i =>
     sum.add!i
@@ -245,595 +244,595 @@ for! 0..10, i =>
 assert sum == 55
 ```
 
-### Value Object
+### 值对象
 
-In Erg, equivalent to base object. It can be evaluated at compile time and has a trivial comparison method.
+在 Erg 中，相当于基础对象。 它可以在编译时进行评估，并且具有简单的比较方法。
 
-### [Attachment patch](../syntax/29_decorator.md#attach)
+### [附件补丁](../syntax/29_decorator.md#attach)
 
-A patch that gives the trait a standard implementation.
+为特征提供标准实现的补丁。
 
-### Ad hoc polymorphism -> [No overloading](../syntax/type/overloading.md)
+### Ad hoc 多态性 -> [无重载](../syntax/type/overloading.md)
 
-Polymorphism with so-called overloading.
+具有所谓重载的多态性。
 
-### Attribute -> [attribute]
+### 属性-> [属性]
 
-The `y` part in the `x.y` identifier.
+`x.y` 标识符中的 `y` 部分。
 
 ### Arity
 
-How many operands the operator takes.
+运算符需要多少个操作数。
 
-### [Dependent type](../syntax/type/dependent_type.md)
+### [依赖类型](../syntax/type/dependent_type.md)
 
-A type whose argument is a value (idiomatically, not a type).
+参数是值的类型（习惯上说，不是类型）。
 
-### immutable -> [immutable]
+### 不可变 -> [不可变]
 
-Indicates that the target will not change.
-Variables in other languages ​​are also immutable/mutable, but in Erg all variables are immutable.
+表示目标不会改变。
+其他语言中的变量也是不可变/可变的，但是在 Erg 中所有的变量都是不可变的。
 
-### arguments -> [arguments]
+### 参数 -> [参数]
 
-### instance
+### 实例
 
-An object created by a class. An element of class type.
+由类创建的对象。 类类型的元素。
 
-### [instant block](../syntax/00_basic.md#expression separator)
+### [即时封锁](../syntax/00_basic.md#expression separator)
 
-``` erg
+```python
 x =
     y = f(a)
     z = g(b,c)
     y+z
 ```
 
-### index
+### 指数
 
-of the form `x[i]`, or the `i` part thereof. We call `x` an Indexable object.
+形式为“x[i]”，或其“i”部分。我们称 `x` 为 Indexable 对象。
 
-### [indent](../syntax/00_basic.md#indent)
+### [缩进](../syntax/00_basic.md#indent)
 
-Align text to the right by moving toward spaces. Indentation.
-Ergs represent blocks by indentation. This is called the offside rule.
+通过向空格移动将文本向右对齐。缩进。
+Ergs 通过缩进表示块。这称为越位规则。
 
-### Aliases
+### 别名
 
-Alias.
+别名。
 
-### error
+### 错误
 
-Abnormal conditions defined in the specification.
+规范中定义的异常情况。
 
-* [Error handling]
+* [错误处理]
 
-### [operator](../syntax/06_operator.md)
+### [运算符](../syntax/06_operator.md)
 
-An object that applies an operation to its operands. or a symbol denoting that object.
+将操作应用于其操作数的对象。或表示该对象的符号。
 
-* [operator binding strength]
+* [运算符绑定强度]
 
-### Override
+### 覆盖
 
-Overriding superclass 方法 in subclasses.
-In Erg you have to add `Override` decorator when overriding.
+在子类中覆盖超类方法。
+在 Erg 中，您必须在覆盖时添加 `Override` 装饰器。
 
-### [No overloading](../syntax/type/overloading.md)
+### [不重载](../syntax/type/overloading.md)
 
-### Offside rule -> [indent](../syntax/00_basic.md#indent)
+### 越位规则-> [缩进](../syntax/00_basic.md#indent)
 
-### [object]
+### [目的]
 
-* Object-orientation
+* 面向对象
 
-### operand -> [operand](../syntax/06_operator.md)
+### 操作数 -> [操作数](../syntax/06_operator.md)
 
-### operator -> [operator](../syntax/06_operator.md)
+### 运算符 -> [运算符](../syntax/06_operator.md)
 
-## Ka line
+##嘉线
 
-### [kind](../syntax/type/advanced/kind.md)
+### [种类](../syntax/type/advanced/kind.md)
 
-Types of so-called types.
+所谓类型的类型。
 
-### [visibility]
+### [可见性]
 
-The property of whether an identifier can be referenced externally (out of scope, or in another module or package).
+标识符是否可以被外部引用（超出范围，或在另一个模块或包中）的属性。
 
-### [type]
+### [类型]
 
-An object that groups terms.
+对术语进行分组的对象。
 
-* [type specification]
-* [type erasure](../syntax/type/advanced/erasure.md)
-* [type inference]
-* [type annotation](../syntax/type/conv_type.md)
-* [type argument]
-* [type addition](../syntax/type/advanced/erasure.md)
-* [type variable](../syntax/type/type_variable.md)
-* [type constraint]
+* [类型规格]
+* [类型擦除](../syntax/type/advanced/erasure.md)
+* [类型推断]
+* [类型注释](../syntax/type/conv_type.md)
+* [类型参数]
+* [类型添加](../syntax/type/advanced/erasure.md)
+* [类型变量](../syntax/type/type_variable.md)
+* [类型约束]
 
-### [Guard]
+### 监视
 
-### Encapsulation
+### 封装
 
-Hiding implementation details.
+隐藏实现细节。
 
-### [variable]
+### [多变的]
 
-Must not be immutable.
+不能是一成不变的。
 
-* [mutable object]
-* [variable]
-* [variable reference]
-* [variable array]
-* [variable arguments]
+* [可变对象]
+* [多变的]
+* [变量参考]
+* [变量数组]
+* [可变参数]
 
-### [function](../syntax/04_function.md)
+### [函数](../syntax/04_function.md)
 
-A subroutine with no side effects.
+没有副作用的子程序。
 
-* [Functional programming](../syntax/23_scope.md#Avoiding mutable stateFunctional programming)
+* [函数式编程](../syntax/23_scope.md#避免可变状态函数式编程)
 
-### base type
+### 基本类型
 
-### nominative
+###主格
 
-Distinguish by name rather than by symmetrical structure.
+通过名称而不是对称结构来区分。
 
-* [named type] -> [class](../syntax/type/04_class.md)
-* [Annunciation]
-* [nominal subtype](../syntax/type/05_nst_vs_sst.md)
+* [命名类型] -> [类](../syntax/type/04_class.md)
+* [报喜]
+* [名义子类型](../syntax/type/05_nst_vs_sst.md)
 
-### capture -> [closure]
+### 捕获-> [关闭]
 
-### [covariant]
+### [协变]
 
-In Erg, if `T <: U` then `K(T) <: K(U)` then `K` is said to be covariant.
+在 Erg 中，如果 `T <: U` 则 `K(T) <: K(U)` 则称 `K` 是协变的。
 
-### [keyword arguments]
+### [关键字参数]
 
-`k` in the form of function call `f(k: v)`. You can specify actual arguments by formal argument name instead of by order.
+`k` 以函数调用 `f(k: v)` 的形式出现。您可以通过形式参数名称而不是按顺序指定实际参数。
 
-### empty set -> [{}]
+### 空集 -> [{}]
 
-### section
+### 部分
 
-* [Interval type](../syntax/type/11_interval.md)
-* interval operator
+* [区间类型](../syntax/type/11_interval.md)
+* 区间运算符
 
-### Embedded
+### 嵌入式
 
-Erg standard APIs not implemented in .er files.
+Erg 标准 API 未在 .er 文件中实现。
 
-### [class](../syntax/type/04_class.md)
+### [类](../syntax/type/04_class.md)
 
-Structure/abstract data type with inheritance function. In Erg, it is a type to implement named subtyping and overriding.
-In Erg, modules are the responsibility of module objects, and types are the type object, while other languages ​​may be responsible for modules and types.
+具有继承功能的结构/抽象数据类型。在 Erg 中，它是一种实现命名子类型化和覆盖的类型。
+在 Erg 中，模块是模块对象负责，类型是类型对象，而其他语言可能负责模块和类型。
 
-### [Closure]
+### [关闭]
 
-### [global variables]
+### [全局变量]
 
-### [Clone]
+### [克隆]
 
-### [inheritance](../syntax/type/07_inheritance.md)
+### [继承](../syntax/type/07_inheritance.md)
 
-To define a class that is a 父类et of another class.
-The class that inherits is called the superclass, and the class that inherits is called the subclass.
-A subclass has all the functionality of its superclass.
+定义一个类是另一个类的父类集。
+继承的类称为超类，继承的类称为子类。
+子类具有其超类的所有功能。
 
-### high floor
+### 高楼层
 
-* [higher-order kind](../syntax/type/advanced/kind.md)
-* higher order type
-* Higher-order functions
+* [高阶种类](../syntax/type/advanced/kind.md)
+* 高阶类型
+* 高阶函数
 
-### [public variables]
+### [公共变量]
 
-### [structural subtype]
+### [结构子类型]
 
-### ~~back reference~~ -> [back reference]
+### ~~后向引用~~ -> [后向引用]
 
-### [copy]
+### [复制]
 
-### comment
+### 评论
 
-### [Collection](../syntax/10_array.md)
+### [集合](../syntax/10_array.md)
 
-### Colon -> [:]
+### 冒号 -> [:]
 
-### [constructor](../syntax/type/04_class.md)
+### [构造函数](../syntax/type/04_class.md)
 
-### container
+### 容器
 
-### Compiler
+### 编译器
 
-### [compile-time computation](../syntax/04_function.md#compile-time function)
+### [编译时计算](../syntax/04_function.md#compile-time function)
 
-### comma -> [,]
+### 逗号 -> [,]
 
-## sa line
+## sa线
 
-### recursion
+### 递归
 
-Refer to yourself.
+参考自己。
 
-* recursive
-* [Recursive function](../syntax/04_function.md#Recursive function)
+* 递归
+* [递归函数](../syntax/04_function.md#递归函数)
 
-### subscript -> [index]
+### 下标 -> [索引]
 
-### [subtyping polymorphism](../syntax/type/overloading.md)
+### [子类型多态性](../syntax/type/overloading.md)
 
-Polymorphism with subtyping. Subtyping corresponds to set containment in types.
+具有子类型的多态性。子类型对应于类型中的集合包含。
 
-### Subroutine
+### 子程序
 
-An object that modularizes processing. A generic term for functions, procedures, and 方法 in Erg.
+模块化处理的对象。 Erg 中函数、过程和方法的通用术语。
 
-### [reference](../syntax/18_memory_management.md#borrowed)
+### [参考](../syntax/18_memory_management.md#borrowed)
 
-* reference object
-* [Reference counting (RC)](../syntax/18_memory_management.md#memory management)
-* Reference equality -> [side effect](../syntax/07_side_effect.md)
+* 参考对象
+* [引用计数 (RC)](../syntax/18_memory_management.md#memory management)
+* 引用相等 -> [副作用](../syntax/07_side_effect.md)
 
-### [identifier](../syntax/02_variable.md/# assignment)
+### [标识符](../syntax/02_variable.md/# 赋值)
 
-### signature
+### 签名
 
-* type signature
+* 类型签名
 
 ### [dict](../syntax/11_dict.md)
 
-### [natural number] -> [Nat]
+### 自然数 -> Nat
 
-### Generics -> [Generic]
+### 泛型 -> 泛型
 
-### Generator
+### 发电机
 
-### [projective type]
+### 投影类型
 
-### borrow -> [reference](../syntax/18_memory_management.md#borrowed)
+### 借用-> [参考](../syntax/18_memory_management.md#borrowed)
 
-### [shadowing](../syntax/02_name.md# variables)
+### [阴影](../syntax/02_name.md# variables)
 
-To override a reference to a variable by defining a variable with the same name in an inner scope.
+通过在内部范围内定义具有相同名称的变量来覆盖对变量的引用。
 
 ### kind -> [kind](../syntax/type/advanced/kind.md)
 
-Roughly the type of type.
+大致类型的类型。
 
-### [set] -> [set]
+### set -> set
 
-In Erg, it means a Set object.
+在 Erg 中，它表示一个 Set 对象。
 
-### Predicate
+### 谓词
 
-* [predicate function]
+* 谓词函数
 
-A function that returns a bool type.
+返回布尔类型的函数。
 
-### Conditional branch
+### 条件分支
 
-### [Ownership]
+### 所有权
 
-The concept of object uniqueness.
-If you have ownership of an object, you can take a mutable reference to it.
+对象唯一性的概念。
+如果您拥有对象的所有权，则可以使用 mutable 参考它。
 
-### Boolean -> [Bool]
+###  Boolean -> Bool
 
-### Singleton
+### 单例
 
-An instance created from a class that can create only one instance. A design pattern that ensures that only one instance of a class is created.
+从只能创建一个实例的类创建的实例。一种设计模式，可确保只创建一个类的一个实例。
 
 ### [Symbol] -> [Identifier](../syntax/02_name.md)
 
-* [symbolization]
+* 符号化
 
-### [script](../syntax/00_basic.md# script)
+### [脚本](../syntax/00_basic.md# 脚本)
 
-A file containing an Erg program.
+包含 Erg 程序的文件。
 
-### Scope
+### 范围
 
-Units in variable management. An outer scope cannot refer to a variable that exists in an inner scope.
-Objects with a reference count of 0 are freed when the scope exits.
+变量管理单元。外部作用域不能引用内部作用域中存在的变量。
+当范围退出时，引用计数为 0 的对象将被释放。
 
-### spread operator -> [expansion assignment]
+### 扩展运算符 -> expansion assignment
 
-### [slice](../syntax/10_array.md#slice)
+### [切片](../syntax/10_array.md#slice)
 
-An object representing a subsequence of the array, generated in the form `x[a..b]`.
+表示数组子序列的对象，以 `x[a..b]` 的形式生成。
 
-### control characters
+### 控制字符
 
-### [Integer] -> [Int]
+### 整数 -> Int
 
-A set of natural numbers plus negative numbers.
+一组自然数加上负数。
 
-### [set](../syntax/12_set.md)
+### [设置](../syntax/12_set.md)
 
-### Semicolon -> [;]
+### 分号 -> ;
 
-### [Declaration](../syntax/03_declaration.md)
+### [声明](../syntax/03_declaration.md)
 
-Explicitly type variables.
+显式类型变量。
 
-### Full name
+### 全名
 
-* universal type -> [polymorphic type](../syntax/type/quantified.md)
-  * closed universal
-  * Open Universal
-* universal function -> polycorrelation function
-* universal quantification
+* 通用类型 -> [多态类型](../syntax/type/quantified.md)
+  * 封闭式通用
+  * 打开通用
+* 通用函数 -> 多相关函数
+* 通用量化
 
-### prefix operator
+### 前缀运算符
 
-Operator `∘` applied in the form `∘x`.
+运算符 `∘` 以 `∘x` 的形式应用。
 
-### mutual recursion
+### 相互递归
 
-### subscript -> [index]
+### 下标 -> index
 
-### [attributes]
+### 属性
 
-* [attribute subtype]
+* 属性子类型
 
-## Ta line
+## 塔线
 
-### [algebra](../syntax/02_name.md)
+### [代数](../syntax/02_name.md)
 
-* [algebraic type](../syntax/type/13_algebraic.md)
-* algebraic data types
+* [代数类型](../syntax/type/13_algebraic.md)
+* 代数数据类型
 
-### [assignment](../syntax/02_variable.md/#assignment)
+### [赋值](../syntax/02_variable.md/#assignment)
 
-### Multiple
+＃＃＃ 多
 
-* [Multiple inheritance](../syntax/type/07_inheritance.md/#Prohibition of multiple inheritance)
-* Multiple assignment
-* Overload -> [No overloading]
+* [多重继承](../syntax/type/07_inheritance.md/#禁止多重继承)
+* 多重赋值
+* 重载 -> [不重载]
 
-### Polymorphism
+### 多态性
 
-* [polymorphic type](../syntax/type/quantified.md)
-* polycorrelation coefficient
+* [多态类型](../syntax/type/quantified.md)
+* 多相关系数
 
-### polymorphism -> [polymorphism]
+### 多态性 -> [多态性]
 
-### duck typing
+### 鸭子类型
 
-### [tuple](../syntax/11_tuple.md)
+### [元组](../syntax/11_tuple.md)
 
-### Single-phase
+### 单相
 
-* Single phase
-* Single-phase type
-* Single correlation coefficient
+* 单相
+* 单相型
+* 单相关系数
 
-### [Lazy initialization]
+### [延迟初始化]
 
-### Extraction Assignment
+### 提取分配
 
-### Abstract syntax tree -> [AST]
+### 抽象语法树 -> [AST]
 
-### Infix operator
+### 中缀运算符
 
-The operator `∘` applied in the form `x∘y`.
+运算符 `∘` 以 `x∘y` 的形式应用。
 
-### [constant](../syntax/02_name.md/#constant)
+### [常数](../syntax/02_name.md/#constant)
 
-Immutable, compile-time evaluable algebra.
+不可变的，编译时可评估的代数。
 
-* [constant type](../syntax/type/advanced/const.md)
-* [constant expression](../syntax/type/advanced/const.md)
+* [常量类型](../syntax/type/advanced/const.md)
+* [常量表达式](../syntax/type/advanced/const.md)
 
-### [definition]
+### 定义
 
-Allocating an object corresponding to a variable.
+分配与变量对应的对象。
 
-### Provided Attributes
+### 提供的属性
 
-Attributes available as API. Especially attributes auto-implemented by traits.
+可作为 API 使用的属性。特别是由特征自动实现的属性。
 
-### [Apply]
+＃＃＃ 申请
 
-To pass an argument to a function object and get the evaluation result.
+将参数传递给函数对象并获取评估结果。
 
-### [decorator](../syntax/29_decorator.md)
+### [装饰器](../syntax/29_decorator.md)
 
-``` erg
+``` python
 @deco
 f x = ...
 ```
 
-syntactic sugar, or `deco`. Roughly equal to `_f x = ...; f = deco _f`. `deco` itself is just a higher-order subroutine.
+语法糖，或“装饰”。大致等于`_f x = ...; f = 装饰 _f`。 `deco` 本身只是一个高阶子程序。
 
-### destructor
+### 析构函数
 
-Method called when the object is destroyed.
+对象被销毁时调用的方法。
 
-### procedure -> [procedure](../syntax/08_procedure.md)
+### 程序 -> [procedure](../syntax/08_procedure.md)
 
-A subroutine that reads and writes mutable state.
-It is sometimes said that the execution result of a program can change depending on the order in which the procedures are called, but this is incorrect if we are talking about commutativity.
-For example, operators that are subtypes of functions are generally not commutative.
+读取和写入可变状态的子程序。
+有时会说程序的执行结果可以根据调用过程的顺序而改变，但如果我们谈论交换性，这是不正确的。
+例如，作为函数子类型的运算符通常不可交换。
 
-### [default arguments](../syntax/04_function.md/#default arguments default-parameters)
+### [默认参数](../syntax/04_function.md/#default arguments default-parameters)
 
-A function that allows you to omit the specification of actual arguments at the time of calling by specifying default values ​​for formal arguments.
+通过指定形式参数的默认值，可以在调用时省略实际参数的指定的函数。
 
-### Expand
+＃＃＃ 扩张
 
-* [expansion operator]
-* [expansion assignment]
+* 扩展运算符
+* 扩展分配
 
-### [special format](../syntax/../API/special.md)
+### [特殊格式](../syntax/../API/special.md)
 
-An object that cannot be passed as an actual argument.
+不能作为实际参数传递的对象。
 
-### anonymous function -> [anonymous function](../syntax/20_lambda.md)
+### 匿名函数 -> [anonymous function](../syntax/20_lambda.md)
 
-A function object created by the anonymous function operator `->`. Can be used without defining a name.
+由匿名函数运算符`->`创建的函数对象。可以在不定义名称的情况下使用。
 
-### dot operator (`.`) -> [attribute reference]
+### 点运算符 (`.`) -> attribute reference
 
-### Top
+### 顶部
 
-* Top type -> [Structural Object]
-* Top class -> [Object]
+* 顶部类型 -> [结构对象]
+* 顶级 -> [对象]
 
-### [trait](../syntax/type/03_trait.md)
+### [特征](../syntax/type/03_trait.md)
 
 ## na line
 
-### [Comprehension](../syntax/27_comprehension.md)
+### [理解](../syntax/27_comprehension.md)
 
-### ~~Infix operator~~ -> [Infix operator]
+### ~~中缀运算符~~ -> 中缀运算符
 
-### [namespace]
+### 命名空间
 
-## is a line
+## 是一行
 
-### [Array](../syntax/10_array.md)
+### [数组](../syntax/10_array.md)
 
-### [derived type](../syntax/type/variances.md/# user-defined type variations)
+### [派生类型](../syntax/type/variances.md/# 用户定义的类型变体)
 
-### [pattern (match)](../syntax/26_pattern_matching.md)
+### [模式（匹配）]（../syntax/26_pattern_matching.md）
 
-### [package](../syntax/33_package_system.md)
+### [包](../syntax/33_package_system.md)
 
 ### hashmap -> [dict](../syntax/11_dict.md)
 
-### [patch](../syntax/type/07_patch.md)
+### [补丁](../syntax/type/07_patch.md)
 
-### public variables -> [public variables](../syntax/19_visibility.md)
+### 公共变量-> [public variables](../syntax/19_visibility.md)
 
-### parameter -> [argument](../syntax/04_function.md)
+### 参数 -> [argument](../syntax/04_function.md)
 
-### [Parametric Polymorphism](../syntax/type/overloading.md)
+### [参数多态](../syntax/type/overloading.md)
 
-### [contravariant](../syntax/type/advanced/variance.md)
+### [逆变](../syntax/type/advanced/variance.md)
 
-### Compare
+### 相比
 
-* [comparison operator]
-* [comparable type]
+* 比较运算符
+* 可比类型
 
-### [private variable](../syntax/19_visibility.md)
+### [私有变量](../syntax/19_visibility.md)
 
-### standard
+### 标准
 
-* standard output
-* standard input
-* standard library
+* 标准输出
+* 标准输入
+* 标准库
 
-### [side effects](../syntax/07_side_effect.md)
+### [副作用](../syntax/07_side_effect.md)
 
-Code should/not read/write external mutable state.
+代码应该/不应该读/写外部可变状态。
 
-### complex number -> [Complex]
+### 复数 -> 复数
 
-### [Float] -> [Float]
+### 浮动 -> 浮动
 
-### private variables -> [private variables]
+### 私有变量 -> 私有变量
 
-### Boolean algebra -> [Bool]
+### 布尔代数-> Bool
 
-### [procedure](../syntax/08_procedure.md)
+### [程序](../syntax/08_procedure.md)
 
-### [arguments](../syntax/04_function.md)
+### [参数](../syntax/04_function.md)
 
-### Partial Typing -> [Subtyping]
+### 部分类型 -> Subtyping
 
-### [immutable]
+### [不可变]
 
-In Erg, an object should never change its contents.
+在 Erg 中，一个对象永远不应该改变它的内容。
 
-* [immutable object]
-* [immutable type]
-* [immutable reference]
+* [不可变对象]
+* [不可变类型]
+* [不可变引用]
 
-### [sieve type](../syntax/type/12_refinement.md)
+### [筛子类型](../syntax/type/12_refinement.md)
 
-### [block]
+### [堵塞]
 
-### Destructuring assignment
+### 解构赋值
 
-### [variable](../syntax/02_variable.md)
+### [变量](../syntax/02_variable.md)
 
-### bottom
+### 底部
 
-* bottom type -> [{}]
-* Bottom class -> [Never]
+* 底部类型 -> [{}]
+* 底层 -> [从不]
 
-### [Polymorphism]
+### [多态性]
 
 ## ma line
 
-### ~~ prefix operator ~~ -> prefix operator
+### ~~ 前缀运算符 ~~ -> 前缀运算符
 
-### [marker type](../syntax/type/advanced/marker_trait.md)
+### [标记类型](../syntax/type/advanced/marker_trait.md)
 
-### [anonymous function](../syntax/21_lambda.md)
+### [匿名函数](../syntax/21_lambda.md)
 
-### mutable -> [mutable]
+### 可变 -> [可变]
 
-### [move]
+### [移动]
 
 ### 方法
 
-### Metacharacters
+### 元字符
 
-### [module](../syntax/24_module.md)
+### [模块](../syntax/24_module.md)
 
-### [String] -> [Str]
+### [字符串] -> [字符串]
 
-* [String interpolation](../syntax/01_literal.md/#Str literal)
+* [字符串插值](../syntax/01_literal.md/#Str 字面量)
 
-### Return value
+### 返回值
 
-## or line
+## 或行
 
-### [phantom type](../syntax/type/advanced/phantom.md)
+### [幻像类型](../syntax/type/advanced/phantom.md)
 
-### Request Attributes
+### 请求属性
 
-### [element]
+### [元素]
 
-### [call]
+### [称呼]
 
-## Ra line
+## 拉线
 
-### [Library]
+### [图书馆]
 
-### lambda expression -> [anonymous function](../syntax/20_lambda.md)
+### lambda 表达式 -> [匿名函数](../syntax/20_lambda.md)
 
-### rank
+### 排名
 
-* [rank2 polymorphism](../syntax/type/advanced/rank2type.md)
+* [rank2 多态性](../syntax/type/advanced/rank2type.md)
 
-### [literal](../syntax/01_literal.md)
+### [文字](../syntax/01_literal.md)
 
-* [literal identifier](../syntax/18_naming_rule.md/#literal identifier)
+* [文字标识符](../syntax/18_naming_rule.md/#literal identifier)
 
-### [quantified](../syntax/type/quantified.md)
+### [量化](../syntax/type/quantified.md)
 
-### [Layout](../syntax/type/mut.md)
+### [布局](../syntax/type/mut.md)
 
-### [enum](../syntax/type/10_enum.md)
+### [枚举](../syntax/type/10_enum.md)
 
-### [record](../syntax/12_record.md)
+### [记录](../syntax/12_record.md)
 
-* [record type]
-* Record Polymorphism -> [Column Polymorphism]
+* [记录类型]
+* 记录多态 -> Column Polymorphism
 
-### [column polymorphism]
+### 列多态
 
-### [local variables](../syntax/19_visibility.md)
+### [局部变量](../syntax/19_visibility.md)
 
-## line
+## 线
 
-### Wildcard
+### 通配符

@@ -5,7 +5,7 @@
 By default all types in Erg are immutable, i.e. their internal state cannot be updated.
 But you can of course also define mutable types. Variable types are declared with `!`.
 
-``` erg
+```python
 Person! = Class({name = Str; age = Nat!})
 Person!.
     greet! ref! self = print! "Hello, my name is {self::name}. I am {self::age}."
@@ -19,7 +19,7 @@ Mutable types can define procedural 方法 that rewrite instances, but having pr
 
 Destructive operations on mutable objects are primarily done via the `.update!` method. The `.update!` method is a higher-order procedure that updates `self` by applying the function `f`.
 
-``` erg
+```python
 i = !1
 i.update! old -> old + 1
 assert i == 2
@@ -27,7 +27,7 @@ assert i == 2
 
 The `.set!` method simply discards the old content and replaces it with the new value. .set!x = .update!_ -> x.
 
-``` erg
+```python
 i = !1
 i.set! 2
 assert i == 2
@@ -35,14 +35,14 @@ assert i == 2
 
 The `.freeze_map` method operates on values ​​unchanged.
 
-``` erg
+```python
 a = [1, 2, 3].into [Nat; !3]
 x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(Array)
 ```
 
 In a polymorphic immutable type the type argument `T` of the type is implicitly assumed to be immutable.
 
-``` erg
+```python
 # ImmutType < Type
 KT: ImmutType = Class ...
 K!T: Type = Class ...
@@ -53,7 +53,7 @@ In the standard library, variable `(...)!` types are often based on immutable `(
 Note that there are several types of object mutability.
 Below we will review the immutable/mutable semantics of the built-in collection types.
 
-``` erg
+```python
 # array type
 ## immutable types
 [T; N] # Cannot perform mutable operations
@@ -72,7 +72,7 @@ For variable array types, just add `!` to the part you want to be variable, and 
 
 These array types are syntactic sugar, the actual types are:
 
-``` erg
+```python
 # actually 4 types
 [T; N] = Array(T, N)
 [T; !N] = Array!(T, !N)
@@ -85,7 +85,7 @@ These array types are syntactic sugar, the actual types are:
 
 This is what it means to be able to change the type.
 
-``` erg
+```python
 a = [1, 2, 3].into [!Nat; 3]
 a.map!(_ -> "a")
 a: [!Str; 3]
@@ -93,7 +93,7 @@ a: [!Str; 3]
 
 The same is true for other collection types.
 
-``` erg
+```python
 # tuple type
 ## immutable types
 (T, U) # No change in number of elements, contents cannot be changed
@@ -103,7 +103,7 @@ The same is true for other collection types.
 ...
 ```
 
-``` erg
+```python
 # Set type
 ## immutable types
 {T; N} # number of immutable elements, contents cannot be changed
@@ -114,7 +114,7 @@ The same is true for other collection types.
 ...
 ```
 
-``` erg
+```python
 # Dictionary type
 ## immutable types
 {K: V} # immutable length, contents cannot be changed
@@ -124,7 +124,7 @@ The same is true for other collection types.
 ...
 ```
 
-``` erg
+```python
 # Record type
 ## immutable types
 {x = Int; y = Str} # content cannot be changed
@@ -137,7 +137,7 @@ The same is true for other collection types.
 A type `(...)` that simply becomes `T! = (...)!` when `T = (...)` is called a simple structured type. A simple structured type can also be said (semantically) to be a type that has no internal structure.
 Arrays, tuples, sets, dictionaries, and record types are all non-simple structured types, but Int and Sieve types are.
 
-``` erg
+```python
 # Sieve type
 ## Enums
 {1, 2, 3} # one of 1, 2, 3, cannot be changed

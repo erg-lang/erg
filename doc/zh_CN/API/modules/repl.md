@@ -18,7 +18,7 @@
 
 在给定参数和返回值的情况下推断函数。
 
-``` erg
+```python
 1.guess((1,), 2) # <Int.__add__ method>
 [1, 2].guess((3, 4), [1, 2, 3, 4]) # <Array(T, N).concat method>
 ```

@@ -8,7 +8,7 @@ Also, types such as `Pattern`, `Body`, and `Conv` appear for convenience, but su
 Assign body to pat as a variable. Raise an error if the variable already exists in the same scope or if it doesn't match pat.
 It is also used in record attribute definitions and default arguments.
 
-``` erg
+```python
 record = {i = 1; j = 2}
 f(x: Int, y = 2) = ...
 ```
@@ -16,7 +16,7 @@ f(x: Int, y = 2) = ...
 `=` has special behavior when the body is a type or a function.
 The variable name on the left side is embedded in the object on the right side.
 
-``` erg
+```python
 print! Class() # <class <lambda>>
 print! x: Int -> x + 1 # <function <lambda>>
 C = Class()
@@ -34,7 +34,7 @@ print! L # <kind L>
 The `=` operator has a return value of "undefined".
 Multiple assignments and `=` in functions result in syntax errors.
 
-``` erg
+```python
 i = j = 1 # SyntaxError: multiple assignments are not allowed
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
 # hint: did you mean keyword arguments (`x: 1`)?
@@ -54,14 +54,14 @@ Generate anonymous procedure, procedure type.
 
 Determine if subject matches T. If they don't match, throw a compile error.
 
-``` erg
+```python
 a: Int
 f x: Int, y: Int = x / y
 ```
 
 Also used for `:` applied styles.
 
-``` erg
+```python
 fx:
     y
     z
@@ -69,7 +69,7 @@ fx:
 
 Like `:` and `=`, the result of the operation is undefined.
 
-``` erg
+```python
 _ = x: Int # SyntaxError:
 print!(x: Int) # SyntaxError:
 ```
@@ -91,7 +91,7 @@ Postfix operator. Call `x.unwrap()` and `return` immediately in case of error.
 
 For obj, execute lambdas that match the pattern.
 
-``` erg
+```python
 match[1, 2, 3]:
   (l: Int) -> log "this is type of Int"
   [[a], b] -> log a, b
@@ -103,7 +103,7 @@ match[1, 2, 3]:
 
 Delete the variable `x`. However, built-in objects cannot be deleted.
 
-``` erg
+```python
 a = 1
 del a # OK
 
@@ -123,7 +123,7 @@ Generate an anonymous procedure with no arguments. Syntactic sugar for `() =>`.
 Creates a tuple-like structure of two pairs called Choice objects.
 `l, r` are evaluated lazily. That is, the expression is evaluated only when `.get_then` or `.get_else` is called.
 
-``` erg
+```python
 choice = 1 else 2
 assert choice.get_then() == 1
 assert choice.get_else() == 2
@@ -152,7 +152,7 @@ Generates sieve type, rank 2 type.
 
 Expand a nested collection. It can also be used for pattern matching.
 
-``` erg
+```python
 [x,...y] = [1, 2, 3]
 assert x == 1 and y == [2, 3]
 assert [x, ...y] == [1, 2, 3]

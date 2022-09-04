@@ -25,7 +25,7 @@ In its original meaning,
 * Name: Almost same meaning as identifier. It is sometimes used synonymously with algebra in Erg.
 * Algebra name: equivalent to identifier in Erg. In C, function names are identifiers, not algebraic names. "Algebra" refers to the language feature itself that allows you to assign objects with `=` (variable assignment operator) or `=` (constant assignment operator).
 
-``` erg
+```python
 algebraic name <: (name == identifier) ​​<: symbol
 variable + constant == algebra
 ```

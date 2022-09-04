@@ -34,7 +34,7 @@ Also see [package_system.md](../syntax/33_package_system.md) for the Erg package
 `erg pack init` will generate `package.er` file like below. `package.er` describes the configuration of the package.
 Below is an example of `package.er`.
 
-``` erg
+```python
 name = "example" # package name
 author = "John Smith" # package author name
 version="0.1.0"

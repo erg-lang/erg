@@ -2,7 +2,7 @@
 
 If you want to use a variable as a constant expression, make sure it starts with a capital letter. Two or more letters may be lowercase.
 
-``` erg
+```python
 i: Option Type = Int
 match i:
     t: Type -> log "type"
@@ -12,7 +12,7 @@ match i:
 Objects with side effects always end with `!`. Procedures and procedural methods, and mutable types.
 However, the `Proc` type itself is not mutable.
 
-``` erg
+```python
 # Callable == Func or Proc
 c: Callable = print!
 match c:
@@ -22,7 +22,7 @@ match c:
 
 If you want to expose an attribute to the outside world, define it with `.` at the beginning. If you don't put `.` at the beginning, it will be private. To avoid confusion, they cannot coexist within the same scope.
 
-``` erg
+```python
 o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
 ```
 
@@ -32,7 +32,7 @@ The above rule can be circumvented by enclosing the string in single quotes ('')
 A character string enclosed in single quotes like this is called a literal identifier.
 This is used when calling APIs (FFI) of other languages ​​such as Python.
 
-``` erg
+```python
 bar! = pyimport("foo").'bar'
 ```
 
@@ -40,7 +40,7 @@ Identifiers that are also valid in Erg do not need to be enclosed in ''.
 
 Furthermore, literal identifiers can contain both symbols and spaces, so strings that cannot normally be used as identifiers can be used as identifiers.
 
-``` erg
+```python
 '∂/∂t' y
 'test 1: pass x to y'()
 ```

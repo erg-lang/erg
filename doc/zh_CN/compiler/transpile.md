@@ -11,7 +11,7 @@
 对于 namedtuple，请参阅 [此处](https://docs.python.jp/3/library/collections.html#collections.namedtuple)。
 有一个类似的函数，dataclass，但是由于 `__eq__` 和 `__hash__` 的自动实现，dataclass 的性能略有下降。
 
-``` erg
+```python
 Employee = Class {.name = Str; .id = Int}
 
 employee = Employee.new({.name = "John Smith"; .id = 100})
@@ -43,7 +43,7 @@ assert employee.name == 'John Smith'
 如果没有发生命名空间冲突，它只会被破坏和扩展。
 `x::y` 等名称在字节码中使用，不能与 Python 代码关联，但如果强制表示，则会如下所示。
 
-``` erg
+```python
 x =
     y = 1
     y+1
@@ -56,7 +56,7 @@ x = x::y + 1
 
 万一发生冲突，定义和使用只能在内部引用的函数。
 
-``` erg
+```python
 x =
     y = 1
     y+1
@@ -75,7 +75,7 @@ x = _()
 它对公共变量没有任何作用，因为它是 Python 的默认值。
 私有变量由 mangling 处理。
 
-``` erg
+```python
 x=1
 y =
     x = 2

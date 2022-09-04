@@ -3,7 +3,7 @@
 `Nat` 是零个或多个`Int`，`Int` 的子类型。
 `Nat` 在 Python 类层次结构中不存在。 我想知道 Erg 是如何解决这个补丁方法的？
 
-``` erg
+```python
 1.times do:
     log "hello world"
 ```
@@ -27,7 +27,7 @@ Erg 在 `Int` 的 MRO 中有 `Int`、`Object`。它来自 Python（Python 中的
 Erg 编译器有一个补丁类型的哈希图，其中包含所有提供的方法及其实现。
 每次定义新类型时都会更新此表。
 
-``` erg
+```python
 provided_method_table = {
     ...
     "foo": [Foo],
@@ -58,7 +58,7 @@ provided_method_table = {
 如果两者之间没有包含关系，则会发生编译错误（这是一种安全措施，防止违背程序员的意图执行方法）。
 要消除错误，您需要明确指定补丁。
 
-``` erg
+```python
 o.method(x) -> P.method(o, x)
 ```
 
@@ -66,20 +66,20 @@ o.method(x) -> P.method(o, x)
 
 像这样定义一个补丁：
 
-``` erg
+```python
 FnType T: Type = Patch T -> T
 FnType.type = T
 ```
 
 在 `FnType` 补丁下可以使用如下代码。 我想知道这将如何解决。
 
-``` erg
+```python
 assert (Int -> Int).type == Int
 ```
 
 首先，`FnType(T)` 以下列格式注册到`provided_method_table` 中。
 
-``` erg
+```python
 provided_method_table = {
     ...
     "type": [FnType(T)],
@@ -90,6 +90,6 @@ provided_method_table = {
 `FnType(T)` 检查匹配类型。 在这种情况下，`FnType(T)` 补丁类型是 `Type -> Type`。
 这匹配 `Int -> Int`。 如果合适，进行单态化和替换（取 `T -> T` 和 `Int -> Int`、`{T => Int}` 的差异）。
 
-``` erg
+```python
 assert FnType(Int).type == Int
 ```

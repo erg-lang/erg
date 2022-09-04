@@ -6,7 +6,7 @@ By using the `unit` module, you can avoid mistakes such as passing numbers with 
 Mistakes like this actually occur, and serious bugs such as [Mars probe missing due to wrong unit system](http://www.sydrose.com/case100/287/) can cause it.
 You should use this module if you want your code to be more robust when doing numerical computations.
 
-``` erg
+```python
 {*} = import "unit"
 
 x = 6m # equivalent to `x = Meter.new(6)`
@@ -33,7 +33,7 @@ In addition, the types `Unit1`, `UnitMul`, and `UnitDiv` are defined, which can 
 For example, `UnitDiv(Unit1, Sec)`, because the unit of frequency hertz (hertz) is defined as the reciprocal of the vibration period (seconds).
 If you want to treat this type as a meaningful type (such as adding a dedicated method), you should create a [patch](./../../syntax/type/07_patch.md).
 
-``` erg
+```python
 Hertz = Patch UnitDiv(Unit1, Sec)
 SquareMeter = Patch UnitMul(Meter, Meter)
 ```

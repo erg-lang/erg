@@ -2,7 +2,7 @@
 
 Anonymous functions are a syntax for creating function objects on the fly without naming them.
 
-``` erg
+```python
 # `->` is an anonymous function operator
 # same as `f x, y = x + y`
 f = (x, y) -> x + y
@@ -12,7 +12,7 @@ g = (x, y: Int): Int -> x + y
 
 You can omit the `()` if there is only one argument.
 
-``` erg
+```python
 assert [1, 2, 3].map_collect(i -> i + 1) == [2, 3, 4]
 assert ((i, j) -> [i, j])(1, 2) == [1, 2]
 ```
@@ -20,14 +20,14 @@ assert ((i, j) -> [i, j])(1, 2) == [1, 2]
 In the case below it is `0..9, (i -> ...)` and not `(0..9, i) -> ...`.
 `->` takes only one argument on the left side. Multiple arguments are received as a single tuple.
 
-``` erg
+```python
 for 0..9, i: Int ->
     ...
 ```
 
 In anonymous functions, there is a difference in parsing due to whitespace.
 
-``` erg
+```python
 # In this case, interpreted as `T(() -> Int)`
 i: T() -> Int
 # in this case it is interpreted as (U()) -> Int
@@ -36,7 +36,7 @@ k: U() -> Int
 
 Anonymous functions can be used without arguments.
 
-``` erg
+```python
 # `=>` is an anonymous procedure operator
 p! = () => print! "`p!` was called"
 # `() ->`, `() =>` have syntax sugar `do`, `do!`
@@ -46,7 +46,7 @@ p!() # `p!` was called
 
 No-argument functions can be used for lazy initialization.
 
-``` erg
+```python
 time = import "time"
 date = import "datetime"
 now = if! True:
@@ -59,7 +59,7 @@ now = if! True:
 You can also type and pattern match. Because of this, the `match` function is mostly implemented with the power of anonymous functions.
 Anonymous functions given as arguments to the `match` function are tried in order from the top. So, you should describe the special cases at the top and the more general cases at the bottom. If you get the order wrong, the compiler will issue a warning (if possible).
 
-``` erg
+```python
 n = (Complex or Ratio or Int).sample!()
 i = matchn:
     PI -> PI # if equal to constant PI
@@ -71,7 +71,7 @@ i = matchn:
 
 Error handling is also generally done using `?` or `match`.
 
-``` erg
+```python
 res: ParseResult Int
 matchres:
     i: Int -> i
@@ -85,7 +85,7 @@ match res2:
 
 ## Anonymous polycorrelation coefficient
 
-``` erg
+```python
 # same as id|T| x: T = x
 id = |T| x: T -> x
 ```

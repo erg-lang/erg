@@ -2,7 +2,7 @@
 
 Pipeline operators are used like this:
 
-``` erg
+```python
 assert f(g(x)) == (x |> g |> f)
 assert f(g(x, y)) == ((x, y) |> g |> f)
 ```
@@ -11,7 +11,7 @@ In other words, the order `Callable(object)` can be changed to `object |> Callab
 The pipeline operator can also be used on methods. For methods, `object.method(args)` changes to `object |>.method(args)`.
 It looks like just more `|>`, but since the bond strength is low, you may be able to reduce the amount of `()`.
 
-``` erg
+```python
 rand = -1.0..1.0 |>.sample!()
 log rand # 0.2597...
 

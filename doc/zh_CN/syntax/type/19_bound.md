@@ -9,7 +9,7 @@ Guards are written after the return type.
 You can specify the condition that the variable satisfies with an expression (predicate expression) that returns `Bool`.
 Only [value objects](./08_value.md) and operators can be used. Compile-time functions may be supported in future versions.
 
-``` erg
+```python
 f a: [T; N] | T, N, N > 5 = ...
 g a: [T; N | N > 5] | T, N = ...
 Odd = {I: Int | I % 2 == 1}

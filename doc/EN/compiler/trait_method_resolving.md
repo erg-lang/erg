@@ -3,7 +3,7 @@
 `Nat` is zero or more `Int`, a subtype of `Int`.
 `Nat` does not exist in the Python class hierarchy. I wonder how Erg solves this patch method?
 
-``` erg
+```python
 1.times do:
     log "hello world"
 ```
@@ -27,7 +27,7 @@ But we really only have to think about types with methods, i.e. types with names
 The Erg compiler has a hashmap of patch types with all provided methods and their implementations.
 This table is updated each time a new type is defined.
 
-``` erg
+```python
 provided_method_table = {
     ...
     "foo": [Foo],
@@ -58,7 +58,7 @@ That is, subtype methods are selected.
 If there is no containment relationship between the two, a compile error will occur (this is a safety measure against executing a method against the programmer's intention).
 To eliminate the error, you need to specify the patch explicitly.
 
-``` erg
+```python
 o.method(x) -> P.method(o, x)
 ```
 
@@ -66,20 +66,20 @@ o.method(x) -> P.method(o, x)
 
 Define a patch like this:
 
-``` erg
+```python
 FnType T: Type = Patch T -> T
 FnType.type = T
 ```
 
 Code like the following is possible under the `FnType` patch. I wonder how this will be resolved.
 
-``` erg
+```python
 assert (Int -> Int).type == Int
 ```
 
 First, `FnType(T)` is registered in `provided_method_table` in the following format.
 
-``` erg
+```python
 provided_method_table = {
     ...
     "type": [FnType(T)],
@@ -90,6 +90,6 @@ provided_method_table = {
 `FnType(T)` is checked for matching types. In this case, `FnType(T)` patch type is `Type -> Type`.
 This matches `Int -> Int`. If it fits, do monomorphization and replace (take a diff of `T -> T` and `Int -> Int`, `{T => Int}`).
 
-``` erg
+```python
 assert FnType(Int).type == Int
 ```

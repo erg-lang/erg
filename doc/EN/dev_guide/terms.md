@@ -237,7 +237,7 @@ Or the mutating operator.
 
 To check (typically at runtime) whether a condition is true in code. This is done using the `assert` function, etc.
 
-``` erg
+```python
 sum = !0
 for! 0..10, i =>
     sum.add!i
@@ -282,7 +282,7 @@ An object created by a class. An element of class type.
 
 ### [instant block](../syntax/00_basic.md#expression separator)
 
-``` erg
+```python
 x =
     y = f(a)
     z = g(b,c)
@@ -644,7 +644,7 @@ To pass an argument to a function object and get the evaluation result.
 
 ### [decorator](../syntax/29_decorator.md)
 
-``` erg
+```python
 @deco
 f x = ...
 ```

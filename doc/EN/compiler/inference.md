@@ -4,7 +4,7 @@
 
 The notation used below is shown.
 
-``` erg
+```python
 Free type variables (type, unbound): ?T, ?U, ...
 Free-type variables (values, unbound): ?a, ?b, ...
 type environment (Γ): { x: T, ... }
@@ -14,7 +14,7 @@ Type argument evaluation environment (E): { e -> e', ... }
 
 Let's take the following code as an example.
 
-``` erg
+```python
 v = ![]
 v.push! 1
 print! v
@@ -100,7 +100,7 @@ Type schemes are not usually considered first-class types. Configuring the type 
 
 Now, when using the obtained type scheme (e.g. `'T -> 'T (id's type scheme)`) in type inference where it is used (e.g. `id 1`, `id True`), generalize must be released. This inverse transformation is called __instantiation__. We will call the operation `inst`.
 
-``` erg
+```python
 gen ?T = 'T
 inst 'T = ?T (?T ∉ Γ)
 ```
@@ -114,7 +114,7 @@ In addition, the operation that obtains the return type if the expression is a c
 The type substitution rule `{?T --> X}` means to rewrite `?T` and `X` to be of the same type. This operation is called __Unification__. `X` can also be a type variable.
 A detailed unification algorithm is described in [separate section](./unification.md). We will denote the unify operation as `unify`.
 
-``` erg
+```python
 unify(?T, Int) == Ok(()) # ?T == (Int)
 
 # S is the type assignment rule, T is the applicable type
@@ -132,7 +132,7 @@ Semi-unification occurs, for example, during argument assignment.
 because the type of the actual argument must be a subtype of the type of the formal argument.
 If the argument type is a type variable, we need to update the subtype relation to satisfy it.
 
-``` erg
+```python
 # If the formal parameter type is T
 f(x: T): T = ...
 
@@ -147,7 +147,7 @@ Generalization is not a simple task. When multiple scopes are involved, "level m
 In order to see the necessity of level management, we first confirm that type inference without level management causes problems.
 Infer the type of the following anonymous function.
 
-``` erg
+```python
 x ->
     y = x
     y
@@ -156,7 +156,7 @@ x ->
 First, Erg allocates type variables as follows:
 The type of y is also unknown, but is left unassigned for now.
 
-``` erg
+```python
 x(: ?T) ->
     y = x
     y
@@ -165,7 +165,7 @@ x(: ?T) ->
 The first thing to determine is the type of the rvalue x. An rvalue is a "use", so we reify it.
 But the type `?T` of x is already instantiated because it is a free variable. Yo`?T` becomes the type of the rvalue.
 
-``` erg
+```python
 x(: ?T) ->
     y = x (: inst ?T)
     y
@@ -173,13 +173,13 @@ x(: ?T) ->
 
 Generalize when registering as the type of lvalue y. However, as we will see later, this generalization is imperfect and produces erroneous results.
 
-``` erg
+```python
 x(: ?T) ->
     y(:gen?T) = x(:?T)
     y
 ```
 
-``` erg
+```python
 x(: ?T) ->
     y(: 'T) = x
     y
@@ -187,7 +187,7 @@ x(: ?T) ->
 
 The type of y is now a quantified type variable `'T`. In the next line, `y` is used immediately. Concrete.
 
-``` erg
+```python
 x: ?T ->
     y(: 'T) = x
     y(: inst 'T)
@@ -195,7 +195,7 @@ x: ?T ->
 
 Note that instantiation must create a (free) type variable that is different from any (free) type variables that already exist (generalization is similar). Such type variables are called fresh type variables.
 
-``` erg
+```python
 x: ?T ->
     y = x
     y(: ?U)
@@ -207,7 +207,7 @@ This happened because we didn't "level manage" the type variables.
 
 So we introduce the level of type variables with the following notation. Levels are expressed as natural numbers.
 
-``` erg
+```python
 # normal type variable
 ?T<1>, ?T<2>, ...
 # type variable with subtype constraint
@@ -216,7 +216,7 @@ So we introduce the level of type variables with the following notation. Levels 
 
 Let's try again.
 
-``` erg
+```python
 x ->
     y = x
     y
@@ -225,7 +225,7 @@ x ->
 First, assign a leveled type variable as follows: The toplevel level is 1. As the scope gets deeper, the level increases.
 Function arguments belong to an inner scope, so they are one level higher than the function itself.
 
-``` erg
+```python
 # level 1
 x (: ?T<2>) ->
     # level 2
@@ -235,7 +235,7 @@ x (: ?T<2>) ->
 
 First, instantiate the rvalue `x`. Same as before, nothing changed.
 
-``` erg
+```python
 x (: ?T<2>) ->
     y = x (: inst ?T<2>)
     y
@@ -245,11 +245,11 @@ Here is the key. This is a generalization when assigning to the type of lvalue `
 Earlier, the results were strange here, so we will change the generalization algorithm.
 If the level of the type variable is less than or equal to the level of the current scope, generalization leaves it unchanged.
 
-``` erg
+```python
 gen ?T<n> = if n <= current_level, then= ?T<n>, else= 'T
 ```
 
-``` erg
+```python
 x (: ?T<2>) ->
     # current_level = 2
     y(: gen ?T<2>) = x(: ?T<2>)
@@ -258,7 +258,7 @@ x (: ?T<2>) ->
 
 That is, the lvalue `y` has type `?T<2>`.
 
-``` erg
+```python
 x (: ?T<2>) ->
     # ↓ not generalized
     y(: ?T<2>) = x
@@ -267,13 +267,13 @@ x (: ?T<2>) ->
 
 The type of y is now an unbound type variable `?T<2>`. Concrete with the following lines: but the type of `y` is not generalized, so nothing happens.
 
-``` erg
+```python
 x (: ?T<2>) ->
     y(: ?T<2>) = x
     y (: inst ?T<2>)
 ```
 
-``` erg
+```python
 x (: ?T<2>) ->
     y = x
     y (: ?T<2>)
@@ -283,7 +283,7 @@ We successfully got the correct type `?T<2> -> ?T<2>`.
 
 Let's see another example. This is the more general case, with function/operator application and forward references.
 
-``` erg
+```python
 fx, y = id(x) + y
 id x = x
 
@@ -296,7 +296,7 @@ During the inference of `f`, the later defined function constant `id` is referen
 In such a case, insert a hypothetical declaration of `id` before `f` and assign a free-type variable to it.
 Note that the level of the type variable at this time is `current_level`. This is to avoid generalization within other functions.
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f x (: ?V<2>), y (: ?W<2>) =
     id(x) (: subst_call_ret([inst ?V<2>], inst ?T<1> -> ?U<1>)) + y
@@ -308,7 +308,7 @@ It doesn't matter which one if the level is the same.
 Semiunification between type variables is a little different.
 Type variables at different levels must not impose type constraints on each other.
 
-``` erg
+```python
 # BAD
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2>(<: ?T<1>)
@@ -320,24 +320,24 @@ This makes it impossible to determine where to instantiate the type variable.
 For Type type variables, normal unification is performed instead of semi-unification.
 In other words, unify to the lower level.
 
-``` erg
+```python
 # OK
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2> --> ?T<1>
     id(x) (: ?U<1>) + y (: ?W<2>)
 ```
 
-``` erg
+```python
 f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .AddO)
 ```
 
-``` erg
+```python
 f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.AddO)
 ```
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f x (: ?T<1>), y (: ?W<2>) =
     # ?U<1>(<: Add(?W<2>)) # Inherit the constraints of ?L
@@ -346,26 +346,26 @@ f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x) (: ?U<1>.AddO)
 ```
 
-``` erg
+```python
 # current_level = 1
 f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.AddO) =
     id(x) + x
 ```
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
-``` erg
+```python
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
 When defining, raise the level so that it can be generalized.
 
-``` erg
+```python
 # ?T<1 -> 2>
 # ?U<1 -> 2>
 id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
@@ -373,7 +373,7 @@ id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
 
 If the return type has already been assigned, unify with the resulting type (`?U<2> --> ?T<2>`).
 
-``` erg
+```python
 # ?U<2> --> ?T<2>
 f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
     id(x) + x
@@ -385,13 +385,13 @@ If the type variable has been instantiated into a simple Type variable,
 The type variable that depends on it will also be a Type type variable.
 Generalized type variables are independent for each function.
 
-``` erg
+```python
 f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + x
 id(x) (: |'T: Type| 'T -> gen 'T) = x
 ```
 
-``` erg
+```python
 f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + y
 id(x) (: 'T -> 'T) = x
@@ -399,13 +399,13 @@ id(x) (: 'T -> 'T) = x
 f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .AddO)
 ```
 
-``` erg
+```python
 f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.AddO))
 ```
 
 Type variables are bounded to the smallest type that has an implementation.
 
-``` erg
+```python
 # ?T(:> {10} <: Add(?W<1>))<1>
 # ?W(:> {1})<1>
 # ?W(:> {1})<1> <: ?T<1> (:> {10}, <: Add(?W(:> {1})<1>))
@@ -421,7 +421,7 @@ f(10, 1) (: ({10}, {1}) -> Nat)
 
 The resulting type for the entire program is:
 
-``` erg
+```python
 f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y
 id|T: Type|(x: T): T = x
 
@@ -430,7 +430,7 @@ f(10, 1): Nat
 
 I've also reprinted the original, unexplicitly typed program.
 
-``` erg
+```python
 fx, y = id(x) + y
 id x = x
 

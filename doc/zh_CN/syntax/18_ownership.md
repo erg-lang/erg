@@ -9,7 +9,7 @@ Erg has an ownership system inspired by Rust.
 Rust's ownership system is generally considered esoteric, but Erg's is simplified to be intuitive.
 In Erg, __mutable objects__ are owned and cannot be referenced after ownership is lost.
 
-``` erg
+```python
 v = [1, 2, 3].into [Int; !3]
 
 push! vec, x =
@@ -34,7 +34,7 @@ The duplicated object is exactly the same as the original, but independent of ea
 Duplication is equivalent to Python's deep copy, and since it recreates the same object entirely, the computation and memory costs are generally higher than freezing and borrowing.
 A subroutine that needs to duplicate an object is said to be an "argument consuming" subroutine.
 
-``` erg
+```python
 capitalize s: Str!=
     s. capitalize!()
     s
@@ -51,7 +51,7 @@ This is called freezing. Freezing is used, for example, when creating an iterato
 Since you can't create an iterator directly from a mutable array, convert it to an immutable array.
 If you don't want to destroy the array, use the [`.freeze_map` method](./type/mut.md).
 
-``` erg
+```python
 # Compute the sum of the values ​​produced by the iterator
 sum|T <: Add + HasUnit| i: Iterator T = ...
 
@@ -69,7 +69,7 @@ y # y can still be touched
 Borrowing is cheaper than duplicating or freezing.
 Borrowing can be done in the following simple cases:
 
-``` erg
+```python
 peek_str ref(s: Str!) =
     log s
 
@@ -80,7 +80,7 @@ peek_str s
 A borrowed value is called a __reference__ to the original object.
 You can "sublease" the reference to another subroutine, but you cannot consume it because you are only borrowing it.
 
-``` erg
+```python
 steal_str ref(s: Str!) =
     # Since the log function only borrows the arguments, it can be sub-leased
     log s
@@ -89,7 +89,7 @@ steal_str ref(s: Str!) =
     # hint: use `clone` method
 ```
 
-``` erg
+```python
 steal_str ref(s: Str!) =
     # This is no good either (= consumes the right side)
     x = s # OwnershipError: cannot consume a borrowed value

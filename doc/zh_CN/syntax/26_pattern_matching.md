@@ -4,7 +4,7 @@
 
 ### variable pattern
 
-``` erg
+```python
 # basic assignments
 i = 1
 # with type
@@ -28,7 +28,7 @@ a: Array Int, 4 = [0, 1, 2, 3]
 
 ### Literal patterns
 
-``` erg
+```python
 # Raise a TypeError if `i` cannot be determined to be 1 at compile time.
 # omit `_: {1} = i`
 1 = i
@@ -47,7 +47,7 @@ fibn: Nat = fibn-1 + fibn-2
 
 ### constant pattern
 
-``` erg
+```python
 cond=False
 match! cond:
     True => print! "cond is True"
@@ -64,7 +64,7 @@ name = match num:
 
 ### Sieve pattern
 
-``` erg
+```python
 # these two are the same
 Array(T, N: {N | N >= 3})
 Array(T, N | N >= 3)
@@ -75,7 +75,7 @@ f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
 
 ### discard (wildcard) pattern
 
-``` erg
+```python
 _ = 1
 _: Int = 1
 zero_ = 0
@@ -86,7 +86,7 @@ right(_, r) = r
 
 It is used in combination with the tuple/array/record pattern described later.
 
-``` erg
+```python
 [i,...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
@@ -95,7 +95,7 @@ assert first(1, 2, 3) == 1
 
 ### Tuple pattern
 
-``` erg
+```python
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
 # If not nested, () can be omitted (1, 2 are treated as (1, 2))
@@ -106,7 +106,7 @@ f(x, y) = ...
 
 ### array pattern
 
-``` erg
+```python
 [i, j] = [1, 2]
 [[k, l], _] = [[1, 2], [3, 4]]
 
@@ -116,7 +116,7 @@ length[_, ...rest] = 1 + lengthrest
 
 #### record pattern
 
-``` erg
+```python
 record = {i = 1; j = 2; k = 3}
 {j; ...} = record # i, k will be freed
 
@@ -133,7 +133,7 @@ f {x: Int; y: Int} = ...
 
 ### Data class pattern
 
-``` erg
+```python
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
@@ -156,7 +156,7 @@ List T.
 
 *Actually, it's just an enumeration type
 
-``` erg
+```python
 match x:
     i: {1, 2} -> "one or two: {i}"
     _ -> "other"
@@ -166,7 +166,7 @@ match x:
 
 *Actually, it is just an interval type.
 
-``` erg
+```python
 # 0 < i < 1
 i: 0<..<1 = 0.5
 # 1 < j <= 2

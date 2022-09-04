@@ -9,7 +9,7 @@ Note that `->` itself, which is an anonymous function operator, can also be seen
 
 Also note that a kind that is not an atomic kind is not a type. Just as `-1` is a number but `-` is not, `Option Int` is a type but `Option` is not. `Option` etc. are sometimes called type constructors.
 
-``` erg
+```python
 assert not Option in Type
 assert Option in Type -> Type
 ```
@@ -17,7 +17,7 @@ assert Option in Type -> Type
 So code like the following will result in an error:
 In Erg, 方法 can only be defined in atomic kinds, and the name `self` cannot be used anywhere other than the first argument of a method.
 
-``` erg
+```python
 #K is an unary kind
 K: Type -> Type
 K T = Class...
@@ -32,7 +32,7 @@ Examples of binary or higher kinds are `{T: U}`(: `(Type, Type) -> Type`), `(T, 
 
 There is also a zero-term kind `() -> Type`. This is sometimes equated with an atomic kind in type theory, but is distinguished in Erg. An example is `Class`.
 
-``` erg
+```python
 Nil = Class()
 ```
 
@@ -40,7 +40,7 @@ Nil = Class()
 
 There is also a partial type relation, or rather a partial kind relation, between multinomial kinds.
 
-``` erg
+```python
 K T = ...
 L = Inherit K
 L<: K
@@ -48,7 +48,7 @@ L<: K
 
 That is, for any `T`, if `L T <: K T`, then `L <: K`, and vice versa.
 
-``` erg
+```python
 ∀T. L T <: K T <=> L <: K
 ```
 
@@ -56,7 +56,7 @@ That is, for any `T`, if `L T <: K T`, then `L <: K`, and vice versa.
 
 There is also a higher-order kind. This is a kind of the same concept as a higher-order function, a kind that receives a kind itself. `(Type -> Type) -> Type` is a higher kind. Let's define an object that belongs to a higher kind.
 
-``` erg
+```python
 IntContainerOf K: Type -> Type = K Int
 assert IntContainerOf Option == Option Int
 assert IntContainerOf Result == Result Int
@@ -69,26 +69,26 @@ The bound variables of a polynomial kind are usually denoted as K, L, ..., where
 
 In type theory, there is the concept of a record. This is almost the same as the Erg record [<sup id="f2">2</sup>](#2).
 
-``` erg
+```python
 # This is a record, and it corresponds to what is called a record in type theory
 {x = 1; y = 2}
 ```
 
 When all record values ​​were types, it was a kind of type called a record type.
 
-``` erg
+```python
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
 A record type types a record. A good guesser might have thought that there should be a "record kind" to type the record type. Actually it exists.
 
-``` erg
+```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}
 ```
 
 A type like `{{x = Int; y = Int}}` is a record kind. This is not a special notation. It is simply an enumeration type that has only `{x = Int; y = Int}` as an element.
 
-``` erg
+```python
 Point = {x = Int; y = Int}
 Pointy = {Point}
 ```
@@ -96,7 +96,7 @@ Pointy = {Point}
 An important property of record kind is that if `T: |T|` and `U <: T` then `U: |T|`.
 This is also evident from the fact that enums are actually syntactic sugar for sieve types.
 
-``` erg
+```python
 # {c} == {X: T | X == c} for normal objects, but
 # Equality may not be defined for types, so |T| == {X | X <: T}
 {Point} == {P | P <: Point}
@@ -105,7 +105,7 @@ This is also evident from the fact that enums are actually syntactic sugar for s
 `U <: T` in type constraints is actually syntactic sugar for `U: |T|`.
 A kind that is a set of such types is commonly called a set kind. Setkind also appears in the Iterator pattern.
 
-``` erg
+```python
 Iterable T = Trait {
     .Iterator = {Iterator}
     .iter = Self(T).() -> Self.Iterator T
@@ -114,7 +114,7 @@ Iterable T = Trait {
 
 ## Type inference for polynomial kinds
 
-``` erg
+```python
 Container K: Type -> Type, T: Type = Patch K(T, T)
 Container (K).
     f self = ...

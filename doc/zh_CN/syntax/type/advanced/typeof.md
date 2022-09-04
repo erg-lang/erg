@@ -2,7 +2,7 @@
 
 `Typeof` is a function that can peek into Erg's type inference system, and its behavior is complex.
 
-``` erg
+```python
 assert Typeof(1) == {I: Int | I == 1}
 i: 1..3 or 5..10 = ...
 assert Typeof(i) == {I: Int | (I >= 1 and I <= 3) or (I >= 5 and I <= 10)}
@@ -21,7 +21,7 @@ So for instance `I: C` of class `C = Class T`, `Typeof(I) == T`.
 A value class does not have a corresponding record type. To solve this problem, value classes are supposed to be record types that have a `__valueclass_tag__` attribute.
 Note that you cannot access this attribute, nor can you define a `__valueclass_tag__` attribute on a user-defined type.
 
-``` erg
+```python
 i: Int = ...
 assert Typeof(i) == {__valueclass_tag__ = Phantom Int}
 s: Str = ...
@@ -38,7 +38,7 @@ Erg infers object types as sieve types as much as possible, and when that is not
 All classes can be converted to derived types. This is called __structuring__. The structured type of a class can be obtained with the `Structure` function.
 If a class is defined with `C = Class T` (all classes are defined in this form) then `Structure(C) == T`.
 
-``` erg
+```python
 C = Class {i = Int}
 assert Structure(C) == {i = Int}
 D = Inherit C

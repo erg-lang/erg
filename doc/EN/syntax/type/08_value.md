@@ -2,7 +2,7 @@
 
 Value types are Erg built-in types that can be evaluated at compile time, specifically:
 
-``` erg
+```python
 Value = (
     Int
     or Nat
@@ -23,7 +23,7 @@ Value = (
 
 Value-type objects, constants, and compile-time subroutines applied to them are called __constant expressions__.
 
-``` erg
+```python
 1, 1.0, 1+2im, True, None, "aaa", [1, 2, 3], Fib(12)
 ```
 

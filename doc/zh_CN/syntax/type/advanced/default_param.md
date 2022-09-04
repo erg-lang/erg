@@ -2,7 +2,7 @@
 
 First, let's look at an example of using default arguments.
 
-``` erg
+```python
 f: (Int, Int, z := Int) -> Int
 f(x, y, z := 0) = x + y + z
 
@@ -19,7 +19,7 @@ assert fold(g, [1, 2, 3]) == 8
 Arguments after `:=` are default arguments.
 The subtyping rules are as follows.
 
-``` erg
+```python
 ((X, y := Y) -> Z) <: (X -> Z)
 ((X, y := Y, ...) -> Z) <: ((X, ...) -> Z)
 ```

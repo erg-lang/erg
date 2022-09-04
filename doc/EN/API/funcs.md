@@ -27,7 +27,7 @@ Emoji-capable terminals have a 🚨 prefix.
 
 Throw away `x`. Used when the return value is not used. Unlike `del`, it does not make the variable `x` inaccessible.
 
-``` erg
+```python
 p!x=
     # Let q! return some None or non-() value
     # use `discard` if you don't need it
@@ -56,7 +56,7 @@ The structure type determined at compile time is obtained with `Typeof`.
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
-``` erg
+```python
 rep = repeat 1 # Repeater(1)
 for! rep, i =>
     print!i
@@ -65,7 +65,7 @@ for! rep, i =>
 
 ### dup|T; N|(x: T, N: Nat) -> [T; N]
 
-``` erg
+```python
 [a, b, c] = dup new(), 3
 print! a # <Object object>
 print! a == b # False
@@ -73,7 +73,7 @@ print! a == b # False
 
 ### cycle|T|(it: Iterable T) -> CycleIterator T
 
-``` erg
+```python
 cycle([0, 1]).take 4 # [0, 1, 0, 1]
 cycle("hello").take 3 # "hellohellohello"
 ```
@@ -85,7 +85,7 @@ cycle("hello").take 3 # "hellohellohello"
 Create a new class. Unlike `Inherit`, passing through `Class` is independent of the base type and methods are lost.
 You won't be able to compare, but you can do things like pattern matching.
 
-``` erg
+```python
 C = Class {i = Int}
 NewInt = ClassInt
 Months = Class 1..12
@@ -111,7 +111,7 @@ Create a new trait. Currently, only record types can be specified.
 Returns the argument type. Use `classof` if you want to get the runtime class.
 If you use it for type specification, Warning will appear.
 
-``` erg
+```python
 x: Type of i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

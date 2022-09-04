@@ -3,7 +3,7 @@
 Decorators are used to add or demonstrate a particular state or behavior to a type or function.
 The syntax of the decorator is as follows.
 
-``` erg
+```python
 @deco
 X=...
 ```
@@ -12,7 +12,7 @@ You can have multiple decorators as long as they don't conflict.
 
 A decorator is not a special object, it's just a one-argument function. The decorator is equivalent to the following pseudocode.
 
-``` erg
+```python
 X=...
 X = deco(X)
 ```
@@ -20,7 +20,7 @@ X = deco(X)
 Erg doesn't allow reassignment of variables, so code like the one above won't work.
 For simple variables it's the same as `X = deco(...)`, but for instant blocks and subroutines you can't do that, so you need a decorator.
 
-``` erg
+```python
 @deco
 f x =
     y = ...
@@ -50,7 +50,7 @@ Used when overriding attributes. By default, Erg will throw an error if you try 
 
 Indicates that the argument trait is implemented.
 
-``` erg
+```python
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -71,7 +71,7 @@ C.
 Specifies the attachment patch that comes with the trait by default.
 This allows you to reproduce the same behavior as Rust traits.
 
-``` erg
+```python
 # foo.er
 Add R = Trait {
     .AddO = Type
@@ -88,7 +88,7 @@ AddForOdd.AddO = Even
 
 This will automatically apply the attachment patch when importing traits from other modules.
 
-``` erg
+```python
 # Originally, IntIsBinAdd and OddIsBinAdd should be imported at the same time, but if it's an attachment patch, you can omit it
 {BinAdd; ...} = import "foo"
 
@@ -98,7 +98,7 @@ assert Odd.AddO == Even
 
 Internally it's just attached using the trait's `.attach` method. Conflicts can be removed with the trait's `.detach` method.
 
-``` erg
+```python
 @Attach X
 T = Trait...
 assert X in T. attaches

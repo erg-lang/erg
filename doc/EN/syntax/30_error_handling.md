@@ -30,7 +30,7 @@ except e:
 
 In the above example, it is not possible to tell from this code alone which function raised the exception. Even going back to the function definition, it's hard to tell if the function throws an exception.
 
-``` erg
+```python
 # Erg
 try!:
     do!:
@@ -50,7 +50,7 @@ The benefits of using the `Result` type don't stop there. The `Result` type is a
 
 Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
 
-``` erg
+```python
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -71,7 +71,7 @@ Therefore, in Erg, the `Error` object has an attribute called `.stack`, and repr
 `.stack` is an array of caller objects. Each time an Error object is `returned` (including by `?`) it pushes its calling subroutine onto the `.stack`.
 And if it is `?`ed or `.unwrap`ed in a context where `return` is not possible, it will panic with a traceback.
 
-``` erg
+```python
 f x =
     ...
     y = foo.try_some(x)?
@@ -100,7 +100,7 @@ An unrecoverable error is an error caused by an external factor such as a softwa
 
 Panic is done with the `panic` function.
 
-``` erg
+```python
 panic "something went wrong!"
 ```
 

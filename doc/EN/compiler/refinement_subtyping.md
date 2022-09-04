@@ -2,7 +2,7 @@
 
 The sieve type is the following type.
 
-``` erg
+```python
 {I: Int | I >= 0}
 {S: StrWithLen N | N >= 1}
 {T: (Ratio, Ratio) | T.0 >= 0; T.1 >= 0}

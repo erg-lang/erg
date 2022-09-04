@@ -6,7 +6,7 @@ Erg 数值类型包括 `Nat`、`Int`、`Ratio` 等。但是，这些类型没有
 这样的错误确实会发生，并且会导致诸如[由于错误的单位系统导致火星探测器丢失]（http://www.sydrose.com/case100/287/）之类的严重错误。
 如果您希望代码在进行数值计算时更加健壮，您应该使用此模块。
 
-``` erg
+```python
 {*} = import "unit"
 
 x = 6m # 相当于 `x = Meter.new(6)`
@@ -32,7 +32,7 @@ print! x + 2s # 类型错误: `+`(Meter, Sec) 未实现
 例如`UnitDiv(Unit1, Sec)`，因为频率单位赫兹（hertz）被定义为振动周期（秒）的倒数。
 如果要将此类型视为有意义的类型（例如添加专用方法），则应创建 [patch](./../../syntax/type/07_patch.md)。
 
-``` erg
+```python
 Hertz = Patch UnitDiv(Unit1, Sec)
 SquareMeter = Patch UnitMul(Meter, Meter)
 ```

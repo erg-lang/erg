@@ -1,19 +1,19 @@
-# Development environment
+# 开发环境
 
-## What you need to install
+## 你需要安装什么
 
-* Rust (installed with rustup)
+* Rust（与 rustup 一起安装）
 
-   * ver >= 1.63.0
-   * 2021 edition
+    * 版本 >= 1.63.0
+    * 2021年版
 
-* [pre-commit](https://pre-commit.com/)
+* [预提交](https://pre-commit.com/)
 
-* Python3 interpreter
+* Python3 解释器
 
-## Recommendation
+## 推荐
 
-* Editor: Visual Studio Code
-* VSCode extensions: Rust-analyzer, GitLens, Git Graph, GitHub Pull Requests and Issues, Markdown All in One, markdownlint
-* OS: Windows 10/11 | Ubuntu 20.04/22.04 | Mac OS Monterey
-* Others: pyenv, mold
+* 编辑器：Visual Studio Code
+* VSCode 扩展：Rust-analyzer、GitLens、Git Graph、GitHub Pull Requests and Issues、Markdown All in One、markdownlint
+* 操作系统：Windows 10/11 | Ubuntu 20.04/22.04 | Mac OS Monterey
+* 其他：pyenv、模具

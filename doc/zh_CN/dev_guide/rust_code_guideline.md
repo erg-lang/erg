@@ -1,23 +1,23 @@
-# Guidelines for Rust code
+# Rust 代码指南
 
-## local rules
+## 本地规则
 
-* Use `log!` for output for debugging (use `println!` etc. for output processing that is also necessary for release).
-* Unused or internal variables/方法 (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
+* 使用 `log!` 进行调试输出（使用 `println!` 等进行输出处理，这也是发布所必需的）。
+* 未使用或内部变量/方法（私有且仅用于特定功能）必须以 `_` 为前缀。如果要避免与保留字冲突，请在末尾添加一个`_`。
 
-## Recommended code
+## 推荐代码
 
-* Define and use domain-specific Enums instead of numeric enumerations or bools.
-* Keep access modifiers to a minimum. Prioritize using `pub(mod)` or `pub(crate)` even when publishing.
-* Convert an iterable object in a for expression explicitly to an iterator (`for i in x.iter()` instead of `for i in x`).
-* Lazy evaluation. For example, if `default` is non-literal, use `unwrap_or_else` instead of `unwrap_or`.
+* 定义和使用特定领域的枚举而不是数字枚举或布尔值。
+* 将访问修饰符保持在最低限度。即使在发布时也要优先使用 `pub(mod)` 或 `pub(crate)`。
+* 将 for 表达式中的可迭代对象显式转换为迭代器（`for i in x.iter()` 而不是 `for i in x`）。
+* 懒惰的评价。例如，如果 `default` 不是文字，请使用 `unwrap_or_else` 而不是 `unwrap_or`。
 
-## Code not encouraged
+## 不鼓励使用代码
 
-* Make heavy use of return type overloading. Specifically code that uses a lot of non-obvious `.into`. This is because type inference results can be counter-intuitive. In this case it is recommended to use `from` instead.
-* Make heavy use of `Deref`. This effectively poses the same problem as inheritance.
+* 大量使用返回类型重载。特别是使用大量非显而易见的 `.into` 的代码。这是因为类型推断结果可能违反直觉。在这种情况下，建议使用 `from` 代替。
+* 大量使用 `Deref`。这有效地提出了与继承相同的问题。
 
-## Code that makes decisions based on context
+## 根据上下文做出决策的代码
 
-* Define unused helper 方法.
-* Use `unwrap` and `clone` a lot. In some cases there is nothing better than doing so.
+* 定义未使用的辅助方法。
+* 大量使用 `unwrap` 和 `clone`。在某些情况下，没有什么比这样做更好的了。

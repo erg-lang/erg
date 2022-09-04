@@ -6,7 +6,7 @@ Modules that provide traits representing algebraic structures and patches for th
 
 ## BinOp
 
-``` erg
+```python
 BinOp Op: Kind 2 = Subsume Op(Self, Self.ReturnTypeOf Op), Additional: {
     .ReturnTypeof = TraitType -> Type
 }
@@ -20,7 +20,7 @@ assert Nat.ReturnTypeof(Div) == Positive Ratio
 
 ## SemiGroup
 
-``` erg
+```python
 SemiGroup Op: Kind 2 = Op(Self, Self)
 
 IntIsSemiGroupAdd = Patch Int, Impl=SemiGroupAdd
@@ -30,7 +30,7 @@ Int <: SemiGroup Add
 
 ## Functors
 
-``` erg
+```python
 # * Identity law: x.map(id) == x
 # * Composition law: x.map(f).map(g) == x.map(f.then g)
 Functor = Trait {
@@ -40,7 +40,7 @@ Functor = Trait {
 
 ## Applicative
 
-``` erg
+```python
 # * Identity law: x.app(X.pure(id)) == x
 Applicative = Subsume Functor, Additional: {
     .pure|T: Type| = T -> Self T
@@ -50,7 +50,7 @@ Applicative = Subsume Functor, Additional: {
 
 ## Monad
 
-``` erg
+```python
 Monad = Subsume Applicative, Additional: {
     .bind|T, U: Type| = (Self(T), T -> Self U) -> Self U
 }

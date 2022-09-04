@@ -3,13 +3,13 @@
    A class for efficiently manipulating multidimensional arrays. It also defines operations such as multiplication on multidimensional arrays.
    Matrix, Vector, etc. inherit from this type.
 
-``` erg
+```python
 Tensor.arrange(0..9) #Tensor[10]
 ```
 
 * reshape(self, NewShape: [Nat; M]) -> Self NewShape
 
-``` erg
+```python
 (1..9).into(Tensor).reshape[3, 3]
 ```
 

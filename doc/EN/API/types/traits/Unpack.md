@@ -2,7 +2,7 @@
 
 marker trait. When implemented, elements can be decomposed by pattern matching like records.
 
-``` erg
+```python
 C = Class {i = Int}, Impl = Unpack
 C.new i = Self::new {i;}
 {i} = C.new(1)

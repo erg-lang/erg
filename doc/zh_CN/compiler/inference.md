@@ -4,7 +4,7 @@
 
 显示了下面使用的符号
 
-``` erg
+```python
 Free type variables (type, unbound): ?T, ?U, ...
 Free-type variables (values, unbound): ?a, ?b, ...
 type environment (Γ): { x: T, ... }
@@ -14,7 +14,7 @@ Type argument evaluation environment (E): { e -> e', ... }
 
 我们以下面的代码为例：
 
-``` erg
+```python
 v = ![]
 v.push! 1
 print! v
@@ -100,7 +100,7 @@ pub enum Type {
 
 现在，当在使用它的类型推断（例如，`id 1`，`id True`）中使用获得的类型方案（例如`'T -> 'T（id's type scheme）`）时，必须释放generalize。这种逆变换称为 __instantiation__。我们将调用操作`inst`。
 
-``` erg
+```python
 gen ?T = 'T
 inst 'T = ?T (?T ∉ Γ)
 ```
@@ -114,7 +114,7 @@ inst 'T = ?T (?T ∉ Γ)
 类型替换规则 `{?T --> X}` 意味着将 `?T` 和 `X` 重写为相同类型。 此操作称为 __Unification__。 `X` 也可以是类型变量。
 [单独部分](./unification.md) 中描述了详细的统一算法。 我们将统一操作表示为“统一”。
 
-``` erg
+```python
 unify(?T, Int) == Ok(()) # ?T == (Int)
 
 # S为类型分配规则，T为适用类型
@@ -132,7 +132,7 @@ subst_call_ret([X, Y], (?T, ?U) -> ?U) == Y
 因为实际参数的类型必须是形式参数类型的子类型。
 如果参数类型是类型变量，我们需要更新子类型关系以满足它。
 
-``` erg
+```python
 # 如果形参类型是T
 f(x: T): T = ...
 
@@ -147,7 +147,7 @@ f(a)
 为了看到层级管理的必要性，我们首先确认没有层级管理的类型推断会导致问题。
 推断以下匿名函数的类型。
 
-``` erg
+```python
 x ->
     y = x
     y
@@ -156,7 +156,7 @@ x ->
 首先，Erg 分配类型变量如下：
 y 的类型也是未知的，但暂时未分配。
 
-``` erg
+```python
 x(: ?T) ->
     y = x
     y
@@ -165,7 +165,7 @@ x(: ?T) ->
 首先要确定的是右值 x 的类型。 右值是一种“用途”，因此我们将其具体化。
 但是 x 的类型 `?T` 已经被实例化了，因为它是一个自由变量。 Yo`?T` 成为右值的类型。
 
-``` erg
+```python
 x(: ?T) ->
     y = x (: inst ?T)
     y
@@ -173,13 +173,13 @@ x(: ?T) ->
 
 注册为左值 y 的类型时进行泛化。 然而，正如我们稍后将看到的，这种概括是不完善的，并且会产生错误的结果。
 
-``` erg
+```python
 x(: ?T) ->
     y(:gen?T) = x(:?T)
     y
 ```
 
-``` erg
+```python
 x(: ?T) ->
     y(: 'T) = x
     y
@@ -187,7 +187,7 @@ x(: ?T) ->
 
 y 的类型现在是一个量化类型变量“T”。 在下一行中，立即使用 `y`。 具体的。
 
-``` erg
+```python
 x: ?T ->
     y(: 'T) = x
     y(: inst 'T)
@@ -195,7 +195,7 @@ x: ?T ->
 
 请注意，实例化必须创建一个与任何已经存在的（自由）类型变量不同的（自由）类型变量（概括类似）。 这样的类型变量称为新类型变量。
 
-``` erg
+```python
 x: ?T ->
     y = x
     y(: ?U)
@@ -207,7 +207,7 @@ x: ?T ->
 
 所以我们用下面的符号来介绍类型变量的层次。 级别表示为自然数。
 
-``` erg
+```python
 # 普通类型变量
 ?T<1>, ?T<2>, ...
 # 具有子类型约束的类型变量
@@ -216,7 +216,7 @@ x: ?T ->
 
 让我们再尝试一次：
 
-``` erg
+```python
 x ->
     y = x
     y
@@ -225,7 +225,7 @@ x ->
 首先，按如下方式分配一个 leveled 类型变量： toplevel 级别为 1。随着范围的加深，级别增加。
 函数参数属于内部范围，因此它们比函数本身高一级。
 
-``` erg
+```python
 # level 1
 x (: ?T<2>) ->
     # level 2
@@ -235,7 +235,7 @@ x (: ?T<2>) ->
 
 首先，实例化右值`x`。和以前一样，没有任何改变。
 
-``` erg
+```python
 x (: ?T<2>) ->
     y = x (: inst ?T<2>)
     y
@@ -245,11 +245,11 @@ x (: ?T<2>) ->
 早些时候，这里的结果很奇怪，所以我们将改变泛化算法。
 如果类型变量的级别小于或等于当前范围的级别，则泛化使其保持不变。
 
-``` erg
+```python
 gen ?T<n> = if n <= current_level, then= ?T<n>, else= 'T
 ```
 
-``` erg
+```python
 x (: ?T<2>) ->
     # current_level = 2
     y(: gen ?T<2>) = x(: ?T<2>)
@@ -258,7 +258,7 @@ x (: ?T<2>) ->
 
 That is, the lvalue `y` has type `?T<2>`.
 
-``` erg
+```python
 x (: ?T<2>) ->
     # ↓ 不包括
     y(: ?T<2>) = x
@@ -267,13 +267,13 @@ x (: ?T<2>) ->
 
 y 的类型现在是一个未绑定的类型变量 `?T<2>`。 具体如下几行：但是 `y` 的类型没有被概括，所以什么也没有发生
 
-``` erg
+```python
 x (: ?T<2>) ->
     y(: ?T<2>) = x
     y (: inst ?T<2>)
 ```
 
-``` erg
+```python
 x (: ?T<2>) ->
     y = x
     y (: ?T<2>)
@@ -283,7 +283,7 @@ x (: ?T<2>) ->
 
 让我们看另一个例子。 这是更一般的情况，具有函数/运算符应用程序和前向引用。
 
-``` erg
+```python
 fx, y = id(x) + y
 id x = x
 
@@ -296,7 +296,7 @@ f10,1
 在这种情况下，在 `f` 之前插入一个假设的 `id` 声明，并为其分配一个自由类型变量。
 注意此时类型变量的级别是`current_level`。 这是为了避免在其他函数中泛化。
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f x (: ?V<2>), y (: ?W<2>) =
     id(x) (: subst_call_ret([inst ?V<2>], inst ?T<1> -> ?U<1>)) + y
@@ -308,7 +308,7 @@ f x (: ?V<2>), y (: ?W<2>) =
 类型变量之间的半统一有点不同。
 不同级别的类型变量不得相互施加类型约束。
 
-``` erg
+```python
 # BAD
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2>(<: ?T<1>)
@@ -320,24 +320,24 @@ f x (: ?V<2>), y (: ?W<2>) =
 对于 Type 类型变量，执行正常统一而不是半统一。
 也就是说，统一到下层。
 
-``` erg
+```python
 # OK
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2> --> ?T<1>
     id(x) (: ?U<1>) + y (: ?W<2>)
 ```
 
-``` erg
+```python
 f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .AddO)
 ```
 
-``` erg
+```python
 f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.AddO)
 ```
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f x (: ?T<1>), y (: ?W<2>) =
     # ?U<1>(<: Add(?W<2>)) # Inherit the constraints of ?L
@@ -346,26 +346,26 @@ f x (: ?T<1>), y (: ?W<2>) =
     (id(x) + x) (: ?U<1>.AddO)
 ```
 
-``` erg
+```python
 # current_level = 1
 f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.AddO) =
     id(x) + x
 ```
 
-``` erg
+```python
 id: ?T<1> -> ?U<1>
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
-``` erg
+```python
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
 定义时，提高层次，使其可以泛化。
 
-``` erg
+```python
 # ?T<1 -> 2>
 # ?U<1 -> 2>
 id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
@@ -373,7 +373,7 @@ id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
 
 如果已经分配了返回类型，则与结果类型统一（`?U<2> --> ?T<2>`）。
 
-``` erg
+```python
 # ?U<2> --> ?T<2>
 f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
     id(x) + x
@@ -385,13 +385,13 @@ id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
 依赖于它的类型变量也将是一个 Type 类型变量。
 广义类型变量对于每个函数都是独立的。
 
-``` erg
+```python
 f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + x
 id(x) (: |'T: Type| 'T -> gen 'T) = x
 ```
 
-``` erg
+```python
 f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + y
 id(x) (: 'T -> 'T) = x
@@ -399,13 +399,13 @@ id(x) (: 'T -> 'T) = x
 f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .AddO)
 ```
 
-``` erg
+```python
 f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.AddO))
 ```
 
 类型变量绑定到具有实现的最小类型
 
-``` erg
+```python
 # ?T(:> {10} <: Add(?W<1>))<1>
 # ?W(:> {1})<1>
 # ?W(:> {1})<1> <: ?T<1> (:> {10}, <: Add(?W(:> {1})<1>))
@@ -421,7 +421,7 @@ f(10, 1) (: ({10}, {1}) -> Nat)
 
 整个程序的结果类型是：
 
-``` erg
+```python
 f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y
 id|T: Type|(x: T): T = x
 
@@ -430,7 +430,7 @@ f(10, 1): Nat
 
 我还重印了原始的、未明确键入的程序。
 
-``` erg
+```python
 fx, y = id(x) + y
 id x = x
 

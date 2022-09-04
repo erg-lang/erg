@@ -4,7 +4,7 @@ A type that represents a natural number. Used for array indices and range types.
 
 ## def
 
-``` erg
+```python
 Nat = 0.._
 ```
 
@@ -12,7 +12,7 @@ Nat = 0.._
 
 * times!(self, p: () => NoneType) -> NoneType
 
-``` erg
+```python
 100.times! () =>
      print! "hello!"
 ```

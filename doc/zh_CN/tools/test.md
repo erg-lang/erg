@@ -7,7 +7,7 @@ The erg command has a subcommand called test, which supports test implementation
 Erg tests the `@Test` subroutine in the `tests` directory in the package or in the `*.test.er` file with the `erg test` command.
 `tests` subroutines are in charge of black-box testing (not testing private functions), and `*.test.er` subroutines are in charge of white-box testing (testing private functions as well).
 
-``` erg
+```python
 # tests/test1.er
 {add; ...} = import "foo"
 
@@ -24,12 +24,12 @@ In Erg, `#` and `#[` are comment lines, but `##` and `#[[` are doc comments, and
 Furthermore, the source code in the doc comment is automatically tested with the erg test command if erg is specified.
 Below is an example test.
 
-``` erg
+```python
 VMs =...
     ...
     #[[
     execute commands.
-    ``` erg
+    ```python
     # VM in standard configuration
     {vm1; ...} = import "tests/mock"
 

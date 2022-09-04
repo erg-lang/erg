@@ -49,7 +49,7 @@ This is because `SharedCell! T!` is a shared reference. See [shared references](
 
 A universal type variable can specify its upper and lower bounds.
 
-``` erg
+```python
 |A <: T| K(A)
 |B :> T| K(B)
 ```
@@ -59,14 +59,14 @@ In this case, `T` is also called the upper type for `A` and the lower type for `
 
 Mutation specifications can also overlap.
 
-``` erg
+```python
 # U<A<T
 {... | A<: T; A :> U}
 ```
 
 Here is an example of code that uses a variable specification.
 
-``` erg
+```python
 show|S <: Show| s: S = log s
 
 Nil T = Class(Impl = Phantom T)
@@ -90,7 +90,7 @@ For example, `List Int` can be upcast to `List Object` and `Obj -> Obj` can be u
 
 Now let's consider what happens if we omit the variable specification of the method.
 
-``` erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -109,7 +109,7 @@ Similarly, a cast from `List T` to `List U` is possible subject to the constrain
 Now let's see what happens if we allow this upcast.
 Let's invert the denaturation designation.
 
-``` erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -128,7 +128,7 @@ Mutations of user-defined types are immutable by default. However, you can also 
 If you specify `Inputs(T)`, the type is contravariant with respect to `T`.
 If you specify `Outputs(T)`, the type is covariant with respect to `T`.
 
-``` erg
+```python
 K T = Class(...)
 assert not K(Str) <= K(Object)
 assert not K(Str) >= K(Object)

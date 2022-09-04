@@ -6,7 +6,7 @@
 
 * values_at(self, selectors: [Nat; N]) -> [T; N]
 
-``` erg
+```python
 assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 ```
 
@@ -15,7 +15,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
     If the element is 0, it will be `True` regardless of pred, but a Warning will be issued.
     This specification itself has been adopted by many languages and is required for logical consistency.
 
-    ``` erg
+    ```python
     assert[].all(_ -> False)
     ```
 
@@ -28,7 +28,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 * freq self -> [{T: Nat}]
     Returns the frequency of occurrence of an object.
 
-``` erg
+```python
 assert ["a", "b", "c", "b", "c", "b"].freq() \
 == [{"a", 1}, {"b": 3}, {"c": 2}]
 ```

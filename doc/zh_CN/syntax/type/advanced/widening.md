@@ -2,7 +2,7 @@
 
 For example, define the polycorrelation coefficient as follows.
 
-``` erg
+```python
 ids|T|(x: T, y: T) = x, y
 ```
 
@@ -10,7 +10,7 @@ There's nothing wrong with assigning a pair of instances of the same class.
 When you assign an instance pair of another class that has a containment relationship, it is upcast to the larger one and becomes the same type.
 Also, it is easy to understand that an error will occur if another class that is not in the containment relationship is assigned.
 
-``` erg
+```python
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
 ids(1, "a") #TypeError
@@ -18,7 +18,7 @@ ids(1, "a") #TypeError
 
 Now, what about types that have different derived types?
 
-``` erg
+```python
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # ?
@@ -26,7 +26,7 @@ ids(i, j) # ?
 
 Before explaining this, we have to focus on the fact that Erg's type system doesn't actually look at (runtime) classes.
 
-``` erg
+```python
 1: {__valueclass_tag__ = Phantom Int}
 2: {__valueclass_tag__ = Phantom Int}
 2.0: {__valueclass_tag__ = Phantom Ratio}
@@ -43,7 +43,7 @@ Of course, the class of an object of type `Int` is defined as `Int`, but in this
 Now let's go back to another structured type example. In conclusion, the above code will result in a TypeError as the type does not match.
 However, if you do type expansion with type annotations, compilation will pass.
 
-``` erg
+```python
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # TypeError: types of i and j not matched
@@ -67,7 +67,7 @@ ids<Int or Str or NoneType>(i, j) # OK
 
 Erg defaults to an error if return types do not match.
 
-``` erg
+```python
 parse_to_int s: Str =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
@@ -81,7 +81,7 @@ parse_to_int s: Str =
 
 In order to solve this, it is necessary to explicitly specify the return type as Or type.
 
-``` erg
+```python
 parse_to_int(s: Str): Int or Error =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")

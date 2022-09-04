@@ -2,7 +2,7 @@
 
 `[]` is different from normal 方法.
 
-``` erg
+```python
 a = [!1, !2]
 a[0].inc!()
 assert a == [2, 2]
@@ -13,7 +13,7 @@ The type of `a[0]` here should clearly be `Ref!(Int!)` (the type of `a[0]` depen
 So `[]` is actually part of a special syntax, just like `.`. Unlike Python, it cannot be overloaded.
 It is also not possible to reproduce the behavior of `[]` in a method.
 
-``` erg
+```python
 C = Class {i = Int!}
 C. get(ref self) =
     self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
@@ -33,7 +33,7 @@ own_do! C.new({i = 1}).steal(), i => i.inc!()
 
 Also, `[]` can be disowned, but the element is not shifted.
 
-``` erg
+```python
 a = [!1, !2]
 i = a[0]
 i.inc!()

@@ -2,7 +2,7 @@
 
 ## print!
 
-``` erg
+```python
 print!(x) -> NoneType
 ```
 
@@ -10,7 +10,7 @@ print!(x) -> NoneType
 
 ##debug&excl;
 
-``` erg
+```python
 debug!(x, type = Info) -> NoneType
 ```
 

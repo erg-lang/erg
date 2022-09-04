@@ -9,7 +9,7 @@ A guard clause can be omitted, but a bind clause cannot be omitted, and a guard 
 
 Comprehension example
 
-``` erg
+```python
 # the layout clause is i
 # bind clause is i <- [0, 1, 2]
 assert [i | i <- [0, 1, 2]] == [0, 1, 2]
@@ -36,7 +36,7 @@ For Haskell list comprehensions, the order of variables makes a difference in th
 [(i, j) | j <- [3..5], i <- [1..3]] == [(1,3),(2,3),(3,3),(1 ,4),(2,4),(3,4),(1,5),(2,5),(3,5)]
 ```
 
-``` erg
+```python
 # Erg
 assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1.. <3]
 ```
@@ -53,7 +53,7 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 Similar to comprehensions are sieve types. A sieve type is a type (enumerated type) created in the form `{Name: Type | Predicate}`.
 In the case of the sieve type, only one Name can be specified and the layout cannot be specified (however, multiple values ​​can be handled if it is a tuple type), and the Predicate can be calculated at compile time, that is, only a constant expression can be specified.
 
-``` erg
+```python
 Nat = {I: Int | I >= 0}
 # If the predicate expression is only and, it can be replaced with ;
 # Nat2D = {(I, J): (Int, Int) | I >= 0; J >= 0}
