@@ -1,6 +1,6 @@
-# Objects
+# Object
 
-It is the supertype of all types.
+它是所有类型的超类型
 
 ## methods
 

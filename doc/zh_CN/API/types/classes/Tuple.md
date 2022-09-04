@@ -1,27 +1,27 @@
 # Tuple T: ...Type
 
-A collection that holds objects of multiple types.
+包含多种类型对象的集合
 
 ## methods
 
 * zip self, other
 
-     Composites two ordered collections (arrays or tuples).
+    组合两个有序集合（数组或元组）
 
-     ``` erg
-     assert ([1, 2, 3].zip [4, 5, 6])[0] == (1, 4)
-     ```
+    ```erg
+    assert ([1, 2, 3].zip [4, 5, 6])[0] == (1, 4)
+    ```
 
 * zip_by self, op, other
 
-     A method that generalizes zip. You can specify a binary operation to compose.
-     `()`, `[]`, `{}`, `{:}` can also be specified as operators, and generate tuples, arrays, sets, and dicts respectively.
-
-     ``` erg
-     assert ([1, 2, 3].zip([4, 5, 6]))[0] == (1, 4)
-     assert ([1, 2, 3].zip_by((), [4, 5, 6]))[0] == (1, 4)
-     assert ([1, 2, 3].zip_by([], [4, 5, 6]))[0] == [1, 4]
-     assert ([1, 2, 3].zip_by({}, [4, 5, 6]))[0] == {1, 4}
-     assert ([1, 2, 3].zip_by({:}, [4, 5, 6]))[0] == {1: 4}
-     assert ([1, 2, 3].zip_by(`_+_`, [4, 5, 6]))[0] == 5
-     ```
+    一种泛化 zip 的方法。 您可以指定一个二进制操作来组合
+     `()`、`[]`、`{}`、`{:}` 也可以指定为运算符，分别生成元组、数组、集合和字典
+    
+    ```erg
+    assert ([1, 2, 3].zip([4, 5, 6]))[0] == (1, 4)
+    assert ([1, 2, 3].zip_by((),  [4, 5, 6]))[0] == (1, 4)
+    assert ([1, 2, 3].zip_by([],  [4, 5, 6]))[0] == [1, 4]
+    assert ([1, 2, 3].zip_by({},  [4, 5, 6]))[0] == {1, 4}
+    assert ([1, 2, 3].zip_by({:},  [4, 5, 6]))[0] == {1: 4}
+    assert ([1, 2, 3].zip_by(`_+_`, [4, 5, 6]))[0] == 5
+    ```

@@ -1,13 +1,13 @@
 # Unpack
 
-marker trait. When implemented, elements can be decomposed by pattern matching like records.
+标记性状。实现时，元素可以像记录一样通过模式匹配来分解
 
-``` erg
-C = Class {i = Int}, Impl = Unpack
+```erg
+C = Class {i = Int}, Impl=Unpack
 C.new i = Self::new {i;}
 {i} = C.new(1)
 D = Class C or Int
 log match D.new(1):
-     (i: Int) -> i
-     ({i}: C) -> i
+    (i: Int) -> i
+    ({i}: C) -> i
 ```

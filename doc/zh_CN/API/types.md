@@ -1,90 +1,90 @@
-# List of built-in Erg types
+# 内置 Erg 类型列表
 
-Attributes of the type itself are not stored in the `.__dict__` and cannot be referenced from the instance
+类型本身的属性不存储在 `.__dict__` 中，不能从实例中引用
 
-## Fundamental types
+## 基本类型
 
-### Objects
+### 对象
 
-* `__dir__`: Returns the attributes of the object as an array (dir function)
-* `__getattribute__`: get and return an attribute
-* `__hash__`: returns the hash value of the object
-* `__repr__`: string representation of the object (not rich/default implementation exists)
-* `__sizeof__`: returns the size of the object (including the size allocated in the heap)
+* `__dir__`：将对象的属性作为数组返回（dir函数）
+* `__getattribute__`: 获取并返回一个属性
+* `__hash__`：返回对象的哈希值
+* `__repr__`：对象的字符串表示（不存在丰富/默认实现）
+* `__sizeof__`：返回对象的大小（包括在堆中分配的大小）
 
-### Show
+### 显示
 
-* `__str__`: returns the string representation (rich) of the object
+* `__str__`：返回对象的字符串表示（丰富）
 
-###Fmt
+### Fmt
 
-* `__format__`: Returns a formatted string
+* `__format__`: 返回一个格式化的字符串
 
-### Doc
+### 文档
 
-* `__doc__`: object description
+* `__doc__`：对象描述
 
-### Named
+### 命名
 
-* `__name__`: the name of the object
+* `__name__`: 对象的名称
 
-### Pickles
+### 泡菜
 
-* `__reduce__`: Serialize objects with Pickle
-* `__reduce_ex__`: __reduce__ that allows you to specify the protocol version
+* `__reduce__`: 用 Pickle 序列化对象
+* `__reduce_ex__`: __reduce__ 允许你指定协议版本
 
-## Object system
+## 对象系统
 
-Trait class is equivalent to ABC (abstract base class, interface) in Python
-Instance belongs to 1, True, "aaa", etc.
-Class is Int, Bool, Str, etc.
+Trait 类相当于 Python 中的 ABC（抽象基类，接口）
+实例属于1、True、“aaa”等。
+类是 Int、Bool、Str 等。
 
-### Type
+### 类型
 
-* `__supers__`: Supertypes (`__mro__` is an array, but this one is a Set)
+* `__supers__`：超类型（`__mro__` 是一个数组，但这个是一个 Set）
 * `__basicsize__`:
-* `__dictoffset__`: not supported by Evm
+* `__dictoffset__`：Evm 不支持
 * `__flags__`:
-* `__itemsize__`: Size of instance (0 if not Class)
-* `__weakrefoffset__`: not supported by Evm
-* `__membercheck__`: equivalent to `ismember(x, T)`
-* `__subtypecheck__`: Equivalent to `issubtype(U, T)`, with alias `__subclasshook__` (compatible with CPython)
+* `__itemsize__`：实例的大小（如果不是类，则为 0）
+* `__weakrefoffset__`：Evm 不支持
+* `__membercheck__`: 相当于`ismember(x, T)`
+* `__subtypecheck__`：等价于`issubtype(U, T)`，别名`__subclasshook__`（兼容CPython）
 
-### Instances
+### 实例
 
-* `__class__`: Returns the class from which the instance was created (automatically attached to objects created with `.new`)
+* `__class__`：返回创建实例的类（自动附加到使用 `.new` 创建的对象）
 
 ### Class
 
-* `__mro__`: Type array for method resolution (includes itself, always ends with Object)
-* `__base__`: base type (`__mro__[1]` if there are multiple)
-* `__new__`: instantiate
-* `__init__`: Initialize the instance
-* `__init_subclass__`: Initialize the instance
-* `__intstancecheck__`: use like `MyClass.__instancecheck__(x)`, equivalent to `isinstance(x, MyClass)`
-* `__subclasscheck__`: equivalent to `issubclass(C, MyClass)`
+* `__mro__`：用于方法解析的类型数组（包括自身，始终以 Object 结尾）
+* `__base__`：基本类型（`__mro__[1]` 如果有多个）
+* `__new__`: 实例化
+* `__init__`: 初始化实例
+* `__init_subclass__`: 初始化实例
+* `__intstancecheck__`：使用类似于 `MyClass.__instancecheck__(x)`，等价于 `isinstance(x, MyClass)`
+* `__subclasscheck__`：等价于 `issubclass(C, MyClass)`
 
-## operator
+## 运算符
 
-Operators other than those specified here have no special types
+此处指定以外的运算符没有特殊类型
 
-### Eq
+### 方程
 
-* `__eq__(self, rhs: Self) -> Bool`: object comparison function (==)
-* `__ne__`: object comparison function (!=), with default implementation
+* `__eq__(self, rhs: Self) -> Bool`: 对象比较函数 (==)
+* `__ne__`: 对象比较函数 (!=)，默认实现
 
-### Ord
+### 秩序
 
-* `__lt__(self, rhs: Self) -> Bool`: Object comparison function (<)
-* `__le__`: object comparison function (<=), with default implementation
-* `__gt__`: object comparison function (>), with default implementation
-* `__ge__`: object comparison function (>=), with default implementation
+* `__lt__(self, rhs: Self) -> Bool`: 对象比较函数 (<)
+* `__le__`：对象比较函数（<=），默认实现
+* `__gt__`：对象比较函数（>），默认实现
+* `__ge__`：对象比较函数（>=），默认实现
 
-### Bin Add
+### BinAdd
 
-* Implements `__add__(self, rhs: Self) -> Self`: `+`
+* 实现 `__add__(self, rhs: Self) -> Self`: `+`
 
-### Add R
+### 添加R
 
 * `__add__(self, rhs: R) -> Self.AddO`
 
@@ -98,93 +98,93 @@ Operators other than those specified here have no special types
 
 ### BinMul <: Mul Self
 
-* `__pow__`: implements `**` (with default implementation)
+* `__pow__`：实现 `**`（默认实现）
 
 ### Div R, O
 
-* Implements `__div__(self, rhs: Self) -> Self`: `/`, may panic due to 0
+* 实现 `__div__(self, rhs: Self) -> Self`: `/`，可能会因为 0 而恐慌
 
 ### BinDiv <: Div Self
 
-* `__mod__`: implement `%` (with default implementation)
+* `__mod__`: 实现 `%` (默认实现)
 
-## numeric type
+## 数值型
 
 ### Num (= Add and Sub and Mul and Eq)
 
-As an example other than Complex, Vector, Matrix, and Tensor are Num (* in Matrix and Tensor are the same as dot and product, respectively)
+例如，除了Complex，Vector、Matrix和Tensor都是Num（Matrix和Tensor中的*分别与dot和product相同）
 
 ### Complex (= Inherit(Object, Impl := Num))
 
-* `imag: Ratio`: returns the imaginary part
-* `real: Ratio`: returns the real part
-* `conjugate self -> Complex`: returns the complex conjugate
+* `imag: Ratio`：返回虚部
+* `real: Ratio`：返回实部
+* `conjugate self -> Complex`：返回复共轭
 
 ### Float (= Inherit(FloatComplex, Impl := Num))
 
 ### Ratio (= Inherit(Complex, Impl := Num))
 
-* `numerator: Int`: returns the numerator
-* `denominator: Int`: Returns the denominator
+* `numerator: Int`: 返回分子
+* `denominator: Int`: 返回分母
 
 ### Int (= Inherit Ratio)
 
 ### Nat (= Inherit Int)
 
-* `times!`: run the proc self times
+* `times!`: 运行 proc self 时间
 
-## Other basic types
+## 其他基本类型
 
-### Bool
+### 布尔值
 
 * `__and__`:
 * `__or__`:
 * `not`:
 
-## Str (<: Seq)
+## 字符串 (<: 序列)
 
 * `capitalize`
-* `chomp`: remove newline characters
+* `chomp`: 删除换行符
 * `isalnum`:
 * `isascii`:
 * `isalpha`:
 * `isdecimal`:
-* `is sight`:
-* `is identifier`
-*`islower`
-* `is numeric`
+* `isdight`:
+* `isidentifier`
+* `islower`
+* `isnumeric`
 * `isprintable`
 * `isspace`
-* `is title`
+* `istitle`
 * `isupper`
-*`lower`
+* `lower`
 * `swapcase`
 * `title`
 * `upper`
 
-## others
+＃＃ 其他
 
-### Bits
+### 位
 
-* `from_bytes`: Convert from Bytes
-* `to_bytes`: Convert to Bytes (specify length and endian (byteorder))
-* `bit_length`: returns bit length
+* `from_bytes`：从字节转换
+* `to_bytes`：转换为字节（指定长度和字节序（字节序））
+* `bit_length`：返回位长度
 
-### Iterable T
+### 可迭代 T
 
-Note that it is not the type of `Iterator` itself. `Nat` is `Iterable` but you can't `Nat.next()`, you need to `Nat.iter().next()`.
+请注意，它不是 `Iterator` 本身的类型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`。
 
-* `iter`: Create an Iterator.
+* `iter`：创建一个迭代器。
 
-### Iterator T
+### 迭代器 T
 
-Nat and Range have Iterators, so `Nat.iter().map n -> n**2`, `(3..10).iter().fold (sum, n) -> sum + n*2` etc. are possible.
-Since all and any are destroyed after use, there are no side effects. These are supposed to be implemented using `next` which has no side effects, but internally `Iterator!.next!` is used for execution efficiency.
+Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().fold (sum, n) -> sum + n*2`等是可能的。
+由于所有和任何在使用后都会被破坏，因此没有副作用。这些应该使用没有副作用的 `next` 来实现，但内部使用 `Iterator!.next!` 来提高执行效率。
 
-* `next`: Returns the first element and the remaining Iterator.
-*`all`
-*`any`
-*`filter`
+* `next`：返回第一个元素和剩余的迭代器。
+* `all`
+* `any`
+* `filter`
 * `filter_map`
 * `find`
 * `find_map`
@@ -192,21 +192,21 @@ Since all and any are destroyed after use, there are no side effects. These are 
 * `flatten`
 * `fold`
 * `for_each`
-*`map`
+* `map`
 * `map_while`
 * `nth`
-*`pos`
+* `pos`
 * `take`
 * `unzip`
-*`zip`
+* `zip`
 
-### Iterator!T = IteratorT and ...
+### Iterator!T = IteratorT 和 ...
 
-* `next!`: Get the first element.
+* `next!`：获取第一个元素。
 
-## SizedIterator T = Iterator T and ...
+## SizedIterator T = 迭代器 T 和 ...
 
-An Iterator over a finite number of elements.
+有限数量元素的迭代器。
 
 * `len`:
 * `chain`:
@@ -221,42 +221,42 @@ An Iterator over a finite number of elements.
 * `max`:
 * `min`:
 
-## Seq T = SizedIterable T and ...
+## Seq T = SizedIterable T 和 ...
 
-* `concat`: Combine two Seqs
-* `__getitem__`: Equivalent to accessing with `[]` (otherwise panics)
-* Unlike `get`: __getitem__, it returns Option
-* `maketrans`: Create a replacement table (static method)
-* `replace`: replace
-* `translate`: replace according to the replacement table
-* `insert`: Add to idx
-* `remove`: remove idx
-* `prepend`: prepend
-* `dequeue`: remove the head
-* `push`: added to the end
-* `pop`: take the tail
-* `dedup`: remove consecutive values
-* `uniq`: Remove duplicate elements (implemented by sort |> dedup, so order may change)
-* `swap`: Swap elements
-* `reverse`: reverse elements
-* `sort`: sort elements
+* `concat`: 合并两个 Seq
+* `__getitem__`：等同于使用 `[]` 访问（否则会出现恐慌）
+* 与 `get`: __getitem__ 不同，它返回 Option
+* `maketrans`：创建替换表（静态方法）
+* `replace`: 替换
+* `translate`：根据替换表替换
+* `insert`: 添加到 idx
+* `remove`: 删除 idx
+* `prepend`: 前置
+* `dequeue`: 移除头部
+* `push`：添加到末尾
+* `pop`: 取尾巴
+* `dedup`：删除连续值
+* `uniq`：删除重复元素（通过 sort |> dedup 实现，因此顺序可能会改变）
+* `swap`：交换元素
+* `reverse`：反转元素
+* `sort`: 排序元素
 * `first`:
 * `last`:
 
-### Seq! T (= Seq T and ...)
+### Seq!T (= Seq T and ...)
 
 * `__setitem__!`:
 * `__delitem__!`:
-* `insert!`: Add to idx
-* `remove!`: remove idx
-* `prepend!`: prepend
-* `dequeue!`: remove the beginning
-* `push!`: added to the end
-* `pop!`: take the tail
-* `dedup!`: remove consecutive values
-* `uniq!`: Remove duplicate elements (implemented by sort! |> dedup!, so order may change)
-* `swap!`: swap elements
-* `reverse!`: reverse the element
+* `插入！`：添加到 idx
+* `remove!`: 删除 idx
+* `prepend!`：前置
+* `dequeue!`: 删除开头
+* `push!`：添加到末尾
+* `pop!`：拿尾巴
+* `dedup!`：删除连续值
+* `uniq!`: 删除重复元素（通过排序实现！|> dedup!，因此顺序可能会改变）
+* `swap!`：交换元素
+* `reverse!`：反转元素
 * `set!`
-* `sort!`: sort elements
+* `sort!`: 排序元素
 * `translate!`

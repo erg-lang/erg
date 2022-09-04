@@ -1,3 +1,3 @@
-# StrWithLen!N: Nat! = Inherit StrWithLenN
+# StrWithLen! N: Nat! = Inherit StrWithLen N
 
-A type that represents a variable-length string.
+表示可变长度字符串的类型

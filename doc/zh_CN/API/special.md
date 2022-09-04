@@ -1,109 +1,109 @@
-# Special form
+# 特殊形式
 
-Special forms are operators, subroutines (and the like) that cannot be expressed in the Erg type system. It is surrounded by ``, but it cannot actually be captured.
-Also, types such as `Pattern`, `Body`, and `Conv` appear for convenience, but such types do not exist. Its meaning also depends on the context.
+特殊形式是不能在 Erg 类型系统中表达的运算符、子程序（等等）。它被`包围，但实际上无法捕获。
+此外，为方便起见，还出现了“Pattern”、“Body”和“Conv”等类型，但不存在此类类型。它的含义也取决于上下文。
 
 ## `=`(pat: Pattern, body: Body) -> NoneType
 
-Assign body to pat as a variable. Raise an error if the variable already exists in the same scope or if it doesn't match pat.
-It is also used in record attribute definitions and default arguments.
+将 body 分配给 pat 作为变量。如果变量已存在于同一范围内或与 pat 不匹配，则引发错误。
+它还用于记录属性定义和默认参数。
 
-``` erg
+```erg
 record = {i = 1; j = 2}
 f(x: Int, y = 2) = ...
 ```
 
-`=` has special behavior when the body is a type or a function.
-The variable name on the left side is embedded in the object on the right side.
+当主体是类型或函数时，`=` 具有特殊行为。
+左侧的变量名嵌入到右侧的对象中。
 
-``` erg
+```erg
 print! Class() # <class <lambda>>
 print! x: Int -> x + 1 # <function <lambda>>
 C = Class()
 print! c # <class C>
 f = x: Int -> x + 1
 print! f # <function f>
-gx: Int = x + 1
+g x: Int = x + 1
 print! g # <function g>
-KX: Int = Class(...)
+K X: Int = Class(...)
 print! K # <kind K>
 L = X: Int -> Class(...)
 print! L # <kind L>
 ```
 
-The `=` operator has a return value of "undefined".
-Multiple assignments and `=` in functions result in syntax errors.
+`=` 运算符的返回值为“未定义”。
+函数中的多个赋值和 `=` 会导致语法错误。
 
-``` erg
-i = j = 1 # SyntaxError: multiple assignments are not allowed
+``` 呃
+i = j = 1 # SyntaxError: 不允许多次赋值
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
-# hint: did you mean keyword arguments (`x: 1`)?
+# 提示：您的意思是关键字参数（`x: 1`）吗？
 if True, do:
-    i = 0 # SyntaxError: A block cannot be terminated by an assignment expression
+    i = 0 # SyntaxError: 块不能被赋值表达式终止
 ```
 
 ## `->`(pat: Pattern, body: Body) -> Func
 
-Generate anonymous functions, function types.
+生成匿名函数，函数类型。
 
 ## `=>`(pat: Pattern, body: Body) -> Proc
 
-Generate anonymous procedure, procedure type.
+生成匿名过程，过程类型。
 
 ## `:`(subject, T)
 
-Determine if subject matches T. If they don't match, throw a compile error.
+确定主题是否与 T 匹配。如果它们不匹配，则抛出编译错误。
 
-``` erg
+```erg
 a: Int
 f x: Int, y: Int = x / y
 ```
 
-Also used for `:` applied styles.
+也用于 `:` 应用样式。
 
-``` erg
-fx:
+```erg
+f x:
     y
     z
 ```
 
-Like `:` and `=`, the result of the operation is undefined.
+像`:`和`=`一样，运算的结果是不确定的。
 
-``` erg
-_ = x: Int # SyntaxError:
-print!(x: Int) # SyntaxError:
+```erg
+_ = x: Int # 语法错误：
+print!(x: Int) # 语法错误：
 ```
 
 ## `.`(obj, attr)
 
-Read attributes of obj.
-`x.[y, z]` will return the y and z attributes of x as an array.
+读取obj的属性。
+`x.[y, z]` 将 x 的 y 和 z 属性作为数组返回。
 
 ## `|>`(obj, c: Callable)
 
-Execute `c(obj)`. `x + y |>.foo()` is the same as `(x + y).foo()`.
+执行`c(obj)`。 `x + y |>.foo()` 与 `(x + y).foo()` 相同。
 
-### (x: Option T)`?` -> T | T
+### (x: Option T)`?` -> T | T 
 
-Postfix operator. Call `x.unwrap()` and `return` immediately in case of error.
+后缀运算符。如果出现错误，请立即调用 `x.unwrap()` 和 `return`。
 
 ## match(obj, ...lambdas: Lambda)
 
-For obj, execute lambdas that match the pattern.
+对于 obj，执行与模式匹配的 lambda。
 
-``` erg
-match[1, 2, 3]:
+```erg
+match [1, 2, 3]:
   (l: Int) -> log "this is type of Int"
   [[a], b] -> log a, b
   [...a] -> log a
-# (one two three)
+# (1, 2, 3)
 ```
 
 ## del(x: ...T) -> NoneType | T
 
-Delete the variable `x`. However, built-in objects cannot be deleted.
+删除变量“x”。但是，无法删除内置对象。
 
-``` erg
+```erg
 a = 1
 del a # OK
 
@@ -112,48 +112,48 @@ del True # SyntaxError: cannot delete a built-in object
 
 ## do(body: Body) -> Func
 
-Generate an anonymous function with no arguments. Syntactic sugar for `() ->`.
+生成一个不带参数的匿名函数。 `() ->` 的语法糖。
 
 ## do!(body: Body) -> Proc
 
-Generate an anonymous procedure with no arguments. Syntactic sugar for `() =>`.
+生成不带参数的匿名过程。 `() =>` 的语法糖。
 
 ## `else`(l, r) -> Choice
 
-Creates a tuple-like structure of two pairs called Choice objects.
-`l, r` are evaluated lazily. That is, the expression is evaluated only when `.get_then` or `.get_else` is called.
+创建一个由两对组成的类元组结构，称为 Choice 对象。
+`l, r` 被懒惰地评估。也就是说，只有在调用 .get_then 或 .get_else 时才会计算表达式。
 
-``` erg
+```erg
 choice = 1 else 2
 assert choice.get_then() == 1
 assert choice.get_else() == 2
 assert True.then(choice) == 1
 ```
 
-## set operator
+## 集合运算符
 
 ### `[]`(...objs)
 
-Creates an array from arguments or a dict from optional arguments.
+从参数创建一个数组或从可选参数创建一个字典。
 
 ### `{}`(...objs)
 
-Create a set from arguments.
+从参数创建一个集合。
 
 ### `{}`(...fields: ((Field, Value); N))
 
-Generate a record.
+生成记录。
 
 ### `{}`(layout, ...names, ...preds)
 
-Generates sieve type, rank 2 type.
+生成筛型，等级2型。
 
 ### `...`
 
-Expand a nested collection. It can also be used for pattern matching.
+展开嵌套集合。它也可以用于模式匹配。
 
 ``` erg
-[x,...y] = [1, 2, 3]
+[x, ...y] = [1, 2, 3]
 assert x == 1 and y == [2, 3]
 assert [x, ...y] == [1, 2, 3]
 assert [...y, x] == [2, 3, 1]
@@ -162,14 +162,14 @@ assert x == 1 and yz == {y = 2; z = 3}
 assert {x; ...yz} == {x = 1; y = 2; z = 3}
 ```
 
-## virtual operator
+## 虚拟运算符
 
-Operators that cannot be used directly by the user.
+用户不能直接使用的运算符。
 
 ### ref(x: T) -> Ref T | T
 
-Returns an immutable reference to the object.
+返回对对象的不可变引用。
 
-### ref!(x: T!) -> Ref! T! | T!
+### ref!(x: T!) -> Ref!T! | T!
 
-Returns a mutable reference to a mutable object.
+返回对可变对象的可变引用。

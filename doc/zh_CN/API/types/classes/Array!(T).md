@@ -1,4 +1,3 @@
 # Array! T
 
-A type that represents a variable-length array. Use when the length is not known at compile time. There is a syntactic sugar called `[T]!`.
-Defined by `Array! T = ArrayWithMutLength! T, !_`.
+表示可变长度数组的类型。在编译时长度未知时使用。 有一个语法糖叫做` [t]!`。在`Array! T = ArrayWithMutLength! T, !_`中被定义

@@ -1,3 +1,3 @@
 # Vector T: Num, N: Nat
 
-A type that represents a vector. Unlike Rust and C++ types with the same name, this type only handles numbers.
+表示向量的类型。与同名的Rust和C++类型不同，这种类型只处理数字。

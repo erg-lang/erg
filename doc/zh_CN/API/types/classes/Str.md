@@ -1,9 +1,9 @@
 # Str
 
-(Invariant length) A type that represents a string. The simple `Str` type is the `StrWithLen N` type with the number of characters removed (`Str = StrWithLen _`).
+（不变长度）表示字符串的类型。 简单的 `Str` 类型是删除了字符数的 `StrWithLen N` 类型（`Str = StrWithLen _`）
 
 ## methods
 
-*isnumeric
+* isnumeric
 
-Returns whether the string is an Arabic numeral. Use `isunicodenumeric` to judge kanji numerals and other characters that represent numbers (note that this behavior is different from Python).
+返回字符串是否为阿拉伯数字。 使用 `isunicodenumeric` 判断汉字数字和其他表示数字的字符（注意此行为与 Python 不同）。

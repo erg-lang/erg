@@ -1,10 +1,10 @@
-# Abandoned/rejected language specifications
+# 废弃/拒绝的语言规范
 
-## Overloading (ad-hoc polymorphism)
+## 重载（临时多态性）
 
-It was abandoned because it can be replaced by parametric + subtyping polymorphism, and it is incompatible with Python's semantics. See [overload](../syntax/type/overloading.md) article for details.
+被放弃了，因为它可以用参数+子类型多态来代替，并且与Python的语义不兼容。 有关详细信息，请参阅 [overload](../syntax/type/overloading.md) 文章。
 
-## Ownership system with explicit lifetime
+## 具有显式生命周期的所有权系统
 
-It was planned to introduce an ownership system like Rust, but it was abandoned due to its incompatibility with Python's semantics and the need to introduce complicated specifications such as lifetime annotations, and all immutable objects are RC. Managed, mutable objects now have only one ownership.
-Dyne does not have a GIL like C# and Nim, and the policy is to allow value objects and low-level operations within a safe range.
+原计划引入 Rust 之类的所有权系统，但由于与 Python 的语义不兼容以及需要引入生命周期注解等复杂规范而被放弃，并且所有不可变对象都是 RC。托管的可变对象现在只有一个所有权.
+Dyne 没有 C# 和 Nim 那样的 GIL，策略是允许值对象和低级操作在安全范围内。

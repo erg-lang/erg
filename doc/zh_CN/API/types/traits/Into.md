@@ -1,11 +1,11 @@
 # Into T
 
-A type that indicates that it can be type-converted to type T.
-Even if there is no inheritance relationship between Self and T, it is defined when the relationship is convertible to each other.
-Unlike inheritance, there is no implicit conversion. You must always call the `.into` method.
+一种类型，表明它可以被类型转换为类型T。
+即使Self和T之间没有继承关系，也是在关系可以相互转换的时候定义的。
+与继承不同，没有隐式转换。您必须始终调用 `.into` 方法。
 
 ## methods
 
 * into(self, T) -> T
 
-   do the conversion.
+  変換を行います。

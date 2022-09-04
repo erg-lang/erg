@@ -2,7 +2,7 @@
 
 ## definition
 
-``` erg
+```erg
 Num R = Add(R) and Sub(R) and Mul(R) and Eq
 Num = Num Self
 ```
@@ -13,4 +13,4 @@ Add and Sub and Mul and Eq
 
 ## methods
 
-*`abs`
+* `abs`

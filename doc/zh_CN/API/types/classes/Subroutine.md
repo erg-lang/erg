@@ -1,19 +1,19 @@
-# Subroutines
+# Subroutine
 
-Base type of Func and Proc.
+Func和Proc的基本类型。
 
 ## methods
 
 * return
 
-Interrupts a subroutine and returns the specified value. Useful for quickly escaping from a nest.
+中断子程序并返回指定的值。 用于快速逃离嵌套
 
-``` erg
+```erg
 f x =
-     for 0..10, i ->
-         if i == 5:
-             do
-                 f::return i
-             do
-                 log i
+    for 0..10, i ->
+        if i == 5:
+            do
+                f::return i
+            do
+                log i
 ```

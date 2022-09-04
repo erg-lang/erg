@@ -1,3 +1,3 @@
 # Array T: Type
 
-Defined by `Array T = ArrayWithLen T, _`. There is a syntactic sugar called `[T]`.
+由`Array T = ArrayWithLen T, _`定义。 有一种语法糖叫做`[T]`。

@@ -1,27 +1,27 @@
-# NonZeroN
+# NonZero N
 
-A class that represents a non-zero number. The safety of division by zero is guaranteed.
+表示非零数的类。 保证除零的安全性
 
 ```mermaid
-class Diagram
-     class NonZero~Int~ {
-         ...
-     }
-     class Int {
-         ...
-     }
-     class Div {
-         <<trait>>
-         /(Self, R) -> O or Panic
-     }
-     class SafeDiv {
-         <<trait>>
-         /(Self, R) -> O
-     }
-     Int <|-- NonZero~Int~: Inherit
-     Div <|-- SafeDiv: Subsume
-     SafeDiv <|..NonZero~Int~: Impl
-     Div <|.. Int: Impl
+classDiagram
+    class NonZero~Int~ {
+        ...
+    }
+    class Int {
+        ...
+    }
+    class Div {
+        <<trait>>
+        /(Self, R) -> O or Panic
+    }
+    class SafeDiv {
+        <<trait>>
+        /(Self, R) -> O
+    }
+    Int <|-- NonZero~Int~: Inherit
+    Div <|-- SafeDiv: Subsume
+    SafeDiv <|.. NonZero~Int~: Impl
+    Div <|.. Int: Impl
 ```
 
 ## methods

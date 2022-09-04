@@ -1,64 +1,64 @@
-# operator
+＃ 操作员
 
-## infix operator
+## 中缀运算符
 
 ### `_+_`|R; O; A <: Add(R, O)|(x: A, y: R) -> O
 
-Perform addition.
+执行加法。
 
 ### `_-_`|R; O; S <: Sub(R, O)|(x: S, y: R) -> O
 
-Perform subtraction.
+执行减法。
 
 ### `*`|R; O; M <: Mul R, O|(x: M, y: R) -> O
 
-Perform multiplication.
+执行乘法。
 
 ### `/`|R; O; D <: Div(R, O)|(x: D, y: R) -> O
 
-Perform division.
+进行除法。
 
-## infix alphabet operator
+## 中缀字母运算符
 
 ### `and`(x: Bool, y: Bool) -> Bool
 
-Executes the and operation.
+执行 and 操作。
 
 ### `or`(x: Bool, y: Bool) -> Bool
 
-Executes the and operation.
+执行 and 操作。
 
-## prefix operator
+## 前缀运算符
 
 ### `+_`|T <: Num|(x: T) -> T
 
-Same as id by default.
+默认与 id 相同。
 
 ### `-_`|T <: Num|(x: T) -> T.Neg
 
-For example, Nat.`-`: Nat -> Neg and the return value is different.
+例如 Nat.`-`: Nat -> Neg 和返回值不同。
 
 ### `!`|T <: Immut|(x: T) -> `T!`
 
-Create a mutable object from an immutable object.
-This operator itself is not procedural and can be used inside a function.
+从不可变对象创建可变对象。
+该运算符本身不是程序性的，可以在函数内部使用。
 
 ### `..`|T <: Ord|(x: T) -> Range T
 
-Creates a Range object with no lower bound at the end of x.
-x..x returns only x as an iterator.
+在 x 的末尾创建一个没有下限的 Range 对象。
+x..x 仅返回 x 作为迭代器。
 
 ### `..<`|T <: Ord|(x: T) -> Range T
 
-x..<x results in an empty Range object, yielding nothing as an iterator.
+x..<x 产生一个空的 Range 对象，不产生任何迭代器。
 
-## postfix operator
+## 后缀运算符
 
-A postfix operator is called when parsing a parsing infix operator fails.
-That is, even if `x..` returns a function, `x..y` is `(..)(x, y)` and not `(x..)(y)`.
+解析中缀运算符失败时调用后缀运算符。
+也就是说，即使`x..`返回一个函数，`x..y`是`(..)(x, y)`而不是`(x..)(y)`。
 
 ### |T <: Ord|(x: T)`..` -> Range T
 
-Creates a Range object with no upper bound starting at x.
+创建一个从 x 开始没有上限的 Range 对象。
 
 ### |T <: Ord|(x: T)`<..` -> Range T

@@ -1,7 +1,7 @@
 # Pos
 
-Pos is a type that represents positive numbers (integers greater than or equal to 1).
-Since 0 is not included, there are merits such as eliminating the possibility of division by zero.
+Pos是一种表示正数（大于或等于1的整数）的类型。
+由于不包括0，因此具有消除被零除的可能性等优点。
 
 ## Def
 

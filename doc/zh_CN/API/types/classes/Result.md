@@ -1,7 +1,7 @@
 # Result T, E
 
-``` erg
+```erg
 Result T, E <: Error = Either T, E
 ```
 
-Like `Option`, it represents "a value that may fail", but it can have the context of failure. Usage is almost the same as `Either`.
+和 `Option` 一样，它代表“一个可能失败的值”，但它可以有失败的上下文。 用法与`Either`几乎相同。

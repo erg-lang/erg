@@ -2,7 +2,7 @@
 
 A type that represents a natural number. Used for array indices and range types.
 
-##def
+## def
 
 ``` erg
 Nat = 0.._

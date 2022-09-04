@@ -1,4 +1,4 @@
-# built-in constants
+# 内置常量
 
 ## True
 
@@ -8,6 +8,6 @@
 
 ## Ellipsis
 
-## Not Implemented
+## NotImplemented
 
 ## Inf

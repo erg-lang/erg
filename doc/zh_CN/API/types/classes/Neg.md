@@ -1,8 +1,8 @@
 # Neg
 
-A type that represents a negative integer. Pos and Neg and {0} == Int.
-It also has some notable properties such as no division by zero and Neg * Neg == Pos.
+表示负整数的类型。 Pos和Neg和{0} == Int
+它还具有一些值得注意的属性，例如不被零除和 Neg * Neg == Pos
 
-##def
+## def
 
 Inf<..-1

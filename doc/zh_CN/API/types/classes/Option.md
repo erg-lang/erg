@@ -1,14 +1,14 @@
 # Option T = T or NoneType
 
-A type that represents "may fail".
+表示“可能失败”的类型。
 
 ## methods
 
 * unwrap(self, msg = "unwrapped a None value") -> T or Panic
 
-Extract it expecting the contents to be `T` type. If it is `None`, output `msg` and panic.
+提取它，期望内容是 `T` 类型。 如果是 `None`，则输出 `msg` 并恐慌
 
-``` erg
+```erg
 x = "...".parse(Int).into(Option Int)
 x.unwrap() # UnwrappingError: unwrapped a None value
 x.unwrap("failed to convert from string to number") # UnwrappingError: failed to convert from string to number
