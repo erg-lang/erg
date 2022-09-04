@@ -1,15 +1,15 @@
-# How is Erg code transpiled to Python code?
+# Erg 代码如何转译成 Python 代码？
 
-To be precise, Erg code is transpiled to Python bytecode.
-However, since Python bytecode can almost be reconstructed into Python code, the equivalent Python code is used as an example here.
-By the way, the example presented here is a low optimization level.
-More advanced optimizations eliminate things that don't need to be instantiated.
+准确地说，Erg 代码被转译为 Python 字节码。
+但是，由于 Python 字节码几乎可以重构为 Python 代码，因此这里以等效的 Python 代码为例。
+顺便说一句，这里展示的示例是低优化级别。
+更高级的优化消除了不需要实例化的东西。
 
-## Record, Record type
+## 记录，记录类型
 
-It will be transpiled to a namedtuple.
-For namedtuple, see [here](https://docs.python.jp/3/library/collections.html#collections.namedtuple).
-There is a similar function, dataclass, but dataclass has a slight performance drop due to auto-implementation of `__eq__` and `__hash__`.
+它将被转译为一个命名元组。
+对于 namedtuple，请参阅 [此处](https://docs.python.jp/3/library/collections.html#collections.namedtuple)。
+有一个类似的函数，dataclass，但是由于 `__eq__` 和 `__hash__` 的自动实现，dataclass 的性能略有下降。
 
 ``` erg
 Employee = Class {.name = Str; .id = Int}
@@ -32,16 +32,16 @@ employee = Employee('John Smith', 100)
 assert employee.name == 'John Smith'
 ```
 
-It will also be converted to a simple tuple if it can be further optimized.
+如果可以进一步优化，它也将转换为简单的元组。
 
-## Polymorphic Type
+## 多态类型
 
-> WIPs
+> 在制品
 
-## Instant Scope
+## 即时范围
 
-If no namespace conflicts occur, it will simply be mangled and expanded.
-Names such as `x::y` are used in bytecode and cannot be associated with Python code, but if you force it to be expressed, it will be as follows.
+如果没有发生命名空间冲突，它只会被破坏和扩展。
+`x::y` 等名称在字节码中使用，不能与 Python 代码关联，但如果强制表示，则会如下所示。
 
 ``` erg
 x =
@@ -54,7 +54,7 @@ x::y = 1
 x = x::y + 1
 ```
 
-In case of conflict, define and use a function that can only be referenced internally.
+万一发生冲突，定义和使用只能在内部引用的函数。
 
 ``` erg
 x =
@@ -70,10 +70,10 @@ def _():
 x = _()
 ```
 
-## Visibility
+## 可见性
 
-It does nothing for public variables as it is Python's default.
-Private variables are handled by mangling.
+它对公共变量没有任何作用，因为它是 Python 的默认值。
+私有变量由 mangling 处理。
 
 ``` erg
 x=1

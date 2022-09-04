@@ -1,4 +1,4 @@
-# Hint (not implemented)
+# 提示（未实现）
 
-* `x is not defined` (x was deleted by `Del`) => `hint: deleted in line X`
-* patch method duplication: "hint: Specify patch (like `T.foo(1)`) or delete either `.foo` using `Del`"
+* `x 未定义`（x 已被`Del` 删除）=> `提示：在第 X 行删除`
+*补丁方法重复：“提示：指定补丁（如`T.foo（1）`）或使用`Del`删除任何`.foo`”

@@ -1,9 +1,9 @@
-# Parsing the Erg language
+# 解析 Erg 语言
 
-## Treatment of whitespace
+## 空格的处理
 
-A peculiarity of Erg's grammar is that it is space-sensitive.
-This is to compensate for the loss of expressiveness caused by the omission of `()`. A similar syntax is found in Nim, which also allows the omission of `()`.
+尔格语法的一个特点是它对空间敏感。
+这是为了弥补因省略`()`而造成的表达力损失。在 Nim 中可以找到类似的语法，它也允许省略 `()`。
 
 ```python
 f +1 == f(+1)
@@ -14,20 +14,20 @@ f(1,) == f(1)
 (f() -> ...) == (f() -> ...)
 ```
 
-## Left-hand side value, right-hand side value
+## 左值，右值
 
-In Erg, left-hand side values are not as simple as the left-hand side of `=`.
-In fact, there is (very confusingly) a right-sided value on the left side of `=`, and a left-sided value on the right side of `=`.
-There can even be a left-side value within a right-side value.
+在 Erg 中，左侧的值并不像 `=` 的左侧那么简单。
+事实上，`=` 左侧有一个右值（非常令人困惑），而 `=` 右侧有一个左值。
+右值中甚至可以有左值。
 
 ```python
-# i is the left-hand side value, Array(Int) and [1, 2, 3] are the right-hand side values
+# i 是左边的值，Array(Int) 和 [1, 2, 3] 是右边的值
 i: Array(Int) = [1, 2, 3]
-# `[1, 2, 3].iter().map i -> i + 1` is the right-hand side value, but i to the left of -> is the left-hand side value
+# `[1, 2, 3].iter().map i -> i + 1`是右边的值，但是->左边的i是左边的值
 a = [1, 2, 3].iter().map i -> i + 1
-# {x = 1; y = 2} is the right side value, but x, y are the left side values
+# {x = 1; y = 2} 是右侧值，但 x, y 是左侧值
 r = {x = 1; y = 2}
 ```
 
-The precise definition of left- and right-hand side values is "right-hand side value if it is evaluable, otherwise left-hand side value".
-As an example, consider the code ``i = 1; i``, where the second `i` is a right-sided value because it is evaluable, but the first `i` is a left-sided value.
+左侧和右侧值的精确定义是“如果它是可评估的，则为右侧值，否则为左侧值”。
+例如，考虑代码 ``i = 1; i``，其中第二个 `i` 是右侧值，因为它是可评估的，但第一个 `i` 是左侧值。

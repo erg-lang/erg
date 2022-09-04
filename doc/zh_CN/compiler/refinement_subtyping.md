@@ -1,6 +1,4 @@
-# Sieve type
-
-The sieve type is the following type.
+# 筛子类型
 
 ``` erg
 {I: Int | I >= 0}
@@ -8,11 +6,11 @@ The sieve type is the following type.
 {T: (Ratio, Ratio) | T.0 >= 0; T.1 >= 0}
 ```
 
-Erg enables type determination by converting Enum and Interval types into sieve types.
+Erg 通过将 Enum 和 Interval 类型转换为筛选类型来实现类型确定。
 
-## Convert to sieve type
+## 转换为筛型
 
-In the section [Sieve types], we said that interval types and enum types are syntactic sugar for sieve types. Each is converted as follows.
+在 [Sieve types] 一节中，我们说过区间类型和枚举类型是 sieve 类型的语法糖。每个转换如下。
 
 * {0} -> {I: Int | I == 0}
 * {0, 1} -> {I: Int | I == 0 or I == 1}
@@ -23,36 +21,36 @@ In the section [Sieve types], we said that interval types and enum types are syn
 * {0} and {-3, 0} -> {I: Int | I == 0 and (I == -3 or I == 0)}
 * {0} not {-3, 0} or 1.._ -> {I: Int | I == 0 and not (I == -3 or I == 0) or I >= 1}
 
-## Sieve type detection
+## 筛型检测
 
-An algorithm for determining whether a sieve type A is a subtype of another sieve type B is described. Formally, (all) subtyping is defined as follows:
+描述了一种用于确定筛类型 A 是否是另一筛类型 B 的子类型的算法。正式地，（所有）子类型定义如下：
 
 ```console
-A <: B <=> ∀a∈A; a ∈ B
+A <: B <=> ∀a∈A; a∈B
 ```
 
-Specifically, the following inference rules are applied. Boolean expressions are assumed to be simplified.
+具体而言，应用以下推理规则。假定布尔表达式是简化的。
 
-* intervalization rules (done automatically from type definition)
+* 间隔规则（从类型定义自动完成）
   * `Nat` => `{I: Int | I >= 0}`
-* Round-up rule
+* 围捕规则
   * `{I: Int | I < n}` => `{I: Int | I <= n-1}`
   * `{I: Int | I > n}` => `{I: Int | I >= n+1}`
   * `{R: Ratio | R < n}` => `{R: Ratio | R <= n-ε}`
   * `{R: Ratio | R > n}` => `{R: Ratio | R >= n+ε}`
-* reversal rule
+* 反转规则
   * `{A not B}` => `{A and (not B)}`
-* De Morgan's Law
+* 德摩根规则
   * `{not (A or B)}` => `{not A and not B}`
   * `{not (A and B)}` => `{not A or not B}`
-* Distribution rule
+* 分配规则
   * `{A and (B or C)} <: D` => `{(A and B) or (A and C)} <: D` => `({A and B} <: D) and ( {A and C} <: D)`
   * `{(A or B) and C} <: D` => `{(C and A) or (C and B)} <: D` => `({C and A} <: D) and ( {C and B} <: D)`
   * `D <: {A or (B and C)}` => `D <: {(A or B) and (A or C)}` => `(D <: {A or B}) and ( D <: {A or C})`
   * `D <: {(A and B) or C}` => `D <: {(C or A) and (C or B)}` => `(D <: {C or A}) and ( D <: {C or B})`
   * `{A or B} <: C` => `({A} <: C) and ({B} <: C)`
   * `A <: {B and C}` => `(A <: {B}) and (A <: {C})`
-* termination rule
+* 终止规则
   * {I: T | ...} <: T = True
   * {} <: _ = True
   * _ <: {...} = True
@@ -63,37 +61,37 @@ Specifically, the following inference rules are applied. Boolean expressions are
   * {I >= a} <: {I >= c or I <= d} (c >= d) = (a >= c)
   * {I <= b} <: {I >= c or I <= d} (c >= d) = (b <= d)
   * {I >= a and I <= b} (a <= b) <: {I >= c or I <= d} (c > d) = ((a >= c) or (b <= d ))
-  * basic formula
+  * 基本公式
     * {I >= l} <: {I >= r} = (l >= r)
     * {I <= l} <: {I <= r} = (l <= r)
     * {I >= l} <: {I <= r} = False
     * {I <= l} <: {I >= r} = False
 
-The simplification rules for Boolean expressions are as follows. min, max may not be removed. Also, multiple or, and are converted to nested min, max.
+布尔表达式的简化规则如下。 min, max 不能被删除。此外，多个 or, and 被转换为嵌套的 min, max。
 
-* ordering rules
-  * `I == a` => `I >= a and I <= a`
-  * `i != a` => `I >= a+1 or I <= a-1`
-* Consistency rule
-  * `I >= a or I <= b (a < b)` == `{...}`
-* Constancy rule
-  * `I >= a and I <= b (a > b)` == `{}`
-* replacement rule
-  * Replace order expressions in the order `I >= n` and `I <= n`.
-* Extension rule
-  * `I == n or I >= n+1` => `I >= n`
-  * `I == n or I <= n-1` => `I <= n`
-* maximum rule
-  * `I <= m or I <= n` => `I <= max(m, n)`
-  * `I >= m and I >= n` => `I >= max(m, n)`
-* minimum rule
-  * `I >= m or I >= n` => `I >= min(m, n)`
-  * `I <= m and I <= n` => `I <= min(m, n)`
-* elimination rule
-  * `I == n` on the left side is removed when `I >= a (n >= a)` or `I <= b (n <= b)` or `I == n` on the right side can.
-  * False if all left-hand equations cannot be eliminated
+* 组合规则
+  * `I == a` => `I >= a 和 I <= a`
+  * `i != a` => `I >= a+1 或 I <= a-1`
+* 一致性规则
+  * `I >= a 或 I <= b (a < b)` == `{...}`
+* 恒常规则
+  * `I >= a 和 I <= b (a > b)` == `{}`
+* 替换规则
+  * 以 `I >= n` 和 `I <= n` 的顺序替换顺序表达式。
+* 扩展规则
+  * `I == n 或 I >= n+1` => `I >= n`
+  * `I == n 或 I <= n-1` => `I <= n`
+* 最大规则
+  * `I <= m 或 I <= n` => `I <= max(m, n)`
+  * `I >= m 和 I >= n` => `I >= max(m, n)`
+* 最低规则
+  * `I >= m 或 I >= n` => `I >= min(m, n)`
+  * `I <= m 和 I <= n` => `I <= min(m, n)`
+* 淘汰规则
+  * 当 `I >= a (n >= a)` 或 `I <= b (n <= b)` 或 `I == n` 在右侧时，左侧的 `I == n` 被删除能够。
+  * 如果无法消除所有左手方程，则为 False
 
-e.g.
+例如
 
 ```python
 1.._<: Nat
