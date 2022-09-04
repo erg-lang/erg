@@ -1,24 +1,24 @@
-# module `unsound`
+# 模块 `unsound`
 
-Provides APIs perform unsound and unsafe operations that cannot be guaranteed safe in Erg's type system.
+让 API 执行在 Erg 的类型系统中无法保证的不健全和不安全的操作。
 
 ## `unsafe!`
 
-Executes an `Unsafe` procedure. Just like Rust, `Unsafe` APIs cannot be called directly, but are all passed as higher-order functions to this procedure.
+执行“不安全”过程。 就像 Rust 一样，`Unsafe` API 不能直接调用，而是作为高阶函数传递给这个过程。
 
 ``` erg
 unsound = import "unsound"
 
 i = unsound. unsafe! do!:
-     # convert `Result Int` to `Int`
+     # 将 `Result Int` 转换为 `Int`
      unsound.transmute input!().try_into(Int), Int
 ```
 
 ## transmit
 
-Converts the object of the first argument to the type of the second argument. No type checking is done.
-This function breaks the type safety of the type system. Please perform validation before using.
+将第一个参数的对象转换为第二个参数的类型。没有进行类型检查。
+这个函数破坏了类型系统的类型安全。请在使用前进行验证。
 
-## auto_transmute
+## 隐式转换
 
-Unlike `transmute`, it automatically converts to the expected type. Works the same as Ocaml's `Obj.magic`.
+与 `transmute` 不同，它会自动转换为预期的类型。与 Ocaml 的 `Obj.magic` 工作方式相同。

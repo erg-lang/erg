@@ -47,8 +47,8 @@ SquareMeter = Patch UnitMul(Meter, Meter)
 * 電位: Volt(v)
 * 電気抵抗: Ohm(ohm)
 * 速度: Velocity(m/s)
-* 面積: SquareMeter(m**2)
-* 体積: CubicMeter(m**3) (litre = 10e-3 m**3)
+* 面積: SquareMeter(m^2)
+* 体積: CubicMeter(m^3) (litre = 10e-3 m^3)
 * 角度: Degree(deg) (rad = 180/pi deg)
 * 長さ: Feet, Yard, Inch, Mile, Ly, Au, Angstrom
 * 重さ: Pond

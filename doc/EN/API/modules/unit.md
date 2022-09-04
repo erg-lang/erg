@@ -47,8 +47,8 @@ Some auxiliary units are also predefined.
 * Potential: Volt(v)
 * Electrical resistance: Ohm(ohm)
 * Velocity: Velocity(m/s)
-* Area: SquareMeter(m**2)
-* Volume: CubicMeter(m**3) (liter = 10e-3 m**3)
+* Area: SquareMeter(m^2)
+* Volume: CubicMeter(m^3) (liter = 10e-3 m^3)
 * Angle: Degree(deg) (rad = 180/pi deg)
 * Length: Feet, Yard, Inch, Mile, Ly, Au, Angstrom
 * Weight: Pound
@@ -68,6 +68,6 @@ It also defines a prefix.
 * Giga = 1e+9
 * Tera = 1e+12
 * Peta = 1e+15
-*Exa = 1e+18
+* Exa = 1e+18
 
 *Contrary to the origin of the name, Erg basically adopts the MKS unit system. If you want the unit module of the CGS unit system, please use an external library ([cgs](https://github.com/mtshiba/cgs) etc.).

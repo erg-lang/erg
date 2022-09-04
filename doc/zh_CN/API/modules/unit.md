@@ -1,59 +1,58 @@
-# module `unit`
+# 模块`unit`
 
-The `unit` module is a module that defines units that are often used in numerical calculations as types.
-Erg numeric types include `Nat`, `Int`, `Ratio`, and so on. However, these types do not have information about "what the numbers mean", so nonsense calculations such as adding meters and yards can be performed.
-By using the `unit` module, you can avoid mistakes such as passing numbers with different units to functions.
-Mistakes like this actually occur, and serious bugs such as [Mars probe missing due to wrong unit system](http://www.sydrose.com/case100/287/) can cause it.
-You should use this module if you want your code to be more robust when doing numerical computations.
+`unit` 模块是将数值计算中经常使用的单位定义为类型的模块。
+Erg 数值类型包括 `Nat`、`Int`、`Ratio` 等。但是，这些类型没有关于“数字的含义”的信息，因此可以执行诸如添加米和码之类的无意义计算。
+通过使用 `unit` 模块，您可以避免错误，例如将不同单位的数字传递给函数。
+这样的错误确实会发生，并且会导致诸如[由于错误的单位系统导致火星探测器丢失]（http://www.sydrose.com/case100/287/）之类的严重错误。
+如果您希望代码在进行数值计算时更加健壮，您应该使用此模块。
 
 ``` erg
 {*} = import "unit"
 
-x = 6m # equivalent to `x = Meter.new(6)`
-t = 3s # equivalent to `t = Sec.new(3)`
-# m/s is a velocity unit object, of type Velocity
+x = 6m # 相当于 `x = Meter.new(6)`
+t = 3s # 相当于 `t = Sec.new(3)`
+#m/s是速度单位对象，类型为velocity
 print! x/t # 2m/s
 print! x + 4m # 10m
-print! x + 2s # TypeError: `+`(Meter, Sec) is not implemented
+print! x + 2s # 类型错误: `+`(Meter, Sec) 未实现
 ```
+对象`m`、`s`和`m/s`被称为单元对象。它本身具有1m、1s、1m/s的含义。 `m/s`可以说是结合m和s创建的单位对象。
 
-The objects `m`, `s`, and `m/s` are called unit objects. It has the meaning of 1m, 1s, 1m/s by itself. `m/s` can be said to be a unit object created by combining m and s.
+在单元中，以下单元被定义为类型。它被称为SI（国际单位制）。
 
-In unit, the following units are defined as types. It is called SI (International System of Units).
+* 长度：Meter（单位常数：m）
+* 质量：KiloGram（单位常数：kg，g = 0.001kg）
+* 时间：Sec（分、时、日、年等有分、时、日、年等常量由秒生成）
+* 电流：Amper（单位常数：a）
+* 温度：Kelvin（单位常数：k。华氏、摄氏度类型也可用，可相互转换）
+* 物质量：Mol（单位常数：mol）
+* 发光强度：Candela（单位常数：cd）
 
-* Length: Meter (unit constant: m)
-* Mass: KiloGram (unit constant: kg, g = 0.001kg)
-* Time: Sec (minute, hour, day, year, etc. have constants such as minute, hour, day, year generated from Sec)
-* Current: Amper (unit constant: a)
-* Temperature: Kelvin (unit constant: k, Fahren, Celsius types are also available and can be converted to each other)
-* Amount of substance: Mol (unit constant: mol)
-* Luminous intensity: Candela (unit constant: cd)
-
-In addition, the types `Unit1`, `UnitMul`, and `UnitDiv` are defined, which can be used to create new units by combining basic types.
-For example, `UnitDiv(Unit1, Sec)`, because the unit of frequency hertz (hertz) is defined as the reciprocal of the vibration period (seconds).
-If you want to treat this type as a meaningful type (such as adding a dedicated method), you should create a [patch](./../../syntax/type/07_patch.md).
+此外，还定义了`Unit1`、`UnitMul`和`UnitDiv`类型，可以通过组合基本类型来创建新的单元。
+例如`UnitDiv(Unit1, Sec)`，因为频率单位赫兹（hertz）被定义为振动周期（秒）的倒数。
+如果要将此类型视为有意义的类型（例如添加专用方法），则应创建 [patch](./../../syntax/type/07_patch.md)。
 
 ``` erg
 Hertz = Patch UnitDiv(Unit1, Sec)
 SquareMeter = Patch UnitMul(Meter, Meter)
 ```
 
-Some auxiliary units are also predefined.
+一些辅助单元也是预定义的:
 
-* Frequency: Hertz(hz)
-* Force: Newton(newton)
-* Energy: Joule(j)
-* Power: Watt(w)
-* Potential: Volt(v)
-* Electrical resistance: Ohm(ohm)
-* Velocity: Velocity(m/s)
-* Area: SquareMeter(m**2)
-* Volume: CubicMeter(m**3) (liter = 10e-3 m**3)
-* Angle: Degree(deg) (rad = 180/pi deg)
-* Length: Feet, Yard, Inch, Mile, Ly, Au, Angstrom
-* Weight: Pound
+* 频率: Hertz(hz)
+* 力:   Newton(newton)
+* 能量: Joule(j)
+* 功率: Watt(w)
+* 电压: Volt(v)
+* 电阻: Ohm(ohm)
+* 速度: Velocity(m/s)
+* 面积: SquareMeter(m^2)
+* 体积: CubicMeter(m^3) (liter = 10e-3 m^3)
+* 角度: Degree(deg) (rad = 180/pi deg)
+* 长度: Feet, Yard, Inch, Mile, Ly, Au, Angstrom
+* 重量: Pound
 
-It also defines a prefix.
+它还定义了一个前缀:
 
 * Femto = 1e-15
 * Pico = 1e-12
@@ -68,6 +67,6 @@ It also defines a prefix.
 * Giga = 1e+9
 * Tera = 1e+12
 * Peta = 1e+15
-*Exa = 1e+18
+* Exa = 1e+18
 
-*Contrary to the origin of the name, Erg basically adopts the MKS unit system. If you want the unit module of the CGS unit system, please use an external library ([cgs](https://github.com/mtshiba/cgs) etc.).
+* 与名字的由来相反，Erg基本采用MKS单位制。如果需要 CGS 单位制的单位模块，请使用外部库[cgs](https://github.com/mtshiba/cgs)等）。

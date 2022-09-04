@@ -1,22 +1,22 @@
-# module `repl`
+# 模块`repl`
 
-provides REPL(Read-Eval-Print-Loop)-related APIs.
+提供REPL(Read-Eval-Print-Loop)相关的API。
 
-## functions
+## 功能
 
 * `gui_help`
 
-View information about an object in a browser. Can be used offline.
+在浏览器中查看有关对象的信息。 可以离线使用。
 
-## types
+## 类型
 
-### Guess = Object
+### 猜测 = 对象
 
-#### methods
+#### 方法
 
 * `.guess`
 
-Infers a function given its arguments and return value.
+在给定参数和返回值的情况下推断函数。
 
 ``` erg
 1.guess((1,), 2) # <Int.__add__ method>
