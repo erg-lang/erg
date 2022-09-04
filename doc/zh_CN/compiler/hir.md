@@ -1,4 +1,4 @@
-# 高レベル中間表現(HIR, High-level Intermediate Representation)
+# 高级中间表示(HIR, High-level Intermediate Representation)
 
 HIR 是 Erg 编译器从 AST 生成的结构
 此结构包含源代码中每个表达式的完整类型信息，并且在语法上已脱糖

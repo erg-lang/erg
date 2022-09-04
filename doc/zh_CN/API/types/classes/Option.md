@@ -2,7 +2,7 @@
 
 表示“可能失败”的类型。
 
-## methods
+## 方法
 
 * unwrap(self, msg = "unwrapped a None value") -> T or Panic
 

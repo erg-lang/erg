@@ -16,9 +16,9 @@ p! x = print! x
 `p!`, `q!`, ... are typical variable names for procedures.
 Procedures defined in this way also cannot be used within a function, so side-effects are completely isolated.
 
-## Methods
+## 方法
 
-Functions and procedures each can be methods. Functional methods can only take immutable references to `self`, while procedural methods can take mutable references to `self`.
+Functions and procedures each can be 方法. Functional 方法 can only take immutable references to `self`, while procedural 方法 can take mutable references to `self`.
 The `self` is a special parameter, which in the context of a method refers to the calling object itself. The reference `self` cannot be assigned to any other variable.
 
 ```python
@@ -28,7 +28,7 @@ C!.
         x
 ```
 
-Procedural methods can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
+Procedural 方法 can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
 
 ```python
 n = 1
@@ -36,9 +36,9 @@ s = n.into(Str) # '1'
 n # ValueError: n was moved by .into (line 2)
 ```
 
-Only one procedural methods can have a mutable reference at any given time. In addition, while a mutable reference is taken, no more mutable reference can be taken from the original object. In this sense, `ref!` causes a side-effect on `self`.
+Only one procedural 方法 can have a mutable reference at any given time. In addition, while a mutable reference is taken, no more mutable reference can be taken from the original object. In this sense, `ref!` causes a side-effect on `self`.
 
-Note, however, that it is possible to create (immutable/mutable) references from mutable references. This allows recursion and `print!` of `self` in procedural methods.
+Note, however, that it is possible to create (immutable/mutable) references from mutable references. This allows recursion and `print!` of `self` in procedural 方法.
 
 ```python
 T -> T # OK (move)

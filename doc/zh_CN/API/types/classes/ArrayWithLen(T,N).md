@@ -2,7 +2,7 @@
 
 `[T; N]`是语法糖。还有一个[`Array` 类型](./Array.md)省略了长度。
 
-## methods
+## 方法
 
 * values_at(self, selectors: [Nat; N]) -> [T; N]
 
@@ -23,7 +23,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
   assert all(False for _ in [])
   ```
 
-## methods of ArrayWithLen T, N | T <: Eq
+## ArrayWithLen T, N | T <: Eq 的方法
 
 * freq self -> [{T: Nat}]
   返回对象出现的次数。

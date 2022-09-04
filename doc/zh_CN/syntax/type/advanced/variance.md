@@ -3,11 +3,11 @@
 Erg can subtype polymorphic types, but there are some caveats.
 
 First, consider the inclusion relation of ordinary polymorphic types. In general, there is a container `K` and a type `A, B` to which it assigns, and when `A < B`, `K A < K B`.
-For example, `Option Int < Option Object`. Therefore, methods defined in `Option Object` can also be used in `Option Int`.
+For example, `Option Int < Option Object`. Therefore, 方法 defined in `Option Object` can also be used in `Option Int`.
 
 Consider the typical polymorphic type `Array!(T)`.
 Note that this time it's not `Array!(T, N)` because we don't care about the number of elements.
-Now, the `Array!(T)` type has methods called `.push!` and `.pop!`, which mean adding and removing elements, respectively. Here is the type:
+Now, the `Array!(T)` type has 方法 called `.push!` and `.pop!`, which mean adding and removing elements, respectively. Here is the type:
 
 Array.push!: Self(T).(T) => NoneType
 Array.pop!: Self(T).() => T
@@ -101,7 +101,7 @@ List(T).
 ```
 
 Even in this case, the Erg compiler does a good job of inferring the upper and lower types of `U`.
-Note, however, that the Erg compiler doesn't understand the semantics of methods. The compiler simply infers and derives type relationships mechanically according to how variables and type variables are used.
+Note, however, that the Erg compiler doesn't understand the semantics of 方法. The compiler simply infers and derives type relationships mechanically according to how variables and type variables are used.
 
 As written in the comments, the type `U` put in the `head` of `List T` is a subclass of `T` (`T: Int`, such as `Nat`). That is, it is inferred as `U <: T`. This constraint changes the argument type of `.push{U}` upcast `(List(T), U) -> List(T) to (List(T), T) -> List(T)`( e.g. disallow `List(Int).push{Object}`). Note, however, that the `U <: T` constraint does not alter the type containment of the function. The fact that `(List(Int), Object) -> List(Int) to (List(Int), Int) -> List(Int)` does not change, just in `.push` method It means that the cast cannot be performed.
 Similarly, a cast from `List T` to `List U` is possible subject to the constraint `U :> T`, so the variation specification is inferred. This constraint changes the return type of `.upcast(U)` to upcast `List(T) -> List(T) to List(T) -> List(T)` (e.g. `List(Object) .upcast(Int)`) is prohibited.

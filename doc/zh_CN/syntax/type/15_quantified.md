@@ -54,7 +54,7 @@ Also, the type variable `T` can be inferred to be of type `Type` since it is use
 You can also omit `|T, N| foo: [T; N]` if it can be inferred to be other than a type object (`T: Type, N: Nat`).
 
 You can also provide constraints if the type is too large for an arbitrary type.
-Constraints also have advantages, for example, a subtype specification allows certain methods to be used.
+Constraints also have advantages, for example, a subtype specification allows certain 方法 to be used.
 
 ```python
 # T <: Add
@@ -173,15 +173,15 @@ N = 1
 K(N: Nat) = ... # NameError: N is already defined
 
 L(M: Nat) = ...
-# Defined only if M == N == 1
+# 定义ined only if M == N == 1
 L(N).
     foo(self, x) = ...
-# defined for any M: Nat
+# 定义ined for any M: Nat
 L(M).
     .bar(self, x) = ...
 ```
 
-You cannot have multiple definitions for each type argument, but you can define methods with the same name because there is no relationship between dependent types that are not assigned type arguments (non-primitive-kind) and dependent types that are assigned (primitive-kind).
+You cannot have multiple definitions for each type argument, but you can define 方法 with the same name because there is no relationship between dependent types that are not assigned type arguments (non-primitive-kind) and dependent types that are assigned (primitive-kind).
 
 ```python
 K(I: Int) = ...
@@ -261,7 +261,7 @@ Therefore, it is indeed `(|T| T -> T) < (Int -> Int) < (T -> T)`.
 What is the relationship between dependent types and quantified types (polymorphic function types) and what is the difference between them?
 We can say that a dependent type is a type that takes arguments, and an quantified type is a type that gives arbitrariness to the arguments.
 
-The important point is that there are no type arguments in the closed, polymorphic type itself. For example, the polymorphic function type `|T| T -> T` is a type that takes a polymorphic function __only__, and its definition is closed. You cannot define methods, etc. using its type argument `T`.
+The important point is that there are no type arguments in the closed, polymorphic type itself. For example, the polymorphic function type `|T| T -> T` is a type that takes a polymorphic function __only__, and its definition is closed. You cannot define 方法, etc. using its type argument `T`.
 
 In Erg, the type itself is also a value, so types that take arguments, such as function types, will probably be dependent types. In other words, polymorphic function types are both a quantified type and a dependent type.
 

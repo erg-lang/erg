@@ -2,6 +2,6 @@
 
 是运算符的类型
 
-## def
+## 定义
 
 Inherit Func [...T], O

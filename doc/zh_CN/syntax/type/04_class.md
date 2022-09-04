@@ -96,8 +96,8 @@ Note that the class and type of `1` are different.
 There is only one class `Int` that is the generator of `1`. You can get the class to which an object belongs by `classof(obj)` or `obj.__class__`.
 In contrast, there are countless types of `1`. For example, `{1}, {0, 1}, 0..12, Nat, Int, Num`.
 However, the smallest type can be defined as a single type, in this case `{1}`. The type to which an object belongs can be obtained with `Typeof(obj)`. This is a compile-time function.
-Objects can use patch methods as well as class methods.
-Erg does not allow you to add class methods, but you can use [patch](./07_patch.md) to extend a class.
+Objects can use patch 方法 as well as class 方法.
+Erg does not allow you to add class 方法, but you can use [patch](./07_patch.md) to extend a class.
 
 You can also inherit from existing classes ([Inheritable](./../27_decorator.md/#inheritable) class).
 You can create an inherited class by using `Inherit`. The type on the left-hand side is called the derived class, and the argument type of `Inherit` on the right-hand side is called the base class (inherited class).
@@ -268,7 +268,7 @@ assert x1 == x2
 
 ## Class Relationships
 
-A class is a subtype of a requirement type. methods (including patch methods) of the requirement type can be used in the class.
+A class is a subtype of a requirement type. 方法 (including patch 方法) of the requirement type can be used in the class.
 
 ```python
 T = Trait {.foo = Foo}

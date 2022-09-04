@@ -41,7 +41,7 @@ Trait 类相当于 Python 中的 ABC（抽象基类，接口）
 
 ### 类型
 
-* `__supers__`：超类型（`__mro__` 是一个数组，但这个是一个 Set）
+* `__父类__`：超类型（`__mro__` 是一个数组，但这个是一个 Set）
 * `__basicsize__`:
 * `__dictoffset__`：Evm 不支持
 * `__flags__`:

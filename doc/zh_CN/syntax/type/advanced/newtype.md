@@ -27,5 +27,5 @@ i + UserId.new(10000001) # TypeError: + is not implemented between `UserId` and 
 ```
 
 The constructor guarantees the pre-condition of an 8-digit number.
-The `UserId` loses all the methods that `Nat` has, so you have to redefine the necessary operations each time.
-If the cost of redefinition is not worth it, it is better to use inheritance. On the other hand, there are cases where the loss of methods is desirable, so choose the appropriate method depending on the situation.
+The `UserId` loses all the 方法 that `Nat` has, so you have to redefine the necessary operations each time.
+If the cost of redefinition is not worth it, it is better to use inheritance. On the other hand, there are cases where the loss of 方法 is desirable, so choose the appropriate method depending on the situation.

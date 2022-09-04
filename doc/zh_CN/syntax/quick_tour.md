@@ -231,7 +231,7 @@ Erg does not support multiple/multilevel inheritance.
 
 ## Traits
 
-They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and methods as equals.
+They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and 方法 as equals.
 Also, it does not involve implementation.
 
 ``` erg

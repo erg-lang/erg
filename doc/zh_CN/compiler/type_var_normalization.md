@@ -3,7 +3,7 @@
 * Erg's type argument normalization is based on SymPy's simplify function.
 
 For example, when you define `concat: |T, M, N|([T; M], [T; N] -> [T; M+N])`, you can match type variables and arguments without instantiating them. Judgment must be made.
-Equality judgment naturally has its limits, but the judgments that are possible at present and their methods are as follows.
+Equality judgment naturally has its limits, but the judgments that are possible at present and their 方法 are as follows.
 
 * Addition/multiplication symmetry:
 

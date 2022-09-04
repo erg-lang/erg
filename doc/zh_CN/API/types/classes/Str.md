@@ -2,7 +2,7 @@
 
 （不变长度）表示字符串的类型。 简单的 `Str` 类型是删除了字符数的 `StrWithLen N` 类型（`Str = StrWithLen _`）
 
-## methods
+## 方法
 
 * isnumeric
 

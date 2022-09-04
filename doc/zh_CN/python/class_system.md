@@ -1,8 +1,8 @@
 # Python class system (compare with Erg)
 
-## Methods
+## 方法
 
-Methods may be forward referenced, but this is not a special technique used.
+方法 may be forward referenced, but this is not a special technique used.
 This is because the existence of a method is dynamically checked.
 (In Erg, method existence is checked statically. For forward references, functions must be constants.)
 

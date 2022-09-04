@@ -24,7 +24,7 @@ assert array(3) == [3, 3, 3]
 
 When defining a dependent type, all type arguments must be constants.
 
-Dependent types themselves exist in existing languages, but Erg has the feature of defining procedural methods on dependent types.
+Dependent types themselves exist in existing languages, but Erg has the feature of defining procedural 方法 on dependent types.
 
 ``` erg
 x=1

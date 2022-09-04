@@ -2,13 +2,13 @@
 
 表示自然数的类型。 用于数组索引和范围类型
 
-## def
+## 定义
 
 ```python
 Nat = 0.._
 ```
 
-## methods
+## 方法
 
 * times!(self, p: () => NoneType) -> NoneType
 

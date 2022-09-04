@@ -135,7 +135,7 @@ empty_record: Structural {=}
 An empty record is different from an empty Dict `{:}` or empty set `{}`. In particular, note that it is the opposite of `{}` in meaning (in Python, `{}` is an empty dictionary, while in Erg it is `!{:}` in Erg).
 As an enumerated type, `{}` is an empty type that contains nothing in its elements. The `Never` type is a classification of this type.
 Conversely, the record class `{=}` has no required instance attribute, so all objects are elements of it. An `Object` is an alias of this.
-An `Object` (a patch of `Object`) is an element of `. __sizeof__` and other very basic provided methods.
+An `Object` (a patch of `Object`) is an element of `. __sizeof__` and other very basic provided 方法.
 
 ```python
 AnyPatch = Patch Structural {=}

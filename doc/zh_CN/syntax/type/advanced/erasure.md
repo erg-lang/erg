@@ -4,7 +4,7 @@ Type erasure is the process of setting a type argument to `_` and deliberately d
 
 The most common example of a type that has been type-erased is `[T, _]`. Arrays are not always known their length at compile-time. For example, `sys.argv`, which refers to command line arguments, is of type `[Str, _]`. Since Erg's compiler has no way of knowing the length of command line arguments, information about their length must be given up.
 However, a type that has been type-erased becomes a supertype of a type that has not been (e.g. `[T; N] <: [T; _]`), so it can accept more objects.
-Objects of type `[T; N]` can of course use methods of type `[T; _]`, but the `N` information is erased after use. If the length does not change, then it is possible to use `[T; N]` in the signature. If the length remains the same, it must be indicated by a signature.
+Objects of type `[T; N]` can of course use 方法 of type `[T; _]`, but the `N` information is erased after use. If the length does not change, then it is possible to use `[T; N]` in the signature. If the length remains the same, it must be indicated by a signature.
 
 ```python
 # Functions that are guaranteed to not change the length of the array (e.g., sort)

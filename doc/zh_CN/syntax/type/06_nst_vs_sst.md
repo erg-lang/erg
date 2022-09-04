@@ -29,7 +29,7 @@ assert not 12 in MonthsClass
 assert MonthsClass.new(12) in MonthsClass
 # It can use structural types, even though wrapped in a class.
 assert MonthsClass.new(12) in Months
-# If both exist, class methods take priority.
+# If both exist, class 方法 take priority.
 assert MonthsClass.new(2).name() == "february"
 ```
 

@@ -53,5 +53,5 @@ VM!("stopped").
         self::set_phantom!("running"))
 ```
 
-The `state` is updated via the `update_phantom!` or `set_phantom!` methods.
+The `state` is updated via the `update_phantom!` or `set_phantom!` 方法.
 This is the method provided by the standard patch for `Phantom!` (the variable version of `Phantom`), and its usage is the same as the variable `update!` and `set!`.

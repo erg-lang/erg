@@ -41,7 +41,7 @@ log (1..3).iter() # <RangeIterator object>
 
 Both `ArrayIterator` and `RangeIterator` are classes that implement `Iterator` and exist only to give `Array` and `Range` iteration functions.
 Such a design pattern is called companion class [<sup id="f1">1</sup>](#1).
-And the `IteratorImpl` patch is the core of the iteration functionality. `Iterator` requires only one `.next` method, `IteratorImpl` provides dozens of methods indeed. `ArrayIterator` and `RangeIterator` can use the implementation method of `IteratorImpl` just by implementing the `.next` method. For this convenience, the standard library implements a number of iterators.
+And the `IteratorImpl` patch is the core of the iteration functionality. `Iterator` requires only one `.next` method, `IteratorImpl` provides dozens of 方法 indeed. `ArrayIterator` and `RangeIterator` can use the implementation method of `IteratorImpl` just by implementing the `.next` method. For this convenience, the standard library implements a number of iterators.
 
 ```mermaid
 classDiagram

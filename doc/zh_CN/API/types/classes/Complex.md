@@ -1,12 +1,12 @@
 # Complex
 
-表示复数的类型。 在 Erg 中表示数字的类型，例如 Float、Int 和 Nat，通常在顶部有这种类型
+表示复数的类型。在 Erg 中表示数字的类型，例如 Float、Int和Nat，通常派生于Complex
 
-## supers
+## 父类
 
-Num and Norm
+Num 和 Norm
 
-## methods
+## 方法
 
 * abs
 * conjugate

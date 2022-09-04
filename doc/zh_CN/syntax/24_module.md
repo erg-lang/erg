@@ -8,7 +8,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 ```
 
 ``` erg
-# Defining the foo module is almost the same as defining this record
+# 定义ining the foo module is almost the same as defining this record
 foo = {.i = 1}
 ```
 

@@ -15,7 +15,7 @@ Person!.
 To be precise, a type whose base type is a mutable type, or a composite type containing mutable types, must have a `!` at the end of the type name. Types without `!` can exist in the same namespace and are treated as separate types.
 In the example above, the `.age` attribute is mutable and the `.name` attribute is immutable. If even one attribute is mutable, the whole is mutable.
 
-Mutable types can define procedural methods that rewrite instances, but having procedural methods does not necessarily make them mutable. For example, the array type `[T; N]` implements a `sample!` method that randomly selects an element, but of course does not destructively modify the array.
+Mutable types can define procedural 方法 that rewrite instances, but having procedural 方法 does not necessarily make them mutable. For example, the array type `[T; N]` implements a `sample!` method that randomly selects an element, but of course does not destructively modify the array.
 
 Destructive operations on mutable objects are primarily done via the `.update!` method. The `.update!` method is a higher-order procedure that updates `self` by applying the function `f`.
 

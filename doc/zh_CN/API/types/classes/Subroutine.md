@@ -2,7 +2,7 @@
 
 Func和Proc的基本类型。
 
-## methods
+## 方法
 
 * return
 

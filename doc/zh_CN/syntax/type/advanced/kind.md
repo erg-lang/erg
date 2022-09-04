@@ -15,7 +15,7 @@ assert Option in Type -> Type
 ```
 
 So code like the following will result in an error:
-In Erg, methods can only be defined in atomic kinds, and the name `self` cannot be used anywhere other than the first argument of a method.
+In Erg, 方法 can only be defined in atomic kinds, and the name `self` cannot be used anywhere other than the first argument of a method.
 
 ``` erg
 #K is an unary kind
@@ -132,9 +132,9 @@ Fn2(T, U).
 ```
 
 In the example above, which patch would the method `f` choose?
-Naively, `Fn T` seems to be chosen, but `Fn2 T, U` is also possible, `Option T` includes `T` as it is, so any type is applicable, `Container K , T` also matches ``` `->`(Int, Int)```, i.e. ```Container(`->`, Int)``` as ```Int -> Int`. So all four patches above are possible options.
+Naively, `Fn T` seems to be chosen, but `Fn2 T, U` is also possible, `Option T` includes `T` as it is, so any type is applicable, `Container K , T` also matches ``` `->`(Int, Int)```, i.e. ```Container(`->`, Int)``` as ```Int -> Int`. So all four 修补程序 above are possible options.
 
-In this case, patches are selected according to the following priority criteria.
+In this case, 修补程序 are selected according to the following priority criteria.
 
 * Any `K(T)` (e.g. `T or NoneType`) preferentially matches `Type -> Type` over `Type`.
 * Any `K(T, U)` (e.g. `T -> U`) matches `(Type, Type) -> Type` preferentially over `Type`.

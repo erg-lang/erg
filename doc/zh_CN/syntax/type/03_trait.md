@@ -7,7 +7,7 @@ It is similar to the Abstract Base Class (ABC) in Python, but with the distincti
 Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 ```
 
-Trait does not distinguish between attributes and methods.
+Trait does not distinguish between attributes and 方法.
 
 Note that traits can only be declared, not implemented (implementation is achieved by a feature called patching, which will be discussed later).
 Traits can be checked for implementation in a class by specifying a partial type.

@@ -316,7 +316,7 @@ An object that applies an operation to its operands. or a symbol denoting that o
 
 ### Override
 
-Overriding superclass methods in subclasses.
+Overriding superclass 方法 in subclasses.
 In Erg you have to add `Override` decorator when overriding.
 
 ### [No overloading](../syntax/type/overloading.md)
@@ -420,7 +420,7 @@ In Erg, modules are the responsibility of module objects, and types are the type
 
 ### [inheritance](../syntax/type/07_inheritance.md)
 
-To define a class that is a superset of another class.
+To define a class that is a 父类et of another class.
 The class that inherits is called the superclass, and the class that inherits is called the subclass.
 A subclass has all the functionality of its superclass.
 
@@ -471,7 +471,7 @@ Polymorphism with subtyping. Subtyping corresponds to set containment in types.
 
 ### Subroutine
 
-An object that modularizes processing. A generic term for functions, procedures, and methods in Erg.
+An object that modularizes processing. A generic term for functions, procedures, and 方法 in Erg.
 
 ### [reference](../syntax/18_memory_management.md#borrowed)
 
@@ -783,7 +783,7 @@ In Erg, an object should never change its contents.
 
 ### [move]
 
-### methods
+### 方法
 
 ### Metacharacters
 

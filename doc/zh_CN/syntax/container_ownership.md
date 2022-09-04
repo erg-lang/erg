@@ -1,6 +1,6 @@
 # Subscript (index access)
 
-`[]` is different from normal methods.
+`[]` is different from normal 方法.
 
 ``` erg
 a = [!1, !2]

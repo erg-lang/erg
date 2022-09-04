@@ -2,7 +2,7 @@
 
 一个可变长度数组，其长度在编译时已知。还有语法糖`ArrayWithMutLength(T, !N) == [T; !N]`
 
-## methods
+## 方法
 
 * push! ref! self(N ~> N+1, ...), elem: T
 

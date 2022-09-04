@@ -4,11 +4,11 @@
 Float的大小为8（1byte）~128（16byte）。如果只是Float，则表示`Float64`。
 Erg 中的 0.1 实际上属于 Ratio 类型，而不是 Float 类型。没有浮点类型字面量，它是由 `(Ratio object)f64` 生成的（例如 (1/2)f64, 15f64）。 f64 对应实数 1
 
-## supers
+## 父类
 
-Complex and Ord
+Complex 和 Ord
 
-## methods
+## 方法
 
 * sgn(self) -> {-1, 0, 1}
   返回标志

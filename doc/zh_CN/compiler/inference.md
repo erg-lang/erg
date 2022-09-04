@@ -28,7 +28,7 @@ Erg's type inference largely uses the Hindley-Milner type inference algorithm (a
 4. Resolve traits that have already been monomorphized
 5. Evaluate/reduce (eval) if there is a type variable value
 6. Remove linked type variables (deref)
-7. Propagate changes for mutable dependent methods
+7. Propagate changes for mutable dependent 方法
 8. If there is an lvalue and it is Callable, generalize the argument type (generalize)
 9. If there is an lvalue, generalize the (return value) type (generalize)
 10. If it is an assignment, register the type information in the symbol table (`Context`) (update)

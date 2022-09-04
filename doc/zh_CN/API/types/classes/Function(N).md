@@ -1,6 +1,6 @@
 # Function N: Nat
 
-## methods of Function 1
+## Function 1 的方法
 
 * then(self, g: Self) -> Self
 

@@ -8,7 +8,7 @@ assert f(g(x, y)) == ((x, y) |> g |> f)
 ```
 
 In other words, the order `Callable(object)` can be changed to `object |> Callable`.
-The pipeline operator can also be used on methods. For methods, `object.method(args)` changes to `object |>.method(args)`.
+The pipeline operator can also be used on 方法. For 方法, `object.method(args)` changes to `object |>.method(args)`.
 It looks like just more `|>`, but since the bond strength is low, you may be able to reduce the amount of `()`.
 
 ``` erg

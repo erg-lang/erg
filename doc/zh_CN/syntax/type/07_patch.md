@@ -1,7 +1,7 @@
 # Patch
 
 Erg does not allow modification of existing types and classes.
-This means, it is not possible to define additional methods in a class, nor to perform specialization (a language feature that monomorphizes a polymorphically declared type and defines a dedicated method, as in C++).
+This means, it is not possible to define additional 方法 in a class, nor to perform specialization (a language feature that monomorphizes a polymorphically declared type and defines a dedicated method, as in C++).
 However, there are many situations where you may want to add feature to an existing type or class, and there is a function called "patching" that allows you to do this.
 
 ```python
@@ -13,10 +13,10 @@ assert "abc".reverse() == "cba"
 ```
 
 The name of the patch should be a straightforward description of the primary functionality to be added.
-This way, objects of the type being patched (`Str`) can use the methods of the patch (`StrReverse`).
+This way, objects of the type being patched (`Str`) can use the 方法 of the patch (`StrReverse`).
 In fact, built-in method `.reverse` is not a method of `Str`, but a method added to `StrRReverse`.
 
-However, patch methods have lower precedence than methods of the nominal type (class/trait) and cannot override methods of existing types.
+However, patch 方法 have lower precedence than 方法 of the nominal type (class/trait) and cannot override 方法 of existing types.
 
 ```python
 StrangeInt = Patch Int
@@ -31,15 +31,15 @@ Overriding is not very easy to do because of some safety restrictions.
 ```python
 StrangeInt = Inherit Int
 StrangeInt.
-    # Overriding methods must be given Override decorators.
-    # In addition, you need to override all Int methods that depend on Int.`_+_`.
+    # Overriding 方法 must be given Override decorators.
+    # In addition, you need to override all Int 方法 that depend on Int.`_+_`.
     @Override
-    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ... ````` , so these methods must also be overridden
+    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ... ````` , so these 方法 must also be overridden
 ```
 
-## Selecting Patches
+## Selecting 修补程序
 
-Patches can be defined for a single type, and can be grouped together.
+修补程序 can be defined for a single type, and can be grouped together.
 
 ```python
 # foo.er
@@ -70,7 +70,7 @@ assert "to camel case".to_camel_case() == "toCamelCase"
 assert "to kebab case".to_kebab_case() == "to-kebab-case"
 ```
 
-If multiple patches are defined, some of them may result in duplicate implementations.
+If multiple 修补程序 are defined, some of them may result in duplicate implementations.
 
 ```python
 # foo.er
@@ -102,7 +102,7 @@ assert "hello".reverse() == "olleh"
 
 ## Glue Patch
 
-Patches can also relate types to each other. The `StrReverse` patch relates `Str` and `Reverse`.
+修补程序 can also relate types to each other. The `StrReverse` patch relates `Str` and `Reverse`.
 Such a patch is called a __glue patch__.
 Because `Str` is a built-in type, a glue patch is necessary for users to retrofit traits.
 
@@ -118,8 +118,8 @@ StrReverse.
 ```
 
 Only one glue patch can be defined per type/trait pair.
-This is because if multiple glue patches were "visible" at the same time, it would not be possible to uniquely determine which implementation to choose.
-However, you can swap patches when moving to another scope (module).
+This is because if multiple glue 修补程序 were "visible" at the same time, it would not be possible to uniquely determine which implementation to choose.
+However, you can swap 修补程序 when moving to another scope (module).
 
 ```python
 NumericStr = Inherit Str
@@ -135,7 +135,7 @@ NumStrRev.
 
 ## Appendix: Relationship to Rust's Trait
 
-Erg patches are the equivalent of Rust's (retrofitted) `impl` blocks.
+Erg 修补程序 are the equivalent of Rust's (retrofitted) `impl` blocks.
 
 ```rust
 // Rust
@@ -150,7 +150,7 @@ impl Reverse for String {
 }
 ```
 
-You could say that Rust's traits are features of Erg's traits and patches. This makes Rust's traits sound more convenient, but that is not necessarily the case.
+You could say that Rust's traits are features of Erg's traits and 修补程序. This makes Rust's traits sound more convenient, but that is not necessarily the case.
 
 ```python
 # Erg
@@ -199,10 +199,10 @@ assert (Int -> Int).type == Int
 
 ## Structural Patch
 
-In addition, patches can be defined for any type that satisfies a certain structure.
-However, this has a lower priority than nominal patches and class methods.
+In addition, 修补程序 can be defined for any type that satisfies a certain structure.
+However, this has a lower priority than nominal 修补程序 and class 方法.
 
-Careful design should be used when defining structural patches, as some properties are lost by extension, such as the following.
+Careful design should be used when defining structural 修补程序, as some properties are lost by extension, such as the following.
 
 ```python
 # This should not be `Structural`

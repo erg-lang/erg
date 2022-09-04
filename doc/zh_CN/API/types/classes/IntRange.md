@@ -6,7 +6,7 @@
 IntRange L, R: Int == L..R
 ```
 
-## methods
+## 方法
 
 * .`_+_`: Self(L1, R1), Self(L2, R2) -> Self(L1+L2, R1+R2)
 

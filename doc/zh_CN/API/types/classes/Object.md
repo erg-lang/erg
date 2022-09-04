@@ -2,6 +2,6 @@
 
 它是所有类型的超类型
 
-## methods
+## 方法
 
 * __sizeof__: Nat

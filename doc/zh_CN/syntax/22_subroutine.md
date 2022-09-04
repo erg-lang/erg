@@ -35,7 +35,7 @@ T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ```
 
 As a note, the type of `.some_method` is `Ref!(T(N ~> N+X)). ({X}) => () | N, X: Nat`.
-For methods that do not have `ref!`, i.e., are deprived of ownership after application, the type argument transition (`~>`) cannot be used.
+For 方法 that do not have `ref!`, i.e., are deprived of ownership after application, the type argument transition (`~>`) cannot be used.
 
 If ownership is taken, it is as follows.
 

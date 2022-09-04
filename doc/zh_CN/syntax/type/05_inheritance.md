@@ -58,11 +58,11 @@ StrMoreThan4 = Inherit StrMoreThan3, Excluding: StrWithLen N | N == 3
 
 ## Overriding
 
-The class is the same as the patch in that new methods can be added to the original type, but the class can be further "overridden".
+The class is the same as the patch in that new 方法 can be added to the original type, but the class can be further "overridden".
 This overriding is called override. To override, three conditions must be met.
 First, the override must have an `Override` decorator because by default it will result in an error.
 In addition, the override cannot change the type of the method. It must be a subtype of the original type.
-And if you override a method that is referenced by another method, you must also override all referenced methods.
+And if you override a method that is referenced by another method, you must also override all referenced 方法.
 
 Why is this condition necessary? It is because overriding does not merely change the behavior of one method, but may affect the behavior of another method.
 
@@ -177,7 +177,7 @@ Inherited!
     # OverrideError: `.inc_pub!` must be subtype of `Self! () => ()`
 ```
 
-The second is an update operation on the (variable) instance attribute of the inherited source. This is also prohibited. Instance attributes of the base class may only be updated from methods provided by the base class.
+The second is an update operation on the (variable) instance attribute of the inherited source. This is also prohibited. Instance attributes of the base class may only be updated from 方法 provided by the base class.
 Regardless of the visibility of the attribute, it cannot be updated directly. However, they can be read.
 
 ```python
@@ -198,7 +198,7 @@ Inherited!
         self.pub.update! p -> p + 2
 ```
 
-After all, Erg inheritance can only add new attributes and override base class methods.
+After all, Erg inheritance can only add new attributes and override base class 方法.
 
 ## Usage of Inheritance
 

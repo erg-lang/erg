@@ -1,3 +1,3 @@
 # Module
 
-## methods
+## 方法

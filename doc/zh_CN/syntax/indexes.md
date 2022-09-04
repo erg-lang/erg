@@ -416,7 +416,7 @@ See [here](../dev_guide/terms.md) for terminology.
 * [anonymous function](./21_lambda.md)
 * mutable → [mutable]
 * [Move]
-* methods
+* 方法
 * Metacharacter
 * [module](./24_module.md)
 * [String] → [Str]

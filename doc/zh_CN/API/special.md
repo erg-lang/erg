@@ -34,7 +34,7 @@ print! L # <kind L>
 `=` 运算符的返回值为“未定义”。
 函数中的多个赋值和 `=` 会导致语法错误。
 
-``` 呃
+``` erg
 i = j = 1 # SyntaxError: 不允许多次赋值
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
 # 提示：您的意思是关键字参数（`x: 1`）吗？

@@ -78,7 +78,7 @@ f x:
     y
 ```
 
-## Default parameters
+## 定义ault parameters
 
 Default parameters are used when some parameters are mostly fixed and you want to be able to omit them.
 

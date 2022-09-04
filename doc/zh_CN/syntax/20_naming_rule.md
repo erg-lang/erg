@@ -9,7 +9,7 @@ match i:
     None -> log "None"
 ```
 
-Objects with side effects always end with `!`. Procedures and procedural methods, and mutable types.
+Objects with side effects always end with `!`. Procedures and procedural 方法, and mutable types.
 However, the `Proc` type itself is not mutable.
 
 ``` erg

@@ -9,7 +9,7 @@ NonEmptyArray = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: Array(_, N); N
 
 The standard form of quantified dependent types are `K(A, ... | Pred)`. ``K`` is a type constructor, `A, B` are type arguments, and `Pred` is a conditional expression.
 
-Quantified dependent types as left-hand side values can only define methods in the same module as the original type.
+Quantified dependent types as left-hand side values can only define 方法 in the same module as the original type.
 
 ```python
 K A: Nat = Class ...

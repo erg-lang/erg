@@ -24,7 +24,7 @@ classDiagram
     Div <|.. Int: Impl
 ```
 
-## methods
+## 方法
 
 @Impl SafeDiv R, O
 .`/`: Self.(R) -> O

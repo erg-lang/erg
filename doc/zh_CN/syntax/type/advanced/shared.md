@@ -53,7 +53,7 @@ assert $p3 == 1
 
 Objects of type `SharedCell!` must be prefixed with `$`. Also, by their nature, they cannot be constants.
 
-The `SharedCell! T!` type is also a subtype of `T!` and can call methods of type `T!`. The only methods specific to the `SharedCell!T!` type are `.addr!`, `.mirror!` and `.try_take`.
+The `SharedCell! T!` type is also a subtype of `T!` and can call 方法 of type `T!`. The only 方法 specific to the `SharedCell!T!` type are `.addr!`, `.mirror!` and `.try_take`.
 
 An important fact is that `SharedCell! T!` is non-variant, i.e., no inclusions are defined for different type arguments.
 

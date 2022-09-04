@@ -5,6 +5,6 @@
 建议使用 Nat、NZInt、Interval 类型等。
 Int是一种来自 Python 的类型，只有`Object`作为其超类型。
 
-## supers
+## 父类
 
-## methods
+## 方法

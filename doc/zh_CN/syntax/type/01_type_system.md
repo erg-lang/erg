@@ -26,7 +26,7 @@ o2 = D.new {.public = 2} # InitializationError: class 'D' requires attribute 'pr
 ## Classification
 
 All objects in Erg are strongly typed.
-The top-level type is `{=}`, which implements `__repr__`, `__hash__`, `clone`, etc. (not required methods, and these attributes cannot be overridden).
+The top-level type is `{=}`, which implements `__repr__`, `__hash__`, `clone`, etc. (not required 方法, and these attributes cannot be overridden).
 Erg's type system incorporates structural subtyping (SST). The types typed by this system are called Structural types.
 There are three major types of structural types: Attributive (attribute type), Refinement (refinement type), and Algebraic (algebraic type).
 
@@ -166,7 +166,7 @@ f x, y = x + y
 In the case of the code above, the type with `+`, i.e., `Add` is automatically inferred; Erg first infers the smallest type. If `f 0, 1`, it will infer `f x: {0}, y: {1}`, if `n: Nat; f n, 1`, it will infer `f x: Nat, y: {1}`. After minimization, the type is increased until an implementation is found. In the case of `{0}, {1}`, `Nat` is monomorphic to `Nat` since `Nat` is the smallest type with a `+` implementation.
 If `{0}, {-1}`, it is monomorphic to `Int` since it does not match `Nat`. If there is no relationship between subtypes and supertypes, the one with the lowest concentration (number of instances) (or even fewer arguments in the case of polymorphic types) is tried first.
 `{0}` and `{1}` are enumerated types that are partial types such as `Int` and `Nat`.
-Enumerated types, for example, can be given names and request/implementation methods. In namespaces that have access to that type, objects that satisfy the request can use the implementation method.
+Enumerated types, for example, can be given names and request/implementation 方法. In namespaces that have access to that type, objects that satisfy the request can use the implementation method.
 
 ```python
 Binary = Patch {0, 1}

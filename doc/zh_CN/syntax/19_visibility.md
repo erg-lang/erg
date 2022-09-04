@@ -87,7 +87,7 @@ C.
 
 ## Visibility in external modules
 
-A class defined in one module can actually define methods from an external module.
+A class defined in one module can actually define 方法 from an external module.
 
 ``` erg
 # foo.er
@@ -109,9 +109,9 @@ Foo.
     foo::private() # AttributeError
 ```
 
-However, both of those methods are only available within that module.
-Private methods defined externally are visible to methods of the `Foo` class only within the defining module.
-Public methods are exposed outside the class, but not outside the module.
+However, both of those 方法 are only available within that module.
+Private 方法 defined externally are visible to 方法 of the `Foo` class only within the defining module.
+Public 方法 are exposed outside the class, but not outside the module.
 
 ``` erg
 # baz.er
@@ -121,8 +121,8 @@ foo = Foo.new()
 foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defined in module 'bar')
 ```
 
-Also, methods cannot be defined in the type to be re-exported.
-This is to avoid confusion about methods being found or not found depending on the module they are imported from.
+Also, 方法 cannot be defined in the type to be re-exported.
+This is to avoid confusion about 方法 being found or not found depending on the module they are imported from.
 
 ``` erg
 #bar.er

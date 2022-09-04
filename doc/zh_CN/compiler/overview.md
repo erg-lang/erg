@@ -1,6 +1,6 @@
 # overview of `erg`
 
-We will introduce the function of each layer and the particularly important functions and methods.
+We will introduce the function of each layer and the particularly important functions and 方法.
 
 ## 1. Lexical Analysis
 

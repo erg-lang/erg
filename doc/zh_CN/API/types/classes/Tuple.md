@@ -2,7 +2,7 @@
 
 包含多种类型对象的集合
 
-## methods
+## 方法
 
 * zip self, other
 

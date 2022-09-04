@@ -3,7 +3,7 @@
 ## local rules
 
 * Use `log!` for output for debugging (use `println!` etc. for output processing that is also necessary for release).
-* Unused or internal variables/methods (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
+* Unused or internal variables/方法 (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
 
 ## Recommended code
 
@@ -19,5 +19,5 @@
 
 ## Code that makes decisions based on context
 
-* Define unused helper methods.
+* Define unused helper 方法.
 * Use `unwrap` and `clone` a lot. In some cases there is nothing better than doing so.

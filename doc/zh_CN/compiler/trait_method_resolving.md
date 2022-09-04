@@ -1,4 +1,4 @@
-# Resolving patch methods
+# Resolving patch 方法
 
 `Nat` is zero or more `Int`, a subtype of `Int`.
 `Nat` does not exist in the Python class hierarchy. I wonder how Erg solves this patch method?
@@ -22,9 +22,9 @@ As for `Complex`, even though it is a class that does not have an inheritance re
 ~
 
 An object has an infinite number of types to which it belongs.
-But we really only have to think about types with methods, i.e. types with names.
+But we really only have to think about types with 方法, i.e. types with names.
 
-The Erg compiler has a hashmap of patch types with all provided methods and their implementations.
+The Erg compiler has a hashmap of patch types with all provided 方法 and their implementations.
 This table is updated each time a new type is defined.
 
 ``` erg
@@ -49,12 +49,12 @@ In this case, `Nat` is `0.._ == {I: Int | I >= 0}`, so `{1}` is compatible with 
 ## Determine record type
 
 Check if the candidate type is compatible with `Int`, a class of 1.
-Others that are patches of `Int` and that `Int` has all the required attributes are also compatible.
+Others that are 修补程序 of `Int` and that `Int` has all the required attributes are also compatible.
 
 ~
 
 So `Nat` fit. However, if `Foo` also matches, it is determined by the containment relationship between `Nat` and `Foo`.
-That is, subtype methods are selected.
+That is, subtype 方法 are selected.
 If there is no containment relationship between the two, a compile error will occur (this is a safety measure against executing a method against the programmer's intention).
 To eliminate the error, you need to specify the patch explicitly.
 
@@ -62,7 +62,7 @@ To eliminate the error, you need to specify the patch explicitly.
 o.method(x) -> P.method(o, x)
 ```
 
-## method resolution for universal patches
+## method resolution for universal 修补程序
 
 Define a patch like this:
 
