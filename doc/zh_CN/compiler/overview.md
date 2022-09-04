@@ -4,7 +4,7 @@
 
 ## 1. 词法分析
 
-* `Lexer` 进行词法分析。 `Lexer::next`（`Lexer`被实现为一个迭代器）负责词法分析的主要逻辑。 `Token` 作为解析的结果输出。
+* `Lexer` 进行词法分析。 `Lexer::next`(`Lexer`被实现为一个迭代器)负责词法分析的主要逻辑。 `Token` 作为解析的结果输出。
 
 ## 2. 解析
 
@@ -16,7 +16,7 @@
 
 ## 4. 类型检查/类型推断
 
-* `ASTLowerer` 进行打字。类型检查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`（确定子类型关系）、`Context::unify/sub_unify`（统一/半统一类型变量）、`Context::init_builtin_*`（定义内置 API）。 `HIR` 作为分析结果输出。
+* `ASTLowerer` 进行打字。类型检查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`(确定子类型关系)、`Context::unify/sub_unify`(统一/半统一类型变量)、`Context::init_builtin_*`(定义内置 API)。 `HIR` 作为分析结果输出。
 
 ## 5. 副作用检查
 

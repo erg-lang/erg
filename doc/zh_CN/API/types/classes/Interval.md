@@ -11,7 +11,7 @@ Winter = November..December or January..February
 
 ```python
 0..1 # 整数范围
-0.0..1.0 # 真实（有理）范围
+0.0..1.0 # 真实(有理)范围
 # 或 0/1..1/1 相同
 ```
 

@@ -10,7 +10,7 @@
 
 ## PurityError
 
-当您在不允许副作用的范围内（函数、不可变类型等）编写导致副作用的代码时发生
+当您在不允许副作用的范围内(函数、不可变类型等)编写导致副作用的代码时发生
 
 ## MoveError
 
@@ -111,7 +111,7 @@ g() = f()
 
 ## SyntaxWarning
 
-它在语法上很好，但是当我们检测到冗余或不常见的代码（不必要的 `()` 等）时就会发生这种情况
+它在语法上很好，但是当我们检测到冗余或不常见的代码(不必要的 `()` 等)时就会发生这种情况
 
 ```python
 if (True): # SyntaxWarning: unnecessary parentheses
@@ -121,11 +121,11 @@ if (True): # SyntaxWarning: unnecessary parentheses
 ## DeprecationWarning
 
 在不推荐使用引用的对象时发生
-（开发人员在生成此警告时应始终提供替代方法作为提示）
+(开发人员在生成此警告时应始终提供替代方法作为提示)
 
 ## FutureWarning
 
 当您检测到将来可能导致问题的代码时发生
-此警告是由版本兼容性问题（包括库）以及语法和 API 的更改引起的
+此警告是由版本兼容性问题(包括库)以及语法和 API 的更改引起的
 
 ## ImportWarning

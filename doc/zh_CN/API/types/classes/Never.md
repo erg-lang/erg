@@ -9,5 +9,5 @@ f(): Panic = exit 0 # OK
 g(): Never = panic() # TypeError
 ```
 
-`Never`/`Panic`的 OR 类型，例如`T 或 Never`可以转换为`T`。 这是因为`Never`在语义上是一个从不出现的选项（如果出现了，程序会立即停止）。
+`Never`/`Panic`的 OR 类型，例如`T 或 Never`可以转换为`T`。 这是因为`Never`在语义上是一个从不出现的选项(如果出现了，程序会立即停止)。
 但是，在函数的返回值类型中使用时，`or Never`不能省略，因为它表示程序可能会终止。

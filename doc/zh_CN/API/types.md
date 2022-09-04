@@ -6,15 +6,15 @@
 
 ### 对象
 
-* `__dir__`：将对象的属性作为数组返回（dir函数）
+* `__dir__`：将对象的属性作为数组返回(dir函数)
 * `__getattribute__`: 获取并返回一个属性
 * `__hash__`：返回对象的哈希值
-* `__repr__`：对象的字符串表示（不存在丰富/默认实现）
-* `__sizeof__`：返回对象的大小（包括在堆中分配的大小）
+* `__repr__`：对象的字符串表示(不存在丰富/默认实现)
+* `__sizeof__`：返回对象的大小(包括在堆中分配的大小)
 
 ### 显示
 
-* `__str__`：返回对象的字符串表示（丰富）
+* `__str__`：返回对象的字符串表示(丰富)
 
 ### Fmt
 
@@ -35,29 +35,29 @@
 
 ## 对象系统
 
-Trait 类相当于 Python 中的 ABC（抽象基类，接口）
+Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 实例属于1、True、“aaa”等。
 类是 Int、Bool、Str 等。
 
 ### 类型
 
-* `__父类__`：超类型（`__mro__` 是一个数组，但这个是一个 Set）
+* `__父类__`：超类型(`__mro__` 是一个数组，但这个是一个 Set)
 * `__basicsize__`:
 * `__dictoffset__`：Evm 不支持
 * `__flags__`:
-* `__itemsize__`：实例的大小（如果不是类，则为 0）
+* `__itemsize__`：实例的大小(如果不是类，则为 0)
 * `__weakrefoffset__`：Evm 不支持
 * `__membercheck__`: 相当于`ismember(x, T)`
-* `__subtypecheck__`：等价于`issubtype(U, T)`，别名`__subclasshook__`（兼容CPython）
+* `__subtypecheck__`：等价于`issubtype(U, T)`，别名`__subclasshook__`(兼容CPython)
 
 ### 实例
 
-* `__class__`：返回创建实例的类（自动附加到使用 `.new` 创建的对象）
+* `__class__`：返回创建实例的类(自动附加到使用 `.new` 创建的对象)
 
 ### Class
 
-* `__mro__`：用于方法解析的类型数组（包括自身，始终以 Object 结尾）
-* `__base__`：基本类型（`__mro__[1]` 如果有多个）
+* `__mro__`：用于方法解析的类型数组(包括自身，始终以 Object 结尾)
+* `__base__`：基本类型(`__mro__[1]` 如果有多个)
 * `__new__`: 实例化
 * `__init__`: 初始化实例
 * `__init_subclass__`: 初始化实例
@@ -76,9 +76,9 @@ Trait 类相当于 Python 中的 ABC（抽象基类，接口）
 ### 秩序
 
 * `__lt__(self, rhs: Self) -> Bool`: 对象比较函数 (<)
-* `__le__`：对象比较函数（<=），默认实现
-* `__gt__`：对象比较函数（>），默认实现
-* `__ge__`：对象比较函数（>=），默认实现
+* `__le__`：对象比较函数(<=)，默认实现
+* `__gt__`：对象比较函数(>)，默认实现
+* `__ge__`：对象比较函数(>=)，默认实现
 
 ### BinAdd
 
@@ -98,7 +98,7 @@ Trait 类相当于 Python 中的 ABC（抽象基类，接口）
 
 ### BinMul <: Mul Self
 
-* `__pow__`：实现 `**`（默认实现）
+* `__pow__`：实现 `**`(默认实现)
 
 ### Div R, O
 
@@ -112,7 +112,7 @@ Trait 类相当于 Python 中的 ABC（抽象基类，接口）
 
 ### Num (= Add and Sub and Mul and Eq)
 
-例如，除了Complex，Vector、Matrix和Tensor都是Num（Matrix和Tensor中的*分别与dot和product相同）
+例如，除了Complex，Vector、Matrix和Tensor都是Num(Matrix和Tensor中的*分别与dot和product相同)
 
 ### Complex (= Inherit(Object, Impl := Num))
 
@@ -167,7 +167,7 @@ Trait 类相当于 Python 中的 ABC（抽象基类，接口）
 ### 位
 
 * `from_bytes`：从字节转换
-* `to_bytes`：转换为字节（指定长度和字节序（字节序））
+* `to_bytes`：转换为字节(指定长度和字节序(字节序))
 * `bit_length`：返回位长度
 
 ### 可迭代 T
@@ -224,9 +224,9 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 ## Seq T = SizedIterable T 和 ...
 
 * `concat`: 合并两个 Seq
-* `__getitem__`：等同于使用 `[]` 访问（否则会出现恐慌）
+* `__getitem__`：等同于使用 `[]` 访问(否则会出现恐慌)
 * 与 `get`: __getitem__ 不同，它返回 Option
-* `maketrans`：创建替换表（静态方法）
+* `maketrans`：创建替换表(静态方法)
 * `replace`: 替换
 * `translate`：根据替换表替换
 * `insert`: 添加到 idx
@@ -236,7 +236,7 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 * `push`：添加到末尾
 * `pop`: 取尾巴
 * `dedup`：删除连续值
-* `uniq`：删除重复元素（通过 sort |> dedup 实现，因此顺序可能会改变）
+* `uniq`：删除重复元素(通过 sort |> dedup 实现，因此顺序可能会改变)
 * `swap`：交换元素
 * `reverse`：反转元素
 * `sort`: 排序元素
@@ -254,7 +254,7 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 * `push!`：添加到末尾
 * `pop!`：拿尾巴
 * `dedup!`：删除连续值
-* `uniq!`: 删除重复元素（通过排序实现！|> dedup!，因此顺序可能会改变）
+* `uniq!`: 删除重复元素(通过排序实现！|> dedup!，因此顺序可能会改变)
 * `swap!`：交换元素
 * `reverse!`：反转元素
 * `set!`

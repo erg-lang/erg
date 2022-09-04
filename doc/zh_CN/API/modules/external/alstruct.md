@@ -18,7 +18,7 @@ assert Nat. ReturnTypeof(Mul) == Nat
 assert Nat.ReturnTypeof(Div) == Positive Ratio
 ```
 
-## 半群（一个二元运算的代数系统）
+## 半群(一个二元运算的代数系统)
 
 ```python
 SemiGroup Op: Kind 2 = Op(Self, Self)
@@ -48,7 +48,7 @@ Applicative = Subsume Functor, Additional: {
 }
 ```
 
-## 单子（交互式命令行工具以及面向对象的脚本技术）
+## 单子(交互式命令行工具以及面向对象的脚本技术)
 
 ```python
 Monad = Subsume Applicative, Additional: {

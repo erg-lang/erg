@@ -1,16 +1,16 @@
-# Python Bytecode Instructions
+# Python 字节码指令
 
-Python bytecode variable manipulation commands are accessed through namei (name index). This is to achieve dynamic variable access in Python (which can be accessed as a string using eval, etc.).
-One instruction is 2 bytes, and the instruction and arguments are stored in little endian.
-Instructions that do not take arguments also use 2 bytes (the argument part is 0).
+Python 字节码变量操作命令通过 名称索引(名称索引)访问。 这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)。
+一条指令为 2 个字节，指令和参数以 little endian 形式存储。
+不带参数的指令也使用 2 个字节(参数部分为 0)。
 
-## STORE_NAME(namei)
+## STORE_NAME(名称索引)
 
 ```python
 globals[namei] = stack.pop()
 ```
 
-## LOAD_NAME(namei)
+## LOAD_NAME(名称索引)
 
 ```python
 stack.push(globals[namei])
@@ -18,22 +18,22 @@ stack.push(globals[namei])
 
 Only called at top level.
 
-## LOAD_GLOBAL(namei)
+## LOAD_GLOBAL(名称索引)
 
 ```python
 stack.push(globals[namei])
 ```
 
-It is for loading STORE_NAME at the top level in the inner scope, but `namei` at the top level is not necessarily the same as namei in the code object of a certain scope (name is the same, not namei)
+用于加载内部作用域顶层的STORE_NAME，但顶层的`名称索引`不一定与某个作用域的代码对象中的名称索引相同(名称相同，名称索引不一定)
 
-## LOAD_CONST(namei)
+## LOAD_CONST(名称索引)
 
 ```python
 stack.push(consts[namei])
 ```
 
-Load constants in the constant table.
-Currently (Python 3.9), in CPython, each lambda function is MAKE_FUNCTION with the name "\<lambda\>"
+在常量表中加载常量。
+目前(Python 3.9)，在 CPython 中，每个 lambda 函数都是 MAKE_FUNCTION，名称为“\<lambda\>”
 
 ```console
 >>> dis.dis("[1,2,3].map(lambda x: x+1)")
@@ -49,66 +49,68 @@ Currently (Python 3.9), in CPython, each lambda function is MAKE_FUNCTION with t
         18 RETURN_VALUE
 ```
 
-## STORE_FAST(namei)
+## STORE_FAST(名称索引)
 
 fastlocals[namei] = stack.pop()
-Possibly corresponds to STORE_NAME at top level
-The unreferenced (or single) variable is assumed to be stored by this
-Is it for optimization that the global space has its own instructions?
+可能对应于顶层的 STORE_NAME
+假定未引用(或单个)变量由此存储
+全局空间有自己的指令是为了优化吗？
 
-## LOAD_FAST(namei)
+## LOAD_FAST(名称索引)
 
+```python
 stack.push(fastlocals[namei])
-fastlocals are varnames?
+```
+fastlocals 是变量名吗？
 
-## LOAD_CLOSURE(namei)
+## LOAD_CLOSURE(名称索引)
 
 ```python
 cell = freevars[namei]
 stack. push(cell)
 ```
 
-Then BUILD_TUPLE is called
-It is only called inside the closure, and cellvars are supposed to store references inside the closure.
-Unlike LOAD_DEREF, each cell (container filled with references) is pushed to the stack
+然后调用 BUILD_TUPLE
+它只在闭包内被调用，并且 cellvars 应该在闭包内存储引用。
+与 LOAD_DEREF 不同，每个单元格(填充有引用的容器)都被推入堆栈
 
-## STORE_DEREF(namei)
+## STORE_DEREF(名称索引)
 
 ```python
 cell = freevars[namei]
 cell.set(stack.pop())
 ```
 
-Variables without references in inner scopes are STORE_FAST, but referenced variables are STORE_DEREF
-In Python, the reference count is incremented and decremented within this instruction
+在内部范围内没有引用的变量是 STORE_FAST，但引用的变量是 STORE_DEREF
+在 Python 中，引用计数在该指令内递增和递减
 
-## LOAD_DEREF(namei)
+## LOAD_DEREF(名称索引)
 
 ```python
 cell = freevars[namei]
 stack.push(cell.get())
 ```
 
-## name list
+## 名称列表
 
-### varnames
+### 变量名
 
-Name list of function internal variables corresponding to fast_locals
-Even if there are variables with the same name in names, they are basically not the same (newly created and outside variables cannot be accessed from that scope)
-i.e. variables without external references defined in scope go into varnames
+fast_locals 对应的函数内部变量名称列表
+即使名称中有同名的变量，它们也基本不一样(新创建的和外部变量不能从那个范围访问)
+即没有在范围内定义的外部引用的变量进入 varnames
 
-### names
+### 名字
 
-Compatible with globals
-Name list of external constants (only referenced) used within the scope (at the top level, even ordinary variables are included in names)
-i.e. constants defined outside the scope go into names
+与全局兼容
+范围内使用的外部常量(仅引用)的名称列表(在顶层，即使是普通变量也包含在名称中)
+即在范围之外定义的常量进入名称
 
-## free variables
+## 自由变量
 
-Compatible with freevars
-Variables captured by the closure. It behaves statically within the same function instance.
+与免费变量兼容
+闭包捕获的变量。它在同一个函数实例中静态地运行。
 
-## cell variables
+## 单元格变量
 
-Corresponds to cellvars
-Variables captured within a function to an inner closure function. Since a copy is made, the original variable remains as it is.
+对应于 cellvars
+在函数内捕获到内部闭包函数的变量。 由于制作了副本，因此原始变量保持原样。

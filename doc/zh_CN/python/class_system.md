@@ -1,10 +1,10 @@
-# Python class system (compare with Erg)
+# Python 类系统（与 Erg 比较）
 
 ## 方法
 
-方法 may be forward referenced, but this is not a special technique used.
-This is because the existence of a method is dynamically checked.
-(In Erg, method existence is checked statically. For forward references, functions must be constants.)
+方法可以被前向引用，但这不是一种特殊的技术。
+这是因为动态检查方法的存在。
+（在 Erg 中，方法存在是静态检查的。对于前向引用，函数必须是常量。）
 
 ```python
 >>> class C:
@@ -14,10 +14,10 @@ This is because the existence of a method is dynamically checked.
 ...   def g(self, x): return self.f(x - 1)
 ```
 
-## Inheritance, overriding
+## 继承，覆盖
 
-Some overridden method m is simply overwritten, like a variable reassignment.
-A method that refers to m in the parent class will refer to the overridden m in the child class.
+一些被覆盖的方法 m 被简单地覆盖，就像变量重新分配一样。
+在父类中引用 m 的方法将在子类中引用被覆盖的 m。
 
 ```python
 >>> class C:
@@ -31,7 +31,7 @@ A method that refers to m in the parent class will refer to the overridden m in 
 2
 ```
 
-So, even if it is overridden by mistake obviously, it will not be an error until runtime.
+因此，即使它显然被错误地覆盖，直到运行时才会出错。
 
 ```python
 >>>> class C:
@@ -45,11 +45,11 @@ So, even if it is overridden by mistake obviously, it will not be an error until
 Traceback (most recent call last):
   File "<stdin>", line 1, in <module
   File "<stdin>", line 3, in g
-TypeError: can only concatenate str (not "int") to str
+类型错误：只能将str（不是“int”）连接到str
 ```
 
-Erg statically checks for consistency with the parent class.
-The `Override` decorator must be given when overriding, and the type of the overriding function must be a subtype of the type of the function being overridden.
+Erg 静态检查与父类的一致性。
+重写时必须给出“Override”装饰器，并且重写函数的类型必须是被重写函数类型的子类型。
 
 ```python
 >>> C = Class()
@@ -59,15 +59,15 @@ The `Override` decorator must be given when overriding, and the type of the over
 >>> D = Inherit C
 ...   .f self = "a"
 ...
-Error[#XX]: File "<stdin>", line 5, in D
-To override f, it must be added `Override` decorator and its type must be `Self.() -> Nat` or the subtype of that
-f(self) is already defined in C. To override f, it must be added `Override` decorator and its type must be `Self. To override, it must be given an `Override` decorator and its type must be `Self.() -> Nat` or the subtype of that.f(self).
+错误[#XX]：文件“<stdin>”，第 5 行，在 D 中
+要覆盖 f，必须添加 `Override` 装饰器，其类型必须是 `Self.() -> Nat` 或其子类型
+f(self) 已在 C 中定义。要覆盖 f，必须添加 `Override` 装饰器，其类型必须为 `Self. 要覆盖，必须给它一个 `Override` 装饰器，并且它的类型必须是 `Self.() -> Nat` 或 that.f(self) 的子类型。
 ```
 
-## Type checking
+## 类型检查
 
-Type checking is generally all about checking the type of function arguments.
-In Python, most operations are method calls. If the class to which the object belongs does not have a method attached to it at the time of the call, that's it.
+类型检查通常都是关于检查函数参数的类型。
+在 Python 中，大多数操作都是方法调用。 如果对象所属的类在调用时没有附加方法，就是这样。
 
 ```python
 def f(x):
@@ -78,7 +78,7 @@ class C:
 
 c = C()
 f(c)
-f(1) # TypeError
+f(1) # 类型错误
 ```
 
 ```python
@@ -90,5 +90,5 @@ C.m(self) = None
 
 c = C.new()
 f(c)
-f(1) # TypeError: f takes a type has method `.m` as an argument, but passed Nat
+f(1) # 类型错误：f 将具有方法 `.m` 的类型作为参数，但传递了 Nat
 ```
