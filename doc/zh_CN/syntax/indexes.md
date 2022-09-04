@@ -8,7 +8,7 @@ See [here](../dev_guide/terms.md) for terminology.
 * !
   * !-type → [mutable type](./type/mut.md)
 * [&#35;](./00_basic.md/#comment)
-*$
+* $
 * %
 * &
   * &&
@@ -62,130 +62,130 @@ See [here](../dev_guide/terms.md) for terminology.
 
 ### A
 
-* [algebraic&nbsp;type]
-* [And]
-* [and]
-* [assert]
-* [attribute]
+* algebraic&nbsp;type
+* And
+* and
+* assert
+* attribute
 
-###B
+### B
 
-* [Base]
-* [Bool]
+* Base
+* Bool
 
 ### C
 
-* [Class]
+* Class
 
-###D
+### D
 
-*Deprecated
-* [distinct]
+* Deprecated
+* distinct
 
-###E
+### E
 
-* [enum&nbsp;type]
-*[Eq]
-*[Erg]
+* enum&nbsp;type
+* Eq
+* Erg
 
-###F
+### F
 
-*[for]
+* for
 
-###G
+### G
 
-###H
+### H
 
 ### I
 
-* [if]
-* [import]
-* [in]
-* [Int]
+* if
+* import
+* in
+* Int
 
-###J
+### J
 
-###K
+### K
 
 ### L
 
 * let-polymorphism → [rank 1 polymorphism]
-* [log]
+* log
 
-###M
+### M
 
-* [match]
+* match
 
-###N
+### N
 
-*[Nat]
+* Nat
 * Never
-*None
-*None
-*[Not]
-* [not]
+* None
+* None
+* Not
+* not
 
-###O
+### O
 
-* [Option]
-* [Or]
-* [or]
-*[Ord]
+* Option
+* Or
+* or
+* Ord
 
-###P
+### P
 
 * panic
 * [print!](./../API/procs.md#print)
-* [Python]
+* Python
 
-###Q
+### Q
 
 ### R
 
 * ref
-*ref!
-* [Result]
-*[rootobj]
+* ref!
+* Result
+* rootobj
 
-###S
+### S
 
-*self
+* self
 * [Self](./type/special.md)
 * [side-effect](./07_side_effect.md)
-*[Str]
+* Str
 
-###T
+### T
 
 * Traits
-* [True]
-* [Type]
-* [type]
+* True
+* Type
+* type
 
-###U
+### U
 
-###V
+### V
 
 ### W
 
-* [while!]
+* while!
 
-###X
+### X
 
-###Y
+### Y
 
-###Z
+### Z
 
 ## A line
 
-* [Assertion]
+* Assertion
 * value object
 * [Attachment patch](./29_decorator.md#attach)
 * Ad-hoc polymorphism → [No overloading](./type/overloading.md)
-* Attribute → [Attribute]
+* Attribute → Attribute
 * arity
 * [dependent type](./type/dependent_type.md)
-* immutable → [immutable]
-* Argument → [Argument]
+* immutable → immutable
+* Argument → Argument
 * instance
 * [instant block](./00_basic.md# expression separator)
 * index
@@ -198,7 +198,7 @@ See [here](../dev_guide/terms.md) for terminology.
 * Override
 * [No overloading](./type/overloading.md)
 * Offside rule → [indent](./00_basic.md#indent)
-* [object]
+* object
   * Object-orientation
 * Operand → [operand](./06_operator.md)
 * operator → [operator](./06_operator.md)
