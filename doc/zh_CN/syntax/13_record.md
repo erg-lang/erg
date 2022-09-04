@@ -1,7 +1,7 @@
-# Record
+# 记录(Record)
 
-A record is a collection that combines the properties of a Dict accessed by key and a tuple whose access is inspected at compile time.
-If you know JavaScript, think of it as a (more enhanced) kind of object literal notation.
+记录是一个集合，它结合了通过键访问的 Dict 和在编译时检查其访问的元组的属性。
+如果您了解 JavaScript，请将其视为一种（更增强的）对象字面量表示法。
 
 ```python
 john = {.name = "John"; .age = 21}
@@ -9,27 +9,27 @@ john = {.name = "John"; .age = 21}
 assert john.name == "John"
 assert john.age == 21
 assert john in {.name = Str; .age = Nat}
-john["name"] # Error: john is not subscribable
+john["name"] # 错误：john 不可订阅
 ```
 
-The `.name` and `.age` parts are called attributes, and the `"John"` and `21` parts are called attribute values.
+`.name` 和 `.age` 部分称为属性，而 `"John"` 和 `21` 部分称为属性值。
 
-The difference from JavaScript object literals is that they are not accessible as strings. That is, attributes are not just strings.
-This is because access to the value is determined at compile-time, and because dictionaries and records are different things. In other words, `{"name": "John"}` is a Dict and `{name = "John"}` is a record.
-So how should we use dictionaries and records?
-In general, we recommend using records. Records have the advantages of being checked at compile-time for the existence of elements and of being able to specify __visibility_.
-Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./15_visibility.md) for details.
+与 JavaScript 对象字面量的区别在于它们不能作为字符串访问。 也就是说，属性不仅仅是字符串。
+这是因为对值的访问是在编译时确定的，而且字典和记录是不同的东西。 换句话说，`{"name": "John"}` 是一个字典，`{name = "John"}` 是一个记录。
+那么我们应该如何使用字典和记录呢？
+一般来说，我们建议使用记录。 记录具有在编译时检查元素是否存在以及能够指定 __visibility_ 的优点。
+指定可见性等同于在 Java 和其他语言中指定公共/私有。 有关详细信息，请参阅 [可见性](./15_visibility.md) 了解详细信息。
 
 ```python
 a = {x = 1; .y = x + 1}
-a.x # AttributeError: x is private
-# Hint: declare as `.x`.
+a.x # 属性错误：x 是私有的
+# 提示：声明为 `.x`。
 assert a.y == 2
 ```
 
-The above example may seem strange to someone familiar with JavaScript, but simply declaring `x` makes it inaccessible from the outside. `. `. `.
+对于熟悉 JavaScript 的人来说，上面的示例可能看起来很奇怪，但简单地声明 `x` 会使其无法从外部访问
 
-You can also explicitly specify the type of an attribute.
+您还可以显式指定属性的类型
 
 ```python
 anonymous = {
@@ -39,7 +39,7 @@ anonymous = {
 anonymous.name.set! "John"
 ```
 
-A record can also have the method.
+一个记录也可以有方法。
 
 ```python
 o = {
@@ -52,27 +52,27 @@ o.inc!()
 assert o.i == 1
 ```
 
-There is a notable syntax with respect to records. When all the attribute values of a record are classes (not structural types), the record itself behaves as a type with its own attributes as required attributes.
-Such a type is called a record type. See the section [Record] for more details.
+关于记录有一个值得注意的语法。 当记录的所有属性值都是类（不是结构类型）时，记录本身表现为一个类型，其自身的属性作为必需属性。
+这种类型称为记录类型。 有关详细信息，请参阅 [记录] 部分。
 
 ```python
-# record
+# 记录
 john = {.name = "John"}
-# record type
+# 记录 type
 john: {.name = Str}
 Named = {.name = Str}
 john: Named
 
 greet! n: Named =
     print! "Hello, I am {n.name}"
-john # "Hello, I am John" print!
+john # “你好，我是约翰 print！
 
 Named.name # Str
 ```
 
-## Deconstructing a record
+## 解构记录
 
-Records can be deconstructed as follows.
+记录可以按如下方式解构。
 
 ```python
 record = {x = 1; y = 2}
@@ -88,8 +88,8 @@ match point:
     {x = x; y = y; z = z} -> "({x}, {y}, {z})"
 ```
 
-`x = ...` can also be abbreviated to `x` when there is a variable with the same name as the attribute, for example, `x = x` or `x = .x` to `x`, and `.x = .x` or `.x = x` to `.x`.
-However, when there is only one attribute, it must be followed by `;` to distinguish it from a set.
+当存在与属性同名的变量时，`x = ...`也可以缩写为`x`，例如`x = x`或`x = .x`到`x`，和` .x = .x` 或 `.x = x` 到 `.x`。
+但是，当只有一个属性时，必须在其后加上`;`以与集合区分开来。
 
 ```python
 x = 1
@@ -106,22 +106,22 @@ tuple = {x}
 assert tuple.1 == 1
 ```
 
-This syntax can be used to deconstructed a record and assign it to a variable.
+此语法可用于解构记录并将其分配给变量
 
 ```python
-# same as `{x = x; y = y} = xy`
+# 一样 `{x = x; y = y} = xy`
 {x; y} = xy
 assert x == 1
 assert y == 2
-# same as `{.a = a; .b = b} = ab`
+# 一样 `{.a = a; .b = b} = ab`
 {a; b} = ab
 assert a == 1
 assert b == 2
 ```
 
-## Empty Record
+## 空记录
 
-An empty record is represented by `{=}`. An empty record is also its own class, like Unit.
+空记录由`{=}`表示。 空记录也是它自己的类，如 Unit
 
 ```python
 empty_record = {=}
@@ -132,10 +132,10 @@ empty_record: Structural {=}
 {x = 3; y = 5}: Structural {=}
 ```
 
-An empty record is different from an empty Dict `{:}` or empty set `{}`. In particular, note that it is the opposite of `{}` in meaning (in Python, `{}` is an empty dictionary, while in Erg it is `!{:}` in Erg).
-As an enumerated type, `{}` is an empty type that contains nothing in its elements. The `Never` type is a classification of this type.
-Conversely, the record class `{=}` has no required instance attribute, so all objects are elements of it. An `Object` is an alias of this.
-An `Object` (a patch of `Object`) is an element of `. __sizeof__` and other very basic provided 方法.
+空记录不同于空 Dict `{:}` 或空集 `{}`。 特别要注意的是，它与 `{}` 的含义相反（在 Python 中，`{}` 是一个空字典，而在 Erg 中它是 Erg 中的 `!{:}`）。
+作为枚举类型，`{}` 是一个空类型，其元素中不包含任何内容。 `Never` 类型是这种类型的一个分类。
+相反，记录类 `{=}` 没有必需的实例属性，因此所有对象都是它的元素。 `Object` 是 this 的别名。
+一个`Object`（`Object`的一个补丁）是`的一个元素。 __sizeof__` 和其他非常基本的提供方法。
 
 ```python
 AnyPatch = Patch Structural {=}
@@ -145,13 +145,13 @@ AnyPatch = Patch Structural {=}
 Never = Class {}
 ```
 
-Note that no other type or class can be structurally equivalent to the `{}`, `Never` type, and it is an error if the user defines a type with `{}`, `Class {}` on the right side.
-This means that, for example, `1..10 or -10. -1`, but `1..10 and -10... -1`. `-1` when it should be `1..10 or -10...-1`, for example.
-Also, if you define a type (such as `Int and Str`) that results in a composition `Object`, you will be warned to simply set it to `Object`.
+请注意，没有其他类型或类在结构上与 `{}`、`Never` 类型等效，如果用户在右侧使用 `{}`、`Class {}` 定义类型，则会出错。
+这意味着，例如，`1..10 或 -10。 -1`，但 `1..10 和 -10... -1`。 例如，当它应该是 1..10 或 -10...-1 时是 `-1`。
+此外，如果您定义的类型（例如 `Int 和 Str`）会导致组合 `Object`，则会警告您只需将其设置为 `Object`。
 
-## Instant Block
+## 即时封锁
 
-Erg has another syntax, instant block, which simply returns the last value evaluated. Attributes cannot be retained.
+Erg 有另一种语法 Instant 块，它只返回最后评估的值。 不能保留属性。
 
 ```python
 x =
@@ -161,13 +161,13 @@ x =
 assert x == 8
 
 y =
-    .x = 1 # SyntaxError: cannot define an attribute in an entity block
+    .x = 1 # 语法错误：无法在实体块中定义属性
 ```
 
-## Data Class
+## 数据类
 
-A bare record (a record generated by a record literal) must be defined directly in the instance if you try to implement a method on its own.
-This is inefficient, and as the number of attributes increases, error messages and the like become difficult to see and use.
+如果您尝试自己实现方法，则必须直接在实例中定义裸记录（由记录文字生成的记录）。
+这是低效的，并且随着属性数量的增加，错误消息等变得难以查看和使用。
 
 ```python
 john = {
@@ -177,11 +177,11 @@ john = {
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
-# TypeError: + is not implemented for {name = Str; age = Int; .greet! = Ref(Self). () => None; inc_age! = Ref! () => None}, Int
+# 类型错误：{name = Str; 没有实现 + 年龄=诠释； 。迎接！ =参考（自我）。 () => 无； inc_age！ =参考！ () => 无}, 整数
 ```
 
-So, in such a case, you can inherit a record class. Such a class is called a data class.
-This is described in [class](./type/04_class.md).
+因此，在这种情况下，您可以继承一个记录类。 这样的类称为数据类。
+这在 [class](./type/04_class.md) 中有描述。
 
 ```python
 Person = Inherit {name = Str; age = Nat}
@@ -191,7 +191,7 @@ Person.
 
 john = Person.new {name = "John Smith"; age = 20}
 john + 1
-# TypeError: + is not implemented for Person, Int
+# 类型错误：Person、Int 没有实现 +
 ```
 
 <p align='center'>

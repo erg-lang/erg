@@ -1,44 +1,44 @@
-# Side effects and procedures
+# 副作用和程序
 
-We have been neglecting to explain the meaning of the `!`, but now its meaning will finally be revealed. This `!` indicates that this object is a "procedure" with a "side-effect". A procedure is a function with a side-effect.
+我们一直忽略了解释“！”的含义，但现在它的含义终于要揭晓了。 这个 `!` 表示这个对象是一个带有“副作用”的“过程”。 过程是具有副作用的函数。
 
 ```python
-f x = print! x # EffectError: functions cannot be assigned objects with side effects
-# hint: change the name to 'f!'
+f x = print! x # EffectError: 不能为函数分配有副作用的对象
+# 提示：将名称更改为 'f!'
 ```
 
-The above code will result in a compile error. This is because you are using a procedure in a function. In such a case, you must define it as a procedure.
+上面的代码会导致编译错误。 这是因为您在函数中使用了过程。 在这种情况下，您必须将其定义为过程。
 
 ```python
 p! x = print! x
 ```
 
-`p!`, `q!`, ... are typical variable names for procedures.
-Procedures defined in this way also cannot be used within a function, so side-effects are completely isolated.
+`p!`, `q!`, ... 是过程的典型变量名。
+以这种方式定义的过程也不能在函数中使用，因此副作用是完全隔离的。
 
 ## 方法
 
-Functions and procedures each can be 方法. Functional 方法 can only take immutable references to `self`, while procedural 方法 can take mutable references to `self`.
-The `self` is a special parameter, which in the context of a method refers to the calling object itself. The reference `self` cannot be assigned to any other variable.
+函数和过程中的每一个都可以是方法。 函数式方法只能对`self`进行不可变引用，而程序性方法可以对`self`进行可变引用。
+`self` 是一个特殊的参数，在方法的上下文中是指调用对象本身。 引用 `self` 不能分配给任何其他变量。
 
 ```python
 C!.
     method ref self =
-        x = self # OwnershipError: cannot move out 'self'
+        x = self # 所有权错误：无法移出`self`
         x
 ```
 
-Procedural 方法 can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
+程序方法也可以采取 `self` 的 [ownership](./18_ownership.md)。 从方法定义中删除 `ref` 或 `ref!`
 
 ```python
 n = 1
 s = n.into(Str) # '1'
-n # ValueError: n was moved by .into (line 2)
+n # 值错误：n 被 .into 移动（第 2 行）
 ```
 
-Only one procedural 方法 can have a mutable reference at any given time. In addition, while a mutable reference is taken, no more mutable reference can be taken from the original object. In this sense, `ref!` causes a side-effect on `self`.
+在任何给定时间，只有一种程序方法可以具有可变引用。 此外，在获取可变引用时，不能从原始对象获取更多可变引用。 从这个意义上说，`ref!` 会对`self` 产生副作用。
 
-Note, however, that it is possible to create (immutable/mutable) references from mutable references. This allows recursion and `print!` of `self` in procedural 方法.
+但是请注意，可以从可变引用创建（不可变/可变）引用。 这允许在程序方法中递归和 `print!` 的`self`。
 
 ```python
 T -> T # OK (move)
@@ -52,23 +52,23 @@ T -> Ref T # OK
 T => Ref!
 ```
 
-## Appendix: Strict definition of side-effects
+## 附录：副作用的严格定义
 
-The rules for whether a code has a side-effect or not are not immediately understandable.
-Until you can understand them, we recommend that you leave it to the compiler to define them as functions for the time being, and if an error occurs, add `!` to treat them as procedures.
-However, for those who want to understand the exact specifications of the language, the following is a more detailed explanation of side-effects.
+代码是否具有副作用的规则无法立即理解。
+直到你能理解它们，我们建议你暂时把它们定义为函数，如果出现错误，添加`！`将它们视为过程。
+但是，对于那些想了解该语言的确切规范的人，以下是对副作用的更详细说明。
 
-First, it must be stated that the equivalence of return values is irrelevant with respect to side effects in Erg.
-There are procedures that for any given `x` will result in `p!(x) == p!(x)` (e.g. always return `None`), and there are functions that will result in `f(x) ! = f(x)`.
+首先，必须声明返回值的等价与 Erg 中的副作用无关。
+有些过程对于任何给定的 `x` 都会导致 `p!(x) == p!(x)`（例如，总是返回 `None`），并且有些函数会导致 `f(x) ！ = f(x)`。
 
-An example of the former is `print!`, and an example of the latter is the following function.
+前者的一个例子是`print!`，后者的一个例子是下面的函数。
 
 ```python
 nan _ = Float.NaN
 assert nan(1) ! = nan(1)
 ```
 
-There are also objects, such as classes, for which equivalence determination itself is not possible.
+还有一些对象，例如类，等价确定本身是不可能的
 
 ```python
 T = Structural {i = Int}
@@ -77,16 +77,16 @@ assert T == U
 
 C = Class {i = Int}
 D = Class {i = Int}
-assert C == D # TypeError: cannot compare classes
+assert C == D # 类型错误：无法比较类
 ```
 
-Back to the point: the precise definition of "side-effect" in Erg is
+言归正传：Erg 中“副作用”的准确定义是
 
-* Accessing mutable external information.
+* 访问可变的外部信息。
 
-"External" generally refers to the outer scope; computer resources that Erg cannot touch and pre-/post-execution information are not included in "external". "Access" includes reading as well as writing.
+“外部”一般是指外部范围； Erg 无法触及的计算机资源和执行前/执行后的信息不包含在“外部”中。 “访问”包括阅读和写作。
 
-As an example, consider the `print!` procedure. At first glance, `print!` does not seem to rewrite any variables. But if it were a function, it could rewrite outer variables, for example, with code like this:
+例如，考虑 `print!` 过程。 乍一看，`print!` 似乎没有重写任何变量。 但如果它是一个函数，它可以重写外部变量，例如，使用如下代码：
 
 ```python
 camera = import "some_camera_module"
@@ -94,27 +94,27 @@ ocr = import "some_ocr_module"
 
 n = 0
 _ =
-    f x = print x # Suppose we could use print as a function
+    f x = print x # 假设我们可以使用 print 作为函数
     f(3.141592)
-cam = camera.new() # camera faces PC display
+cam = camera.new() # 摄像头面向 PC 显示器
 image = cam.shot!()
 n = ocr.read_num(image) # n = 3.141592
 ```
 
-Think of the `camera` module as an external library providing an API for a certain camera product, and `ocr` as a library for OCR (optical character recognition).
-The direct side-effect is caused by `cam.shot!()`, but obviously that information is leaked from `f`. Therefore, `print!` cannot be a function by nature.
+将“camera”模块视为为特定相机产品提供 API 的外部库，将“ocr”视为用于 OCR（光学字符识别）的库。
+直接的副作用是由 `cam.shot!()` 引起的，但显然这些信息是从 `f` 泄露的。 因此，`print!` 本质上不可能是一个函数。
 
-Nevertheless, there may be cases where you want to temporarily check a value in a function and do not want to add `!` in the related function just for that purpose. In such cases, the `log` function can be used.
-`log` prints the value after the entire code has been executed. In this way, side-effects are not propagated.
+然而，在某些情况下，您可能希望临时检查函数中的值，而不想为此目的在相关函数中添加 `!`。 在这种情况下，可以使用 `log` 函数。
+`log` 打印整个代码执行后的值。 这样，副作用就不会传播。
 
 ```python
 log "this will be printed after execution"
 print! "this will be printed immediately"
-# this will be printed immediately
-# this will be printed after execution
+# 这将立即打印
+# 这将在执行后打印
 ```
 
-If there is no feedback to the program, or in other words, if no external object can use the internal information, then the "leakage" of the information may be allowed. It is only necessary that the information not be "propagated".
+如果没有反馈给程序，或者换句话说，如果没有外部对象可以使用内部信息，那么信息的“泄漏”是可以允许的。 只需要不“传播”信息。
 
 <p align='center'>
     <a href='./06_operator.md'>上一页</a> | <a href='./08_procedure.md'>下一页</a>

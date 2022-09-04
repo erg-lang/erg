@@ -1,55 +1,55 @@
-# Subroutine Signatures
+# 子程序签名
 
-## Func
+## 函数
 
 ```python
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
-## Proc
+## 过程
 
 ```python
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
 
-## Func Method
+## 函数方法
 
-The method type cannot be specified externally with ``Self``.
+方法类型不能用`Self`在外部指定
 
 ```python
 .some_method(self, x: T, y: U) => ()
-# Self.(T, U) => () takes ownership of self
+# Self.(T, U) => () 拥有 self 的所有权
 .some_method: Ref(Self). (T, U) => ()
 ```
 
-## Proc Method (dependent)
+## 过程方法（依赖）
 
-In the following, assume that the type `T!` takes the type argument `N: Nat`. To specify it externally, use a type variable.
+在下文中，假设类型 `T!` 采用类型参数 `N: Nat`。 要在外部指定它，请使用类型变量
 
 ```python
 T!: Nat -> Type
-# ~> indicates the state of the type argument before and after application (in this case, self must be a variable reference)
+# ~> 表示应用前后类型参数的状态（此时self必须是变量引用）
 T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ```
 
-As a note, the type of `.some_method` is `Ref!(T(N ~> N+X)). ({X}) => () | N, X: Nat`.
-For 方法 that do not have `ref!`, i.e., are deprived of ownership after application, the type argument transition (`~>`) cannot be used.
+注意，`.some_method` 的类型是 `Ref!(T(N ~> N+X))。 ({X}) => () | N，X：Nat`。
+对于没有 `ref!` 的方法，即在应用后被剥夺所有权，不能使用类型参数转换（`~>`）。
 
-If ownership is taken, it is as follows.
+如果取得所有权，则如下所示。
 
 ```python
-# If you don't use N, you can omit it with _.
+# 如果不使用N，可以用_省略。
 # .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
 .some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
 ```
 
-## Operator
+## 运算符
 
-It can be defined as a normal function by enclosing it with ``.
+可以通过用 ` 括起来将其定义为普通函数。
 
-Neuter alphabetic operators such as `and` and `or` can be defined as neuter operators by enclosing them with ``.
+中性字母运算符，例如 `and` 和 `or` 可以通过用 ` 括起来定义为中性运算符。
 
 ```python
 and(x, y, z) = x and y and z

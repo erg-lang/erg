@@ -1,7 +1,7 @@
-# Procedures
+# 程序
 
-Procedures are necessary when dealing with mutable objects, but having a mutable object as an argument does not necessarily make it a procedure.
-Here is a function takes a mutable object (not procedure).
+处理可变对象时需要过程，但将可变对象作为参数并不一定使其成为过程。
+这是一个函数接受一个可变对象（不是过程）。
 
 ```python
 peek_str s: Str! = log s

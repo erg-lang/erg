@@ -1,26 +1,26 @@
-# operator
+# 运算符
 
-Operators are symbols that represent operations. Operands are things to the (left) right of an operator.
+运算符是表示操作的符号。 操作数是运算符（左）右侧的东西。
 
-Operators are a kind of function, and thus are themselves first-class objects that can be bound to variables. When binding, it is necessary to enclose it with ``.
-For `+` (and `-`), there are both unary and binary operators, so `_+_`(binary operation)/`+_`(unary operation ) must be specified.
+运算符是一种函数，因此它们本身就是可以绑定到变量的一流对象。 绑定时，需要用```括起来。
+对于`+`（和`-`），有一元和二元运算符，所以必须指定`_+_`（二元运算）/`+_`（一元运算）。
 
 ```python
-add = `+` # SyntaxError: specify `_+_` or `+_`
+add = `+` # 语法错误：指定 `_+_` 或 `+_`
 add=`_+_`
 assert f(1, 2) == 3
 assert f("a", "b") == "ab"
 
-g = `*` # OK, this is binary only
+g = `*` # OK, 这只是二进制
 assert g(1, 2) == 2
 ```
 
-Some fundamental operators, called special forms, cannot be bound.
+一些称为特殊形式的基本运算符不能被绑定。
 
 ```python
-def = `=` # SyntaxError: cannot bind `=` operator, this is a special form
+def = `=` # 语法错误：无法绑定 `=` 运算符，这是一种特殊形式
 # NG: def x, 1
-function = `->` # SyntaxError: cannot bind `->` operator, this is a special form
+function = `->` # 语法错误：无法绑定 `->` 运算符，这是一种特殊形式
 # NG: function x, x + 1
 ```
 

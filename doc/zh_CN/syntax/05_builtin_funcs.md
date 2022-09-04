@@ -1,8 +1,8 @@
-# Built-in functions
+# 内置函数
 
-## if
+＃＃ 如果
 
-`if` is a function that changes processing depending on a condition.
+`if` 是一个根据条件改变处理的函数。
 
 ```python
 result: Option Int = if! Bool.sample!(), do:
@@ -11,8 +11,8 @@ result: Option Int = if! Bool.sample!(), do:
 print! result # None (or 1)
 ```
 
-`.sample!()` returns a random set of values. If the return value is true, `print! "True"` is executed.
-You can also specify what to do if the condition is false; the second do block is called the else block.
+`.sample!()` 返回一组随机值。 如果返回值为真，`print! “真”`被执行。
+如果条件为假，您还可以指定要执行的操作； 第二个 do 块称为 else 块。
 
 ```python
 result: Nat = if Bool.sample!():
@@ -25,7 +25,7 @@ result: Nat = if Bool.sample!():
 print! result # 1 (or 0)
 ```
 
-If the process is a single line, you can omit indentation.
+如果进程是单行，则可以省略缩进。
 
 ```python
 result = if Bool.sample!():
@@ -35,7 +35,7 @@ result = if Bool.sample!():
 
 ## for
 
-You can use `for` to write a repeating process.
+你可以使用 `for` 来编写一个重复的过程。
 
 ```python
 match_s(ss: Iterator(Str), pat: Pattern): Option Str =

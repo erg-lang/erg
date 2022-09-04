@@ -1,46 +1,46 @@
-# Basics
+# 基本
 
-> __Warning__: This document is incomplete. It has not been proofread (style, correct links, mistranslation, etc.). Also, Erg's syntax may be change destructively during version 0.*, and the documentation may not have been updated accordingly. Please be aware of this beforehand.
-> If you find any errors in this document, please report then to [here form](https://forms.gle/HtLYRfYzWCAaeTGb6) or [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new). We would appreciate your suggestions.
+> __Warning__：本文档不完整。 它未经校对（样式、正确链接、误译等）。 此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。 请事先了解这一点。
+> 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new ）。 我们将不胜感激您的建议。
 >
-> [The Erg book original version (Japanese)](http://mtshiba.me/TheErgBook/)
+> [Erg原版（日文）](http://mtshiba.me/TheErgBook/)
 
-This document describes the basic syntax of Erg. The [Standard API](./API/index.md) and [internal documents for Erg contributors](./dev_guide/index.md) are located in another directory.
+本文档描述 Erg 的基本语法。 [标准 API](./API/index.md) 和 [Erg 贡献者的内部文档](./dev_guide/index.md) 位于另一个目录中。
 
-## Hello, World&excl;
+## 你好，世界&excl;
 
-First, let's do "Hello World".
+首先，让我们做“Hello World”。
 
 ```python
 print!("Hello, World!")
 ```
 
-This is almost identical to Python and other languages in the same family. The most striking feature is the `!`, the meaning of which will be explained later.
-In Erg, parentheses `()` can be omitted unless there is some confusion in interpretation.
-The omission of parentheses is similar to Ruby, but it is not possible to omit parentheses that can be interpreted in more than one way.
+这与 Python 和同一家族中的其他语言几乎相同。 最显着的特征是`!`，后面会解释它的含义。
+在 Erg 中，括号 `()` 可以省略，除非在解释上有一些混淆。
+括号的省略与 Ruby 类似，但不能省略可以以多种方式解释的括号。
 
 ```python
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
-print! # OK, but this does not mean to call, simply to get `print!` as a callable object
+print! # OK, 但这并不意味着调用，只是将 `print!` 作为可调用对象
 
-print! f x # OK, interpreted as `print!(f(x))`
+print! f x # OK, 解释为 `print!(f(x))`
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))` print!
-print!(f x, y) # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
-print! f(x, g y, z) # NG, can be taken to mean either `print!(x, g(y), z)` or `print!(x, g(y, z))`
+print! f x, y # NG, 可以理解为 `print!(f(x), y)` 或 `print!(f(x, y))` print!
+print!(f x, y) # NG, 可以表示“print！（f（x），y）”或“print！（f（x，y））”
+print! f(x, g y, z) # NG, 可以表示“print！（x，g（y），z）”或“print！（x，g（y，z））”
 ```
 
-## Scripts
+## 脚本
 
-Erg code is called a script. Scripts can be saved and executed in file format (.er).
+Erg 代码称为脚本。 脚本可以以文件格式 (.er) 保存和执行。
 
-## REPL/File Execution
+## REPL/文件执行
 
-To start REPL, simply type:
+要启动 REPL，只需键入：
 
 ```sh
 > erg
@@ -66,9 +66,9 @@ Or you can compile from a file.
 hello, world!
 ```
 
-## Comments
+## 注释
 
-The code after `#` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
+`#` 之后的代码作为注释被忽略。 使用它来解释代码的意图或暂时禁用代码。
 
 ```python
 # Comment
@@ -79,21 +79,21 @@ Treated as a comment all the way up to the corresponding `]#`
 ]#
 ```
 
-## Expressions, separators
+## 表达式，分隔符
 
-A script is a series of expressions. An expression is something that can be calculated or evaluated, and in Erg almost everything is an expression.
-Each expression is separated by a separator - either a new line or a semicolon `;`-.
-Erg scripts are basically evaluated from left to right, top to bottom.
+脚本是一系列表达式。 表达式是可以计算或评估的东西，在 Erg 中几乎所有东西都是表达式。
+每个表达式由分隔符分隔 - 新行或分号 `;`-。
+Erg 脚本基本上是从左到右、从上到下进行评估的。
 
 ```python
-n = 1 # assignment expression
-f(1, 2) # function-call expression
-1 + 1 # operator-call expression
+n = 1 # 赋值表达式
+f(1, 2) # 函数调用表达式
+1 + 1 # 运算符调用表达式
 f(1, 2); 1 + 1
 ```
 
-As shown below, there is a syntax called instant block that takes the last expression evaluated in the block as the value of the variable.
-This differs from a function with no arguments, which does not add `()`. Note that instant blocks are evaluated only once on the fly.
+如下所示，有一种称为 Instant block 的语法，它将块中评估的最后一个表达式作为变量的值。
+这与没有参数的函数不同，它不添加 `()`。 请注意，即时块仅在运行中评估一次
 
 ```python
 i =
@@ -102,15 +102,15 @@ i =
 assert i == 2
 ```
 
-This cannot be accomplished with a semicolon (`;`).
+这不能用分号 (`;`) 完成。
 
 ```python
-i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
+i = (x = 1; x + 1) # 语法错误：不能在括号中使用 `;`
 ```
 
-## Indentation
+## 缩进
 
-Erg, like Python, uses indentation to represent blocks. There are five operators (special forms) that trigger the start of a block: `=`, `->`, `=>`, `do`, and `do!` (In addition, `:` and `|`, although not operators, also produce indentation). The meanings of each are described later.
+Erg 和 Python 一样，使用缩进来表示块。 有五个运算符（特殊形式）触发块的开始：`=`、`->`、`=>`、`do` 和 `do!`（此外，`:` 和 `|` ，虽然不是运算符，但也会产生缩进）。 每个的含义将在后面描述。
 
 ```python
 f x, y =
@@ -129,15 +129,15 @@ ans = match x:
     _ -> "unknown"
 ```
 
-If a line is too long, it can be broken using `\`.
+如果一行太长，可以使用 `\` 将其断开
 
 ```python
-# this does not means `x + y + z` but means `x; +y; +z`
-x
+# 这不是表示 `x + y + z` 而是表示 `x; +y; +z`
+X
 + y
 + z
 
-# this means `x + y + z`
+# 这意味着`x + y + z`
 x \
 + y \
 + z

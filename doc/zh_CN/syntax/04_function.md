@@ -1,17 +1,17 @@
-# Function
+＃ 功能
 
-A function is a block that takes an "argument", processes it, and returns it as a "return value". It is defined as follows.
+函数是一个块，它接受一个“参数”，对其进行处理，并将其作为“返回值”返回。 定义如下。
 
 ```python
 add x, y = x + y
-# or
+# 或者
 add(x, y) = x + y
 ```
 
-The names specified after a function name are called parameters.
-In contrast, the objects passed to a function are called arguments.
-The function `add` is a function that takes `x` and `y` as parameters and returns the sum of them, `x + y`.
-The defined function can be called (applied/invoked) as follows.
+在函数名之后指定的名称称为参数。
+相反，传递给函数的对象称为参数。
+函数 `add` 是一个以 `x` 和 `y` 作为参数并返回它们之和的函数，`x + y`。
+可以按如下方式调用（应用/调用）定义的函数。
 
 ```python
 add 1, 2
@@ -19,9 +19,9 @@ add 1, 2
 add(1, 2)
 ```
 
-## Colon application style
+## 冒号应用风格
 
-Functions are invoked like `f x, y, ...`, but if there are too many arguments for a single line, they can be applied using `:` (colon).
+函数像`f x, y, ...`一样被调用，但是如果单行参数太多，可以使用`:`（冒号）来应用它们。
 
 ```python
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
@@ -38,7 +38,7 @@ f:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-All three codes above mean the same thing. This style is also useful when using `if` functions, for example.
+以上三个代码的含义相同。 例如，这种风格在使用 `if` 函数时也很有用
 
 ```python
 result = if Bool.sample!():
@@ -50,39 +50,39 @@ result = if Bool.sample!():
         0
 ```
 
-After `:`, no code other than comments may be written, and must always be on a new line.
+在 `:` 之后，除了注释之外，不得编写任何代码，并且必须始终在新行上
 
-## Keyword Arguments
+## 关键字参数
 
-If a function is defined with a large number of parameters, there is a danger of passing the arguments in the wrong order.
-In such cases, it is safe to call the function using keyword arguments.
+如果使用大量参数定义函数，则存在以错误顺序传递参数的危险。
+在这种情况下，使用关键字参数调用函数是安全的。
 
 ```python
 f x, y, z, w, v, u: Int = ...
 ```
 
-The functions defined above have many arguments and are arranged in a confusing order. You should not create such a function, but you may encounter such code when using code written by others. Therefore, we use keyword arguments. If you use keyword arguments, the values are passed from the name to the correct argument, even if they are in the wrong order.
+上面定义的函数有很多参数，并且排列顺序混乱。 您不应该创建这样的函数，但是在使用别人编写的代码时可能会遇到这样的代码。 因此，我们使用关键字参数。 如果使用关键字参数，则值会从名称传递到正确的参数，即使它们的顺序错误。
 
 ```python
 f u: 6, v: 5, w: 4, x: 1, y: 2, z: 3
 ```
 
-Note that keyword arguments and a new line immediately after the `:` are considered a colon-call style.
+请注意，紧跟在 `:` 之后的关键字参数和新行被视为冒号调用样式
 
 ```python
-# means `f(x: y)`
+# 意思是 `f(x: y)`
 f x: y
 
-# means `f(x, y)`
+# 意思是 `f(x, y)`
 f x:
     y
 ```
 
-## 定义ault parameters
+## 定义错误参数
 
-Default parameters are used when some parameters are mostly fixed and you want to be able to omit them.
+当某些参数大部分是固定的并且您希望能够省略它们时，使用默认参数。
 
-Default parameters are specified by `:=`(walrus operator). If `base` is not specified, assign `math.E` to `base`.
+默认参数由`:=`（walrus运算符）指定。 如果未指定 `base`，则将 `math.E` 分配给 `base`。
 
 ```python
 math_log x: Ratio, base := math.E = ...
@@ -91,7 +91,7 @@ assert math_log(100, 10) == 2
 assert math_log(100) == math_log(100, math.E)
 ```
 
-Note that there is a distinction between specifying no argument and assigning `None`.
+请注意，不指定参数和指定`None`是有区别的
 
 ```python
 p! x := 0 = print!
@@ -100,34 +100,34 @@ p!() # 0
 p!(None) # None
 ```
 
-Can also be used with type specification and patterns.
+也可以与类型规范和模式一起使用
 
 ```python
 math_log x, base: Ratio := math.E = ...
 f [x, y] := [1, 2] = ...
 ```
 
-However, within the default arguments, it is not possible to call the procedures (described later) or assign mutable objects.
+但是，在默认参数中，不能调用过程（稍后描述）或分配可变对象
 
 ```python
 f x := p! 1 = ... # NG
 ```
 
-Also, the argument just defined cannot be used as the value passed to the default argument.
+此外，刚刚定义的参数不能用作传递给默认参数的值
 
 ```python
 f x := 1, y := x = ... # NG
 ```
 
-## Variable-length arguments
+## 可变长度参数
 
-The `log` function, which outputs a log (record) of its arguments, can take any number of arguments.
+输出其参数的日志（记录）的 `log` 函数可以采用任意数量的参数。
 
-```python
-log "Hello", "World", "!" # Hello World !
+```蟒蛇
+记录“你好”、“世界”、“！” ＃ 你好世界 ！
 ```
 
-To define such a function, add `...` to a parameter. This way, the function receives arguments as a variable-length array.
+要定义这样的函数，请将 `...` 添加到参数中。 这样，函数将参数作为可变长度数组接收
 
 ```python
 f ...x =
@@ -138,7 +138,7 @@ f ...x =
 f 1, 2, 3, 4, 5
 ```
 
-## Function definition with multiple patterns
+## 具有多种模式的函数定义
 
 ```python
 fib n: Nat =
@@ -148,7 +148,7 @@ fib n: Nat =
         n -> fib(n - 1) + fib(n - 2)
 ```
 
-Functions like the one above, where `match` appears directly under the definition, can be rewritten as follows.
+像上面这样的函数，其中 `match` 直接出现在定义下，可以重写如下
 
 ```python
 fib 0 = 0
@@ -156,26 +156,26 @@ fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)
 ```
 
-Note that a function definition with multiple patterns is not so-called overloading (multiple definition); a function has only a single definition. In the example above, `n` must be of the same type as `0` or `1`. Also, as with `match`, pattern matching is done from top to bottom.
+注意一个函数定义有多个模式不是所谓的重载（multiple definition）； 一个函数只有一个定义。 在上面的示例中，“n”必须与“0”或“1”属于同一类型。 此外，与 `match` 一样，模式匹配是从上到下完成的。
 
-If instances of different classes are mixed, the last definition must specify that the function argument is of type `Or`.
+如果不同类的实例混合在一起，最后一个定义必须指定函数参数的类型为`Or`
 
 ```python
 f "aa" = ...
 f 1 = ...
-# `f x = ... ` is invalid
+# `f x = ... ` 无效
 f x: Int or Str = ...
 ```
 
-Also, like `match`, it must also be exhaustive.
+此外，像 `match` 一样，它也必须是详尽的。
 
 ```python
 fib 0 = 0
 fib 1 = 1
-# PatternError: pattern of fib's parameter is not exhaustive
+# 模式错误：fib 参数的模式并不详尽
 ```
 
-However, it can be made exhaustive by explicitly specifying the type using the [refinement type](./type/12_refinement.md) described later.
+但是，可以通过使用稍后描述的 [refinement type](./type/12_refinement.md) 显式指定类型来使其详尽无遗。
 
 ```python
 fib: 0..1 -> 0..1
@@ -184,12 +184,12 @@ fib 1 = 1
 # OK
 ```
 
-## Recursive functions
+## 递归函数
 
-A recursive function is a function that includes itself in its definition.
+递归函数是在其定义中包含自身的函数。
 
-As a simple example, let us define a function `factorial` that performs a factorial calculation. Factorial is a computation that "multiplies all positive numbers less than or equal to".
-The factorial of 5 is `5*4*3*2*1 == 120`.
+作为一个简单的例子，让我们定义一个执行阶乘计算的函数`factorial`。 阶乘是“将所有小于或等于的正数相乘”的计算。
+5 的阶乘是 `5*4*3*2*1 == 120`。
 
 ```python
 factorial 0 = 1
@@ -197,13 +197,13 @@ factorial 1 = 1
 factorial(n: Nat): Nat = n * factorial(n - 1)
 ```
 
-First, from the definition of factorial, the factorial of 0 and 1 are both 1.
-In turn, the factorial of 2 is `2*1 == 2`, the factorial of 3 is `3*2*1 == 6`, and the factorial of 4 is `4*3*2*1 == 24`.
-If we look closely, we can see that the factorial of a number n is the factorial of the preceding number n-1 multiplied by n.
-Putting this into code, we get `n * factorial(n - 1)`.
-Since the definition of `factorial` contains itself, `factorial` is a recursive function.
+首先，从阶乘的定义来看，0和1的阶乘都是1。
+反过来，2的阶乘是`2*1 == 2`，3的阶乘是`3*2*1 == 6`，4的阶乘是`4*3*2*1 == 24 `。
+如果我们仔细观察，我们可以看到一个数 n 的阶乘是前一个数 n-1 乘以 n 的阶乘。
+将其放入代码中，我们得到 `n * factorial(n - 1)`。
+由于 `factorial` 的定义包含自身，`factorial` 是一个递归函数。
 
-As a reminder, if you do not add a type specification, it is inferred like this.
+提醒一下，如果您不添加类型规范，则会这样推断。
 
 ```python
 factorial: |T <: Sub(Int, T) and Mul(Int, Int) and Eq(Int)| T -> Int
@@ -212,20 +212,20 @@ factorial 1 = 1
 factorial n = n * factorial(n - 1)
 ```
 
-However, even if you can reason about it, you should explicitly specify the type of the recursive function. In the example above, a code like ``factorial(-1)`` would work, but
+但是，即使您可以推理，您也应该明确指定递归函数的类型。 在上面的例子中，像“factorial(-1)”这样的代码可以工作，但是
 
 ```python
 factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 ```
 
-and this computation does not stop. Recursive functions must carefully define the range of values or you may end up in an infinite loop.
-So the type specification also helps to avoid accepting unexpected values.
+并且这种计算不会停止。 递归函数必须仔细定义值的范围，否则您可能会陷入无限循环。
+所以类型规范也有助于避免接受意外的值。
 
-## Compile-time functions
+## 编译时函数
 
-A function name begins with an uppercase letter to indicate a compile-time function. User-defined compile-time functions must have all arguments as constants and must specify their types.
-Compile-time functions are limited in what they can do. Only constant expressions can be used in compile-time functions, i.e., only some operators (such as quadrature, comparison, and type construction operations) and compile-time functions. Arguments to be passed must also be constant expressions.
-In return, the advantage is that the computation can be done at compile time.
+函数名以大写字母开头，表示编译时函数。 用户定义的编译时函数必须将所有参数作为常量，并且必须指定它们的类型。
+编译时函数的功能有限。 在编译时函数中只能使用常量表达式，即只有一些运算符（例如求积、比较和类型构造操作）和编译时函数。 要传递的参数也必须是常量表达式。
+作为回报，优点是计算可以在编译时完成。
 
 ```python
 Add(X, Y: Nat): Nat = X + Y
@@ -236,32 +236,32 @@ Factorial(X: Nat): Nat = X * Factorial(X - 1)
 assert Factorial(10) == 3628800
 
 math = import "math"
-Sin X = math.sin X # ConstantError: this function is not computable at compile time
+Sin X = math.sin X # 常量错误：此函数在编译时不可计算
 ```
 
-Compile-time functions are also used in polymorphic type definitions.
+编译时函数也用于多态类型定义。
 
 ```python
 Option T: Type = T or NoneType
 Option: Type -> Type
 ```
 
-## Appendix: Function Comparison
+## 附录：功能对比
 
-Erg does not define `==` for functions. This is because there is no structural equivalence algorithm for functions in general.
+Erg 没有为函数定义 `==`。 这是因为通常没有函数的结构等价算法。
 
 ```python
 f = x: Int -> (x + 1)**2
 g = x: Int -> x**2 + 2x + 1
 
-assert f == g # TypeError: cannot compare functions
+assert f == g # 类型错误：无法比较函数
 ```
 
-Although `f` and `g` always return the same result, it is extremely difficult to make that determination. We have to teach algebra to the compiler.
-So Erg gives up on function comparisons entirely, and `(x -> x) == (x -> x)` also results in a compile error. This is a different specification from Python and should be noted.
+尽管 `f` 和 `g` 总是返回相同的结果，但要做出这样的决定是极其困难的。 我们必须向编译器教授代数。
+所以 Erg 完全放弃了函数比较，并且 `(x -> x) == (x -> x)` 也会导致编译错误。 这是与 Python 不同的规范，应该注意
 
 ```python
-# Python, weird example
+# Python，奇怪的例子
 f = lambda x: x
 assert f == f
 assert (lambda x: x) ! = (lambda x: x)
@@ -271,19 +271,19 @@ assert (lambda x: x) ! = (lambda x: x)
 
 ```python
 f x: Object = ...
-# will be completed to
+# 将完成到
 f(x: Object) = ...
 
 f a
-# will be completed to
+# 将完成到
 f(a)
 
-f a, b # TypeError: f() takes 1 positional argument but 2 were given
-f(a, b) # TypeError: f() takes 1 positional argument but 2 were given
+f a, b # 类型错误：f() 接受 1 个位置参数，但给出了 2 个
+f(a, b) # # 类型错误：f() 接受 1 个位置参数，但给出了 2 个
 f((a, b)) # OK
 ```
 
-The function type `T -> U` is actually the syntax sugar of `(T,) -> U`.
+函数类型`T -> U`实际上是`(T,) -> U`的语法糖。
 
 <p align='center'>
     <a href='./03_declaration.md'>上一页</a> | <a href='./05_builtin_funcs.md'>下一页</a>

@@ -1,81 +1,81 @@
-# Variable
+# 多变的
 
-Variables are a type of algebra; algebra in Erg - sometimes simply referred to as variable if there is no confusion - refers to the feature to name objects and make them referable from elsewhere in the code.
+变量是一种代数； Erg 中的代数 - 如果没有混淆，有时简称为变量 - 指的是命名对象并使它们可从代码的其他地方引用的功能。
 
-A variable is defined as follows.
-The `n` part is called the variable name (or identifier), `=` is the assignment operator, and the `1` part is the assigned value.
+变量定义如下。
+`n` 部分称为变量名（或标识符），`=` 是赋值运算符，`1` 部分是赋值。
 
 ```python
 n = 1
 ```
 
-The `n` defined in this way can thereafter be used as a variable to denote the integer object `1`. This system is called assignment (or binding).
-We have just said that `1` is an object. We will discuss what an object is later, but for now we will assume that it is something that can be assigned to, i.e., on the right side of the assignment operator (`=`, etc.).
+以这种方式定义的“n”此后可以用作表示整数对象“1”的变量。 该系统称为分配（或绑定）。
+我们刚刚说过`1`是一个对象。 稍后我们将讨论对象是什么，但现在我们假设它是可以赋值的，即在赋值运算符的右侧（`=` 等）。
 
-If you want to specify the "type" of a variable, do the following. The type is roughly the set to which an object belongs, as will be explained later.
-Here we specify that `n` is a natural number (`Nat`) type.
+如果要指定变量的“类型”，请执行以下操作。 类型大致是一个对象所属的集合，后面会解释。
+这里我们指定`n`是自然数（`Nat`）类型。
 
 ```python
 n: Nat = 1
 ```
 
-Note that, unlike other languages, multiple assignments are not allowed.
+请注意，与其他语言不同，不允许多次分配
 
 ```python
 # NG
-l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
+l1 = l2 = [1, 2, 3] # 语法错误：不允许多重赋值
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
 ```
 
-It is also not possible to reassign to a variable. The syntax that can be used instead, to hold mutable states, are described later.
+也不能重新分配给变量。 稍后将描述可用于保存可变状态的语法
 
 ```python
 i = 1
-i = i + 1 # AssignError: cannot assign twice
+i = i + 1 # 分配错误：不能分配两次
 ```
 
-You can define a variable with the same name in the inner scope, but you are only covering it over, not destructively rewriting its value. If you go back to the outer scope, the value will return as well.
-Note that this is a different behavior than the Python "statement" scope.
-This kind of functionality is generally referred to as shadowing. However, unlike shadowing in other languages, you cannot shadow in the same scope.
+您可以在内部范围内定义具有相同名称的变量，但您只是覆盖它，而不是破坏性地重写它的值。 如果您返回外部范围，该值也会返回。
+请注意，这是与 Python “语句”范围不同的行为。
+这种功能通常称为阴影。 但是，与其他语言中的阴影不同，您不能在同一范围内进行阴影。
 
 ```python
 x = 0
-# x = 1 # AssignError: cannot assign twice
+# x = 1 # 赋值错误：不能赋值两次
 if x.is_zero(), do:
-    x = 1 # different from outer x with same name
+    x = 1 # 与同名的外部 x 不同
     assert x == 1
 assert x == 0
 ```
 
-The following may seem possible at first glance, but it is still not possible. This is a design decision, not a technical constraint.
+乍一看，以下内容似乎可行，但仍然不可能。 这是一个设计决定，而不是技术限制。
 
 ```python
 x = 0
 if x.is_zero(), do:
-    x = x + 1 # NameError: cannot define variables refer to variables with the same name
+    x = x + 1 # 名称错误：无法定义变量引用同名变量
     assert x == 1
 assert x == 0
 ```
 
-## Constants
+## 常量
 
-Constants are also a type of algebra. If you start an identifier with a capital letter, it is treated as a constant. They are called constants because once defined, they do not change.
-The `N` part is called the constant name (or identifier). Otherwise, it is the same as a variable.
+常数也是一种代数。 如果标识符以大写字母开头，则将其视为常量。 它们被称为常量，因为一旦定义，它们就不会改变。
+`N` 部分称为常量名（或标识符）。 否则，它与变量相同。
 
 ```python
 N = 0
 if True, do:
-    N = 1 # AssignError: constants cannot be shadowed
+    N = 1 # 赋值错误：常量不能被遮蔽
     pass()
 ```
 
-Constants are immutable beyond the defined scope. They cannot be shadowed. Because of this property, constants can be used in pattern matching. Pattern matching is explained later.
+常量在定义的范围之外是不可变的。 他们不能被遮蔽。 由于这个属性，常量可以用于模式匹配。 模式匹配在后面解释。
 
-For example, constants are used for mathematical constants, information about external resources, and other immutable values.
+例如，常量用于数学常量、有关外部资源的信息和其他不可变值。
 
-It is common practice to use all-caps (style in which all letters are capitalized) for identifiers of objects other than [types](./type/01_type_system.md).
+除了 [types](./type/01_type_system.md) 之外的对象标识符使用全大写（所有字母大写的样式）是常见的做法。
 
 ```python
 PI = 3.141592653589793
@@ -90,19 +90,19 @@ match! x:
     other => print! "other"
 ```
 
-The above code prints `π` when `x` is `3.141592653589793`. If `x` is changed to any other number, it prints `other`.
+当 `x` 为 `3.141592653589793` 时，上面的代码会打印 `π`。 如果 `x` 更改为任何其他数字，它会打印 `other`。
 
-Some objects cannot be bound as constants. Mutable objects, for example. Mutable objects are objects whose states can be changed, as described in detail later.
-This is because of the rule that only constant expressions can be assigned to constants. Constant expressions are also discussed later.
+有些对象不能绑定为常量。 例如，可变对象。 可变对象是其状态可以改变的对象，后面会详细介绍。
+这是因为只有常量表达式才能分配给常量的规则。 常量表达式也将在后面讨论。
 
 ```python
 X = 1 # OK
-X = !1 # TypeError: cannot define Int! object as a constant
+X = !1 # 类型错误：无法定义 Int！ 对象作为常量
 ```
 
-## Delete an Variable
+## 删除变量
 
-You can delete an variable by using the `Del` function. All other variables that depend on the variable (that is, that refer directly to the value of the variable) are also removed.
+您可以使用 `Del` 函数删除变量。 依赖于变量的所有其他变量（即直接引用变量值的变量）也将被删除。
 
 ```python
 x = 1
@@ -114,19 +114,19 @@ assert f(2) == 3
 Del x
 Del y, Z
 
-f(2) # NameError: f is not defined (deleted in line 6)
+f(2) # 名称错误：f 未定义（在第 6 行中删除）
 ```
 
-Note that `Del` can only delete variables defined in the user-defined module. Built-in constants such as `True` cannot be deleted.
+注意 `Del` 只能删除用户自定义模块中定义的变量。 无法删除诸如“True”之类的内置常量。
 
 ```python
-Del True # TypeError: cannot delete built-in constants
-Del print! # TypeError: cannot delete built-in variables
+Del True # 类型错误：无法删除内置常量
+Del print! # TypeError: 无法删除内置变量
 ```
 
-## Appendix: Assignment and Equivalence
+## 附录：赋值和等价
 
-Note that `x == a` is not necessarily true when `x = a`. An example is `Float.NaN`. This is the formal specification of floating-point numbers as defined by IEEE 754.
+请注意，当 `x = a` 时，`x == a` 不一定为真。 一个例子是`Float.NaN`。 这是 IEEE 754 定义的浮点数的正式规范。
 
 ```python
 x = Float.NaN
@@ -134,29 +134,29 @@ assert x ! = NaN
 assert x ! = x
 ```
 
-There are other objects for which no equivalence relation is defined in the first place.
+还有其他对象首先没有定义等价关系。
 
 ```python
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
-f == g # TypeError: cannot compare function objects
+f == g # 类型错误：无法比较函数对象
 
 C = Class {i: Int}
 D = Class {i: Int}
-C == D # TypeError: cannot compare class objects
+C == D # 类型错误：无法比较类对象
 ```
 
-Strictly speaking, `=` does not assign the right-hand side value directly to the left-hand side identifier.
-In the case of function and class objects, "modification" such as giving variable name information to the object is performed. However, this is not the case for structural types.
+严格来说，`=` 不会将右侧的值直接分配给左侧的标识符。
+在函数和类对象的情况下，执行“修改”，例如将变量名称信息赋予对象。 但是，结构类型并非如此。
 
 ```python
 f x = x
-print! f # <function f>
+print! f # <函数 f>
 g x = x + 1
-print! g # <function g>
+print! g # <函数 g>
 
 C = Class {i: Int}
-print! C # <class C>
+print! C # <类 C>
 ```
 
 <p align='center'>

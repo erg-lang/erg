@@ -1,6 +1,6 @@
-# Naming convention
+# 命名约定
 
-If you want to use a variable as a constant expression, make sure it starts with a capital letter. Two or more letters may be lowercase.
+如果要将变量用作常量表达式，请确保它以大写字母开头。 两个或多个字母可能是小写的。
 
 ```python
 i: Option Type = Int
@@ -9,36 +9,36 @@ match i:
     None -> log "None"
 ```
 
-Objects with side effects always end with `!`. Procedures and procedural 方法, and mutable types.
-However, the `Proc` type itself is not mutable.
+具有副作用的对象总是以 `!` 结尾。 程序和程序方法，以及可变类型。
+然而，`Proc` 类型本身是不可变的。
 
 ```python
 # Callable == Func or Proc
 c: Callable = print!
 match c:
-    p! -> log "proc" # `: Proc` can be omitted since it is self-explanatory
+    p! -> log "proc" # `: Proc` 可以省略，因为它是不言自明的
     f -> log "func"
 ```
 
-If you want to expose an attribute to the outside world, define it with `.` at the beginning. If you don't put `.` at the beginning, it will be private. To avoid confusion, they cannot coexist within the same scope.
+如果您想向外界公开一个属性，请在开头使用 `.` 定义它。 如果你不把`.`放在开头，它将是私有的。 为避免混淆，它们不能在同一范围内共存。
 
 ```python
-o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
+o = {x = 1; .x = 2} # 语法错误：同名的私有变量和公共变量不能共存
 ```
 
-## Literal Identifiers
+## 文字标识符
 
-The above rule can be circumvented by enclosing the string in single quotes (''). That is, procedural objects can also be assigned without `!`. However, in this case, even if the value is a constant expression, it is not considered a constant.
-A character string enclosed in single quotes like this is called a literal identifier.
-This is used when calling APIs (FFI) of other languages ​​such as Python.
+可以通过将字符串括在单引号 ('') 中来规避上述规则。 也就是说，程序对象也可以在没有 `!` 的情况下分配。 但是，在这种情况下，即使该值是常量表达式，也不会被视为常量。
+像这样用单引号括起来的字符串称为文字标识符。
+这在调用Python等其他语言的API（FFI）时使用。
 
 ```python
 bar! = pyimport("foo").'bar'
 ```
 
-Identifiers that are also valid in Erg do not need to be enclosed in ''.
+在 Erg 中也有效的标识符不需要用 '' 括起来。
 
-Furthermore, literal identifiers can contain both symbols and spaces, so strings that cannot normally be used as identifiers can be used as identifiers.
+此外，文字标识符可以包含符号和空格，因此通常不能用作标识符的字符串可以用作标识符。
 
 ```python
 '∂/∂t' y

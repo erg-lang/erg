@@ -1,12 +1,12 @@
 # Array
 
-Arrays are the most basic __collection (aggregate)__.
-A collection is an object that can hold multiple objects inside it.
+数组是最基本的__collection（聚合）__。
+集合是一个可以在其中包含多个对象的对象。
 
 ```python
 a = [1, 2, 3]
-a: [Int; 3] # Type specification: number after semicolon is the number of elements
-# Can be omitted if the number of elements is not known
+a: [Int; 3] # 类型说明：分号后的数字为元素个数
+# 如果元素个数未知，可以省略
 a: [Int]
 
 mut_a = [!1, !2, !3]
@@ -14,34 +14,34 @@ mut_a[0].inc!()
 assert mut_a == [2, 2, 3]
 ```
 
-As a rule, arrays cannot contain objects of different types.
+通常，数组不能包含不同类型的对象。
 
 ```python.
-[1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
+[1, "a"] # 类型错误：第一个元素是 Int，但第二个元素是 Str
 ```
 
-However, you can bypass the restriction by explicitly specifying the type like this.
+但是，您可以通过像这样显式指定类型来绕过限制。
 
 ```python
 [1, "a"]: [Int or Str].
 ```
 
-## Slice
+## 切片
 
-An array can also have multiple values taken out at once. This is called slicing.
+一个数组也可以同时取出多个值。 这称为切片。
 
 ```python
 l = [1, 2, 3, 4]
-# Same as l[1:3] in Python
+# 与 Python 中的 l[1:3] 相同
 assert l[1.. <3] == [2, 3]
 assert l[1..2] == [2, 3]
-# Same as l[1]
+# 与 l[1] 相同
 assert l[1..1] == [2]
-# Same as l[::2] in Python
+# 与 Python 中的 l[::2] 相同
 assert l[..].step(2) == [2, 4]
 ```
 
-The object obtained by slicing is an (immutable) copy to an array.
+通过切片获得的对象是数组的（不可变的）副本
 
 ```python
 print! Typeof l[1..2] # [Int; 4]

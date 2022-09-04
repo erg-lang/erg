@@ -1,37 +1,37 @@
-# Dict
+# 字典
 
-Dict is a collection of key/value pairs.
+Dict 是键/值对的集合。
 
 ```python
 ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-The key does not have to be a string if it is a `Hash` object.
+如果键是“哈希”对象，则键不必是字符串。
 
 ```python
-# deprecated to use a range object as a key (confused with slice)
+# 不推荐使用范围对象作为键（与切片混淆）
 r = {1..3: "1~3", 4..6: "4~6", 7..9: "7~9"}
 assert r[1..3] == "1~3"
 l = {[]: "empty", [1]: "1"}
 assert l[[]] == "empty"
 ```
 
-Order does not matter for Dict. It also cannot have duplicate elements. In this respect, Dict is similar to Set.
-You could say that a Dict is a Set with values.
+对于字典来说，顺序无关紧要。 它也不能有重复的元素。 在这方面，Dict 与 Set 类似。
+您可以说 Dict 是具有值的 Set。
 
 ```python
 {"Alice": 145, "Bob": 214, "Charlie": 301} == {"Alice": 145, "Charlie": 301, "Bob": 214}
 ```
 
-When generating a dict from a dict literal, it is checked for duplicate keys.
-Any duplicates will result in a compile error.
+从 dict 文字生成 dict 时，会检查重复键。
+任何重复都会导致编译错误。
 
 ```python
-{"Alice": 145, "Alice": 1} # KeyError: Duplicate key "Alice"
+{"Alice": 145, "Alice": 1} # Key错误：重复键`Alice`
 ```
 
-Empty Dict is created with `{:}`. Note that `{}` denotes an empty set.
+空字典是用 `{:}` 创建的。 请注意，`{}` 表示一个空集。
 
 ```python
 mut_dict = !{:}
@@ -40,9 +40,9 @@ mut_dict.insert! "Bob", 214
 assert mut_dict["Alice"] == 145
 ```
 
-## Heterogeneous Dict
+## 异构字典
 
-There need not be a single key/value type. Such a dictionary is called a __heterogenous dict_.
+不需要有单一的键/值类型。 这样的字典称为 __heterogenous dict_。
 
 ```python
 d: {Str: Int, Int: Str} = {"a": 1, 1: "a"}
@@ -50,14 +50,14 @@ assert d["a"] == 1
 assert d[1] == "a"
 ```
 
-However, it is not possible to assign values of the same type to keys of different types, or values of different types to keys of the same type.
-In such cases, use the type Or instead.
+但是，不能将相同类型的值分配给不同类型的键，或者将不同类型的值分配给相同类型的键。
+在这种情况下，请改用 Or 类型。
 
 ```python
 invalid1 = {1: "a", "a": "b"}
 invalid2 = {1: "a", 2: 2}
 
-# Erg type inference does not infer Or type, so type specification is required
+# Erg 类型推断不推断 Or 类型，因此需要类型说明
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```

@@ -8,7 +8,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 ```
 
 ```python
-# 定义ining the foo module is almost the same as defining this record
+# 定义 foo 模块与定义这条记录几乎相同
 foo = {.i = 1}
 ```
 
@@ -19,13 +19,13 @@ print! foo # <module 'foo'>
 assert foo.i == 1
 ```
 
-Since module types are also record types, deconstruction assignment is possible.
+由于模块类型也是记录类型，因此可以进行解构赋值
 
 ```python
 {sin; cos; ...} = import "math"
 ```
 
-## module visibility
+## 模块可见性
 
 ```console
 └─┬ ./src

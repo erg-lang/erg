@@ -1,40 +1,40 @@
-# Literal
+# 字面量
 
-## Basic Literals
+## 基本字面量
 
-### Int Literal
+### 整数字面量
 
 ```python
 0, -0, 1, -1, 2, -2, 3, -3, ...
 ```
 
-### Ratio Literal
+### 比率文字
 
 ```python
 0.00, -0.0, 0.1, 400.104, ...
 ```
 
-If a `Ratio` literal has an integer or decimal part of `0`, you can omit the `0`.
+如果“比率”文字的整数或小数部分为`0`，则可以省略`0`
 
 ```python
 assert 1.0 == 1.
 assert 0.5 == .5
 ```
 
-> __Note__: This function `assert` was used to show that `1.0` and `1.` are equal.
-Subsequent documents may use `assert` to indicate that the results are equal.
+> __注意__：这个函数 `assert` 用于表明 `1.0` 和 `1.` 相等。
+后续文档可能会使用 `assert` 来表示结果是相等的。
 
-### Str Literal
+### 字符串字面量
 
-Any Unicode-representable string can be used.
-Unlike Python, quotation marks cannot be enclosed in `'`. If you want to use `"` in a string, use `\"`.
+可以使用任何 Unicode 可表示的字符串。
+与 Python 不同，引号不能包含在 `'` 中。 如果要在字符串中使用 `"`，请使用 `\"`。
 
 ```python
 "", "a", "abc", "111", "1# 3f2-3*8$", "こんにちは", "السَّلَامُ عَلَيْكُمْ", ...
 ```
 
-`{}` allows you to embed expressions in strings. This is called string interpolation.
-If you want to output `{`, `}` itself, use `\{`, `\}`.
+`{}` 允许您在字符串中嵌入表达式。 这称为字符串插值。
+如果要输出 `{`、`}` 本身，请使用 `\{`、`\}`。
 
 ```python
 assert "1 + 1 is 2" == "{1} + {1} is {1+1}"
@@ -42,10 +42,10 @@ s = "1+1"
 assert "\{1+1}\" == "\{{s}\}"
 ```
 
-### Exponential Literal
+### 指数字面量
 
-This is a literal representing exponential notation often used in academic calculations. It is an instance of type ``Ratio``.
-The notation is the same as in Python.
+这是学术计算中常用的表示指数符号的文字。 它是“比率”类型的一个实例。
+该符号与 Python 中的符号相同。
 
 ```python
 1e-34, 0.4e-10, 2.455+e5, 245e5, 25E5, ...
@@ -55,61 +55,61 @@ The notation is the same as in Python.
 assert 1e-10 == 0.0000000001
 ```
 
-## Compound Literals
+## 复合字面量
 
-Each of these literals has its own documentation describing them separately, so please refer to that documentation for details.
+这些文字中的每一个都有自己的文档分别描述它们，因此请参阅该文档以获取详细信息。
 
-### [Array Literal](./10_array.md)
+### [数组字面量](./10_array.md)
 
 ```python
 [], [1], [1, 2, 3], ["1", "2",], [1, "1", True, [1]], ...
 ```
 
-### [Dict Literal](./11_dict.md)
+### [字典字面量](./11_dict.md)
 
 ```python
 {:}, {"one": 1}, {"one": 1, "two": 2}, {"1": 1, "2": 2}, {1: "1", 2: True, "three": [1]}, ...
 ```
 
-### [Tuple Literal](./12_tuple.md)
+### [元组字面量](./12_tuple.md)
 
 ```python
 (), (1, 2, 3), (1, "hello", True), ...
 ```
 
-### [Record Literal](./13_record.md)
+### [Record 字面量](./13_record.md)
 
 ```python
 {=}, {one = 1}, {one = 1; two = 2}, {.name = "John"; .age = 12}, {.name = Str; .age = Nat}, ...
 ```
 
-### [Set Literal](./14_set.md)
+### [Set 字面量](./14_set.md)
 
 ```python
 {}, {1}, {1, 2, 3}, {"1", "2", "1"}, {1, "1", True, [1]} ...
 ```
 
-As a difference from `Array` literals, duplicate elements are removed in `Set`.
+与 `Array` 字面量不同的是，`Set` 中删除了重复元素
 
 ```python
 assert {1, 2, 1} == {1, 2}
 ```
 
-### What looks like a literal but isn't
+### 看起来像文字但不是
 
-## Boolean Object
+## 布尔对象
 
 ```python
 True, False
 ```
 
-### None Object
+### None 对象
 
 ```python
 None
 ```
 
-## Range Object
+## Range 对象
 
 ```python
 assert 0..5 == {1, 2, 3, 4, 5}
@@ -118,26 +118,27 @@ assert 0..<10 notin 10
 assert 0..9 == 0..<10
 ```
 
-## Float Object
+## Float 对象
 
 ```python
 assert 0.0f64 == 0
 assert 0.0f32 == 0.0f64
 ```
 
-Float objects are constructed by multiplying a `Ratio` object by `f64`, which is a `Float 64` unit object.
+浮点对象是通过将 `Ratio` 对象乘以 `f64` 构造的，后者是 `Float 64` 单位对象
 
-## Complex Object
+## Complex 对象
 
 ```python
 1+2im, 0.4-1.2im, 0im, im
 ```
 
-A `Complex` object is simply an arithmetic combination of an imaginary unit object, `im`.
+一个“复杂”对象只是一个虚数单位对象`im`的算术组合
 
-## *-less multiplication
 
-In Erg, you can omit the `*` to indicate multiplication as long as there is no confusion in interpretation. However, the combined strength of the operators is set stronger than `*`.
+## *-less 乘法
+
+在 Erg 中，您可以省略 `*` 来表示乘法，只要解释上没有混淆即可。 但是，运算符的组合强度设置为强于 `*`。
 
 ```python
 # same as `assert (1*m) / (1*s) == 1*(m/s)`
