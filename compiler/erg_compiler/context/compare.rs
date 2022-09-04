@@ -399,8 +399,6 @@ impl Context {
                 && kw_check()
                 // contravariant
             }
-            // RefMut, OptionMut are invariant
-            (Ref(lhs), Ref(rhs)) => self.supertype_of(lhs, rhs),
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
             (FreeVar(lfv), FreeVar(rfv)) => {
@@ -490,7 +488,18 @@ impl Context {
                 }
                 true
             }
-            // (MonoQuantVar(_), _) | (_, MonoQuantVar(_)) => true,
+            (Type::Record(lhs), Type::Record(rhs)) => {
+                for (k, l) in lhs.iter() {
+                    if let Some(r) = rhs.get(k) {
+                        if !self.supertype_of(l, r) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             // REVIEW: maybe this is incomplete
             // ({I: Int | I >= 0} :> {N: Int | N >= 0}) == true,
             // ({I: Int | I >= 0} :> {I: Int | I >= 1}) == true,
@@ -565,6 +574,8 @@ impl Context {
             }
             (_lhs, Not(_, _)) => todo!(),
             (Not(_, _), _rhs) => todo!(),
+            // RefMut, OptionMut are invariant
+            (Ref(lhs), Ref(rhs)) => self.supertype_of(lhs, rhs),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             // REVIEW: RefMut is invariant, maybe
             (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),

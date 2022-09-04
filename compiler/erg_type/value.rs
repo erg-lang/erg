@@ -357,6 +357,10 @@ impl ValueObj {
         }
     }
 
+    pub const fn is_type(&self) -> bool {
+        matches!(self, Self::Type(_))
+    }
+
     pub const fn is_mut(&self) -> bool {
         matches!(self, Self::Mut(_))
     }

@@ -111,19 +111,28 @@ impl LimitedDisplay for Constraint {
                 (true, false) => {
                     write!(f, "<: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
                 (false, true) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
                 (false, false) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
                     write!(f, ", <: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
             },
             Self::TypeOf(t) => {
@@ -258,7 +267,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 write!(f, "?{name}(")?;
                 constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")[{lev}]")
+                write!(f, ")")?;
+                if cfg!(feature = "debug") {
+                    write!(f, "[{lev}]")?;
+                }
+                Ok(())
             }
             Self::Unbound {
                 id,
@@ -267,7 +280,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 write!(f, "?{id}(")?;
                 constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")[{lev}]")
+                write!(f, ")")?;
+                if cfg!(feature = "debug") {
+                    write!(f, "[{lev}]")?;
+                }
+                Ok(())
             }
         }
     }
@@ -501,7 +518,7 @@ impl<T: Clone + HasLevel> Free<T> {
             .and_then(|c| c.get_type().cloned())
     }
 
-    pub fn crack_subtype(&self) -> Option<Type> {
+    pub fn crack_sup(&self) -> Option<Type> {
         self.borrow()
             .constraint()
             .and_then(|c| c.get_super_type().cloned())

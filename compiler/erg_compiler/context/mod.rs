@@ -203,6 +203,16 @@ pub enum ContextKind {
     Dummy,
 }
 
+impl ContextKind {
+    pub const fn is_method_def(&self) -> bool {
+        matches!(self, Self::MethodDefs)
+    }
+
+    pub const fn is_type(&self) -> bool {
+        matches!(self, Self::Class | Self::Trait | Self::StructuralTrait)
+    }
+}
+
 /// 記号表に登録されているモードを表す
 /// Preregister: サブルーチンまたは定数式、前方参照できる
 /// Normal: 前方参照できない

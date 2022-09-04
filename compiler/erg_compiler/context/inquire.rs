@@ -1020,6 +1020,13 @@ impl Context {
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
         match typ {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                return self.rec_get_nominal_type_ctx(&fv.crack());
+            }
+            Type::FreeVar(fv) => {
+                let sup = fv.crack_sup()?;
+                return self.rec_get_nominal_type_ctx(&sup);
+            }
             Type::Refinement(refine) => {
                 return self.rec_get_nominal_type_ctx(&refine.t);
             }
@@ -1040,6 +1047,7 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
+            Type::Ref(t) | Type::RefMut(t) => return self.rec_get_nominal_type_ctx(t),
             other => todo!("{other}"),
         }
         if let Some(outer) = &self.outer {
@@ -1053,8 +1061,14 @@ impl Context {
         match obj.ref_t() {
             // TODO: attr
             Type::Module => self.rec_get_mod(&obj.var_full_name()?),
+            Type::Type => self
+                .rec_get_nominal_type_ctx(&Type::Mono(Str::from(obj.var_full_name().unwrap())))
+                .map(|(_, ctx)| ctx),
             Type::Class => todo!(),
             Type::Trait => todo!(),
+            Type::Refinement(refine) => {
+                self.rec_get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx)
+            }
             _ => None,
         }
     }
@@ -1111,6 +1125,26 @@ impl Context {
             outer.rec_get_const_param_defaults(name)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn get_self_t(&self) -> Type {
+        if self.kind.is_method_def() || self.kind.is_type() {
+            // TODO: poly type
+            let name = self.name.split("::").last().unwrap();
+            let name = name.split(".").last().unwrap();
+            let mono_t = mono(Str::rc(name));
+            if let Some((t, _)) = self.rec_get_nominal_type_ctx(&mono_t) {
+                t.clone()
+            } else {
+                todo!("{mono_t}")
+            }
+        } else {
+            if let Some(outer) = &self.outer {
+                outer.get_self_t()
+            } else {
+                todo!()
+            }
         }
     }
 }

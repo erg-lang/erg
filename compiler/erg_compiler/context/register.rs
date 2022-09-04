@@ -9,7 +9,7 @@ use erg_type::free::HasLevel;
 use ast::{DefId, VarName};
 use erg_parser::ast;
 
-use erg_type::constructors::{enum_t, func, proc};
+use erg_type::constructors::{enum_t, func, proc, ref_, ref_mut};
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
@@ -161,18 +161,29 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
         match &sig.pat {
+            ast::ParamPattern::Lit(_) => Ok(()),
             ast::ParamPattern::Discard(_token) => Ok(()),
-            ast::ParamPattern::VarName(v) => {
-                if self.registered(v.inspect(), v.inspect().is_uppercase()) {
+            ast::ParamPattern::VarName(name) => {
+                if self.registered(name.inspect(), name.is_const()) {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
-                        v.loc(),
+                        name.loc(),
                         self.caused_by(),
-                        v.inspect(),
+                        name.inspect(),
                     ))
                 } else {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    if &name.inspect()[..] == "self" {
+                        let self_t = self.get_self_t();
+                        self.sub_unify(
+                            &spec_t,
+                            &self_t,
+                            Some(name.loc()),
+                            None,
+                            Some(name.inspect()),
+                        )?;
+                    }
                     let idx = if let Some(outer) = outer {
                         ParamIdx::nested(outer, nth)
                     } else {
@@ -183,16 +194,101 @@ impl Context {
                     } else {
                         DefaultInfo::NonDefault
                     };
-                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, v))), idx, default);
+                    let kind =
+                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
-                        Some(v.clone()),
+                        Some(name.clone()),
                         VarInfo::new(spec_t, Immutable, Private, kind),
                     ));
                     Ok(())
                 }
             }
-            ast::ParamPattern::Lit(_) => Ok(()),
-            _ => unreachable!(),
+            ast::ParamPattern::Ref(name) => {
+                if self.registered(name.inspect(), name.is_const()) {
+                    Err(TyCheckError::reassign_error(
+                        line!() as usize,
+                        name.loc(),
+                        self.caused_by(),
+                        name.inspect(),
+                    ))
+                } else {
+                    // ok, not defined
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    if &name.inspect()[..] == "self" {
+                        let self_t = self.get_self_t();
+                        self.sub_unify(
+                            &spec_t,
+                            &self_t,
+                            Some(name.loc()),
+                            None,
+                            Some(name.inspect()),
+                        )?;
+                    }
+                    let spec_t = ref_(spec_t);
+                    let idx = if let Some(outer) = outer {
+                        ParamIdx::nested(outer, nth)
+                    } else {
+                        ParamIdx::Nth(nth)
+                    };
+                    let default = if sig.opt_default_val.is_some() {
+                        DefaultInfo::WithDefault
+                    } else {
+                        DefaultInfo::NonDefault
+                    };
+                    let kind =
+                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    self.params.push((
+                        Some(name.clone()),
+                        VarInfo::new(spec_t, Immutable, Private, kind),
+                    ));
+                    Ok(())
+                }
+            }
+            ast::ParamPattern::RefMut(name) => {
+                if self.registered(name.inspect(), name.is_const()) {
+                    Err(TyCheckError::reassign_error(
+                        line!() as usize,
+                        name.loc(),
+                        self.caused_by(),
+                        name.inspect(),
+                    ))
+                } else {
+                    // ok, not defined
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    if &name.inspect()[..] == "self" {
+                        let self_t = self.get_self_t();
+                        self.sub_unify(
+                            &spec_t,
+                            &self_t,
+                            Some(name.loc()),
+                            None,
+                            Some(name.inspect()),
+                        )?;
+                    }
+                    let spec_t = ref_mut(spec_t);
+                    let idx = if let Some(outer) = outer {
+                        ParamIdx::nested(outer, nth)
+                    } else {
+                        ParamIdx::Nth(nth)
+                    };
+                    let default = if sig.opt_default_val.is_some() {
+                        DefaultInfo::WithDefault
+                    } else {
+                        DefaultInfo::NonDefault
+                    };
+                    let kind =
+                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    self.params.push((
+                        Some(name.clone()),
+                        VarInfo::new(spec_t, Immutable, Private, kind),
+                    ));
+                    Ok(())
+                }
+            }
+            other => {
+                log!(err "{other}");
+                unreachable!()
+            }
         }
     }
 
@@ -272,7 +368,7 @@ impl Context {
                     )
                 })?;
         }
-        if self.registered(name.inspect(), name.inspect().is_uppercase()) {
+        if self.registered(name.inspect(), name.is_const()) {
             Err(TyCheckError::reassign_error(
                 line!() as usize,
                 name.loc(),

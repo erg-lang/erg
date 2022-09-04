@@ -9,7 +9,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 
 use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
+use erg_type::value::{TypeKind, TypeObj, ValueObj};
 use erg_type::Type;
 use erg_type::{constructors::*, BuiltinConstSubr, ConstSubr};
 use ParamSpec as PS;
@@ -51,11 +51,54 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {name}");
         } else {
-            // TODO: visibility (not always private)
-            // TODO: kind (not always Builtin)
-            let vi = VarInfo::new(enum_t(set! {obj.clone()}), Const, Private, Builtin);
-            self.consts.insert(VarName::from_str(Str::rc(name)), obj);
-            self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+            match obj {
+                /*ValueObj::Type(TypeObj::Builtin(_builtin)) => {
+                    todo!()
+                }*/
+                ValueObj::Type(TypeObj::Gen(gen)) => match gen.kind {
+                    TypeKind::Class => {
+                        if gen.t.is_monomorphic() {
+                            let super_traits =
+                                gen.impls.into_iter().map(|to| to.typ().clone()).collect();
+                            let mut ctx =
+                                Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
+                            let require = gen.require_or_sup.typ().clone();
+                            let new_t = func1(require, gen.t.clone());
+                            ctx.register_impl("__new__", new_t, Immutable, Private);
+                            self.register_mono_type(gen.t, ctx, Const);
+                        } else {
+                            todo!()
+                        }
+                    }
+                    TypeKind::InheritedClass => {
+                        if gen.t.is_monomorphic() {
+                            let super_classes = vec![gen.require_or_sup.typ().clone()];
+                            let super_traits =
+                                gen.impls.into_iter().map(|to| to.typ().clone()).collect();
+                            let mut ctx = Self::mono_class(
+                                gen.t.name(),
+                                super_classes,
+                                super_traits,
+                                self.level,
+                            );
+                            let sup = gen.require_or_sup.typ().clone();
+                            let new_t = func1(sup, gen.t.clone());
+                            ctx.register_impl("__new__", new_t, Immutable, Private);
+                            self.register_mono_type(gen.t, ctx, Const);
+                        } else {
+                            todo!()
+                        }
+                    }
+                    other => todo!("{other:?}"),
+                },
+                other => {
+                    // TODO: visibility (not always private)
+                    // TODO: kind (not always Builtin)
+                    let vi = VarInfo::new(enum_t(set! {other.clone()}), Const, Private, Builtin);
+                    self.consts.insert(VarName::from_str(Str::rc(name)), other);
+                    self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                }
+            }
         }
     }
 

@@ -2291,7 +2291,23 @@ pub enum ParamPattern {
     VarArgs(VarName),
 }
 
-impl_display_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl NestedDisplay for ParamPattern {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        match self {
+            Self::Discard(tok) => write!(f, "{}", tok),
+            Self::VarName(var_name) => write!(f, "{}", var_name),
+            Self::Lit(lit) => write!(f, "{}", lit),
+            Self::Array(array) => write!(f, "{}", array),
+            Self::Tuple(tuple) => write!(f, "{}", tuple),
+            Self::Record(record) => write!(f, "{}", record),
+            Self::Ref(var_name) => write!(f, "ref {}", var_name),
+            Self::RefMut(var_name) => write!(f, "ref! {}", var_name),
+            Self::VarArgs(var_name) => write!(f, "...{}", var_name),
+        }
+    }
+}
+
+impl_display_from_nested!(ParamPattern);
 impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
 
 impl ParamPattern {

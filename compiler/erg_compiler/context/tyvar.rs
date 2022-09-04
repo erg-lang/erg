@@ -1111,6 +1111,23 @@ impl Context {
                 return Ok(());
             }
             (Type::FreeVar(_fv), _r) => todo!(),
+            (Type::Record(lrec), Type::Record(rrec)) => {
+                for (k, l) in lrec.iter() {
+                    if let Some(r) = rrec.get(k) {
+                        self.sub_unify(l, r, sub_loc, sup_loc, param_name)?;
+                    } else {
+                        return Err(TyCheckError::subtyping_error(
+                            line!() as usize,
+                            maybe_sub,
+                            maybe_sup,
+                            sub_loc,
+                            sup_loc,
+                            self.caused_by(),
+                        ));
+                    }
+                }
+                return Ok(());
+            }
             (Type::Subr(lsub), Type::Subr(rsub)) => {
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
