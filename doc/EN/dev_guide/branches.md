@@ -1,7 +1,5 @@
 # Branch naming and operation policy
 
-* Basically, development is done in one `main` branch (monorepo development). Create a `feature-*` branch or `issue-*` branch only when it is difficult to work without branching.
-
 ## main
 
 * main development branch

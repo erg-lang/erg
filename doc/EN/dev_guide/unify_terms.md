@@ -4,35 +4,9 @@
 
 Use Visibility.
 
-## Complement (negative type, complementary type)
-
-Use negative types. The result of Complement is not necessarily Not type.
-
-## Diff (difference type, exclusion type, direct difference type)
-
-Use exclusion types. The result of Diff is not always Not type.
-
-## Intersection (intersection type, intersection type, Cartesian product type)
-
-Use intersection types. Do not use Cartesian product types. This is because there is also a usage that regards a tuple as a Cartesian product type.
-However, from the point of view of attribute subtyping, it is essentially equivalent to Erg's And type.
-Also, the result of Intersection is not necessarily And type. For example `{1, 2, 3} and {1, 2} == {1, 2}`.
-
-## Translation of Nominal subtyping
-
-There are nominal/nominal/nominal subtyping, but use nominal subtyping.
-
-## Ratio type translation
-
-Use rational numbers. Since Float is provided separately, it is not called a floating-point number type.
-
-## Union
-
-Use a union type. The result of Union is not necessarily Or type.
-
 ## Type bound, Type constraint
 
-A list of predicate expressions given to quantified and sieve types. Use type bounds.
+A list of predicate expressions given to quantified and refinement types. Use type bounds.
 
 ## subroutines, routines, subprograms
 
@@ -65,24 +39,18 @@ However, in general, `v` with `v = 1` is called "Variable v", and `C` with `C = 
 
 ## Attribute, Field, Property
 
-Attribute, use attributes.
-By the way, a record is a function that can define an object with element attributes without a class.
+Use attributes. By the way, a record is a function that can define an object with element attributes without a class.
 
 ## Application, Call
 
 Giving arguments to a subroutine object and getting a result.
-Use Call. This is because Application has a usage of "applied software".
+Use Call. This is because Application has a usage of "application software".
 
 ## Array, List
 
 Use Arrays. Erg arrays are (generally) contiguous in memory.
 List refers to a so-called linked list, or a list as a Python data type.
 
-## procedures, procedures
-
-Standardize on procedures. Subroutine is a generic term for functions (and operators), procedures and methods. Callable is also anything that implements `__call__`.
-
-## lambda functions, lambda expressions, anonymous functions, anonymous functions
+## lambda functions, lambda expressions, anonymous functions
 
 Unify with anonymous functions. In English, Lambda can be used to shorten the number of characters, but the official name is Anonymous function.
-Also, Erg's anonymous functions are not anonymous, so we don't use them.
