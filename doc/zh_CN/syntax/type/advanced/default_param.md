@@ -1,6 +1,6 @@
-# Function type with default arguments
+# 带默认参数的函数类型
 
-First, let's look at an example of using default arguments.
+首先，让我们看一个使用默认参数的示例。
 
 ```python
 f: (Int, Int, z := Int) -> Int
@@ -16,13 +16,13 @@ assert fold(f, [1, 2, 3]) == 6
 assert fold(g, [1, 2, 3]) == 8
 ```
 
-Arguments after `:=` are default arguments.
-The subtyping rules are as follows.
+`:=` 之后的参数是默认参数。
+子类型规则如下:
 
 ```python
 ((X, y := Y) -> Z) <: (X -> Z)
 ((X, y := Y, ...) -> Z) <: ((X, ...) -> Z)
 ```
 
-The first means that a function with default arguments can be identified with a function without.
-The second means that any default argument can be omitted.
+第一个意味着可以用没有默认参数的函数来识别具有默认参数的函数。
+第二个意味着可以省略任何默认参数。

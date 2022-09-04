@@ -1,29 +1,29 @@
-# rank-2 polymorphism
+# rank-2 多态性
 
-> __Warning__: This document is out of date and contains errors in general.
+> __Warning__：本文档已过时，一般包含错误。
 
-Erg allows you to define functions that accept various types such as `id|T|(x: T): T = x`, ie polycorrelations.
-So, can we define a function that accepts polycorrelations?
-For example, a function like this (note that this definition is erroneous):
+Erg 允许您定义接受各种类型的函数，例如 `id|T|(x: T): T = x`，即多相关。
+那么，我们可以定义一个接受多相关的函数吗？
+比如这样的函数（注意这个定义是错误的）：
 
 ```python
-# I want tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
+# 我想要 tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 tuple_map|T|(f: T -> T, tup: (Int, Str)): (Int, Str) = (f(tup.0), f(tup.1))
 ```
 
-Note that `1` and `"a"` have different types, so the anonymous function is not monomorphic once. Needs to be single-phased twice.
-Such a function cannot be defined within the scope of the types we have discussed so far. This is because type variables have no notion of scope.
-Let's leave the types for a moment and see the concept of scope at the value level.
+注意 `1` 和 `"a"` 有不同的类型，所以匿名函数一次不是单态的。 需要单相两次。
+这样的函数不能在我们目前讨论的类型范围内定义。 这是因为类型变量没有范围的概念。
+让我们暂时离开类型，看看值级别的范围概念。
 
 ```python
 arr = [1, 2, 3]
 arr.map i -> i + 1
 ```
 
-`arr` and `i` in the code above are variables in different scopes. Therefore, each life span is different (`i` is shorter).
+上面代码中的 `arr` 和 `i` 是不同作用域的变量。 因此，每个寿命都是不同的（`i` 更短）。
 
-The types so far have the same lifetime for all type variables. In other words, `T`, `X`, and `Y` must be determined at the same time and remain unchanged thereafter.
-Conversely, if we can think of `T` as a type variable in the "inner scope", we can compose a `tuple_map` function. __Rank 2 type__ was prepared for that purpose.
+到目前为止，所有类型变量的类型都具有相同的生命周期。 换句话说，‘T’、‘X’和‘Y’必须同时确定，之后保持不变。
+反之，如果我们可以将 `T` 视为“内部作用域”中的类型变量，我们可以组成一个 `tuple_map` 函数。 __Rank 2 type__ 就是为此目的而准备的。
 
 ```python
 # tuple_map: ((|T: Type| T -> T), (Int, Str)) -> (Int, Str)
@@ -31,26 +31,26 @@ tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 ```
 
-A type of the form `{(type) | (list of type variables)}` is called a universal type (see [Universal type](./../quantified.md) for details).
-The `id` function we have seen so far is a typical universal function = polycorrelation function.
+`{(type) | 形式的类型 （类型变量列表）}` 被称为通用类型（详见[通用类型](./../quantified.md)）。
+目前我们看到的`id`函数是一个典型的通用函数=多相关函数。
 
 ```python
 id x = x
 id: |T: Type| T -> T
 ```
 
-A universal type has special rules for association with the function type constructor `->`, and the semantics of the type are completely different depending on the way of association.
+通用类型与函数类型构造函数`->`的关联有特殊的规则，根据关联的方式，类型的语义是完全不同的。
 
-Think about this in terms of simple one-argument functions.
+用简单的单参数函数来考虑这一点。
 
 ```python
-f1: (T -> T) -> Int | T # a function that takes any function and returns an Int
-f2: (|T: Type| T -> T) -> Int # Function that receives polycorrelation and returns Int
-f3: Int -> (|T: Type| T -> T) # A function that takes an Int and returns a closed universal function
-f4: |T: Type|(Int -> (T -> T)) # Same as above (preferred)
+f1: (T -> T) -> 整数 | T # 接受任何函数并返回 Int 的函数
+f2: (|T: Type| T -> T) -> Int # 接收多相关并返回 Int 的函数
+f3: Int -> (|T: Type| T -> T) # 一个函数，接受一个 Int 并返回一个封闭的通用函数
+f4: |T: Type|(Int -> (T -> T)) # 同上（首选）
 ```
 
-It seems strange that `f1` and `f2` are different, while `f3` and `f4` are the same. Let's actually construct a function of such a type.
+`f1` 和 `f2` 不同，而 `f3` 和 `f4` 相同，这似乎很奇怪。 让我们实际构造一个这种类型的函数。
 
 ```python
 # id: |T: Type| T -> T
@@ -83,21 +83,21 @@ g2: Int -> Int = take_i_and_return_arbit_f|Int|(1)
 assert f2 == g2
 ```
 
-An open polycorrelation function type is specifically called an __arbitrary function type__. Arbitrary function types have an infinite number of possibilities: `Int -> Int`, `Str -> Str`, `Bool -> Bool`, `|T: Type| T -> T`, ... be.
-On the other hand, there is only one closed (returning an object of the same type as the argument) polymorphic type `|T: Type| T -> T`. Such types are specifically called __polymorphic function types__.
-In other words, `f1` can be passed `x: Int -> x+1`, `x: Bool -> not x`, `x -> x`, etc. = `f1` is a polycorrelated number Yes, but you can only pass `x -> x` etc. to `f2` = `f2` is not __a polycorrelation__.
-But the types of functions like `f2` are clearly different from normal types, and we need new concepts to handle them well. That is the "rank" of the type.
+开放的多相关函数类型具体称为 __任意函数类型__。 任意函数类型有无数种可能性：`Int -> Int`、`Str -> Str`、`Bool -> Bool`、`|T: Type| T -> T`, ... 是。
+另一方面，只有一个封闭的（返回与参数相同类型的对象）多态类型`|T：Type| T -> T`。 这种类型被专门称为 __多态函数类型__。
+也就是说，`f1`可以通过`x: Int -> x+1`、`x: Bool -> not x`、`x -> x`等=`f1`是一个多相关数是的， 但是您只能将 `x -> x` 等传递给 `f2` = `f2` 不是 __多元相关__。
+但是像`f2`这样的函数类型明显不同于普通类型，我们需要新的概念来处理它们。 那是类型的“等级”。
 
-Regarding the definition of rank, types that are not quantified, such as `Int`, `Str`, `Bool`, `T`, `Int -> Int`, `Option Int`, etc., are treated as "rank 0".
+关于rank的定义，没有量化的类型，如`Int`、`Str`、`Bool`、`T`、`Int -> Int`、`Option Int`等，都被视为“rank” 0”。
 
 ```python
-# K is a polynomial kind such as Option
+# K 是多项式类型，例如 Option
 R0 = (Int or Str or Bool or ...) or (R0 -> R0) or K(R0)
 ```
 
-Next, types with first-order universal quantification, such as `|T| T -> T`, or types that include them in the return value type are “rank 1”.
-In addition, types with second-order universal quantification (types that have rank 1 types as arguments such as `(|T| T -> T) -> Int`) or types that include them in the return type are called "rank 2 ”.
-The above is repeated to define the “Rank N” type. Also, the rank-N types include all types with a rank of N or less. Therefore, a type with mixed ranks has the same rank as the highest among them.
+接下来，具有一阶全称的类型，例如`|T| T -> T`，或者在返回值类型中包含它们的类型是“rank 1”。
+此外，具有二阶全称量化的类型（具有 rank 1 类型作为参数的类型，例如 `(|T| T -> T) -> Int`）或将它们包含在返回类型中的类型称为“rank 2 ”。
+重复上述以定义“Rank N”类型。 此外，秩-N 类型包括秩为N 或更少的所有类型。 因此，混合等级的类型与其中最高的等级相同。
 
 ```python
 R1 = (|...| R0) or (R0 -> R1) or K(R1) or R0
@@ -106,7 +106,7 @@ R2 = (|...| R1) or (R1 -> R2) or K(R2) or R1
 Rn = (|...| Rn-1) or (Rn-1 -> Rn) or K(Rn) or Rn-1
 ```
 
-Let's look at some examples.
+让我们看看例子：
 
 ```python
     (|T: Type| T -> T) -> (|U: Type| U -> U)
@@ -120,7 +120,7 @@ Option(|T: Type| T -> T)
 => R1
 ```
 
-By definition, `tuple_map` is a rank-2 type.
+根据定义，`tuple_map` 是 rank-2 类型。
 
 ```python
 tuple_map:
@@ -130,13 +130,13 @@ tuple_map:
 => R2
 ```
 
-Erg can handle types up to rank 2 (because rank N types include all types with rank N or less, to be exact, all Erg types are rank 2 types). Attempting to construct a function of more types is an error.
-For example, all functions that handle polycorrelations as they are require specification of other argument types. Also, such a function is not configurable.
+Erg 最多可以处理 rank 2 的类型（因为 rank N 类型包括所有 rank N 或更少的类型，确切地说，所有 Erg 类型都是 rank 2 类型）。 试图构造更多类型的函数是错误的。
+例如，所有处理多相关的函数都需要指定其他参数类型。 而且，这样的功能是不可配置的。
 
 ```python
-# this is a rank-3 type function
+# 这是一个 rank-3 类型的函数
 # |X, Y: Type|((|T: Type| T -> T), (X, Y)) -> (X, Y)
 generic_tuple_map|X, Y: Type| f: (|T: Type| T -> T), tup: (X, Y) = (f(tup.0), f(tup.1))
 ```
 
-It is known that types with rank 3 or higher are theoretically undecidable by type inference. However, most practical needs can be covered by the rank 2 type.
+众所周知，具有 3 级或更高等级的类型在理论上无法通过类型推断来确定。 然而，大多数实际需求可以被等级 2 类型覆盖。

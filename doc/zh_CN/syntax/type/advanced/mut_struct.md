@@ -1,23 +1,23 @@
-# Mutable Structure Type
+# 可变结构类型
 
-The ``T!`` type is described as a box type that can be replaced by any ``T`` type object.
+`T!` 类型被描述为可以被任何 `T` 类型对象替换的盒子类型。
 
 ```python
 Particle!State: {"base", "excited"}! = Class(... Impl := Phantom State)
 Particle!
-    # This method moves the State from "base" to "excited".
+    # 此方法将状态从“base”移动到“excited”
     apply_electric_field!(ref! self("base" ~> "excited"), field: Vector) = ...
 ```
 
-The ``T!`` type can replace data, but it cannot change its structure.
-More like the behavior of a real program, it cannot change its size (on the heap). Such a type is called an immutable structure (mutable) type.
+`T!` 类型可以替换数据，但不能改变其结构。
+更像是一个真实程序的行为，它不能改变它的大小（在堆上）。 这样的类型称为不可变结构（mutable）类型。
 
-In fact, there are data structures that cannot be represented by invariant structure types.
-For example, a Mutable-length array. The `[T; N]!`type can contain objects of any `[T; N]`, but cannot be replaced by objects of type `[T; N+1]` and so on.
+事实上，有些数据结构不能用不变的结构类型来表示。
+例如，可变长度数组。 `[T; N]!`类型可以包含任何`[T; N]`，但不能被`[T; N+1]` 等等。
 
-In other words, the length cannot be changed. To change the length, the structure of the type itself must be changed.
+换句话说，长度不能改变。 要改变长度，必须改变类型本身的结构。
 
-This is achieved by Mutable structure (mutable) types.
+这是通过可变结构（可变）类型实现的。
 
 ```python
 v = [Str; !0].new()
@@ -25,10 +25,10 @@ v.push! "Hello"
 v: [Str; !1].
 ```
 
-For mutable structure types, Mutable type arguments are marked with `!`. In the above case, the type `[Str; !0]` can be changed to `[Str; !1]` and so on. That is, the length can be changed.
-Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ArrayWithLength!(T, !N)` type.
+对于可变结构类型，可变类型参数用 `!` 标记。 在上述情况下，类型 `[Str; !0]` 可以更改为 `[Str; !1]` 等等。 即，可以改变长度。
+顺便说一句，`[T; !N]` 类型是 `ArrayWithLength!(T, !N)` 类型的糖衣语法。
 
-Mutable structure types can of course be user-defined. Note, however, that there are some differences from invariant structure types in terms of the construction method.
+可变结构类型当然可以是用户定义的。 但是请注意，在构造方法方面与不变结构类型存在一些差异。
 
 ```python
 Nil T = Class(Impl := Phantom T)

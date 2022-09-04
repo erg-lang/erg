@@ -1,44 +1,44 @@
 # Kind
 
-Everything is typed in Erg. Types themselves are no exception. __kind__ represents the “type of type”. For example, `Int` belongs to `Type`, just as `1` belongs to `Int`. `Type` is the simplest kind, the __atomic kind__. In type-theoretic notation, `Type` corresponds to `*`.
+一切都在 Erg 中输入。类型本身也不例外。 __kind__ 表示“类型的类型”。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。 `Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`。
 
-In the concept of kind, what is practically important is one or more kinds (multinomial kind). One-term kind, for example `Option`, belongs to it. A unary kind is represented as `Type -> Type` [<sup id="f1">1</sup>](#1). A __container__ such as `Array` or `Option` is specifically a polynomial kind that takes a type as an argument.
-As the notation `Type -> Type` indicates, `Option` is actually a function that receives a type `T` and returns a type `Option T`. However, since this function is not a function in the usual sense, it is usually called the unary kind.
+在Kind的概念中，实际上重要的是一种或多种Kind（多项式Kind）。单项类型，例如`Option`，属于它。一元Kind表示为 `Type -> Type` [<sup id="f1">1</sup>](#1)。诸如 `Array` 或 `Option` 之类的 __container__ 特别是一种以类型作为参数的多项式类型。
+正如符号 `Type -> Type` 所表明的，`Option` 实际上是一个接收类型 `T` 并返回类型 `Option T` 的函数。但是，由于这个函数不是通常意义上的函数，所以通常称为一元类。
 
-Note that `->` itself, which is an anonymous function operator, can also be seen as a kind when it receives a type and returns a type.
+注意`->`本身，它是一个匿名函数操作符，当它接收一个类型并返回一个类型时，也可以看作是一Kind型。
 
-Also note that a kind that is not an atomic kind is not a type. Just as `-1` is a number but `-` is not, `Option Int` is a type but `Option` is not. `Option` etc. are sometimes called type constructors.
+另请注意，不是原子Kind的Kind不是类型。正如 `-1` 是一个数字但 `-` 不是，`Option Int` 是一个类型但 `Option` 不是。 `Option` 等有时被称为类型构造函数。
 
 ```python
 assert not Option in Type
 assert Option in Type -> Type
 ```
 
-So code like the following will result in an error:
-In Erg, 方法 can only be defined in atomic kinds, and the name `self` cannot be used anywhere other than the first argument of a method.
+所以像下面这样的代码会报错：
+在 Erg 中，方法只能在原子类型中定义，并且名称 `self` 不能在方法的第一个参数以外的任何地方使用。
 
 ```python
-#K is an unary kind
+#K 是一元类型
 K: Type -> Type
 K T = Class...
 K.
-    foo x = ... # OK, this is like a so-called static method
-    bar self, x = ... # TypeError: cannot define a method to a non-type object
+foo x = ... # OK，这就像是所谓的静态方法
+     bar self, x = ... # 类型错误: 无法为非类型对象定义方法
 K(T).
     baz self, x = ... # OK
 ```
 
-Examples of binary or higher kinds are `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type`), ... and so on.
+二进制或更高类型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type `), ... 等等。
 
-There is also a zero-term kind `() -> Type`. This is sometimes equated with an atomic kind in type theory, but is distinguished in Erg. An example is `Class`.
+还有一个零项类型`() -> Type`。 这有时等同于类型论中的原子类型，但在 Erg 中有所区别。 一个例子是`类`。
 
 ```python
 Nil = Class()
 ```
 
-## Containment of kind
+## 收容类
 
-There is also a partial type relation, or rather a partial kind relation, between multinomial kinds.
+多项类型之间也存在部分类型关系，或者更确切地说是部分类型关系。
 
 ```python
 K T = ...
@@ -46,15 +46,15 @@ L = Inherit K
 L<: K
 ```
 
-That is, for any `T`, if `L T <: K T`, then `L <: K`, and vice versa.
+也就是说，对于任何 `T`，如果 `L T <: K T`，则 `L <: K`，反之亦然。
 
 ```python
 ∀T. L T <: K T <=> L <: K
 ```
 
-## higher kind
+## 高阶Kind
 
-There is also a higher-order kind. This is a kind of the same concept as a higher-order function, a kind that receives a kind itself. `(Type -> Type) -> Type` is a higher kind. Let's define an object that belongs to a higher kind.
+还有一种高阶Kind。 这是一种与高阶函数相同的概念，一种自身接收一种类型。 `(Type -> Type) -> Type` 是一种更高的Kind。 让我们定义一个属于更高Kind的对象。
 
 ```python
 IntContainerOf K: Type -> Type = K Int
@@ -63,47 +63,46 @@ assert IntContainerOf Result == Result Int
 assert IntContainerOf in (Type -> Type) -> Type
 ```
 
-The bound variables of a polynomial kind are usually denoted as K, L, ..., where K is K for Kind.
+多项式类型的有界变量通常表示为 K, L, ...，其中 K 是 Kind 的 K
 
-## set kind
+## 设置Kind
 
-In type theory, there is the concept of a record. This is almost the same as the Erg record [<sup id="f2">2</sup>](#2).
+在类型论中，有记录的概念。 这与 Erg 记录 [<sup id="f2">2</sup>](#2) 几乎相同。
 
 ```python
-# This is a record, and it corresponds to what is called a record in type theory
+# 这是一条记录，对应于类型论中所谓的记录
 {x = 1; y = 2}
 ```
 
-When all record values ​​were types, it was a kind of type called a record type.
+当所有的记录值都是类型时，它是一种类型，称为记录类型。
 
 ```python
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
-A record type types a record. A good guesser might have thought that there should be a "record kind" to type the record type. Actually it exists.
+记录类型键入记录。 一个好的猜测者可能认为应该有一个“记录类型”来键入记录类型。 实际上它是存在的。
 
 ```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}
 ```
 
-A type like `{{x = Int; y = Int}}` is a record kind. This is not a special notation. It is simply an enumeration type that has only `{x = Int; y = Int}` as an element.
+像 `{{x = Int; 这样的类型 y = Int}}` 是一种记录类型。 这不是一个特殊的符号。 它只是一个枚举类型，只有 `{x = Int; y = Int}` 作为一个元素。
 
 ```python
 Point = {x = Int; y = Int}
 Pointy = {Point}
 ```
 
-An important property of record kind is that if `T: |T|` and `U <: T` then `U: |T|`.
-This is also evident from the fact that enums are actually syntactic sugar for sieve types.
+记录类型的一个重要属性是，如果 `T: |T|` 和 `U <: T` 则 `U: |T|`。
+从枚举实际上是筛子类型的语法糖这一事实也可以看出这一点。
 
 ```python
-# {c} == {X: T | X == c} for normal objects, but
-# Equality may not be defined for types, so |T| == {X | X <: T}
+# {c} == {X: T | X == c} 对于普通对象，但是不能为类型定义相等性，所以 |T| == {X | X <: T}
 {Point} == {P | P <: Point}
 ```
 
-`U <: T` in type constraints is actually syntactic sugar for `U: |T|`.
-A kind that is a set of such types is commonly called a set kind. Setkind also appears in the Iterator pattern.
+类型约束中的 `U <: T` 实际上是 `U: |T|` 的语法糖。
+作为此类类型的集合的种类通常称为集合种类。 Setkind 也出现在迭代器模式中。
 
 ```python
 Iterable T = Trait {
@@ -112,7 +111,7 @@ Iterable T = Trait {
 }
 ```
 
-## Type inference for polynomial kinds
+## 多项式类型的类型推断
 
 ```python
 Container K: Type -> Type, T: Type = Patch K(T, T)
@@ -128,22 +127,21 @@ Fn2 T, U: Type = Patch T -> U
 Fn2(T, U).
     f self = ...
 
-(Int -> Int).f() # which one is selected?
+(Int -> Int).f() # 选择了哪一个？
 ```
+在上面的示例中，方法 `f` 会选择哪个补丁？
+天真，似乎选择了`Fn T`，但是`Fn2 T，U`也是可以的，`Option T`原样包含`T`，所以任何类型都适用，`Container K，T`也匹配`->(Int, Int)`，即 `Container(`->`, Int)` 为 `Int -> Int`。因此，上述所有四个修复程序都是可能的选择。
 
-In the example above, which patch would the method `f` choose?
-Naively, `Fn T` seems to be chosen, but `Fn2 T, U` is also possible, `Option T` includes `T` as it is, so any type is applicable, `Container K , T` also matches ``` `->`(Int, Int)```, i.e. ```Container(`->`, Int)``` as ```Int -> Int`. So all four 修补程序 above are possible options.
+在这种情况下，根据以下优先标准选择修复程序。
 
-In this case, 修补程序 are selected according to the following priority criteria.
-
-* Any `K(T)` (e.g. `T or NoneType`) preferentially matches `Type -> Type` over `Type`.
-* Any `K(T, U)` (e.g. `T -> U`) matches `(Type, Type) -> Type` preferentially over `Type`.
-*Similar criteria apply for kind of 3 or more.
-* The one that requires fewer type variables to replace is chosen. For example, `Int -> Int` is `T -> T` rather than `K(T, T)` (replacement type variables: K, T) or `T -> U` (replacement type variables: T, U). `(replacement type variable: T) is matched preferentially.
-* If the number of replacements is also the same, an error is given as being unselectable.
+* 任何 `K(T)`（例如 `T or NoneType`）优先匹配 `Type -> Type` 而不是 `Type`。
+* 任何 `K(T, U)`（例如 `T -> U`）优先匹配 `(Type, Type) -> Type` 而不是 `Type`。
+* 类似的标准适用于种类 3 或更多。
+* 选择需要较少类型变量来替换的那个。例如，`Int -> Int` 是 `T -> T` 而不是 `K(T, T)`（替换类型变量：K, T）或 `T -> U`（替换类型变量：T, U ）。（替换类型变量：T）优先匹配。
+* 如果更换的次数也相同，则报错为不可选择。
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> In type theory notation, `*=>*` [↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 在类型理论符号中，`*=>*` [↩](#f1)</span>
 
-<span id="2" style="font-size:x-small"><sup>2</sup> There are subtle differences such as visibility. [↩](#f2)</span>
+<span id="2" style="font-size:x-small"><sup>2</sup> 可见性等细微差别。[↩](#f2)</span>

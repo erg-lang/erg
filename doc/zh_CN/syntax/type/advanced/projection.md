@@ -1,6 +1,6 @@
-# Projection Type
+# 投影类型
 
-A projection type represents a type such as ``Self.AddO`` in the following code.
+投影类型表示如下代码中的“Self.AddO”等类型。
 
 ```python
 Add R = Trait {
@@ -13,8 +13,8 @@ AddForInt.
     AddO = Int
 ```
 
-The type ``Add(R)`` can be said to be a type that defines addition with some object. Since the method should be a type attribute, the `+` type declaration should be written below the indentation.
-The mise-en-scène of the `Add` type is the declaration `.AddO = Type`, and the entity of the `.AddO` type, which is a projective type, is held by a type that is a subtype of `Add`. For example, `Int.AddO = Int`, `Odd.AddO = Even`.
+类型“Add(R)”可以说是定义了与某个对象的加法的类型。 由于方法应该是一个类型属性，`+` 类型声明应该写在缩进下面。
+`Add` 类型的场景是声明 `.AddO = Type`，而 `.AddO` 类型的实体是一个投影类型，由一个作为 ` 子类型的类型持有 添加`。 例如，`Int.AddO = Int`、`Odd.AddO = Even`。
 
 ```python
 assert Int < Add

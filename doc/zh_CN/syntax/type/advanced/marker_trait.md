@@ -1,10 +1,10 @@
-# Marker Trait
+# 标记特征
 
-Marker traits are traits without required attributes. That is, you can Impl without implementing any method.
-It seems meaningless without the required attribute, but since the information that it belongs to the trait is registered, you can use the patch method or get special treatment by the compiler.
+标记特征是没有必需属性的特征。 也就是说，您可以在不实现任何方法的情况下实现 Impl。
+没有 required 属性似乎没有意义，但由于注册了它属于 trait 的信息，因此可以使用 patch 方法或由编译器进行特殊处理。
 
-All marker traits are subsumed by the `Marker` trait.
-`Light` provided as standard is a kind of marker trait.
+所有标记特征都包含在“标记”特征中。
+作为标准提供的“光”是一种标记特征。
 
 ```python
 Light = Subsume Marker
@@ -24,7 +24,7 @@ assert i + 1 == 2
 assert i in M
 ```
 
-Marker classes can also be excluded with the `Excluding` argument.
+标记类也可以使用 `Excluding` 参数排除。
 
 ```python
 NInt = Inherit MarkedInt, Impl := N, Excluding: M

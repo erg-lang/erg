@@ -1,6 +1,6 @@
-# Generalized Algebraic Data Types (GADTs)
+# 广义代数数据类型 (GADT)
 
-Erg can create Generalized Algebraic Data Types (GADTs) by classifying Or types.
+Erg 可以通过对 Or 类型进行分类来创建广义代数数据类型 (GADT)。
 
 ```python
 Nil T = Class(Impl := Phantom T)
@@ -15,18 +15,18 @@ List.
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil())).head() # 1
-print! nil.head() # RuntimeError: "empty list"
+print! nil.head() # 运行时错误：“空list”
 ```
 
-The reason we say `List.nil|T|() = ...` instead of `List(T).nil() = ...` is that we don't need to specify the type when using it.
+我们说 `List.nil|T|() = ...` 而不是 `List(T).nil() = ...` 的原因是我们在使用它时不需要指定类型。
 
 ```python
 i = List.nil()
 _: List Int = cons 1, i
 ```
 
-The `List T` defined here is GADTs, but it's a naive implementation and doesn't show the true value of GADTs.
-For example, the `.head` method above will throw a runtime error if the body is empty, but this check can be done at compile time.
+这里定义的 `List T` 是 GADTs，但它是一个幼稚的实现，并没有显示 GADTs 的真正价值。
+例如，上面的 .head 方法会在 body 为空时抛出运行时错误，但是这个检查可以在编译时进行。
 
 ```python
 List: (Type, {"Empty", "Nonempty"}) -> Type
@@ -40,11 +40,11 @@ List(T, "Nonempty").
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil())).head() # 1
-print! nil().head() # TypeError
+print! nil().head() # 类型错误
 ```
 
-An example of GADTs that is often explained on the street is a list that can judge whether the contents are empty or not by type as above.
-Erg can be further refined to define a list with length.
+街上经常解释的 GADT 的一个例子是一个列表，可以像上面那样通过类型来判断内容是否为空。
+Erg 可以进一步细化以定义一个有长度的列表。
 
 ```python
 List: (Type, Nat) -> Type
@@ -60,7 +60,7 @@ List(_, N | N >= 2).
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil)).pair() # [1, 2]
-print! cons(1, nil).pair() # TypeError
+print! cons(1, nil).pair() # 类型错误
 print! cons(1, nil).head() # 1
-print! nil. head() # TypeError
+print! nil. head() # 类型错误
 ```

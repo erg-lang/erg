@@ -1,15 +1,15 @@
-# Quantified Dependent Type
+# 量化依赖类型
 
-Erg has quantified and dependent types. Then naturally, it is possible to create a type that combines the two. That is the quantified dependent type.
+Erg 有量化和依赖类型。 那么很自然地，就可以创建一个将两者结合起来的类型。 那是量化的依赖类型。
 
 ```python
-NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # same as {S | N: Nat; S: StrWithLen N; N ! = 0}
-NonEmptyArray = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: Array(_, N); N > 0}
+NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # 同 {S | N: Nat; S: StrWithLen N; N ! = 0}
+NonEmptyArray = |N: Nat| [_; N | N > 0] # 同 {A | N: Nat; A: Array(_, N); N > 0}
 ```
 
-The standard form of quantified dependent types are `K(A, ... | Pred)`. ``K`` is a type constructor, `A, B` are type arguments, and `Pred` is a conditional expression.
+量化依赖类型的标准形式是“K(A, ... | Pred)”。 `K` 是类型构造函数，`A, B` 是类型参数，`Pred` 是条件表达式。
 
-Quantified dependent types as left-hand side values can only define 方法 in the same module as the original type.
+作为左值的量化依赖类型只能在与原始类型相同的模块中定义方法。
 
 ```python
 K A: Nat = Class ...
@@ -19,9 +19,9 @@ K(A | A >= 1).
     method ref! self(A ~> A+1) = ...
 ```
 
-Quantified dependent types as right-hand side values require that the type variable to be used be declared in the type variable list (`||`).
+作为右值的量化依赖类型需要在类型变量列表 (`||`) 中声明要使用的类型变量。
 
 ```python
-# T is a concrete type
+# T 是具体类型
 a: |N: Nat| [T; N | N > 1]
 ```
