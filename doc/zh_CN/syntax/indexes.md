@@ -1,43 +1,43 @@
-# 索引
+# 指数
 
-この索引にないAPIについては[こちら](../API/index.md)を参照してください。
-用語の意味については[こちら](../dev_guide/terms.md)を参照。
+有关不在此索引中的 API，请参阅 [此处](../API/index.md)。
+有关术语，请参见 [此处](../dev_guide/terms.md)。
 
-## 記号
+## 象征
 
-* !
-  * !-type → [可変型](./type/mut.md)
-* [&#35;](./00_basic.md/#コメント)
-* $
-* %
+* ！
+  * !-type → [可变类型](./type/mut.md)
+* [&#35;](./00_basic.md/#comment)
+*$
+*%
 * &
   * &&
-* &prime; (single quote)
+* &prime;（单引号）
 * &lpar;&rpar;
 * &ast;
-  * [*-less multiplication](./01_literal.md/#less-multiplication)
-* &plus; (前置)
-  * &plus;_ → &plus; (前置)
-* &plus; (中置)
+  * [*-less 乘法](./01_literal.md/#less-multiplication)
+* + (前缀)
+  * &plus;_ → &plus; (前缀)
+* + (中缀)
 * ,
-* &minus; (前置)
-  * &minus;_ → &minus; (前置)
-* &minus; (中置)
-  * &minus;>
-* . → [可視性]
+* &minus;（前缀）
+  * &minus;_ → &minus; (前缀)
+* &minus;（中缀）
+  * 减号;>
+* . → [可见性]
 * /
 * :
-  * :: → [可視性]
+  * :: → [可见性]
 * ;
-* &lt;
+* <
   * &lt;:
-  * &lt;&lt;
-  * &lt;=
+  * <<
+  * <=
 * =
   * ==
   * =>
 * &gt;
-  * &gt;&gt;
+  *&gt;&gt;
   * &gt;=
 * ?
 * @
@@ -46,120 +46,120 @@
 * ^
   * ^^
 * _
-  * &#95;+&#95; → &plus; (中置)
-  * &#95;-&#95; → &minus; (中置)
-* ``
+  * &#95;+&#95; → &plus;（中缀）
+  * &#95;-&#95; → &minus;（中缀）
+*``
 * {}
-  * {} type
+  * {} 类型
 * {:}
 * {=}
-  * {=} type
+  * {=} 类型
 * |
   * ||
 * ~
 
-## アルファベット
+＃＃ 字母
 
-### A
+＃＃＃ 一个
 
-* [algebraic&nbsp;type]
-* [And]
-* [and]
-* [assert]
-* [attribute]
+* [代数类型]
+* [和]
+* [和]
+* [断言]
+* [属性]
 
-### B
+###B
 
-* [Base]
-* [Bool]
+* [根据]
+* [布尔]
 
-### C
+＃＃＃ C
 
-* [Class]
+* [班级]
 
-### D
+###D
 
-* Deprecated
-* [distinct]
+*已弃用
+* [清楚的]
 
-### E
+###E
 
-* [enum&nbsp;type]
-* [Eq]
-* [Erg]
+* [枚举类型]
+*[方程式]
+*[erg]
 
-### F
+＃＃＃F
 
-* [for]
+*[为了]
 
-### G
+＃＃＃G
 
-### H
+＃＃＃H
 
-### I
+＃＃＃ 我
 
-* [if]
-* [import]
-* [in]
-* [Int]
+*[如果]
+* [进口]
+* [在]
+* [诠释]
 
-### J
+###J
 
-### K
+###K
 
-### L
+### 大号
 
-* let-polymorphism → [ランク1多相]
-* [log]
+* let-polymorphism → [rank 1 多态性]
+* [日志]
 
-### M
+###M
 
-* [match]
+* [匹配]
 
-### N
+###N
 
-* [Nat]
-* Never
-* None
-* None
-* [Not]
-* [not]
+*[纳特]
+* 绝不
+*没有任何
+*没有任何
+*[不是]
+* [不是]
 
-### O
+###O
 
-* [Option]
-* [Or]
-* [or]
-* [Ord]
+* [选项]
+* [或者]
+* [或者]
+*[订购]
 
-### P
+###P
 
-* panic
-* [print!](./../API/procs.md#print)
-* [Python]
+* 恐慌
+* [打印！](./../API/procs.md#print)
+*[Python]
 
 ### Q
 
 ### R
 
-* ref
-* ref!
-* [Result]
-* [rootobj]
+* 参考
+* 参考！
+* [结果]
+* [根对象]
 
 ### S
 
-* self
-* [Self](./type/special.md)
-* [side-effect](./07_side_effect.md)
-* [Str]
+* 自己
+* [自我](./type/special.md)
+* [副作用](./07_side_effect.md)
+* [力量]
 
 ### T
 
-* Trait
-* [True]
-* [Type]
-* [type]
+* 特质
+* [真的]
+* [类型]
+* [类型]
 
 ### U
 
@@ -167,7 +167,7 @@
 
 ### W
 
-* [while!]
+* [尽管！]
 
 ### X
 
@@ -175,278 +175,278 @@
 
 ### Z
 
-## あ行
+## 一行
 
-* [アサーション]
-* 値オブジェクト
-* [アタッチメントパッチ](./29_decorator.md#attach)
-* アドホック多相 → [オーバーロードの禁止](./type/overloading.md)
-* アトリビュート → [属性]
-* アリティ
-* [依存型](./type/dependent_type.md)
-* イミュータブル → [不変]
-* 引数(いんすう) → [引数(ひきすう)]
-* インスタンス
-* [インスタントブロック](./00_basic.md#式セパレータ)
-* インデックス
-* [インデント](./00_basic.md#インデント)
-* エイリアス
-* エラー
-  * [エラーハンドリング]
-* [演算子](./06_operator.md)
-  * [演算子の結合強度]
-* オーバーライド
-* [オーバーロードの禁止](./type/overloading.md)
-* オフサイドルール → [インデント](./00_basic.md#インデント)
-* [オブジェクト]
-  * オブジェクト指向
-* オペランド → [被演算子](./06_operator.md)
-* オペレーター → [演算子](./06_operator.md)
+* [断言]
+* 值对象
+* [附件补丁](./29_decorator.md#attach)
+* Ad-hoc 多态性 → [无重载](./type/overloading.md)
+* 属性 → [属性]
+* 稀有度
+* [依赖类型](./type/dependent_type.md)
+* 不可变 → [不可变]
+* 参数 → [参数]
+* 实例
+* [即时块](./00_basic.md#表达式分隔符)
+* 指数
+* [缩进](./00_basic.md#indent)
+* 别名
+* 错误
+  * [错误处理]
+* [运算符](./06_operator.md)
+  * [运算符绑定强度]
+* 覆盖
+* [不重载](./type/overloading.md)
+* 越位规则 → [缩进](./00_basic.md#indent)
+* [目的]
+  * 面向对象
+* 操作数 → [操作数](./06_operator.md)
+* 运算符 → [运算符](./06_operator.md)
 
-## か行
+##嘉线
 
-* [カインド](./type/advanced/kind.md)
-* [可視性]
-* [型]
-  * [型指定]
-  * [型消去](./type/advanced/erasure.md)
-  * [型推論]
-  * [型注釈](./type/conv_type.md)
-  * [型引数]
-  * [型付加](./type/advanced/erasure.md)
-  * [型変数](./type/type_variable.md)
-  * [型制約]
-* [ガード]
-* カプセル化
-* [可変]
-  * [可変オブジェクト]
-  * [可変型]
-  * [可変参照]
-  * [可変配列]
-  * [可変長引数]
-* [関数](./04_function.md)
-  * [関数型プログラミング](./23_scope.md#可変状態の回避関数型プログラミング)
-* 基底型
-* 記名
-  * [記名型] → [クラス](./type/04_class.md)
-  * [記名化]
-  * [記名的部分型](./type/05_nst_vs_sst.md)
-* キャプチャ → [クロージャ]
-* [共変]
-* [キーワード引数]
-* 空集合 → [{}]
-* 区間
-  * [区間型](./type/11_interval.md)
-  * 区間演算子
-* 組み込み
-  * [組み込み型]
-  * [組み込み関数](./05_builtin_funcs.md)
-  * [組み込みプロシージャ](./09_builtin_procs.md)
-* [クラス](./type/04_class.md)
-* [クロージャ]
-* [グローバル変数]
-* [クローン]
-* [継承](./type/07_inheritance.md)
-* 高階
-  * [高階カインド](./type/advanced/kind.md)
-  * 高階型
-  * 高階関数
-* [公開変数]
-* [構造的部分型]
-* ~~後方参照~~ → [前方参照]
-* [コピー]
-* コメント
-* [コレクション](./10_array.md)
-* コロン → [:]
-* [コンストラクタ](./type/04_class.md)
-* コンテナ
-* コンパイラ
-* [コンパイル時計算](./04_function.md#コンパイル時関数)
-* コンマ → [,]
+* [种类](./type/advanced/kind.md)
+* [可见性]
+* [类型]
+  * [类型规格]
+  * [类型擦除](./type/advanced/erasure.md)
+  * [类型推断]
+  * [类型注释](./type/conv_type.md)
+  * [类型参数]
+  * [类型添加](./type/advanced/erasure.md)
+  * [类型变量](./type/type_variable.md)
+  * [类型约束]
+* [警卫]
+* 封装
+* [多变的]
+  * [可变对象]
+  * [多变的]
+  * [变量参考]
+  * [变量数组]
+  * [可变参数]
+* [函数](./04_function.md)
+  * [函数式编程] (./23_scope.md#Avoiding mutable state 函数式编程)
+* 基本类型
+* 签
+  * [命名类型] → [类](./type/04_class.md)
+  * [报喜]
+  * [名义子类型](./type/05_nst_vs_sst.md)
+*捕获→[关闭]
+* [协变]
+* [关键字参数]
+* 空集 → [{}]
+* 部分
+  * [间隔类型](./type/11_interval.md)
+  * 区间运算符
+* 内置
+  * [内置型]
+  * [内置函数](./05_builtin_funcs.md)
+  * [内置程序](./09_builtin_procs.md)
+* [类](./type/04_class.md)
+* [关闭]
+* [全局变量]
+* [克隆]
+* [继承](./type/07_inheritance.md)
+* 高楼层
+  * [高级种类](./type/advanced/kind.md)
+  * 高阶类型
+  * 高阶函数
+* [公共变量]
+* [结构亚型]
+* ~~反向引用~~ → [反向引用]
+* [复制]
+* 评论
+* [集合](./10_array.md)
+* 冒号 → [:]
+* [构造函数](./type/04_class.md)
+* 容器
+* 编译器
+* [编译时计算](./04_function.md#compile-time函数)
+* 逗号 → [,]
 
-## さ行
+## sa线
 
-* 再帰
-  * 再帰型
-  * [再帰関数](./04_function.md#再帰関数)
-* サブスクリプト → [インデックス]
-* [サブタイピング多相](./type/overloading.md)
-* サブルーチン
-* [参照](./18_memory_management.md#借用)
-  * 参照オブジェクト
-  * [参照カウント(RC)](./18_memory_management.md#メモリ管理)
-  * 参照等価性 → [副作用](./07_side_effect.md)
-* [識別子](./02_variable.md/#代入)
-* シグネチャ
-  * 型シグネチャ
-* [辞書](./11_dict.md)
+* 递归
+  * 递归
+  * [递归函数](./04_function.md#递归函数)
+* 下标 → [索引]
+* [子类型多态性](./type/overloading.md)
+* 子程序
+* [参考] (./18_memory_management.md# 借用)
+  * 参考对象
+  * [引用计数（RC）]（./18_memory_management.md#内存管理）
+  * 引用相等 → [副作用](./07_side_effect.md)
+* [标识符](./02_variable.md/# 赋值)
+* 签名
+  * 类型签名
+* [字典](./11_dict.md)
 * [自然数] → [Nat]
-* ジェネリクス → [全称型]
-* ジェネレータ
-* [射影型]
-* 借用 → [参照](./18_memory_management.md#借用)
-* [シャドーイング](./02_name.md#変数)
-* 種 → [カインド](./type/advanced/kind.md)
-* [集合] → [セット]
-* 述語
-  * [述語関数]
-* 条件分岐
-* [所有権]
-* 真偽型 → [Bool]
-* シングルトン
-* [シンボル] → [識別子](./02_name.md)
-  * [シンボル化]
-* [スクリプト](./00_basic.md#スクリプト)
-* スコープ
-* スプレッド演算子 → [展開代入]
-* [スライス](./10_array.md#スライス)
-* 制御文字
-* [整数] → [Int]
-* [セット](./12_set.md)
-* セミコロン → [;]
-* [宣言](./03_declaration.md)
-* 全称
-  * 全称型 → [多相型](./type/quantified.md)
-    * 閉じた全称型
-    * 開いた全称型
-  * 全称関数 → 多相関数
-  * 全称量化
-* 前置演算子
-* 相互再帰
-* 添字 → [インデックス]
+* 泛型 → [通用类型]
+* 发电机
+* [投影类型]
+* 借用 → [参考](./18_memory_management.md#Borrow)
+* [阴影] (./02_name.md# 变量)
+* 物种 → [种类](./type/advanced/kind.md)
+* [套装] → [套装]
+* 谓词
+  * [谓词函数]
+* 条件分支
+* [所有权]
+* 布尔 → [布尔]
+* 单身人士
+* [符号] → [标识符](./02_name.md)
+  * [符号化]
+* [脚本](./00_basic.md# 脚本)
+* 范围
+* 扩展运算符 → [扩展赋值]
+* [切片](./10_array.md#slice)
+* 控制字符
+* [整数] → [整数]
+* [设置](./12_set.md)
+* 分号 → [;]
+* [声明](./03_declaration.md)
+* 全名
+  * 通用类型 → [多态类型](./type/quantified.md)
+    * 封闭式通用
+    * 打开通用
+  * 通用函数 → 多相关函数
+  * 通用量化
+* 前缀运算符
+* 相互递归
+* 下标 → [索引]
 * [属性]
-  * [属性的部分型]
+  * [属性子类型]
 
-## た行
+## 塔线
 
 * [代数](./02_name.md)
-  * [代数演算型](./type/13_algebraic.md)
-  * 代数的データ型
-* [代入](./02_variable.md/#代入)
-* 多重
-  * [多重継承](./type/07_inheritance.md/#多重継承の禁止)
-  * 多重代入
-  * 多重定義 → [オーバーロードの禁止]
+  * [代数类型](./type/13_algebraic.md)
+  * 代数数据类型
+* [赋值](./02_variable.md/#assignment)
+* 多
+  * [多重继承](./type/07_inheritance.md/#禁止多重继承)
+  * 多重赋值
+  * 重载 → [不重载]
 * 多相
-  * [多相型](./type/quantified.md)
-  * 多相関数
-* 多態 → [ポリモーフィズム]
-* ダックタイピング
-* [タプル](./11_tuple.md)
-* 単相
-  * 単相化
-  * 単相型
-  * 単相関数
-* [遅延初期化]
-* 抽出代入
-* 抽象構文木 → [AST]
-* 中置演算子
-* [定数](./02_name.md/#定数)
-  * [定数型](./type/advanced/const.md)
-  * [定数式](./type/advanced/const.md)
-* [定義]
-* 提供属性
-* [適用]
-* [デコレータ](./29_decorator.md)
-* デストラクタ
-* 手続き → [プロシージャ](./08_procedure.md)
-* [デフォルト引数](./04_function.md/#デフォルト引数default-parameters)
-* 展開
-  * [展開演算子]
-  * [展開代入]
-* [特殊形式](./../API/special.md)
-* 匿名関数 → [無名関数](./20_lambda.md)
-* ドット演算子(`.`) → [属性参照]
-* トップ
-  * トップ型 → [Structural Object]
-  * トップクラス → [Object]
-* [トレイト](./type/03_trait.md)
+  * [多态类型](./type/quantified.md)
+  * 多相关系数
+* 多态 → [多态]
+*鸭子打字
+* [元组](./11_tuple.md)
+* 单相
+  * 单相
+  * 单相型
+  * 单相关系数
+* [延迟初始化]
+* 提取任务
+* 抽象语法树 → [AST]
+* 中缀运算符
+* [常数](./02_name.md/#constant)
+  * [常量类型](./type/advanced/const.md)
+  * [常量表达式](./type/advanced/const.md)
+*[定义]
+* 提供的属性
+* [申请]
+* [装饰器](./29_decorator.md)
+* 析构函数
+* 程序 → [程序](./08_procedure.md)
+* [默认参数](./04_function.md/#default arguments default-parameters)
+* 扩张
+  * [扩展运算符]
+  * [扩展分配]
+* [特殊格式](./../API/special.md)
+* 匿名函数 → [匿名函数](./20_lambda.md)
+* 点运算符 (`.`) → [属性参考]
+* 顶部
+  * 顶部类型 → [结构对象]
+  * 顶级 → [对象]
+* [特质](./type/03_trait.md)
 
-## な行
+## 没有一行
 
-* [内包表記](./27_comprehension.md)
-* ~~中置(なかおき)演算子~~ → [中置(ちゅうち)演算子]
-* [名前空間]
+* [理解](./27_comprehension.md)
+* ~~中缀运算符~~ → [中缀运算符]
+* [命名空间]
 
-## は行
+## 是一行
 
-* [配列](./10_array.md)
-* [派生型](./type/variances.md/#ユーザー定義型の変性)
-* [パターン(マッチ)](./26_pattern_matching.md)
-* [パッケージ](./33_package_system.md)
-* ハッシュマップ → [辞書](./11_dict.md)
-* [パッチ](./type/07_patch.md)
-* パブリック変数 → [公開変数](./19_visibility.md)
-* パラメーター → [引数](./04_function.md)
-* [パラメトリック多相](./type/overloading.md)
-* [反変](./type/advanced/variance.md)
-* 比較
-  * [比較演算子]
-  * [比較可能型]
-* [非公開変数](./19_visibility.md)
-* 標準
-  * 標準出力
-  * 標準入力
-  * 標準ライブラリ
+* [数组](./10_array.md)
+* [派生类型](./type/variances.md/#用户定义的类型变体)
+* [模式（匹配）]（./26_pattern_matching.md）
+* [包](./33_package_s系统.md)
+* Hashmap → [字典](./11_dict.md)
+* [补丁](./type/07_patch.md)
+* 公共变量 → [公共变量](./19_visibility.md)
+* 参数 → [参数](./04_function.md)
+* [参数多态](./type/overloading.md)
+* [逆变](./type/advanced/variance.md)
+* 相比
+  * [比较运算符]
+  * [可比类型]
+* [私有变量](./19_visibility.md)
+* 标准
+  * 标准输出
+  * 标准输入
+  * 标准库
 * [副作用](./07_side_effect.md)
-* 複素数 → [Complex]
-* [浮動小数点数] → [Float]
-* プライベート変数 → [非公開変数]
-* ブール代数 → [Bool]
-* [プロシージャ](./08_procedure.md)
-* [引数](./04_function.md)
-* 部分型付け → [サブタイピング]
-* [不変]
-  * [不変オブジェクト]
-  * [不変型]
-  * [不変参照]
-* [篩型](./type/12_refinement.md)
-* [ブロック]
-* 分解代入
-* [変数](./02_variable.md)
-* ボトム
-  * ボトム型 → [{}]
-  * ボトムクラス → [Never]
-* [ポリモーフィズム]
+* 复数 → [复数]
+* [浮动] → [浮动]
+* 私有变量 → [私有变量]
+* 布尔代数 → [布尔]
+* [程序](./08_procedure.md)
+* [参数](./04_function.md)
+* 部分输入 → [子输入]
+* [不可变]
+  * [不可变对象]
+  * [不可变类型]
+  * [不可变引用]
+* [筛子类型](./type/12_refinement.md)
+* [堵塞]
+* 解构赋值
+* [变量](./02_variable.md)
+* 底部
+  * 底部类型 → [{}]
+  * 底层 → [从不]
+* [多态性]
 
-## ま行
+## 马线
 
-* ~~前置(まえおき)演算子~~ → 前置(ぜんち)演算子
-* [マーカー型](./type/advanced/marker_trait.md)
-* [無名関数](./21_lambda.md)
-* ミュータブル → [可変性]
-* [ムーブ]
-* メソッド
-* メタキャラクタ
-* [モジュール](./24_module.md)
-* [文字列] → [Str]
-  * [文字列補間](./01_literal.md/#strリテラル)
-* 戻り値
+* ~~ 前缀运算符 ~~ → 前缀运算符
+* [标记类型](./type/advanced/marker_trait.md)
+* [匿名函数](./21_lambda.md)
+* 可变 → [可变]
+* [移动]
+* 方法
+* 元字符
+* [模块](./24_module.md)
+* [字符串] → [字符串]
+  * [字符串插值](./01_literal.md/#str 字面量)
+* 返回值
 
-## や行
+## 或行
 
-* [幽霊型](./type/advanced/phantom.md)
-* 要求属性
-* [要素]
-* [呼び出し]
+* [幽灵类型](./type/advanced/phantom.md)
+* 请求属性
+* [元素]
+* [称呼]
 
-## ら行
+## 拉线
 
-* [ライブラリ]
-* ラムダ式 → [無名関数](./20_lambda.md)
-* ランク
-  * [ランク2多相](./type/advanced/rank2type.md)
-* [リテラル](./01_literal.md)
-  * [リテラル識別子](./18_naming_rule.md/#リテラル識別子)
+* [图书馆]
+* Lambda 表达式 → [匿名函数](./20_lambda.md)
+* 排名
+  * [Rank 2 多态性](./type/advanced/rank2type.md)
+* [文字](./01_literal.md)
+  * [文字标识符](./18_naming_rule.md/#literal identifier)
 * [量化](./type/quantified.md)
-* [レイアウト](./type/mut.md)
-* [列挙型](./type/10_enum.md)
-* [レコード](./12_record.md)
-  * [レコード型]
-  * レコード多相 → [列多相]
-* [列多相]
-* [ローカル変数](./19_visibility.md)
+* [布局](./type/mut.md)
+* [枚举](./type/10_enum.md)
+* [记录](./12_record.md)
+  * [记录类型]
+  * 记录多态 → [列多态]
+* [列多态]
+* [局部变量](./19_visibility.md)
 
-## わ行
+## 线
 
-* ワイルドカード
+* 通配符

@@ -132,7 +132,7 @@ NumStrRev.
 # hint: `Str` (superclass of `NumericStr`) is associated with `Reverse` by `StrReverse`
 ```
 
-## Appendix：Rust 与特雷特的关系
+## Appendix：Rust 与trait的关系
 
 Erg 修补程序相当于 Rust 的 impl 块（后置）。
 
@@ -150,7 +150,7 @@ impl Reverse for String {
 }
 ```
 
-可以说，Rust Traitt 是 Erg Traitt 和补丁的功能的结合。这样说来，Rust 的特雷特听起来更方便，其实也不尽然。
+可以说，Rust Traitt 是 Erg Traitt 和补丁的功能的结合。这样说来，Rust 的trait听起来更方便，其实也不尽然。
 
 
 ```erg

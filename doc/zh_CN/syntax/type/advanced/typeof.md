@@ -44,12 +44,12 @@ assert Structure(Nat) == {I: Int | I >= 0}
 Option T = Class (T or NoneType)
 assert Structure(Option Int) == Or(Int, NoneType)
 assert Structure(Option) # TypeError: only monomorphized types can be structurized
-# 実際には__valueclass_tag__を持つレコードは定義できないが、概念上はこうなる
+# 你实际上不能用 __valueclass_tag__ 定义一条记录，但在概念上
 assert Structure(Int) == {__valueclass_tag__ = Phantom Int}
 assert Structure(Str) == {__valueclass_tag__ = Phantom Str}
 assert Structure((Nat, Nat)) == {__valueclass_tag__ = Phantom(Tuple(Nat, Nat))}
 assert Structure(Nat -> Nat) == {__valueclass_tag__ = Phantom(Func(Nat, Nat))}
-# マーカークラスも__valueclass_tag__を持つレコード型になる
+# 标记类也是带有 __valueclass_tag__ 的记录类型
 M = Inherit Marker
 assert Structure(M) == {__valueclass_tag__ = Phantom M}
 D = Inherit(C and M)

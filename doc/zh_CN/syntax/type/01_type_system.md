@@ -28,17 +28,17 @@ o2 = D.new {.public = 2} # InitializationError: class 'D' requires attribute 'pr
 
 Erg 中的所有对象都已输入。最高类型是，它实现了<gtr=“16”/>，<gtr=“17”/>，<gtr=“18”/>等（它们不是请求方法，也不能覆盖这些属性）。Erg 类型系统采用结构子类型（Structural subtyping，SST）。系统输入的类型称为“结构类型”（Structural type）。有三种结构类型：Attributive（属性类型）/Refinement（筛子类型）/Algebraic（代数类型）。
 
-|           | Record      | Enum       |Interval| Union       | Intersection | Diff         |
+|           | Record      | Enum       | Interval       | Union       | Intersection | Diff         |
 | --------- | ----------- | ---------- | -------------- | ----------- | ------------ | ------------ |
-| kind      | Attributive | Refinement |Refinement| Algebraic   | Algebraic    | Algebraic    |
-| generator | record      | set        |range operator| or operator | and operator | not operator |
+| kind      | Attributive | Refinement | Refinement     | Algebraic   | Algebraic    | Algebraic    |
+| generator | record      | set        | range operator | or operator | and operator | not operator |
 
-也可以使用 Nominal subtyping（Nominal subtyping，NST），将 SST 类型转换为 NST 类型称为“类型记名”（Nominalization）。这种类型称为“记名类型”（Nominal type）。在 Erg 中，记名类型为类和特雷特。如果只是一个类/任务，则通常指的是记录类/记录任务。
+也可以使用 Nominal subtyping（Nominal subtyping，NST），将 SST 类型转换为 NST 类型称为“类型记名”（Nominalization）。这种类型称为“记名类型”（Nominal type）。在 Erg 中，记名类型为类和trait。如果只是一个类/任务，则通常指的是记录类/记录任务。
 
-|     | Type           | Abstraction      |Subtyping procedure|
+|     | Type           | Abstraction      | Subtyping procedure |
 | --- | -------------- | ---------------- | ------------------- |
-| NST | NominalType    | Trait            |Inheritance|
-| SST | StructuralType | Structural Trait |(Implicit)|
+| NST | NominalType    | Trait            | Inheritance         |
+| SST | StructuralType | Structural Trait | (Implicit)          |
 
 表示整个记名类型的类型（）和整个结构类型的类型（<gtr=“20”/>）是整个类型的类型（<gtr=“21”/>）的子类型。
 
@@ -107,7 +107,7 @@ Point2D = {.x = Int; .y = Int}
 
 ## 类型类、数据类型（等效）
 
-如前所述，Erg 中的“类型”大致是指一组对象。以下是要求（中置运算符）的<gtr=“65”/>类型的定义。<gtr=“66”/>是一个所谓的类型参数，它包含实现的类型（类），如<gtr=“67”/>和<gtr=“68”/>。在其他语言中，类型参数具有特殊的符号（通用、模板等），但在 Erg 中，类型参数的定义方式与常规参数的定义方式相同。类型参数也可以不是类型对象。例如，序列类型是的糖衣语法。如果类型实现被覆盖，则用户必须显式选择。
+如前所述，Erg 中的“类型”大致是指一组对象。以下是要求（中置运算符）的<gtr=“65”/>类型的定义。<gtr=“66”/>是一个所谓的类型参数，它包含实现的类型（类），如<gtr=“67”/>和<gtr=“68”/>。在其他语言中，类型参数具有特殊的符号（通用、模板等），但在 Erg 中，类型参数的定义方式与常规参数的定义方式相同。类型参数也可以不是类型对象。例如，序列类型是的语法糖。如果类型实现被覆盖，则用户必须显式选择。
 
 
 ```erg

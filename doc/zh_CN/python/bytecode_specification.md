@@ -35,8 +35,8 @@
 
 ## PyStringObject
 
-* 使用 ascii 以外的字符会变成 PyUnicode？
-* “啊，”，“，”，“α”就变成了 PyUnicode 了？）
+* 如果我使用ascii以外的字符，它会变成PyUnicode吗？
+* "あ", "𠮷“，”和“α”是PyUnicode（不再使用？）
 
 * 0     byte: 0x73 (means 's')
 * 1~4   byte: length of string

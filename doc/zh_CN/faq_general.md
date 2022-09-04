@@ -10,7 +10,7 @@
 
 ## Erg 受到了什么语言的影响？
 
-双手也受到无数种语言的影响，其中受影响特别强烈的是 Python/Rust/Nim/Haskell。Python 继承了许多与越位规则兼容的语义学，Rust 继承了面向表达式和特雷特，Nim 继承了过程，Haskell 继承了函数型编程相关的功能。
+双手也受到无数种语言的影响，其中受影响特别强烈的是 Python/Rust/Nim/Haskell。Python 继承了许多与越位规则兼容的语义学，Rust 继承了面向表达式和trait，Nim 继承了过程，Haskell 继承了函数型编程相关的功能。
 
 ## 可以调用 Python 的语言包括 Julia。你为什么做 Erg？
 

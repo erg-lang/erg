@@ -299,7 +299,7 @@ f(a, b) # TypeError: f() takes 1 positional argument but 2 were given
 f((a, b)) # OK
 ```
 
-函数类型实际上是<gtr=“67”/>的糖衣语法。
+函数类型实际上是<gtr=“67”/>的语法糖。
 
 <p align='center'>
     <a href='./03_declaration.md'>Previous</a> | <a href='./05_builtin_funcs.md'>Next</a>

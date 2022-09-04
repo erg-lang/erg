@@ -37,10 +37,10 @@ log vip_area # OwnershipError: `vip_room` was moved to `normal_room`
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
-# $p1 == $p2とすると、中身の型Int!の比較が行われる
+# $p1 == $p2 比较内容类型 Int!
 assert $p1 == $p2
 assert $p1 == $p3
-# $p1と$p2が同じものを指しているかは、`.addr!`で確認する
+# 检查 `.addr!` 以查看 $p1 和 $p2 是否相同
 assert $p1.addr!() == $p2.addr!()
 assert $p1.addr!() != $p3.addr!()
 $p1.add! 1
