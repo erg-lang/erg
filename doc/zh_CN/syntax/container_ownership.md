@@ -1,6 +1,6 @@
-# Subscript (index access)
+# 下标（索引访问）
 
-`[]` is different from normal 方法.
+`[]` 不同于普通的方法。
 
 ```python
 a = [!1, !2]
@@ -8,10 +8,10 @@ a[0].inc!()
 assert a == [2, 2]
 ```
 
-Recall that the return value of a subroutine cannot be a reference.
-The type of `a[0]` here should clearly be `Ref!(Int!)` (the type of `a[0]` depends on the context).
-So `[]` is actually part of a special syntax, just like `.`. Unlike Python, it cannot be overloaded.
-It is also not possible to reproduce the behavior of `[]` in a method.
+回想一下，子例程的返回值不能是引用。
+这里的 `a[0]` 的类型显然应该是 `Ref!(Int!)`（`a[0]` 的类型取决于上下文）。
+所以 `[]` 实际上是特殊语法的一部分，就像 `.` 一样。 与 Python 不同，它不能被重载。
+也无法在方法中重现 `[]` 的行为。
 
 ```python
 C = Class {i = Int!}

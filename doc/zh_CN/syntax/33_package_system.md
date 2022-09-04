@@ -1,15 +1,15 @@
-# Package System
+# 打包系统
 
-Erg packages can be roughly classified into the app package, which is the application, and the lib package, which is the library.
-The entry point of the app package is `src/app.er`. The `main` function defined in `app.er` is executed.
-The entry point for the lib package is `src/lib.er`. Importing a package is equivalent to importing `lib.er`.
+Erg包大致可以分为app包，即应用程序，以及lib包，即库。
+应用包的入口点是`src/app.er`。 `app.er` 中定义的`main` 函数被执行。
+lib 包的入口点是`src/lib.er`。导入包相当于导入 `lib.er`。
 
-A package has a sub-structure called a module, which in Erg is an Erg file or directory composed of Erg files. External Erg files/directories are manipulatable objects as module objects.
+一个包有一个称为模块的子结构，在 Erg 中是一个 Erg 文件或由 Erg 文件组成的目录。外部 Erg 文件/目录是作为模块对象的可操作对象。
 
-In order for a directory to be recognized as a module, it is necessary to place a `(directory name).er` file in the directory.
-This is similar to Python's `__init__.py`, but unlike `__init__.py`, it is placed outside the directory.
+为了将目录识别为模块，有必要在目录中放置一个“（目录名称）.er”文件。
+这类似于 Python 的 `__init__.py`，但与 `__init__.py` 不同的是，它放在目录之外。
 
-As an example, consider the following directory structure.
+例如，考虑以下目录结构。
 
 ```console
 └─┬ ./src
@@ -21,9 +21,9 @@ As an example, consider the following directory structure.
     └─ qux.er
 ```
 
-You can import `foo` and `bar` modules in `app.er`. The `bar` directory can be recognized as a module because of the `bar.er` file.
-A `foo` module is a module consisting of files, and a `bar` module is a module consisting of directories. The `bar` module also contains `baz` and `qux` modules.
-This module is simply an attribute of the `bar` module, and can be accessed from `app.er` as follows.
+您可以在 `app.er` 中导入 `foo` 和 `bar` 模块。由于 `bar.er` 文件，`bar` 目录可以被识别为一个模块。
+`foo` 模块是由文件组成的模块，`bar` 模块是由目录组成的模块。 `bar` 模块还包含 `baz` 和 `qux` 模块。
+该模块只是 `bar` 模块的一个属性，可以从 `app.er` 访问，如下所示。
 
 ```python
 # app.er
@@ -36,9 +36,9 @@ main args =
     ...
 ```
 
-Note the `/` delimiter for accessing submodules. This is because there can be file names such as `bar.baz.er`.
-Such filenames are discouraged, since the `.er` prefix is meaningful in Erg.
-For example, a module for testing. A file ending with `.test.er` is a (white box) test module, which executes a subroutine decorated with `@Test` when the test is run.
+请注意用于访问子模块的 `/` 分隔符。 这是因为可以有诸如 `bar.baz.er` 之类的文件名。
+不鼓励使用此类文件名，因为 `.er` 前缀在 Erg 中是有意义的。
+例如，用于测试的模块。 以 `.test.er` 结尾的文件是一个（白盒）测试模块，它在运行测试时执行一个用 `@Test` 修饰的子例程。
 
 ```console
 └─┬ ./src
@@ -55,7 +55,7 @@ main args =
     ...
 ```
 
-Also, files ending in ``.private.er`` are private modules and can only be accessed by modules in the same directory.
+此外，以 .private.er 结尾的文件是私有模块，只能由同一目录中的模块访问。
 
 ```console
 └─┬

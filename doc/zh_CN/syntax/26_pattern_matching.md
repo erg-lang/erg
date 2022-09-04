@@ -1,51 +1,51 @@
-# pattern matching, refutable
+# 模式匹配，可反驳
 
-## Patterns available in Erg
+## Erg 中可用的模式
 
-### variable pattern
+### 变量模式
 
 ```python
-# basic assignments
+# 基本任务
 i = 1
-# with type
+# 有类型
 i: Int = 1
-# with anonymous type
+# 匿名类型
 i: {1, 2, 3} = 2
 
-# functions
+# 功能
 fn x = x + 1
-# equals
+# 等于
 fn x: Add(Int) = x + 1
-# (anonymous) function
+# （匿名）函数
 fn = x -> x + 1
 fn: Int -> Int = x -> x + 1
 
-# higher-order type
+# 高阶类型
 a: [Int; 4] = [0, 1, 2, 3]
 # or
 a: Array Int, 4 = [0, 1, 2, 3]
 ```
 
-### Literal patterns
+### 文字字面量
 
 ```python
-# Raise a TypeError if `i` cannot be determined to be 1 at compile time.
-# omit `_: {1} = i`
+# 如果在编译时无法确定 `i` 为 1，则引发 TypeError。
+# 省略 `_: {1} = i`
 1 = i
 
-# simple pattern matching
+# 简单的模式匹配
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
 
-# fibonacci function
+# 斐波那契函数
 fib0 = 0
 fib1 = 1
 fibn: Nat = fibn-1 + fibn-2
 ```
 
-### constant pattern
+### 常量模式
 
 ```python
 cond=False
@@ -62,18 +62,18 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### Sieve pattern
+### 筛子图案
 
 ```python
-# these two are the same
+# 这两个是一样的
 Array(T, N: {N | N >= 3})
 Array(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
-f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
+f(1, 0) # 类型错误：N（第二个参数）必须为 1 或更多
 ```
 
-### discard (wildcard) pattern
+### 丢弃（通配符）模式
 
 ```python
 _ = 1
@@ -82,9 +82,9 @@ zero_ = 0
 right(_, r) = r
 ```
 
-### Variable length patterns
+### 可变长度模式
 
-It is used in combination with the tuple/array/record pattern described later.
+它与稍后描述的元组/数组/记录模式结合使用。
 
 ```python
 [i,...j] = [1, 2, 3, 4]
@@ -93,18 +93,18 @@ first|T|(fst: T, ...rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
-### Tuple pattern
+### 元组模式
 
 ```python
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
-# If not nested, () can be omitted (1, 2 are treated as (1, 2))
+# 如果不嵌套，() 可以省略（1, 2 被视为(1, 2)）
 m, n = 1, 2
 
 f(x, y) = ...
 ```
 
-### array pattern
+### 数组模式
 
 ```python
 [i, j] = [1, 2]
@@ -114,11 +114,11 @@ length[] = 0
 length[_, ...rest] = 1 + lengthrest
 ```
 
-#### record pattern
+#### record 模式
 
 ```python
 record = {i = 1; j = 2; k = 3}
-{j; ...} = record # i, k will be freed
+{j; ...} = record # i, k 将被释放
 
 {sin; cos; tan; ...} = import "math"
 {*} = import "math" # import all
@@ -131,7 +131,7 @@ age = match person:
 f {x: Int; y: Int} = ...
 ```
 
-### Data class pattern
+### 数据类模式
 
 ```python
 Point = Inherit {x = Int; y = Int}
@@ -152,9 +152,9 @@ List T.
             _ -> ...
 ```
 
-### enumeration pattern
+### 枚举模式
 
-*Actually, it's just an enumeration type
+* 其实只是枚举类型
 
 ```python
 match x:
@@ -162,9 +162,9 @@ match x:
     _ -> "other"
 ```
 
-### range pattern
+### Range 模式
 
-*Actually, it is just an interval type.
+* 实际上，它只是一个区间类型。
 
 ```python
 # 0 < i < 1
@@ -176,17 +176,17 @@ match i
     i: 1..5 -> ...
 ```
 
-### Things that aren't patterns, things that can't be patterned
+### 不是模式的东西，不能被模式化的东西
 
-A pattern is something that can be uniquely specified. In this respect pattern matching differs from ordinary conditional branching.
+模式是可以唯一指定的东西。 在这方面，模式匹配不同于普通的条件分支。
 
-Condition specifications are not unique. For example, to check if the number `n` is even, the orthodox is `n % 2 == 0`, but you can also write `(n / 2).round() == n / 2`.
-A non-unique form is not trivial whether it works correctly or is equivalent to another condition.
+条件规格不是唯一的。 例如，要检查数字 `n` 是否为偶数，正统是 `n % 2 == 0`，但也可以写成 `(n / 2).round() == n / 2`。
+非唯一形式无论是正常工作还是等效于另一个条件都不是微不足道的。
 
-#### set
+#### Set
 
-There is no set pattern. Because the set has no way to uniquely retrieve the elements.
-You can retrieve them by iterator, but the order is not guaranteed.
+没有固定的模式。 因为集合没有办法唯一地检索元素。
+您可以通过迭代器检索它们，但不能保证顺序。
 
 <p align='center'>
     <a href='./25_object_system.md'>上一页</a> | <a href='./27_comprehension.md'>下一页</a>

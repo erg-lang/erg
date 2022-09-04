@@ -1,22 +1,22 @@
-# error handling system
+# 错误处理系统
 
-Mainly use Result type.
-In Erg, an error occurs if you throw away an Error type object (not supported at the top level).
+主要使用Result类型。
+在 Erg 中，如果您丢弃 Error 类型的对象（顶层不支持），则会发生错误。
 
-## Exceptions, interop with Python
+## 异常，与 Python 互操作
 
-Erg does not have an exception mechanism (Exception). When importing a Python function
+Erg 没有异常机制（Exception）。 导入 Python 函数时
 
-* Set return value to `T or Error` type
-* `T or Panic` type (may cause runtime error)
+* 将返回值设置为 `T 或 Error` 类型
+* `T or Panic` 类型（可能导致运行时错误）
 
-There are two options, `pyimport` defaults to the latter. If you want to import as the former, use
-Specify `Error` in `pyimport` `exception_type` (`exception_type: {Error, Panic}`).
+有两个选项，`pyimport` 默认为后者。 如果要作为前者导入，请使用
+在 `pyimport` `exception_type` 中指定 `Error` (`exception_type: {Error, Panic}`)。
 
-## Exceptions and Result types
+## 异常和结果类型
 
-The `Result` type represents values ​​that may be errors. Error handling with `Result` is superior to the exception mechanism in several ways.
-First of all, it's obvious from the type definition that the subroutine might throw an error, and it's also obvious when you actually use it.
+`Result` 类型表示可能是错误的值。 `Result` 的错误处理在几个方面优于异常机制。
+首先，从类型定义中可以看出子程序可能会报错，实际使用时也很明显。
 
 ```python
 # Python
@@ -28,7 +28,7 @@ except e:
     print(e)
 ```
 
-In the above example, it is not possible to tell from this code alone which function raised the exception. Even going back to the function definition, it's hard to tell if the function throws an exception.
+在上面的示例中，仅凭此代码无法判断哪个函数引发了异常。 即使回到函数定义，也很难判断函数是否抛出异常。
 
 ```python
 # Erg
@@ -41,15 +41,14 @@ try!:
         print! e
 ```
 
-On the other hand, in this example we can see that `foo!` and `qux!` can raise an error.
-Precisely `y` could also be of type `Result`, but you'll have to deal with it eventually to use the value inside.
+另一方面，在这个例子中，我们可以看到 `foo!` 和 `qux!` 会引发错误。
+确切地说，`y` 也可能是 `Result` 类型，但您最终必须处理它才能使用里面的值。
 
-The benefits of using the `Result` type don't stop there. The `Result` type is also thread-safe. This means that error information can be (easily) passed between parallel executions.
+使用 `Result` 类型的好处不止于此。 `Result` 类型也是线程安全的。 这意味着错误信息可以（轻松）在并行执行之间传递。
 
-## Context
+## 语境
 
-Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
-
+由于 `Error`/`Result` 类型本身不会产生副作用，不像异常，它不能有发送位置（Context）等信息，但是如果使用 `.context` 方法，可以将信息放在 `错误`对象。 可以添加。 `.context` 方法是一种使用 `Error` 对象本身并创建新的 `Error` 对象的方法。 它们是可链接的，并且可以包含多个上下文。
 ```python
 f() =
     todo() \
@@ -62,14 +61,14 @@ f()
 # hint: and more hints ...
 ```
 
-Note that `Error` attributes such as `.msg` and `.kind` are not secondary, so they are not context and cannot be overridden as they were originally created.
+请注意，诸如 `.msg` 和 `.kind` 之类的 `Error` 属性不是次要的，因此它们不是上下文，并且不能像最初创建时那样被覆盖。
 
-## Stack trace
+## 堆栈跟踪
 
-The `Result` type is often used in other languages ​​because of its convenience, but it has the disadvantage of making it difficult to understand the source of an error compared to the exception mechanism.
-Therefore, in Erg, the `Error` object has an attribute called `.stack`, and reproduces a pseudo-exception mechanism-like stack trace.
-`.stack` is an array of caller objects. Each time an Error object is `returned` (including by `?`) it pushes its calling subroutine onto the `.stack`.
-And if it is `?`ed or `.unwrap`ed in a context where `return` is not possible, it will panic with a traceback.
+`Result` 类型由于其方便性在其他语言中经常使用，但与异常机制相比，它的缺点是难以理解错误的来源。
+因此，在 Erg 中，`Error` 对象具有名为 `.stack` 的属性，并再现了类似伪异常机制的堆栈跟踪。
+`.stack` 是调用者对象的数组。 每次 Error 对象被`return`（包括通过`?`）时，它都会将它的调用子例程推送到`.stack`。
+如果它是 `?`ed 或 `.unwrap`ed 在一个不可能 `return` 的上下文中，它会因为回溯而恐慌。
 
 ```python
 f x =
@@ -93,12 +92,12 @@ i = g(1)?
 # Error: ...
 ```
 
-## Panic
+## 恐慌
 
-Erg also has a mechanism for dealing with unrecoverable errors called __panicing__.
-An unrecoverable error is an error caused by an external factor such as a software/hardware malfunction, an error so fatal that it makes no sense to continue executing the code, or an error unexpected by the programmer. Etc. If this happens, the program will be terminated immediately, because the programmer's efforts cannot restore normal operation. This is called "panicing".
+Erg 还有一种处理不可恢复错误的机制，称为 __panicing__。
+不可恢复的错误是由外部因素引起的错误，例如软件/硬件故障、严重到无法继续执行代码的错误或程序员未预料到的错误。 等如果发生这种情况，程序将立即终止，因为程序员的努力无法恢复正常运行。 这被称为“恐慌”。
 
-Panic is done with the `panic` function.
+恐慌是通过 `panic` 功能完成的。
 
 ```python
 panic "something went wrong!"
