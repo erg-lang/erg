@@ -1,48 +1,46 @@
-# 命名规则
+# Naming convention
 
-如果要将变量用作常量表达式，则必须以大写字母开头。两个以上的字符可以是小写的。
+If you want to use a variable as a constant expression, make sure it starts with a capital letter. Two or more letters may be lowercase.
 
-
-```erg
+``` erg
 i: Option Type = Int
 match i:
     t: Type -> log "type"
     None -> log "None"
 ```
 
-具有副作用的对象始终以结尾。过程和过程方法，以及变量类型。但是，<gtr=“7”/>类型本身不是可变类型。
+Objects with side effects always end with `!`. Procedures and procedural methods, and mutable types.
+However, the `Proc` type itself is not mutable.
 
-
-```erg
+``` erg
 # Callable == Func or Proc
 c: Callable = print!
 match c:
-    p! -> log "proc" #`:Proc` 可以省略，因为它是不言自明的
+    p! -> log "proc" # `: Proc` can be omitted since it is self-explanatory
     f -> log "func"
 ```
 
-如果你想要将属性公开到外部，请首先使用进行定义。如果未在开始时添加<gtr=“9”/>，则不公开。不能在同一范围内共存，以避免混淆。
+If you want to expose an attribute to the outside world, define it with `.` at the beginning. If you don't put `.` at the beginning, it will be private. To avoid confusion, they cannot coexist within the same scope.
 
-
-```erg
+``` erg
 o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
 ```
 
-## 文字标识符（Literal Identifiers）
+## Literal Identifiers
 
-可以通过将字符串括在单引号（‘’）中来避免上述规则。也就是说，过程对象也可以赋值，而不使用。但是，即使值是常量表达式，也不会将其视为常量。这种用单引号括起来的字符串标识符称为文字标识符。它用于调用其他语言的 API(FFI)，如 Python。
+The above rule can be circumvented by enclosing the string in single quotes (''). That is, procedural objects can also be assigned without `!`. However, in this case, even if the value is a constant expression, it is not considered a constant.
+A character string enclosed in single quotes like this is called a literal identifier.
+This is used when calling APIs (FFI) of other languages ​​such as Python.
 
-
-```erg
+``` erg
 bar! = pyimport("foo").'bar'
 ```
 
-如果标识符对 Erg 也有效，则不需要用‘’括起来。
+Identifiers that are also valid in Erg do not need to be enclosed in ''.
 
-此外，由于文字标识符可以包含符号和空格，因此通常不能用作标识符的字符串可以用作标识符。
+Furthermore, literal identifiers can contain both symbols and spaces, so strings that cannot normally be used as identifiers can be used as identifiers.
 
-
-```erg
+``` erg
 '∂/∂t' y
 'test 1: pass x to y'()
 ```

@@ -1,34 +1,32 @@
-# 类型扩展（Type Widening）
+# Type Widening
 
-例如定义如下的多相关数。
+For example, define the polycorrelation coefficient as follows.
 
-
-```erg
+``` erg
 ids|T|(x: T, y: T) = x, y
 ```
 
-代入相同类的实例对没有任何问题。如果代入包含关系中的其他类的实例对的话，就会被上播到较大的一方，成为相同的类型。另外，如果代入不在包含关系中的其他类，就会出现错误，这也很容易理解。
+There's nothing wrong with assigning a pair of instances of the same class.
+When you assign an instance pair of another class that has a containment relationship, it is upcast to the larger one and becomes the same type.
+Also, it is easy to understand that an error will occur if another class that is not in the containment relationship is assigned.
 
-
-```erg
+``` erg
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
-ids(1, "a") # TypeError
+ids(1, "a") #TypeError
 ```
 
-那么，拥有其他结构型的型的情况又会怎样呢？
+Now, what about types that have different derived types?
 
-
-```erg
+``` erg
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # ?
 ```
 
-在解释这一点之前，我们必须注意一个事实，即 Erg 类型系统实际上没有看到类（在运行时）。
+Before explaining this, we have to focus on the fact that Erg's type system doesn't actually look at (runtime) classes.
 
-
-```erg
+``` erg
 1: {__valueclass_tag__ = Phantom Int}
 2: {__valueclass_tag__ = Phantom Int}
 2.0: {__valueclass_tag__ = Phantom Ratio}
@@ -38,12 +36,14 @@ ids(1, 2.0): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phanto
 ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phantom Str} == Never # TypeError
 ```
 
-之所以没有看到类，是因为有时不能正确看到，这是因为在 Erg 中对象的类属于运行时信息。例如，型对象的类是<gtr=“9”/>或者<gtr=“10”/>，这是哪一个只有执行后才能知道。当然，<gtr=“11”/>型的对象的类是由<gtr=“12”/>确定的，这时从类型系统中也能看到<gtr=“13”/>的结构型<gtr=“14”/>。
+I don't see the class because it may not be seen exactly, because in Erg the class of an object belongs to runtime information.
+For example, the class of an `Int or Str` type object is either `Int` or `Str`, but you can only know which one it is by executing it.
+Of course, the class of an object of type `Int` is defined as `Int`, but in this case as well, what is visible from the type system is the structural type `{__valueclass_tag__ = Int}` of `Int`.
 
-现在，让我们回到另一个结构类型的例子。从结论上来说，上面的代码如果没有类型，就会成为 TypeError。但是，如果用类型注释进行类型扩大，编译就可以通过。
+Now let's go back to another structured type example. In conclusion, the above code will result in a TypeError as the type does not match.
+However, if you do type expansion with type annotations, compilation will pass.
 
-
-```erg
+``` erg
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # TypeError: types of i and j not matched
@@ -51,43 +51,42 @@ ids(i, j) # TypeError: types of i and j not matched
 ids<Int or Str or NoneType>(i, j) # OK
 ```
 
-有以下可能性。
+`A and B` have the following possibilities.
 
-* ：<gtr=“17”/>或<gtr=“18”/>。
-* ：<gtr=“20”/>或<gtr=“21”/>时。
-* ：<gtr=“23”/>且<gtr=“24”/>时。
+* `A and B == A`: when `A <: B` or `A == B`.
+* `A and B == B`: when `A :> B` or `A == B`.
+* `A and B == {}`: when `!(A :> B)` and `!(A <: B)`.
 
-有以下可能性。
+`A or B` has the following possibilities.
 
-* ：<gtr=“27”/>或<gtr=“28”/>时。
-* ：<gtr=“30”/>或<gtr=“31”/>。
-* 不能简化（独立类型）：当<gtr=“33”/>且<gtr=“34”/>时。
+* `A or B == A`: when `A :> B` or `A == B`.
+* `A or B == B`: when `A <: B` or `A == B`.
+* `A or B` is irreducible (independent types): if `!(A :> B)` and `!(A <: B)`.
 
-## 子例程定义中的类型扩展
+## Type widening in subroutine definitions
 
-在 Erg 中，返回值类型不一致时默认为错误。
+Erg defaults to an error if return types do not match.
 
-
-```erg
+``` erg
 parse_to_int s: Str =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
     ... # return Int object
-# TypeError: mismatch types of return values
-#     3 | do parse_to_int::return error("not numeric")
-#                                 └─ Error
-#     4 | ...
-#         └ Int
+# TypeError: mismatched types of return values
+# 3 | do parse_to_int::return error("not numeric")
+# └─ Error
+# 4 | ...
+# └ Int
 ```
 
-为了解决这一问题，必须将返回类型显式指定为 Or 类型。
+In order to solve this, it is necessary to explicitly specify the return type as Or type.
 
-
-```erg
+``` erg
 parse_to_int(s: Str): Int or Error =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
     ... # return Int object
 ```
 
-这是为了不让子程序的返回值类型无意中混入其他类型的设计。但是，当返回值类型的选项是或<gtr=“36”/>等具有包含关系的类型时，向较大的类型对齐。
+This is by design so that you don't unintentionally mix a subroutine's return type with another type.
+However, if the return value type option is a type with an inclusion relationship such as `Int` or `Nat`, it will be aligned to the larger one.

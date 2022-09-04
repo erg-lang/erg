@@ -1,3 +1,7 @@
-# env 子命令
+# env subcommand
 
-env 子命令指定 erg 执行环境。在中创建新的运行时环境。当交互工具打开并指定 erg 版本时，将安装该版本的 erg（如果已安装，则将其用作新环境）。你可以在<gtr=“2”/>中切换环境。创建的环境可以在<gtr=“3”/>中进行编辑，可以预安装软件包或指定其他语言的依赖关系。该命令的最大特征是可以将在<gtr=“4”/>中再现环境的信息作为<gtr=“5”/>文件输出。据此，可以在与他人相同的环境下马上开始开发。并且，在<gtr=“6”/>中，可以像软件包那样公开环境。
+The env subcommand specifies the erg execution environment.
+Create a new execution environment with `erg env new [env name]`. An interactive tool opens, and when you specify an erg version, that version of erg will be installed (if it already exists, it will be used), and you will be able to use it as a new environment.
+You can switch the environment with `erg env switch [env name]`.
+The created environment can be edited with `erg env edit` to pre-install packages and specify dependencies for other languages.
+The biggest feature of this command is that `erg env export` can output the information that reproduces the environment as `[env name].env.er` file. This allows you to immediately start developing in the same environment as others. Furthermore, `erg env publish` can publish the environment like a package.

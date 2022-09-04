@@ -1,24 +1,24 @@
 # module `repl`
 
-provides REPL(Read-Eval-Print-Loop)-related APIs。
+provides REPL(Read-Eval-Print-Loop)-related APIs.
 
 ## functions
 
-* ` gui _ help `
+* `gui_help`
 
-在浏览器中显示关于对象的信息。离线也可以使用。
+View information about an object in a browser. Can be used offline.
 
 ## types
 
 ### Guess = Object
 
-## ## methods
+#### methods
 
-* * ` . guess `
+* `.guess`
 
-根据所给出的自变量和返回值来推测函数。
+Infers a function given its arguments and return value.
 
 ``` erg
-guess((1，)， 2) # <int. __add__method=""></int.>
-[1, 2] . guess(3、4),[1,2,3,4])# < array (t, n) . concat method >
+1.guess((1,), 2) # <Int.__add__ method>
+[1, 2].guess((3, 4), [1, 2, 3, 4]) # <Array(T, N).concat method>
 ```

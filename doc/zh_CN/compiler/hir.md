@@ -1,35 +1,35 @@
-# 高レベル中間表現(HIR, High-level Intermediate Representation)
+# High-level Intermediate Representation (HIR)
 
-HIR 是 Erg 编译器从 AST 生成的结构
-此结构包含源代码中每个表达式的完整类型信息，并且在语法上已脱糖
-AST与源代码一一对应（纯文本），但是HIR去掉了不必要的代码信息，添加了省略的类型信息，所以HIR可以转换为源代码很难恢复
-让我们在下面的代码中查看 HIR 的示例
+A HIR is a struct that the Erg compiler generates from an AST.
+This struct contains the complete type information for every expression in the source code and is desugared syntactically.
+AST has a one-to-one correspondence with the source code (as plain text), but HIR has unnecessary code information removed and omitted type information added, so HIR can be converted to source code is difficult to restore.
+Let's see an example of HIR in the code below.
 
-```erg
+``` erg
 v = ![]
 for! 0..10, i =>
-    v.push! i
+    v.push!i
 log v.sum()
 ```
 
-从此代码生成的 AST 如下所示：
+The AST generated from this code looks like this:
 
-```erg
+``` erg
 AST(Module[
     VarDef{
-        sig: VarSignature{
+        sig: VarSignature {
             pat: VarPattern::Ident(None, VarName("v")),
             spec_t: None,
         },
         op: "=",
         body: Block[
-            UnaryOp{
+            Unary Op {
                 op: "!",
                 expr: Array([]),
             },
         ],
     },
-    Call{
+    Call {
         obj: Accessor::Local("for!"),
         args: [
             BinOp{
@@ -38,16 +38,16 @@ AST(Module[
                 rhs: Literal(10),
             },
             Lambda{
-                sig: LambdaSignature{
+                sig: LambdaSignature {
                     params: [
-                        ParamSignature{
+                        Param Signature {
                             pat: ParamPattern::Name(VarName("i")),
                         },
                     ],
                     spec_ret_t: None,
                 },
                 body: Block[
-                    Call{
+                    Call {
                         obj: Accessor::Attr{"v", "push!"},
                         args: [
                             Accessor::Local("i"),
@@ -57,10 +57,10 @@ AST(Module[
             },
         ],
     },
-    Call{
+    Call {
         obj: Accessor::Local("log"),
         args: [
-            Call{
+            Call {
                 obj: Accessor::Attr("v", "sum"),
                 args: [],
             }
@@ -69,12 +69,12 @@ AST(Module[
 ])
 ```
 
-从 AST 生成的 HIR 如下所示：
+And the HIR generated from the AST looks like this:
 
-```erg
+``` erg
 HIR(Module[
     VarDef{
-        sig: VarSignature{
+        sig: VarSignature {
             pat: VarPattern::Ident(None, Name("v")),
             t: [0..10, _]!,
         },
@@ -87,7 +87,7 @@ HIR(Module[
             },
         ],
     },
-    Call{
+    Call {
         obj: Accessor::Local{
             name: "for!",
             t: (Range Nat, Nat => NoneType) => NoneType,
@@ -100,9 +100,9 @@ HIR(Module[
                 t: 0..10,
             },
             Lambda{
-                sig: LambdaSignature{
+                sig: LambdaSignature {
                     params: [
-                        ParamSignature{
+                        Param Signature {
                             pat: ParamPattern::Name(Name("i")),
                             t: 0..10,
                         },
@@ -110,7 +110,7 @@ HIR(Module[
                     t: 0..10 => NoneType,
                 },
                 body: Block[
-                    Call{
+                    Call {
                         obj: Accessor::Attr{
                             obj: Accessor::Local("v"),
                             field: "push!",
@@ -124,13 +124,13 @@ HIR(Module[
             },
         ],
     },
-    Call{
+    Call {
         obj: Accessor::Local{
             name: "log",
             t: ...Object => NoneType,
         },
         args: [
-            Call{
+            Call {
                 obj: Accessor::Attr{
                     obj: Accessor::Local("v"),
                     field: "sum",
@@ -144,5 +144,5 @@ HIR(Module[
 ])
 ```
 
-对象类型被推断为尽可能小。 另一方面，子例程推断实现存在的类型
-因此，实际参数的类型和形式参数的类型可能不匹配
+Object types are inferred as small as possible. Subroutines, on the other hand, infer the type for which the implementation exists.
+Therefore, the type of the actual argument and the type of the formal argument may not match.

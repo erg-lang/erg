@@ -1,27 +1,37 @@
 # Erg FAQ
 
-本常见问题解答适用于一般 Erg 入门用户。请参阅以了解具体的（常见的）技术问题，或参阅<gtr=“2”/>以了解语法的决定（为什么出现这种语法）。
+This FAQ is intended for the general Erg beginner.
+For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
+[Here](./dev_guide/faq_syntax.md) for more information.
 
-## Erg 是 Python 兼容语言是什么意思？
+## What does it mean that Erg is a Python compatible language?
 
-~~A：Erg 的执行系统 EVM（Erg VirtualMachine，EVM）执行由 Python 字节代码扩展而成的 Erg 字节代码。这是在 Python 字节码中引入的静态定型系统（在不带参数的指令中引入参数，在空号中实现专有指令）。这使得 Erg 能够无缝调用 Python 的代码，并实现快速执行。~~
+~~A: Erg's executable system, EVM (Erg VirtualMachine), executes Erg bytecode, which is an extension of Python bytecode. It introduces a static typing system and other features into the Python bytecode (such as introducing arguments to instructions that do not take arguments, and implementing unique instructions in the free numbers). This allows Erg to call Python code seamlessly and execute it fast.~~
 
-答：Erg 脚本将转换成 Python 字节码。也就是说，它与 Python 在同一解释器上运行。最初，我们计划开发一个由 Python 解释器（CPython）扩展而成的向上兼容处理系统，并将其与编译器合并为“Erg”，但由于处理系统的开发远远落后于编译器，因此我们决定只先公开编译器。现在处理系统正在积极开发中。
+A: Erg code is transpiled into Python bytecode. That is, it runs on the same interpreter as Python. Originally, we planned to develop a Cpython-compatible interpreter, and to combine it with the compiler to form "Erg". However, since the development of the processing system has lagged far behind that of the compiler, we have decided to release only the compiler in advance (But the interpreter is still under development).
 
-## Erg 受到了什么语言的影响？
+## What languages have influenced Erg?
 
-双手也受到无数种语言的影响，其中受影响特别强烈的是 Python/Rust/Nim/Haskell。Python 继承了许多与越位规则兼容的语义学，Rust 继承了面向表达式和trait，Nim 继承了过程，Haskell 继承了函数型编程相关的功能。
+We have been influenced by more languages than we can count on both hands, but Python, Rust, Nim, and Haskell have been the strongest influences.
+We inherited many semantics from Python, expression-oriented and trait from Rust, procedures from Nim, and functional programming-related features from Haskell.
 
-## 可以调用 Python 的语言包括 Julia。你为什么做 Erg？
+## Languages that can call Python include Julia. Why did you create Erg?
 
-答：Erg 的一个设计动机是，他想要一种语言，既易于使用，又具有强大的类型系统。即具有类型推理、卡印、依赖性等的语言。虽然 Julia 可以进行类型化，但它实际上是一种动态的类型化语言，不能提供静态类型化语言的编译时错误检测优势。
+A: One of the motivations for Erg's design was to have a language that is easy to use, yet has a powerful type system. That is, a language with type inference, Kind, dependent types, etc.
+Julia can be typed, but it is really a dynamically typed language and does not have the compile-time error detection benefits of statically typed languages.
 
-## Erg 支持多种样式，包括函数型编程和面向对象编程。这是不是与 Python 的“There should be one-and preferably only one--obvious way to do it.”背道而驰？
+## Erg supports multiple styles of programming, including functional and object-oriented programming. Isn't this contrary to Python's "There should be one --and preferably only one-- obvious way to do it."?
 
-A：在 Erg 中，这个词可以理解成更狭隘的意思。例如，Erg API 通常没有别名。在这个意义上，Erg 是“only one way”。在更大的意义和框架中，如函数类型或 OOP，只有一种方法不一定会带来便利。例如，JavaScript 有多个库来帮助创建可转换程序，而 C 语言有多个垃圾回收库。但是，如果有多个库来执行这些基本功能，不仅会占用选择时间，而且会在使用不同库的代码之间进行集成时产生明显的困难。即使是纯函数语言 Haskell 也有支持面向对象的库。如果没有程序员，他们就会自己创造出来。那样的话，我认为还是按标准提供比较好。这也符合 Python 的“Battery included”。
+A: In Erg, the term is taken in a more narrow context. For example, there are generally no aliases in the Erg API; Erg is "only one way" in this context.
+In a larger context, such as FP or OOP, having only one way of doing things is not necessarily a convenience.
+For example, JavaScript has several libraries to help create immutable programs, and C has several libraries for garbage collection.
+However, having multiple libraries for even such basic features not only takes time to select, but also creates significant difficulties in integrating code that uses different libraries.
+Even in Haskell, a purely functional language, there are libraries that support OOP.
+If programmers don't have some stuffs, they will create them on their own. So, we think it would be better to provide them as a standard.
+This also fits with Python's "Battery included" concept.
 
-## Erg 名字的由来是什么？
+## What is the origin of the name Erg?
 
-名称来源于 cgs 单位制中能量的单位 erg。这是一种双重混合语言，它是一种人类工程学（ergonomic）语言，为程序员提供能量（虽然是后缀）。
+It is named after the unit of energy erg in the cgs unit system. It is a double meaning: an ergonomic language that gives programmers energy.
 
-虽然还有一些其他候选，但由于它们最短（Ruby 的作者 Matz 说，语言的名称越短越好），并且具有相应的高格格不入性，因此决定了这一点。
+There were several other candidates, but this was chosen because it is the shortest (according to Matz, the developer of Ruby, the shorter the better for a language name) and has a reasonably high googlability.

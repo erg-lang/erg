@@ -1,45 +1,43 @@
-# 类型擦除（Type erasure）
+# Type erasure
 
-类型擦除是指将指定为类型参数，并故意丢弃该信息。类型擦除是许多具有多相类型的语言的一个功能，但根据 Erg 语法，类型自变量擦除可能更准确。
+Type erasure is the process of setting a type argument to `_` and deliberately discarding its information. Type erasure is a feature of many polymorphic languages, but in the context of Erg's syntax, it is more accurate to call it type argument erasure.
 
-最常见的类型清除类型的示例可能是。在编译数组时，你可能不知道数组的长度。例如，指向命令行参数的<gtr=“8”/>类型为<gtr=“9”/>。Erg 编译器不知道命令行参数的长度，因此必须放弃关于长度的信息。但是，由于已擦除的类型成为未擦除类型的超类型（e.g.<gtr=“10”/>），因此可以接收更多对象。<gtr=“11”/>类型的对象当然可以使用<gtr=“12”/>类型的方法，但使用后<gtr=“13”/>信息将被清除。因为长度可能已经改变了。如果长度不变，则必须用签名表示。
-
+The most common example of a type that has been type-erased is `[T, _]`. Arrays are not always known their length at compile-time. For example, `sys.argv`, which refers to command line arguments, is of type `[Str, _]`. Since Erg's compiler has no way of knowing the length of command line arguments, information about their length must be given up.
+However, a type that has been type-erased becomes a supertype of a type that has not been (e.g. `[T; N] <: [T; _]`), so it can accept more objects.
+Objects of type `[T; N]` can of course use methods of type `[T; _]`, but the `N` information is erased after use. If the length does not change, then it is possible to use `[T; N]` in the signature. If the length remains the same, it must be indicated by a signature.
 
 ```erg
-# 配列の長さが変わらないことが保証される関数(sortなど)
-f: [T; N] -> [T; N]
-# されない関数(filterなど)
+# Functions that are guaranteed to not change the length of the array (e.g., sort)
+f: [T; N] -> [T; N] # functions that do not (f: [T; N])
+# functions that do not (e.g. filter)
 g: [T; n] -> [T; _]
 ```
 
-如果类型本身使用，则该类型将上传至<gtr=“15”/>。对于非类型的类型参数（例如，Int 和 Bool 类型），<gtr=“16”/>是未定义的参数。
-
+If you use `_` in the type specification itself, the type is upcast to `Object`.
+For non-type type arguments (Int, Bool, etc.), the parameter with `_` will be undefined.
 
 ```erg
 i: _ # i: Object
 [_; _] == [Object; _] == Array
 ```
 
-类型擦除不同于类型省略。一旦清除了类型参数信息，则必须再次断言才能返回该信息。
-
+Type erasure is not the same as omitting a type specification. Once the type argument information has been erased, it will not be returned unless you assert it again.
 
 ```erg
 implicit = (1..5).iter().map(i -> i * 2).to_arr()
 explicit = (1..5).iter().map(i -> i * 2).into(Array(Nat))
 ```
 
-Rust 支持以下代码。
-
+In Rust, this corresponds to the following code.
 
 ```rust
 let partial = (1..6).iter().map(|i| i * 2).collect::<Vec<_>>();
 ```
 
-Erg 不能部分省略类型，而是使用高阶卡印多相。
-
+Erg does not allow partial omission of types, but uses higher-order kind polymorphism instead.
 
 ```erg
-# collect 是一个接收 kind 的高阶 kind 方法
+# collect is a higher-order Kind method that takes Kind
 hk = (1..5).iter().map(i -> i * 2).collect(Array)
 hk: Array(Int)
 ```

@@ -1,9 +1,10 @@
-# install 子命令
+# install subcommand
 
-install 可以安装在注册表站点注册的软件包。基本用法与包管理器（如 cargo）相同。
+You can install packages registered on the registry site with install.
+The basic usage is the same as package managers such as cargo.
 
-## 方便的功能
+## Convenience functions
 
-* 如果有名字相似的软件包名称，并且下载量比那个多 10 倍以上，就会出现错误输入的提示。由此，可以防止 typo squatting。
-* 如果软件包大小很大（50 MB 或更大），请查看大小以确定是否安装。
-* 如果软件包为 duplicated，则提示替换软件包。
+* If there is a package name with a similar name and the number of downloads is more than 10 times that of that one, a suggestion will appear that you may have entered it incorrectly. This prevents typo squatting.
+* If the package size is large (more than 50MB), display the size and suggest if you really want to install it.
+* Suggest an alternative package if the package is duplicated.

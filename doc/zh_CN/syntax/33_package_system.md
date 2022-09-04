@@ -1,13 +1,15 @@
-# 包装系统
+# Package System
 
-Erg 软件包大致可以分为 app 软件包（应用程序）和 lib 软件包（库）。app 包的入口点是。执行中定义的<gtr=“10”/>函数。lib 包的入口点是。导入包相当于导入<gtr=“12”/>。
+Erg packages can be roughly classified into the app package, which is the application, and the lib package, which is the library.
+The entry point of the app package is `src/app.er`. The `main` function defined in `app.er` is executed.
+The entry point for the lib package is `src/lib.er`. Importing a package is equivalent to importing `lib.er`.
 
-软件包有一个称为模块的子结构。在 Erg 中，模块是 Erg 文件或由 Erg 文件组成的目录。外部 Erg 文件/目录可以作为模块对象进行操作。
+A package has a sub-structure called a module, which in Erg is an Erg file or directory composed of Erg files. External Erg files/directories are manipulatable objects as module objects.
 
-要将目录识别为模块，必须在目录中放置文件。它类似于 Python 中的<gtr=“14”/>，但与<gtr=“15”/>不同，它位于目录之外。
+In order for a directory to be recognized as a module, it is necessary to place a `(directory name).er` file in the directory.
+This is similar to Python's `__init__.py`, but unlike `__init__.py`, it is placed outside the directory.
 
-例如，请考虑以下目录配置。
-
+As an example, consider the following directory structure.
 
 ```console
 └─┬ ./src
@@ -19,8 +21,9 @@ Erg 软件包大致可以分为 app 软件包（应用程序）和 lib 软件包
     └─ qux.er
 ```
 
-允许你导入<gtr=“17”/>模块和<gtr=“18”/>模块。由于存在<gtr=“20”/>文件，<gtr=“19”/>目录可以识别为模块。<gtr=“21”/>模块是由文件组成的模块，<gtr=“22”/>模块是由目录组成的模块。<gtr=“23”/>模块还具有<gtr=“24”/>，<gtr=“25”/>模块。该模块仅是<gtr=“26”/>模块的属性，可通过<gtr=“27”/>访问。
-
+You can import `foo` and `bar` modules in `app.er`. The `bar` directory can be recognized as a module because of the `bar.er` file.
+A `foo` module is a module consisting of files, and a `bar` module is a module consisting of directories. The `bar` module also contains `baz` and `qux` modules.
+This module is simply an attribute of the `bar` module, and can be accessed from `app.er` as follows.
 
 ```erg
 # app.er
@@ -33,16 +36,16 @@ main args =
     ...
 ```
 
-请注意，用于访问子模块的分隔符为。这是因为文件名可能类似于<gtr=“29”/>。不建议使用这样的文件名。因为在 Erg 中，<gtr=“30”/>的前缀是有意义的。例如，测试模块。以<gtr=“31”/>结尾的文件是（白盒）测试模块，在执行测试时执行以<gtr=“32”/>装饰的子程序。
-
+Note the `/` delimiter for accessing submodules. This is because there can be file names such as `bar.baz.er`.
+Such filenames are discouraged, since the `.er` prefix is meaningful in Erg.
+For example, a module for testing. A file ending with `.test.er` is a (white box) test module, which executes a subroutine decorated with `@Test` when the test is run.
 
 ```console
 └─┬ ./src
   ├─ app.er
   ├─ foo.er
   └─ foo.test.er
-```
-
+./src
 
 ```erg
 # app.er
@@ -52,8 +55,7 @@ main args =
     ...
 ```
 
-此外，以结尾的文件是专用模块，只能从同一目录中的模块访问。
-
+Also, files ending in ``.private.er`` are private modules and can only be accessed by modules in the same directory.
 
 ```console
 └─┬
@@ -64,14 +66,12 @@ main args =
     └─ qux.er
 ```
 
-
 ```erg
 # foo.er
 bar = import "bar"
 bar.qux
 bar.baz # AttributeError: module 'baz' is private
 ```
-
 
 ```erg
 # qux.er

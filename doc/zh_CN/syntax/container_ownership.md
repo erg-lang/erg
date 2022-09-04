@@ -1,24 +1,25 @@
-# Subscript（下标访问）
+# Subscript (index access)
 
-不同于常规方法。
+`[]` is different from normal methods.
 
-
-```erg
+``` erg
 a = [!1, !2]
 a[0].inc!()
 assert a == [2, 2]
 ```
 
-请记住，不能在子例程的返回值中指定引用。在这里，的类型显然应该是<gtr=“6”/>（<gtr=“7”/>的类型取决于上下文）。因此，<gtr=“8”/>实际上是与<gtr=“9”/>相同的特殊语法的一部分。不像 Python，你不能过载。方法也不能再现<gtr=“10”/>行为。
+Recall that the return value of a subroutine cannot be a reference.
+The type of `a[0]` here should clearly be `Ref!(Int!)` (the type of `a[0]` depends on the context).
+So `[]` is actually part of a special syntax, just like `.`. Unlike Python, it cannot be overloaded.
+It is also not possible to reproduce the behavior of `[]` in a method.
 
-
-```erg
+``` erg
 C = Class {i = Int!}
-C.get(ref self) =
+C. get(ref self) =
     self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
 C.steal(self) =
     self::i
-# NG
+#NG
 C.new({i = 1}).steal().inc!() # OwnershipWarning: `C.new({i = 1}).steal()` is not owned by anyone
 # hint: assign to a variable or use `uwn_do!`
 # OK (assigning)
@@ -30,10 +31,9 @@ assert i == 2
 own_do! C.new({i = 1}).steal(), i => i.inc!()
 ```
 
-此外，也可以剥夺所有权，但元素并不会因此而发生转移。
+Also, `[]` can be disowned, but the element is not shifted.
 
-
-```erg
+``` erg
 a = [!1, !2]
 i = a[0]
 i.inc!()

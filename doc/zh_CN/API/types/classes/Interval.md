@@ -1,18 +1,18 @@
 # Interval begin, end := WellOrder
 
-表示有序集合类型 (WellOrder) 的子类型的类型。Interval 类型具有派生类型，例如 PreOpen(x<..y)。
+A type that represents a subtype of the well-ordered set type (WellOrder). The Interval type has derived types such as PreOpen(x<..y).
 
-```erg
+``` erg
 Months = 1..12
 Alphabet = "a".."z"
 Weekdays = Monday..Friday
 Winter = November..December or January..February
 ```
 
-```erg
-0..1 # 整数范围
-0.0..1.0 # 真实（有理）范围
-# 或 0/1..1/1 相同
+``` erg
+0..1 # integer range
+0.0..1.0 # real (rational) range
+# or same for 0/1..1/1
 ```
 
-计算机无法处理无限位数的数字，所以实数的范围实际上是有理数的范围。
+Computers can't handle numbers with infinite digits, so the range of real numbers is actually the range of rational numbers.

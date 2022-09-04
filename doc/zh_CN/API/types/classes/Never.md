@@ -1,13 +1,13 @@
 # Never
 
-它是所有类型的子类型。 它是一个`Class`，因为它拥有所有的方法，当然还有 `.new`。但是，它没有实例，并且Erg会在即将创建的那一刻停止。
-还有一种叫做`Panic`的类型没有实例，但是`Never`用于正常终止或故意无限循环，`Panic`用于异常终止。
+It is a subtype of all types. It is a `Class` because it has all the methods and of course `.new`. However, it does not have an instance, and the Erg stops the moment it is about to be created.
+There is also a type called `Panic` that does not have an instance, but `Never` is used for normal termination or an intentional infinite loop, and `Panic` is used for abnormal termination.
 
-```erg
+``` erg
 # Never <: Panic
 f(): Panic = exit 0 # OK
 g(): Never = panic() # TypeError
 ```
 
-`Never`/`Panic`的 OR 类型，例如`T 或 Never`可以转换为`T`。 这是因为`Never`在语义上是一个从不出现的选项（如果出现了，程序会立即停止）。
-但是，在函数的返回值类型中使用时，`or Never`不能省略，因为它表示程序可能会终止。
+The OR type of `Never`/`Panic`, eg `T or Never` can be converted to `T`. This is because `Never` is a semantically never-occurring option (if it does, the program stops immediately).
+However, when using it in the return value type of a function, `or Never` cannot be omitted because it indicates that the program may terminate.

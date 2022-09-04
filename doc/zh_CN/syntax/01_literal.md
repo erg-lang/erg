@@ -1,43 +1,40 @@
 # Literal
 
-## 基本文字
+## Basic Literals
 
-### 整数文字（Int Literal）
-
+### Int Literal
 
 ```erg
 0, -0, 1, -1, 2, -2, 3, -3, ...
 ```
 
-### 有理数文字（Ratio Literal）
-
+### Ratio Literal
 
 ```erg
 0.00, -0.0, 0.1, 400.104, ...
 ```
 
-如果文字中的整数或小数部分为<gtr=“21”/>，则可以省略<gtr=“22”/>。
-
+If a `Ratio` literal has an integer or decimal part of `0`, you can omit the `0`.
 
 ```erg
 assert 1.0 == 1.
 assert 0.5 == .5
 ```
 
-> ：这个名为<gtr=“23”/>的函数用于指示<gtr=“24”/>与<gtr=“25”/>相等。
-以下文档可能会使用来表示结果相等。
+> __Note__: This function `assert` was used to show that `1.0` and `1.` are equal.
+Subsequent documents may use `assert` to indicate that the results are equal.
 
-### 字符串文字（Str Literal）
+### Str Literal
 
-可以使用 Unicode 表示的任何字符串。与 Python 不同的是，不能进行标定。如果要在字符串中使用<gtr=“29”/>，请使用<gtr=“30”/>。
-
+Any Unicode-representable string can be used.
+Unlike Python, quotation marks cannot be enclosed in `'`. If you want to use `"` in a string, use `\"`.
 
 ```erg
 "", "a", "abc", "111", "1# 3f2-3*8$", "こんにちは", "السَّلَامُ عَلَيْكُمْ", ...
 ```
 
-使用将表达式填充到字符串中。这称为字符串插值。如果要输出<gtr=“32”/>和<gtr=“33”/>本身，请输入<gtr=“34”/>和<gtr=“35”/>。
-
+`{}` allows you to embed expressions in strings. This is called string interpolation.
+If you want to output `{`, `}` itself, use `\{`, `\}`.
 
 ```erg
 assert "1 + 1 is 2" == "{1} + {1} is {1+1}"
@@ -45,84 +42,74 @@ s = "1+1"
 assert "\{1+1}\" == "\{{s}\}"
 ```
 
-### 指数文字（Exponential Literal）
+### Exponential Literal
 
-这是在学术计算中经常使用的指数表示法的文字。它将成为类型为的实例。用于表示非常大/非常小的数字。与 Python 相同。
-
+This is a literal representing exponential notation often used in academic calculations. It is an instance of type ``Ratio``.
+The notation is the same as in Python.
 
 ```erg
 1e-34, 0.4e-10, 2.455+e5, 245e5, 25E5, ...
 ```
 
-
 ```erg
 assert 1e-10 == 0.0000000001
 ```
 
-## 文字的组合（复合文字）
+## Compound Literals
 
-在文档中，这些文字都有单独的说明，有关详细信息，请参阅。
+Each of these literals has its own documentation describing them separately, so please refer to that documentation for details.
 
-### 数组文字（./10_array.md）
-
+### [Array Literal](./10_array.md)
 
 ```erg
 [], [1], [1, 2, 3], ["1", "2",], [1, "1", True, [1]], ...
 ```
 
-### 字典文字（./11_dict.md）
-
+### [Dict Literal](./11_dict.md)
 
 ```erg
 {:}, {"one": 1}, {"one": 1, "two": 2}, {"1": 1, "2": 2}, {1: "1", 2: True, "three": [1]}, ...
 ```
 
-### 元组文字（./12_tuple.md）
-
+### [Tuple Literal](./12_tuple.md)
 
 ```erg
 (), (1, 2, 3), (1, "hello", True), ...
 ```
 
-### 记录文字（./13_record.md）
-
+### [Record Literal](./13_record.md)
 
 ```erg
 {=}, {one = 1}, {one = 1; two = 2}, {.name = "John"; .age = 12}, {.name = Str; .age = Nat}, ...
 ```
 
-### 集文字（./14_set.md）
-
+### [Set Literal](./14_set.md)
 
 ```erg
 {}, {1}, {1, 2, 3}, {"1", "2", "1"}, {1, "1", True, [1]} ...
 ```
 
-与文字不同，<gtr=“38”/>删除重复元素。
-
+As a difference from `Array` literals, duplicate elements are removed in `Set`.
 
 ```erg
 assert {1, 2, 1} == {1, 2}
 ```
 
-### 看起来像文字但不像文字的东西
+### What looks like a literal but isn't
 
-## 真伪对象（Boolean Object）
-
+## Boolean Object
 
 ```erg
 True, False
 ```
 
-### None 对象
-
+### None Object
 
 ```erg
 None
 ```
 
-## 范围对象（Range Object）
-
+## Range Object
 
 ```erg
 assert 0..5 == {1, 2, 3, 4, 5}
@@ -131,29 +118,26 @@ assert 0..<10 notin 10
 assert 0..9 == 0..<10
 ```
 
-## 浮点对象（Float Object）
-
+## Float Object
 
 ```erg
 assert 0.0f64 == 0
 assert 0.0f32 == 0.0f64
 ```
 
-对象乘以<gtr=“41”/>，即<gtr=“40”/>的单位对象。
+Float objects are constructed by multiplying a `Ratio` object by `f64`, which is a `Float 64` unit object.
 
-## 复杂对象（Complex Object）
-
+## Complex Object
 
 ```erg
 1+2im, 0.4-1.2im, 0im, im
 ```
 
-对象仅通过与<gtr=“43”/>的运算组合来表示，<gtr=“42”/>是一个虚单位对象。
+A `Complex` object is simply an arithmetic combination of an imaginary unit object, `im`.
 
 ## *-less multiplication
 
-Erg 可以省略表示乘法的，除非解释正确。但是，运算符的连接强度设置为大于<gtr=“45”/>。
-
+In Erg, you can omit the `*` to indicate multiplication as long as there is no confusion in interpretation. However, the combined strength of the operators is set stronger than `*`.
 
 ```erg
 # same as `assert (1*m) / (1*s) == 1*(m/s)`

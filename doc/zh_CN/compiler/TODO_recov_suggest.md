@@ -5,7 +5,7 @@
 * `Int and Str` => Multiple inheritance is not allowed, or `Int or Str`?
 * `: [1, 2]` => `: {1, 2}`?
 * `: [Int, 2]` => `: [Int; 2]`?
-* `[Int; Str]` => `(Int, Str)` (Tuple) or `[Int: Str]` (Dict)?
+* `[Int; Str]` => `(Int, Str)`(Tuple) or `[Int: Str]`(Dict)?
 * `{x: Int}` => `{x = Int}`?
 * `{x = Int}!` => `{x = Int!}`?
-* `ref! immut_expr` => `ref!!immut_expr`?
+* `ref! immut_expr` => `ref! !immut_expr`?

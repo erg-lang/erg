@@ -1,9 +1,9 @@
-# 与 Python 合作
+# Integration with Python
 
-## 导出到 Python
+## Export to Python
 
-编译 Erg 脚本将生成一个.pyc 文件，你可以将其作为一个模块导入 Python。但是，在 Erg 端设置为私有的变量不能从 Python 访问。
-
+When the Erg script is compiled, a .pyc file is generated, which can simply be imported as a Python module.
+However, variables set to private on the Erg side cannot be accessed from Python.
 
 ```erg
 # foo.er
@@ -11,11 +11,9 @@
 private = "this is a private variable"
 ```
 
-
 ```console
 erg --compile foo.er
 ```
-
 
 ```python
 import foo
@@ -24,24 +22,23 @@ print(foo.public)
 print(foo.private) # AttributeError:
 ```
 
-## 从 Python 导入
+## Import from Python
 
-默认情况下，从 Python 引入的所有对象都是类型。长此以往，我们也无法进行比较，所以我们需要进行类型的筛选。
+All objects imported from Python are by default of type `Object`. Since no comparisons can be made at this point, it is necessary to refine the type.
 
-## 标准库类型
+## Type Specification in the Standard Library
 
-Python 标准库中的所有 API 都由 Erg 开发团队指定类型。
-
+All APIs in the Python standard library are type specified by the Erg development team.
 
 ```erg
 time = pyimport "time"
 time.sleep! 1
 ```
 
-## 指定用户脚本类型
+## Type Specification for User Scripts
 
-创建一个文件，为 Python 的<gtr=“10”/>模块创建类型。Python 端的 type hint 不是 100% 的保证，因此将被忽略。
-
+Create a `foo.d.er` file that types the Python `foo` module.
+Type hints on the Python side are ignored since they are not 100% guaranteed.
 
 ```python
 # foo.py
@@ -50,8 +47,8 @@ def bar(x):
     ...
 def baz():
     ...
+...
 ```
-
 
 ```erg
 # foo.d.er
@@ -61,18 +58,16 @@ foo = pyimport "foo"
 .baz! = declare foo.'baz', () => Int
 ```
 
-
 ```erg
 foo = pyimport "foo"
 assert foo.bar(1) in Int
 ```
 
-它通过在运行时执行类型检查来保证类型安全性。函数的工作原理大致如下。
-
+This ensures type safety by performing type checking at runtime. The ``declare`` function works roughly as follows.
 
 ```erg
 declare|S: Subroutine| sub!: S, T =
-    # 実は、=>はブロックの副作用がなければ関数にキャストできる
+    # Actually, => can be cast to a function without block side effects
     x =>
         assert x in T.Input
         y = sub!(x)
@@ -80,7 +75,7 @@ declare|S: Subroutine| sub!: S, T =
         y
 ```
 
-这是一个运行时开销，因此计划在 Erg 类型系统上对 Python 脚本进行静态类型分析。
+Since this is a runtime overhead, a project is planned to statically type analyze Python scripts with Erg's type system.
 
 <p align='center'>
     <a href='./31_pipeline.md'>Previous</a> | <a href='./33_package_system.md'>Next</a>

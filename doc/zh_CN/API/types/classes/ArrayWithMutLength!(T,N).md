@@ -1,26 +1,34 @@
-# ArrayWithMutLength! T: Type, N: Nat&excl;
+# ArrayWithLen T: Type, N: Nat
 
-一个可变长度数组，其长度在编译时已知。还有语法糖`ArrayWithMutLength(T, !N) == [T; !N]`
+`[T; N]` is syntactic sugar. There is also an [`Array` type](./Array.md) that omits the length.
 
 ## methods
 
-* push! ref! self(N ~> N+1, ...), elem: T
+* values_at(self, selectors: [Nat; N]) -> [T; N]
 
-* pop! ref! (N ~> N-1, ...) -> T
+``` erg
+assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
+```
 
-* sample!(ref! self) -> T
-* sample! ref! self, M: Nat -> [T; M]
-  随机选择里面的一个元素并返回一个副本
+* all(self, pred: T -> Bool) -> Bool
+    Returns whether all elements satisfy pred.
+    If the element is 0, it will be `True` regardless of pred, but a Warning will be issued.
+    This specification itself has been adopted by many languages and is required for logical consistency.
 
-* shuffle!(ref! self)
-  把里面的东西随机摆放
+    ``` erg
+    assert[].all(_ -> False)
+    ```
 
-* assert_len ref! self(_ ~> N, ...), N: Nat -> () or Panic
-  验证长度。
-  `panic!` 如果长度无效。
+    ```python
+    assert all(False for _in[])
+    ```
 
-## Impl
+## methods of ArrayWithLen T, N | T <: Eq
 
-* From Range Int
-* From [T; N]
-* Num
+* freq self -> [{T: Nat}]
+    Returns the frequency of occurrence of an object.
+
+``` erg
+assert ["a", "b", "c", "b", "c", "b"].freq() \
+== [{"a", 1}, {"b": 3}, {"c": 2}]
+```

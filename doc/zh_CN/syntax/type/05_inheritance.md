@@ -1,7 +1,7 @@
-# 继承（Inheritance）
+# Inheritance
 
-通过继承，你可以定义一个新类，该新类将添加或特定于现有类。继承类似于trait中的包容。继承的类将成为原始类的子类型。
-
+Inheritance allows you to define a new class that adds functionality or specialization to an existing class.
+Inheritance is similar to inclusion in a trait. The inherited class becomes a subtype of the original class.
 
 ```erg
 NewInt = Inherit Int
@@ -12,10 +12,9 @@ assert NewInt.new(1).plus1() == 2
 assert NewInt.new(1) + NewInt.new(1) == 2
 ```
 
-如果你希望新定义的类是可继承类，则必须指定装饰器。
+If you want the newly defined class to be inheritable, you must give it the `Inheritable` decorator.
 
-可选参数允许你具有其他实例属性。但是，不能为值类添加实例属性。
-
+You can specify an optional argument `additional` to allow the class to have additional instance attributes, but only if the class is a value class. However, you cannot add instance attributes if the class is a value class.
 
 ```erg
 @Inheritable
@@ -28,28 +27,26 @@ alice = Student.new {name = "Alice", id = 123}
 MailAddress = Inherit Str, additional: {owner = Str} # TypeError: instance variables cannot be added to a value class
 ```
 
-Erg 中例外的是不能继承型的设计。因为<gtr=“17”/>是绝对不能生成实例的特殊类。
+Erg is exceptionally designed not to allow inheritance of type ``Never``. Erg is exceptionally designed not to allow inheritance of `Never` type, because `Never` is a unique class that can never be instantiated.
 
-## 枚举类继承
+## Inheritance of Enumerated Classes
 
-也可以继承以为类的枚举类。在这种情况下，你可以通过指定选项参数<gtr=“18”/>来删除任何选项（使用<gtr=“19”/>可以选择多个选项）。仍不能添加。添加选择的类不是原始类的子类型。
-
+[Or type](./13_algebraic.md) can also be inherited. In this case, you can remove any of the choices (multiple choices are possible with `or`) by specifying the optional argument `Excluding`.
+No additional choices can be added. The class to which you add an option is not a subtype of the original class.
 
 ```erg
 Number = Class Int or Float or Complex
-Number.
-    abs(self): Float =
-        match self:
-            i: Int -> i.abs().into Float
-            f: Float -> f.abs()
-            c: Complex -> c.abs().into Float
+Number.abs(self): Float =
+    match self:
+        i: Int -> i.abs().into Float
+        f: Float -> f.abs()
+        c: Complex -> c.abs().into Float
 
-# matchの選択肢でc: Complexは現れ得ない
+# c: Complex cannot appear in match choices
 RealNumber = Inherit Number, Excluding: Complex
 ```
 
-同样，也可以指定。
-
+Similarly, [refinement type](./12_refinement.md) can also be specified.
 
 ```erg
 Months = Class 0..12
@@ -59,53 +56,56 @@ StrMoreThan3 = Class StrWithLen N | N >= 3
 StrMoreThan4 = Inherit StrMoreThan3, Excluding: StrWithLen N | N == 3
 ```
 
-## 覆盖
+## Overriding
 
-与修补程序相同，你可以在原始类型中添加新方法，但可以进一步“覆盖”类。覆盖称为覆盖。覆盖必须满足三个条件。首先，默认情况下，覆盖是错误的，因此必须添加装饰器。此外，覆盖不能更改方法类型。必须是原始类型的子类型。如果要覆盖其他方法引用的方法，则必须覆盖所有引用的方法。
+The class is the same as the patch in that new methods can be added to the original type, but the class can be further "overridden".
+This overriding is called override. To override, three conditions must be met.
+First, the override must have an `Override` decorator because by default it will result in an error.
+In addition, the override cannot change the type of the method. It must be a subtype of the original type.
+And if you override a method that is referenced by another method, you must also override all referenced methods.
 
-为什么要有这样的条件呢？这是因为覆盖不仅可以改变一个方法的行为，还可以影响另一个方法的行为。
+Why is this condition necessary? It is because overriding does not merely change the behavior of one method, but may affect the behavior of another method.
 
-首先，从第一个条件开始解说。这是为了防止“意外覆盖”。这意味着必须在装饰器中显示，以防止派生类中新定义的方法的名称碰巧与基类冲突。
+Let's start with the first condition. This condition is to prevent "accidental overrides.
+In other words, the `Override` decorator must be used to prevent the name of a newly defined method in a derived class from conflicting with the name of the base class.
 
-接下来，我们考虑第二个条件。这是为了保持类型的完整性。派生类是基类的子类型，因此其行为也必须与基类兼容。
+Next, consider the second condition. This is for type consistency. Since the derived class is a subtype of the base class, its behavior must also be compatible with that of the base class.
 
-最后，考虑第三个条件。这个条件是 Erg 特有的，在其他面向对象的语言中并不常见，但这也是为了安全起见。看看没有这个的时候会发生什么不好的事情。
-
+Finally, consider the third condition. This condition is unique to Erg and not often found in other object-oriented languages, again for safety. Let's look at what could go wrong if this were not the case.
 
 ```erg
 # Bad example
 @Inheritable
 Base! = Class {x = Int!}
-Base!.
+Base!
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!.
+Inherited!
     @Override
     g! ref! self = self.f!() # InfiniteRecursionWarning: This code falls into an infinite loop
     # OverrideError: method `.g` is referenced by `.f` but not overridden
 ```
 
-继承类覆盖<gtr=“25”/>方法并将处理转发到<gtr=“26”/>。但是，基类的<gtr=“27”/>方法将其处理转发到<gtr=“28”/>，从而导致无限循环。<gtr=“29”/>在<gtr=“30”/>类中是一个没有问题的方法，但由于被覆盖而被意外地使用，并被破坏。
+In the inherited class `Inherited!`, the `.g!` method is overridden to transfer processing to `.f!`. However, the `.f!` method in the base class transfers its processing to `.g!`, resulting in an infinite loop. `.f` was a problem-free method in the `Base!` class, but it was used in an unexpected way by the override, and it was broken.
 
-因此，通常需要重写所有可能受覆盖影响的方法。Erg 将这一规则纳入规范。
-
+Erg has built this rule into the specification.
 
 ```erg
-# OK
+# OK.
 @Inheritable
 Base! = Class {x = Int!}
-Base!.
+Base!
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!.
+Inherited!
     @Override
     f! ref! self =
         print! self::x
@@ -114,97 +114,100 @@ Inherited!.
     g! ref! self = self.f!()
 ```
 
-但这一规范并不能完全解决覆盖问题。编译器无法检测覆盖是否修复了问题。创建派生类的程序员有责任修改替代的影响。应尽可能定义别名方法。
+However, this specification does not completely solve the override problem. However, this specification does not completely solve the override problem, since the compiler cannot detect if the override fixes the problem.
+It is the responsibility of the programmer creating the derived class to correct the effects of the override. Whenever possible, try to define an alias method.
 
-### 替换trait（类似于）
+### Replacing Traits (or what looks like it)
 
-你不能在继承过程中替换 TRAIT，但有一个示例似乎是这样做的。
+Although it is not possible to replace traits at inheritance time, there are examples that appear to do so.
 
-例如，（实现<gtr=“32”/>）的子类型<gtr=“33”/>似乎正在重新实现<gtr=“34”/>。
-
+For example, `Int`, a subtype of `Real` (which implements `Add()`), appears to reimplement `Add()`.
 
 ```erg
-Int = Class ..., Impl := Add() and ...
+Int = Class ... , Impl := Add() and ...
 ```
 
-但实际上，中的<gtr=“36”/>是<gtr=“37”/>的缩写，<gtr=“38”/>只是用<gtr=“39”/>覆盖。两者是不同的trait（<gtr=“40”/>是<gtr=“42”/>，因此<gtr=“41”/>）。
+But in fact `Add()` in `Real` stands for `Add(Real, Real)`, and in `Int` it is just overwritten by `Add(Int, Int)`.
+They are two different traits (`Add` is a [covariate](./advanced/variance.md), so `Add(Real, Real) :> Add(Int, Int)`).
 
-## 禁止多重继承
+## Multiple Inheritance
 
-Erg 不允许常规类之间的 Intersection、Diff 或 Complement。
-
+Erg does not allow intersection, diff, and complement between normal classes.
 
 ```erg
 Int and Str # TypeError: cannot unite classes
 ```
 
-此规则不允许继承多个类，即多重继承。
-
+This rule prevents inheritance from multiple classes, i.e., multiple inheritance.
 
 ```erg
 IntAndStr = Inherit Int and Str # SyntaxError: multiple inheritance of classes is not allowed
 ```
 
-但是，可以使用 Python 多重继承类。
+However, multiple inherited Python classes can be used.
 
-## 禁止多层继承
+## Multi-layer (multi-level) Inheritance
 
-Erg 继承也禁止多层继承。也就是说，你不能定义继承的类，也不能定义继承的类。但是，继承的（Inheritable）类除外。
+Erg inheritance also prohibits multi-layer inheritance. That is, you cannot define a class that inherits from another class.
+Inheritable classes that inherit from an `Object` may exceptionally inherit.
 
-此外，Python 多层继承类仍然可用。
+Also in this case, Python's multi-layered inherited classes can be used.
 
-## 禁止改写源属性
+## Rewriting Inherited Attributes
 
-Erg 无法重写源属性。这有两个意思。首先，对继承的类属性执行更新操作。不仅不能重新赋值，也不能通过方法进行更新。
+Erg does not allow rewriting the attributes inherited from the base class. This has two implications.
 
-覆盖与重写不同，因为它是一种使用更特定的方法进行覆盖的操作。替代也必须使用兼容类型进行替换。
+The first is an update operation on the inherited source class attribute. It cannot be reassigned, nor can it be updated by the `.update!` method, for example.
 
+Overriding is different from rewriting because it is an operation to override with a more specialized method. Overrides must also be replaced by compatible types.
 
 ```erg
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
-Base!.
+Base!
     var = !1
     inc_pub! ref! self = self.pub.update! p -> p + 1
 
-Inherited! = Inherit Base!:
-Inherited!.
+Inherited! = Inherit Base!
+Inherited!
     var.update! v -> v + 1
     # TypeError: can't update base class variables
     @Override
     inc_pub! ref! self = self.pub + 1
-    # OverrideError: `.inc_pub!` must be subtype of `Self!.() => ()`
+    # OverrideError: `.inc_pub!` must be subtype of `Self! () => ()`
 ```
 
-第二种是对从其继承的（可变）实例属性执行更新操作。这也是禁止的。只能从基类提供的方法更新基类的实例属性。无论属性的可视性如何，都不能直接更新。但是可以读取。
-
+The second is an update operation on the (variable) instance attribute of the inherited source. This is also prohibited. Instance attributes of the base class may only be updated from methods provided by the base class.
+Regardless of the visibility of the attribute, it cannot be updated directly. However, they can be read.
 
 ```erg
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
-Base!.
+Base!
     inc_pub! ref! self = self.pub.update! p -> p + 1
     inc_pri! ref! self = self::pri.update! p -> p + 1
 
-Inherited! = Inherit Base!:
-Inherited!.
+self = self.pub.update!
+Inherited!
     # OK
     add2_pub! ref! self =
         self.inc_pub!()
         self.inc_pub!()
-    # NG, `Child` cannot touch `self.pub` and `self::pri`
+    # NG, `Child` cannot touch `self.pub` and `self::pri`.
     add2_pub! ref! self =
         self.pub.update! p -> p + 2
 ```
 
-最后，Erg 只能继承添加新属性和覆盖基类方法。
+After all, Erg inheritance can only add new attributes and override base class methods.
 
-## 继承用法
+## Usage of Inheritance
 
-如果正确使用，继承是一个强大的功能，但另一方面，它也有一个缺点，即类之间的依赖关系容易变得复杂，特别是在使用多重继承和多层继承时，这种趋势更为明显。依赖项的复杂性可能会降低代码的可维护性。Erg 禁止多重继承和多层继承是为了降低这种风险，而引入类修补功能是为了在继承“添加功能”的同时减少依赖关系的复杂性。
+While inheritance is a powerful feature when used correctly, it also has the drawback that it tends to complicate class dependencies, especially when multiple or multi-layer inheritance is used. Complicated dependencies can reduce code maintainability.
+The reason Erg prohibits multiple and multi-layer inheritance is to reduce this risk, and the class patch feature was introduced to reduce the complexity of dependencies while retaining the "add functionality" aspect of inheritance.
 
-那么反过来应该用继承的地方在哪里呢？一个指标是如果“想要基类的语义亚型”。Erg 由类型系统自动确定子类型的一部分（如果 Int 大于或等于 e.g.0，则为 Nat）。但是，例如，仅依靠 Erg 类型系统来创建“表示有效电子邮件地址的字符串类型”是很困难的。应该对普通字符串进行验证。然后，我们希望为验证通过的字符串对象添加一个“保证书”。这相当于向下转换到继承类。将下铸为<gtr=“46”/>与验证字符串是否为正确的电子邮件地址格式一一对应。
-
+So, conversely, where should inheritance be used? One indicator is when "semantic subtypes of the base class are desired.
+Erg allows the type system to automatically do part of the subtype determination (e.g., Nat, where Int is greater than or equal to 0).
+However, for example, it is difficult to create a "string type representing a valid e-mail address" relying solely on Erg's type system. You should probably perform validation on a normal string. Then, we would like to add some kind of "warrant" to the string object that has passed validation. That is the equivalent of downcasting to an inherited class. Downcasting a `Str object` to `ValidMailAddressStr` is a one-to-one correspondence with validating that the string is in the correct email address format.
 
 ```erg
 ValidMailAddressStr = Inherit Str
@@ -220,8 +223,11 @@ valid = ValidMailAddressStr.init s2
 valid: ValidMailAddressStr # assurance that it is in the correct email address format
 ```
 
-另一个指标是“记名的多相 = 想实现多态”的情况。例如，下面定义的过程接受任何类型为<gtr=“48”/>的对象。但显然，应用类型对象是错误的。因此，我们将参数类型设置为类<gtr=“50”/>。在这种情况下，只有<gtr=“51”/>对象和继承它的类<gtr=“52”/>对象作为参数。这样更保守，不用承担不必要的更多责任。
-
+Another indicator is when you want to achieve a nominal polymorphism.
+For example, the `greet!` procedure defined below will accept any object of type `Named`.
+But obviously it is wrong to apply a `Dog` type object. So we will use the `Person` class for the argument type.
+This way, only `Person` objects, classes that inherit from them, and `Student` objects will be accepted as arguments.
+This is more conservative and avoids unnecessarily assuming too much responsibility.
 
 ```erg
 Named = {name = Str; ...}

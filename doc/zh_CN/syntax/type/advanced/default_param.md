@@ -1,9 +1,8 @@
-# 具有默认参数的函数类型
+# Function type with default arguments
 
-首先，看默认自变量的使用例。
+First, let's look at an example of using default arguments.
 
-
-```erg
+``` erg
 f: (Int, Int, z := Int) -> Int
 f(x, y, z := 0) = x + y + z
 
@@ -17,12 +16,13 @@ assert fold(f, [1, 2, 3]) == 6
 assert fold(g, [1, 2, 3]) == 8
 ```
 
-之后的自变量为默认自变量。部分定型规则如下。
+Arguments after `:=` are default arguments.
+The subtyping rules are as follows.
 
-
-```erg
+``` erg
 ((X, y := Y) -> Z) <: (X -> Z)
 ((X, y := Y, ...) -> Z) <: ((X, ...) -> Z)
 ```
 
-第 1 个意思是，有默认自变量的函数可以与没有默认自变量的函数同等看待。第 2 个是可以省略任意的默认自变量的意思。
+The first means that a function with default arguments can be identified with a function without.
+The second means that any default argument can be omitted.

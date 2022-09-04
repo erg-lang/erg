@@ -1,7 +1,7 @@
-# 过载
+# Overloading
 
-Erg 不支持。也就是说，不能对函数卡印进行多重定义（过载）。但是，通过组合trait类和补丁，可以再现过载的行为。可以使用trait而不是trait类，但在这种情况下，安装<gtr=“8”/>的所有类型都成为对象。
-
+Erg does not support __ad hoc polymorphism__. That is, multiple definitions of functions and Kinds (overloading) are not possible. However, you can reproduce the overloading behavior by using a combination of a trait and a patch.
+You can use traits instead of trait classes, but then all types that implement `.add1` will be covered.
 
 ```erg
 Add1 = Trait {
@@ -19,10 +19,10 @@ assert add1(1) == 2
 assert add1(1.0) == 2.0
 ```
 
-这种通过接受某一类型的所有亚型而产生的多相称为。Erg 中的亚分型多相也包括列多相。
+Such a polymorphism by accepting all subtypes of a type is called __subtyping polymorphism__.
 
-如果各型的处理完全相同，也可以写如下。上面的写法用于不同类的行为（但返回类型相同）。使用类型参数的多相称为。参数多相与如下所示的部分型指定并用的情况较多，这种情况下是参数多相和子分型多相的组合技术。
-
+If the process is exactly the same for each type, it can be written as below. The above is used when the behavior changes from class to class (but the return type is the same).
+A polymorphism that uses type arguments is called __parametric polymorphism__. Parametric polymorphism is often used in conjunction with subtyping, as shown below, in which case it is a combination of parametric and subtyping polymorphism.
 
 ```erg
 add1|T <: Int or Str| x: T = x + 1
@@ -30,8 +30,7 @@ assert add1(1) == 2
 assert add1(1.0) == 2.0
 ```
 
-另外，自变量数不同类型的过载可以用默认自变量再现。
-
+Also, overloading of types with different numbers of arguments can be reproduced with default arguments.
 
 ```erg
 C = Class {.x = Int; .y = Int}
@@ -41,12 +40,12 @@ C.
 assert C.new(0, 0) == C.new(0)
 ```
 
-虽然无法定义根据自变量的数量类型不同等行为完全变化的函数，但 Erg 采取的立场是，如果行为本来就不同，就应该赋予其他名称。
+Erg takes the stance that you cannot define a function that behaves completely differently, such as having a different type depending on the number of arguments, but if the behavior is different to begin with, it should be named differently.
 
-结论是，Erg 禁止过载而采用亚分 + 参数多相是出于以下原因。
+In conclusion, Erg prohibits overloading and adopts subtyping plus parametric polymorphism for the following reasons.
 
-首先，被超载的函数的定义是分散的。因此，发生错误时很难报告原因所在。另外，通过导入子程序，可能会改变已经定义的子程序的行为。
-
+First, overloaded functions are distributed in their definitions. This makes it difficult to report the cause of an error when it occurs.
+Also, importing a subroutine may change the behavior of already defined subroutines.
 
 ```erg
 {id; ...} = import "foo"
@@ -56,11 +55,10 @@ id x: Int = x
 id x: Ratio = x
 ...
 id "str" # TypeError: id is not implemented for Str
-# But... where did this error come from?
+# But... But... where did this error come from?
 ```
 
-其次，与默认参数不匹配。当有默认参数的函数被重载时，存在哪个优先的问题。
-
+Second, it is incompatible with default arguments. When a function with default arguments is overloaded, there is a problem with which one takes precedence.
 
 ```erg
 f x: Int = ...
@@ -69,8 +67,8 @@ f(x: Int, y := 0) = ...
 f(1) # which is chosen?
 ```
 
-再者，与宣言不相匹配。声明无法确定指的是哪一个定义。因为<gtr=“13”/>和<gtr=“14”/>没有包含关系。
-
+Furthermore, it is incompatible with the declaration.
+The declaration `f: Num -> Num` cannot specify which definition it refers to. This is because `Int -> Ratio` and `Ratio -> Int` are not inclusive.
 
 ```erg
 f: Num -> Num
@@ -78,8 +76,8 @@ f(x: Int): Ratio = ...
 f(x: Ratio): Int = ...
 ```
 
-而且，破坏语法的连贯性。虽然 Erg 禁止变量的再代入，但是过载的语法看起来像是再代入。也不能替换为无名函数。
-
+And the grammar is inconsistent: Erg prohibits variable reassignment, but the overloaded grammar looks like reassignment.
+Nor can it be replaced by an anonymous function.
 
 ```erg
 # same as `f = x -> body`

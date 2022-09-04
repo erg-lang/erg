@@ -1,5 +1,6 @@
 # fmt
 
-fmt 子命令允许在中设置代码格式。以下是常用的旗帜。
+Code formatting can be done with the fmt subcommand.
+Commonly used flags are:
 
-* explicit-type：自动完成省略类型的位置。
+* explicit-type: Automatically completes where the type specification is omitted.

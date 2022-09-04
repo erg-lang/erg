@@ -1,26 +1,26 @@
-# 流水线运算符
+# pipeline operator
 
-按如下方式使用管线运算符。
+Pipeline operators are used like this:
 
-
-```erg
+``` erg
 assert f(g(x)) == (x |> g |> f)
 assert f(g(x, y)) == ((x, y) |> g |> f)
 ```
 
-这意味着你可以将的顺序更改为<gtr=“4”/>。也可以对方法使用管线运算符。对于方法，<gtr=“5”/>更改为<gtr=“6”/>。虽然它看起来只是增加了<gtr=“7”/>，但由于耦合强度较低，可能会减少<gtr=“8”/>的量。
+In other words, the order `Callable(object)` can be changed to `object |> Callable`.
+The pipeline operator can also be used on methods. For methods, `object.method(args)` changes to `object |>.method(args)`.
+It looks like just more `|>`, but since the bond strength is low, you may be able to reduce the amount of `()`.
 
-
-```erg
+``` erg
 rand = -1.0..1.0 |>.sample!()
 log rand # 0.2597...
 
 1+1*2 |>.times do log("a", end := "") # aaa
 
 evens = 1..100 |>.iter |>.filter i -> i % 2 == 0 |>.collect Array
-# パイプライン演算子を使わずに実装する場合、
+# When implemented without the pipeline operator,
 _evens = (1..100).iter().filter(i -> i % 2 == 0).collect(Array)
-# または
+# or
 __evens = 1..100 \
     .iter() \
     .filter i -> i % 2 == 0 \

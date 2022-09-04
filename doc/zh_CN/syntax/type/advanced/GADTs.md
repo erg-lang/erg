@@ -1,9 +1,8 @@
-# Generalized Algebraic Data Types，GADTs
+# Generalized Algebraic Data Types (GADTs)
 
-Erg 可以通过对 Or 类型进行类化来创建广义代数数据类型（GADTs）。
+Erg can create Generalized Algebraic Data Types (GADTs) by classifying Or types.
 
-
-```erg
+``` erg
 Nil T = Class(Impl := Phantom T)
 Cons T = Class {head = T; rest = List T}, Impl := Unpack
 List T: Type = Class(Nil T or Cons T)
@@ -11,7 +10,7 @@ List.
     nil|T|() = Self(T).new Nil(T).new()
     cons head, rest | T = Self(T).new Cons(T).new(head, rest)
     head self = match self:
-        {head; ...}: Cons _ -> head
+        {head; ...}: Cons_ -> head
         _: Nil -> panic "empty list"
 {nil; cons; ...} = List
 
@@ -19,18 +18,17 @@ print! cons(1, cons(2, nil())).head() # 1
 print! nil.head() # RuntimeError: "empty list"
 ```
 
-将作为<gtr=“5”/>而不是<gtr=“5”/>是因为使用时不需要类型。
+The reason we say `List.nil|T|() = ...` instead of `List(T).nil() = ...` is that we don't need to specify the type when using it.
 
-
-```erg
+``` erg
 i = List.nil()
 _: List Int = cons 1, i
 ```
 
-这里定义的是 GADTs，但它是一个简单的实现，没有真正的 GADTs 价值。例如，如果内容为空，上面的<gtr=“8”/>方法将导致运行时错误，但可以在编译时执行此检查。
+The `List T` defined here is GADTs, but it's a naive implementation and doesn't show the true value of GADTs.
+For example, the `.head` method above will throw a runtime error if the body is empty, but this check can be done at compile time.
 
-
-```erg
+``` erg
 List: (Type, {"Empty", "Nonempty"}) -> Type
 List T, "Empty" = Class(Impl := Phantom T)
 List T, "Nonempty" = Class {head = T; rest = List(T, _)}, Impl := Unpack
@@ -45,10 +43,10 @@ print! cons(1, cons(2, nil())).head() # 1
 print! nil().head() # TypeError
 ```
 
-在街头巷尾经常被说明的 GADTs 的例子，是象以上那样根据类型能判定内容是否为空的列表。Erg 提供了更精确的定义长度列表的方法。
+An example of GADTs that is often explained on the street is a list that can judge whether the contents are empty or not by type as above.
+Erg can be further refined to define a list with length.
 
-
-```erg
+``` erg
 List: (Type, Nat) -> Type
 List T, 0 = Class(Impl := Phantom T)
 List T, N = Class {head = T; rest = List(T, N-1)}, Impl := Unpack
@@ -64,5 +62,5 @@ List(_, N | N >= 2).
 print! cons(1, cons(2, nil)).pair() # [1, 2]
 print! cons(1, nil).pair() # TypeError
 print! cons(1, nil).head() # 1
-print! nil.head() # TypeError
+print! nil. head() # TypeError
 ```

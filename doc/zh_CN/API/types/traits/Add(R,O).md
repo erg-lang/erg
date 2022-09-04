@@ -1,31 +1,31 @@
 # Add R
 
-```erg
+``` erg
 Add R = Trait {
-    .AddO = Type
-    .`_+_` = (Self, R) -> Self.AddO
+     .AddO = Type
+     .`_+_` = (Self, R) -> Self.AddO
 }
 ```
 
-`Add`是一种定义加法的类型。加法有两种类型的`+`：方法和函数
-`+`作为二元函数，即`_+_`，定义如下：
+`Add` is a type that defines addition. There are two types of `+` as addition: methods and functions.
+`+` as a binary function, i.e. `_+_`, is defined as follows.
 
-```erg
+``` erg
 `_+_`(l: Add(R, O), r: R): O = l.`_+_` r
 ```
 
-这个定义的目的是让 `+` 可以被视为一个函数而不是一个方法
+The purpose of this definition is so that `+` can be treated as a function instead of a method.
 
-```erg
+``` erg
 assert [1, 2, 3].fold(0, `_+_`) == 6
 
 call op, x, y = op(x, y)
 assert call(`_+_`, 1, 2) == 3
 ```
 
-加法是这样输入的。
+Addition is typed like this.
 
-```erg
+``` erg
 f: |O: Type; A <: Add(Int, O)| A -> O
 f x = x + 1
 

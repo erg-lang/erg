@@ -1,27 +1,24 @@
-# Python 到 Erg 迁移的 Tips
+# Tips for migrating from Python to Erg
 
-## 要将字符串转换为 int 等
+## I want to convert a string to int etc.
 
-请使用类中的<gtr=“5”/>方法。它返回类型<gtr=“6”/>。
-
+Use the `parse` method of the `Str` class. It returns a `Result` type.
 
 ```python
 s: str
 i: int = int(s)
 ```
 
-
-```erg
+``` erg
 s: Str
-res: Result(Int, IntParseError) = s.parse Int
+res: Result(Int, IntParseError) = s. parse Int
 i: Int = res.unwrap()
-f: Result(Float, FloatParseError) = s.parse Float
+f: Result(Float, FloatParseError) = s. parse Float
 ```
 
-也可以使用方法。
+You can also use the `try_from` method.
 
-
-```erg
+``` erg
 s: Str
 i: Int = Int.try_from(s).unwrap()
 f: Float = Float.try_from(s).unwrap()

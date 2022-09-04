@@ -1,80 +1,56 @@
-# 术语统一
+# Unification of terminology
 
-## 可见性、可见性
+## Accessibility, Visibility
 
-使用“Visibility（可见性）”。
+Use Visibility.
 
-## 完全（非、补）
+## Type bound, Type constraint
 
-使用否定类型。Complement 的结果不一定是 Not 型。
+A list of predicate expressions given to quantified and refinement types. Use type bounds.
 
-## Diff（差分型、排除型、直差型）
+## subroutines, routines, subprograms
 
-使用排除类型。Diff 的结果不一定是 Not 型。
+Use subroutines.
 
-## Intersection（交集、交集、笛卡尔）
+## Referentially transparent/not, with/without side effects
 
-使用交叉类型。不使用笛卡儿积型。这是因为也有将元组视为笛卡儿积型的用法。但是，从属性部分型的观点来看，是与 Erg 的 And 型本质上等价的概念。另外，Intersection 的结果不一定是 And 型。例如。
+Use with/without side effects.
 
-## Nominal subtyping 的翻译
+## identifiers, algebra, variables, names, symbols
 
-虽然有记名的/名目的/标称的部分定型，但是使用记名的部分定型。
+In its original meaning,
 
-## Ratio 型译词
+* Symbol: Characters (except symbols, control characters, etc.) that are solid-written in source code that are not string objects (not enclosed in ""). Symbols exist as primitive types in Ruby, Lisp, etc., but they are not treated as objects in Erg.
+* Identifier: A symbol that (and can) refer to some object, not a reserved word. For example, in Python class and def cannot be used as identifiers. Since Erg has no reserved words, all symbols can be used as identifiers except some symbols.
+* Name: Almost same meaning as identifier. It is sometimes used synonymously with algebra in Erg.
+* Algebra name: equivalent to identifier in Erg. In C, function names are identifiers, not algebraic names. "Algebra" refers to the language feature itself that allows you to assign objects with `=` (variable assignment operator) or `=` (constant assignment operator).
 
-使用有理数型。由于 Float 是单独提供的，所以不称为浮点数型。
-
-## Union（合并、直和）
-
-使用合并类型。Union 的结果不一定是 Or 型。
-
-## 类型边界（Type bound）、类型约束（Type constraint）
-
-量化型、筛子型所给谓词式的列表。使用类型边界。
-
-## 子程序，例程，子程序
-
-中描述的相应参数的值。
-
-## 参照透明/不透明，有/无副作用
-
-使用有/无副作用。
-
-## 标识符、代数、变量、名称、符号
-
-原来的意思是，
-
-* 符号（Symbol）：非字符串对象（未括在“”中）的纯文本源代码字符（符号、控制字符等除外）。Ruby 和 Lisp 等中作为基本类型的符号存在，但在 Erg 中不被作为对象处理。
-* 标识符（Identifier）：指向（也可以）某个对象的符号，而不是保留字。例如，在 Python 中，class 和 def 不能作为标识符使用。由于 Erg 中没有保留字，所以除去一部分符号的所有符号都可以作为标识符使用。
-* 名称（Name）：几乎等同于标识符。在 Erg 中也有与代数相同的意思使用。
-* 代数名（Algebra name）：在 Erg 中等同于标识符。在 C 语言中，函数名是标识符，但不是代数名。“代数”是指能够用（变量赋值运算符）或<gtr=“4”/>（常量赋值运算符）赋值对象的语言功能本身。
-
-
-```erg
-代数名 <: (名前 == 識別子) <: シンボル
-変数 + 定数 == 代数
+``` erg
+algebraic name <: (name == identifier) ​​<: symbol
+variable + constant == algebra
 ```
 
-但是，本来应该被称为“代数”的多被称为“变量”。这是数学术语的影响。值的内容可能变化的变量是可互斥变量，值的内容不变的变量是可互斥变量。另外，常数一定是可变的。
+However, what should be called "algebra" is often called "variable". This is the effect of mathematical terminology.
+A variable whose value content can change is a mutable variable, and a variable whose value content does not change is an immutable variable.
+Note that constants are always immutable.
 
-Erg 中代数名，不使用名称，用标识符统一。但是，一般来说，的<gtr=“6”/>被称为“变量 v”（“Variable v”），<gtr=“7”/>的<gtr=“8”/>被称为“常数 C”（“Constant C”）。
+Algebraic names and names are not used in Erg, and uniform identifiers are used.
+However, in general, `v` with `v = 1` is called "Variable v", and `C` with `C = 1` is called "Constant C". .
 
-## 属性、字段和特性
+## Attribute, Field, Property
 
-属性，使用属性。顺便一提，记录是指在没有类的情况下可以定义具有要素属性的对象的功能。
+Use attributes. By the way, a record is a function that can define an object with element attributes without a class.
 
-## 应用（Application）、调用（Call）
+## Application, Call
 
-通过向子程序对象提供参数来获得结果。使用调用（Call）。因为 Application 具有“应用软件”的用法。
+Giving arguments to a subroutine object and getting a result.
+Use Call. This is because Application has a usage of "application software".
 
-## 数组、列表
+## Array, List
 
-使用 Array。这是因为 Erg 的排列（通常）是在存储器上连续排列的。List 指的是所谓的连接列表，或者作为 Python 的数据类型的列表。
+Use Arrays. Erg arrays are (generally) contiguous in memory.
+List refers to a so-called linked list, or a list as a Python data type.
 
-## 过程，过程
+## lambda functions, lambda expressions, anonymous functions
 
-与过程一致。子例程是函数（和运算符）、过程和方法的总称。Callable 是安装了的全部。
-
-## Lambda 函数、Lambda 表达式、匿名函数、匿名函数
-
-统一为无名函数。英语中为了缩短字数可以使用 Lambda，但正式名称是 Anonymous function。另外，Erg 的无名函数不是匿名的，所以不使用匿名函数。
+Unify with anonymous functions. In English, Lambda can be used to shorten the number of characters, but the official name is Anonymous function.

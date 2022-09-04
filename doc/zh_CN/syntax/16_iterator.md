@@ -1,36 +1,33 @@
-# 迭
+# Iterator
 
-迭代器是用于检索容器元素的对象。
-
+An iterator is an object used to retrieve elements of a container.
 
 ```erg
 for! 0..9, i =>
     print! i
 ```
 
-此代码输出 0 到 9 之间的数字。将每个数字（=Int 对象）赋给，并执行以下操作（=<gtr=“7”/>）：这种重复执行称为<gtr=“9”/>。
+This code prints the numbers 0 through 9.
+Each number (=Int object) is assigned to `i` and the following operation (=`print! i``) is executed. This kind of repetitive execution is called __iteration__.
 
-现在，我们来看一下过程的类型签名。
-
+Now let's look at the type signature of the `for!` procedure.
 
 ```erg
 for!: |T: Type, I <: Iterable T| (I, T => None) => None
 ```
 
-第一个参数似乎接受类型为的对象。
+The first argument seems to accept an object of type `Iterable`.
 
-是具有<gtr=“13”/>属性和<gtr=“14”/>方法的请求方法类型。
-
+`Iterable` is a type with `.Iterator` attribute, `.iter` method in the request method.
 
 ```erg
 Iterable T = Trait {
     .Iterator = {Iterator}
-    .iter = Self(T).() -> Self.Iterator T
+    .iter = Self(T). () -> Self.Iterator T
 }
 ```
 
-属性类型<gtr=“16”/>是所谓的设置卡印（卡印在<gtr=“17”/>中描述）。
-
+The type `{Iterator}` of the `.Iterator` attribute is so-called set-kind (kind is described [here](./type/advanced/kind.md)).
 
 ```erg
 assert [1, 2, 3] in Iterable(Int)
@@ -38,12 +35,13 @@ assert 1..3 in Iterable(Int)
 assert [1, 2, 3].Iterator == ArrayIterator
 assert (1..3).Iterator == RangeIterator
 
-log [1, 2, 3].iter() # <ArrayIterator object>
+log [1, 2, 3].iter() # <ArrayIterator object
 log (1..3).iter() # <RangeIterator object>
 ```
 
-和<gtr=“19”/>都是实现<gtr=“20”/>的类，它们的存在只是为了赋予<gtr=“21”/>和<gtr=“22”/>小版本功能。这种设计模式称为伴随类<gtr=“31”/>。而<gtr=“23”/>修补程序是小版本功能的核心。<gtr=“24”/>只需要一个<gtr=“25”/>方法，<gtr=“26”/>实际上提供了几十个方法。<gtr=“27”/>和<gtr=“28”/>只需实现<gtr=“29”/>方法即可使用<gtr=“30”/>的实现方法。由于这种便利性，标准库实现了许多迭代器。
-
+Both `ArrayIterator` and `RangeIterator` are classes that implement `Iterator` and exist only to give `Array` and `Range` iteration functions.
+Such a design pattern is called companion class [<sup id="f1">1</sup>](#1).
+And the `IteratorImpl` patch is the core of the iteration functionality. `Iterator` requires only one `.next` method, `IteratorImpl` provides dozens of methods indeed. `ArrayIterator` and `RangeIterator` can use the implementation method of `IteratorImpl` just by implementing the `.next` method. For this convenience, the standard library implements a number of iterators.
 
 ```mermaid
 classDiagram
@@ -80,11 +78,11 @@ classDiagram
     Range <-- RangeIterator
 ```
 
-提供一个接口的类型，如，在本例中为<gtr=“33”/>）是静态调度，但可以统一处理，这种类型称为伴随类适配器。
+Types such as `Iterable` that provide an interface for handling traits (in this case `Iterator`) in a static dispatch yet unified manner are called companion class adapters.
 
 ---
 
-<span id="1" style="font-size:x-small">1这个模式似乎没有统一的名字，但在 Rust 中被称为，并以此为参照命名。</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> There doesn't seem to be a uniform name for this pattern, but in Rust, there is [companion struct pattern]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80%81%E3 %81%9D%E3%81%AE), and was named after it. [↩](#f1) </span>
 
 <p align='center'>
     <a href='./15_type.md'>Previous</a> | <a href='./17_mutability.md'>Next</a>

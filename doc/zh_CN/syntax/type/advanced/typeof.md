@@ -1,15 +1,14 @@
 # Typeof, classof
 
-是可以窥视 Erg 的类型推理系统的函数，其举动很复杂。
+`Typeof` is a function that can peek into Erg's type inference system, and its behavior is complex.
 
-
-```erg
+``` erg
 assert Typeof(1) == {I: Int | I == 1}
 i: 1..3 or 5..10 = ...
 assert Typeof(i) == {I: Int | (I >= 1 and I <= 3) or (I >= 5 and I <= 10)}
 
 C = Class {i = Int}
-I = C.new {i = 1}
+I = C. new {i = 1}
 assert Typeof(I) == {X: C | X == I}
 J: C = ...
 assert Typeof(J) == {i = Int}
@@ -17,24 +16,29 @@ assert Typeof(J) == {i = Int}
 assert {X: C | X == I} < C and C <= {i = Int}
 ```
 
-函数返回的不是对象的类，而是结构类型。因此，对于<gtr=“6”/>类的实例<gtr=“7”/>，则为<gtr=“8”/>。关于值类，本来不存在对应的记录类型。为了解决这个问题，值类是具有<gtr=“9”/>属性的记录型。此外，不能访问该属性，也不能在用户定义类型中定义<gtr=“10”/>属性。
+The `Typeof` function returns the derived type, not the class of the object.
+So for instance `I: C` of class `C = Class T`, `Typeof(I) == T`.
+A value class does not have a corresponding record type. To solve this problem, value classes are supposed to be record types that have a `__valueclass_tag__` attribute.
+Note that you cannot access this attribute, nor can you define a `__valueclass_tag__` attribute on a user-defined type.
 
-
-```erg
+``` erg
 i: Int = ...
 assert Typeof(i) == {__valueclass_tag__ = Phantom Int}
 s: Str = ...
 assert Typeof(s) == {__valueclass_tag__ = Phantom Str}
 ```
 
-用输出的只是结构型。说明了结构型有属性型、筛子型和（真的）代数演算型。这些是独立的类型（存在推理的优先顺序），不发生推理的重解。属性型、代数运算型可能跨越多个类，而筛型是单一类的亚型。Erg 尽可能地将对象的类型作为筛子类型进行推论，当不能进行推论时，将筛子类型的基类扩大到结构化（后述）的类型。
+`Typeof` outputs only structured types. I explained that structured types include attribute types, sieve types, and (true) algebraic types.
+These are independent types (inference precedence exists) and inference conflicts do not occur.
+Attribute types and algebraic types can span multiple classes, while sieve types are subtypes of a single class.
+Erg infers object types as sieve types as much as possible, and when that is not possible, expands sieve base classes to structured types (see below).
 
-## 结构化
+## structured
 
-所有类都可以转换为结构型。这被称为。可以通过函数获取类的结构化类型。如果用<gtr=“13”/>定义类（所有类都用这种形式定义），则<gtr=“14”/>。
+All classes can be converted to derived types. This is called __structuring__. The structured type of a class can be obtained with the `Structure` function.
+If a class is defined with `C = Class T` (all classes are defined in this form) then `Structure(C) == T`.
 
-
-```erg
+``` erg
 C = Class {i = Int}
 assert Structure(C) == {i = Int}
 D = Inherit C
@@ -43,13 +47,13 @@ Nat = Class {I: Int | I >= 0}
 assert Structure(Nat) == {I: Int | I >= 0}
 Option T = Class (T or NoneType)
 assert Structure(Option Int) == Or(Int, NoneType)
-assert Structure(Option) # TypeError: only monomorphized types can be structurized
-# 你实际上不能用 __valueclass_tag__ 定义一条记录，但在概念上
+assert Structure(Option) # TypeError: only monomorphized types can be structured
+# You can't actually define a record with __valueclass_tag__, but conceptually
 assert Structure(Int) == {__valueclass_tag__ = Phantom Int}
 assert Structure(Str) == {__valueclass_tag__ = Phantom Str}
 assert Structure((Nat, Nat)) == {__valueclass_tag__ = Phantom(Tuple(Nat, Nat))}
 assert Structure(Nat -> Nat) == {__valueclass_tag__ = Phantom(Func(Nat, Nat))}
-# 标记类也是带有 __valueclass_tag__ 的记录类型
+# Marker classes are also record types with __valueclass_tag__
 M = Inherit Marker
 assert Structure(M) == {__valueclass_tag__ = Phantom M}
 D = Inherit(C and M)

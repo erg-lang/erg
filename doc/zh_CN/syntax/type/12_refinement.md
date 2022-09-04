@@ -1,12 +1,12 @@
-# 筛子类型（Refinement Type）
+# Refinement Type
 
-Refinement type 是受谓词表达式约束的类型。枚举型和区间型是筛子型的一种。
+Refinement type is a type constrained by a predicate expression. Enumeration types and interval types are syntax sugar of refinement types.
 
-筛型的标准形式是。这意味着它是以满足<gtr=“8”/>的<gtr=“9”/>为元素的类型。只有<gtr=“10”/>可用于筛型。
-
+The standard form of a refinement type is `{Elem: Type | (Pred)*}`. This means that the type is a type whose elements are `Elem` satisfying `Pred`.
+The type that can be used for the sifting type is [Const type](./advanced/const.md) only.
 
 ```erg
-Nat = 0.._
+Nat = 0.. _
 Odd = {N: Int | N % 2 == 1}
 Char = StrWithLen 1
 # StrWithLen 1 == {_: StrWithLen N | N == 1}
@@ -14,35 +14,36 @@ Char = StrWithLen 1
 Array3OrMore == {A: Array _, N | N >= 3}
 ```
 
-如果有多个 Pred，请用或<gtr=“12”/>或<gtr=“13”/>分隔。<gtr=“14”/>和<gtr=“15”/>是相同的意思。
+When there are multiple preds, they can be separated by `;` or `and` or `or`. `;` and `and` mean the same thing.
 
-的元素是<gtr=“17”/>。因为它是一种将现有类型的一部分作为要素的类型，就像在筛子上一样，所以被称为筛子类型。
+The elements of `Odd` are `1, 3, 5, 7, 9, ...`.
+It is called a refinement type because it is a type whose elements are part of an existing type as if it were a refinement.
 
-称为（左侧）谓词表达式。它不返回与赋值表达式相同的有意义的值，并且只能在左边放置模式。也就是说，<gtr=“19”/>等式不能用作筛子谓词表达式。这一点不同于右边表达式的谓词表达式。
-
+The `Pred` is called a (left-hand side) predicate expression. Like assignment expressions, it does not return a meaningful value, and only a pattern can be placed on the left-hand side.
+That is, expressions such as `X**2 - 5X + 6 == 0` cannot be used as refinement-type predicate expressions. In this respect, it differs from a right-hand-side predicate expression.
 
 ```erg
 {X: Int | X**2 - 5X + 6 == 0} # SyntaxError: the predicate form is invalid. Only names can be on the left-hand side
 ```
 
-如果你知道二次方程的解法，你应该可以预测，上面的筛子类型将等同于。然而，Erg 编译器几乎没有代数学知识，因此无法解决右边的谓词表达式。
+If you know how to solve quadratic equations, you would expect the above refinement form to be equivalent to `{2, 3}`.
+However, the Erg compiler has very little knowledge of algebra, so it cannot solve the predicate on the right.
 
 ## Smart Cast
 
-定义是很好的，但如果这样，除了文字以外，似乎很难使用它。要将常规<gtr=“22”/>对象中的奇数提升到<gtr=“23”/>，即将<gtr=“24”/>下铸到<gtr=“25”/>，必须通过<gtr=“26”/>构造函数。对于筛子类型，常规构造函数<gtr=“27”/>可能会死机，有些辅助构造函数返回<gtr=“29”/>类型<gtr=“28”/>。
-
+It's nice that you defined `Odd`, but as it is, it doesn't look like it can be used much outside of literals. To promote an odd number in a normal `Int` object to `Odd`, i.e., to downcast an `Int` to `Odd`, you need to pass the constructor of `Odd`.
+For refinement types, the normal constructor `.new` may panic, and there is an auxiliary constructor called `.try_new` that returns a `Result` type.
 
 ```erg
 i = Odd.new (0..10).sample!()
 i: Odd # or Panic
 ```
 
-也可以在中用作类型说明。
-
+It can also be used as a type specification in `match`.
 
 ```erg
 # i: 0..10
-i = (0..10).sample!()
+i = (0..10).sample!
 match i:
     o: Odd ->
         log "i: Odd"
@@ -50,26 +51,25 @@ match i:
         log "i: Nat"
 ```
 
-然而，由于 Erg 当前不是，因此不能进行诸如<gtr=“32”/>之类的次要判断。
+However, Erg cannot currently make sub-decisions such as `Even` because it was not `Odd`, etc.
 
-## 列举型、区间型和筛型
+## Enumerated, Interval and Sift Types
 
-之前介绍的枚举型和区间型，是筛子型的糖衣句法。将脱糖为<gtr=“34”/>，将<gtr=“35”/>脱糖为<gtr=“36”/>。
-
+The enumerative/interval types introduced before are syntax sugar of the refinement type.
+`{a, b, ...}` is `{I: Typeof(a) | I == a or I == b or ... }`, and `a..b` is desugarized to `{I: Typeof(a) | I >= a and I <= b}`.
 
 ```erg
 {1, 2} == {I: Int | I == 1 or I == 2}
 1..10 == {I: Int | I >= 1 and I <= 10}
-1..<10 == {I: Int | I >= 1 and I < 10} == {I: Int | I >= 1 and I <= 9}
+1... <10 == {I: Int | I >= 1 and I < 10}
 ```
 
-## 筛子模式
+## Refinement pattern
 
-可以被重写为<gtr=“38”/>（常数模式），<gtr=“39”/>可以被重写为<gtr=“40”/>。
-
+Just as `_: {X}` can be rewritten as `X` (constant pattern), `_: {X: T | Pred}` can be rewritten as `X: T | Pred`.
 
 ```erg
-# メソッド.mは長さ3以上の配列に定義される
+# method `.m` is defined for arrays of length 3 or greater
 Array(T, N | N >= 3)
     .m(&self) = ...
 ```

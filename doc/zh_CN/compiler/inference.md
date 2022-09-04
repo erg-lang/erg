@@ -1,62 +1,70 @@
-# 类型推理算法
+# type inference algorithm
 
-> ：本节正在编辑中，可能包含某些错误。
+> __Warning__: This section is being edited and may contain some errors.
 
-以下是使用的表示方法。
+The notation used below is shown.
 
-
-```erg
-自由类型变量（类型，未绑定）：?T, ?U,...
-自由类型变量（值，未绑定）：?a, ?b,...
-输入环境 (Γ): { x: T,... }
-类型分配规则 (S): { ?T --> T,...}
-类型参数评估环境 (E): { e -> e',...}
+``` erg
+Free type variables (type, unbound): ?T, ?U, ...
+Free-type variables (values, unbound): ?a, ?b, ...
+type environment (Γ): { x: T, ... }
+Type assignment rule (S): { ?T --> T, ... }
+Type argument evaluation environment (E): { e -> e', ... }
 ```
 
-下面的代码是一个示例。
+Let's take the following code as an example.
 
-
-```erg
+``` erg
 v = ![]
 v.push! 1
 print! v
 ```
 
-Erg 类型推理的主要框架是 Hindley-Milner 类型推理算法（但进行了各种扩展）。具体来说，类型推论是按照以下步骤进行的。术语描述将在后面介绍。
+Erg's type inference largely uses the Hindley-Milner type inference algorithm (although various extensions have been made). Specifically, type inference is performed by the following procedure. Terminology will be explained later.
 
-1. 推断右边值的类型（search）
-2. 使得到的类型具体化（instantiate）
-3. 调用时进行类型赋值（substitute）
-4. 体现单相特写（resolve traits）
-5. 求值和简化类型变量值（eval）
-6. 删除链接的类型变量（deref）
-7. 对于可变依赖方法，传播更改（propagate）
-8. 如果左侧值存在且可调用，则执行参数类型的一般化（generalize）
-9. 如果有左侧值，则（返回值）类型一般化（generalize）
-10. 如果赋值，则在符号表（）中登记类型信息（update）。
+1. Infer the type of the rvalue (search)
+2. instantiate the resulting type
+3. If it is a call, perform type substitution (substitute)
+4. Resolve traits that have already been monomorphized
+5. Evaluate/reduce (eval) if there is a type variable value
+6. Remove linked type variables (deref)
+7. Propagate changes for mutable dependent methods
+8. If there is an lvalue and it is Callable, generalize the argument type (generalize)
+9. If there is an lvalue, generalize the (return value) type (generalize)
+10. If it is an assignment, register the type information in the symbol table (`Context`) (update)
 
-具体操作如下。
+The specific operations are as follows.
 
 line 1. Def{sig: v, block: ![]}
     get block type:
         get UnaryOp type:
-            get Array type: `['T; 0]`instantiate: `[?T; 0]`(substitute, eval are omitted)
-    update: `Γ: {v: [?T; 0]!}`expr returns `NoneType`: OK
+            getArray type: `['T; 0]`
+            instantiate: `[?T; 0]`
+            (substitute, eval are omitted)
+    update: `Γ: {v: [?T; 0]!}`
+    expr returns `NoneType`: OK
 
-line 2. CallMethod{obj: v, name: push!, args: [1]}
+line 2. CallMethod {obj: v, name: push!, args: [1]}
     get obj type: `Array!(?T, 0)`
-        search: `Γ Array!(?T, 0).push!({1})`get: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`instantiate: `Array!(?T, ?N).push!(?T) => NoneType`substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`eval: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`update: `Γ: {v: [Nat; 1]!}`
+        search: `Γ Array!(?T, 0).push!({1})`
+        get: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
+        instantiate: `Array!(?T, ?N).push!(?T) => NoneType`
+        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
+        eval: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`
+        update: `Γ: {v: [Nat; 1]!}`
     expr returns `NoneType`: OK
 
-line 3. Call{obj: print!, args: [v]}
-    get args type: `[[Nat; 1]!]`get obj type:
-        search: `Γ print!([Nat; 1]!)`get: `= print!(...Object) => NoneType`
+line 3. Call {obj: print!, args: [v]}
+    get args type: `[[Nat; 1]!]`
+    get obj type:
+        search: `Γ print!([Nat; 1]!)`
+        get: `= print!(...Object) => NoneType`
     expr returns `NoneType`: OK
 
-## 实现类型变量
+## Implementation of type variables
 
-类型变量最初在的<gtr=“43”/>中表示如下。虽然现在以不同的形式实现，但本质上是相同的想法，所以我用更简单的表达方式——这个实现来思考。<gtr=“44”/>是<gtr=“45”/>的包装类型。
-
+Type variables were originally expressed as follows in `Type` of [ty.rs](../../src/common/ty.rs). It's now implemented in a different way, but it's essentially the same idea, so I'll consider this implementation in a more naive way.
+`RcCell<T>` is a wrapper type for `Rc<RefCell<T>>`.
 
 ```rust
 pub enum Type {
@@ -66,150 +74,158 @@ pub enum Type {
 }
 ```
 
-类型变量可以实现在外部字典中具有实体类型，而类型变量本身仅具有该键。然而，使用实现通常更有效（需要验证，<gtr=“48”/>）。
+A type variable can be implemented by keeping the entity type in an external dictionary, and the type variable itself only has its keys. However, it is said that the implementation using `RcCell` is generally more efficient (verification required, [source](https://mobile.twitter.com/bd_gfngfn/status/1296719625086877696?s=21) ).
 
-类型变量首先按进行初始化。此类型变量在代码分析过程中被重写，以确定类型。如果内容始终为 None，则会产生一个类型变量，不能（立即）确定为特定类型。例如，<gtr=“50”/>的<gtr=“51”/>类型。我们将这种状态下的类型变量称为<gtr=“52”/>（确切术语未知）。与此相对，如果指定了某种特定类型，则称为<gtr=“53”/>。
+A type variable is first initialized as `Type::Var(RcCell::new(None))`.
+This type variable is rewritten as the code is analyzed, and the type is determined.
+If the content remains None until the end, it will be a type variable that cannot be determined to a concrete type (on the spot). For example, the type of `x` with `id x = x`.
+I'll call a type variable in this state an __Unbound type variable__ (I don't know the exact terminology). On the other hand, we call a variable that has some concrete type assigned to it a __Linked type variable__.
 
-这两种类型都是自由变量（很明显，我们认为这一术语是根据“自由变量”命名的）。这些是编译器用于推理的类型变量。这是因为它与程序员指定的类型变量不同，例如中的<gtr=“55”/>。
+Both are of the kind free type variables (the term is apparently named after "free variables"). These are type variables that the compiler uses for inference. It has such a special name because it is different from a type variable whose type is specified by the programmer, such as `'T` in `id: 'T -> 'T`.
 
-未绑定变量应表示为和<gtr=“57”/>。在型理论的上下文中使用α和β的情况比较多，但是为了输入的简便化，采用了这个。请注意，这是一种用于一般讨论的符号，实际上并不是使用字符串标识符实现的。
+Unbound type variables are expressed as `?T`, `?U`. In the context of type theory, α and β are often used, but this one is used to simplify input.
+Note that this is a notation adopted for general discussion purposes and is not actually implemented using string identifiers.
 
-当未绑定的变量被置于类型环境中时，它被替换为<gtr=“59”/>。这就是我们所说的<gtr=“61”/>。它类似于程序员指定的类型变量，如<gtr=“60”/>。它的内容只是一个字符串，不像自由变量那样可以链接到特定类型。
+An unbound type variable `Type::Var` is replaced with a `Type::MonoQuantVar` when entering a type environment. This is called a __quantified type variable__. This is akin to the programmer-specified type variables, such as ``T``. The content is just a string, and there is no facility to link to a concrete type like a free-type variable.
 
-将未绑定变量替换为量化变量的操作称为（或泛化）。如果仍然是未绑定的变量，则必须在一次调用中固定类型（例如，在<gtr=“62”/>调用后，<gtr=“63”/>的返回类型变为<gtr=“64”/>），因此必须将其一般化。这样，将在类型环境中注册包含量化变量的广义定义。
+The operation of replacing unbound type variables with quantified type variables is called __generalization__ (or generalization). If you leave it as an unbound type variable, the type will be fixed with a single call (for example, after calling `id True`, the return type of `id 1` will be `Bool`), so It has to be generalized.
+In this way a generalized definition containing quantified type variables is registered in the type environment.
 
-## 一般化、类型方案、具体化
+## generalizations, type schemes, reifications
 
-将未绑定变量一般化的操作表示为<gtr=“67”/>。假设得到的广义变量为<gtr=“68”/>。在类型理论中，量化类型（例如，多相关数类型<gtr=“69”/>）通过在其前面加上<gtr=“70”/>来进行区分（例如，大块等符号称为（全称）量化器）。这种表达式（e.g.<gtr=“71”/>）称为类型方案。Erg 中的类型方案表示为<gtr=“72”/>等。类型方案通常不被视为一级类型。这样配置类型系统可能会导致类型推理无法正常工作。然而，在某些情况下，Erg 被视为主要类型。有关详细信息，请参见<gtr=“73”/>。
+Let's denote the operation of generalizing an unbound type variable `?T` as `gen`. Let the resulting generalized type variable be `|T: Type| T`.
+In type theory, quantified types, such as the polycorrelation type `α->α`, are distinguished by prefixing them with `∀α.` (symbols like ∀ are called (generic) quantifiers. ).
+Such a representation (e.g. `∀α.α->α`) is called a type scheme. A type scheme in Erg is denoted as `|T: Type| T -> T`.
+Type schemes are not usually considered first-class types. Configuring the type system that way can prevent type inference from working. However, in Erg, it can be regarded as a first-class type under certain conditions. See [rank2 type](../syntax/type/advanced/rank2type.md) for details.
 
-现在，当在类型推理中使用得到的类型方案（e.g.）时，必须取消一般化（e.g.<gtr=“75”/>，<gtr=“76”/>）。这种反变换称为<gtr=“78”/>。我们将此操作称为<gtr=“77”/>。
+Now, when using the obtained type scheme (e.g. `'T -> 'T (id's type scheme)`) in type inference where it is used (e.g. `id 1`, `id True`), generalize must be released. This inverse transformation is called __instantiation__. We will call the operation `inst`.
 
-
-```erg
+``` erg
 gen ?T = 'T
 inst 'T = ?T (?T ∉ Γ)
 ```
 
-重要的是，这两个操作都会替换该类型变量出现的所有位置。例如，如果将具体化，则得到<gtr=“80”/>。在实现过程中，需要 Dict 来替换它，但在一般化过程中，只需将<gtr=“81”/>链接到<gtr=“82”/>即可替换它。
+Importantly, both operations replace all occurrences of the type variable. For example, if you instantiate `'T -> 'T`, you get `?T -> ?T`.
+A replacement dict is required for instantiation, but for generalization, just link `?T` with `'T` to replace it.
 
-然后给出参数的类型，得到所需的类型。我们将此操作称为类型赋值（Type substitution），并将其表示为。此外，<gtr=“84”/>表示当表达式是调用时获得返回类型的操作。第一个参数是参数类型列表，第二个参数是目标类型。
+After that, give the type of the argument to get the target type. This operation is called type substitution, and will be denoted by `subst`.
+In addition, the operation that obtains the return type if the expression is a call is denoted as `subst_call_ret`. The first argument is a list of argument types, the second argument is the type to assign to.
 
-类型赋值规则表示将<gtr=“86”/>和<gtr=“87”/>重写为同一类型。此操作称为<gtr=“91”/>。<gtr=“88”/>也可以是类型变量。关于单一化的详细算法，请参见<gtr=“90”/>。单一化操作应表示为<gtr=“89”/>。
+The type substitution rule `{?T --> X}` means to rewrite `?T` and `X` to be of the same type. This operation is called __Unification__. `X` can also be a type variable.
+A detailed unification algorithm is described in [separate section](./unification.md). We will denote the unify operation as `unify`.
 
-
-```erg
+``` erg
 unify(?T, Int) == Ok(()) # ?T == (Int)
 
-# Sは型代入規則、Tは適用する型
+# S is the type assignment rule, T is the applicable type
 subst(S: {?T --> X}, T: ?T -> ?T) == X -> X
-# 型代入規則は{?T --> X, ?U --> T}
+# Type assignment rules are {?T --> X, ?U --> T}
 subst_call_ret([X, Y], (?T, ?U) -> ?U) == Y
 ```
 
-## 半单一化
+## semi-unification
 
-单一化的一个亚种是半单一化（__Semi-unification__）。这是更新类型变量约束以满足子类型关系的操作。在某些情况下，类型变量可以是单一变量，也可以是不单一变量，因此称为“半”单一变量。
+A variant of unification is called semi-unification (__Semi-unification__). This is the operation that updates the type variable constraints to satisfy the subtype relation.
+In some cases, type variables may or may not be unifying, hence the term "semi" unification.
 
-例如，在赋值参数时会发生半单一化。实际参数类型必须是虚拟参数类型的子类型。如果参数的类型是类型变量，则必须更新子类型关系以满足该类型。
+Semi-unification occurs, for example, during argument assignment.
+because the type of the actual argument must be a subtype of the type of the formal argument.
+If the argument type is a type variable, we need to update the subtype relation to satisfy it.
 
-
-```erg
-# 仮引数の型をTとすると
+``` erg
+# If the formal parameter type is T
 f(x: T): T = ...
 
 a: U
-# U <: Tでなくてはならない、さもなければ型エラー
+# must be U <: T, otherwise type error
 f(a)
 ```
 
-## 一般化
+## Generalization
 
-一般化不是一项简单的工作。如果涉及多个范围，就需要对类型变量进行“级别管理”。为了了解等级管理的必要性，首先确认不引入等级管理的类型推理会产生问题。试着推论以下无名函数的类型。
+Generalization is not a simple task. When multiple scopes are involved, "level management" of type variables becomes necessary.
+In order to see the necessity of level management, we first confirm that type inference without level management causes problems.
+Infer the type of the following anonymous function.
 
-
-```erg
+``` erg
 x ->
     y = x
     y
 ```
 
-首先，Erg 分配类型变量，如下所示。y 的类型也是未知的，但现阶段不指定它。
+First, Erg allocates type variables as follows:
+The type of y is also unknown, but is left unassigned for now.
 
-
-```erg
+``` erg
 x(: ?T) ->
     y = x
     y
 ```
 
-首先要确定的是右边值 x 的类型。右边的值是“使用”，因此它是具体化的。但是，x 的类型是一个自由变量，因此已经被具体化。因此，<gtr=“93”/>仍然是右边值的类型。
+The first thing to determine is the type of the rvalue x. An rvalue is a "use", so we reify it.
+But the type `?T` of x is already instantiated because it is a free variable. Yo`?T` becomes the type of the rvalue.
 
-
-```erg
+``` erg
 x(: ?T) ->
     y = x (: inst ?T)
     y
 ```
 
-在注册为类型 y 的左侧值时进行一般化。但是，稍后将会发现，这种一般化是不完整的，结果是错误的。
+Generalize when registering as the type of lvalue y. However, as we will see later, this generalization is imperfect and produces erroneous results.
 
-
-```erg
+``` erg
 x(: ?T) ->
-    y(: gen ?T) = x (: ?T)
+    y(:gen?T) = x(:?T)
     y
 ```
 
-
-```erg
+``` erg
 x(: ?T) ->
     y(: 'T) = x
     y
 ```
 
-y 的类型现在是量化变量。在下一行中，<gtr=“95”/>被立即使用。具体化。
+The type of y is now a quantified type variable `'T`. In the next line, `y` is used immediately. Concrete.
 
-
-```erg
+``` erg
 x: ?T ->
     y(: 'T) = x
     y(: inst 'T)
 ```
 
-需要注意的是，在实现过程中，必须生成与任何已存在的（自由）类型变量不同的（自由）类型变量（一般化也是如此）。这些类型变量称为新鲜类型变量。
+Note that instantiation must create a (free) type variable that is different from any (free) type variables that already exist (generalization is similar). Such type variables are called fresh type variables.
 
-
-```erg
+``` erg
 x: ?T ->
     y = x
     y(: ?U)
 ```
 
-然后看得到的整个公式的类型。。但很明显，这个公式应该是，你会发现推理有问题。之所以会这样，是因为我们没有对类型变量进行“级别管理”。
+And look at the type of the resulting whole expression. `?T -> ?U`.
+But obviously this expression should be `?T -> ?T`, so we know there is a problem with the reasoning.
+This happened because we didn't "level manage" the type variables.
 
-因此，使用以下符号引入类型变量的级别。级别以自然数表示。
+So we introduce the level of type variables with the following notation. Levels are expressed as natural numbers.
 
-
-```erg
-# 通常のType型変数
+``` erg
+# normal type variable
 ?T<1>, ?T<2>, ...
-# 部分型制約を付けられた型変数
-?T<1>(<: U) or ?T(<: U)<1>, ...
+# type variable with subtype constraint
+?T<1>(<:U) or ?T(<:U)<1>, ...
 ```
 
-现在，我再试一次。
+Let's try again.
 
-
-```erg
+``` erg
 x ->
     y = x
     y
 ```
 
-首先，按如下所示赋值级别变量。顶级级别为 1. 范围越深，等级就越高。函数的参数属于内部范围，因此它位于比函数本身大一个级别。
+First, assign a leveled type variable as follows: The toplevel level is 1. As the scope gets deeper, the level increases.
+Function arguments belong to an inner scope, so they are one level higher than the function itself.
 
-
-```erg
+``` erg
 # level 1
 x (: ?T<2>) ->
     # level 2
@@ -217,85 +233,82 @@ x (: ?T<2>) ->
     y
 ```
 
-首先，将右边值具体化。和刚才一样，什么都不会改变。
+First, instantiate the rvalue `x`. Same as before, nothing changed.
 
-
-```erg
+``` erg
 x (: ?T<2>) ->
     y = x (: inst ?T<2>)
     y
 ```
 
-从这里开始就是基莫。这是分配给类型左边值时的一般化。刚才这里的结果很奇怪，所以我们要改变广义算法。如果类型变量的级别小于或等于当前范围的级别，则一般化后将保持不变。
+Here is the key. This is a generalization when assigning to the type of lvalue `y`.
+Earlier, the results were strange here, so we will change the generalization algorithm.
+If the level of the type variable is less than or equal to the level of the current scope, generalization leaves it unchanged.
 
-
-```erg
+``` erg
 gen ?T<n> = if n <= current_level, then= ?T<n>, else= 'T
 ```
 
-
-```erg
+``` erg
 x (: ?T<2>) ->
     # current_level = 2
-    y (: gen ?T<2>)  = x (: ?T<2>)
+    y(: gen ?T<2>) = x(: ?T<2>)
     y
 ```
 
-也就是说，左边值的类型为<gtr=“101”/>。
+That is, the lvalue `y` has type `?T<2>`.
 
-
-```erg
+``` erg
 x (: ?T<2>) ->
-    #    ↓ not generalized
-    y (: ?T<2>)  = x
+    # ↓ not generalized
+    y(: ?T<2>) = x
     y
 ```
 
-y 的类型现在为未绑定变量。在下一行中进行说明。但是，<gtr=“103”/>类型并不通用，因此不会发生任何情况。
+The type of y is now an unbound type variable `?T<2>`. Concrete with the following lines: but the type of `y` is not generalized, so nothing happens.
 
-
-```erg
+``` erg
 x (: ?T<2>) ->
-    y (: ?T<2>) = x
+    y(: ?T<2>) = x
     y (: inst ?T<2>)
 ```
 
-
-```erg
+``` erg
 x (: ?T<2>) ->
     y = x
     y (: ?T<2>)
 ```
 
-成功地得到了正确的类型。
+We successfully got the correct type `?T<2> -> ?T<2>`.
 
-我再看一个例子。这是更常见的情况，函数，运算符应用，前向参照。
+Let's see another example. This is the more general case, with function/operator application and forward references.
 
-
-```erg
-f x, y = id(x) + y
+``` erg
+fx, y = id(x) + y
 id x = x
 
-f 10, 1
+f10,1
 ```
 
-让我们一条一条地看。
+Let's go through it line by line.
 
-在推论中，引用了后面定义的函数常量<gtr=“106”/>。在这种情况下，可以在<gtr=“107”/>之前插入一个声明<gtr=“108”/>，并分配一个自由变量。请注意，此时类型变量的级别为。这是为了避免在其他函数中被一般化。
+During the inference of `f`, the later defined function constant `id` is referenced.
+In such a case, insert a hypothetical declaration of `id` before `f` and assign a free-type variable to it.
+Note that the level of the type variable at this time is `current_level`. This is to avoid generalization within other functions.
 
-
-```erg
+``` erg
 id: ?T<1> -> ?U<1>
 f x (: ?V<2>), y (: ?W<2>) =
     id(x) (: subst_call_ret([inst ?V<2>], inst ?T<1> -> ?U<1>)) + y
 ```
 
-类型变量之间的统一会将较高级别的类型变量替换为较低级别的类型变量。如果级别相同，这两个级别都可以。
+Unification between type variables replaces higher-level type variables with lower-level type variables.
+It doesn't matter which one if the level is the same.
 
-类型变量之间的半单一化，情况稍有不同。对于不同级别的类型变量，不能相互施加类型约束。
+Semiunification between type variables is a little different.
+Type variables at different levels must not impose type constraints on each other.
 
-
-```erg
+``` erg
 # BAD
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2>(<: ?T<1>)
@@ -303,71 +316,64 @@ f x (: ?V<2>), y (: ?W<2>) =
     id(x) (: ?U<1>) + y (: ?W<2>)
 ```
 
-这样，你就无法确定类型变量的具体体现位置。对于 Type 类型变量，请执行常规的单一化，而不是半单一化。也就是说，让他们单一化到低级别。
+This makes it impossible to determine where to instantiate the type variable.
+For Type type variables, normal unification is performed instead of semi-unification.
+In other words, unify to the lower level.
 
-
-```erg
+``` erg
 # OK
 f x (: ?V<2>), y (: ?W<2>) =
     # ?V<2> --> ?T<1>
     id(x) (: ?U<1>) + y (: ?W<2>)
 ```
 
-
-```erg
+``` erg
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L.AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .AddO)
 ```
 
-
-```erg
+``` erg
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2>) -> ?L<2>.AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.AddO)
 ```
 
-
-```erg
+``` erg
 id: ?T<1> -> ?U<1>
 f x (: ?T<1>), y (: ?W<2>) =
-    # ?U<1>(<: Add(?W<2>)) # 继承 ?L 的约束
+    # ?U<1>(<: Add(?W<2>)) # Inherit the constraints of ?L
     # ?L<2> --> ?U<1>
-    # ?R<2> --> ?W<2> (?R(:> ?W), ?W(<: ?R)とはしない)
+    # ?R<2> --> ?W<2> (not ?R(:> ?W), ?W(<: ?R))
     (id(x) + x) (: ?U<1>.AddO)
 ```
 
-
-```erg
+``` erg
 # current_level = 1
 f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.AddO) =
     id(x) + x
 ```
 
-
-```erg
+``` erg
 id: ?T<1> -> ?U<1>
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
-
-```erg
+``` erg
 f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).AddO) =
     id(x) + x
 ```
 
-在定义时进行升级以使其一般化。
+When defining, raise the level so that it can be generalized.
 
-
-```erg
+``` erg
 # ?T<1 -> 2>
 # ?U<1 -> 2>
 id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
 ```
 
-如果已分配返回类型，则将返回类型与返回类型合并（）。
+If the return type has already been assigned, unify with the resulting type (`?U<2> --> ?T<2>`).
 
-
-```erg
+``` erg
 # ?U<2> --> ?T<2>
 f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
     id(x) + x
@@ -375,61 +381,57 @@ f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
 id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
 ```
 
-如果一个类型变量只是一个类型变量，则它所依赖的类型变量也是一个类型变量。一般化类型变量在每个函数中都是独立的。
+If the type variable has been instantiated into a simple Type variable,
+The type variable that depends on it will also be a Type type variable.
+Generalized type variables are independent for each function.
 
-
-```erg
+``` erg
 f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + x
 id(x) (: |'T: Type| 'T -> gen 'T) = x
 ```
 
-
-```erg
+``` erg
 f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
     id(x) + y
 id(x) (: 'T -> 'T) = x
 
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO)
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .AddO)
 ```
 
-
-```erg
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ?T<1>.AddO))
+``` erg
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.AddO))
 ```
 
-类型变量将扩展到其实现的最小类型。
+Type variables are bounded to the smallest type that has an implementation.
 
-
-```erg
+``` erg
 # ?T(:> {10} <: Add(?W<1>))<1>
 # ?W(:> {1})<1>
 # ?W(:> {1})<1> <: ?T<1> (:> {10}, <: Add(?W(:> {1})<1>))
-# 序列化
+# serialize
 # {1} <: ?W<1> or {10} <: ?T<1> <: Add({1}) <: Add(?W<1>)
-# Add(?W)(:> ?V) 的最小实现特征是 Add(Nat) == Nat，因为 Add 相对于第一个参数是协变的
+# The minimal implementation trait for Add(?W)(:> ?V) is Add(Nat) == Nat, since Add is covariant with respect to the first argument
 # {10} <: ?W<1> or {1} <: ?T<1> <: Add(?W<1>) <: Add(Nat) == Nat
-# ?T(:> ?W(:> {10}) or {1}, <: Nat).AddO == Nat # 如果只有一个候选人，则固定评分
+# ?T(:> ?W(:> {10}) or {1}, <: Nat).AddO == Nat # If there is only one candidate, finalize the evaluation
 f(10, 1) (: (?W(:> {10}, <: Nat), ?W(:> {1})) -> Nat)
-# 程序到此结束，所以去掉类型变量
+# This is the end of the program, so remove the type variable
 f(10, 1) (: ({10}, {1}) -> Nat)
 ```
 
-因此，整个程序的类型是这样的。
+The resulting type for the entire program is:
 
-
-```erg
+``` erg
 f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y
 id|T: Type|(x: T): T = x
 
 f(10, 1): Nat
 ```
 
-重新提示原始未显式输入的程序。
+I've also reprinted the original, unexplicitly typed program.
 
-
-```erg
-f x, y = id(x) + y
+``` erg
+fx, y = id(x) + y
 id x = x
 
 f(10, 1)

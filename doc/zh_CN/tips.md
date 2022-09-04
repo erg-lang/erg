@@ -1,11 +1,11 @@
 # Tips
 
-## 我想改变错误的显示语言
+## Want to change the language in which errors are displayed
 
-请下载语言版本的 erg。但是，标准库之外可能不提供多语言支持。
+Please download Erg for your language.
+However, external libraries may not support multiple languages.
 
-## 只想改变记录的特定属性
-
+## Want to change only certain attributes of a record
 
 ```erg
 record: {.name = Str; .age = Nat; .height = CentiMeter}
@@ -13,23 +13,21 @@ record: {.name = Str; .age = Nat; .height = CentiMeter}
 mut_record = {.height = !height; ...rest}
 ```
 
-## 我要阴影变量
+## Want to shadow variables
 
-Erg 不能在同一范围内进行阴影。但是，如果作用域变了，就可以重新定义，所以最好使用即时块。
+Shadowing in the same scope is not possible with Erg. However, you can redefine them if the scope changes (This is a syntax called instance block).
 
-
-```erg
-# T!型オブジェクトを取得し、最終的にT型として変数へ代入
+````erg
+## Get a T!-type object and finally assign it to a variable as type T
 x: T =
     x: T! = foo()
     x.bar!()
     x.freeze()
-```
+````
 
-## 想办法重用 final class（不可继承类）
+## Want to reuse a final class (non-inheritable class) somehow
 
-我们来做个说唱班。这就是所谓的合成模式。
-
+You can create a wrapper class. This is a so-called composition pattern.
 
 ```erg
 FinalWrapper = Class {inner = FinalClass}
@@ -39,10 +37,11 @@ FinalWrapper.
     ...
 ```
 
-## 要使用非字符串枚举类型
+## Want to use an enumerated type that is not a string
 
-你可以定义其他语言中常见的传统枚举类型（代数数据类型），如下所示。当实现时，类和实例是等同的。此外，如果使用<gtr=“13”/>，则可选择的类型将自动定义为重定向属性。
-
+You can define a traditional enumerated type (algebraic data type) commonly found in other languages as follows
+If you implement `Singleton`, classes and instances are identical.
+Also, if you use `Enum`, the type of choice is automatically defined as a redirect attribute.
 
 ```erg
 Ok = Class Impl := Singleton
@@ -53,9 +52,8 @@ stat: Status = Status.cons(ErrWithInfo) {info = "error caused by ..."}
 match! stat:
     Status.Ok -> ...
     Status.Err -> ...
-    Status.ErrWithInfo::{info;} -> ...
+    Status.ErrWithInfo::{info} -> ...
 ```
-
 
 ```erg
 Status = Enum Ok, Err, ErrWithInfo
@@ -67,10 +65,9 @@ Status.
     ErrWithInfo = ErrWithInfo
 ```
 
-## 一开始想要 enumerate
+## I want to enumerate at the beginning of 1
 
 method 1:
-
 
 ```erg
 arr = [...]
@@ -80,23 +77,21 @@ for! arr.iter().enumerate(start: 1), i =>
 
 method 2:
 
-
 ```erg
 arr = [...]
-for! arr.iter().zip(1..), i =>
+for! arr.iter().zip(1...) , i =>
     ...
 ```
 
-## 我想测试我的私有 API（白盒）
+## Want to test a (white box) non-public API
 
-名为的模块可以专门访问<gtr=“15”/>的专用 API。<gtr=“16”/>模块不能导入，因此保持了隐藏性。
-
+The private API in `foo.er` is specially accessible in the module `foo.test.er`.
+The `foo.test.er` module cannot be imported, so it remains hidden.
 
 ```erg
 # foo.er
 private x = ...
 ```
-
 
 ```erg
 # foo.test.er
@@ -109,10 +104,9 @@ foo = import "foo"
     ...
 ```
 
-## 要定义外部只读（可变）属性
+## Want to define a (variable) attribute that is read-only from the outside
 
-最好将属性设为私有，然后定义 getta。
-
+You can make the attribute private and define a getter.
 
 ```erg
 C = Class {v = Int!}
@@ -124,10 +118,9 @@ C.
     ...
 ```
 
-## 要在类型系统上标识参数名称
+## Want the argument names to be identified on the type system
 
-将参数作为记录接收比较好。
-
+You can receive arguments by record.
 
 ```erg
 Point = {x = Int; y = Int}
@@ -137,6 +130,6 @@ norm({x: Int; y: Int}): Int = x**2 + y**2
 assert norm({x = 1; y = 2}) == norm({y = 2; x = 1})
 ```
 
-## 我不想发出警告
+## Want to stop warnings
 
-没有用于阻止 Erg 警告的选项（这是故意的设计）。重写代码。
+There is no option in Erg to stop warnings (this is by design). Please rewrite your code.

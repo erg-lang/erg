@@ -1,11 +1,10 @@
-# 投影类型
+# Projection Type
 
-投影类型表示以下代码中类似于的类型。
-
+A projection type represents a type such as ``Self.AddO`` in the following code.
 
 ```erg
 Add R = Trait {
-    .`_+_` = Self, R -> Self.AddO
+    . `_+_` = Self, R -> Self.AddO
     .AddO = Type
 }
 
@@ -14,8 +13,8 @@ AddForInt.
     AddO = Int
 ```
 
-类型定义了与某个对象的相加。由于方法应该是类型属性，因此<gtr=“5”/>的类型声明必须位于缩进下面。<gtr=“6”/>类型的 misso 是<gtr=“7”/>声明，其投影类型<gtr=“8”/>类型的实体具有属于<gtr=“9”/>的子类型的类型。例如，<gtr=“10”/>，<gtr=“11”/>。
-
+The type ``Add(R)`` can be said to be a type that defines addition with some object. Since the method should be a type attribute, the `+` type declaration should be written below the indentation.
+The mise-en-scène of the `Add` type is the declaration `.AddO = Type`, and the entity of the `.AddO` type, which is a projective type, is held by a type that is a subtype of `Add`. For example, `Int.AddO = Int`, `Odd.AddO = Even`.
 
 ```erg
 assert Int < Add

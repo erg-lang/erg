@@ -1,11 +1,12 @@
-# 声明
+# Declaration
 
-声明是指定要使用的变量类型的语法。可以在代码中的任何地方声明，但不能只声明变量。必须始终初始化。赋值后声明可以检查类型是否与赋值对象匹配。
-
+Declaration is the syntax for specifying the type of variable to be used.
+Declarations can be made anywhere in the code, but declarations alone do not refer to the variables. They must be initialized.
+After the assignment, the declaration can be checked to ensure that the type is compatible with the object to which it is assigned.
 
 ```erg
 i: Int
-# i: Int = 2可以与赋值同时声明
+# Can be declared at the same time as the assignment, like i: Int = 2
 i = 2
 i: Num
 i: Nat
@@ -13,26 +14,24 @@ i: -2..2
 i: {2}
 ```
 
-赋值后声明类似于类型检查，但在编译时进行检查。运行时使用<gtr=“6”/>进行类型检查可以用“可能是 XX”进行检查，但编译时使用<gtr=“7”/>进行类型检查是严格的。如果没有确定是“某某型”，就无法通过检查，就会出现错误。
-
+Declaration after assignment is similar to type checking by `assert`, but has the feature that it is checked at compile time.
+Type checking by `assert` at runtime can be checked for "may be type Foo", but type checking by `:` at compile time is strict: if the type is not determined to be "type Foo", it will not pass the check and an error will occur.
 
 ```erg
-i = (-1..10).sample!()
-assert i in Nat # 这可能会通过
-i: Int # 这通过了
-i: Nat # 这不起作用（因为 -1 不是 Nat 的元素）
+i = (-1..10).sample!
+assert i in Nat # this may pass
+i: Int # this will pass
+i: Nat # this will not pass (-1 is not an element of Nat)
 ```
 
-可以通过两种方式声明函数。
-
+Functions can be declared in 2 different ways.
 
 ```erg
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
-如果显式声明参数名称，则在定义时如果名称不同，将导致类型错误。如果你想给出参数名称的任意性，可以使用第二种方法声明它。在这种情况下，类型检查只显示方法名称及其类型。
-
+If you declare the argument names explicitly, a type error will result if the names are different at definition time. If you want to give the argument names arbitrary names, you can declare them in the second way. In that case, only the method name and its type will be seen by type checking.
 
 ```erg
 T = Trait {

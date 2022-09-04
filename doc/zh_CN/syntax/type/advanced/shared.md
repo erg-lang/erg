@@ -1,7 +1,7 @@
-# 共享引用（Shared Reference）
+# Shared Reference
 
-共享引用是一种必须小心处理的语言功能。例如，在 TypeScript 中，以下代码通过类型检查。
-
+Shared references are one of those language features that must be handled with care.
+In TypeScript, for example, the following code will pass type checking.
 
 ```typescript
 class NormalMember {}
@@ -14,10 +14,12 @@ normal_area.push(new NormalMember())
 console.log(vip_area) # [NormalMember]
 ```
 
-普通会员闯入了贵宾区。这是一个明显的 bug，有什么不对呢？原因是共享引用的。<gtr=“6”/>是通过复制<gtr=“7”/>而创建的，但其类型已发生变化。但是，由于<gtr=“8”/>继承了<gtr=“9”/>，所以<gtr=“10”/>被认为是没有问题的。<gtr=“11”/>关系对于不变对象来说是没有问题的。但是，如果像上面那样进行破坏性操作，就会出现破绽。
+A NormalMember has entered the vip_area. It is an obvious bug, however what went wrong?
+The cause is the shared reference [denatured](./variance.md). The `normal_area` is created by copying the `vip_area`, but in doing so the type has changed.
+But `VIPMember` inherits from `NormalMember`, so `VIPMember[] <: NormalMember[]`, and this is not a problem.
+The relation `VIPMember[] <: NormalMember[]` is fine for immutable objects. However, if you perform a destructive operation like the one above, there will be a breakdown.
 
-在 Erg 中，由于所有权系统，这些代码被弹出。
-
+In Erg, such code is played back due to the ownership system.
 
 ```erg
 NormalMember = Class()
@@ -30,17 +32,17 @@ normal_area.push!(NormalMember.new())
 log vip_area # OwnershipError: `vip_room` was moved to `normal_room`
 ```
 
-但是，在某些情况下，只有一个对象的所有权是不方便的。为此，Erg 的类型为，它表示共享状态。
-
+However, it can be inconvenient for an object to be owned by only one place.
+For this reason, Erg has a type `SharedCell!T!`, which represents a shared state.
 
 ```erg
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
-# $p1 == $p2 比较内容类型 Int!
+# If $p1 == $p2, a comparison of the content type Int!
 assert $p1 == $p2
 assert $p1 == $p3
-# 检查 `.addr!` 以查看 $p1 和 $p2 是否相同
+# Check if $p1 and $p2 point to the same thing with `.addr!`.
 assert $p1.addr!() == $p2.addr!()
 assert $p1.addr!() != $p3.addr!()
 $p1.add! 1
@@ -49,12 +51,11 @@ assert $p2 == 2
 assert $p3 == 1
 ```
 
-类型的对象必须以<gtr=“15”/>开头。此外，由于其性质，它不能是常数。
+Objects of type `SharedCell!` must be prefixed with `$`. Also, by their nature, they cannot be constants.
 
-类型也是<gtr=“17”/>类型的子类型，可以调用<gtr=“18”/>类型的方法。类型特定的方法只有<gtr=“19”/>、<gtr=“20”/>、<gtr=“21”/>和<gtr=“22”/>。
+The `SharedCell! T!` type is also a subtype of `T!` and can call methods of type `T!`. The only methods specific to the `SharedCell!T!` type are `.addr!`, `.mirror!` and `.try_take`.
 
-一个重要的事实是，是非变态的。即，不定义不同类型参数的包含关系。
-
+An important fact is that `SharedCell! T!` is non-variant, i.e., no inclusions are defined for different type arguments.
 
 ```erg
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
@@ -62,8 +63,7 @@ $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError:
 # hint: SharedCell!(T) is non-variant, which means it cannot have a supertype or a subtype.
 ```
 
-但是下面的代码没有问题。在最后一行中，类型转换为参数。
-
+However, the following code have not problem. In the last line, it's the `VIPMember` argument that has been typed converted.
 
 ```erg
 $normal_area = SharedCell!.new([].into [NormalMember; !_])

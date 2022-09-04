@@ -1,7 +1,6 @@
-# 发电机
+# Generator
 
-生成器是在块中使用过程的特殊过程。
-
+Generators are special procedures that use the `yield!` procedure in a block.
 
 ```erg
 g!() =
@@ -10,26 +9,25 @@ g!() =
     yield! 3
 ```
 
-是在子例程块中定义的过程，它调用<gtr=“6”/>。它返回的返回值类似于<gtr=“7”/>，但它保存块在该时刻的执行状态，并在再次调用时继续执行。生成器既是过程又是迭代器。Python 生成器是生成迭代器的函数，而 Erg 直接迭代。过程本身通常不是可变对象（没有<gtr=“8”/>），但生成器是可变的，因为它可以在每次执行时更改其内容。
-
+`yield!` is a procedure defined in a block of subroutines that calls `self!.yield!`. Like `return`, it returns the value passed to it as a return value, but it has the feature of saving the current execution state of the block and executing it from the beginning when it is called again.
+A generator is both a procedure and an iterator; a Python generator is a function that creates an iterator, while Erg iterates directly. Procedures themselves are generally not mutable objects (no `!`), but a generator is a mutable object because its own contents can change with each execution.
 
 ```erg
-# Generator! < Proc
+# Generator!
 g!: Generator!((), Int)
 assert g!() == 1
 assert g!() == 2
 assert g!() == 3
 ```
 
-可以按如下方式定义 Python 样式生成器。
-
+A Python-style generator can be defined as follows.
 
 ```erg
 make_g() = () =>
     yield! 1
     yield! 2
     yield! 3
-make_g: () => Generator!((), Int)
+make_g: () => Generator!
 ```
 
 <p align='center'>

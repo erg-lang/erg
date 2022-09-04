@@ -1,19 +1,17 @@
-# 部分定型
+# Subtyping
 
-在 Erg 中，可以使用比较运算符和<gtr=“8”/>来确定类之间的包含关系。
-
+In Erg, class inclusion can be determined with the comparison operators `<`, `>`.
 
 ```erg
 Nat < Int
 Int < Object
-1.._ < Nat
+1... _ < Nat
 {1, 2} > {1}
 {=} > {x = Int}
 {I: Int | I >= 1} < {I: Int | I >= 0}
 ```
 
-请注意，它与运算符的含义不同。它声明左侧类是右侧类型的子类型，并且仅在编译时有意义。
-
+Note that this has a different meaning than the `<:` operator. It declares that the class on the left-hand side is a subtype of the type on the right-hand side, and is meaningful only at compile-time.
 
 ```erg
 C <: T # T: StructuralType
@@ -22,12 +20,11 @@ f|D <: E| ...
 assert F < G
 ```
 
-对于多相类型的子类型规范，例如，也可以指定<gtr=“11”/>。
+You can also specify `Self <: Add` for a polymorphic subtype specification, for example ``Self(R, O) <: Add(R, O)``.
 
-## 结构类型，类类型关系
+## Structural types and class type relationships
 
-结构类型是用于实现结构定型的类型，如果结构相同，则将其视为相同的对象。
-
+Structural types are types for structural typing and are considered to be the same object if they have the same structure.
 
 ```erg
 T = Structural {i = Int}
@@ -39,8 +36,7 @@ assert t in T
 assert t in U
 ```
 
-相反，类是用于实现记名类型的类型，不能在结构上比较类型和实例。
-
+In contrast, classes are types for notational typing and cannot be compared structurally to types and instances.
 
 ```erg
 C = Class {i = Int}
@@ -52,10 +48,11 @@ assert c in C
 assert not c in D
 ```
 
-## 子程序的局部类型
+## Subtyping of subroutines
 
-子程序的参数和返回值只采用单个类。也就是说，不能将结构型和trait作为函数的类型直接指定。必须使用子类型指定将其指定为“作为该类型子类型的单个类”。
-
+Arguments and return values of subroutines take only a single class.
+In other words, you cannot directly specify a structural type or a trait as the type of a function.
+It must be specified as "a single class that is a subtype of that type" using the partial type specification.
 
 ```erg
 # OK
@@ -63,14 +60,13 @@ f1 x, y: Int = x + y
 # NG
 f2 x, y: Add = x + y
 # OK
-# Aは何らかの具体的なクラス
+# A is some concrete class
 f3<A <: Add> x, y: A = x + y
 ```
 
-子程序的类型推论也遵循这个规则。当子程序中的变量中有未明示类型时，编译器首先检查该变量是否为某个类的实例，如果不是，则从作用域中的trait中寻找适合的变量。即使这样也找不到的话，就成为编译错误。这个错误可以通过使用结构型来消除，但是推论无名型有可能是程序员不想要的结果，所以设计成程序员明确地用来指定。
+Type inference in subroutines also follows this rule. When a variable in a subroutine has an unspecified type, the compiler first checks to see if it is an instance of one of the classes, and if not, looks for a match in the scope of the trait. If it still cannot find one, a compile error occurs. This error can be resolved by using a structural type, but since inferring an anonymous type may have unintended consequences for the programmer, it is designed to be explicitly specified by the programmer with `Structural`.
 
-## 上传类
-
+## Class upcasting
 
 ```erg
 i: Int

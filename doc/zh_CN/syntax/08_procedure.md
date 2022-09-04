@@ -1,7 +1,7 @@
-# 过程
+# Procedures
 
-处理可变对象时需要过程，但如果变量对象是参数，则不一定是过程。
-
+Procedures are necessary when dealing with mutable objects, but having a mutable object as an argument does not necessarily make it a procedure.
+Here is a function takes a mutable object (not procedure).
 
 ```erg
 peek_str s: Str! = log s

@@ -1,85 +1,78 @@
-# 类型的基本语法
+# Basic syntax for types
 
-## 类型指定
+## Type specification
 
-Erg 在之后指定变量类型，如下所示。也可以在赋值的同时进行。
-
+In Erg, the type of a variable can be specified after `:` as follows. This can be done at the same time as an assignment.
 
 ```erg
-i: Int # 声明从现在开始使用的变量 i 为 Int 类型
+i: Int # Declare the variable i to be of type Int
 i: Int = 1
 j = 1 # type specification can be omitted
 ```
 
-也可以为常规表达式指定类型。
-
+You can also specify a type for ordinary expressions.
 
 ```erg
 i = 1: Int
 f([1, "a"]: [Int or Str])
 ```
 
-对于简单变量赋值，大多数类型都是可选的。类型在定义子例程和类型时比简单变量更有用。
-
+For simple variable assignments, most type specifications can be omitted.
+Type specifications are more useful when defining subroutines and types.
 
 ```erg
-# 参数类型说明
+# Type specification for parameters
 f x, y: Array Int = ...
 T X, Y: Array Int = ...
 ```
 
-注意，在上述情况下，都是<gtr=“17”/>。
-
+Note that in the above case, `x, y` are both `Array Int`.
 
 ```erg
-# 大写变量值必须是常量表达式
+# The value of a capital variable must be a constant expression
 f X: Int = X
 ```
 
-或者，如果你不完全需要类型参数信息，则可以使用将其省略。
-
+Alternatively, if you don't need complete information about the type argument, you can omit it with `_`.
 
 ```erg
 g v: [T; _] = ...
 ```
 
-但是，请注意，如果在指定类型的位置指定，则意味着<gtr=“20”/>。
-
+Note, however, `_` at a type specification implies `Object`.
 
 ```erg
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 
-## 子类型指定
+## Subtype specification
 
-除了使用（类型声明运算符）指定类型与表达式之间的关系外，Erg 还使用<gtr=“22”/>（子类型声明运算符）指定类型之间的关系。<gtr=“23”/>的左边只能是类。使用<gtr=“24”/>等比较结构类型。
+In addition to the `:` (type declaration operator), Erg also allows you to specify the relationship between types by using `<:` (partial type declaration operator).
+The left side of `<:` can only specify a class. Use `Subtypeof` or similar operators to compare structural types.
 
-它通常用于子程序或类型定义，而不是简单的变量。
-
+This is also often used when defining subroutines or types, rather than simply specifying variables.
 
 ```erg
-# 部分输入参数
+# Subtype specification of an argument
 f X <: T = ...
 
-# 请求属性子类型（要求 .Iterator 属性是 Iterator 类型的子类型）
+# Subtype specification of the required attribute (.Iterator attribute is required to be a subtype of type Iterator)
 Iterable T = Trait {
-    .Iterator = {Iterator} # == {I | I <: Iterator}
+    .Iterator = {Iterator} # {Iterator} == {I: Type | I <: Iterator}
     .iter = Self.() -> Self.Iterator T
     ...
 }
 ```
 
-还可以在定义类时指定子类型，以静态方式检查类是否为指定类型的子类型。
-
+You can also use a subtype specification when defining a class to statically check whether the class is a subtype of the specified type.
 
 ```erg
-# C 类是 Show 的子类型
-C = Class Object, Impl=Show
-C.show self = ... # Show请求属性
+# Class C is a subtype of Show
+C = Class Object, Impl := Show
+C.show self = ... # Show's required attributes.
 ```
 
-也可以仅在特定情况下指定子类型。
-
+You can also specify a subtype only in specific cases.
 
 ```erg
 K T: Eq
@@ -91,18 +84,17 @@ K(Int).
     show self = ...
 ```
 
-建议在实现结构类型时使用子类型。由于结构部分类型的特性，在实现请求属性时，即使存在错误的拼贴或类型指定，也不会出现错误。
-
+Subtype specification is recommended when implementing structural types.
+This is because, due to the nature of structural subtyping, typo or type specification errors will not cause errors when implementing required attributes.
 
 ```erg
 C = Class Object
-C.shoe self = ... # Show 由于 Typo 没有实现（它只是被认为是一种独特的方法）
+C.shoe self = ... # Show is not implemented due to Typo (it is considered just a unique method).
 ```
 
-## 属性定义
+## Attribute definitions
 
-只能在模块中为托盘和类定义属性。
-
+Attributes can be defined for traits and classes only in modules.
 
 ```erg
 C = Class()
@@ -113,8 +105,7 @@ c = C.new()
 assert c.pub_attr == "this is public"
 ```
 
-在或<gtr=“26”/>后换行并缩进的语法称为批量定义（batch definition）。
-
+The syntax for defining a batch definition is called a batch definition, in which a newline is added after `C.` or `C::` and the definitions are grouped together below the indentation.
 
 ```erg
 C = Class()
@@ -126,16 +117,15 @@ C::priv2 = ...
 C = Class()
 C.
     pub1 = ...
-    pub2 = ...
+    C. pub2 = ...
 C::
     priv1 = ...
     priv2 = ...
 ```
 
-## 锯齿
+## Aliasing
 
-可以为类型指定别名（别名）。这使你可以将长类型（如记录类型）表示为短类型。
-
+Types can be aliased. This allows long types, such as record types, to be shortened.
 
 ```erg
 Id = Int
@@ -144,10 +134,11 @@ IorS = Int or Str
 Vector = Array Int
 ```
 
-此外，在错误显示过程中，编译器应尽可能使用复杂类型（在上面的示例中，不是第一种类型的右边类型）的别名。
+Also, when displaying errors, the compiler will use aliases for composite types (in the above example, right-hand-side types other than the first) if they are defined.
 
-但是，每个模块最多只能有一个别名，如果有多个别名，则会出现 warning。这意味着具有不同目的的类型应重新定义为不同的类型。它还可以防止将别名附加到已有别名的类型。
-
+However, only one alias of the same type is allowed per module, and multiple aliases will result in a warning.
+This means that types with different purposes should be defined as separate types.
+The purpose is also to prevent adding aliases on top of types that already have aliases.
 
 ```erg
 Id = Int
@@ -161,7 +152,7 @@ IorSorB = IorS or Bool
 IorSorB_ = Int or Str or Bool # TypeWarning: duplicate aliases: IorSorB and IorSorB_
 
 Point2D = {x = Int; y = Int}
-Point3D = {...Point2D; z = Int}
+Point3D = {.... Point2D; z = Int}
 Point = {x = Int; y = Int; z = Int} # TypeWarning: duplicate aliases: Point3D and Point
 ```
 

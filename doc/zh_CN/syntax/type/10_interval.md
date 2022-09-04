@@ -1,26 +1,24 @@
 # Interval Type
 
-对象最基本的用法是用作迭代器。
-
+The most basic use of `Range` objects is as iterator.
 
 ```erg
 for! 0..9, i =>
     print! i
 ```
 
-请注意，与 Python 不同，最后一个数字是包含的。
+Note that unlike Python, it includes a end number.
 
-但是，这并不是对象的唯一用途。也可以作为模具使用。这些类型称为“区间类型”（Interval type）。
-
+However, this is not only use for the `Range` objects. It can also be used the type. Such a type is called the Interval type.
 
 ```erg
 i: 0..10 = 2
 ```
 
-类型与<gtr=“8”/>等效，<gtr=“9”/>和<gtr=“10”/>类型与<gtr=“11”/>等效。<gtr=“12”/>也可以写成<gtr=“13”/>。<gtr=“14”/>表示类型<gtr=“15”/>的任何实例。
+The `Nat` type is equivalent to `0..<Inf` and, `Int` and `Ratio` are equivalent to `-Inf<..<Inf`,
+`0..<Inf` can also be written `0.._`. `_` means any instance of `Int` type.
 
-也可以用作迭代器，因此可以按相反的顺序指定，如，但不能反转<gtr=“17”/>，<gtr=“18”/>和<gtr=“19”/>的方向。
-
+Since it is can also be used as iterator, it can be specified in reverse order, such as `10..0`, however `<..`, `..<` and `<..<` cannot be reversed.
 
 ```erg
 a = 0..10 # OK
@@ -31,8 +29,7 @@ e = 10..<0 # Syntax error
 f = 10<..<0 # Syntax error
 ```
 
-范围运算符（range operator）也可以用于非数字类型，只要它们是不变的。
-
+A Range operator can be used for non-numeric types, as long as they are `Ord` immutable types.
 
 ```erg
 Alphabet = "A".."z"

@@ -1,13 +1,13 @@
-# Python 的改进
+# Improvements from Python
 
-## 执行静态分析（静态检查、变量属性检查）
+## Perform static analysis (static type checking, variable and property checking)
 
-虽然静态检查的好处不必再强调了，但检查变量属性的存在也是一个非常有效的部分。
+The benefit of static type checking cannot be emphasized enough now, but checking for the existence of variables and properties is also a part that comes into play quite a bit.
 
-## 严格处理范围
+## Strict scope handling
 
-Python 中的语句没有作用域。因此，在和<gtr=“4”/>中定义的变量会影响外部。我不能随便命名变量。
-
+In Python, statements do not have scopes.
+Therefore, variables defined in a `for` or `if` have outside effects. You cannot name variables casually.
 
 ```python
 for i in range(10):
@@ -16,31 +16,33 @@ for i in range(10):
 print(x) # 1
 ```
 
-在 Erg 中，每一个区块都有一个范围，完全隔离。
+In Erg, all blocks have scope and are completely isolated.
 
-## 可变对象和不变对象区别明显
+## Clear distinction between mutable and immutable objects
 
-Python 的可变对象和不变对象、堆对象和值对象之间的区别并不明显，因此，我们需要记住一些知识，比如元组是不变的，但列表是可变的……另外，当你想让自己的班级保持不变时，你必须遵循繁琐的步骤。
-
+Python is not clear on the distinction between mutable and immutable / heap and value objects, so you have to keep in mind that tuples are immutable but lists are mutable... You need to keep in mind that tuples are immutable, but lists are mutable... and so on.
+Also, if you want to make your own classes immutable, you have to go through a tedious process.
 
 ```python
-# このコードが過去のPythonでは有効だったと信じられますか?
+# Can you believe this code is valid for the past versions of Python?
 i = 256
 assert i is 256
 i = 257
 assert i is not 257
 ```
 
-## trait
+## Traits
 
-就像 Java 的界面一样，它可以进行基于合约的编程。
+Just like Java's interface, you can do contract-based programming.
 
-Python 也有一个抽象基类，但这种结构与静态定型结合在一起可以发挥最大的作用。
+Python also has ABC (Abstract Base Class), but this kind of structure works best with static typing.
 
-## 静态解析依赖关系
+## Resolve dependencies statically
 
-防止长时间运行后模块不足而导致错误等导致的游戏体验。
+This prevents the annoying experience of running a program for a long time and then running it with an error due to missing modules.
 
-## 内置包管理器
+## Built-in package manager
 
-使用标准化的目录结构和构建文件进行可重复的构建。当然，还会生成锁定文件并对其进行版本控制。我们不需要对 anaconda，pyenv，poetry，每个项目进行取舍和组合。
+Reproducible builds with a standardized directory structure and build files.
+Lock file generation and version control are of course provided.
+There is no need to choice or mix anaconda, pyenv, poetry, etc. for each project.

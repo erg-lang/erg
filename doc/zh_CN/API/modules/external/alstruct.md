@@ -1,57 +1,42 @@
-# alstruct
+# alstructuration
+Modules qui fournissent des caractères représentant les structures et les parcelles d'algèbre.
 
-提供表示代数结构的托盘和相应补丁的模块。
-
-* member
+- membres membres membres membres membres
 
 ## binop
+    BinOp Op: Kind 2 = Subsume Op(Self, Self.ReturnTypeOf Op), Additional: {
+        .ReturnTypeof = TraitType -&gt; Type
+    }
+    
+    Nat &lt;: BinOp Add
+    assert Nat. ReturnTypeof(Add) == Nat
+    assert Nat. ReturnTypeof(Sub) == Int
+    assert Nat. ReturnTypeof(Mul) == Nat
+    assert Nat.ReturnTypeof(Div) == Positive Ratio
 
-``` erg
-Kind 2 = Subsume Op(Self, Self. returntypeof Op)， Additional: {
-.ReturnTypeof = TraitType -> Type
-}
+## semi-groupe
+    SemiGroup Op: Kind 2 = Op(Self, Self)
+    
+    IntIsSemiGroupAdd = Patch Int, Impl=SemiGroupAdd
+    
+    Int &lt;: SemiGroup Add
 
-Nat <: BinOp Add
-assert Nat. returntypeof (Add) == Nat
-assert Nat.ReturnTypeof(Sub) == Int
-assert Nat. returntypeof (Mul) == Nat
-assert Nat.ReturnTypeof(Div) == Positive Ratio
-```
+## amateurs
+    ## * Identity law: x.map(id) == x
+    ## * Composition law: x.map(f).map(g) == x.map(f.then g)
+    Functor = Trait {
+        .map|T, U: Type| = (Self(T), T -&gt; U) -&gt; Self U
+    }
 
-## semigroup
+## Application
+    ## * Identity law: x.app(X.pure(id)) == x
+    Applicative = Subsume Functor, Additional: {
+        .pure|T: Type| = T -&gt; Self T
+        .app|T, U: Type| = (Self(T), Self(T -&gt; U)) -&gt; Self U
+    }
 
-``` erg
-SemiGroup Op: Kind 2 = Op(Self, Self)
+## monad monad
+    Monad = Subsume Applicative, Additional: {
+        .bind|T, U: Type| = (Self(T), T -&gt; Self U) -&gt; Self U
+    }
 
-IntIsSemiGroupAdd = Patch Int, Impl=SemiGroup Add
-
-Int <: SemiGroup Add
-```
-
-## functor
-
-``` erg
-## * Identity law: x.map(id) == x
-## * Composition law: x.map(f).map(g) == x.map(f.then g)
-Functor = Trait {
-. map | t, u: type | = (self (t), t - > u) - > self u
-}
-```
-
-## applicative
-
-``` erg
-## * Identity law: x.app(x. pure(id)) == x
-Applicative = Subsume Functor, Additional: {
-t: . pure | type | = t - > self t
-. app | t, u: type | = (self (t), self (t - > u)) - > self u
-}
-```
-
-## monad
-
-``` erg
-Monad = Subsume Applicative, Additional: {
-. bind | t, u: type | = (self (t), t - > self u) - > self u
-}
-```

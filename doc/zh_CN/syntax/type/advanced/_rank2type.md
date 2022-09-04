@@ -1,58 +1,58 @@
-# rank-2 多相
+# rank-2 polymorphism
 
-> ：此文档的信息较旧，通常包含错误。
+> __Warning__: This document is out of date and contains errors in general.
 
-在 Erg 中，像等可以接受各种类型的函数，即可以定义多相关数。那么，能接受多相关数的函数能被定义吗？例如，这样的函数（请注意，此定义包含错误）。
+Erg allows you to define functions that accept various types such as `id|T|(x: T): T = x`, ie polycorrelations.
+So, can we define a function that accepts polycorrelations?
+For example, a function like this (note that this definition is erroneous):
 
-
-```erg
-# tuple_map(i -> i * 2, (1, "a")) == (2, "aa")我要你成为
+``` erg
+# I want tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 tuple_map|T|(f: T -> T, tup: (Int, Str)): (Int, Str) = (f(tup.0), f(tup.1))
 ```
 
-请注意，由于和的类型不同，因此无名函数并不是单相化一次就结束的。需要进行两次单相化。在至今为止说明的型的范畴中，无法对这样的函数进行定义。因为型变量中没有范围的概念。在此暂时离开类型，确认值水平上的范围概念。
+Note that `1` and `"a"` have different types, so the anonymous function is not monomorphic once. Needs to be single-phased twice.
+Such a function cannot be defined within the scope of the types we have discussed so far. This is because type variables have no notion of scope.
+Let's leave the types for a moment and see the concept of scope at the value level.
 
-
-```erg
+``` erg
 arr = [1, 2, 3]
 arr.map i -> i + 1
 ```
 
-上述代码中的和<gtr=“18”/>是不同作用域的变量。因此，它们的生存期是不同的（<gtr=“19”/>更短）。
+`arr` and `i` in the code above are variables in different scopes. Therefore, each life span is different (`i` is shorter).
 
-到目前为止的类型，所有的类型变量的生存期都是相同的。也就是说，，<gtr=“21”/>，<gtr=“22”/>同时被确定，以后必须不变。反过来说，如果可以将<gtr=“23”/>看作“内侧范围”中的类型变量，则可以构成<gtr=“24”/>函数。为此准备了<gtr=“25”/>。
+The types so far have the same lifetime for all type variables. In other words, `T`, `X`, and `Y` must be determined at the same time and remain unchanged thereafter.
+Conversely, if we can think of `T` as a type variable in the "inner scope", we can compose a `tuple_map` function. __Rank 2 type__ was prepared for that purpose.
 
-
-```erg
+``` erg
 # tuple_map: ((|T: Type| T -> T), (Int, Str)) -> (Int, Str)
 tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 ```
 
-形式的类型称为全称类型（详细情况请参照<gtr=“28”/>）。至今所见的函数是典型的全称函数 = 多相关数。
+A type of the form `{(type) | (list of type variables)}` is called a universal type (see [Universal type](./../quantified.md) for details).
+The `id` function we have seen so far is a typical universal function = polycorrelation function.
 
-
-```erg
+``` erg
 id x = x
 id: |T: Type| T -> T
 ```
 
-全称型与函数型构建子之间具有特殊的结合规则，根据结合方法的不同，类型的意义完全不同。
+A universal type has special rules for association with the function type constructor `->`, and the semantics of the type are completely different depending on the way of association.
 
-对此，使用单纯的 1 自变量函数进行考虑。
+Think about this in terms of simple one-argument functions.
 
-
-```erg
-f1: (T -> T) -> Int | T # 接受任何函数并返回 Int 的函数
-f2: (|T: Type| T -> T) -> Int # 接收多相关并返回 Int 的函数
-f3: Int -> (|T: Type| T -> T) # 一个函数，接受一个 Int 并返回一个封闭的通用函数
-f4: |T: Type|(Int -> (T -> T)) # 同上（首选）
+``` erg
+f1: (T -> T) -> Int | T # a function that takes any function and returns an Int
+f2: (|T: Type| T -> T) -> Int # Function that receives polycorrelation and returns Int
+f3: Int -> (|T: Type| T -> T) # A function that takes an Int and returns a closed universal function
+f4: |T: Type|(Int -> (T -> T)) # Same as above (preferred)
 ```
 
-和<gtr=“31”/>相同，而<gtr=“32”/>和<gtr=“33”/>却不同，这似乎很奇怪。实际上试着构成这种类型的函数。
+It seems strange that `f1` and `f2` are different, while `f3` and `f4` are the same. Let's actually construct a function of such a type.
 
-
-```erg
+``` erg
 # id: |T: Type| T -> T
 id x = x
 # same type as `f1`
@@ -65,12 +65,11 @@ take_i_and_return_univq_f(_: Int): (|T: Type| T -> T) = id
 take_i_and_return_arbit_f|T: Type|(_: Int): (T -> T) = id
 ```
 
-应用之后，就会发现其中的差异。
+After applying it, you will notice the difference.
 
-
-```erg
+``` erg
 _ = take_univq_f_and_return_i(x -> x, 1) # OK
-_ = take_univq_f_and_return_i(x: Int -> x, 1) # NG
+_ = take_univq_f_and_return_i(x: Int -> x, 1) #NG
 _ = take_univq_f_and_return_i(x: Str -> x, 1) # NG
 _ = take_arbit_f_and_return_i(x -> x, 1) # OK
 _ = take_arbit_f_and_return_i(x: Int -> x, 1) # OK
@@ -84,59 +83,60 @@ g2: Int -> Int = take_i_and_return_arbit_f|Int|(1)
 assert f2 == g2
 ```
 
-开放的多相关数型特别称为。任意函数类型有无限个可能性，如，<gtr=“35”/>，<gtr=“36”/>，<gtr=“37”/>，...等。与此相对，关闭的多相关数类型（返回与参数类型相同的对象）只有<gtr=“38”/>一种。这种类型特别称为。换句话说，可以向<gtr=“39”/>传递<gtr=“40”/>、<gtr=“41”/>、<gtr=“42”/>等的 =<gtr=“43”/>是多相关数，但是可以向<gtr=“44”/>传递的只有<gtr=“45”/>等 =<gtr=“46”/>是多相关数<gtr=“50”/>。但是，像<gtr=“47”/>这样的函数的类型明显与通常的类型不同，需要能够很好地处理这些的新概念。这就是套路的“档次”。
+An open polycorrelation function type is specifically called an __arbitrary function type__. Arbitrary function types have an infinite number of possibilities: `Int -> Int`, `Str -> Str`, `Bool -> Bool`, `|T: Type| T -> T`, ... be.
+On the other hand, there is only one closed (returning an object of the same type as the argument) polymorphic type `|T: Type| T -> T`. Such types are specifically called __polymorphic function types__.
+In other words, `f1` can be passed `x: Int -> x+1`, `x: Bool -> not x`, `x -> x`, etc. = `f1` is a polycorrelated number Yes, but you can only pass `x -> x` etc. to `f2` = `f2` is not __a polycorrelation__.
+But the types of functions like `f2` are clearly different from normal types, and we need new concepts to handle them well. That is the "rank" of the type.
 
-关于等级的定义，首先，未量化的类型，即，<gtr=“52”/>，<gtr=“53”/>，<gtr=“54”/>，<gtr=“55”/>，<gtr=“56”/>等被认为是“等级 0”。
+Regarding the definition of rank, types that are not quantified, such as `Int`, `Str`, `Bool`, `T`, `Int -> Int`, `Option Int`, etc., are treated as "rank 0".
 
-
-```erg
-# KはOptionなどの多項カインド
+``` erg
+# K is a polynomial kind such as Option
 R0 = (Int or Str or Bool or ...) or (R0 -> R0) or K(R0)
 ```
 
-其次，将等进行一阶全称量化的类型，或者将其包含在返回值类型中的类型作为“等级 1”。此外，将进行二阶全称量化的类型（以等等级 1 类型为自变量的类型），或将其包含在返回值类型中的类型设为“等级 2”。重复上述操作，定义“秩 N”型。另外，等级 N 型包含 N 以下等级的所有类型。因此，多个等级混合的类型的等级与其中最高的等级相同。
+Next, types with first-order universal quantification, such as `|T| T -> T`, or types that include them in the return value type are “rank 1”.
+In addition, types with second-order universal quantification (types that have rank 1 types as arguments such as `(|T| T -> T) -> Int`) or types that include them in the return type are called "rank 2 ”.
+The above is repeated to define the “Rank N” type. Also, the rank-N types include all types with a rank of N or less. Therefore, a type with mixed ranks has the same rank as the highest among them.
 
-
-```erg
+``` erg
 R1 = (|...| R0) or (R0 -> R1) or K(R1) or R0
 R2 = (|...| R1) or (R1 -> R2) or K(R2) or R1
 ...
 Rn = (|...| Rn-1) or (Rn-1 -> Rn) or K(Rn) or Rn-1
 ```
 
-让我们来看几个例子。
+Let's look at some examples.
 
-
-```erg
+``` erg
     (|T: Type| T -> T) -> (|U: Type| U -> U)
-=>  R1 -> R1
-=>  R1 -> R2
-=>  R2
+=> R1 -> R1
+=> R1 -> R2
+=> R2
 
 Option(|T: Type| T -> T)
-=>  Option(R1)
-=>  K(R1)
-=>  R1
+=> Option(R1)
+=> K(R1)
+=> R1
 ```
 
-根据定义，是等级 2 型。
+By definition, `tuple_map` is a rank-2 type.
 
-
-```erg
+``` erg
 tuple_map:
     ((|T: Type| T -> T), (Int, Str)) -> (Int, Str)
-=>  (R1, R0) -> R0
-=>  R1 -> R2
-=>  R2
+=> (R1, R0) -> R0
+=> R1 -> R2
+=> R2
 ```
 
-在 Erg 中，可以处理到等级 2 为止的类型（等级 N 型包含 N 以下等级的所有类型，因此正确地说 Erg 的类型都是等级 2 型）。如果试图配置更多类型的函数，则会出现错误。例如，将多相关数作为多相关数处理的函数都需要指定其他自变量的类型。另外，不能构成这样的函数。
+Erg can handle types up to rank 2 (because rank N types include all types with rank N or less, to be exact, all Erg types are rank 2 types). Attempting to construct a function of more types is an error.
+For example, all functions that handle polycorrelations as they are require specification of other argument types. Also, such a function is not configurable.
 
-
-```erg
+``` erg
 # this is a rank-3 type function
 # |X, Y: Type|((|T: Type| T -> T), (X, Y)) -> (X, Y)
 generic_tuple_map|X, Y: Type| f: (|T: Type| T -> T), tup: (X, Y) = (f(tup.0), f(tup.1))
 ```
 
-等级 3 以上的类型在理论上不能决定类型推论的事实已知，类型指定破坏了可以省略的 Erg 的性质，因此被排除。尽管如此，实用需求 2 级基本可以覆盖。
+It is known that types with rank 3 or higher are theoretically undecidable by type inference. However, most practical needs can be covered by the rank 2 type.

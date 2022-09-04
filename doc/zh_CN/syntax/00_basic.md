@@ -1,21 +1,23 @@
-# 基本信息
+# Basics
 
-> ：此文档尚未完成。未进行校样（文体、正确链接等）。此外，Erg 的语法在 0.* 版本之间可能会有颠覆性的改变，随之而来的文档更新可能跟不上。请事先谅解。
-> 此外，如果你发现本文档中的错误，请从或<gtr=“11”/>提出更正建议。
+> __Warning__: This document is incomplete. It has not been proofread (style, correct links, mistranslation, etc.). Also, Erg's syntax may be change destructively during version 0.*, and the documentation may not have been updated accordingly. Please be aware of this beforehand.
+> If you find any errors in this document, please report then to [here form](https://forms.gle/HtLYRfYzWCAaeTGb6) or [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new). We would appreciate your suggestions.
+>
+> [The Erg book original version (Japanese)](http://mtshiba.me/TheErgBook/)
 
-本文档介绍了 Erg 的基本语法。和<gtr=“13”/>位于不同的目录中。
+This document describes the basic syntax of Erg. The [Standard API](./API/index.md) and [internal documents for Erg contributors](./dev_guide/index.md) are located in another directory.
 
-## Hello, World!
+## Hello, World&excl;
 
-首先按照惯例举办 Hello World 活动吧。
-
+First, let's do "Hello World".
 
 ```erg
 print!("Hello, World!")
 ```
 
-跟 Python 和同系语言差不多。引人注目的是后面的<gtr=“15”/>，我会慢慢解释它的含义。此外，在 Erg 中，如果解释不准确，可以省略括号<gtr=“16”/>。与 Ruby 类似，它可以省略括号，但它不能具有多个解释，也不能在参数为 0 时省略<gtr=“17”/>，就像 Python 一样。
-
+This is almost identical to Python and other languages in the same family. The most striking feature is the `!`, the meaning of which will be explained later.
+In Erg, parentheses `()` can be omitted unless there is some confusion in interpretation.
+The omission of parentheses is similar to Ruby, but it is not possible to omit parentheses that can be interpreted in more than one way.
 
 ```erg
 print! "Hello, World!" # OK
@@ -27,43 +29,71 @@ print! f x # OK, interpreted as `print!(f(x))`
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
+print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))` print!
 print!(f x, y) # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
 print! f(x, g y, z) # NG, can be taken to mean either `print!(x, g(y), z)` or `print!(x, g(y, z))`
 ```
 
-## 脚本
+## Scripts
 
-Erg 代码称为脚本。可以以文件格式（.er）保存和运行脚本。
+Erg code is called a script. Scripts can be saved and executed in file format (.er).
 
-## 注释
+## REPL/File Execution
 
-及更高版本将作为注释忽略。当你想要解释代码的意图，或者想要暂时禁用代码时，可以使用此选项。
+To start REPL, simply type:
 
+```sh
+> erg
+```
+
+`>` mark is a prompt, just type `erg`.
+Then the REPL should start.
+
+```sh
+> erg
+Starting the REPL server...
+Connecting to the REPL server...
+Erg interpreter 0.2.4 (tags/?:, 2022/08/17  0:55:12.95) on x86_64/windows
+>>>
+```
+
+Or you can compile from a file.
+
+```sh
+> 'print! "hello, world!"' >> hello.er
+
+> erg hello.er
+hello, world!
+```
+
+## Comments
+
+The code after `#` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
 
 ```erg
-# コメント
-## `#`以降は改行されるまで無視されるので、`#`は何個あってもOK
+# Comment
+# `#` and after are ignored until a new line is inserted
 #[
-複数行コメント
-対応する`]#`のところまでずっとコメントとして扱われます
+Multi-line comment
+Treated as a comment all the way up to the corresponding `]#`
 ]#
 ```
 
-## 表达式，分隔符
+## Expressions, separators
 
-脚本是一系列表达式（expression）。表达式是一个可以计算和评估的东西，在 Erg 中几乎所有的东西都是表达式。使用分隔符-换行符或分号-分隔每个表达式。Erg 脚本基本上是从左到右、从上到下进行评估的。
-
+A script is a series of expressions. An expression is something that can be calculated or evaluated, and in Erg almost everything is an expression.
+Each expression is separated by a separator - either a new line or a semicolon `;`-.
+Erg scripts are basically evaluated from left to right, top to bottom.
 
 ```erg
-n = 1 # 代入式
-f(1, 2) # 関数適用式
-1 + 1 # 演算子適用式
+n = 1 # assignment expression
+f(1, 2) # function-call expression
+1 + 1 # operator-call expression
 f(1, 2); 1 + 1
 ```
 
-有一个称为即时块的功能，它使用块中最后计算的表达式作为变量的值，如下所示。这与无参数函数不同，它不使用。请注意，方块只在现场评估一次。
-
+As shown below, there is a syntax called instant block that takes the last expression evaluated in the block as the value of the variable.
+This differs from a function with no arguments, which does not add `()`. Note that instant blocks are evaluated only once on the fly.
 
 ```erg
 i =
@@ -72,24 +102,22 @@ i =
 assert i == 2
 ```
 
-这不能通过分号（）来实现。
-
+This cannot be accomplished with a semicolon (`;`).
 
 ```erg
 i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
 ```
 
-## 缩进
+## Indentation
 
-Erg 使用与 Python 相同的缩进来表示块。触发块开始的运算符（特殊格式）有五种：，<gtr=“23”/>，<gtr=“24”/>，<gtr=“25”/>和<gtr=“26”/>（其他运算符不是，但<gtr=“27”/>和<gtr=“28”/>也会生成缩进）。它们各自的含义将在后面介绍。
-
+Erg, like Python, uses indentation to represent blocks. There are five operators (special forms) that trigger the start of a block: `=`, `->`, `=>`, `do`, and `do!` (In addition, `:` and `|`, although not operators, also produce indentation). The meanings of each are described later.
 
 ```erg
 f x, y =
     x + y
 
 for! 0..9, i =>
-    print! i
+    print!
 
 for! 0..9, i =>
     print! i; print! i
@@ -101,8 +129,7 @@ ans = match x:
     _ -> "unknown"
 ```
 
-如果一行太长，可以使用在中间换行。
-
+If a line is too long, it can be broken using `\`.
 
 ```erg
 # this does not means `x + y + z` but means `x; +y; +z`

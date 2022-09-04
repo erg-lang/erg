@@ -1,18 +1,16 @@
-# 集
+# Set
 
-集代表一个集合，在数据结构上是重复的、没有顺序的数组。
+A set represents a collection, which is structurally a duplicate, unordered array.
 
-
-```erg
+``` erg
 assert Set.from([1, 2, 3, 2, 1]) == {1, 2, 3}
-assert {1, 2} == {1, 1, 2} # 重複は自動で削除される
+assert {1, 2} == {1, 1, 2} # duplicates are automatically removed
 assert {1, 2} == {2, 1}
 ```
 
-集合可以进行集合运算。
+Sets can perform set operations.
 
-
-```erg
+``` erg
 assert 1 in {1, 2, 3}
 assert not 1 in {}
 assert {1} or {2} == {1, 2}
@@ -20,27 +18,25 @@ assert {1, 2} and {2, 3} == {2}
 assert {1, 2} not {2} == {1}
 ```
 
-布景是一个等质的收藏。要使不同类中的对象共存，必须使它们相等。
+A set is a homogeneous collection. In order for objects of different classes to coexist, they must be homogenized.
 
-
-```erg
+``` erg
 s: {Int or Str} = {"a", 1, "b", -1}
 ```
 
-## 设置为类型
+## Sets as types
 
-套也可以当作一种类型。这些类型称为。
+Sets can also be treated as types. Such types are called __Enum types__.
 
-
-```erg
+``` erg
 i: {1, 2, 3} = 1
 assert i in {1, 2, 3}
 ```
 
-集的元素将变为类型元素。需要注意的是，布景本身是不一样的。
+Elements of the set are directly elements of the type.
+Note that the sets themselves are different.
 
-
-```erg
+``` erg
 mut_set = {1, 2, 3}.into {Int; !3}
 mut_set.insert!(4)
 ```

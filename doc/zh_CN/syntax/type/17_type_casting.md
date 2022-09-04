@@ -1,11 +1,12 @@
-# cast
+# Cast
 
-## 上投
+## Upcasting
 
-Python 没有 cast 的概念，因为它采用烤鸭打字的语言。不需要上播，基本上也没有下播。但是，由于 Erg 是静态输入的，因此可能需要强制转换。一个简单的例子是。Erg 的语言规范没有定义<gtr=“6”/>（Int，Ratio），即 Int（ <：Add（Ratio，Ratio））的运算。这是因为<gtr=“7”/>将 1 上传到 Ratio 的实例 1.0。
+Because Python is a language that uses duck typing, there is no concept of casting. There is no need to upcast, and there is essentially no downcasting.
+However, Erg is statically typed, so there are times when casting must be done.
+A simple example is `1 + 2.0`: the `+`(Int, Ratio), or Int(<: Add(Ratio, Ratio)) operation is not defined in the Erg language specification. This is because `Int <: Ratio`, so 1 is upcast to 1.0, an instance of Ratio.
 
-~~Erg 扩展字节码将类型信息添加到 BINARY_ADD 中，其中类型信息为 Ratio-Ratio。在这种情况下，BINARY_ADD 指令将转换 Int，因此不会插入指定转换的特殊指令。因此，例如，如果在子类中覆盖了某个方法，但将父项指定为类型，则会强制类型（type coercion）并在父项方法中执行（在编译时进行名称限定以引用父项方法）。编译器只执行强制类型验证和名称限定。运行时不会强制转换对象（当前）。可能会实现强制转换指令以进行执行优化。~~
-
+~~The Erg extended bytecode adds type information to BINARY_ADD, in which case the type information is Ratio-Ratio. In this case, the BINARY_ADD instruction does the casting of Int, so no special instruction specifying the cast is inserted. So, for example, even if you override a method in a child class, if you specify the parent as the type, type coercion is performed and the method is executed in the parent's method (name modification is performed at compile time to refer to the parent's method). The compiler only performs type coercion validation and name modification. The runtime does not cast objects (currently. Cast instructions may be implemented for execution optimization). ~~
 
 ```erg
 @Inheritable
@@ -15,7 +16,7 @@ Parent.
 
 Child = Inherit Parent
 Child.
-    # オーバーライドする際にはOverrideデコレータが必要
+    # Override requires Override decorator
     @Override
     greet!() = print! "Hello from Child"
 
@@ -24,12 +25,11 @@ greet! p: Parent = p.greet!()
 parent = Parent.new()
 child = Child.new()
 
-greet! parent # "Hello from Parent"
-greet! child # "Hello from Parent"
+parent # "Hello from Parent" greet!
+child # "Hello from Parent"
 ```
 
-此行为不会导致与 Python 的不兼容。Python 最初不为变量指定类型，因此所有变量都以类型变量输入。由于类型变量选择最小匹配类型，因此如果 Erg 不指定类型，则会实现与 Python 相同的行为。
-
+This behavior does not create an incompatibility with Python. In the first place, Python does not specify the type of a variable, so that all variables are typed as type variables, so to speak. Since type variables choose the smallest type they can fit, the same behavior as in Python is achieved if you do not specify a type in Erg.
 
 ```erg
 @Inheritable
@@ -39,19 +39,18 @@ Parent.
 
 Child = Inherit Parent
 Child.
-    greet!() = print! "Hello from Child"
+    greet!() = print! "Hello from Child" Child.
 
 greet! some = some.greet!()
 
 parent = Parent.new()
 child = Child.new()
 
-greet! parent # "Hello from Parent"
-greet! child # "Hello from Child"
+parent # "Hello from Parent" greet!
+child # "Hello from Child"
 ```
 
-对于具有继承关系的类型，和<gtr=“9”/>是自动实现的，你也可以使用它们。
-
+You can also use `.from` and `.into`, which are automatically implemented for types that are inherited from each other.
 
 ```erg
 assert 1 == 1.0
@@ -59,10 +58,9 @@ assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
 ```
 
-## 下铸
+## Downcasting
 
-降播通常是不安全的，转换方式也不是显而易见的，而是通过实现来实现。
-
+Since downcasting is generally unsafe and the conversion method is non-trivial, we instead implement ``TryFrom.try_from``.
 
 ```erg
 IntTryFromFloat = Patch Int
@@ -70,5 +68,5 @@ IntTryFromFloat.
     try_from r: Float =
         if r.ceil() == r:
             then: r.ceil()
-            else: Error "conversion failed"
+            else: Error "conversion failed".
 ```

@@ -1,23 +1,23 @@
-# Rust 代码准则
+# Guidelines for Rust code
 
-## 本地规则
+## local rules
 
-* 用于调试的输出使用（释放时所需的输出处理也使用<gtr=“2”/>等）。
-* 未使用或内部（专用和仅用于特定功能）的变量方法以一个开头。如果想避免与保留字的冲突，则在后面加上一个。
+* Use `log!` for output for debugging (use `println!` etc. for output processing that is also necessary for release).
+* Unused or internal variables/methods (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
 
-## 鼓励代码
+## Recommended code
 
-* 定义并使用特定于域的 Enum，而不是数字枚举和 bool。
-* 存取修饰符为必要的最小限度。即使公开时也优先使用和<gtr=“6”/>。
-* for 表达式中的 iterable 对象显式转换为迭代器（，而不是<gtr=“7”/>）。
-* 延迟评估。例如，当不是文字时，使用<gtr=“11”/>而不是<gtr=“10”/>。
+* Define and use domain-specific Enums instead of numeric enumerations or bools.
+* Keep access modifiers to a minimum. Prioritize using `pub(mod)` or `pub(crate)` even when publishing.
+* Convert an iterable object in a for expression explicitly to an iterator (`for i in x.iter()` instead of `for i in x`).
+* Lazy evaluation. For example, if `default` is non-literal, use `unwrap_or_else` instead of `unwrap_or`.
 
-## 不鼓励的代码
+## Code not encouraged
 
-* 经常使用 return type overloading。具体来说，经常使用不明确的的代码。这是因为型推论结果有时违反直觉。在这种情况下，建议使用<gtr=“13”/>代替。
-* 经常使用。这实质上引起了与继承相同的问题。
+* Make heavy use of return type overloading. Specifically code that uses a lot of non-obvious `.into`. This is because type inference results can be counter-intuitive. In this case it is recommended to use `from` instead.
+* Make heavy use of `Deref`. This effectively poses the same problem as inheritance.
 
-## 根据上下文判断不同的代码
+## Code that makes decisions based on context
 
-* 定义未使用的 helper 方法。
-* 经常使用，<gtr=“16”/>。在某些情况下，有些人别无选择，只能这样做。
+* Define unused helper methods.
+* Use `unwrap` and `clone` a lot. In some cases there is nothing better than doing so.

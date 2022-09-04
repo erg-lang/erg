@@ -1,98 +1,91 @@
-# 匿名函数（anonymous function）
+# anonymous function
 
-匿名函数是一种语法，用于在不命名的情况下生成函数对象。
+Anonymous functions are a syntax for creating function objects on the fly without naming them.
 
-
-```erg
-# `->`は無名関数演算子
+``` erg
+# `->` is an anonymous function operator
 # same as `f x, y = x + y`
 f = (x, y) -> x + y
 # same as `g(x, y: Int): Int = x + y`
 g = (x, y: Int): Int -> x + y
 ```
 
-如果只有一个参数，则可以省略。
+You can omit the `()` if there is only one argument.
 
-
-```erg
+``` erg
 assert [1, 2, 3].map_collect(i -> i + 1) == [2, 3, 4]
 assert ((i, j) -> [i, j])(1, 2) == [1, 2]
 ```
 
-在下面的情况下，它是，而不是<gtr=“12”/>。<gtr=“13”/>在左边只有一个参数。将多个参数视为单个元组。
+In the case below it is `0..9, (i -> ...)` and not `(0..9, i) -> ...`.
+`->` takes only one argument on the left side. Multiple arguments are received as a single tuple.
 
-
-```erg
+``` erg
 for 0..9, i: Int ->
     ...
 ```
 
-在未命名函数中，由于空格而存在语法差异。
+In anonymous functions, there is a difference in parsing due to whitespace.
 
-
-```erg
-# この場合は`T(() -> Int)`と解釈される
-i: T () -> Int
-# この場合は(U()) -> Intと解釈される
+``` erg
+# In this case, interpreted as `T(() -> Int)`
+i: T() -> Int
+# in this case it is interpreted as (U()) -> Int
 k: U() -> Int
 ```
 
-不带参数也可以使用匿名函数。
+Anonymous functions can be used without arguments.
 
-
-```erg
-# `=>`は無名プロシージャ演算子
+``` erg
+# `=>` is an anonymous procedure operator
 p! = () => print! "`p!` was called"
-# `() ->`, `() =>`には`do`, `do!`という糖衣構文がある
+# `() ->`, `() =>` have syntax sugar `do`, `do!`
 # p! = do! print! "`p!` was called"
 p!() # `p!` was called
 ```
 
-无参数函数可用于延迟初始化。
+No-argument functions can be used for lazy initialization.
 
-
-```erg
+``` erg
 time = import "time"
 date = import "datetime"
 now = if! True:
     do!:
-        time.sleep! 1000
+        time. sleep! 1000
         date.now!()
     do date.new("1970", "1", "1", "00", "00")
 ```
 
-还可以进行打字和模式匹配。因此，函数几乎是通过无名函数的力量来实现的。函数参数中的无名函数将从上到下依次尝试。所以，上面的需要描述特殊情况，越往下越需要描述一般情况。如果顺序错误（尽可能），编译器将发出警告。
+You can also type and pattern match. Because of this, the `match` function is mostly implemented with the power of anonymous functions.
+Anonymous functions given as arguments to the `match` function are tried in order from the top. So, you should describe the special cases at the top and the more general cases at the bottom. If you get the order wrong, the compiler will issue a warning (if possible).
 
-
-```erg
+``` erg
 n = (Complex or Ratio or Int).sample!()
-i = match n:
-    PI -> PI # 定数PIに等しい場合
-    (i: 1..10) -> i # 1~10のIntの場合
-    (i: Int) -> i # Intの場合
-    (c: Complex) -> c.real() # Complexの場合。Int < Complexだが、フォールバックできる
-    _ -> panic "cannot convert to Int" # 以上のいずれにも該当しない場合。matchは全パターンを網羅していなくてはならない
+i = matchn:
+    PI -> PI # if equal to constant PI
+    For (i: 1..10) -> i # Int from 1 to 10
+    (i: Int) -> i # Int
+    (c: Complex) -> c.real() # For Complex. Int < Complex, but can fallback
+    _ -> panic "cannot convert to Int" # If none of the above apply. match must cover all patterns
 ```
 
-错误处理也通常使用或<gtr=“17”/>。
+Error handling is also generally done using `?` or `match`.
 
-
-```erg
+``` erg
 res: ParseResult Int
-match res:
+matchres:
     i: Int -> i
     err: Error -> panic err.msg
 
 res2: Result Int, Error
 match res2:
-    ok: Not Error -> log Typeof ok
+    ok: Not Error -> log Type of ok
     err: Error -> panic err.msg
 ```
 
-## 无名多相关数
+## Anonymous polycorrelation coefficient
 
-
-```erg
+``` erg
 # same as id|T| x: T = x
 id = |T| x: T -> x
 ```

@@ -1,27 +1,33 @@
-# 解决修补程序方法
+# Resolving patch methods
 
-是大于 0 的<gtr=“9”/>，即<gtr=“10”/>的子类型。本来不存在于 Python 的类阶层中。Erg 如何解决这个补丁的方法呢？
+`Nat` is zero or more `Int`, a subtype of `Int`.
+`Nat` does not exist in the Python class hierarchy. I wonder how Erg solves this patch method?
 
-
-```erg
+``` erg
 1.times do:
-    log "hello, world"
+    log "hello world"
 ```
 
-是<gtr=“13”/>的补丁方法。由于<gtr=“14”/>是<gtr=“15”/>的实例，所以首先要沿着<gtr=“16”/>的 MRO（方法解析顺序）进行搜索。Erg 在<gtr=“17”/>的 MRO 中有<gtr=“18”/>，<gtr=“19”/>。它来自 Python（在 Python 中<gtr=“20”/>）。<gtr=“21”/>方法在这两个方法中都不存在。从这里开始，进入该子类型的探索。
+`.times` is a `NatImpl` patch method.
+Since `1` is an instance of `Int`, it is first searched by tracing the MRO (Method Resolution Order) of `Int`.
+Erg has `Int`, `Object` in the MRO of `Int`. It comes from Python (`int.__mro__ == [int, object]` in Python).
+The `.times` method does not exist in either of them. Now let's explore that subtype.
 
 ~
 
-整数在其上位型中显然应该具有实数和复数，甚至是整体数，但在与 Python 具有互换性的层中却不出现这一事实。但是实际上在 Erg 中，和<gtr=“23”/>是<gtr=“24”/>。至于<gtr=“25”/>，虽然是与<gtr=“26”/>没有继承关系的类，但作为类型被判断为具有互换性。究竟是怎么回事？
+Integers should obviously have reals, complexes, and even whole numbers in their supertypes, but that fact does not appear in the Python-compatible layer.
+However, `1 in Complex` and `1 in Num` are actually `True` in Erg.
+As for `Complex`, even though it is a class that does not have an inheritance relationship with `Int`, it is judged to be compatible as a type. What the hell is going on?
 
 ~
 
-对于某个对象，其所属的类型有无数个。但是实际上必须考虑的是拥有方法的类型，即只有拥有名字的类型。
+An object has an infinite number of types to which it belongs.
+But we really only have to think about types with methods, i.e. types with names.
 
-Erg 编译器拥有所有提供方法及其安装的补丁型散列映射。每次新定义类型时，此表都会更新。
+The Erg compiler has a hashmap of patch types with all provided methods and their implementations.
+This table is updated each time a new type is defined.
 
-
-```erg
+``` erg
 provided_method_table = {
     ...
     "foo": [Foo],
@@ -31,46 +37,49 @@ provided_method_table = {
 }
 ```
 
-具有方法的类型为<gtr=“28”/>，<gtr=“29”/>。从这些中，寻找符合型的。符合判定有两种。筛型判定和记录型判定。从筛型判定开始进行。
+Types that have a `.times` method are `Nat`, `Foo`. From among these, find one that matches the `{1}` type.
+There are two types of conformity determination. They are sieve-type judgment and record-type judgment. This is done from the sieve type determination.
 
-## 筛子型判定
+## Sieve type determination
 
-检查候选类型是否与类型<gtr=“32”/>兼容。筛型中与<gtr=“33”/>兼容的有<gtr=“34”/>，<gtr=“35”/>等。<gtr=“36”/>，<gtr=“37”/>等有限元的代数运算类型，如果声明为基本类型，则被归一化为筛子类型（即，<gtr=“38”/>，<gtr=“39”/>）。在这次的情况下，由于<gtr=“40”/>是<gtr=“41”/>，所以<gtr=“42”/>与<gtr=“43”/>是兼容的。
+Check if the candidate type is compatible with the type `{1}` of `1`. The sieve types compatible with `{1}` are `{0, 1}`, `0..9`, and so on.
+Finite element algebraic types such as `0..1 or 3..4`, `-1..2 and 0..3` are normalized to sieve types when declared as base types (i.e. ` {0, 1, 3, 4}`, `{0, 1, 2}`).
+In this case, `Nat` is `0.._ == {I: Int | I >= 0}`, so `{1}` is compatible with `Nat`.
 
-## 记录类型判定
+## Determine record type
 
-确认是否与候选类型为 1 的类兼容。此外，当<gtr=“45”/>的补丁，并且<gtr=“46”/>具有所有的要求属性时，也具有兼容性。
+Check if the candidate type is compatible with `Int`, a class of 1.
+Others that are patches of `Int` and that `Int` has all the required attributes are also compatible.
 
 ~
 
-因此，是合适的。但是，当<gtr=“48”/>也符合时，根据<gtr=“49”/>和<gtr=“50”/>的包含关系进行判定。也就是说，选择子类型的方法。如果两者没有包含关系，则会出现编译错误（这是一种安全措施，可防止执行与程序员意图相反的方法）。为了消除错误，必须明确指定修补程序。
+So `Nat` fit. However, if `Foo` also matches, it is determined by the containment relationship between `Nat` and `Foo`.
+That is, subtype methods are selected.
+If there is no containment relationship between the two, a compile error will occur (this is a safety measure against executing a method against the programmer's intention).
+To eliminate the error, you need to specify the patch explicitly.
 
-
-```erg
+``` erg
 o.method(x) -> P.method(o, x)
 ```
 
-## 全称补丁程序方法解析
+## method resolution for universal patches
 
-定义如下补丁。
+Define a patch like this:
 
-
-```erg
+``` erg
 FnType T: Type = Patch T -> T
 FnType.type = T
 ```
 
-在补丁的基础上可以进行以下代码。这又将如何解决呢？
+Code like the following is possible under the `FnType` patch. I wonder how this will be resolved.
 
-
-```erg
+``` erg
 assert (Int -> Int).type == Int
 ```
 
-首先，中<gtr=“53”/>以以下形式登录。
+First, `FnType(T)` is registered in `provided_method_table` in the following format.
 
-
-```erg
+``` erg
 provided_method_table = {
     ...
     "type": [FnType(T)],
@@ -78,9 +87,9 @@ provided_method_table = {
 }
 ```
 
-检查是否符合的补丁类型。此时，<gtr=“55”/>的补丁类型为<gtr=“56”/>。这符合<gtr=“57”/>。匹配后，进行单相化置换（取<gtr=“58”/>和<gtr=“59”/>的 diff。<gtr=“60”/>）。
+`FnType(T)` is checked for matching types. In this case, `FnType(T)` patch type is `Type -> Type`.
+This matches `Int -> Int`. If it fits, do monomorphization and replace (take a diff of `T -> T` and `Int -> Int`, `{T => Int}`).
 
-
-```erg
+``` erg
 assert FnType(Int).type == Int
 ```

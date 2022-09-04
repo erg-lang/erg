@@ -1,13 +1,13 @@
-# 格式
+# format
 
-所有不符合以下规则的文档都是修正的对象。
+Any document that does not follow the rules below is subject to correction.
 
-* 代码注释或内部文档以这种方式编写。
-* 向外部（普通用户）展示的文档要用简单易懂的语言书写。
-* 文档中首次出现的术语必须同时记录定义、含义或链接。
-* （）作为补充，仅用于理解正文所必需的句子，而非理解正文所必需的句子则使用脚注。
-* 如果文档内容过期，则根据进行更新。
+* Write code comments or internal documentation in a certain tone.
+* Documents to be shown to the outside (general users) should be written more and more.
+* Always include definitions, meanings, or links to terms that appear for the first time in the document.
+* Use parentheses as a proviso only for sentences that are supplementary but necessary for understanding the main text, and use footnotes for sentences that are not essential for understanding the main text[<sup id="f1">1</ sup>](#1).
+* If the content of the document is outdated, update it according to [this method](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362).
 
 ---
 
-<span id="1" style="font-size:x-small">1<gtr=“5”/>脚注的写法参照此。<gtr=“3”/></span>
+<span id="1" style="font-size:x-small"><sup>1</sup> See this for how to write footnotes. [↩](#f1)</span>

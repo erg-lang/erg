@@ -1,5 +1,5 @@
-# Ratio
+#Ratio
 
-表示有理数的类型。 它主要用于当您要使用分数时。
-实际上，Erg中的/运算符返回 Ratio。1/3等不被评估为 0.33333... 并且被处理为1/3。 此外，0.1 相当于 1/10。 所以`0.1 + 0.2 == 0.3`。 这听起来很明显，但在 Python中它是False。
-但是，Ratio类型的效率往往比Float类型略低。 在执行速度很重要且不需要精确数值的地方应该使用浮点类型。 然而，正如Rob Pike所说，过早优化是万恶之源。 在丢弃Ratio类型并使用Float类型之前，请进行真实的性能测试。 业余爱好者无条件偏爱较轻的模具。
+A type that represents a rational number. It is mainly used when you want to use fractions.
+In fact, the / operator in Erg returns Ratio. 1/3 etc. is not evaluated as 0.33333... and is processed as 1/3. Also, 0.1 is equivalent to 1/10. So `0.1 + 0.2 == 0.3`. It sounds obvious, but in Python it is False.
+However, the Ratio type tends to be slightly less efficient than the Float type. Float type should be used at the point where execution speed is important and the exact numerical value is not required. However, as Rob Pike says, premature optimization is the root of all evil. Do a real performance test before discarding the Ratio type and using the Float type. Amateurs unconditionally prefer lighter molds.

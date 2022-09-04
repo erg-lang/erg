@@ -1,13 +1,14 @@
-# build 子命令
+# build subcommand
 
-build 子命令用于构建软件包。缺省构建过程如下所示。
+The build subcommand builds the package.
+The steps performed in the default build are as follows:
 
-1. 检查注释/文档（doc 以下的 md 文件）中的代码。
-2. 编译包所需的代码。
-3. 对于应用程序包，生成与命令对应的批处理文件或 shell 脚本。
-4. 运行测试。
+1. Inspect code in comments/documentation (md files under doc).
+2. Compile the code needed for the package.
+3. For application packages, generate batch files or shell scripts equivalent to commands.
+4. Run the test.
 
-构建完成后，交付项将输出到以下目录。
+The deliverables after the build is completed are output to the following directory.
 
-* 调试构建时：build/debug
-* 版本构建时：build/release
+* During debug build: build/debug
+* For release build: build/release

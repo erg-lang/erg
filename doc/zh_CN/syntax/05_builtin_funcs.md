@@ -1,9 +1,8 @@
-# 内置函数
+# Built-in functions
 
 ## if
 
-是一个函数，它可以根据条件改变操作。
-
+`if` is a function that changes processing depending on a condition.
 
 ```erg
 result: Option Int = if! Bool.sample!(), do:
@@ -12,8 +11,8 @@ result: Option Int = if! Bool.sample!(), do:
 print! result # None (or 1)
 ```
 
-随机返回集合的值。如果返回值为 true，则执行<gtr=“7”/>。还可以指定当条件为假时如何处理。第二个 do 块称为 else 块。
-
+`.sample!()` returns a random set of values. If the return value is true, `print! "True"` is executed.
+You can also specify what to do if the condition is false; the second do block is called the else block.
 
 ```erg
 result: Nat = if Bool.sample!():
@@ -26,8 +25,7 @@ result: Nat = if Bool.sample!():
 print! result # 1 (or 0)
 ```
 
-如果只执行一行操作，则可以省略缩进。
-
+If the process is a single line, you can omit indentation.
 
 ```erg
 result = if Bool.sample!():
@@ -37,8 +35,7 @@ result = if Bool.sample!():
 
 ## for
 
-你可以使用来编写重复的操作。
-
+You can use `for` to write a repeating process.
 
 ```erg
 match_s(ss: Iterator(Str), pat: Pattern): Option Str =

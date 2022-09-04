@@ -1,24 +1,22 @@
-# 特殊类型（Self，Super）
+# Special types (Self, Super)
 
-表示你的类型。你可以简单地将其用作别名，但请注意，它在派生类型中的含义是不同的（指你自己的类型）。
+`Self` represents its own type. You can just use it as an alias, but note that the meaning changes in derived types (refers to the own type).
 
-
-```erg
+``` erg
 @Inheritable
 C = Class()
 C.
-    new_self() = Self.new()
+    new_self() = Self. new()
     new_c() = C.new()
 D = Inherit C
 
-classof D.new_self() # D
-classof D.new_c() # C
+classof D. new_self() # D
+classof D. new_c() # C
 ```
 
-表示基类的类型。方法本身引用基类，而实例使用其类型。
+`Super` represents the type of the base class. The method itself refers to the base class, but the instance uses its own type.
 
-
-```erg
+``` erg
 @Inheritable
 C = Class()
 
@@ -27,16 +25,15 @@ D.
     new_super() = Super.new()
     new_c() = C.new()
 
-classof D.new_super() # D
-classof D.new_c() # C
+classof D. new_super() # D
+classof D. new_c() # C
 ```
 
-## 特殊类型变量
+## special type variables
 
-和<gtr=“7”/>可用作结构化任务中的类型变量。这是属于该类型子类型的类。也就是说，在类型<gtr=“8”/>中，<gtr=“9”/>表示<gtr=“10”/>。
+`Self` and `Super` can be used as type variables in structured types and traits. This refers to classes that are subtypes of that type. That is, `Self` in type `T` means `Self <: T`.
 
-
-```erg
+``` erg
 Add R = Trait {
     .AddO = Type
     .`_+_`: Self, R -> Self.AddO

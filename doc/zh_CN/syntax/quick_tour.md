@@ -1,155 +1,145 @@
 # Quick Tour
 
-下面的文档旨在让初学者也能理解。对于已经掌握 Python，Rust，Haskell 等语言的人来说，这可能有点多余。
+The documentation below `syntax` is written with the aim of being understandable even for programming beginners.
+For those who have already mastered languages ​​such as Python, Rust, Haskell, etc., it may be a bit verbose.
 
-因此，下面将概述性地介绍 Erg 的语法。没有特别提到的部分可以认为和 Python 一样。
+So, here's an overview of the Erg grammar.
+Please think that the parts not mentioned are the same as Python.
 
-## 变量，常量
+## variables, constants
 
-变量定义为。与 Haskell 一样，一旦定义变量，就无法重写。但是，你可以在另一个范围内进行阴影。
+Variables are defined with `=`. As with Haskell, variables once defined cannot be changed. However, it can be shadowed in another scope.
 
-
-```erg
+``` erg
 i = 0
 if True:
     i = 1
 assert i == 0
 ```
 
-以大写字母开头的是常量。只有编译时可以计算的内容才可以是常量。此外，常量在定义后的所有作用域中都是相同的。
+Anything starting with an uppercase letter is a constant. Only things that can be computed at compile time can be constants.
+Also, a constant is identical in all scopes since its definition.
 
-
-```erg
+``` erg
 PI = 3.141592653589793
 match random.random!(0..10):
-    PI:
+    PIs:
         log "You get PI, it's a miracle!"
 ```
 
-## 声明
+## declaration
 
-与 Python 不同，你只能先声明变量类型。当然，声明类型必须与实际赋值的对象类型兼容。
+Unlike Python, only the variable type can be declared first.
+Of course, the declared type and the type of the object actually assigned to must be compatible.
 
-
-```erg
+``` erg
 i: Int
 i = 10
 ```
 
-## 函数
+## Functions
 
-你可以像 Haskell 一样定义它。
+You can define it just like in Haskell.
 
-
-```erg
-fib 0 = 0
-fib 1 = 1
-fib n = fib(n - 1) + fib(n - 2)
+``` erg
+fib0 = 0
+fib1 = 1
+fibn = fib(n - 1) + fib(n - 2)
 ```
 
-可以按如下方式定义未命名函数。
+An anonymous function can be defined like this:
 
-
-```erg
+``` erg
 i -> i + 1
 assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 ```
 
-## 运算符
+## operator
 
-Erg 自己的运算符如下所示。
+The Erg-specific operators are:
 
-### 变量运算符（！）
+### mutating operator (!)
 
-就像 Ocaml 的。
+It's like `ref` in Ocaml.
 
-
-```erg
+``` erg
 i = !0
 i.update! x -> x + 1
 assert i == 1
 ```
 
-## 过程
+## procedures
 
-有副作用的子程序称为过程，并带有。
+Subroutines with side effects are called procedures and are marked with `!`.
 
-
-```erg
+``` erg
 print! 1 # 1
 ```
 
-## 类属函数（多相关数）
+## generic function (polycorrelation)
 
-
-```erg
+``` erg
 id|T|(x: T): T = x
 id(1): Int
 id("a"): Str
 ```
 
-## 记录
+## Records
 
-你可以使用 ML 语言中的记录（或 JS 中的对象文字）。
+You can use the equivalent of records in ML-like languages ​​(or object literals in JS).
 
-
-```erg
+``` erg
 p = {x = 1; y = 2}
 ```
 
-## 所有权
+## Ownership
 
-Erg 拥有可变对象（使用运算符可变的对象）的所有权，不能从多个位置重写。
+Ergs are owned by mutable objects (objects mutated with the `!` operator) and cannot be rewritten from multiple places.
 
-
-```erg
+``` erg
 i = !0
 j = i
 assert j == 0
-i # MoveError
+i#MoveError
 ```
 
-相反，你可以从多个位置引用不变对象。
+Immutable objects, on the other hand, can be referenced from multiple places.
 
-## 可见性
+## Visibility
 
-如果在变量的前面加上，则该变量将成为公共变量，并且可以被外部模块引用。
+Prefixing a variable with `.` makes it a public variable and allows it to be referenced from external modules.
 
-
-```erg
+``` erg
 # foo.er
 .x = 1
 y = 1
 ```
 
-
-```erg
+``` erg
 foo = import "foo"
 assert foo.x == 1
 foo.y # VisibilityError
 ```
 
-## 模式匹配
+## pattern matching
 
-### 变量模式
+### variable pattern
 
-
-```erg
-# basic assignment
+``` erg
+# basic assignments
 i = 1
 # with type
 i: Int = 1
-# function
+# functions
 fn x = x + 1
 fn: Int -> Int = x -> x + 1
 ```
 
-### 文字模式
+### Literal patterns
 
-
-```erg
+``` erg
 # if `i` cannot be determined to be 1 at compile time, TypeError occurs.
-# short hand of `_: {1} = i`
+# shorthand of `_: {1} = i`
 1 = i
 # simple pattern matching
 match x:
@@ -157,15 +147,14 @@ match x:
     2 -> "2"
     _ -> "other"
 # fibonacci function
-fib 0 = 0
-fib 1 = 1
-fib n: Nat = fib n-1 + fib n-2
+fib0 = 0
+fib1 = 1
+fibn: Nat = fibn-1 + fibn-2
 ```
 
-### 常数模式
+### constant pattern
 
-
-```erg
+``` erg
 PI = 3.141592653589793
 E = 2.718281828459045
 num = PI
@@ -175,49 +164,44 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### 销毁（通配符）模式
+### discard (wildcard) pattern
 
-
-```erg
+``` erg
 _ = 1
 _: Int = 1
 right(_, r) = r
 ```
 
-### 可变长度模式
+### Variable length patterns
 
-与后述的元组/数组/记录模式组合使用。
+Used in combination with the tuple/array/record pattern described later.
 
-
-```erg
-[i, ...j] = [1, 2, 3, 4]
+``` erg
+[i,...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
-### 元组图案
+### Tuple pattern
 
-
-```erg
+``` erg
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
-# ネストしていないなら()を省略可能(1, 2は(1, 2)として扱われる)
+# If not nested, () can be omitted (1, 2 are treated as (1, 2))
 m, n = 1, 2
 ```
 
-### 数组模式
+### array pattern
 
-
-```erg
-length [] = 0
-length [_, ...rest] = 1 + length rest
+``` erg
+length[] = 0
+length[_, ...rest] = 1 + lengthrest
 ```
 
-#### 记录模式
+#### record pattern
 
-
-```erg
+``` erg
 {sin; cos; tan; ...} = import "math"
 {*} = import "math" # import all
 
@@ -227,32 +211,30 @@ age = match person:
     {_; age} -> age
 ```
 
-### 数据类模式
+### Data class pattern
 
-
-```erg
+``` erg
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
 ```
 
-## 内涵记载
+## Comprehensions
 
-
-```erg
+``` erg
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
-## 类
+## class
 
-Erg 不支持多级和多级继承。
+Erg does not support multiple/multilevel inheritance.
 
-## trait
+## Traits
 
-与 Rust 的trait类似，但更接近原意，可以合成和分离，属性和方法是对等的。也不涉及实施。
+They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and methods as equals.
+Also, it does not involve implementation.
 
-
-```erg
+``` erg
 XY = Trait {x = Int; y = Int}
 Z = Trait {z = Int}
 XYZ = XY and Z
@@ -264,23 +246,21 @@ Point.
     ...
 ```
 
-## 补丁
+## patch
 
-你可以为类和trait提供实现。
+You can give implementations to classes and traits.
 
-## 筛子型
+## Sieve type
 
-可以在谓词表达式中限制类型。
+A predicate expression can be type-restricted.
 
-
-```erg
+``` erg
 Nat = {I: Int | I >= 0}
 ```
 
-## 包含值的参数化（从属）
+## parametric type with value (dependent type)
 
-
-```erg
+``` erg
 a: [Int; 3]
 b: [Int; 4]
 a + b: [Int; 7]

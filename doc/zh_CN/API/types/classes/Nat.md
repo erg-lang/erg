@@ -1,10 +1,10 @@
 # Nat
 
-表示自然数的类型。 用于数组索引和范围类型
+A type that represents a natural number. Used for array indices and range types.
 
-## def
+##def
 
-```erg
+``` erg
 Nat = 0.._
 ```
 
@@ -12,7 +12,7 @@ Nat = 0.._
 
 * times!(self, p: () => NoneType) -> NoneType
 
-```erg
+``` erg
 100.times! () =>
-    print! "hello!"
+     print! "hello!"
 ```

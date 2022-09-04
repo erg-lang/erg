@@ -1,25 +1,34 @@
-# 技术常见问题解答
+# Technical FAQ
 
-本节回答了使用 Erg 语言的技术问题。即，以“What”、“Which”开头的问题，以及可以回答“Yes/No”的问题。
 
-关于根本语法的决定，请参阅，关于为什么创建这种语言，如何实现这种功能等更大的话题，请参阅<gtr=“2”/>。
+This section answers technical questions about using the Erg language. In other words, it contains questions that begin with What or Which, and questions that can be answered with Yes/No.
 
-## Erg 没有异常机制吗？
+For more information on how the grammar was determined, see [here](./dev_guide/faq_syntax.md) for the underlying syntax decisions, and [here](./dev_guide/../faq_general.md).
 
-A：没有。Erg 使用类型代替。有关为什么 Erg 没有异常机制的信息，请参见<gtr=“4”/>。
+## Is there an exception mechanism in Erg?
 
-## Erg 没有与 TypeScript 中的 Any 相对应的类型吗？
+A: No. Erg uses the `Result` type instead. See [here](./dev_guide/faq_syntax.md) for why Erg does not have an exception mechanism.
 
-A：没有。所有对象至少属于类，但此类型只提供最少的属性，不能像 Any 那样随心所欲。<gtr=“6”/>类通过动态检查（如<gtr=“7”/>）转换为所需的类型。它与 Java 中的<gtr=“8”/>类似。在 Erg 的世界里，不会出现像 TypeScript 那样追寻 API 定义的结果是 Any 的绝望和混乱。
+## Does Erg have a type equivalent to TypeScript's `Any`?
 
-## Never，{}，None，（），NotImplemented，Ellipsis 有什么不同？
+A: No, there is not. All objects belong to at least the `Object` class, but this type only provides a minimal set of attributes, so you can't do whatever you want with it like you can with Any.
+The `Object` class is converted to the desired type through dynamic inspection by `match`, etc. It is the same kind of `Object` in Java and other languages.
+In the Erg world, there is no chaos and hopelessness like in TypeScript, where the API definition is ``Any''.
 
-A：类型为“不可能发生”。生成运行时错误的子例程返回类型为（或<gtr=“11”/>的合并类型）。如果检测到这一点，程序将立即停止。尽管<gtr=“12”/>类型在定义上也是所有类型的子类，但<gtr=“13”/>类型对象不会出现在 Erg 代码中，也不会生成。<gtr=“14”/>等于<gtr=“15”/>。<gtr=“16”/>是表示省略的对象，来自 Python。也来自 Python。这被用作未实现的标记，但 Erg 建议使用<gtr=“18”/>函数来生成错误。<gtr=“19”/>是<gtr=“20”/>的实例。常用于类型。<gtr=“22”/>是单元类型，也是实例本身。如果要返回“无意义的值”（如过程的返回值），则使用此选项。
+## What is the difference between Never, {}, None, (), NotImplemented, and Ellipsis?
 
-## 为什么有效，而<gtr=“24”/>是 EffectError？
+A: `Never` is an "impossible" type. A subroutine that produces a runtime error has `Never` (or a merger type of `Never`) as its return type. The program will stop as soon as it detects this. Although the `Never` type is by definition also a subclass of all types, `Never` type objects never appear in Erg code and are never created. `{}` is equivalent to `Never`.
+`Ellipsis` is an object that represents an ellipsis, and comes from Python.
+`NotImplemented` is also from Python. It is used as a marker for not implemented, but Erg prefers the `todo` function which produces an error.
+`None` is an instance of `NoneType`. It is often used with the `Option` type.
+`()` is a unit type and an instance of itself. It is used when you want to return a "meaningless value" such as the return value of a procedure.
 
-A：不是标记副作用的产物，而是标记可能产生副作用的物体。过程和可变类型<gtr=“27”/>可能会产生副作用，但例如，如果返回的<gtr=“28”/>类型为<gtr=“29”/>，则其本身不会产生副作用。
+## Why is `x = p!()` valid but `f() = p!()` causes an EffectError?
 
-## 尝试使用 Python API 时，在 Erg 中，在 Python 中有效的代码出现类型错误。这是什么意思？
+`!` is not a marker for the product of a side-effect, but for an object that can cause a side-effect.
+Procedure `p!` and mutable type `T!` can cause side effects, but if the return value of `p!()`, for example, is of type `Int`, it itself no longer causes side effects.
 
-答：Erg 的 API 尽量按照 Python 的 API 规范进行定型，但有些情况无论如何也无法表达。此外，根据 Erg 开发团队的判断，被认为有效但不期望的输入（例如，可以在应输入 int 的地方输入浮点的规范）可能是类型错误。
+## When I try to use the Python API, I get a type error in Erg for code that was valid in Python. What does this mean?
+
+A: The Erg API is typed as closely as possible to the Python API specification, but there are some cases that cannot be fully expressed.
+Also, input that is valid according to the specification but deemed undesirable (for example, inputting a float when an int should be inputted) may be treated as a type error at the discretion of the Erg development team.

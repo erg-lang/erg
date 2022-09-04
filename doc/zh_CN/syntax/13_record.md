@@ -1,7 +1,7 @@
-# 记录
+# Record
 
-记录是一个集合，它具有通过键访问的 Dict 和在编译时检查访问的元组的性质。如果你使用过 JavaScript，请将其视为对象文字符号（更高级）。
-
+A record is a collection that combines the properties of a Dict accessed by key and a tuple whose access is inspected at compile time.
+If you know JavaScript, think of it as a (more enhanced) kind of object literal notation.
 
 ```erg
 john = {.name = "John"; .age = 21}
@@ -12,33 +12,34 @@ assert john in {.name = Str; .age = Nat}
 john["name"] # Error: john is not subscribable
 ```
 
-和<gtr=“15”/>部分称为属性，<gtr=“16”/>和<gtr=“17”/>部分称为属性值。
+The `.name` and `.age` parts are called attributes, and the `"John"` and `21` parts are called attribute values.
 
-它与 JavaScript 对象文字的区别在于不能以字符串形式访问。也就是说，属性不仅仅是字符串。这可能是因为它在编译时决定对值的访问，也可能是因为字典和记录是不同的。也就是说，是 Dict，<gtr=“19”/>是记录。那么，词典和记录该如何区分使用呢？通常建议使用记录。记录具有以下优点：编译时检查元素是否存在，并且可以指定<gtr=“21”/>。可见性规范相当于 public/private 规范，例如在 Java 语言中。有关详细信息，请参见<gtr=“20”/>。
-
+The difference from JavaScript object literals is that they are not accessible as strings. That is, attributes are not just strings.
+This is because access to the value is determined at compile-time, and because dictionaries and records are different things. In other words, `{"name": "John"}` is a Dict and `{name = "John"}` is a record.
+So how should we use dictionaries and records?
+In general, we recommend using records. Records have the advantages of being checked at compile-time for the existence of elements and of being able to specify __visibility_.
+Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./15_visibility.md) for details.
 
 ```erg
 a = {x = 1; .y = x + 1}
 a.x # AttributeError: x is private
-# Hint: declare as `.x`
+# Hint: declare as `.x`.
 assert a.y == 2
 ```
 
-对于熟悉 JavaScript 的人来说，上面的例子可能很奇怪，但如果简单地声明，则外部无法访问，如果加上<gtr=“23”/>，则可以通过<gtr=“24”/>访问。
+The above example may seem strange to someone familiar with JavaScript, but simply declaring `x` makes it inaccessible from the outside. `. `. `.
 
-还可以显式指定属性的类型。
-
+You can also explicitly specify the type of an attribute.
 
 ```erg
 anonymous = {
-    .name: Option! Str = !None
+    .name: Option! Str = !
     .age = 20
 }
 anonymous.name.set! "John"
 ```
 
-记录也可以有方法。
-
+A record can also have the method.
 
 ```erg
 o = {
@@ -51,28 +52,27 @@ o.inc!()
 assert o.i == 1
 ```
 
-关于记录有一个值得注意的语法。当记录的所有属性值都是类（结构类型不允许）时，记录本身将其属性视为请求属性。这种类型称为记录类型。有关详细信息，请参阅记录部分。
-
+There is a notable syntax with respect to records. When all the attribute values of a record are classes (not structural types), the record itself behaves as a type with its own attributes as required attributes.
+Such a type is called a record type. See the section [Record] for more details.
 
 ```erg
-# レコード
+# record
 john = {.name = "John"}
-# レコード型
+# record type
 john: {.name = Str}
 Named = {.name = Str}
 john: Named
 
 greet! n: Named =
     print! "Hello, I am {n.name}"
-greet! john # "Hello, I am John"
+john # "Hello, I am John" print!
 
-print! Named.name # Str
+Named.name # Str
 ```
 
-## 分解记录
+## Deconstructing a record
 
-可以按如下方式分解记录。
-
+Records can be deconstructed as follows.
 
 ```erg
 record = {x = 1; y = 2}
@@ -88,8 +88,8 @@ match point:
     {x = x; y = y; z = z} -> "({x}, {y}, {z})"
 ```
 
-此外，如果记录具有与属性同名的变量，则可以将或<gtr=“26”/>省略为<gtr=“27”/>，将<gtr=“28”/>或<gtr=“29”/>省略为<gtr=“30”/>。但是，如果只有一个属性，则必须使用<gtr=“31”/>将其与集合区分开来。
-
+`x = ...` can also be abbreviated to `x` when there is a variable with the same name as the attribute, for example, `x = x` or `x = .x` to `x`, and `.x = .x` or `.x = x` to `.x`.
+However, when there is only one attribute, it must be followed by `;` to distinguish it from a set.
 
 ```erg
 x = 1
@@ -106,8 +106,7 @@ tuple = {x}
 assert tuple.1 == 1
 ```
 
-此语法可用于分解记录并将其赋给变量。
-
+This syntax can be used to deconstructed a record and assign it to a variable.
 
 ```erg
 # same as `{x = x; y = y} = xy`
@@ -120,10 +119,9 @@ assert a == 1
 assert b == 2
 ```
 
-## 空记录
+## Empty Record
 
-空记录由表示。与 Unit 一样，空记录也是其类本身。
-
+An empty record is represented by `{=}`. An empty record is also its own class, like Unit.
 
 ```erg
 empty_record = {=}
@@ -134,23 +132,26 @@ empty_record: Structural {=}
 {x = 3; y = 5}: Structural {=}
 ```
 
-空记录不同于空 Dict或空集<gtr=“34”/>。尤其要注意它与<gtr=“35”/>的含义正好相反（在 Python 中，<gtr=“36”/>是一个空字典，而在 Erg 中，它是<gtr=“37”/>）。作为枚举类型，<gtr=“38”/>是空类型，不包含任何元素。类型是对其进行的类化。相反，记录类中的<gtr=“40”/>没有请求实例属性，因此所有对象都是它的元素。是此别名。<gtr=“42”/>（修补程序）具有非常基本的提供方法，如<gtr=“43”/>。
-
+An empty record is different from an empty Dict `{:}` or empty set `{}`. In particular, note that it is the opposite of `{}` in meaning (in Python, `{}` is an empty dictionary, while in Erg it is `!{:}` in Erg).
+As an enumerated type, `{}` is an empty type that contains nothing in its elements. The `Never` type is a classification of this type.
+Conversely, the record class `{=}` has no required instance attribute, so all objects are elements of it. An `Object` is an alias of this.
+An `Object` (a patch of `Object`) is an element of `. __sizeof__` and other very basic provided methods.
 
 ```erg
 AnyPatch = Patch Structural {=}
-    .__sizeof__ self = ...
+    . __sizeof__ self = ...
     .clone self = ...
     ...
 Never = Class {}
 ```
 
-请注意，没有其他类型和类在结构上与，<gtr=“45”/>类型等效，如果用户定义类型时在右边指定<gtr=“46”/>，<gtr=“47”/>，则会出错。这可以防止将<gtr=“48”/>转换为<gtr=“49”/>的错误。此外，如果定义组合结果为<gtr=“50”/>的类型（例如<gtr=“51”/>），则会发出警告，将其简单地定义为<gtr=“52”/>。
+Note that no other type or class can be structurally equivalent to the `{}`, `Never` type, and it is an error if the user defines a type with `{}`, `Class {}` on the right side.
+This means that, for example, `1..10 or -10. -1`, but `1..10 and -10... -1`. `-1` when it should be `1..10 or -10...-1`, for example.
+Also, if you define a type (such as `Int and Str`) that results in a composition `Object`, you will be warned to simply set it to `Object`.
 
-## 即时块
+## Instant Block
 
-Erg 还有一个语法叫即时块，它只是返回最后评估的值。不能保留属性。
-
+Erg has another syntax, instant block, which simply returns the last value evaluated. Attributes cannot be retained.
 
 ```erg
 x =
@@ -163,10 +164,10 @@ y =
     .x = 1 # SyntaxError: cannot define an attribute in an entity block
 ```
 
-## 数据类
+## Data Class
 
-如果尝试单独实现方法，则必须直接在实例中定义原始记录（由记录文本生成的记录）。这效率很低，而且随着属性数量的增加，错误显示等很难看到，也很难使用。
-
+A bare record (a record generated by a record literal) must be defined directly in the instance if you try to implement a method on its own.
+This is inefficient, and as the number of attributes increases, error messages and the like become difficult to see and use.
 
 ```erg
 john = {
@@ -176,11 +177,11 @@ john = {
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
-# TypeError: + is not implemented for {name = Str; age = Int; .greet! = Ref(Self).() => None; inc_age! = Ref!(Self).() => None}, Int
+# TypeError: + is not implemented for {name = Str; age = Int; .greet! = Ref(Self). () => None; inc_age! = Ref! () => None}, Int
 ```
 
-因此，在这种情况下，我们将继承记录类。此类类称为数据类。我们将在部分详细讨论这一点。
-
+So, in such a case, you can inherit a record class. Such a class is called a data class.
+This is described in [class](./type/04_class.md).
 
 ```erg
 Person = Inherit {name = Str; age = Nat}
@@ -194,5 +195,5 @@ john + 1
 ```
 
 <p align='center'>
-    <a href='./12_dict.md'>Previous</a> | <a href='./14_set.md'>Next</a>
+    <a href='./12_tuple.md'>Previous</a> | <a href='./14_set.md'>Next</a>
 </p>

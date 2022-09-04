@@ -1,7 +1,7 @@
 # Inf
 
-Inf是一个类，其唯一实例是inf。
-inf的主要用途是用于区间类型。
-例如，大于等于 2 的整数类型是 `2..<inf`，小于等于 0 的实数是 `-inf<..0.0`。
-由于 inf 不是通常意义上的数字，所以不能按原样定义四个算术运算，
-库中提供了所谓的扩展数字类，例如ExtNat。
+Inf is a class whose only instance is inf.
+The main use of inf is with interval types.
+For example, integer types greater than or equal to 2 are `2..<inf`, and real numbers less than or equal to 0 are `-inf<..0.0`.
+Since inf is not a number in the usual sense, the four arithmetic operations cannot be defined as it is,
+So-called extended number classes such as ExtNat are provided in the library.

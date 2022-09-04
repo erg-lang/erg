@@ -1,58 +1,56 @@
-# 装饰器（修饰符）
+# decorator (modifier)
 
-装饰器用于将特定的状态和行为添加到类型和函数中，或将其显式。装饰师的语法如下。
+Decorators are used to add or demonstrate a particular state or behavior to a type or function.
+The syntax of the decorator is as follows.
 
-
-```erg
+``` erg
 @deco
-X = ...
+X=...
 ```
 
-装饰器可以有多个，除非冲突。
+You can have multiple decorators as long as they don't conflict.
 
-装饰器不是一个特殊的对象，它的实体只是一个参数函数。装饰器等效于以下伪代码。
+A decorator is not a special object, it's just a one-argument function. The decorator is equivalent to the following pseudocode.
 
-
-```erg
-X = ...
+``` erg
+X=...
 X = deco(X)
 ```
 
-因为 Erg 不能重新赋值变量，所以上面的代码不能通过。对于简单的变量，这与相同，但对于即时块和子程序，这是不可能的，因此需要一个装饰器。
+Erg doesn't allow reassignment of variables, so code like the one above won't work.
+For simple variables it's the same as `X = deco(...)`, but for instant blocks and subroutines you can't do that, so you need a decorator.
 
-
-```erg
+``` erg
 @deco
 f x =
     y = ...
     x + y
 
-# コードが横長になるのを防ぐこともできる
+# You can also prevent the code from becoming horizontal
 @LongNameDeco1
 @LongNameDeco2
-C = Class ...
+C = Class...
 ```
 
-下面介绍一些频出的嵌入式装饰器。
+Below are some frequently used built-in decorators.
 
 ## Inheritable
 
-指示所定义的类型是可继承类。如果将参数指定为<gtr=“10”/>，则外部模块类可以继承这些参数。默认为<gtr=“11”/>，不能从外部继承。
+Indicates that the defining type is an inheritable class. If you specify `"public"` for the argument `scope`, it will be possible to inherit even the class of the external module. By default it is `"private"` and cannot be inherited externally.
 
-## Final
+##Final
 
-使方法不可覆盖。将类附加到类后，它将成为不可继承类，但这没有意义，因为这是缺省类。
+Make the method non-overridable. Adding it to a class makes it a non-inheritable class, but since it's the default it doesn't make sense.
 
 ## Override
 
-用于覆盖属性。缺省情况下，Erg 会在尝试定义与基类相同的属性时出错。
+Used when overriding attributes. By default, Erg will throw an error if you try to define the same attribute as the base class.
 
 ## Impl
 
-指示要实现自变量的特写。
+Indicates that the argument trait is implemented.
 
-
-```erg
+``` erg
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -70,10 +68,10 @@ C.
 
 ## Attach
 
-指定默认情况下随托盘一起提供的附件曲面片。这样，你就可以重现与 Rust 的trait相同的行为。
+Specifies the attachment patch that comes with the trait by default.
+This allows you to reproduce the same behavior as Rust traits.
 
-
-```erg
+``` erg
 # foo.er
 Add R = Trait {
     .AddO = Type
@@ -88,36 +86,34 @@ AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 
-这将在从其他模块导入托盘时自动应用附件修补程序。
+This will automatically apply the attachment patch when importing traits from other modules.
 
-
-```erg
-# 本来IntIsBinAdd, OddIsBinAddも同時にインポートする必要があるが、アタッチメントパッチなら省略可
+``` erg
+# Originally, IntIsBinAdd and OddIsBinAdd should be imported at the same time, but if it's an attachment patch, you can omit it
 {BinAdd; ...} = import "foo"
 
-assert Int.AddO == Int
+assert Int. AddO == Int
 assert Odd.AddO == Even
 ```
 
-在内部，我们只是使用trait的方法将其连接起来。如果发生冲突，可以使用trait的<gtr=“13”/>方法将其移除。
+Internally it's just attached using the trait's `.attach` method. Conflicts can be removed with the trait's `.detach` method.
 
-
-```erg
+``` erg
 @Attach X
-T = Trait ...
-assert X in T.attaches
+T = Trait...
+assert X in T. attaches
 U = T.detach(X).attach(Y)
-assert X not in U.attaches
-assert Y in U.attaches
+assert X not in U. attaches
+assert Y in U. attaches
 ```
 
-## Deprecated
+##Deprecated
 
-表示变量规范已过时。
+Indicates that the variable specification is obsolete and deprecated.
 
 ## Test
 
-指示测试子程序。测试子例程使用命令执行。
+Indicates that this is a test subroutine. Test subroutines are run with the `erg test` command.
 
 <p align='center'>
     <a href='./28_spread_syntax.md'>Previous</a> | <a href='./30_error_handling.md'>Next</a>

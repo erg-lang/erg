@@ -1,8 +1,8 @@
 # SafeDiv R, O
 
-```erg
+``` erg
 SafeDiv R, O = Subsume Div, {
-    @Override
-    .`/` = Self.(R) -> O
+     @Override
+     .`/` = Self.(R) -> O
 }
 ```

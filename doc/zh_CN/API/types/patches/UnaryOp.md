@@ -1,7 +1,7 @@
-# UnaryOp T, O
+# Unary Op T, O
 
-一元运算符的类型
+The type of the unary operator.
 
-## def
+##def
 
 Operator [T], O

@@ -1,20 +1,22 @@
-# 错误处理系统
+# error handling system
 
-主要使用 Result 类型。在 Erg 中，如果丢弃 Error 类型的对象（不在顶层），则会发生错误。
+Mainly use Result type.
+In Erg, an error occurs if you throw away an Error type object (not supported at the top level).
 
-## 异常，与 Python 的互操作
+## Exceptions, interop with Python
 
-Erg 没有异常机制（Exception）。导入 Python 函数时
+Erg does not have an exception mechanism (Exception). When importing a Python function
 
-* 返回类型
-* 类型（可能导致运行时错误）
+* Set return value to `T or Error` type
+* `T or Panic` type (may cause runtime error)
 
-的两个选项，在中默认为后者。如果要作为前者导入，请在<gtr=“9”/>的<gtr=“10”/>中指定<gtr=“11”/>（<gtr=“12”/>）。
+There are two options, `pyimport` defaults to the latter. If you want to import as the former, use
+Specify `Error` in `pyimport` `exception_type` (`exception_type: {Error, Panic}`).
 
-## 异常和结果类型
+## Exceptions and Result types
 
-类型表示可能出现错误的值。使用<gtr=“14”/>处理错误在某些方面优于异常机制。首先，从类型定义可以看出子程序可能会出错，在实际使用时也一目了然。
-
+The `Result` type represents values ​​that may be errors. Error handling with `Result` is superior to the exception mechanism in several ways.
+First of all, it's obvious from the type definition that the subroutine might throw an error, and it's also obvious when you actually use it.
 
 ```python
 # Python
@@ -26,10 +28,9 @@ except e:
     print(e)
 ```
 
-在上面的示例中，仅此代码并不知道异常是从哪个函数调度的。即使追溯到函数定义，也很难确定该函数是否会出现异常。
+In the above example, it is not possible to tell from this code alone which function raised the exception. Even going back to the function definition, it's hard to tell if the function throws an exception.
 
-
-```erg
+``` erg
 # Erg
 try!:
     do!:
@@ -40,16 +41,16 @@ try!:
         print! e
 ```
 
-相反，在本示例中，和<gtr=“16”/>可以生成错误。确切地说，<gtr=“17”/>也可能是<gtr=“18”/>类型，但在使用中值时，你必须执行此操作。
+On the other hand, in this example we can see that `foo!` and `qux!` can raise an error.
+Precisely `y` could also be of type `Result`, but you'll have to deal with it eventually to use the value inside.
 
-使用类型的好处远不止这些。类型也是线程安全的。这意味着错误信息可以在并行执行期间（很容易）传递。
+The benefits of using the `Result` type don't stop there. The `Result` type is also thread-safe. This means that error information can be (easily) passed between parallel executions.
 
 ## Context
 
-/<gtr=“22”/>类型不会产生副作用，因此它不具有与异常不同的诸如发送位置之类的信息（上下文），但可以使用<gtr=“23”/>方法将信息添加到<gtr=“24”/>对象。<gtr=“25”/>方法是使用<gtr=“26”/>对象本身来创建新的<gtr=“27”/>对象的方法。它是可链接的，可以有多个上下文。
+Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
 
-
-```erg
+``` erg
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -61,14 +62,16 @@ f()
 # hint: and more hints ...
 ```
 
-注意，属性（如<gtr=“28”/>和<gtr=“29”/>）不是次要属性，因此不是 context，不能覆盖最初生成的属性。
+Note that `Error` attributes such as `.msg` and `.kind` are not secondary, so they are not context and cannot be overridden as they were originally created.
 
-## 栈跟踪
+## Stack trace
 
-类型由于其方便性，在其他语言中也被广泛采用，但与异常机制相比，其缺点是错误的来源变得更难理解。因此，在 Erg 中，使<gtr=“32”/>对象具有<gtr=“33”/>属性，模拟地再现了异常机制那样的栈跟踪。<gtr=“34”/>是调用对象的数组。每当 Error 对象<gtr=“35”/>（包括<gtr=“36”/>所致）时，它的调用子例程将加载到<gtr=“37”/>中。如果<gtr=“38”/>在环境中<gtr=“39”/>或<gtr=“40”/>，它将死机并显示回溯。
+The `Result` type is often used in other languages ​​because of its convenience, but it has the disadvantage of making it difficult to understand the source of an error compared to the exception mechanism.
+Therefore, in Erg, the `Error` object has an attribute called `.stack`, and reproduces a pseudo-exception mechanism-like stack trace.
+`.stack` is an array of caller objects. Each time an Error object is `returned` (including by `?`) it pushes its calling subroutine onto the `.stack`.
+And if it is `?`ed or `.unwrap`ed in a context where `return` is not possible, it will panic with a traceback.
 
-
-```erg
+``` erg
 f x =
     ...
     y = foo.try_some(x)?
@@ -80,24 +83,24 @@ g x =
 
 i = g(1)?
 # Traceback (most recent call first):
-#    ...
-#    Foo.try_some, line 10, file "foo.er"
-#    10 | y = foo.try_some(x)?
-#    module::f, line 23, file "foo.er"
-#    23 | y = f(x)?
-#    module::g, line 40, file "foo.er"
-#    40 | i = g(1)?
+# ...
+# Foo.try_some, line 10, file "foo.er"
+# 10 | y = foo.try_some(x)?
+# module::f, line 23, file "foo.er"
+# 23 | y = f(x)?
+# module::g, line 40, file "foo.er"
+# 40 | i = g(1)?
 # Error: ...
 ```
 
-## 恐慌
+## Panic
 
-Erg 还存在一个名为的机制来处理不可恢复的错误。不可恢复的错误可能是由外部因素引起的错误，例如软/硬件故障，致命到无法继续执行代码的程度，或者是程序编写者不想要的错误。如果发生这种情况，由于程序员的努力无法使其恢复正常系统，因此当场终止程序。这叫做“恐慌”。
+Erg also has a mechanism for dealing with unrecoverable errors called __panicing__.
+An unrecoverable error is an error caused by an external factor such as a software/hardware malfunction, an error so fatal that it makes no sense to continue executing the code, or an error unexpected by the programmer. Etc. If this happens, the program will be terminated immediately, because the programmer's efforts cannot restore normal operation. This is called "panicing".
 
-使用函数执行死机。
+Panic is done with the `panic` function.
 
-
-```erg
+``` erg
 panic "something went wrong!"
 ```
 

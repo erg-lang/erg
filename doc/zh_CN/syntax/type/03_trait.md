@@ -1,16 +1,16 @@
-# TRAIT
+# Trait
 
-TRAIT 是一种记名类型，它将类型属性请求添加到记录类型中。它类似于 Python 中的抽象基类（Abstract Base Class，ABC），但具有代数运算能力。
-
+Trait is a nominal type that adds a type attribute requirement to record types.
+It is similar to the Abstract Base Class (ABC) in Python, but with the distinction of being able to perform algebraic operations.
 
 ```erg
 Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 ```
 
-TRAIT不区分属性和方法。
+Trait does not distinguish between attributes and methods.
 
-请注意，TRAIT只能进行声明，而不能进行实现（实现是通过以下称为修补程序的功能实现的）。你可以检查 TRAIT 是否在类中以子类型实现。
-
+Note that traits can only be declared, not implemented (implementation is achieved by a feature called patching, which will be discussed later).
+Traits can be checked for implementation in a class by specifying a partial type.
 
 ```erg
 Point2D <: Norm
@@ -18,16 +18,14 @@ Point2D = Class {.x = Int; .y = Int}
 Point2D.norm self = self.x**2 + self.y**2
 ```
 
-未实现请求属性将导致错误。
-
+Error if the required attributes are not implemented.
 
 ```erg
 Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
 Point2D = Class {.x = Int; .y = Int}
 ```
 
-与结构类型一样，Trait 可以应用合并，替换和排除操作（e.g.）。这种方式形成的TRAIT称为即时TRAIT。
-
+Traits, like structural types, can apply operations such as composition, substitution, and elimination (e.g. `T and U`). The resulting trait is called an instant trait.
 
 ```erg
 T = Trait {.x = Int}
@@ -36,47 +34,46 @@ V = Trait {.x = Int; y: Int}
 assert Structural(T and U) == Structural V
 assert Structural(V not U) == Structural T
 W = Trait {.x = Ratio}
-assert Structural(W) !=  Structural(T)
+assert Structural(W) ! = Structural(T)
 assert Structural(W) == Structural(T.replace {.x = Ratio})
 ```
 
-TRAIT 也是一种类型，因此也可以用于常规类型指定。
-
+Trait is also a type, so it can be used for normal type specification.
 
 ```erg
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
-assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
+assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 ```
 
-## TRAIT包容
+## Trait inclusion
 
-扩展运算符允许你定义一个包含高级类型的 TRAIT 的 TRAIT。这称为TRAIT的<gtr=“21”/>。在下面的示例中，<gtr=“16”/>包含<gtr=“17”/>和<gtr=“18”/>。这对应于类中的继承（Inheritance），但不同于继承，可以通过组合<gtr=“19”/>来指定多个基本类型。根据<gtr=“20”/>排除一部分的TRAIT也OK。
-
+The expansion operator `...` allows you to define a trait that contains a certain trait as a supertype. This is called the __subsumption__ of a trait.
+In the example below, `BinAddSub` subsumes `BinAdd` and `BinSub`.
+This corresponds to Inheritance in a class, but unlike Inheritance, multiple base types can be combined using `and`. Traits that are partially excluded by `not` are also allowed.
 
 ```erg
 Add R = Trait {
     .AddO = Type
-    .`_+_` = Self.(R) -> Self.AddO
+    . `_+_` = Self.(R) -> Self.AddO
 }
-ClosedAdd = Subsume Add(Self)
+
 Sub R = Trait {
     .SubO = Type
-    .`_-_` = Self.(R) -> O
+    . `_-_` = Self.(R) -> Self.SubO
 }
-ClosedSub = Subsume Sub(Self)
-ClosedAddSub = Subsume ClosedAdd and ClosedSub
+
+BinAddSub = Subsume Add(Self) and Sub(Self)
 ```
 
-## 结构TRAIT
+## Structural Traits
 
-TRAIT可以结构化。
-
+Traits can be structured.
 
 ```erg
 SAdd = Structural Trait {
-    .`_+_` = Self.(Self) -> Self
+    . `_+_` = Self.(Self) -> Self
 }
-# |A <: SAdd|は省略できない
+# |A <: SAdd| cannot be omitted
 add|A <: SAdd| x, y: A = x.`_+_` y
 
 C = Class {i = Int}
@@ -87,14 +84,14 @@ C.
 assert add(C.new(1), C.new(2)) == C.new(3)
 ```
 
-记名任务不能只是实现请求方法，必须显式声明实现。不能用于<gtr=“23”/>类型的参数，因为在下面的示例中没有明确的实现声明。它必须是。
-
+Nominal traits cannot be used simply by implementing a request method, but must be explicitly declared to have been implemented.
+In the following example, `add` cannot be used with an argument of type `C` because there is no explicit declaration of implementation. It must be `C = Class {i = Int}, Impl := Add`.
 
 ```erg
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
-# |A <: Add|は省略できる
+# |A <: Add| can be omitted
 add|A <: Add| x, y: A = x.`_+_` y
 
 C = Class {i = Int}
@@ -102,72 +99,69 @@ C.
     new i = Self.__new__ {i;}
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
-add C.new(1), C.new(2) # TypeError: C is not subclass of Add
+add C.new(1), C.new(2) # TypeError: C is not a subclass of Add
 # hint: inherit or patch 'Add'
 ```
 
-结构TRAIT可以没有这种实现的声明，但替代推理不起作用。使用时必须指定类型。
+Structural traits do not need to be declared for this implementation, but instead type inference does not work. Type specification is required for use.
 
-## 依赖项
+## Polymorphic Traits
 
-TRAIT可以采取自变量。这与依赖关系相同。
-
+Traits can take parameters. This is the same as for polymorphic types.
 
 ```erg
 Mapper T: Type = Trait {
-    .MapIter = {Iterator}
-    .map = Self(T).(T -> U) -> Self.MapIter U
+    .mapIter = {Iterator}
+    .map = Self(T). (T -> U) -> Self.MapIter U
 }
 
 # ArrayIterator <: Mapper
 # ArrayIterator.MapIter == ArrayMapper
 # [1, 2, 3].iter(): ArrayIterator Int
 # [1, 2, 3].iter().map(x -> "{x}"): ArrayMapper Str
-assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"]
+assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"].
 ```
 
-## TRAIT中的覆盖
+## Override in Trait
 
-派生的 TRAIT 可以覆盖基础 TRAIT 的类型定义。在这种情况下，要覆盖的方法类型必须是基础方法类型的子类型。
-
+Derived traits can override the type definitions of the base trait.
+In this case, the type of the overriding method must be a subtype of the base method type.
 
 ```erg
-# `Self.(R) -> O`は`Self.(R) -> O or Panic`の部分型
+# `Self.(R) -> O` is a subtype of ``Self.(R) -> O or Panic
 Div R, O: Type = Trait {
-    .`/` = Self.(R) -> O or Panic
+    . `/` = Self.(R) -> O or Panic
 }
 SafeDiv R, O = Subsume Div, {
     @Override
-    .`/` = Self.(R) -> O
+    . `/` = Self.(R) -> O
 }
 ```
 
-## 实现和解决 API 重复任务
+## Implementing and resolving duplicate traits in the API
 
-实际的，<gtr=“26”/>和<gtr=“27”/>的定义是这样的。
-
+The actual definitions of `Add`, `Sub`, and `Mul` look like this.
 
 ```erg
 Add R = Trait {
     .Output = Type
-    .`_+_` = Self.(R) -> .Output
+    . `_+_` = Self.(R) -> .Output
 }
 Sub R = Trait {
     .Output = Type
-    .`_-_` = Self.(R) -> .Output
+    . `_-_` = Self.(R) -> .Output
 }
 Mul R = Trait {
     .Output = Type
-    .`*` = Self.(R) -> .Output
+    . `*` = Self.(R) -> .Output
 }
 ```
 
-名为的变量具有重复的名称。如果要同时实现多个托盘，请指定。
-
+`.Output` is duplicated. If you want to implement these multiple traits at the same time, specify the following.
 
 ```erg
 P = Class {.x = Int; .y = Int}
-# P|Self <: Add(P)|はP|<: Add(P)|に省略可能
+# P|Self <: Add(P)| can be abbreviated to P|<: Add(P)|
 P|Self <: Add(P)|.
     Output = P
     `_+_` self, other = P.new {.x = self.x + other.x; .y = self.y + other.y}
@@ -176,17 +170,17 @@ P|Self <: Mul(Int)|.
     `*` self, other = P.new {.x = self.x * other; .y = self.y * other}
 ```
 
-以这种方式实现的重复 API 在使用时通常是类型推理的，但也可以通过使用显式类型来解决。
-
+Duplicate APIs implemented in this way are almost always type inferred when used, but can also be resolved by explicitly specifying the type with `||`.
 
 ```erg
-print! P.Output # TypeError: ambiguous type resolution
+print! P.Output # TypeError: ambiguous type
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
-## Appendix：Rust 与TRAIT的区别
+## Appendix: Differences from Rust traits
 
-Erg 的TRAIT忠于提出的TRAIT。为了能够进行代数运算，TRAIT没有实现，设计了必要时打补丁的设计。
+Erg's trait is faithful to the one proposed by [Schärli et al.](https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf).
+In order to allow algebraic operations, traits are designed to be unable to have method implementations directory, but can be patched if necessary.
 
 <p align='center'>
     <a href='./02_basic.md'>Previous</a> | <a href='./04_class.md'>Next</a>

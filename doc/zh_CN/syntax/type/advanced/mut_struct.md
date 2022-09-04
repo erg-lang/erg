@@ -1,34 +1,34 @@
-# 可变结构类型
+# Mutable Structure Type
 
-型是可以插入任意的<gtr=“5”/>型对象进行替换的箱型。
-
+The ``T!`` type is described as a box type that can be replaced by any ``T`` type object.
 
 ```erg
-Particle! State: {"base", "excited"}! = Class(..., Impl := Phantom State)
-Particle!.
-    # このメソッドはStateを"base"から"excited"に遷移させる
+Particle!State: {"base", "excited"}! = Class(... Impl := Phantom State)
+Particle!
+    # This method moves the State from "base" to "excited".
     apply_electric_field!(ref! self("base" ~> "excited"), field: Vector) = ...
 ```
 
-型虽然可以进行数据的替换，但不能改变其结构。如果用更接近现实的程序行为的说法，（堆上的）大小不能变更。这种类型称为不变结构（可变）类型。
+The ``T!`` type can replace data, but it cannot change its structure.
+More like the behavior of a real program, it cannot change its size (on the heap). Such a type is called an immutable structure (mutable) type.
 
-实际上，存在不变结构型无法表示的数据结构。例如，可变长度排列。型可以加入任意的<gtr=“8”/>对象，但不能替换为<gtr=“9”/>型对象等。
+In fact, there are data structures that cannot be represented by invariant structure types.
+For example, a Mutable-length array. The `[T; N]!`type can contain objects of any `[T; N]`, but cannot be replaced by objects of type `[T; N+1]` and so on.
 
-也就是说，长度不能改变。为了改变长度，必须改变型本身的结构。
+In other words, the length cannot be changed. To change the length, the structure of the type itself must be changed.
 
-实现那个的是可变结构（可变）型。
-
+This is achieved by Mutable structure (mutable) types.
 
 ```erg
 v = [Str; !0].new()
 v.push! "Hello"
-v: [Str; !1]
+v: [Str; !1].
 ```
 
-在可变结构型中，在可变化的类型自变量上添加。在上述情况下，可以将<gtr=“11”/>型改为<gtr=“12”/>型等。也就是说，可以改变长度。顺便一提，型是型的糖衣句法。
+For mutable structure types, Mutable type arguments are marked with `!`. In the above case, the type `[Str; !0]` can be changed to `[Str; !1]` and so on. That is, the length can be changed.
+Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ArrayWithLength!(T, !N)` type.
 
-可变结构型当然也可以用户定义。但是，需要注意的是，与不变结构型在构成法方面有几个不同。
-
+Mutable structure types can of course be user-defined. Note, however, that there are some differences from invariant structure types in terms of the construction method.
 
 ```erg
 Nil T = Class(Impl := Phantom T)

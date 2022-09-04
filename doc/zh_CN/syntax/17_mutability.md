@@ -1,7 +1,7 @@
 # Mutability
 
-正如我们已经看到的，Erg 中的所有变量都是不变的。但是 Erg 的对象有一个可变性的概念。以下代码为示例。
-
+As we have already seen, all Erg variables are immutable. However, Erg objects have the concept of mutability.
+Take the following code as an example.
 
 ```erg
 a = [1, 2, 3]
@@ -9,8 +9,9 @@ a = a + [4, 5, 6]
 print! a # [1, 2, 3, 4, 5, 6]
 ```
 
-上面的代码实际上是 Erg 无法实现的。因为不能再赋值。这个代码可以运行。
+The above code cannot actually be executed by Erg. This is because it is not reassignable.
 
+This code can be executed.
 
 ```erg
 b = ![1, 2, 3]
@@ -18,8 +19,8 @@ b.concat! [4, 5, 6]
 print! b # [1, 2, 3, 4, 5, 6]
 ```
 
-虽然最终的结果看起来是一样的，但其含义却大相径庭。是表示<gtr=“10”/>数组的变量，但第一行和第二行所指向的对象不同。只是名称相同，但内容不同。
-
+The final result of `a, b` looks the same, but their meanings are very different.
+Although `a` is a variable that represents an array of `Nat`, the objects pointed to in the first and second lines are different. The name `a` is the same, but the contents are different.
 
 ```erg
 a = [1, 2, 3]
@@ -28,46 +29,45 @@ _a = a + [4, 5, 6]
 print! id! _a # 0x000002A798DFE980
 ```
 
-过程返回对象所在内存中的地址。
+The `id!` procedure returns the address in memory where the object resides.
 
-是<gtr=“14”/>的“动态”数组。对象的内容会发生变化，但变量指向相同的内容。
-
+`b` is a `Nat` "dynamic" array. The content of the object changes, but the variables point to the same thing.
 
 ```erg
-b = [1,2,3].into [Int; !3]
+b = ![1, 2, 3]
 print! id! b # 0x000002A798DFE220
 b.concat! [4, 5, 6]
 print! id! b # 0x000002A798DFE220
 ```
 
-
 ```erg
 i = !0
-if! True:
+if! True. do!
     do! i.inc!() # or i.add!(1)
     do pass
 print! i # 1
 ```
 
-是一个特殊的运算符，称为<gtr=“17”/>。返回变量的不可变对象。带有<gtr=“16”/>的对象的行为可以自定义。
-
+`!` is a special operator called the __mutation operator__. It makes immutable objects mutable.
+The behavior of objects marked with `!` can be customized.
 
 ```erg
 Point = Class {.x = Int; .y = Int}
 
-# この場合.xは可変化し、yは不変のまま
+# In this case .x is made mutable and .y remains immutable
 Point! = Class {.x = Int!; .y = Int}
-Point!.inc_x! ref! self = self.x.update! x -> x+1
+Point!.
+    inc_x! ref!(self) = self.x.update! x -> x + 1
 
 p = Point!.new {.x = !0; .y = 0}
 p.inc_x!()
 print! p.x # 1
 ```
 
-## 常数
+## Constant
 
-与变量不同，常量在所有作用域中指向相同的内容。常量由运算符声明。
-
+Unlike variables, constants point to the same thing in all scopes.
+Constants are declared with the `=` operator.
 
 ```erg
 PI = 3.141592653589
@@ -75,17 +75,28 @@ match! x:
     PI => print! "this is pi"
 ```
 
-常量在全局以下的所有范围内都是相同的，不能被覆盖。因此，不能通过进行重新定义。此限制允许你在模式匹配中使用它。在模式匹配中使用<gtr=“20”/>和<gtr=“21”/>是因为它们是常数。此外，常量始终指向不变对象。类型（如<gtr=“22”/>）不能是常量。所有内置类型都是常量，因为它们应该在编译时确定。也可以生成非常量类型，但不能用于指定类型，只能作为记录使用。反过来说，类型也可以说是编译时内容已确定的记录。
+Constants are identical in all scopes below the global and cannot be overwritten. Therefore, they cannot be redefined by ``=``. This restriction allows it to be used in pattern matching.
+The reason why `True` and `False` can be used in pattern matching is because they are constants.
+Also, constants always point to immutable objects. Types such as `Str!` cannot be constants.
+All built-in types are constants because they should be determined at compile time. Types that are not constants can be generated, but they cannot be used to specify a type and can only be used like a simple record. Conversely, a type is a record whose contents are determined at compile time.
 
 ## Variable, Name, Identifier, Symbol
 
-现在，我们来整理一下 Erg 中有关变量的术语。
+Let's clear up a few terms related to variables in Erg.
 
-“变量”（Variable）是一种为对象命名（Name）并允许其重复使用的机制（或指该名称）。标识符（Identifier）是用于指定变量的语法元素。符号是表示名称的语法元素和标记。
+A Variable is a mechanism to give an object a Name so that it can be reused (or point to that Name).
+Identifier is a grammar element that specifies a variable.
+A symbol is a grammatical element, a token, that represents a name.
 
-只有不是符号的字符才是符号，符号是运算符，但不是符号。例如，是标识符和符号。<gtr=“24”/>也是一个标识符，但它不是一个符号。<gtr=“25”/>和<gtr=“26”/>是符号。即使<gtr=“27”/>没有与任何对象关联，<gtr=“28”/>仍然是 Symbol 和 Identifier，但不是 Variable。形式为<gtr=“29”/>的标识符称为字段存取器。此外，<gtr=“30”/>形式的标识符称为下标存取器。
+Only non-symbolic characters are symbols, and symbols are not called symbols, although they can be identifiers as operators.
+For example, `x` is an identifier and a symbol. `x.y` is also an identifier, but it is not a symbol. `x` and `y` are symbols.
+And even if `x` were not tied to any object, `x` would still be a Symbol and an Identifier, but it would not be called a Variable.
+Identifiers of the form `x.y` are called Field Accessors.
+Identifiers of the form `x[y]` are called Subscript Accessors.
 
-变量和标识符之间的区别，如果说 Erg 语法理论意义上的变量，那么这两个变量实际上是相同的。变量和标识符不等效的语言包括 C 语言。在 C 语言中，类型或函数不能赋给变量。int，main 是标识符，但不是变量（严格来说，它可能是可赋值的，但有限制）。但在 Erg 中，“一切都是物体”。函数和类型，甚至运算符都可以赋给变量。
+The difference between a variable and an identifier is that if we are talking about a variable in the sense of Erg's grammatical theory, the two are in effect the same.
+In C, types and functions cannot be assigned to variables; int and main are identifiers, but not variables (strictly speaking, they can be assigned, but there are restrictions).
+However, in Erg, "everything is an object". Not only functions and types, but even operators can be assigned to variables.
 
 <p align='center'>
     <a href='./16_iterator.md'>Previous</a> | <a href='./18_ownership.md'>Next</a>

@@ -1,7 +1,8 @@
 # Patch
 
-Erg 不允许修改现有类型类。不能在类中定义额外的方法，而是专门化（specialization，将声明为多相的类型单相化并定义专用方法的功能。C++ 等也不能使用。但是，在许多情况下，你希望将功能添加到现有类型类中，而修补程序就是实现这一目标的方法。
-
+Erg does not allow modification of existing types and classes.
+This means, it is not possible to define additional methods in a class, nor to perform specialization (a language feature that monomorphizes a polymorphically declared type and defines a dedicated method, as in C++).
+However, there are many situations where you may want to add feature to an existing type or class, and there is a function called "patching" that allows you to do this.
 
 ```erg
 StrReverse = Patch Str
@@ -11,33 +12,34 @@ StrReverse.
 assert "abc".reverse() == "cba"
 ```
 
-修补程序的名称最好是要添加的主要功能的直接描述。这样，要修补的类型（）的对象就可以使用修补方法（<gtr=“18”/>）。实际上，<gtr=“19”/>不是<gtr=“20”/>方法，而是添加到<gtr=“21”/>中的方法。
+The name of the patch should be a straightforward description of the primary functionality to be added.
+This way, objects of the type being patched (`Str`) can use the methods of the patch (`StrReverse`).
+In fact, built-in method `.reverse` is not a method of `Str`, but a method added to `StrRReverse`.
 
-但是，修补程序方法的优先级低于记名（类）方法，因此不能覆盖（覆盖）现有类的方法。
-
+However, patch methods have lower precedence than methods of the nominal type (class/trait) and cannot override methods of existing types.
 
 ```erg
 StrangeInt = Patch Int
 StrangeInt.
-    `_+_` = Int.`_-_` # AssignError: .`_+_` is already defined in Int
+    `_+_` = Int.`_-_` # AssignError: . `_+_` is already defined in Int
 ```
 
-如果要覆盖，必须继承类。但是，建议你定义一个具有不同名称的方法，而不是覆盖它。因为覆盖有一些安全限制，不是那么容易做到的。
-
+If you want to override, you must inherit from the class.
+However, it is basically recommended not to override and to define a method with a different name.
+Overriding is not very easy to do because of some safety restrictions.
 
 ```erg
 StrangeInt = Inherit Int
 StrangeInt.
-    # オーバーライドするメソッドにはOverrideデコレータを付与する必要がある
-    # さらに、Int.`_+_`に依存するIntのメソッドすべてをオーバーライドする必要がある
+    # Overriding methods must be given Override decorators.
+    # In addition, you need to override all Int methods that depend on Int.`_+_`.
     @Override
-    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ..., so these method must also be overridden
+    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ... ````` , so these methods must also be overridden
 ```
 
-## 选择修补程序
+## Selecting Patches
 
-可以为一种类型定义多个曲面片，也可以将它们组合在一起。
-
+Patches can be defined for a single type, and can be grouped together.
 
 ```erg
 # foo.er
@@ -56,8 +58,8 @@ StrToKebabCase.
     to_kebab_case self = ...
 
 StrBoosterPack = StrReverse and StrMultiReplace and StrToCamelCase and StrToKebabCase
+StrBoosterPack = StrReverse and StrMultiReplace and StrToCamelCase and StrToKebabCase
 ```
-
 
 ```erg
 {StrBoosterPack; ...} = import "foo"
@@ -68,8 +70,7 @@ assert "to camel case".to_camel_case() == "toCamelCase"
 assert "to kebab case".to_kebab_case() == "to-kebab-case"
 ```
 
-如果可以定义多个修补程序，某些修补程序可能会导致重复的实现。
-
+If multiple patches are defined, some of them may result in duplicate implementations.
 
 ```erg
 # foo.er
@@ -85,26 +86,25 @@ StrReverseMk2.
 "hello".reverse() # PatchSelectionError: multiple choices of `.reverse`: StrReverse, StrReverseMk2
 ```
 
-在这种情况下，可以使用相关函数格式而不是方法格式来实现唯一性。
-
+In such a case, you can make it unique by using the __related function__ form instead of the method form.
 
 ```erg
 assert StrReverseMk2.reverse("hello") == "olleh"
 ```
 
-也可以通过选择性导入来实现唯一性。
-
+You can also make it unique by selectively importing.
 
 ```erg
 {StrReverseMk2; ...} = import "foo"
 
-assert StrReverseMk2.reverse("hello") == "olleh"
+assert "hello".reverse() == "olleh"
 ```
 
-## 粘合面片（Glue Patch）
+## Glue Patch
 
-修补程序还可以关联类型。将<gtr=“23”/>与<gtr=“24”/>关联起来。这些面片称为“粘合面片”（Glue Patch）。由于<gtr=“25”/>是一个内置类型，因此用户需要一个粘合贴片来改装托盘。
-
+Patches can also relate types to each other. The `StrReverse` patch relates `Str` and `Reverse`.
+Such a patch is called a __glue patch__.
+Because `Str` is a built-in type, a glue patch is necessary for users to retrofit traits.
 
 ```erg
 Reverse = Trait {
@@ -117,8 +117,9 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-只能为一对类型和托盘定义一个粘合曲面片。这是因为，如果多个粘合贴片同时“可见”，则无法唯一确定选择哪个实现。但是，你可以在切换到其他范围（模块）时替换修补程序。
-
+Only one glue patch can be defined per type/trait pair.
+This is because if multiple glue patches were "visible" at the same time, it would not be possible to uniquely determine which implementation to choose.
+However, you can swap patches when moving to another scope (module).
 
 ```erg
 NumericStr = Inherit Str
@@ -132,10 +133,9 @@ NumStrRev.
 # hint: `Str` (superclass of `NumericStr`) is associated with `Reverse` by `StrReverse`
 ```
 
-## Appendix：Rust 与trait的关系
+## Appendix: Relationship to Rust's Trait
 
-Erg 修补程序相当于 Rust 的 impl 块（后置）。
-
+Erg patches are the equivalent of Rust's (retrofitted) `impl` blocks.
 
 ```rust
 // Rust
@@ -150,8 +150,7 @@ impl Reverse for String {
 }
 ```
 
-可以说，Rust Traitt 是 Erg Traitt 和补丁的功能的结合。这样说来，Rust 的trait听起来更方便，其实也不尽然。
-
+You could say that Rust's traits are features of Erg's traits and patches. This makes Rust's traits sound more convenient, but that is not necessarily the case.
 
 ```erg
 # Erg
@@ -165,8 +164,8 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-Erg 将 impl 块对象化为修补程序，以便在从其他模块导入时进行选择性导入。此外，还允许在外部结构中实现外部托盘。此外，由于结构类型的不同，也不需要 dyn trait 和 impl trait 语法。
-
+Because the `impl` block is objectized as a patch in Erg, selective inclusion is possible when importing from other modules. As a side-effect, it also allows implementation of external traits to external structures.
+Also, syntaxes such as `dyn trait` and `impl trait` are no longer required by the structure type.
 
 ```erg
 # Erg
@@ -174,7 +173,6 @@ reversible: [Reverse; 2] = [[1, 2, 3], "hello"]
 
 iter|T|(i: Iterable T): Iterator T = i.iter()
 ```
-
 
 ```rust
 // Rust
@@ -185,10 +183,11 @@ fn iter<I>(i: I) -> impl Iterator<Item = I::Item> where I: IntoIterator {
 }
 ```
 
-## 全称补丁
+## For-All Patch
 
-你可以为特定类型定义修补程序，也可以为“常规函数类型”等定义修补程序。在这种情况下，将想要给出自由度的项作为参数（在下面的情况下为）。以这种方式定义的曲面片称为全称曲面片。正如你所看到的，全称修补程序是一个返回修补程序的函数，但它本身也可以被视为修补程序。
-
+A patch can be defined not only for one specific type, but also for "function types in general" and so on.
+In this case, the term to which the degree of freedom is to be given is given as an argument (in the case below, `T: Type`). A patch defined in this way is called an all-symmetric patch.
+As you can see, an all-symmetric patch is precisely a function that returns a patch, but it can also be considered a patch in its own right.
 
 ```erg
 FnType T: Type = Patch(T -> T)
@@ -198,15 +197,15 @@ FnType(T).
 assert (Int -> Int).type == Int
 ```
 
-## 结构补丁
+## Structural Patch
 
-此外，还可以为满足某一结构的所有类型定义修补程序。但是，它的优先级低于记名修补程序和类方法。
+In addition, patches can be defined for any type that satisfies a certain structure.
+However, this has a lower priority than nominal patches and class methods.
 
-在定义结构修补程序时，请仔细设计，因为扩展可能会导致不成立，如下所示。
-
+Careful design should be used when defining structural patches, as some properties are lost by extension, such as the following.
 
 ```erg
-# これはStructuralにするべきではない
+# This should not be `Structural`
 Norm = Structural Patch {x = Int; y = Int}
 Norm.
     norm self = self::x**2 + self::y**2

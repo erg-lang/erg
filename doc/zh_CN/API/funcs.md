@@ -1,17 +1,17 @@
-# 功能
+# functions
 
-## 基本功能
+## basic functions
 
 ### if|T; U|(cond: Bool, then: T, else: U) -> T or U
 
 ### map|T; U|(i: Iterable T, f: T -> U) -> Map U
 
-请注意，参数的顺序与 Python 相反
+Note that the order of arguments is reversed from Python.
 
 ### log(x: Object, type: LogType = Info) -> None
 
-在调试显示中记录“x”。 执行完成后汇总并显示日志
-支持表情符号的终端根据“类型”添加前缀
+Log `x` in debug display. Logs are summarized and displayed after the execution is finished.
+Emoji-capable terminals are prefixed according to `type`.
 
 * type == Info: 💬
 * type == Ok: ✅
@@ -20,17 +20,17 @@
 
 ### panic(msg: Str) -> Panic
 
-显示msg并停止。
-支持表情符号的终端有一个🚨前缀。
+Display msg and stop.
+Emoji-capable terminals have a 🚨 prefix.
 
 ### discard|T|(x: ...T) -> NoneType
 
-扔掉`x`。不使用返回值时使用。与 `del` 不同，它不会使变量 `x` 不可访问
+Throw away `x`. Used when the return value is not used. Unlike `del`, it does not make the variable `x` inaccessible.
 
-```erg
-p! x =
-    # q!应该返回一些不是None或()的值
-    # 如果不需要，请使用`discard`
+``` erg
+p!x=
+    # Let q! return some None or non-() value
+    # use `discard` if you don't need it
     discard q!(x)
     f x
 
@@ -40,32 +40,32 @@ assert True # OK
 
 ### import(path: Path) -> Module or CompilerPanic
 
-导入一个模块。如果找不到模块，则引发编译错误
+Import a module. Raises a compilation error if the module is not found.
 
 ### eval(code: Str) -> Object
 
-将`code`作为代码进行评估并返回。
+Evaluate code as code and return.
 
 ### classof(object: Object) -> Class
 
-返回`object`的类。
-但是，由于无法比较类，如果要判断实例，请使用`object in Class`而不是`classof(object) == Class`
-编译时确定的结构类型是通过`Typeof`获得的
+Returns the class of `object`.
+However, since classes cannot be compared, use `object in Class` instead of `classof(object) == Class` if you want to judge instances.
+The structure type determined at compile time is obtained with `Typeof`.
 
-## Iterator, Array生成系统
+## Iterator, Array generation system
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
-```erg
+``` erg
 rep = repeat 1 # Repeater(1)
 for! rep, i =>
-    print! i
+    print!i
 # 1 1 1 1 1 ...
 ```
 
 ### dup|T; N|(x: T, N: Nat) -> [T; N]
 
-```erg
+``` erg
 [a, b, c] = dup new(), 3
 print! a # <Object object>
 print! a == b # False
@@ -73,21 +73,21 @@ print! a == b # False
 
 ### cycle|T|(it: Iterable T) -> CycleIterator T
 
-```erg
+``` erg
 cycle([0, 1]).take 4 # [0, 1, 0, 1]
 cycle("hello").take 3 # "hellohellohello"
 ```
 
-## 定数式関数
+## constant expression functions
 
 ### Class
 
-创建一个新类。 与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
-您将无法进行比较，但您可以进行模式匹配等操作
+Create a new class. Unlike `Inherit`, passing through `Class` is independent of the base type and methods are lost.
+You won't be able to compare, but you can do things like pattern matching.
 
-```erg
+``` erg
 C = Class {i = Int}
-NewInt = Class Int
+NewInt = ClassInt
 Months = Class 1..12
 jan = Months.new(1)
 jan + Months.new(2) # TypeError: `+` is not implemented for 'Months'
@@ -96,26 +96,26 @@ match jan:
     _ -> log "Other"
 ```
 
-第二个参数 Impl 是要实现的特征
+The second argument, Impl, is the trait to implement.
 
 ### Inherit
 
-继承一个类。您可以按原样使用基类方法
+Inherit a class. You can use the base class methods as they are.
 
-### Trait
+### Traits
 
-创造一个新的特质。目前，只能指定记录类型
+Create a new trait. Currently, only record types can be specified.
 
-### Typeof
+### Type of
 
-返回参数类型。如果要获取运行时类，请使用`classof`。
-如果您将其用于类型规范，则会出现警告。
+Returns the argument type. Use `classof` if you want to get the runtime class.
+If you use it for type specification, Warning will appear.
 
-```erg
-x: Typeof i = ...
+``` erg
+x: Type of i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```
 
 ### Deprecated
 
-作为解码器使用。警告不推荐使用的类型或函数
+Use as a decorator. Warn about deprecated types and functions.

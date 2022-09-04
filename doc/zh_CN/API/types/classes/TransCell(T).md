@@ -1,9 +1,9 @@
 # TransCell! T: Type!
 
-它是一个单元格，其内容可以针对每个模具进行更改。 由于它是T类型的子类型，因此它也表现为T类型
-当它在初始化时输入T时很有用，并且在某个点之后总是输入U
+It is a cell whose contents can be changed for each mold. Since it is a subtype of T type, it also behaves as T type.
+It's useful when it's type T at initialization, and it's always type U after a certain point.
 
-```erg
+``` erg
 a = TransCell!.new None
 a: TransCell! !NoneType
 a.set! 1

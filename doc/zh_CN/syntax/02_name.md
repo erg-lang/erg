@@ -1,56 +1,55 @@
-# 变量
+# Variable
 
-变量是代数的一种。Erg 中的代数-有时也称为变量（如果正确）-是指命名对象并使其可从代码中的其他位置使用的功能。
+Variables are a type of algebra; algebra in Erg - sometimes simply referred to as variable if there is no confusion - refers to the feature to name objects and make them referable from elsewhere in the code.
 
-变量定义如下。部分称为变量名（或标识符），<gtr=“17”/>称为赋值运算符，<gtr=“18”/>部分称为赋值。
-
+A variable is defined as follows.
+The `n` part is called the variable name (or identifier), `=` is the assignment operator, and the `1` part is the assigned value.
 
 ```erg
 n = 1
 ```
 
-以这种方式定义的随后可用作表示整数对象<gtr=“20”/>的变量。此系统称为赋值（或绑定）。我们刚才提到了<gtr=“21”/>是一个对象。我们将在后面讨论对象是什么，但我们现在应该将其赋值到赋值运算符（例如<gtr=“22”/>）的右侧。
+The `n` defined in this way can thereafter be used as a variable to denote the integer object `1`. This system is called assignment (or binding).
+We have just said that `1` is an object. We will discuss what an object is later, but for now we will assume that it is something that can be assigned to, i.e., on the right side of the assignment operator (`=`, etc.).
 
-如果要指定变量的类型。类型是指对象所属的集合，这也将在后面介绍。指定为自然数（<gtr=“24”/>）。
-
+If you want to specify the "type" of a variable, do the following. The type is roughly the set to which an object belongs, as will be explained later.
+Here we specify that `n` is a natural number (`Nat`) type.
 
 ```erg
 n: Nat = 1
 ```
 
-请注意，与其他语言不同，多重赋值是不可能的。
-
+Note that, unlike other languages, multiple assignments are not allowed.
 
 ```erg
 # NG
-l1 = l2 = [1, 2, 3] # SyntaxError: 多重代入はできません
+l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
 ```
 
-也不能对变量进行重新赋值。可以使用的功能，即保持可变状态的功能将在后面讨论。
-
+It is also not possible to reassign to a variable. The syntax that can be used instead, to hold mutable states, are described later.
 
 ```erg
 i = 1
 i = i + 1 # AssignError: cannot assign twice
 ```
 
-你可以在内部范围内定义具有相同名称的变量，但它们只是放在上面，而不是破坏性地重写值。如果返回到外部范围，则值也将返回。请注意，这与 Python“语句”的作用域不同。这类功能通常称为阴影。但是，与其他语言的阴影不同，你不能在同一范围内进行阴影。
-
+You can define a variable with the same name in the inner scope, but you are only covering it over, not destructively rewriting its value. If you go back to the outer scope, the value will return as well.
+Note that this is a different behavior than the Python "statement" scope.
+This kind of functionality is generally referred to as shadowing. However, unlike shadowing in other languages, you cannot shadow in the same scope.
 
 ```erg
 x = 0
 # x = 1 # AssignError: cannot assign twice
 if x.is_zero(), do:
-    x = 1 # 外側のxとは同名の別物
+    x = 1 # different from outer x with same name
     assert x == 1
 assert x == 0
 ```
 
-以下乍一看似乎可行，但还是不行。这不是技术限制，而是设计判断。
-
+The following may seem possible at first glance, but it is still not possible. This is a design decision, not a technical constraint.
 
 ```erg
 x = 0
@@ -60,10 +59,10 @@ if x.is_zero(), do:
 assert x == 0
 ```
 
-## 常数
+## Constants
 
-常数也是代数的一种。如果标识符以大写字母开头，则将其视为常量。它被称为常量，因为它一旦定义就不会改变。部分称为常量名称（或标识符）。其他与变量相同。
-
+Constants are also a type of algebra. If you start an identifier with a capital letter, it is treated as a constant. They are called constants because once defined, they do not change.
+The `N` part is called the constant name (or identifier). Otherwise, it is the same as a variable.
 
 ```erg
 N = 0
@@ -72,17 +71,17 @@ if True, do:
     pass()
 ```
 
-常量在定义的范围之后变得不变。我也不能阴影。由于该性质，常量可用于模式匹配。后面我们会讨论模式匹配。
+Constants are immutable beyond the defined scope. They cannot be shadowed. Because of this property, constants can be used in pattern matching. Pattern matching is explained later.
 
-你可能希望将常量用于不变的值，如数学常量或有关外部资源的信息。除之外的对象通常是全部大写字母（所有字符都是大写的样式）。
+For example, constants are used for mathematical constants, information about external resources, and other immutable values.
 
+It is common practice to use all-caps (style in which all letters are capitalized) for identifiers of objects other than [types](./type/01_type_system.md).
 
 ```erg
 PI = 3.141592653589793
 URL = "https://example.com"
 CHOICES = ["a", "b", "c"]
 ```
-
 
 ```erg
 PI = 3.141592653589793
@@ -91,20 +90,19 @@ match! x:
     other => print! "other"
 ```
 
-当为<gtr=“28”/>时，上面的代码输出<gtr=“29”/>。如果将<gtr=“30”/>更改为其他数字，则输出<gtr=“31”/>。
+The above code prints `π` when `x` is `3.141592653589793`. If `x` is changed to any other number, it prints `other`.
 
-有些常量是不能赋值的。可变对象等等。可变对象是可以更改其内容的对象，如下所述。这是因为常量只能由常量表达式赋值。我们还将在后面讨论常数表达式。
-
+Some objects cannot be bound as constants. Mutable objects, for example. Mutable objects are objects whose states can be changed, as described in detail later.
+This is because of the rule that only constant expressions can be assigned to constants. Constant expressions are also discussed later.
 
 ```erg
 X = 1 # OK
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
-## 删除代数
+## Delete an Variable
 
-可以使用函数删除代数。所有依赖于代数（直接引用代数的值）的其他代数都将被删除。
-
+You can delete an variable by using the `Del` function. All other variables that depend on the variable (that is, that refer directly to the value of the variable) are also removed.
 
 ```erg
 x = 1
@@ -119,27 +117,24 @@ Del y, Z
 f(2) # NameError: f is not defined (deleted in line 6)
 ```
 
-但是，只能删除模块中定义的代数。不能删除内置常量，如<gtr=“34”/>。
-
+Note that `Del` can only delete variables defined in the user-defined module. Built-in constants such as `True` cannot be deleted.
 
 ```erg
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
 
-## Appendix：赋值等价性
+## Appendix: Assignment and Equivalence
 
-注意，当时，不一定是<gtr=“36”/>。例如有<gtr=“37”/>。这是由 IEEE 754 规定的正式浮点数的规格。
-
+Note that `x == a` is not necessarily true when `x = a`. An example is `Float.NaN`. This is the formal specification of floating-point numbers as defined by IEEE 754.
 
 ```erg
 x = Float.NaN
-assert x != Float.NaN
-assert x != x
+assert x ! = NaN
+assert x ! = x
 ```
 
-其他，也存在原本就没有定义等值关系的对象。
-
+There are other objects for which no equivalence relation is defined in the first place.
 
 ```erg
 f = x -> x**2 + 2x + 1
@@ -151,8 +146,8 @@ D = Class {i: Int}
 C == D # TypeError: cannot compare class objects
 ```
 
-严格地说，并不是将右边值直接代入左边的识别符。函数对象和类对象的情况下，对对象进行赋予变量名的信息等的“修饰”。但是结构型的情况不受此限制。
-
+Strictly speaking, `=` does not assign the right-hand side value directly to the left-hand side identifier.
+In the case of function and class objects, "modification" such as giving variable name information to the object is performed. However, this is not the case for structural types.
 
 ```erg
 f x = x

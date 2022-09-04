@@ -1,6 +1,6 @@
 # Complex
 
-表示复数的类型。 在 Erg 中表示数字的类型，例如 Float、Int 和 Nat，通常在顶部有这种类型
+A type that represents a complex number. Types that represent numbers in Erg, such as Float, Int, and Nat, usually have this type at the top.
 
 ## supers
 

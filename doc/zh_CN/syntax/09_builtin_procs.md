@@ -1,9 +1,10 @@
-# 内置过程
+# Built-in procedure
 
 ## id!
 
-返回对象的唯一标识号。在纯 Erg 语义中，结构相同的对象之间没有差异，但实际上，对象在内存中的位置是不同的。返回表示此位置的数字。
-
+Returns the unique identification number of the object.
+Although in pure Erg semantics no difference can be found between objects with the same structure, in practice objects have different locations in memory.
+`id!` returns a number representing this position.
 
 ```erg
 ```

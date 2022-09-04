@@ -1,6 +1,6 @@
 # Dict! K, V
 
-表示字典（哈希Map）的类型。 有一个语法糖叫做`{K: V}`
+A type that represents a dictionary (hashmap). There is a syntactic sugar called `{K: V}`.
 
 ## methods
 

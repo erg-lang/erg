@@ -1,35 +1,39 @@
-# 归一化
+# Normalization
 
-* Erg 的类型参数规范化使用 SymPy 的 simplify 函数。
+* Erg's type argument normalization is based on SymPy's simplify function.
 
-例如，在定义时，必须不具体化类型变量和自变量而进行一致判定。等式判定自然是有界限的，目前可能的判定及其方式如下所示。
+For example, when you define `concat: |T, M, N|([T; M], [T; N] -> [T; M+N])`, you can match type variables and arguments without instantiating them. Judgment must be made.
+Equality judgment naturally has its limits, but the judgments that are possible at present and their methods are as follows.
 
-* 相加/乘法对称性：
+* Addition/multiplication symmetry:
 
   `n+m == m+n`
 
-  类型变量作为字符串进行分类并正规化。
+  Type variables are sorted and normalized as strings.
 
-* 加法与乘法、减法与除法的等效性：
+* Equivalence of addition and multiplication, subtraction and division:
 
   `n+n == 2*n`
 
-  归一化为Σ [c]x==c*x（c 为常数）。常量放在二项式演算的左边进行正规化。
+  Normalize to Σ[c] x == c*x, where c is a constant.
+  Constants are normalized by placing them on the left side of binary operations.
 
-* 复式等效性：
+* Equality of double expressions:
 
-  `n+m+l == m+n+l == l+m+n ==...` `n+m*l == m*l+n`
+  `n+m+l == m+n+l == l+m+n == ...`
+  `n+m*l == m*l+n`
 
-  通过分类进行正规化判定。乘法、除法的程序块在加法、减法的左侧出。块之间比较最左边的类型变量进行分类。
+  Determined by normalizing by sorting.
+  Blocks for multiplication and division are placed to the left of addition and subtraction. Blocks are sorted by comparing the type variables on the leftmost side.
 
-* 基本不公式：
+* Basic inequalities:
 
   `n > m -> m + 1 > n`
 
-* 等式：
+* Equality:
 
   `n >= m and m >= n -> m == n`
 
-* 不等式的推移性：
+* Transitivity of inequalities:
 
   `n > 0 -> n > -1`

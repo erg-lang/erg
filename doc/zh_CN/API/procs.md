@@ -1,34 +1,34 @@
-# 过程
+# procedures
 
 ## print!
 
 ``` erg
-打印！（x）->无类型
+print!(x) -> NoneType
 ```
 
-   使用换行符返回 x。
+   Returns x with a newline.
 
-##调试&排除;
+##debug&excl;
 
 ``` erg
-调试！（x，类型=信息）-> NoneType
+debug!(x, type = Info) -> NoneType
 ```
 
-用换行符调试 x（文件名、行号、变量名一起显示）。 在发布模式中删除。
-支持表情符号的终端根据类型加前缀。
+Debug x with newline (file name, line number, variable name is displayed together). Removed in release mode.
+Emoji-capable terminals are prefixed according to type.
 
 * type == Info: 💬
 * type == Ok: ✅
 * type == Warn: ⚠️
 * type == Hint: 💡
 
-## for!i: Iterable T, block: T => NoneType
+## for! i: Iterable T, block: T => NoneType
 
-以块的动作遍历迭代器。
+Traverse the iterator with the action of block.
 
-## while!cond: Bool!, block: () => NoneType
+## while! cond: Bool!, block: () => NoneType
 
-当cond为True时的执行块。
+Execute block while cond is True.
 
 ## Lineno!() -> Nat
 

@@ -1,34 +1,32 @@
-# 封闭
+# Closure
 
-Erg 子例程具有一个名为“闭包”的功能，用于捕获外部变量。
+Erg subroutines have a feature called a "closure" that captures external variables.
 
-
-```erg
+``` erg
 outer = 1
 f x = outer + x
 assert f(1) == 2
 ```
 
-可以捕捉可变对象，也可以捕捉不变对象。
+As with immutable objects, mutable objects can also be captured.
 
-
-```erg
+``` erg
 sum = !0
 for! 1..10, i =>
-    sum.add! i
+    sum.add!i
 assert sum == 45
 
-p! x =
-    sum.add! x
+p!x=
+    sum.add!x
 p!(1)
 assert sum == 46
 ```
 
-但需要注意的是，函数无法捕获可变对象。如果可以在函数中引用可变对象，则可以编写如下所示的代码。
+Note, however, that functions cannot capture mutable objects.
+If a mutable object can be referenced in a function, you can write code like the following.
 
-
-```erg
-# !!! 这个代码实际上给出了一个错误!!!
+``` erg
+# !!! This code actually gives an error !!!
 i = !0
 f x = i + x
 assert f 1 == 1
@@ -36,33 +34,31 @@ i.add! 1
 assert f 1 == 2
 ```
 
-函数应该为相同的参数返回相同的值，但假设已被破坏。请注意，是在调用时首次计算的。
+The function should return the same value for the same arguments, but the assumption is broken.
+Note that `i` is evaluated only at call time.
 
-如果需要函数定义时可变对象的内容，则调用。
+Call `.clone` if you want the contents of the mutable object at the time the function was defined.
 
-
-```erg
+``` erg
 i = !0
 immut_i = i.clone().freeze()
-f x = immut_i + x
+fx = immut_i + x
 assert f 1 == 1
 i.add! 1
 assert f 1 == 1
 ```
 
-## 避免可变状态，函数编程
+## avoid mutable state, functional programming
 
-
-```erg
+``` erg
 # Erg
 sum = !0
 for! 1..10, i =>
-    sum.add! i
+    sum.add!i
 assert sum == 45
 ```
 
-在 Python 中，可以按如下方式编写上面的等效程序。
-
+The equivalent program above can be written in Python as follows:
 
 ```python
 # Python
@@ -72,27 +68,28 @@ for i in range(1, 10):
 assert sum == 45
 ```
 
-但 Erg 建议使用更简单的写法。使用局部化使用函数的状态的样式，而不是使用子例程和可变对象来维护状态。这称为函数型编程。
+However, Erg recommends a simpler notation.
+Instead of carrying around state using subroutines and mutable objects, use a style of localizing state using functions. This is called functional programming.
 
-
-```erg
+``` erg
 # Functional style
 sum = (1..10).sum()
 assert sum == 45
 ```
 
-上面的代码与刚才的结果完全相同，但我们可以看到它要简单得多。
+The code above gives exactly the same result as before, but you can see that this one is much simpler.
 
-除了求和之外，还可以使用函数执行更多操作。<gtr=“12”/>是迭代器方法，它为每个小版本执行参数<gtr=“13”/>。存储结果的计数器的初始值由<gtr=“14”/>指定，然后存储在<gtr=“15”/>中。
+The `fold` function can be used to do more than sum.
+`fold` is an iterator method that executes the argument `f` for each iteration.
+The initial value of the counter that accumulates results is specified in `init` and accumulated in `acc`.
 
-
-```erg
+``` erg
 # start with 0, result will
 sum = (1..10).fold(init: 0, f: (acc, i) -> acc + i)
 assert sum == 45
 ```
 
-Erg 的设计是为了使用不变的对象进行编程，从而提供自然简洁的描述。
+Erg is designed to be a natural succinct description of programming with immutable objects.
 
 <p align='center'>
     <a href='./22_subroutine.md'>Previous</a> | <a href='./24_module.md'>Next</a>

@@ -1,7 +1,9 @@
-# 属性类型（Attributive Type）
+# Attributive Type
 
-属性类型是包含记录和数据类、修补程序、模块等的类型。属于属性类型的类型不是值类型。
+Attribute types are types that contain Record and Dataclass, Patch, Module, etc.
+Types belonging to attribute types are not value types.
 
-## 记录类型合并
+## Record Type Composite 
 
-合并的记录类型可以展平。例如，等于<gtr=“2”/>。
+It is possible to flatten Record types composited.
+For example, `{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` becomes `{.name = Str; .age = Nat; .id = Nat}`.

@@ -1,19 +1,18 @@
-# 模式匹配，可辩驳性
+# pattern matching, refutable
 
-## Erg 中可用的模式
+## Patterns available in Erg
 
-### 变量模式
+### variable pattern
 
-
-```erg
-# basic assignment
+``` erg
+# basic assignments
 i = 1
 # with type
 i: Int = 1
 # with anonymous type
 i: {1, 2, 3} = 2
 
-# function
+# functions
 fn x = x + 1
 # equals
 fn x: Add(Int) = x + 1
@@ -27,12 +26,11 @@ a: [Int; 4] = [0, 1, 2, 3]
 a: Array Int, 4 = [0, 1, 2, 3]
 ```
 
-### 文字模式
+### Literal patterns
 
-
-```erg
-# もし`i`がコンパイル時に1と判断できない場合は、TypeErrorが発生する。
-# `_: {1} = i`を省略したもの
+``` erg
+# Raise a TypeError if `i` cannot be determined to be 1 at compile time.
+# omit `_: {1} = i`
 1 = i
 
 # simple pattern matching
@@ -42,16 +40,15 @@ match x:
     _ -> "other"
 
 # fibonacci function
-fib 0 = 0
-fib 1 = 1
-fib n: Nat = fib n-1 + fib n-2
+fib0 = 0
+fib1 = 1
+fibn: Nat = fibn-1 + fibn-2
 ```
 
-### 常数模式
+### constant pattern
 
-
-```erg
-cond = False
+``` erg
+cond=False
 match! cond:
     True => print! "cond is True"
     _ => print! "cond is False"
@@ -65,11 +62,10 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### 筛子模式
+### Sieve pattern
 
-
-```erg
-# この２つは同じ
+``` erg
+# these two are the same
 Array(T, N: {N | N >= 3})
 Array(T, N | N >= 3)
 
@@ -77,55 +73,50 @@ f M, N | M >= 0, N >= 1 = ...
 f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
 ```
 
-### 销毁（通配符）模式
+### discard (wildcard) pattern
 
-
-```erg
+``` erg
 _ = 1
 _: Int = 1
-zero _ = 0
+zero_ = 0
 right(_, r) = r
 ```
 
-### 可变长度模式
+### Variable length patterns
 
-与下面介绍的元组/数组/记录模式结合使用。
+It is used in combination with the tuple/array/record pattern described later.
 
-
-```erg
-[i, ...j] = [1, 2, 3, 4]
+``` erg
+[i,...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
-### 元组图案
+### Tuple pattern
 
-
-```erg
+``` erg
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
-# ネストしていないなら()を省略可能(1, 2は(1, 2)として扱われる)
+# If not nested, () can be omitted (1, 2 are treated as (1, 2))
 m, n = 1, 2
 
 f(x, y) = ...
 ```
 
-### 数组模式
+### array pattern
 
-
-```erg
+``` erg
 [i, j] = [1, 2]
 [[k, l], _] = [[1, 2], [3, 4]]
 
-length [] = 0
-length [_, ...rest] = 1 + length rest
+length[] = 0
+length[_, ...rest] = 1 + lengthrest
 ```
 
-#### 记录模式
+#### record pattern
 
-
-```erg
+``` erg
 record = {i = 1; j = 2; k = 3}
 {j; ...} = record # i, k will be freed
 
@@ -140,10 +131,9 @@ age = match person:
 f {x: Int; y: Int} = ...
 ```
 
-### 数据类模式
+### Data class pattern
 
-
-```erg
+``` erg
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
@@ -162,23 +152,21 @@ List T.
             _ -> ...
 ```
 
-### 枚举模式
+### enumeration pattern
 
-※实际上是单纯的列举型
+*Actually, it's just an enumeration type
 
-
-```erg
+``` erg
 match x:
     i: {1, 2} -> "one or two: {i}"
     _ -> "other"
 ```
 
-### 范围模式
+### range pattern
 
-※实际上是单纯的区间型
+*Actually, it is just an interval type.
 
-
-```erg
+``` erg
 # 0 < i < 1
 i: 0<..<1 = 0.5
 # 1 < j <= 2
@@ -188,15 +176,17 @@ match i
     i: 1..5 -> ...
 ```
 
-### 不是模式的东西，不能被模式化的东西
+### Things that aren't patterns, things that can't be patterned
 
-模式可以是唯一的。在这一点上，模式匹配不同于常规条件分支。
+A pattern is something that can be uniquely specified. In this respect pattern matching differs from ordinary conditional branching.
 
-条件指定不唯一。例如，如果确定数字是否为偶数，则<gtr=“14”/>是正统的，但也可以写为<gtr=“15”/>。不唯一的格式不能明确表示是否正常工作，也不能明确表示是否等同于其他条件。
+Condition specifications are not unique. For example, to check if the number `n` is even, the orthodox is `n % 2 == 0`, but you can also write `(n / 2).round() == n / 2`.
+A non-unique form is not trivial whether it works correctly or is equivalent to another condition.
 
-#### 设置
+#### set
 
-没有布景图案。这是因为集合无法唯一地提取元素。可以用迭代器取出，但不保证顺序。
+There is no set pattern. Because the set has no way to uniquely retrieve the elements.
+You can retrieve them by iterator, but the order is not guaranteed.
 
 <p align='center'>
     <a href='./25_object_system.md'>Previous</a> | <a href='./27_comprehension.md'>Next</a>

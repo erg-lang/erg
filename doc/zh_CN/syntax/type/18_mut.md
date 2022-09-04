@@ -1,82 +1,79 @@
-# 可变类型（Mutable Type）
+# Mutable Type
 
-> ：本节中的信息过时，并且包含一些错误。
+> __Warning__: The information in this section is old and contains some errors.
 
-缺省情况下，Erg 将所有类型设置为不可变类型，即不能更新内部状态。但你当然可以定义可变类型。变量类型声明为。
+By default all types in Erg are immutable, i.e. their internal state cannot be updated.
+But you can of course also define mutable types. Variable types are declared with `!`.
 
-
-```erg
+``` erg
 Person! = Class({name = Str; age = Nat!})
 Person!.
     greet! ref! self = print! "Hello, my name is {self::name}. I am {self::age}."
-    inc_age! ref! self = self::name.update! old -> old + 1
+    inc_age!ref!self = self::name.update!old -> old + 1
 ```
 
-确切地说，以可变类型或包含可变类型的复杂类型为基本类型的类型必须在类型名称后加上。没有<gtr=“17”/>的类型也可以存在于同一命名空间中，并被视为不同的类型。在上面的示例中，<gtr=“18”/>属性是可变的，而<gtr=“19”/>属性是不变的。如果有一个属性是可变的，则整个属性都是可变的。
+To be precise, a type whose base type is a mutable type, or a composite type containing mutable types, must have a `!` at the end of the type name. Types without `!` can exist in the same namespace and are treated as separate types.
+In the example above, the `.age` attribute is mutable and the `.name` attribute is immutable. If even one attribute is mutable, the whole is mutable.
 
-变量类型可以定义用于重写实例的过程方法，但具有过程方法并不一定意味着它是变量类型。例如，数组类型实现了随机选择元素的<gtr=“21”/>方法，当然这不会对数组进行破坏性更改。
+Mutable types can define procedural methods that rewrite instances, but having procedural methods does not necessarily make them mutable. For example, the array type `[T; N]` implements a `sample!` method that randomly selects an element, but of course does not destructively modify the array.
 
-可变对象的破坏性操作主要通过方法进行。方法是一个高级过程，它通过将函数<gtr=“25”/>应用到<gtr=“24”/>来更新它。
+Destructive operations on mutable objects are primarily done via the `.update!` method. The `.update!` method is a higher-order procedure that updates `self` by applying the function `f`.
 
-
-```erg
+``` erg
 i = !1
 i.update! old -> old + 1
 assert i == 2
 ```
 
-方法只会将旧内容替换为新值。这是<gtr=“27”/>。
+The `.set!` method simply discards the old content and replaces it with the new value. .set!x = .update!_ -> x.
 
-
-```erg
+``` erg
 i = !1
 i.set! 2
 assert i == 2
 ```
 
-方法在不更改值的情况下执行操作。
+The `.freeze_map` method operates on values ​​unchanged.
 
-
-```erg
+``` erg
 a = [1, 2, 3].into [Nat; !3]
 x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(Array)
 ```
 
-在多相不变类型中，假定类型的类型参数隐式不变。
+In a polymorphic immutable type the type argument `T` of the type is implicitly assumed to be immutable.
 
-
-```erg
+``` erg
 # ImmutType < Type
-K T: ImmutType = Class ...
-K! T: Type = Class ...
+KT: ImmutType = Class ...
+K!T: Type = Class ...
 ```
 
-在标准库中，可变类型通常基于不变类型<gtr=“31”/>。但是，<gtr=“32”/>类型和<gtr=“33”/>类型在语言上没有特殊的关联，不需要这样配置。
+In the standard library, variable `(...)!` types are often based on immutable `(...)` types. However, `T!` and `T` types have no special linguistic relationship, and may not be constructed as such [<sup id="f1">1</sup>](#1) .
 
-请注意，有几种类型的对象可变性。下面我们将讨论内置集合类型的不可变/可变类型的含义。
+Note that there are several types of object mutability.
+Below we will review the immutable/mutable semantics of the built-in collection types.
 
-
-```erg
-# 配列型
-## 不変型(immutable types)
-[T; N]     # 可変操作は実行できない
-## 可変型(mutable types)
-[T!; N]    # 中身を1つずつ変更できる
-[T; !N]    # 可変長、中身は変更不能だが要素の追加・削除で実質変更可能
-[!T; N]    # 中身は不変オブジェクトだが、型を変えたものに差し替え可能(型を変えないという操作で実質差し替え可能)
-[!T; !N]   # 型、長さを変更可能
-[T!; !N]   # 中身、長さを変更可能
-[!T!; N]   # 中身、型を変更可能
-[!T!; !N]  # ありとあらゆる可変操作を実行できる
+``` erg
+# array type
+## immutable types
+[T; N] # Cannot perform mutable operations
+## mutable types
+[T!; N] # can change contents one by one
+[T; !N] # variable length, content is immutable but can be modified by adding/deleting elements
+[!T; N] # The content is an immutable object, but it can be replaced by a different type (actually replaceable by not changing the type)
+[!T; !N] # type and length can be changed
+[T!; !N] # content and length can be changed
+[!T!; N] # content and type can be changed
+[!T!; !N] # Can perform all sorts of mutable operations
 ```
 
-当然，你没有必要把所有这些都背下来，熟练使用。对于可变数组类型，只需在想要可变的部分加上，在实际应用中，<gtr=“36”/>，<gtr=“37”/>，<gtr=“38”/>和<gtr=“39”/>四个可以覆盖大多数情况。
+Of course, you don't have to memorize and use all of them.
+For variable array types, just add `!` to the part you want to be variable, and practically `[T; N]`, `[T!; N]`, `[T; !N]`, ` [T!; !N]` can cover most cases.
 
-这些排列类型是语法糖，实际类型如下：
+These array types are syntactic sugar, the actual types are:
 
-
-```erg
-# 実際は4種類の型
+``` erg
+# actually 4 types
 [T; N] = Array(T, N)
 [T; !N] = Array!(T, !N)
 [!T; N] = ArrayWithMutType!(!T, N)
@@ -86,83 +83,81 @@ K! T: Type = Class ...
 [!T!; !N] = ArrayWithMutTypeAndLength!(!T!, !N)
 ```
 
-另外，可以更改类型就是这样的意思。
+This is what it means to be able to change the type.
 
-
-```erg
+``` erg
 a = [1, 2, 3].into [!Nat; 3]
 a.map!(_ -> "a")
 a: [!Str; 3]
 ```
 
-其他收藏类型也是如此。
+The same is true for other collection types.
 
-
-```erg
-# タプル型
-## 不変型(immutable types)
-(T, U) # 要素数不変、中身を変更できない
-## 可変型(mutable types)
-(T!, U) # 要素数不変、最初の要素は変更できる
-(T, U)! # 要素数不変、中身を差し替えられる
+``` erg
+# tuple type
+## immutable types
+(T, U) # No change in number of elements, contents cannot be changed
+## mutable types
+(T!, U) # constant number of elements, first element can be changed
+(T, U)! # No change in number of elements, content can be replaced
 ...
 ```
 
-
-```erg
-# セット型
-## 不変型(immutable types)
-{T; N}        # 不変要素数、中身を変更できない
-## 可変型(mutable types)
-{T!; N}       # 不変要素数、中身を(1つずつ)変更できる
-{T; N}!       # 可変要素数、中身は変更不能だが、要素の追加削除で実質可能、中の型を変更可能
-{T!; N}!      # 可変要素数、中身も変更できる
+``` erg
+# Set type
+## immutable types
+{T; N} # number of immutable elements, contents cannot be changed
+## mutable types
+{T!; N} # number of immutable elements, content can be changed (one by one)
+{T; N}! # Number of variable elements, content cannot be changed
+{T!; N}! # Number of variable elements, content can be changed
 ...
 ```
 
-
-```erg
-# 辞書型
-## 不変型(immutable types)
-{K: V}          # 不変長、中身を変更できない
-## 可変型(mutable types)
-{K: V!}         # 不変長、値を(1つずつ)変更できる
-{K: V}!         # 可変長、中身を変更できないが、要素の追加削除で実質可能、中の型も変更可能
+``` erg
+# Dictionary type
+## immutable types
+{K: V} # immutable length, contents cannot be changed
+## mutable types
+{K: V!} # constant length, values ​​can be changed (one by one)
+{K: V}! # Variable length, content cannot be changed, but can be added or deleted by adding or removing elements, content type can also be changed
 ...
 ```
 
-
-```erg
-# レコード型
-## 不変型(immutable types)
-{x = Int; y = Str}           # 中身を変更できない
-## 可変型(mutable types)
-{x = Int!; y = Str}          # xの値を変更できる
-{x = Int; y = Str}!          # {x = Int; y = Str}のインスタンスならば何でも差し替えられる
+``` erg
+# Record type
+## immutable types
+{x = Int; y = Str} # content cannot be changed
+## mutable types
+{x = Int!; y = Str} # can change the value of x
+{x = Int; y = Str}! # replace any instance of {x = Int; y = Str}
 ...
 ```
 
-当时，仅为<gtr=“41”/>的类型<gtr=“42”/>称为简单结构类型。简单结构类型（语义上）也可以称为没有内部结构的类型。数组，元组，集，字典和记录类型并非都是简单结构类型，而 Int 和筛选类型则是简单结构类型。
+A type `(...)` that simply becomes `T! = (...)!` when `T = (...)` is called a simple structured type. A simple structured type can also be said (semantically) to be a type that has no internal structure.
+Arrays, tuples, sets, dictionaries, and record types are all non-simple structured types, but Int and Sieve types are.
 
-
-```erg
-# 篩型
-## 列挙型
-{1, 2, 3}    # 1, 2, 3のうちどれか、変更できない
-{1, 2, 3}!   # 1, 2, 3のうちどれか、変更できる
-## 区間型
-1..12  # 1~12のうちどれか、変更できない
-1..12! # 1~12のうちどれか、変更できる
-## 篩型(一般形)
-{I: Int | I % 2 == 0}  # 偶数型、変更できない
-{I: Int! | I % 2 == 0} # 偶数型、変更できる
-{I: Int | I % 2 == 0}! # 上と全く同じ型、だが上の記法が推奨される
+``` erg
+# Sieve type
+## Enums
+{1, 2, 3} # one of 1, 2, 3, cannot be changed
+{1, 2, 3}! # 1, 2, 3, you can change
+## interval type
+1..12 # 1 to 12, cannot be changed
+1..12! # Any of 1-12, you can change
+## Sieve type (general type)
+{I: Int | I % 2 == 0} # even type, immutable
+{I: Int! | I % 2 == 0} # even type, can be changed
+{I: Int | I % 2 == 0}! # Exactly the same type as above, but the above notation is preferred
 ```
 
-根据以上说明，可变类型不仅包括自身可变的类型，也包括内部具有的类型可变的类型。类型（如和<gtr=“44”/>）是内部变量类型，其内部对象是可变的，而实例本身并不是可变的。
+From the above explanation, mutable types include not only those that are themselves mutable, but also those whose internal types are mutable.
+Types such as `{x: Int!}` and `[Int!; 3]` are internal mutable types where the object inside is mutable and the instance itself is not mutable.
 
-对于具有内部结构的类型，<gtr=“46”/>，<gtr=“47”/>可以改变整个对象。它还可以进行局部更改。但是，最好将更改权限限制在局部，因此如果只有<gtr=“48”/>可以更改，则最好将其设置为<gtr=“49”/>。如果类型<gtr=“50”/>没有内部结构，则该实例只是一个可互换的<gtr=“51”/>框。方法不能更改类型。
+For a type `K!(T, U)` that has internal structure and has a `!` on the type constructor itself, `*self` can change the whole object. Local changes are also possible.
+However, it is desirable to keep the change authority as local as possible, so if only `T` can be changed, it is better to use `K(T!, U)`.
+And for the type `T!` which has no internal structure, this instance is simply a box of `T` which can be swapped. A method cannot change the type.
 
 ---
 
-<span id="1" style="font-size:x-small">1<gtr=“64”/><gtr=“52”/>类型和<gtr=“53”/>类型在语言上没有特殊关系，这是有意设计。如果存在关联，则会出现一些不便，例如，如果名称空间中存在类型<gtr=“54”/>/<gtr=“55”/>，则无法从另一个模块引入类型<gtr=“56”/>/<gtr=“57”/>。此外，与不可变类型相比，可变类型并不是唯一的。当定义<gtr=“58”/>时，变量子类型<gtr=“59”/>和<gtr=“60”/>可以是<gtr=“61”/>。<gtr=“62”/></span>
+<span id="1" style="font-size:x-small"><sup>1</sup> It is intentional that `T!` and `T` types have no special linguistic relationship. It's a design. If there is a relationship, for example, if the `T`/`T!` type exists in the namespace, it will not be possible to introduce the `T!`/`T` type from another module. Also, the mutable type is not uniquely defined for the immutable type. Given the definition `T = (U, V)`, the possible variable subtypes of `T!` are `(U!, V)` and `(U, V!)`. [↩](#f1)</span>

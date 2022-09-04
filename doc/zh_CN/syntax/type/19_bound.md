@@ -1,13 +1,15 @@
-# 类型边界（Type Bound）
+# Type Bound
 
-型界是在型指定上添加条件的东西。实现这一功能的功能是保护（保护节）。除了函数签名、无名函数签名之外，筛子型也可以使用该功能。监控记述在返回值型之后。
+Type bounds add conditions to type specifications. A function that realizes this is a guard (guard clause).
+This feature is available for function signatures, anonymous function signatures, as well as sieve types.
+Guards are written after the return type.
 
-## 谓词表达式（Predicate）
+## Predicate
 
-可以使用返回的表达式（谓词表达式）指定变量满足的条件。只能使用<gtr=“3”/>和运算符。编译时函数有可能在今后的版本中被对应。
+You can specify the condition that the variable satisfies with an expression (predicate expression) that returns `Bool`.
+Only [value objects](./08_value.md) and operators can be used. Compile-time functions may be supported in future versions.
 
-
-```erg
+``` erg
 f a: [T; N] | T, N, N > 5 = ...
 g a: [T; N | N > 5] | T, N = ...
 Odd = {I: Int | I % 2 == 1}

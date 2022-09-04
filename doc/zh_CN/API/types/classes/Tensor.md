@@ -1,16 +1,16 @@
 # Tensor Shape: [Nat; N]
 
-  用于有效操作多维数组的类。 它还定义了诸如多维数组上的乘法之类的操作
-  Matrix、Vector 等都继承自该类型
+   A class for efficiently manipulating multidimensional arrays. It also defines operations such as multiplication on multidimensional arrays.
+   Matrix, Vector, etc. inherit from this type.
 
-```erg
-Tensor.arange(0..9) # Tensor [10]
+``` erg
+Tensor.arrange(0..9) #Tensor[10]
 ```
 
 * reshape(self, NewShape: [Nat; M]) -> Self NewShape
 
-```erg
-(1..9).into(Tensor).reshape [3, 3]
+``` erg
+(1..9).into(Tensor).reshape[3, 3]
 ```
 
 * identity i: Nat -> Self shape: [Nat; N]
@@ -20,5 +20,5 @@ Tensor.arange(0..9) # Tensor [10]
 * diag
 
 * linspace
-* logspace
+*logspace
 * geomspace

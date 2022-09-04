@@ -1,47 +1,42 @@
-# 模块
+# module
 
-Erg 可以将文件本身视为一条记录。我们称之为模块。
-
+Erg allows you to think of the file itself as a single record. This is called a module.
 
 ```erg: foo.er
 # foo.er
 .i = 1
 ```
 
-
-```erg
-# 定义 foo 模块和定义这条记录几乎一样
+``` erg
+# Defining the foo module is almost the same as defining this record
 foo = {.i = 1}
 ```
 
-
 ```erg: bar.er
-# bar.er
+#bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
 assert foo.i == 1
 ```
 
-模块化也是一种记录类型，因此可以进行分解赋值。
+Since module types are also record types, deconstruction assignment is possible.
 
-
-```erg
+``` erg
 {sin; cos; ...} = import "math"
 ```
 
-## 模块可见性
-
+## module visibility
 
 ```console
 └─┬ ./src
-  ├─ lib.er
-  ├─ foo.er
-  ├─ bar.er
-  └─┬ bar
-    ├─ baz.er
-    └─ qux.er
+   ├─ lib.er
+   ├─ foo.er
+   ├─bar.er
+   └─┬ bar
+     ├─ baz.er
+     └─ qux.er
 ```
 
 <p align='center'>
-    <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
+     <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
 </p>

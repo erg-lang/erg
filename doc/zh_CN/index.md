@@ -1,25 +1,25 @@
-# 指数
+# Index
 
 ## [API/](./API/index.md)
 
-    描述 Erg 的内置或标准库提供的子程序、类型、常量等的规范。
+    This section describes the specifications of subroutines, types, constants, etc. provided by Erg's built-in or standard libraries.
 
 ## [compiler/](./compiler/index.md)
 
-    解释了 Erg 编译器（厘米）的设计。
+    Describes the design of the Erg compiler (Centimetre).
 
 ## [dev_guide/](./dev_guide/index.md)
 
-    项目的开发方针、贡献方式等进行了说明。
+    It explains the development policy of the project, how to make contributions, etc.
 
 ## [python/](./python/index.md)
 
-    解释了开发 Erg 所需的 Python 知识。
+    The knowledge of Python required to develop Erg is explained.
 
 ## [syntax/](./syntax/00_basic.md)
 
-    Erg语法解释。
+    The syntax of Erg is explained.
 
 ## [tools/](./tools/index.md)
 
-    Erg的外围工具，如何使用命令选项等进行了说明。
+    Explains how to use Erg's peripheral tools and command options.

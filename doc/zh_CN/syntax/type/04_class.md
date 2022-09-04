@@ -1,11 +1,11 @@
 # Class
 
-Erg 中的类通常可以生成其自身的元素（实例）。下面是一个简单类的示例。
-
+A class in Erg is roughly a type that can create its own elements (instances).
+Here is an example of a simple class.
 
 ```erg
 Person = Class {.name = Str; .age = Nat}
-# .newが定義されなかった場合、自動で`Person.new = Person::__new__`となります
+# If `.new` is not defined, then Erg will create `Person.new = Person::__new__`
 Person.
     new name, age = Self::__new__ {.name = name; .age = age}
 
@@ -14,21 +14,23 @@ print! john # <Person object>
 print! classof(john) # Person
 ```
 
-给出的类型（通常为记录）称为要求类型（在本例中为<gtr=“21”/>）。可以在<gtr=“22”/>中生成实例。<gtr=“23”/>只是一条记录，但它通过<gtr=“24”/>转换为<gtr=“25”/>实例。生成此类实例的子例程称为构造函数。上面的类定义了<gtr=“26”/>方法，以便可以省略字段名等。
+The type given to `Class` (normally a record type) is called the requirement type (in this case `{.name = Str; .age = Nat}`).
+Instances can be created with `<Class name>::__new__ {<attribute name> = <value>; ...}` can be created with.
+`{.name = "John Smith"; .age = 25}` is just a record, but it is converted to a `Person` instance by passing `Person.new`.
+The subroutine that creates such an instance is called a constructor.
+In the class above, the `.new` method is defined so that field names, etc. can be omitted.
 
-请注意，如下所示不换行定义会导致语法错误。
-
+Note that the following definition without line breaks will result in a syntax error.
 
 ```erg
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
-> ：这是最近添加的规范，在以后的文档中可能不受保护。如果发现就报告。
+> __Warning__: This is a recently added specification and may not be followed in subsequent documents. If you find it, please report it.
 
-## 实例属性、类属性
+## Instance and class attributes
 
-在 Python 和其他语言中，很多情况下都是在块端定义实例属性，如下所示，这种写法在 Erg 中是另外一个意思，需要注意。
-
+In Python and other languages, instance attributes are often defined on the block side as follows, but note that such writing has a different meaning in Erg.
 
 ```python
 # Python
@@ -37,28 +39,27 @@ class Person:
     age: int
 ```
 
-
 ```erg
-# Ergでこの書き方はクラス属性の宣言を意味する(インスタンス属性ではない)
+# In Erg, this notation implies the declaration of a class attribute (not an instance attribute)
 Person = Class()
 Person.
     name: Str
     age: Int
 ```
 
-
 ```erg
-# 上のPythonコードに対応するErgコード
+# Erg code for the Python code above
 Person = Class {
     .name = Str
     .age = Nat
 }
 ```
 
-元素属性（在记录中定义的属性）和类型属性（在类中特别称为实例属性/类属性）是完全不同的。类型属性是类型本身所具有的属性。类型的要素在自身中没有目标属性时参照类型属性。要素属性是要素直接具有的固有属性。为什么要做这样的划分？如果全部都是要素属性，则在生成对象时需要复制、初始化所有属性，这是因为效率低下。另外，这样分开的话，“这个属性是共用的”“这个属性是分开拥有的”等作用就会明确。
+Element attributes (attributes defined in a record) and type attributes (also called instance/class attributes, especially in the case of classes) are completely different things. Type attributes are attributes of the type itself. An element of a type refers to a type attribute when it does not have the desired attribute in itself. An element attribute is a unique attribute directly possessed by the element.
+Why is this distinction made? If all attributes were element attributes, it would be inefficient to duplicate and initialize all attributes when the object is created.
+In addition, dividing the attributes in this way clarifies roles such as "this attribute is shared" and "this attribute is held separately".
 
-用下面的例子来说明。由于这一属性在所有实例中都是共通的，所以作为类属性更为自然。但是，由于这一属性应该是各个实例各自持有的，所以应该是实例属性。
-
+The example below illustrates this. The attribute `species` is common to all instances, so it is more natural to use it as a class attribute. However, the attribute `name` should be an instance attribute because each instance should have it individually.
 
 ```erg
 Person = Class {name = Str}
@@ -82,35 +83,39 @@ alice.describe() # species: human
 alice.greet() # Hello, My name is Alice.
 ```
 
-顺便一提，如果实例属性和类型属性中存在同名、同类型的属性，就会出现编译错误。这是为了避免混乱。
-
+Incidentally, if an instance attribute and a type attribute have the same name and the same type, a compile error occurs. This is to avoid confusion.
 
 ```erg
 C = Class {.i = Int}
-C.
-    i = 1 # AttributeError: `.i` is already defined in instance fields
+C.i = 1 # AttributeError: `.i` is already defined in instance fields
 ```
 
 ## Class, Type
 
-请注意，类类型与不同。只有一个类可以从中生成<gtr=“31”/>。可以使用<gtr=“33”/>或<gtr=“34”/>获取对象所属的类。与此相对，<gtr=“35”/>有无数个类型。例如，<gtr=“36”/>。但是，最小的类型可以是一个，在这种情况下是<gtr=“37”/>。可以通过<gtr=“38”/>获取对象的类型。这是一个编译时函数，顾名思义，它是在编译时计算的。除了类方法外，对象还可以使用修补程序方法。Erg 不能添加类方法，但可以使用<gtr=“39”/>进行扩展。
+Note that the class and type of `1` are different.
+There is only one class `Int` that is the generator of `1`. You can get the class to which an object belongs by `classof(obj)` or `obj.__class__`.
+In contrast, there are countless types of `1`. For example, `{1}, {0, 1}, 0..12, Nat, Int, Num`.
+However, the smallest type can be defined as a single type, in this case `{1}`. The type to which an object belongs can be obtained with `Typeof(obj)`. This is a compile-time function.
+Objects can use patch methods as well as class methods.
+Erg does not allow you to add class methods, but you can use [patch](./07_patch.md) to extend a class.
 
-也可以继承现有的类（对于类）。<gtr=“40”/>表示继承。左边的类型称为派生类，右边的<gtr=“41”/>参数类型称为基类。
-
+You can also inherit from existing classes ([Inheritable](./../27_decorator.md/#inheritable) class).
+You can create an inherited class by using `Inherit`. The type on the left-hand side is called the derived class, and the argument type of `Inherit` on the right-hand side is called the base class (inherited class).
 
 ```erg
 MyStr = Inherit Str
-# other: StrとしておけばMyStrでもOK
+# other: You can use MyStr if you set ``other: Str''.
 MyStr.
     `-` self, other: Str = self.replace other, ""
 
 abc = MyStr.new("abc")
-# ここの比較はアップキャストが入る
+# Comparison here gets an upcast
 assert abc - "b" == "ac"
 ```
 
-与 Python 不同，定义的 Erg 类缺省为（不可继承）。要使其可继承，必须为类指定<gtr=“44”/>装饰器。<gtr=“45”/>是可继承类之一。
-
+Unlike Python, the defined Erg classes are `final` (non-inheritable) by default.
+To make a class inheritable, an `Inheritable` decorator must be attached to the class.
+Str` is one of the inheritable classes.
 
 ```erg
 MyStr = Inherit Str # OK
@@ -121,10 +126,10 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-和<gtr=“47”/>在实际应用中大致等效。一般使用后者。
+`Inherit Object` and `Class()` are almost equivalent in practice. The latter is generally used.
 
-类的等价机制不同于类型。类型根据结构确定等价性。
-
+Classes have a different equivalence checking mechanism than types.
+Types are equivalence tested based on their structure.
 
 ```erg
 Person = {.name = Str; .age = Nat}
@@ -133,8 +138,7 @@ Human = {.name = Str; .age = Nat}
 assert Person == Human
 ```
 
-类没有定义等价关系。
-
+class has no equivalence relation defined.
 
 ```erg
 Person = Class {.name = Str; .age = Nat}
@@ -143,10 +147,9 @@ Human = Class {.name = Str; .age = Nat}
 Person == Human # TypeError: cannot compare classes
 ```
 
-## 与结构类型的区别
+## Difference from structural types
 
-类是一种可以生成自己元素的类型，但这并不是一个严格的描述。因为实际上，记录类型 + 修补程序也可以做到这一点。
-
+We said that a class is a type that can generate its own elements, but that is not a strict description. In fact, a record type + patch can do the same thing.
 
 ```erg
 Person = {.name = Str; .age = Nat}
@@ -157,18 +160,19 @@ PersonImpl.
 john = Person.new("John Smith", 25)
 ```
 
-使用类有四个好处。一是检查构造函数的合法性，二是性能高，三是可以使用记名部分类型 (NST)，四是可以继承和覆盖。
+There are four advantages to using classes.
+The first is that the constructor is validity checked, the second is that it is more performant, the third is that you can use notational subtypes (NSTs), and the fourth is that you can inherit and override.
 
-我们已经看到记录类型 + 修补程序也可以定义构造函数（类似），但这当然不是合法的构造函数。因为你可以返回一个自称但完全不相关的对象。对于类，将静态检查是否生成满足要求的对象。
-
-~
-
-类类型检查只需查看对象的属性即可完成。因此，检查对象是否属于该类型的速度较快。
+We saw earlier that record type + patch can also define a constructor (of sorts), but this is of course not a legitimate constructor. This is of course not a legitimate constructor, because it can return a completely unrelated object even if it calls itself `.new`. In the case of a class, `.new` is statically checked to see if it produces an object that satisfies the requirements.
 
 ~
 
-Erg 在类中提供了 NST。NST 的优点包括强健性。在编写大型程序时，对象的结构仍然会偶然匹配。
+Type checking for classes is simply a matter of checking the object's `. __class__` attribute of the object. So it is fast to check if an object belongs to a type.
 
+~
+
+Erg enables NSTs in classes; the advantages of NSTs include robustness.
+When writing large programs, it is often the case that the structure of an object is coincidentally matched.
 
 ```erg
 Dog = {.name = Str; .age = Nat}
@@ -185,49 +189,49 @@ john = {.name = "John Smith"; .age = 20}
 john.bark() # "Yelp!"
 ```
 
-虽然和的结构完全相同，但允许动物打招呼和人类吠叫显然是无稽之谈。且不说后者，让前者不适用更安全，因为前者是不可能的。在这种情况下，最好使用类。
-
+The structure of `Dog` and `Person` is exactly the same, but it is obviously nonsense to allow animals to greet and humans to bark.
+The former is impossible, so it is safer to make it inapplicable. In such cases, it is better to use classes.
 
 ```erg
 Dog = Class {.name = Str; .age = Nat}
-Dog.
-    bark = log "Yelp!"
+Dog.bark = log "Yelp!"
 ...
 Person = Class {.name = Str; .age = Nat}
-Person.
-    greet self = log "Hello, my name is {self.name}."
+Person.greet self = log "Hello, my name is {self.name}."
 
 john = Person.new {.name = "John Smith"; .age = 20}
-john.bark() # TypeError: `Person` object has no method `.bark`
+john.bark() # TypeError: `Person` object has no method `.bark`.
 ```
 
-另一个特征是，通过修补程序添加的类型属性是虚拟的，而不是作为实体保存在要实现的类中。也就是说，和<gtr=“54”/>是与<gtr=“55”/>兼容的类型可以访问（在编译时绑定）的对象，而不是在<gtr=“56”/>或<gtr=“57”/>中定义的对象。相反，类属性由类自己维护。因此，结构相同但不具有继承关系的类无法访问。
-
+Another feature is that the type attributes added by the patch are virtual and are not held as entities by the implementing class.
+That is, `T.x`, `T.bar` are objects that can be accessed (compile-time bound) by types compatible with `{i = Int}`, and are not defined in `{i = Int}` or `C`.
+In contrast, class attributes are held by the class itself. Therefore, they cannot be accessed by classes that are not in an inheritance relationship, even if they have the same structure.
 
 ```erg
 C = Class {i = Int}
 C.
     foo self = ...
-print! dir(C) # ["foo", ...]
+print! dir(C) # ["foo", ...].
 
 T = Patch {i = Int}
 T.
     x = 1
     bar self = ...
-print! dir(T) # ["bar", "x", ...]
+print! dir(T) # ["bar", "x", ...].
 assert T.x == 1
 assert {i = 1}.x == 1
 print! T.bar # <function bar>
-{i = Int}.bar # TypeError: Record({i = Int}) has no method `.bar`
-C.bar # TypeError: C has no method `.bar`
+{i = Int}.bar # TypeError: Record({i = Int}) has no method `.bar`.
+C.bar # TypeError: C has no method `.bar` print!
 print! {i = 1}.bar # <method bar>
-print! C.new({i = 1}).bar # <method bar>
+C.new({i = 1}).bar # <method bar>
 ```
 
-## 与数据类的区别
+## Difference from data class
 
-类可以是通过请求记录的常规类，也可以是继承记录（<gtr=“59”/>）的数据类。数据类继承了记录的功能，可以分解赋值，缺省情况下实现<gtr=“60”/>和<gtr=“61”/>。相反，如果你想定义自己的等价关系和格式显示，则可以使用常规类。
-
+There are two types of classes: regular classes, which are record classes through `Class`, and data classes, which inherit (`Inherit`) from record classes.
+The data class inherits the functionality of the record class and has features such as decomposition assignment, `==` and `hash` implemented by default, etc. On the other hand, the data class has its own equivalence relation and format display.
+On the other hand, if you want to define your own equivalence relations or formatting displays, you should use the normal class.
 
 ```erg
 C = Class {i = Int}
@@ -237,16 +241,15 @@ print! c # <C object>
 c == d # TypeError: `==` is not implemented for `C`
 
 D = Inherit {i = Int}
-e = D::{i = 1} # e = D.new {i = 1}と同じ
-f = D::{i = 2}
-print! e # D(i = 1)
-assert e != f
+e = D.new {i = 1}
+f = D.new {i = 2}
+print! e # D{i = 1}
+assert e ! = f
 ```
 
 ## Enum Class
 
-提供以帮助定义 Or 类型的类。
-
+To facilitate defining classes of type `Or`, an `Enum` is provided.
 
 ```erg
 X = Class()
@@ -254,8 +257,8 @@ Y = Class()
 XorY = Enum X, Y
 ```
 
-每种类型都可以按和<gtr=“64”/>进行访问，构造函数可以按<gtr=“65”/>进行检索。是接收类并返回其构造函数的方法。
-
+Each type can be accessed as `XorY.X`, `XorY.Y` and the constructor can be obtained as `XorY.cons(X)`.
+`.cons` is a method that takes a class and returns its constructor.
 
 ```erg
 x1 = XorY.new X.new()
@@ -263,14 +266,13 @@ x2 = XorY.cons(X)()
 assert x1 == x2
 ```
 
-## 包含关系
+## Class Relationships
 
-类是需求类型的子类型。你可以使用要求类型的方法（包括修补程序方法）。
-
+A class is a subtype of a requirement type. methods (including patch methods) of the requirement type can be used in the class.
 
 ```erg
 T = Trait {.foo = Foo}
-C = Class(..., Impl: T)
+C = Class(... , impl: T)
 C.
     foo = foo
     bar x = ...

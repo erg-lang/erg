@@ -1,6 +1,6 @@
 # BinOp L, R, O
 
-二元运算符的类型
+The type of the binary operator.
 
 ## Patches
 

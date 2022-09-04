@@ -1,7 +1,6 @@
-# Subroutine signatures
+# Subroutine Signatures
 
 ## Func
-
 
 ```erg
 some_func(x: T, y: U) -> V
@@ -10,7 +9,6 @@ some_func: (T, U) -> V
 
 ## Proc
 
-
 ```erg
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
@@ -18,41 +16,40 @@ some_proc!: (T, U) => V
 
 ## Func Method
 
-不能从外部指定方法类型。
-
+The method type cannot be specified externally with ``Self``.
 
 ```erg
 .some_method(self, x: T, y: U) => ()
-# Self.(T, U) => ()はselfの所有権を奪う
-.some_method: Ref(Self).(T, U) => ()
+# Self.(T, U) => () takes ownership of self
+.some_method: Ref(Self). (T, U) => ()
 ```
 
 ## Proc Method (dependent)
 
-下面，假定类型采用类型参数<gtr=“9”/>。如果从外部指定，请使用类型变量。
-
+In the following, assume that the type `T!` takes the type argument `N: Nat`. To specify it externally, use a type variable.
 
 ```erg
 T!: Nat -> Type
-# ~>は適用前後の型引数の状態を示す(このときselfは可変参照でなくてはならない)
+# ~> indicates the state of the type argument before and after application (in this case, self must be a variable reference)
 T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ```
 
-请注意，的类型为<gtr=“11”/>。类型参数转换（<gtr=“13”/>）不适用于没有<gtr=“12”/>的方法，即应用后将被剥夺所有权。
+As a note, the type of `.some_method` is `Ref!(T(N ~> N+X)). ({X}) => () | N, X: Nat`.
+For methods that do not have `ref!`, i.e., are deprived of ownership after application, the type argument transition (`~>`) cannot be used.
 
-所有权被剥夺的情况如下。
-
+If ownership is taken, it is as follows.
 
 ```erg
-# Nを使わないなら_で省略可
+# If you don't use N, you can omit it with _.
 # .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
 .some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
 ```
 
 ## Operator
 
-用括起来，可以像定义常规函数一样定义函数。可以将<gtr=“15”/>和<gtr=“16”/>等中置字母运算符括起来，将其定义为中置运算符。
+It can be defined as a normal function by enclosing it with ``.
 
+Neuter alphabetic operators such as `and` and `or` can be defined as neuter operators by enclosing them with ``.
 
 ```erg
 and(x, y, z) = x and y and z
