@@ -3,13 +3,13 @@
   多次元配列を効率的に操作するためのクラス。多次元配列に対する積などの演算も定義する。
   Matrix, Vectorなどはこの型を継承している。
 
-```erg
+```python
 Tensor.arange(0..9) # Tensor [10]
 ```
 
 * reshape(self, NewShape: [Nat; M]) -> Self NewShape
 
-```erg
+```python
 (1..9).into(Tensor).reshape [3, 3]
 ```
 

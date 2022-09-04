@@ -4,7 +4,7 @@ Here is the Erg version of the newtype pattern commonly used in Rust.
 
 Erg allows type aliases to be defined as follows, but they only refer to the same type.
 
-```erg
+```python
 UserId = Int
 ```
 
@@ -14,7 +14,7 @@ Also, for example, when designing a database system, suppose there are several t
 
 The newtype pattern is a good design pattern for such cases.
 
-```erg
+```python
 UserId = Class {id = Nat}
 UserId.
     new id: Nat =

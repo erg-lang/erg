@@ -1,6 +1,6 @@
 # Nominal Subtyping vs. Structural Subtyping
 
-```erg
+```python
 Months = 0..12
 
 # NST

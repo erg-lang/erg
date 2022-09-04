@@ -18,7 +18,7 @@ provides REPL(Read-Eval-Print-Loop)-related APIs.
 
 与えられた引数と戻り値から、関数を推測する。
 
-```erg
+```python
 1.guess((1,), 2) # <Int.__add__ method>
 [1, 2].guess((3, 4), [1, 2, 3, 4]) # <Array(T, N).concat method>
 ```

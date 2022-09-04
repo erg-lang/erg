@@ -6,7 +6,7 @@
 
 * values_at(self, selectors: [Nat; N]) -> [T; N]
 
-```erg
+```python
 assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 ```
 
@@ -15,7 +15,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
   要素が0のときはpredに関わらず`True`となるが、Warningを出す。
   この仕様自体は多くの言語で採用されており、論理学的な整合性から要請される。
 
-  ```erg
+  ```python
   assert [].all(_ -> False)
   ```
 
@@ -28,7 +28,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 * freq self -> [{T: Nat}]
   オブジェクトの出現頻度を返す。
 
-```erg
+```python
 assert ["a", "b", "c", "b", "c", "b"].freq() \
 == [{"a", 1}, {"b": 3}, {"c": 2}]
 ```

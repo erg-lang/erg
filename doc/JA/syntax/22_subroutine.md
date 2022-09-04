@@ -2,14 +2,14 @@
 
 ## Func
 
-```erg
+```python
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
 ## Proc
 
-```erg
+```python
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
@@ -18,7 +18,7 @@ some_proc!: (T, U) => V
 
 メソッド型は、外部からは`Self`で指定できません。
 
-```erg
+```python
 .some_method(self, x: T, y: U) => ()
 # Self.(T, U) => ()はselfの所有権を奪う
 .some_method: Ref(Self).(T, U) => ()
@@ -28,7 +28,7 @@ some_proc!: (T, U) => V
 
 以下で、型`T!`は`N: Nat`という型引数を取るとします。外部から指定する場合は型変数を使用します。
 
-```erg
+```python
 T!: Nat -> Type
 # ~>は適用前後の型引数の状態を示す(このときselfは可変参照でなくてはならない)
 T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
@@ -39,7 +39,7 @@ T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 
 所有権が奪われる場合は以下のようになります。
 
-```erg
+```python
 # Nを使わないなら_で省略可
 # .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
 .some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
@@ -50,7 +50,7 @@ T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ``で囲むことで通常の関数と同じように定義できます。
 `and`や`or`などの中置アルファベット演算子は囲むことで中置演算子として定義できます。
 
-```erg
+```python
 and(x, y, z) = x and y and z
 `_+_`(x: Foo, y: Foo) = x.a + y.a
 `-_`(x: Foo) = Foo.new(-x.a)

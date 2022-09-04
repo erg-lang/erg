@@ -7,7 +7,7 @@ ergコマンドにはtestというサブコマンドがあり、テスト実装�
 Ergではパッケージ中の`tests`ディレクトリか`*.test.er`ファイル中の`@Test`を付けたサブルーチンを`erg test`コマンドでテストする。
 `tests`のサブルーチンはブラックボックステスト(非公開関数をテストしない)、`*.test.er`のサブルーチンはホワイトボックステスト(非公開関数もテストする)を担当する。
 
-```erg
+```python
 # tests/test1.er
 {add; ...} = import "foo"
 
@@ -24,12 +24,12 @@ Ergでは`#`, `#[`以降がコメント行となるが、`##`, `#[[`でdoc comme
 さらにdoc comment中のソースコードはergと指定されていれば、erg testコマンドで自動テストされる。
 以下はテストの例である。
 
-```erg
+```python
 VM = ...
     ...
     #[[
     execute commands.
-    ```erg
+    ```python
     # VM in standard configuration
     {vm1; ...} = import "tests/mock"
 

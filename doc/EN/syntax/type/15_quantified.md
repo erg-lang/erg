@@ -3,14 +3,14 @@
 A type variable is a variable used, for example, to specify the type of subroutine arguments, and its type is arbitrary (not monomorphic).
 First, as motivation for introducing type variables, consider the `id` function, which returns input as is.
 
-```erg
+```python
 id x: Int = x
 ```
 
 The `id` function that returns the input as is is defined for the type `Int`, but this function can obviously be defined for any type.
 Let's use `Object` for the largest class.
 
-```erg
+```python
 id x: Object = x
 
 i = id 1
@@ -21,7 +21,7 @@ b = id True
 Sure, it now accepts arbitrary types, but there is one problem: the return type is expanded to `Object`. The return type is expanded to `Object`.
 I would like to see the return type `Int` if the input is of type `Int`, and `Str` if it is of type `Str`.
 
-```erg
+```python
 print! id 1 # <Object object>
 id(1) + 1 # TypeError: cannot add `Object` and `Int
 ```
@@ -29,7 +29,7 @@ id(1) + 1 # TypeError: cannot add `Object` and `Int
 To ensure that the type of the input is the same as the type of the return value, use a __type variable__.
 Type variables are declared in `||`(type variable list).
 
-```erg
+```python
 id|T: Type| x: T = x
 assert id(1) == 1
 assert id("foo") == "foo"
@@ -39,7 +39,7 @@ assert id(True) == True
 This is called the __universal quantification (universalization)__ of the function. There are minor differences, but it corresponds to the function called generics in other languages. A universalized function is called a __polymorphic function__.
 Defining a polymorphic function is like defining a function of the same form for all types (Erg prohibits overloading, so the code below cannot really be written).
 
-```erg
+```python
 id|T: Type| x: T = x
 # pseudo code
 id x: Int = x
@@ -56,7 +56,7 @@ You can also omit `|T, N| foo: [T; N]` if it can be inferred to be other than a 
 You can also provide constraints if the type is too large for an arbitrary type.
 Constraints also have advantages, for example, a subtype specification allows certain methods to be used.
 
-```erg
+```python
 # T <: Add
 # => T is a subclass of Add
 # => can do addition
@@ -68,7 +68,7 @@ In this case, `T` is satisfied by `Int`, `Ratio`, etc. So, the addition of `Int`
 
 You can also type it like this.
 
-```erg
+```python
 f|
     Y, Z: Type
     X <: Add Y, O1
@@ -80,7 +80,7 @@ f|
 
 If the annotation list is long, you may want to pre-declare it.
 
-```erg
+```python
 f: |Y, Z: Type, X <: Add(Y, O1), O1 <: Add(Z, O2), O2 <: Add(X, O3)| (X, Y, Z) -> O3
 f|X, Y, Z| x: X, y: Y, z: Z =
     x + y + z + x
@@ -90,7 +90,7 @@ Unlike many languages with generics, all declared type variables must be used ei
 This is a requirement from Erg's language design that all type variables are inferrable from real arguments.
 So information that cannot be inferred, such as the return type, is passed from real arguments; Erg allows types to be passed from real arguments.
 
-```erg
+```python
 Iterator T = Trait {
     # Passing return types from arguments.
     # .collect: |K: Type -> Type| Self(T). ({K}) -> K(T)
@@ -104,7 +104,7 @@ it.collect(Array) # [2, 3, 4].
 
 Type variables can only be declared during `||`. However, once declared, they can be used anywhere until they exit scope.
 
-```erg
+```python
 f|X|(x: X): () =
     y: X = x.clone()
     log X.__name__
@@ -117,14 +117,14 @@ f 1
 
 You can also explicitly monophasize at the time of use as follows
 
-```erg
+```python
 f: Int -> Int = id|Int|
 ```
 
 In that case, the specified type takes precedence over the type of the actual argument (failure to match will result in a type error that the type of the actual argument is wrong).
 That is, if the actual object passed can be converted to the specified type, it will be converted; otherwise, a compile error will result.
 
-```erg
+```python
 assert id(1) == 1
 assert id|Int|(1) in Int
 assert id|Ratio|(1) in Ratio
@@ -135,14 +135,14 @@ id|Int|("str") # TypeError: id|Int| is type `Int -> Int` but got Str
 
 When this syntax is batting against comprehensions, you need to enclose it in `()`.
 
-```erg
+```python
 # {id|Int| x | x <- 1..10} would be interpreted as {id | ...} will be interpreted as.
 {(id|Int| x) | x <- 1..10}
 ```
 
 A type variable cannot be declared with the same name as a type that already exists. This is because all type variables are constants.
 
-```erg
+```python
 I: Type
 # ↓ invalid type variable, already exists
 f|I: Type| ... = ...
@@ -152,7 +152,7 @@ f|I: Type| ... = ...
 
 Type arguments on the left-hand side are treated as bound variables by default.
 
-```erg
+```python
 K(T: Type, N: Nat) = ...
 K(T, N).
     foo(x) = ...
@@ -160,7 +160,7 @@ K(T, N).
 
 Using another type variable name will result in a warning.
 
-```erg
+```python
 K(T: Type, N: Nat) = ...
 K(U, M). # Warning: K's type variable names are 'T' and 'N'
     foo(x) = ...
@@ -168,7 +168,7 @@ K(U, M). # Warning: K's type variable names are 'T' and 'N'
 
 Constants are the same in all namespaces since their definition, so of course they cannot be used for type variable names.
 
-```erg
+```python
 N = 1
 K(N: Nat) = ... # NameError: N is already defined
 
@@ -183,7 +183,7 @@ L(M).
 
 You cannot have multiple definitions for each type argument, but you can define methods with the same name because there is no relationship between dependent types that are not assigned type arguments (non-primitive-kind) and dependent types that are assigned (primitive-kind).
 
-```erg
+```python
 K(I: Int) = ...
 K.
     # K is not a true type (atomic Kind), so we cannot define a method
@@ -197,7 +197,7 @@ K(0).
 
 The `id` function defined in the previous section is a function that can be of any type. So what is the type of the `id` function itself?
 
-```erg
+```python
 print! classof(id) # |T: Type| T -> T
 ```
 
@@ -207,7 +207,7 @@ There is a restriction on the closed universal quantified type: only subroutine 
 
 Like anonymous functions, polymorphic types have arbitrary type variable names, but they all have the same value.
 
-```erg
+```python
 assert (|T: Type| T -> T) == (|U: Type| U -> U)
 ```
 
@@ -222,14 +222,14 @@ In contrast, a type in which type variables are defined and used on the right-ha
 
 An open universal type is a supertype of all isomorphic "true" types. In contrast, a closed universal type is a subtype of all isomorphic true types.
 
-```erg
+```python
 (|T: Type| T -> T) < (Int -> Int) < (T -> T)
 ```
 
 You may remember that closed ones are smaller/open ones are larger.
 But why is this so? For a better understanding, let's consider an instance of each.
 
-```erg
+```python
 # id: |T: Type| T -> T
 id|T|(x: T): T = x
 
@@ -265,7 +265,7 @@ The important point is that there are no type arguments in the closed, polymorph
 
 In Erg, the type itself is also a value, so types that take arguments, such as function types, will probably be dependent types. In other words, polymorphic function types are both a quantified type and a dependent type.
 
-```erg
+```python
 PolyFn = Patch(|T| T -> T)
 PolyFn.
     type self = T # NameError: cannot find 'T'

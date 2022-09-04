@@ -2,7 +2,7 @@
 
 ゼロ除算によるエラーがない場合は`SafeDiv`を使ってください。
 
-```erg
+```python
 Div R, O = Trait {
     .`/` = Self.(R) -> O or Panic
 }

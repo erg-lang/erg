@@ -2,7 +2,7 @@
 
 Erg allows you to think of the file itself as a single record. This is called a module.
 
-```erg: foo.er
+```python: foo.er
 # foo.er
 .i = 1
 ```
@@ -12,7 +12,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 foo = {.i = 1}
 ```
 
-```erg: bar.er
+```python: bar.er
 #bar.er
 foo = import "foo"
 print! foo # <module 'foo'>

@@ -6,7 +6,7 @@
 
 主要な値クラスは全て`Sample`を実装する。また、`Sample`なクラスで構成されているタプル型やレコード型、Or型、篩型でも実装されている。
 
-```erg
+```python
 assert Int.sample() == 42
 assert Str.sample() == "example"
 # Intの場合、標準では64bitの範囲でサンプルされる
@@ -16,7 +16,7 @@ print! {x = Int; y = Int}.sample!() # {x = -32432892, y = 78458576891}
 
 以下は`Sample`の実装例である。
 
-```erg
+```python
 EmailAddress = Class {header = Str; domain = Str}, Impl=Sample and Show
 @Impl Show
 EmailAddress.

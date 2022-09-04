@@ -2,7 +2,7 @@
 
 篩型とは、以下のような型である。
 
-```erg
+```python
 {I: Int | I >= 0}
 {S: StrWithLen N | N >= 1}
 {T: (Ratio, Ratio) | T.0 >= 0; T.1 >= 0}

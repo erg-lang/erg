@@ -21,7 +21,7 @@ The relation `VIPMember[] <: NormalMember[]` is fine for immutable objects. Howe
 
 In Erg, such code is played back due to the ownership system.
 
-```erg
+```python
 NormalMember = Class()
 VIPMember = Class()
 
@@ -35,7 +35,7 @@ log vip_area # OwnershipError: `vip_room` was moved to `normal_room`
 However, it can be inconvenient for an object to be owned by only one place.
 For this reason, Erg has a type `SharedCell!T!`, which represents a shared state.
 
-```erg
+```python
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
@@ -57,7 +57,7 @@ The `SharedCell! T!` type is also a subtype of `T!` and can call methods of type
 
 An important fact is that `SharedCell! T!` is non-variant, i.e., no inclusions are defined for different type arguments.
 
-```erg
+```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
 $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError: expected SharedCell!([NormalMember; !_]), but got SharedCell!([VIPMember; !_])
 # hint: SharedCell!(T) is non-variant, which means it cannot have a supertype or a subtype.
@@ -65,7 +65,7 @@ $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError:
 
 However, the following code have not problem. In the last line, it's the `VIPMember` argument that has been typed converted.
 
-```erg
+```python
 $normal_area = SharedCell!.new([].into [NormalMember; !_])
 $normal_area.push!(NormalMember.new()) # OK
 $normal_area.push!(VIPMember.new()) # OK

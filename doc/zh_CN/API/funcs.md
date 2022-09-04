@@ -27,7 +27,7 @@
 
 扔掉`x`。不使用返回值时使用。与 `del` 不同，它不会使变量 `x` 不可访问
 
-```erg
+```python
 p! x =
     # q!应该返回一些不是None或()的值
     # 如果不需要，请使用`discard`
@@ -56,7 +56,7 @@ assert True # OK
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
-```erg
+```python
 rep = repeat 1 # Repeater(1)
 for! rep, i =>
     print! i
@@ -65,7 +65,7 @@ for! rep, i =>
 
 ### dup|T; N|(x: T, N: Nat) -> [T; N]
 
-```erg
+```python
 [a, b, c] = dup new(), 3
 print! a # <Object object>
 print! a == b # False
@@ -73,7 +73,7 @@ print! a == b # False
 
 ### cycle|T|(it: Iterable T) -> CycleIterator T
 
-```erg
+```python
 cycle([0, 1]).take 4 # [0, 1, 0, 1]
 cycle("hello").take 3 # "hellohellohello"
 ```
@@ -85,7 +85,7 @@ cycle("hello").take 3 # "hellohellohello"
 创建一个新类。 与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
 您将无法进行比较，但您可以进行模式匹配等操作
 
-```erg
+```python
 C = Class {i = Int}
 NewInt = Class Int
 Months = Class 1..12
@@ -111,7 +111,7 @@ match jan:
 返回参数类型。如果要获取运行时类，请使用`classof`。
 如果您将其用于类型规范，则会出现警告。
 
-```erg
+```python
 x: Typeof i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

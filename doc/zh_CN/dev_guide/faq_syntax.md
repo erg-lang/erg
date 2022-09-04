@@ -8,7 +8,7 @@
 
 因为在和中会发生语法冲突。
 
-```erg
+```python
 # []版
 id[T: Type] [t]: [T] = t
 y = id[Int] # 这是一个功能吗？
@@ -27,7 +27,7 @@ y = id|Int| # OK
 
 Erg 设计为将类型本身也视为值。
 
-```erg
+```python
 A = [Int; 3]
 assert A[2] == Int
 T = (Int, Str)
@@ -49,7 +49,7 @@ assert S.i == Int
 在 Erg 中，运算符使你可以在不太注意错误的情况下编写。
 
 
-```erg
+```python
 read_file!() =
     f = open!("foo.txt")? # 如果失败则立即返回错误，所以 f 是文件类型
     f.read_all!()
@@ -78,7 +78,7 @@ Python 的库中有一些类设计为继承，如果完全取消继承，这些�
 默认情况下，指向结构托盘会使类型指定变得复杂，并且可能会混合程序员的非预期行为。
 
 
-```erg
+```python
 # If T is a subtype of a structural trait...
 # f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x

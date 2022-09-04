@@ -3,7 +3,7 @@
 レコードは、キーでアクセスするDictとコンパイル時にアクセスが検査されるタプルの性質を併せ持つコレクションです。
 JavaScriptをやったことがある方ならば、オブジェクトリテラル記法の(より強化された)ようなものと考えてください。
 
-```erg
+```python
 john = {.name = "John"; .age = 21}
 
 assert john.name == "John"
@@ -20,7 +20,7 @@ JavaScriptのオブジェクトリテラルとの相違点は、文字列でア�
 一般的にはレコードの使用を推奨します。レコードには、コンパイル時に要素が存在するかチェックされる、 __可視性(visibility)__ を指定できるなどのメリットがあります。
 可視性の指定は、Java言語などでみられるpublic/privateの指定に相当します。詳しくは[可視性](./15_visibility.md)を参照してください。
 
-```erg
+```python
 a = {x = 1; .y = x + 1}
 a.x # AttributeError: x is private
 # Hint: declare as `.x`
@@ -31,7 +31,7 @@ assert a.y == 2
 
 属性に対する明示的な型指定もできます。
 
-```erg
+```python
 anonymous = {
     .name: Option! Str = !None
     .age = 20
@@ -41,7 +41,7 @@ anonymous.name.set! "John"
 
 レコードはメソッドも持てます。
 
-```erg
+```python
 o = {
     .i = !0
     .inc! ref! self = self.i.inc!()
@@ -55,7 +55,7 @@ assert o.i == 1
 レコードに関して特筆すべき文法があります。レコードの属性値が全てクラス(構造型ではダメです)のとき、そのレコード自体が、自身の属性を要求属性とする型としてふるまいます。
 このような型をレコード型と呼びます。詳しくは[レコード]の項を参照してください。
 
-```erg
+```python
 # レコード
 john = {.name = "John"}
 # レコード型
@@ -74,7 +74,7 @@ print! Named.name # Str
 
 レコードは以下のようにして分解できます。
 
-```erg
+```python
 record = {x = 1; y = 2}
 {x = a; y = b} = record
 assert a == 1
@@ -91,7 +91,7 @@ match point:
 また、レコードは属性と同名の変数があるとき、例えば`x = x`または`x = .x`を`x`に、`.x = .x`または`.x = x`を`.x`に省略できます。
 ただし、属性が一つのときはセットと区別するために`;`を付ける必要があります。
 
-```erg
+```python
 x = 1
 y = 2
 xy = {x; y}
@@ -108,7 +108,7 @@ assert tuple.1 == 1
 
 この構文を利用して、レコードを分解して変数に代入できます。
 
-```erg
+```python
 # same as `{x = x; y = y} = xy`
 {x; y} = xy
 assert x == 1
@@ -123,7 +123,7 @@ assert b == 2
 
 空のレコードは`{=}`で表されます。空のレコードはUnitと同じく、自身のクラスそのものでもあります。
 
-```erg
+```python
 empty_record = {=}
 empty_record: {=}
 # Object: Type = {=}
@@ -137,7 +137,7 @@ empty_record: Structural {=}
 逆に、レコードクラスの`{=}`は要求インスタンス属性がないので、全てのオブジェクトがこれの要素になります。`Object`は、これのエイリアスです。
 `Object`(のパッチ)は`.__sizeof__`などの極めて基本的な提供メソッドを持ちます。
 
-```erg
+```python
 AnyPatch = Patch Structural {=}
     .__sizeof__ self = ...
     .clone self = ...
@@ -153,7 +153,7 @@ Never = Class {}
 
 Ergにはもう一つインスタントブロックという構文がありますが、これは単に最後に評価した値を返すだけです。属性の保持はできません。
 
-```erg
+```python
 x =
     x = 1
     y = x + 1
@@ -169,7 +169,7 @@ y =
 素のレコード(レコードリテラルで生成されたレコード)は、これ単体でメソッドを実装しようとすると、直接インスタンスに定義する必要があります。
 これは効率が悪く、さらに属性の数が増えていくとエラー表示などが見にくくなり使いにくいです。
 
-```erg
+```python
 john = {
     name = "John Smith"
     age = !20
@@ -183,7 +183,7 @@ john + 1
 そこで、このような場合はレコードクラスを継承します。このようなクラスをデータクラスと呼びます。
 これについては[クラス](./type/04_class.md)の項で詳しく説明します。
 
-```erg
+```python
 Person = Inherit {name = Str; age = Nat}
 Person.
     greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."

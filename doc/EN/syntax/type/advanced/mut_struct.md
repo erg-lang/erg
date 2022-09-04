@@ -2,7 +2,7 @@
 
 The ``T!`` type is described as a box type that can be replaced by any ``T`` type object.
 
-```erg
+```python
 Particle!State: {"base", "excited"}! = Class(... Impl := Phantom State)
 Particle!
     # This method moves the State from "base" to "excited".
@@ -19,7 +19,7 @@ In other words, the length cannot be changed. To change the length, the structur
 
 This is achieved by Mutable structure (mutable) types.
 
-```erg
+```python
 v = [Str; !0].new()
 v.push! "Hello"
 v: [Str; !1].
@@ -30,7 +30,7 @@ Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ArrayWithLen
 
 Mutable structure types can of course be user-defined. Note, however, that there are some differences from invariant structure types in terms of the construction method.
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 List T, !0 = Inherit Nil T
 List T, N: Nat! = Class {head = T; rest = List(T, !N-1)}

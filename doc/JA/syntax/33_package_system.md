@@ -25,7 +25,7 @@ libパッケージのエントリポイントは`src/lib.er`です。パッケ�
 `foo`モジュールはファイルからなるモジュールで、`bar`モジュールはディレクトリからなるモジュールです。`bar`モジュールはさらに`baz`, `qux`モジュールを内部に持ちます。
 このモジュールは単に`bar`モジュールの属性であり、`app.er`からは以下のようにアクセスできます。
 
-```erg
+```python
 # app.er
 foo = import "foo"
 bar = import "bar"
@@ -47,7 +47,7 @@ main args =
   └─ foo.test.er
 ```
 
-```erg
+```python
 # app.er
 foo = import "foo"
 
@@ -66,14 +66,14 @@ main args =
     └─ qux.er
 ```
 
-```erg
+```python
 # foo.er
 bar = import "bar"
 bar.qux
 bar.baz # AttributeError: module 'baz' is private
 ```
 
-```erg
+```python
 # qux.er
 baz = import "baz"
 ```

@@ -24,7 +24,7 @@ Raised when an attempt is made to obtain another variable reference while a borr
 
 Raised when there is an apparent non-stop cycle.
 
-```erg
+```python
 i: Int = i
 
 f(): Int = g()
@@ -91,7 +91,7 @@ Raised when the object type does not match.
 Raised when a variable is used before it is defined.
 More precisely, it occurs when a variable defined in a scope is used before it is defined.
 
-```erg
+```python
 i = 0
 f x =
     y = i + x
@@ -102,7 +102,7 @@ f x =
 In this code, the `i` in `y = i + x` is an undefined variable.
 However, if it is a constant, it can be called in another function before it is defined.
 
-```erg
+```python
 f() = g()
 g() = f()
 ```
@@ -113,7 +113,7 @@ g() = f()
 
 This happens when syntactically sound but redundant or uncommon code is detected (e.g., unnecessary `()`).
 
-```erg
+```python
 if (True): # SyntaxWarning: unnecessary parentheses
     ...
 ```

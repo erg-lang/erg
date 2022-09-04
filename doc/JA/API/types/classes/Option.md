@@ -8,7 +8,7 @@
 
 中身が`T`型であると期待して取り出す。`None`であった場合`msg`を出力してパニックする。
 
-```erg
+```python
 x = "...".parse(Int).into(Option Int)
 x.unwrap() # UnwrappingError: unwrapped a None value
 x.unwrap("failed to convert from string to number") # UnwrappingError: failed to convert from string to number

@@ -6,7 +6,7 @@ Ergの数値型は`Nat`, `Int`, `Ratio`などがあります。しかしこれ�
 このようなミスは実際に起っており、[単位系の取り間違いで火星探査機が行方不明](http://www.sydrose.com/case100/287/)になるなど、深刻なバグを引き起こしかねません。
 数値計算を行う上でコードの堅牢性を高めたいならばこのモジュールを使用しておくべきです。
 
-```erg
+```python
 {*} = import "unit"
 
 x = 6m # `x = Meter.new(6)`と等価
@@ -33,7 +33,7 @@ unitでは以下の単位を型として定義しています。SI(国際単位�
 例えば、振動数の単位ヘルツ(hertz)は振動周期(秒)の逆数で定義されているので、`UnitDiv(Unit1, Sec)`です。
 この型を意味のある型とみなしたい(専用のメソッドを加えたい、など)ときは、[パッチ](./../../syntax/type/07_patch.md)を作成すると良いでしょう。
 
-```erg
+```python
 Hertz = Patch UnitDiv(Unit1, Sec)
 SquareMeter = Patch UnitMul(Meter, Meter)
 ```

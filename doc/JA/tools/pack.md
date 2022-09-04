@@ -34,7 +34,7 @@ Ergは標準でパッケージマネージャーが付属しており、`pack`�
 `erg pack init`すると以下のようなファイル、`package.er`が生成される。`package.er`にはパッケージの設定を記述する。
 以下は`package.er`の記述例である。
 
-```erg
+```python
 name = "example" # package name
 author = "John Smith" # package author name
 version = "0.1.0"

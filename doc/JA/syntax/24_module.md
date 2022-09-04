@@ -2,17 +2,17 @@
 
 Ergでは、ファイル自体を1つのレコードとみなすことができます。これをモジュールと呼びます。
 
-```erg: foo.er
+```python: foo.er
 # foo.er
 .i = 1
 ```
 
-```erg
+```python
 # fooモジュールを定義するのはこのレコードを定義するのとほとんど同じ
 foo = {.i = 1}
 ```
 
-```erg: bar.er
+```python: bar.er
 # bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -21,7 +21,7 @@ assert foo.i == 1
 
 モジュール型はレコード型でもあるので、分解代入が可能です。
 
-```erg
+```python
 {sin; cos; ...} = import "math"
 ```
 

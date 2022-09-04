@@ -5,14 +5,14 @@ Enum types can be used as-is with type specifications, but further methods can b
 
 A partially typed system with an enumerated type is called an enumerated partially typed.
 
-```erg
+```python
 Bool = {True, False}
 Status = {"ok", "error"}
 ```
 
 Since `1..7` can be rewritten as `{1, 2, 3, 4, 5, 6, 7}`, so when element is finite, the Enum types essentially equivalent the Range types.
 
-```erg
+```python
 Binary! = Class {0, 1}!.
     invert! ref! self =
         if! self == 0:
@@ -32,7 +32,7 @@ Incidentally, Erg's Enum types are a concept that encompasses enumerative types 
 enum Status { Ok, Error }
 ```
 
-```erg
+```python
 # Erg
 Status = {"Ok", "Error"}
 ```
@@ -53,7 +53,7 @@ impl ExtraStatus {
 }
 ```
 
-```erg
+```python
 # Status > ExtraStatus, and elements of Status can use methods of ExtraStatus.
 Status = Trait {"Ok", "Error"}
     # ...
@@ -65,7 +65,7 @@ Methods can also be added by patching.
 
 Use the `or` operator to explicitly indicate inclusion or to add a choice to an existing Enum type.
 
-```erg
+```python
 ExtraStatus = Status or {"Unknown"}
 ```
 
@@ -75,7 +75,7 @@ By default, a class whose requirement type is an homogeneous enumerated type can
 
 If you do not wish to do so, you can make it a wrapper class.
 
-```erg
+```python
 Abc = Class {"A", "B", "C"}
 Abc.new("A").is_uppercase()
 

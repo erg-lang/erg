@@ -334,7 +334,7 @@ impl Context {
         (Maybe, false)
     }
 
-    /// ```erg
+    /// ```python
     /// assert sup_conforms(?E(<: Eq(?E)), base: Nat, sup_trait: Eq(Nat))
     /// assert sup_conforms(?E(<: Eq(?R)), base: T, sup_trait: Eq(U))
     /// ```
@@ -360,7 +360,7 @@ impl Context {
     }
 
     /// lhs :> rhs?
-    /// ```erg
+    /// ```python
     /// assert supertype_of(Int, Nat) # i: Int = 1 as Nat
     /// assert supertype_of(Bool, Bool)
     /// ```
@@ -815,7 +815,7 @@ impl Context {
     }
 
     /// see doc/LANG/compiler/refinement_subtyping.md
-    /// ```erg
+    /// ```python
     /// assert is_super_pred({I >= 0}, {I == 0})
     /// assert is_super_pred({T >= 0}, {I == 0})
     /// assert !is_super_pred({I < 0}, {I == 0})

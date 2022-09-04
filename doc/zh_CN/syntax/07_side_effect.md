@@ -2,14 +2,14 @@
 
 We have been neglecting to explain the meaning of the `!`, but now its meaning will finally be revealed. This `!` indicates that this object is a "procedure" with a "side-effect". A procedure is a function with a side-effect.
 
-```erg
+```python
 f x = print! x # EffectError: functions cannot be assigned objects with side effects
 # hint: change the name to 'f!'
 ```
 
 The above code will result in a compile error. This is because you are using a procedure in a function. In such a case, you must define it as a procedure.
 
-```erg
+```python
 p! x = print! x
 ```
 
@@ -21,7 +21,7 @@ Procedures defined in this way also cannot be used within a function, so side-ef
 Functions and procedures each can be methods. Functional methods can only take immutable references to `self`, while procedural methods can take mutable references to `self`.
 The `self` is a special parameter, which in the context of a method refers to the calling object itself. The reference `self` cannot be assigned to any other variable.
 
-```erg
+```python
 C!.
     method ref self =
         x = self # OwnershipError: cannot move out 'self'
@@ -30,7 +30,7 @@ C!.
 
 Procedural methods can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
 
-```erg
+```python
 n = 1
 s = n.into(Str) # '1'
 n # ValueError: n was moved by .into (line 2)
@@ -40,7 +40,7 @@ Only one procedural methods can have a mutable reference at any given time. In a
 
 Note, however, that it is possible to create (immutable/mutable) references from mutable references. This allows recursion and `print!` of `self` in procedural methods.
 
-```erg
+```python
 T -> T # OK (move)
 T -> Ref T # OK (move)
 T => Ref! T # OK (only once)
@@ -63,14 +63,14 @@ There are procedures that for any given `x` will result in `p!(x) == p!(x)` (e.g
 
 An example of the former is `print!`, and an example of the latter is the following function.
 
-```erg
+```python
 nan _ = Float.NaN
 assert nan(1) ! = nan(1)
 ```
 
 There are also objects, such as classes, for which equivalence determination itself is not possible.
 
-```erg
+```python
 T = Structural {i = Int}
 U = Structural {i = Int}
 assert T == U
@@ -88,7 +88,7 @@ Back to the point: the precise definition of "side-effect" in Erg is
 
 As an example, consider the `print!` procedure. At first glance, `print!` does not seem to rewrite any variables. But if it were a function, it could rewrite outer variables, for example, with code like this:
 
-```erg
+```python
 camera = import "some_camera_module"
 ocr = import "some_ocr_module"
 
@@ -107,7 +107,7 @@ The direct side-effect is caused by `cam.shot!()`, but obviously that informatio
 Nevertheless, there may be cases where you want to temporarily check a value in a function and do not want to add `!` in the related function just for that purpose. In such cases, the `log` function can be used.
 `log` prints the value after the entire code has been executed. In this way, side-effects are not propagated.
 
-```erg
+```python
 log "this will be printed after execution"
 print! "this will be printed immediately"
 # this will be printed immediately

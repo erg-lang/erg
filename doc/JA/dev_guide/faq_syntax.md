@@ -11,7 +11,7 @@ Ergが所有権システムを導入した狙いは「可変状態の局所化�
 
 `<>`や`[]`では文法の衝突が起きるからです。
 
-```erg
+```python
 # []版
 id[T: Type] [t]: [T] = t
 y = id[Int] # これは関数?
@@ -30,7 +30,7 @@ y = id|Int| # OK
 
 Ergは型自体も値として扱える設計になっているためです。
 
-```erg
+```python
 A = [Int; 3]
 assert A[2] == Int
 T = (Int, Str)
@@ -53,7 +53,7 @@ assert S.i == Int
 
 Ergでは`?`演算子によってエラーをあまり意識せずに書けます。
 
-```erg
+```python
 read_file!() =
     f = open!("foo.txt")? # 失敗したらエラーをすぐさま返すので、fはFile型
     f.read_all!()
@@ -84,7 +84,7 @@ Pythonのライブラリには継承されることを前提に設計されて�
 
 デフォルトで構造的トレイトを指すと、型指定が複雑になり、プログラマの意図しない挙動を混入させる恐れがあるためです。
 
-```erg
+```python
 # If T is a subtype of a structural trait...
 # f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x

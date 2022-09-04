@@ -6,7 +6,7 @@ Ergでは`id|T|(x: T): T = x`などのように色々な型を受け取れる関
 では、多相関数を受け取れる関数は定義できるだろうか？
 例えば、このような関数である(この定義は誤りを含むことに注意してほしい)。
 
-```erg
+```python
 # tuple_map(i -> i * 2, (1, "a")) == (2, "aa")になってほしい
 tuple_map|T|(f: T -> T, tup: (Int, Str)): (Int, Str) = (f(tup.0), f(tup.1))
 ```
@@ -15,7 +15,7 @@ tuple_map|T|(f: T -> T, tup: (Int, Str)): (Int, Str) = (f(tup.0), f(tup.1))
 今まで説明してきた型の範疇では、このような関数の定義はできない。型変数にスコープの概念がないからである。
 ここで一旦型を離れて、値レベルでのスコープの概念を確認する。
 
-```erg
+```python
 arr = [1, 2, 3]
 arr.map i -> i + 1
 ```
@@ -25,7 +25,7 @@ arr.map i -> i + 1
 今までの型は、全ての型変数で生存期間が同一なのである。すなわち、`T`, `X`, `Y`は同時に決定されていて、以降は不変でなければならない。
 逆に言えば、`T`を「内側のスコープ」にある型変数とみなすことができるならば`tuple_map`関数を構成できる。そのために用意されたのが、 __ランク2型__ である。
 
-```erg
+```python
 # tuple_map: ((|T: Type| T -> T), (Int, Str)) -> (Int, Str)
 tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
@@ -34,7 +34,7 @@ assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 `{(型) | (型変数のリスト)}`という形式の型を全称型といった(詳しくは[全称型](./../quantified.md)を参照)。
 いままで見てきた`id`関数は、典型的な全称関数=多相関数である。
 
-```erg
+```python
 id x = x
 id: |T: Type| T -> T
 ```
@@ -43,7 +43,7 @@ id: |T: Type| T -> T
 
 これについて、単純な1引数関数を使って考える。
 
-```erg
+```python
 f1: (T -> T) -> Int | T # 任意の関数を受け取り、Intを返す関数
 f2: (|T: Type| T -> T) -> Int # 多相関数を受け取り、Intを返す関数
 f3: Int -> (|T: Type| T -> T) # Intを受け取り、閉じた全称型関数を返す関数
@@ -52,7 +52,7 @@ f4: |T: Type|(Int -> (T -> T)) # 上と同じ意味(こちらが推奨)
 
 `f3`と`f4`が同じなのに対して、`f1`と`f2`は異なるというのは奇妙に思える。実際にそのような型の関数を構成してみる。
 
-```erg
+```python
 # id: |T: Type| T -> T
 id x = x
 # same type as `f1`
@@ -67,7 +67,7 @@ take_i_and_return_arbit_f|T: Type|(_: Int): (T -> T) = id
 
 適用してみると、その違いがわかってくる。
 
-```erg
+```python
 _ = take_univq_f_and_return_i(x -> x, 1) # OK
 _ = take_univq_f_and_return_i(x: Int -> x, 1) # NG
 _ = take_univq_f_and_return_i(x: Str -> x, 1) # NG
@@ -90,7 +90,7 @@ assert f2 == g2
 
 ランクの定義だが、まず量化されていない型、すなわち`Int`, `Str`, `Bool`, `T`, `Int -> Int`, `Option Int`などは「ランク0」とされる。
 
-```erg
+```python
 # KはOptionなどの多項カインド
 R0 = (Int or Str or Bool or ...) or (R0 -> R0) or K(R0)
 ```
@@ -99,7 +99,7 @@ R0 = (Int or Str or Bool or ...) or (R0 -> R0) or K(R0)
 さらに二階の全称量化が行われている型(`(|T| T -> T) -> Int`などランク1型を引数に持つ型)、またはそれらを戻り値型に含む型を「ランク2」とする。
 以上を繰り返して「ランクN」型が定義される。また、ランクN型はN以下のランクの型をすべて含む。ゆえに、複数のランクが混在する型のランクは、その中で最も高いランクと同じになる。
 
-```erg
+```python
 R1 = (|...| R0) or (R0 -> R1) or K(R1) or R0
 R2 = (|...| R1) or (R1 -> R2) or K(R2) or R1
 ...
@@ -108,7 +108,7 @@ Rn = (|...| Rn-1) or (Rn-1 -> Rn) or K(Rn) or Rn-1
 
 いくつか例をみてみよう。
 
-```erg
+```python
     (|T: Type| T -> T) -> (|U: Type| U -> U)
 =>  R1 -> R1
 =>  R1 -> R2
@@ -122,7 +122,7 @@ Option(|T: Type| T -> T)
 
 定義より、`tuple_map`はランク2型である。
 
-```erg
+```python
 tuple_map:
     ((|T: Type| T -> T), (Int, Str)) -> (Int, Str)
 =>  (R1, R0) -> R0
@@ -133,7 +133,7 @@ tuple_map:
 Ergでは、ランク2までの型を扱うことができる(ランクN型はN以下のランクの型をすべて含むため、正確にいうとErgの型はすべてランク2型である)。それ以上の型の関数を構成しようとするとエラーになる。
 例えば、多相関数を多相関数のまま扱う関数はすべて他の引数の型指定が必要である。また、このような関数は構成できない。
 
-```erg
+```python
 # this is a rank-3 type function
 # |X, Y: Type|((|T: Type| T -> T), (X, Y)) -> (X, Y)
 generic_tuple_map|X, Y: Type| f: (|T: Type| T -> T), tup: (X, Y) = (f(tup.0), f(tup.1))

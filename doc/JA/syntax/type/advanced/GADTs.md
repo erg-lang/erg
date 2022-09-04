@@ -2,7 +2,7 @@
 
 ErgはOr型をクラス化することで一般化代数的データ型(GADTs)を作成出来ます。
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 Cons T = Class {head = T; rest = List T}, Impl := Unpack
 List T: Type = Class(Nil T or Cons T)
@@ -20,7 +20,7 @@ print! nil.head() # RuntimeError: "empty list"
 
 `List(T).nil() = ...`ではなく`List.nil|T|() = ...`としているのは、使用時に型指定が不要になるからです。
 
-```erg
+```python
 i = List.nil()
 _: List Int = cons 1, i
 ```
@@ -28,7 +28,7 @@ _: List Int = cons 1, i
 ここで定義した`List T`はGADTsですが、素朴な実装であり、GADTsの真価を発揮していません。
 例えば、上の`.head`メソッドはもし中身が空なら実行時エラーを出しますが、この検査はコンパイル時に行うことができます。
 
-```erg
+```python
 List: (Type, {"Empty", "Nonempty"}) -> Type
 List T, "Empty" = Class(Impl := Phantom T)
 List T, "Nonempty" = Class {head = T; rest = List(T, _)}, Impl := Unpack
@@ -46,7 +46,7 @@ print! nil().head() # TypeError
 巷でよく説明されるGADTsの例は、以上のように中身が空か否か型で判定できるリストです。
 Ergではさらに精密化して、長さを持つリストを定義できます。
 
-```erg
+```python
 List: (Type, Nat) -> Type
 List T, 0 = Class(Impl := Phantom T)
 List T, N = Class {head = T; rest = List(T, N-1)}, Impl := Unpack

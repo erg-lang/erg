@@ -8,7 +8,7 @@
 
 提取它，期望内容是 `T` 类型。 如果是 `None`，则输出 `msg` 并恐慌
 
-```erg
+```python
 x = "...".parse(Int).into(Option Int)
 x.unwrap() # UnwrappingError: unwrapped a None value
 x.unwrap("failed to convert from string to number") # UnwrappingError: failed to convert from string to number

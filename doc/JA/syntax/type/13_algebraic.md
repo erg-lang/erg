@@ -9,7 +9,7 @@
 Union型では型について複数の可能性を与える事ができる。名前の通り、`or`演算子で生成されます。
 代表的なUnionは`Option`型です。`Option`型は`T or NoneType`のpatch typeで、主に失敗するかもしれない値を表現します。
 
-```erg
+```python
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)
 
@@ -21,7 +21,7 @@ Option T = T or NoneType
 
 Intersection型は型同士を`and`演算で結合して得られます。
 
-```erg
+```python
 Num = Add and Sub and Mul and Eq
 ```
 
@@ -32,7 +32,7 @@ Num = Add and Sub and Mul and Eq
 Diff型は`not`演算で得られます。
 英文に近い表記としては`and not`とした方が良いですが、`and`, `or`と並べて収まりが良いので`not`だけで使うのが推奨されます。
 
-```erg
+```python
 CompleteNum = Add and Sub and Mul and Div and Eq and Ord
 Num = CompleteNum not Div not Ord
 
@@ -46,7 +46,7 @@ Complementは`not`演算で得られますが、これは単項演算です。`n
 `not T`型によるIntersectionはDiffと同等で、`not T`型によるDiffはIntersectionと同等です。
 しかしこのような書き方は推奨されません。
 
-```erg
+```python
 # the simplest definition of the non-zero number type
 NonZero = Not {0}
 # deprecated styles
@@ -60,7 +60,7 @@ Bool == {True} not not {False} # 2 == 1 - -1
 そうではない「見かけの代数型」には、Enum型やInterval型、レコード型の`or`や`and`があります。
 これらは簡約が可能なので真の代数演算型ではなく、型指定に使うとWarningが出ます。Warningを消すためには簡約化するか型定義を行うかする必要があります。
 
-```erg
+```python
 assert {1, 2, 3} or {2, 3} == {1, 2, 3}
 assert {1, 2, 3} and {2, 3} == {2, 3}
 assert -2..-1 or 1..2 == {-2, -1, 1, 2}
@@ -76,7 +76,7 @@ q: Point2D = {x = 1; y = 2; z = 3}
 
 真の代数演算型には、`Or`型、`And`型があります。クラス同士の`or`などは`Or`型です。
 
-```erg
+```python
 assert Int or Str == Or(Int, Str)
 assert Int and Marker == And(Int, Marker)
 ```

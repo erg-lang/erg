@@ -2,7 +2,7 @@
 
 マーカートレイト。実装すると、レコードのようにパターンマッチで要素を分解できる。
 
-```erg
+```python
 C = Class {i = Int}, Impl=Unpack
 C.new i = Self::new {i;}
 {i} = C.new(1)

@@ -9,7 +9,7 @@
 bodyをpatに変数として代入する。同じスコープにすでに変数が存在する場合と、patにマッチしなかった場合にエラーを送出する。
 また、レコードの属性定義やデフォルト引数にも使われる。
 
-```erg
+```python
 record = {i = 1; j = 2}
 f(x: Int, y = 2) = ...
 ```
@@ -17,7 +17,7 @@ f(x: Int, y = 2) = ...
 bodyが型か関数であるときに`=`は特殊な振る舞いをする。
 左辺の変数名を右辺のオブジェクトに埋め込むのである。
 
-```erg
+```python
 print! Class() # <class <lambda>>
 print! x: Int -> x + 1 # <function <lambda>>
 C = Class()
@@ -35,7 +35,7 @@ print! L # <kind L>
 `=`演算子は、戻り値が「未定義」である。
 多重代入、関数中での`=`は文法エラーとなる。
 
-```erg
+```python
 i = j = 1 # SyntaxError: multiple assignments are not allowed
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
 # hint: did you mean keyword arguments (`x: 1`)?
@@ -55,14 +55,14 @@ if True, do:
 
 subjectがTに合致しているか判定する。合致していない場合はコンパイルエラーを送出する。
 
-```erg
+```python
 a: Int
 f x: Int, y: Int = x / y
 ```
 
 また、`:`適用スタイルにも使われる。
 
-```erg
+```python
 f x:
     y
     z
@@ -70,7 +70,7 @@ f x:
 
 `:`も`=`と同じく演算の結果が未定義である。
 
-```erg
+```python
 _ = x: Int # SyntaxError:
 print!(x: Int) # SyntaxError:
 ```
@@ -92,7 +92,7 @@ objの属性を読み込む。
 
 objについて、パターンにマッチしたlambdaを実行する。
 
-```erg
+```python
 match [1, 2, 3]:
   (l: Int) -> log "this is type of Int"
   [[a], b] -> log a, b
@@ -104,7 +104,7 @@ match [1, 2, 3]:
 
 変数`x`を削除する。ただし組み込みのオブジェクトは削除できない。
 
-```erg
+```python
 a = 1
 del a # OK
 
@@ -124,7 +124,7 @@ del True # SyntaxError: cannot delete a built-in object
 Choiceオブジェクトという２つ組のタプルのような構造体を生成する。
 `l, r`は遅延評価される。すなわち、`.get_then`または`.get_else`が呼ばれたとき初めて式が評価される。
 
-```erg
+```python
 choice = 1 else 2
 assert choice.get_then() == 1
 assert choice.get_else() == 2
@@ -153,7 +153,7 @@ assert True.then(choice) == 1
 
 入れ子になったコレクションを展開する。パターンマッチでも使える。
 
-```erg
+```python
 [x, ...y] = [1, 2, 3]
 assert x == 1 and y == [2, 3]
 assert [x, ...y] == [1, 2, 3]

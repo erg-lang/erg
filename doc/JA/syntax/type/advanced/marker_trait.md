@@ -6,15 +6,15 @@
 すべてのマーカートレイトは`Marker`トレイトに包摂される。
 標準で提供されている`Light`はマーカートレイトの一種である。
 
-```erg
+```python
 Light = Subsume Marker
 ```
 
-```erg
+```python
 Person = Class {.name = Str; .age = Nat} and Light
 ```
 
-```erg
+```python
 M = Subsume Marker
 
 MarkedInt = Inherit Int, Impl := M
@@ -26,6 +26,6 @@ assert i in M
 
 マーカークラスは`Excluding`引数で外すことも可能である。
 
-```erg
+```python
 NInt = Inherit MarkedInt, Impl := N, Excluding: M
 ```

@@ -15,7 +15,7 @@
 レコードリテラル(`{attr = value; ...}`)で生成されるオブジェクトです。
 このオブジェクトは`.clone`や`.__sizeof__`などの基本的なメソッドを持ちます。
 
-```erg
+```python
 obj = {.x = 1}
 assert obj.x == 1
 
@@ -27,7 +27,7 @@ assert obj2.x == 1 and obj2.y == 2
 
 オブジェクトと関連付けられたオブジェクトです。特に自身(`self`)を暗黙の第一引数にとるサブルーチン属性はメソッド(method)と呼ばれます。
 
-```erg
+```python
 # private_attrには`.`がないことに注意
 record = {.public_attr = j; private_attr = 2; .method = self -> self.i + 1}
 record.public_attr == 2

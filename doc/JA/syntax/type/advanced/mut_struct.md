@@ -2,7 +2,7 @@
 
 `T!`型は任意の`T`型オブジェクトを入れられて差し替え可能なボックス型であると説明した。
 
-```erg
+```python
 Particle! State: {"base", "excited"}! = Class(..., Impl := Phantom State)
 Particle!.
     # このメソッドはStateを"base"から"excited"に遷移させる
@@ -19,7 +19,7 @@ Particle!.
 
 それを実現するのが可変構造(可変)型である。
 
-```erg
+```python
 v = [Str; !0].new()
 v.push! "Hello"
 v: [Str; !1]
@@ -30,7 +30,7 @@ v: [Str; !1]
 
 可変構造型はもちろんユーザー定義も可能である。ただし、不変構造型とは構成法に関していくつか違いがあるので注意が必要である。
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 List T, !0 = Inherit Nil T
 List T, N: Nat! = Class {head = T; rest = List(T, !N-1)}

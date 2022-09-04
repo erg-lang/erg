@@ -2,14 +2,14 @@
 
 整列集合型(WellOrder)の部分型を表す型です。Interval型にはPreOpen(x<..y)などの派生型が存在します。
 
-```erg
+```python
 Months = 1..12
 Alphabet = "a".."z"
 Weekdays = Monday..Friday
 Winter = November..December or January..February
 ```
 
-```erg
+```python
 0..1 # 整数の範囲
 0.0..1.0 # 実数(有理数)の範囲
 # or 0/1..1/1でも同じ

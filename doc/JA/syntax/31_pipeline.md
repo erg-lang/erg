@@ -2,7 +2,7 @@
 
 パイプライン演算子は、次のように使います。
 
-```erg
+```python
 assert f(g(x)) == (x |> g |> f)
 assert f(g(x, y)) == ((x, y) |> g |> f)
 ```
@@ -11,7 +11,7 @@ assert f(g(x, y)) == ((x, y) |> g |> f)
 パイプライン演算子はメソッドに対しても使えます。メソッドの場合、`object.method(args)`が`object |>.method(args)`と変わります。
 単に`|>`が増えただけにも見えるが、結合強度が低めなので`()`の量を減らせる場合があります。
 
-```erg
+```python
 rand = -1.0..1.0 |>.sample!()
 log rand # 0.2597...
 

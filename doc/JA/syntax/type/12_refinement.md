@@ -5,7 +5,7 @@ Refinement type(篩型、ふるいがた)は、述語式によって制約付け
 篩型の標準形は`{Elem: Type | (Pred)*}`です。これは、`Pred`を満たす`Elem`を要素とする型である、という意味です。
 篩型に使えるのは[Const型](./advanced/const.md)のみです。
 
-```erg
+```python
 Nat = 0.._
 Odd = {N: Int | N % 2 == 1}
 Char = StrWithLen 1
@@ -22,7 +22,7 @@ Array3OrMore == {A: Array _, N | N >= 3}
 `Pred`は(左辺)述語式と呼ばれます。これは代入式と同じく意味のある値を返すものではなく、左辺にはパターンしか置けません。
 すなわち、`X**2 - 5X + 6 == 0`のような式は篩型の述語式としては使えません。この点において、右辺式の述語式とは異なります。
 
-```erg
+```python
 {X: Int | X**2 - 5X + 6 == 0} # SyntaxError: the predicate form is invalid. Only names can be on the left-hand side
 ```
 
@@ -34,14 +34,14 @@ Array3OrMore == {A: Array _, N | N >= 3}
 `Odd`を定義したのはいいですが、このままではリテラル以外ではあまり使えないようにみえます。通常の`Int`オブジェクトの中の奇数を`Odd`に昇格させる、つまり`Int`を`Odd`にダウンキャストするためには、`Odd`のコンストラクタを通す必要があります。
 篩型の場合、通常のコンストラクタ`.new`はパニックする可能性があり、`.try_new`という`Result`型を返す補助的なコンストラクタもあります。
 
-```erg
+```python
 i = Odd.new (0..10).sample!()
 i: Odd # or Panic
 ```
 
 また、`match`中で型指定として使用することもできます。
 
-```erg
+```python
 # i: 0..10
 i = (0..10).sample!()
 match i:
@@ -58,7 +58,7 @@ match i:
 今まで紹介した列挙型と区間型は、篩型の糖衣構文です。
 `{a, b, ...}`は`{I: Typeof(a) | I == a or I == b or ... }`に、`a..b`は`{I: Typeof(a) | I >= a and I <= b}`に脱糖されます。
 
-```erg
+```python
 {1, 2} == {I: Int | I == 1 or I == 2}
 1..10 == {I: Int | I >= 1 and I <= 10}
 1..<10 == {I: Int | I >= 1 and I < 10} == {I: Int | I >= 1 and I <= 9}
@@ -68,7 +68,7 @@ match i:
 
 `_: {X}`を`X`と書き換えられるように(定数パターン)、`_: {X: T | Pred}`は`X: T | Pred`と書き換えることができます。
 
-```erg
+```python
 # メソッド.mは長さ3以上の配列に定義される
 Array(T, N | N >= 3)
     .m(&self) = ...

@@ -6,7 +6,7 @@
 
 所有主要的值类都实现了 `Sample`。它还在由“Sample”类组成的元组类型、记录类型、Or类型和筛选类型中实现
 
-```erg
+```python
 assert Int.sample() == 42
 assert Str.sample() == "example"
 # Int默认在64bit范围内采样
@@ -16,7 +16,7 @@ print! {x = Int; y = Int}.sample!() # {x = -32432892, y = 78458576891}
 
 下面是一个`Sample`的实现示例
 
-```erg
+```python
 EmailAddress = Class {header = Str; domain = Str}, Impl=Sample and Show
 @Impl Show
 EmailAddress.

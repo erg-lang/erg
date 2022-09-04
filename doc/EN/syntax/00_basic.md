@@ -11,7 +11,7 @@ This document describes the basic syntax of Erg. The [Standard API](./API/index.
 
 First, let's do "Hello World".
 
-```erg
+```python
 print!("Hello, World!")
 ```
 
@@ -19,7 +19,7 @@ This is almost identical to Python and other languages in the same family. The m
 In Erg, parentheses `()` can be omitted unless there is some confusion in interpretation.
 The omission of parentheses is similar to Ruby, but it is not possible to omit parentheses that can be interpreted in more than one way.
 
-```erg
+```python
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
@@ -70,7 +70,7 @@ hello, world!
 
 The code after `#` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
 
-```erg
+```python
 # Comment
 # `#` and after are ignored until a new line is inserted
 #[
@@ -85,7 +85,7 @@ A script is a series of expressions. An expression is something that can be calc
 Each expression is separated by a separator - either a new line or a semicolon `;`-.
 Erg scripts are basically evaluated from left to right, top to bottom.
 
-```erg
+```python
 n = 1 # assignment expression
 f(1, 2) # function-call expression
 1 + 1 # operator-call expression
@@ -95,7 +95,7 @@ f(1, 2); 1 + 1
 As shown below, there is a syntax called instant block that takes the last expression evaluated in the block as the value of the variable.
 This differs from a function with no arguments, which does not add `()`. Note that instant blocks are evaluated only once on the fly.
 
-```erg
+```python
 i =
     x = 1
     x + 1
@@ -104,7 +104,7 @@ assert i == 2
 
 This cannot be accomplished with a semicolon (`;`).
 
-```erg
+```python
 i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
 ```
 
@@ -112,7 +112,7 @@ i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
 
 Erg, like Python, uses indentation to represent blocks. There are five operators (special forms) that trigger the start of a block: `=`, `->`, `=>`, `do`, and `do!` (In addition, `:` and `|`, although not operators, also produce indentation). The meanings of each are described later.
 
-```erg
+```python
 f x, y =
     x + y
 
@@ -131,7 +131,7 @@ ans = match x:
 
 If a line is too long, it can be broken using `\`.
 
-```erg
+```python
 # this does not means `x + y + z` but means `x; +y; +z`
 x
 + y

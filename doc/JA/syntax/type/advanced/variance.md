@@ -49,7 +49,7 @@ Ergにはもう一つ変性がある。それは非変性(non-variance)である
 
 全称型の型変数は、その上限・下限を指定できます。
 
-```erg
+```python
 |A <: T| K(A)
 |B :> T| K(B)
 ```
@@ -59,14 +59,14 @@ Ergにはもう一つ変性がある。それは非変性(non-variance)である
 
 変性指定は重ねがけすることもできます。
 
-```erg
+```python
 # U < A < T
 {... | A <: T; A :> U}
 ```
 
 以下に変性指定を使ったコードの例を示します。
 
-```erg
+```python
 show|S <: Show| s: S = log s
 
 Nil T = Class(Impl=Phantom T)
@@ -90,7 +90,7 @@ List(T).
 
 ここで、メソッドの変性指定を省略した場合どうなるか考えます。
 
-```erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -109,7 +109,7 @@ List(T).
 では、このアップキャストを許可するようにした場合はどうなるか考えます。
 変性指定を反転させてみましょう。
 
-```erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -128,7 +128,7 @@ List(T).
 `Inputs(T)`と指定すると、その型は`T`に関して反変となる。
 `Outputs(T)`と指定すると、その型は`T`に関して共変となる。
 
-```erg
+```python
 K T = Class(...)
 assert not K(Str) <= K(Object)
 assert not K(Str) >= K(Object)

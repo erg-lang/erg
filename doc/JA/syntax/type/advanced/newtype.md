@@ -4,7 +4,7 @@
 
 Ergはでは以下のように型のエイリアスを定義できますが、これはあくまで同じ型を指します。
 
-```erg
+```python
 UserId = Int
 ```
 
@@ -14,7 +14,7 @@ UserId = Int
 
 newtypeパターンはこのような場合に適したデザインパターンです。
 
-```erg
+```python
 UserId = Class {id = Nat}
 UserId.
     new id: Nat =

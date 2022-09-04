@@ -2,7 +2,7 @@
 
 無名関数は、関数オブジェクトを名付けずその場で生成するための文法です。
 
-```erg
+```python
 # `->`は無名関数演算子
 # same as `f x, y = x + y`
 f = (x, y) -> x + y
@@ -12,7 +12,7 @@ g = (x, y: Int): Int -> x + y
 
 引数が1つの場合は`()`を省略できます。
 
-```erg
+```python
 assert [1, 2, 3].map_collect(i -> i + 1) == [2, 3, 4]
 assert ((i, j) -> [i, j])(1, 2) == [1, 2]
 ```
@@ -20,14 +20,14 @@ assert ((i, j) -> [i, j])(1, 2) == [1, 2]
 下の場合`0..9, (i -> ...)`であって`(0..9, i) -> ...`ではありません。
 `->`は左辺に一つだけ引数をとります。複数の引数は一つのタプルとして受け取ります。
 
-```erg
+```python
 for 0..9, i: Int ->
     ...
 ```
 
 無名関数では、空白による構文解釈の差異が存在します。
 
-```erg
+```python
 # この場合は`T(() -> Int)`と解釈される
 i: T () -> Int
 # この場合は(U()) -> Intと解釈される
@@ -36,7 +36,7 @@ k: U() -> Int
 
 無名関数は引数なしでも使えます。
 
-```erg
+```python
 # `=>`は無名プロシージャ演算子
 p! = () => print! "`p!` was called"
 # `() ->`, `() =>`には`do`, `do!`という糖衣構文がある
@@ -46,7 +46,7 @@ p!() # `p!` was called
 
 引数なし関数は遅延初期化に使えます。
 
-```erg
+```python
 time = import "time"
 date = import "datetime"
 now = if! True:
@@ -59,7 +59,7 @@ now = if! True:
 型付け、パターンマッチもできます。このため、`match`関数はほとんど無名関数の力で実現されています。
 `match`関数の引数に与える無名関数は上から順番にトライされます。なので、上の方は特殊なケースを、下に行くほど一般的なケースを記述する必要があります。順番を間違えると(可能な限り)コンパイラがWarningを出します。
 
-```erg
+```python
 n = (Complex or Ratio or Int).sample!()
 i = match n:
     PI -> PI # 定数PIに等しい場合
@@ -71,7 +71,7 @@ i = match n:
 
 エラーハンドリングも`?`か`match`を使用して行うのが一般的です。
 
-```erg
+```python
 res: ParseResult Int
 match res:
     i: Int -> i
@@ -85,7 +85,7 @@ match res2:
 
 ## 無名多相関数
 
-```erg
+```python
 # same as id|T| x: T = x
 id = |T| x: T -> x
 ```

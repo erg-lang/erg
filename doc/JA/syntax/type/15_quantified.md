@@ -3,14 +3,14 @@
 型変数はサブルーチン引数の型指定などに使用する変数で、その型が任意である(単相化しない)ことを示します。
 まず、型変数を導入するモチベーションとして、入力をそのまま返す`id`関数について考えましょう。
 
-```erg
+```python
 id x: Int = x
 ```
 
 入力をそのまま返す`id`関数が`Int`型に対して定義されていますが、この関数は明らかに任意の型に対して定義できます。
 最大のクラスを表す`Object`を使用してみましょう。
 
-```erg
+```python
 id x: Object = x
 
 i = id 1
@@ -21,7 +21,7 @@ b = id True
 確かに任意の型を受け付けるようになりましたが、1つ問題があります。戻り値の型が`Object`に拡大されてしまうのです。
 入力が`Int`型なら`Int`型、`Str`型なら`Str`型が返るようになっていてほしいですね。
 
-```erg
+```python
 print! id 1 # <Object object>
 id(1) + 1 # TypeError: cannot add `Object` and `Int`
 ```
@@ -29,7 +29,7 @@ id(1) + 1 # TypeError: cannot add `Object` and `Int`
 入力の型と戻り値の型が同じであるようにするには、 __型変数__ を使います。
 型変数は`||`(型変数リスト)中で宣言します。
 
-```erg
+```python
 id|T: Type| x: T = x
 assert id(1) == 1
 assert id("foo") == "foo"
@@ -39,7 +39,7 @@ assert id(True) == True
 これを関数の __全称量化(全称化)__ と呼びます。細かい違いはありますが、他言語でジェネリクスと呼ばれる機能に相当します。そして全称量化された関数を __多相関数__ と呼びます。
 多相関数の定義は、全ての型に対して同じ形の関数を定義するようなものです(Ergはオーバーロードを禁止しているので、下のコードは実際には書けません)。
 
-```erg
+```python
 id|T: Type| x: T = x
 # pseudo code
 # ==
@@ -57,7 +57,7 @@ id x: NoneType = x
 また、任意の型では大きすぎる場合、制約を与えることも出来ます。
 制約を与えることにはメリットもあり、例えばサブタイプ指定をすると、特定のメソッドを使えるようになります。
 
-```erg
+```python
 # T <: Add
 # => TはAddのサブクラス
 # => 加算ができる
@@ -69,7 +69,7 @@ add|T <: Add| l: T, r: T = l + r
 
 このような型付けもできます。
 
-```erg
+```python
 f|
     Y, Z: Type
     X <: Add Y, O1
@@ -81,7 +81,7 @@ f|
 
 注釈リストが長くなる場合は、事前宣言するとよいでしょう。
 
-```erg
+```python
 f: |Y, Z: Type, X <: Add(Y, O1), O1 <: Add(Z, O2), O2 <: Add(X, O3)| (X, Y, Z) -> O3
 f|X, Y, Z| x: X, y: Y, z: Z  =
     x + y + z + x
@@ -91,7 +91,7 @@ f|X, Y, Z| x: X, y: Y, z: Z  =
 これは、型変数はすべて実引数から推論可能であるというErgの言語設計からの要求です。
 なので、戻り値の型など推論ができない情報は、実引数から渡します。Ergは型を実引数から渡すことができるのです。
 
-```erg
+```python
 Iterator T = Trait {
     # 戻り値の型を引数から渡している
     # .collect: |K: Type -> Type| Self(T).({K}) -> K(T)
@@ -105,7 +105,7 @@ it.collect(Array) # [2, 3, 4]
 
 型変数が宣言できるのは`||`の間のみである。ただし、宣言した後はスコープを抜けるまで任意の場所で使用できる。
 
-```erg
+```python
 f|X|(x: X): () =
     y: X = x.clone()
     log X.__name__
@@ -118,14 +118,14 @@ f 1
 
 以下のようにして、使用時に明示的に単相化もできます。
 
-```erg
+```python
 f: Int -> Int = id|Int|
 ```
 
 その場合、実引数の型よりも指定された型の方が優先されます(合致していないと実引数の型が間違っているという型エラーになる)。
 すなわち、実際に渡されたオブジェクトが指定された型に変換可能ならば変換され、そうでなければコンパイルエラーとなります。
 
-```erg
+```python
 assert id(1) == 1
 assert id|Int|(1) in Int
 assert id|Ratio|(1) in Ratio
@@ -136,14 +136,14 @@ id|Int|("str") # TypeError: id|Int| is type `Int -> Int` but got Str
 
 この文法が内包表記とバッティングする際は`()`で囲む必要があります。
 
-```erg
+```python
 # {id|Int| x | x <- 1..10}だと{id | ...}だと解釈される
 {(id|Int| x) | x <- 1..10}
 ```
 
 既に存在する型と同名の型変数は宣言出来ません。これは、型変数がすべて定数であるためです。
 
-```erg
+```python
 I: Type
 # ↓ invalid type variable, already exists
 f|I: Type| ... = ...
@@ -153,7 +153,7 @@ f|I: Type| ... = ...
 
 左辺における型引数はデフォルトで束縛型変数として扱われます。
 
-```erg
+```python
 K(T: Type, N: Nat) = ...
 K(T, N).
     foo(x) = ...
@@ -161,7 +161,7 @@ K(T, N).
 
 別の型変数名を使用すると警告が出ます。
 
-```erg
+```python
 K(T: Type, N: Nat) = ...
 K(U, M). # Warning: K's type variable names are 'T' and 'N'
     foo(x) = ...
@@ -169,7 +169,7 @@ K(U, M). # Warning: K's type variable names are 'T' and 'N'
 
 定数は定義以降すべての名前空間で同一なので、当然型変数名にも使用できません。
 
-```erg
+```python
 N = 1
 K(N: Nat) = ... # NameError: N is already defined
 
@@ -184,7 +184,7 @@ L(M).
 
 型引数ごとに多重定義することはできませんが、型引数を代入していない依存型(非原始カインド)と代入した依存型(原始カインド)は関係がないので同名のメソッドを定義できます。
 
-```erg
+```python
 K(I: Int) = ...
 K.
     # Kは真の型(原子カインド)ではないので、メソッドを定義できない
@@ -198,7 +198,7 @@ K(0).
 
 前章で定義した`id`関数は任意の型になれる関数です。では、「`id`関数自体の型」は何なのでしょうか？
 
-```erg
+```python
 print! classof(id) # |T: Type| T -> T
 ```
 
@@ -208,7 +208,7 @@ print! classof(id) # |T: Type| T -> T
 
 無名関数と同じく、多相関数型には型変数名の任意性がありますが、これらはすべて同値となります。
 
-```erg
+```python
 assert (|T: Type| T -> T) == (|U: Type| U -> U)
 ```
 
@@ -223,14 +223,14 @@ assert (|T: Type| T -> T) == (|U: Type| U -> U)
 
 開いた全称型は、同形な全ての「真の型」のスーパータイプになります。対して、閉じた全称型は、同形な全ての「真の型」のサブタイプになります。
 
-```erg
+```python
 (|T: Type| T -> T) < (Int -> Int) < (T -> T)
 ```
 
 閉じている方が小さい/開いている方が大きい、と覚えるとよいでしょう。
 しかし、どうしてそうなるのでしょうか。理解を深めるため、それぞれのインスタンスを考えてみます。
 
-```erg
+```python
 # id: |T: Type| T -> T
 id|T|(x: T): T = x
 
@@ -266,7 +266,7 @@ id_int_fn(f3: Int -> Int): (Int -> Int) = f
 
 Ergでは型自体も値であるため、引数を取る型、例えば関数型なども須らく依存型になります。つまり、多相関数型は全称型でかつ依存型でもあるといえます。
 
-```erg
+```python
 PolyFn = Patch(|T| T -> T)
 PolyFn.
     type self = T # NameError: cannot find 'T'

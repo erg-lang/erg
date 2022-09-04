@@ -8,7 +8,7 @@
 将 body 分配给 pat 作为变量。如果变量已存在于同一范围内或与 pat 不匹配，则引发错误。
 它还用于记录属性定义和默认参数。
 
-```erg
+```python
 record = {i = 1; j = 2}
 f(x: Int, y = 2) = ...
 ```
@@ -16,7 +16,7 @@ f(x: Int, y = 2) = ...
 当主体是类型或函数时，`=` 具有特殊行为。
 左侧的变量名嵌入到右侧的对象中。
 
-```erg
+```python
 print! Class() # <class <lambda>>
 print! x: Int -> x + 1 # <function <lambda>>
 C = Class()
@@ -54,14 +54,14 @@ if True, do:
 
 确定主题是否与 T 匹配。如果它们不匹配，则抛出编译错误。
 
-```erg
+```python
 a: Int
 f x: Int, y: Int = x / y
 ```
 
 也用于 `:` 应用样式。
 
-```erg
+```python
 f x:
     y
     z
@@ -69,7 +69,7 @@ f x:
 
 像`:`和`=`一样，运算的结果是不确定的。
 
-```erg
+```python
 _ = x: Int # 语法错误：
 print!(x: Int) # 语法错误：
 ```
@@ -91,7 +91,7 @@ print!(x: Int) # 语法错误：
 
 对于 obj，执行与模式匹配的 lambda。
 
-```erg
+```python
 match [1, 2, 3]:
   (l: Int) -> log "this is type of Int"
   [[a], b] -> log a, b
@@ -103,7 +103,7 @@ match [1, 2, 3]:
 
 删除变量“x”。但是，无法删除内置对象。
 
-```erg
+```python
 a = 1
 del a # OK
 
@@ -123,7 +123,7 @@ del True # SyntaxError: cannot delete a built-in object
 创建一个由两对组成的类元组结构，称为 Choice 对象。
 `l, r` 被懒惰地评估。也就是说，只有在调用 .get_then 或 .get_else 时才会计算表达式。
 
-```erg
+```python
 choice = 1 else 2
 assert choice.get_then() == 1
 assert choice.get_else() == 2

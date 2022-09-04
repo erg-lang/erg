@@ -5,7 +5,7 @@ HIR 是 Erg 编译器从 AST 生成的结构
 AST与源代码一一对应（纯文本），但是HIR去掉了不必要的代码信息，添加了省略的类型信息，所以HIR可以转换为源代码很难恢复
 让我们在下面的代码中查看 HIR 的示例
 
-```erg
+```python
 v = ![]
 for! 0..10, i =>
     v.push! i
@@ -14,7 +14,7 @@ log v.sum()
 
 从此代码生成的 AST 如下所示：
 
-```erg
+```python
 AST(Module[
     VarDef{
         sig: VarSignature{
@@ -71,7 +71,7 @@ AST(Module[
 
 从 AST 生成的 HIR 如下所示：
 
-```erg
+```python
 HIR(Module[
     VarDef{
         sig: VarSignature{

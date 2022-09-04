@@ -9,7 +9,7 @@ Ergでは全てが型付けられている。型自体も例外ではない。�
 
 また、原子カインドでないカインドは型ではないことに注意してほしい。`-1`は数値だが`-`は数値ではないのと同じように、`Option Int`は型だが`Option`は型ではない。`Option`などは型構築子と呼ばれることもある。
 
-```erg
+```python
 assert not Option in Type
 assert Option in Type -> Type
 ```
@@ -17,7 +17,7 @@ assert Option in Type -> Type
 なので、以下のようなコードはエラーになる。
 Ergではメソッドを定義できるのは原子カインドのみで、メソッドの第一引数以外の場所で`self`という名前を使えない。
 
-```erg
+```python
 # K is an unary kind
 K: Type -> Type
 K T = Class ...
@@ -32,7 +32,7 @@ K(T).
 
 0項のカインド`() -> Type`も存在する。これは型理論的には原子カインドと同一視されることもあるが、Ergでは区別される。例としては`Class`などがある。
 
-```erg
+```python
 Nil = Class()
 ```
 
@@ -40,7 +40,7 @@ Nil = Class()
 
 多項カインド間にも部分型関係、もとい部分カインド関係があります。
 
-```erg
+```python
 K T = ...
 L = Inherit K
 L <: K
@@ -48,7 +48,7 @@ L <: K
 
 すなわち、任意の`T`に対し`L T <: K T`ならば`L <: K`であり、その逆も成り立ちます。
 
-```erg
+```python
 ∀T. L T <: K T <=> L <: K
 ```
 
@@ -56,7 +56,7 @@ L <: K
 
 高階カインド(higher-order kind)というものもある。これは高階関数と同じコンセプトのカインドで、カインド自体を受け取るカインドである。`(Type -> Type) -> Type`などが高階カインドである。高階カインドに属するオブジェクトを定義してみよう。
 
-```erg
+```python
 IntContainerOf K: Type -> Type = K Int
 assert IntContainerOf Option == Option Int
 assert IntContainerOf Result == Result Int
@@ -69,26 +69,26 @@ assert IntContainerOf in (Type -> Type) -> Type
 
 型理論において、レコードという概念がある。これはErgのレコードとほぼ同じものである[<sup id="f2">2</sup>](#2)。
 
-```erg
+```python
 # This is a record, and it corresponds to what is called a record in type theory
 {x = 1; y = 2}
 ```
 
 レコードの値が全て型であるとき、それはレコード型といって型の一種であった。
 
-```erg
+```python
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
 レコード型はレコードを型付けする。察しの良い方は、レコード型を型付けする「レコードカインド」があるはずだと考えたかもしれない。実際に、それは存在する。
 
-```erg
+```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}
 ```
 
 `{{x = Int; y = Int}}`のような型がレコードカインドである。これは特別な記法ではない。単に、`{x = Int; y = Int}`のみを要素に持つ列挙型である。
 
-```erg
+```python
 Point = {x = Int; y = Int}
 Pointy = {Point}
 ```
@@ -96,7 +96,7 @@ Pointy = {Point}
 レコードカインドの重要な特性は、`T: |T|`であり、`U <: T`であるとき、`U: |T|`であるという点にある。
 これは列挙型が実際には篩型の糖衣構文であることからもわかる。
 
-```erg
+```python
 # 通常のオブジェクトでは{c} == {X: T | X == c}だが、
 # 型の場合等号が定義されない場合があるので|T| == {X | X <: T}となる
 {Point} == {P | P <: Point}
@@ -105,7 +105,7 @@ Pointy = {Point}
 型制約中の`U <: T`は、実は`U: |T|`の糖衣構文である。
 このような型のセットであるカインドは一般にセットカインドと呼ばれる。セットカインドはIteratorパターンでも現れる。
 
-```erg
+```python
 Iterable T = Trait {
     .Iterator = {Iterator}
     .iter = Self(T).() -> Self.Iterator T
@@ -114,7 +114,7 @@ Iterable T = Trait {
 
 ## 多項カインドの型推論
 
-```erg
+```python
 Container K: Type -> Type, T: Type = Patch K(T, T)
 Container(K).
     f self = ...

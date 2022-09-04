@@ -21,7 +21,7 @@ console.log(vip_area) # [NormalMember]
 
 Ergでは、所有権システムのおかげでこのようなコードは弾かれます。
 
-```erg
+```python
 NormalMember = Class()
 VIPMember = Class()
 
@@ -35,7 +35,7 @@ log vip_area # OwnershipError: `vip_room` was moved to `normal_room`
 しかし、オブジェクトの所有権が一箇所にしかない状態は不便である場合もあります。
 そのためにErgは`SharedCell! T!`という型があり、これが共有状態を表します。
 
-```erg
+```python
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
@@ -57,7 +57,7 @@ assert $p3 == 1
 
 重要な事実として、`SharedCell! T!`は非変(non-variant)です。すなわち、型引数の違いによる包含関係が定義されません。
 
-```erg
+```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
 $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError: expected SharedCell!([NormalMember; !_]), but got SharedCell!([VIPMember; !_])
 # hint: SharedCell!(T) is non-variant, which means it cannot have a supertype or a subtype.
@@ -65,7 +65,7 @@ $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError:
 
 しかし、以下のコードは問題ありません。最後の行では、型変換されたのは引数の`VIPMember`の方です。
 
-```erg
+```python
 $normal_area = SharedCell!.new([].into [NormalMember; !_])
 $normal_area.push!(NormalMember.new()) # OK
 $normal_area.push!(VIPMember.new()) # OK

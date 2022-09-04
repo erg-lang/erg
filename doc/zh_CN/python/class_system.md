@@ -51,7 +51,7 @@ TypeError: can only concatenate str (not "int") to str
 Erg statically checks for consistency with the parent class.
 The `Override` decorator must be given when overriding, and the type of the overriding function must be a subtype of the type of the function being overridden.
 
-```erg
+```python
 >>> C = Class()
 ...   .f self = 1
 ...   .g self = self.f() + 1
@@ -81,7 +81,7 @@ f(c)
 f(1) # TypeError
 ```
 
-```erg
+```python
 # f: |T, X <: {.m = Self.() -> T}| X -> T
 f(x) = x.m()
 

@@ -5,7 +5,7 @@
 Ergスクリプトをコンパイルすると.pycファイルが生成されますが、これは単純にPythonのモジュールとして読み込むことができます。
 ただし、Erg側で非公開に設定した変数はPythonからアクセスできません。
 
-```erg
+```python
 # foo.er
 .public = "this is a public variable"
 private = "this is a private variable"
@@ -30,7 +30,7 @@ Pythonから取り込んだオブジェクトはデフォルトですべて`Obje
 
 Python標準ライブラリにあるAPIはすべてErg開発チームにより型が指定されています。
 
-```erg
+```python
 time = pyimport "time"
 time.sleep! 1
 ```
@@ -49,7 +49,7 @@ def baz():
     ...
 ```
 
-```erg
+```python
 # foo.d.er
 foo = pyimport "foo"
 .X = declare foo.'X', Int
@@ -57,14 +57,14 @@ foo = pyimport "foo"
 .baz! = declare foo.'baz', () => Int
 ```
 
-```erg
+```python
 foo = pyimport "foo"
 assert foo.bar(1) in Int
 ```
 
 これは、実行時に型チェックを行うことで型安全性を担保しています。`declare`関数は概ね以下のように動作します。
 
-```erg
+```python
 declare|S: Subroutine| sub!: S, T =
     # 実は、=>はブロックの副作用がなければ関数にキャストできる
     x =>

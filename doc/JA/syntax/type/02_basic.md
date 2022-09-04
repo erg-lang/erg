@@ -4,7 +4,7 @@
 
 Ergでは以下のように`:`の後に変数の型を指定します。代入と同時に行うこともできます。
 
-```erg
+```python
 i: Int # これから使う変数iはInt型であると宣言する
 i: Int = 1
 j = 1 # type specification can be omitted
@@ -12,7 +12,7 @@ j = 1 # type specification can be omitted
 
 通常の式に対しても型指定することができます。
 
-```erg
+```python
 i = 1: Int
 f([1, "a"]: [Int or Str])
 ```
@@ -20,7 +20,7 @@ f([1, "a"]: [Int or Str])
 単純な変数代入の場合、ほとんどの型指定は省略可能です。
 型指定は単純な変数よりもサブルーチンや型の定義時に役立ちます。
 
-```erg
+```python
 # 引数の型指定
 f x, y: Array Int = ...
 T X, Y: Array Int = ...
@@ -28,20 +28,20 @@ T X, Y: Array Int = ...
 
 上の場合、`x, y`は共に`Array Int`であることに注意して下さい。
 
-```erg
+```python
 # 大文字変数の値は定数式でなくてはならない
 f X: Int = X
 ```
 
 あるいは、型引数の情報が完全にいらない場合は`_`で省略することもできます。
 
-```erg
+```python
 g v: [T; _] = ...
 ```
 
 ただし、型指定の箇所で`_`を指定するとそれは`Object`を意味することに注意して下さい。
 
-```erg
+```python
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 
@@ -52,7 +52,7 @@ Ergでは`:`(型宣言演算子)による型と式の関係指定の他に、`<:
 
 これも単純な変数の指定より、サブルーチンや型の定義時に使うことが多いです。
 
-```erg
+```python
 # 引数の部分型指定
 f X <: T = ...
 
@@ -66,7 +66,7 @@ Iterable T = Trait {
 
 また、クラス定義時に部分型指定を行うと、クラスが指定した型のサブタイプか静的に検査できます。
 
-```erg
+```python
 # クラスCはShowのサブタイプ
 C = Class Object, Impl=Show
 C.show self = ... # Showの要求属性
@@ -74,7 +74,7 @@ C.show self = ... # Showの要求属性
 
 特定の場合だけ部分型指定することもできます。
 
-```erg
+```python
 K T: Eq
 K Int <: Show and Eq
 K T = Class Object
@@ -87,7 +87,7 @@ K(Int).
 構造型を実装する際は、部分型指定を行うことを推奨します。
 構造的部分型付けの特性から、要求属性の実装をする際にタイポや型指定の間違いがあってもエラーが出ないためです。
 
-```erg
+```python
 C = Class Object
 C.shoe self = ... # TypoのせいでShowが実装できていない(単なる固有のメソッドとみなされる)
 ```
@@ -96,7 +96,7 @@ C.shoe self = ... # TypoのせいでShowが実装できていない(単なる固
 
 トレイトやクラスには、モジュール内でのみ属性を定義できます。
 
-```erg
+```python
 C = Class()
 C.pub_attr = "this is public"
 C::private_attr = "this is private"
@@ -107,7 +107,7 @@ assert c.pub_attr == "this is public"
 
 `C.`か`C::`のあとに改行してインデント以下にまとめて定義する文法を一括定義(batch definition)といいます。
 
-```erg
+```python
 C = Class()
 C.pub1 = ...
 C.pub2 = ...
@@ -127,7 +127,7 @@ C::
 
 型には別名(エイリアス)を付けることができます。これにより、レコード型など長い型を短く表現できます。
 
-```erg
+```python
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
@@ -140,7 +140,7 @@ Vector = Array Int
 これは、違う目的の型は別々の型として新しく定義するべき、ということです。
 また、すでにエイリアスのある型に重ねてエイリアスを付けることを防ぐ目的もあります。
 
-```erg
+```python
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 

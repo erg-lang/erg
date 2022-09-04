@@ -1,6 +1,6 @@
 # Result T, E
 
-```erg
+```python
 Result T, E <: Error = Either T, E
 ```
 

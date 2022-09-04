@@ -6,7 +6,7 @@
 
 * values_at(self, selectors: [Nat; N]) -> [T; N]
 
-```erg
+```python
 assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 ```
 
@@ -15,7 +15,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
    如果元素为 0，则无论 pred 为 `True`，但会发出警告。
    该规范本身已被多种语言采用，是逻辑一致性所必需的。
 
-  ```erg
+  ```python
   assert [].all(_ -> False)
   ```
 
@@ -28,7 +28,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
 * freq self -> [{T: Nat}]
   返回对象出现的次数。
 
-```erg
+```python
 assert ["a", "b", "c", "b", "c", "b"].freq() \
 == [{"a", 1}, {"b": 3}, {"c": 2}]
 ```

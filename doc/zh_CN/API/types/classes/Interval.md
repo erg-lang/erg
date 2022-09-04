@@ -2,14 +2,14 @@
 
 表示有序集合类型 (WellOrder) 的子类型的类型。Interval 类型具有派生类型，例如 PreOpen(x<..y)。
 
-```erg
+```python
 Months = 1..12
 Alphabet = "a".."z"
 Weekdays = Monday..Friday
 Winter = November..December or January..February
 ```
 
-```erg
+```python
 0..1 # 整数范围
 0.0..1.0 # 真实（有理）范围
 # 或 0/1..1/1 相同

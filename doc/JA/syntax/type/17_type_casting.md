@@ -8,7 +8,7 @@ Pythonはダックタイピングを採用する言語のため、キャスト�
 
 ~~Erg拡張バイトコードはBINARY_ADDに型情報を加えますが、この際の型情報はRatio-Ratioとなります。この場合はBINARY_ADD命令がIntのキャストを行うため、キャストを指定する特別な命令は挿入されません。なので、例えば子クラスでメソッドをオーバーライドしても、親を型に指定すれば型強制(type coercion)が行われ、親のメソッドで実行されます(コンパイル時に親のメソッドを参照するように名前修飾が行われます)。コンパイラが行うのは型強制の妥当性検証と名前修飾のみです。ランタイムがオブジェクトをキャストすることはありません(現在のところ。実行最適化のためにキャスト命令が実装される可能性はあります)。~~
 
-```erg
+```python
 @Inheritable
 Parent = Class()
 Parent.
@@ -31,7 +31,7 @@ greet! child # "Hello from Parent"
 
 この挙動はPythonとの非互換性を生むことはありません。そもそもPythonでは変数に型が指定されないので、いわば全ての変数が型変数で型付けされている状態となります。型変数は適合する最小の型を選ぶので、Ergで型を指定しなければPythonと同じ挙動が達成されます。
 
-```erg
+```python
 @Inheritable
 Parent = Class()
 Parent.
@@ -52,7 +52,7 @@ greet! child # "Hello from Child"
 
 継承関係にある型同士では`.from`, `.into`が自動実装されるので、それを使うこともできます。
 
-```erg
+```python
 assert 1 == 1.0
 assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
@@ -62,7 +62,7 @@ assert 1.into<Ratio>() == 1.0
 
 ダウンキャストは一般に安全ではなく、変換方法も自明ではないため、代わりに`TryFrom.try_from`の実装で実現します。
 
-```erg
+```python
 IntTryFromFloat = Patch Int
 IntTryFromFloat.
     try_from r: Float =

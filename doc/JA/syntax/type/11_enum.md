@@ -4,14 +4,14 @@
 列挙型はそのままでも型指定で使えますが、クラス化したりパッチを定義することで更にメソッドを定義できます。
 列挙型による部分型システムを列挙的部分型付けといいます。
 
-```erg
+```python
 Bool = {True, False}
 Status = {"ok", "error"}
 ```
 
 `1..7`は`{1, 2, 3, 4, 5, 6, 7}`と書き換えられるので、要素が有限の場合は本質的に列挙型と区間型は等価です。
 
-```erg
+```python
 Binary! = Class {0, 1}!.
     invert! ref! self =
         if! self == 0:
@@ -31,7 +31,7 @@ b.invert!()
 enum Status { Ok, Error }
 ```
 
-```erg
+```python
 # Erg
 Status = {"Ok", "Error"}
 ```
@@ -52,7 +52,7 @@ impl ExtraStatus {
 }
 ```
 
-```erg
+```python
 # Status > ExtraStatusであり、Statusの要素はExtraStatusのメソッドを使える
 Status = Trait {"Ok", "Error"}
     # ...
@@ -64,7 +64,7 @@ patchingによってメソッドの追加もできます。
 
 明示的に包含関係を示したい場合、または既存のEnum型に選択肢を追加したい場合は`or`演算子を使います。
 
-```erg
+```python
 ExtraStatus = Status or {"Unknown"}
 ```
 
@@ -72,7 +72,7 @@ ExtraStatus = Status or {"Unknown"}
 デフォルトでは、等質な列挙型を要件型とするクラスは、要素が属しているクラスのサブクラスとして扱えます。
 あえてそうしたくない場合は、ラッパークラスとするとよいでしょう。
 
-```erg
+```python
 Abc = Class {"A", "B", "C"}
 Abc.new("A").is_uppercase()
 

@@ -10,7 +10,7 @@
 
 変数は`=`で定義します。Haskellと同じように、一度定義した変数は書き換えられません。ただし別のスコープではシャドーイングできます。
 
-```erg
+```python
 i = 0
 if True:
     i = 1
@@ -20,7 +20,7 @@ assert i == 0
 大文字で始まるものは定数です。コンパイル時計算できるものだけが定数にできます。
 また、定数は定義以降すべてのスコープで同一です。
 
-```erg
+```python
 PI = 3.141592653589793
 match random.random!(0..10):
     PI:
@@ -32,7 +32,7 @@ match random.random!(0..10):
 Pythonと違い、変数の型のみを先に宣言することが可能です。
 当然、宣言の型と実際に代入されるオブジェクトの型は互換していなくてはなりません。
 
-```erg
+```python
 i: Int
 i = 10
 ```
@@ -41,7 +41,7 @@ i = 10
 
 Haskellと同じように定義できます。
 
-```erg
+```python
 fib 0 = 0
 fib 1 = 1
 fib n = fib(n - 1) + fib(n - 2)
@@ -49,7 +49,7 @@ fib n = fib(n - 1) + fib(n - 2)
 
 無名関数は以下のように定義できます。
 
-```erg
+```python
 i -> i + 1
 assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 ```
@@ -62,7 +62,7 @@ Erg独自の演算子は以下の通りです。
 
 Ocamlの`ref`のようなものです。
 
-```erg
+```python
 i = !0
 i.update! x -> x + 1
 assert i == 1
@@ -72,13 +72,13 @@ assert i == 1
 
 副作用のあるサブルーチンはプロシージャと呼ばれ、`!`がついています。
 
-```erg
+```python
 print! 1 # 1
 ```
 
 ## ジェネリック関数(多相関数)
 
-```erg
+```python
 id|T|(x: T): T = x
 id(1): Int
 id("a"): Str
@@ -88,7 +88,7 @@ id("a"): Str
 
 ML系言語にあるレコード(あるいはJSのオブジェクトリテラル)に相当するものを利用できます。
 
-```erg
+```python
 p = {x = 1; y = 2}
 ```
 
@@ -96,7 +96,7 @@ p = {x = 1; y = 2}
 
 Ergは可変オブジェクト(`!`演算子で可変化したオブジェクト)に所有権がついており、複数の場所から書き換えられません。
 
-```erg
+```python
 i = !0
 j = i
 assert j == 0
@@ -109,13 +109,13 @@ i # MoveError
 
 変数の頭に`.`をつけると、その変数は公開変数となり、外部モジュールから参照できるようになります。
 
-```erg
+```python
 # foo.er
 .x = 1
 y = 1
 ```
 
-```erg
+```python
 foo = import "foo"
 assert foo.x == 1
 foo.y # VisibilityError
@@ -125,7 +125,7 @@ foo.y # VisibilityError
 
 ### 変数パターン
 
-```erg
+```python
 # basic assignment
 i = 1
 # with type
@@ -137,7 +137,7 @@ fn: Int -> Int = x -> x + 1
 
 ### リテラルパターン
 
-```erg
+```python
 # if `i` cannot be determined to be 1 at compile time, TypeError occurs.
 # short hand of `_: {1} = i`
 1 = i
@@ -154,7 +154,7 @@ fib n: Nat = fib n-1 + fib n-2
 
 ### 定数パターン
 
-```erg
+```python
 PI = 3.141592653589793
 E = 2.718281828459045
 num = PI
@@ -166,7 +166,7 @@ name = match num:
 
 ### 破棄(ワイルドカード)パターン
 
-```erg
+```python
 _ = 1
 _: Int = 1
 right(_, r) = r
@@ -176,7 +176,7 @@ right(_, r) = r
 
 後述するタプル/配列/レコードパターンと組み合わせて使う。
 
-```erg
+```python
 [i, ...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
@@ -185,7 +185,7 @@ assert first(1, 2, 3) == 1
 
 ### タプルパターン
 
-```erg
+```python
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
 # ネストしていないなら()を省略可能(1, 2は(1, 2)として扱われる)
@@ -194,14 +194,14 @@ m, n = 1, 2
 
 ### 配列パターン
 
-```erg
+```python
 length [] = 0
 length [_, ...rest] = 1 + length rest
 ```
 
 #### レコードパターン
 
-```erg
+```python
 {sin; cos; tan; ...} = import "math"
 {*} = import "math" # import all
 
@@ -213,7 +213,7 @@ age = match person:
 
 ### データクラスパターン
 
-```erg
+```python
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
@@ -221,7 +221,7 @@ Point::{x; y} = p
 
 ## 内包表記
 
-```erg
+```python
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
@@ -234,7 +234,7 @@ Ergでは多重・多段継承をサポートしていません。
 Rustのトレイトと似ていますが、より本来の意味に近いもので、合成や分離ができ、属性とメソッドは対等に扱われます。
 また、実装を伴いません。
 
-```erg
+```python
 XY = Trait {x = Int; y = Int}
 Z = Trait {z = Int}
 XYZ = XY and Z
@@ -254,13 +254,13 @@ Point.
 
 述語式で型に制限をかけられます。
 
-```erg
+```python
 Nat = {I: Int | I >= 0}
 ```
 
 ## 値を含むパラメトリック型(依存型)
 
-```erg
+```python
 a: [Int; 3]
 b: [Int; 4]
 a + b: [Int; 7]

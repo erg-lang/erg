@@ -5,7 +5,7 @@ HIRはErgコンパイラがASTから生成する構造体です。
 ASTは(プレーンテキストとしての)ソースコードと一対一対応しますが、HIRは不要なコードの情報が除去されていたり、また省略された型情報が付記されたりしているため、HIRからソースコードを復元することは困難です。
 以下のコードでHIRの例を見てみましょう。
 
-```erg
+```python
 v = ![]
 for! 0..10, i =>
     v.push! i
@@ -14,7 +14,7 @@ log v.sum()
 
 このコードから生成されるASTは以下のようになります。
 
-```erg
+```python
 AST(Module[
     VarDef{
         sig: VarSignature{
@@ -71,7 +71,7 @@ AST(Module[
 
 そしてASTから生成されるHIRは以下のようになります。
 
-```erg
+```python
 HIR(Module[
     VarDef{
         sig: VarSignature{

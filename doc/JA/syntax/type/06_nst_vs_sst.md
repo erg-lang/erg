@@ -1,6 +1,6 @@
 # 記名的部分型 vs. 構造的部分型
 
-```erg
+```python
 Months = 0..12
 
 # NST

@@ -27,7 +27,7 @@ msgを表示して停止する。
 
 `x`を捨てる。戻り値を使用しないときなどに使う。`del`とは違い、変数`x`を参照できなくするわけではない。
 
-```erg
+```python
 p! x =
     # q!は何らかのNoneや()でない値を返すとする
     # 要らない場合は`discard`を使う
@@ -56,7 +56,7 @@ codeをコードとして評価し返す。
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
-```erg
+```python
 rep = repeat 1 # Repeater(1)
 for! rep, i =>
     print! i
@@ -65,7 +65,7 @@ for! rep, i =>
 
 ### dup|T; N|(x: T, N: Nat) -> [T; N]
 
-```erg
+```python
 [a, b, c] = dup new(), 3
 print! a # <Object object>
 print! a == b # False
@@ -73,7 +73,7 @@ print! a == b # False
 
 ### cycle|T|(it: Iterable T) -> CycleIterator T
 
-```erg
+```python
 cycle([0, 1]).take 4 # [0, 1, 0, 1]
 cycle("hello").take 3 # "hellohellohello"
 ```
@@ -85,7 +85,7 @@ cycle("hello").take 3 # "hellohellohello"
 クラスを新しく生成する。`Inherit`とは違い、`Class`を通すとベース型からは独立し、メソッドは失われる。
 比較もできなくなるが、パターンマッチなどは行える。
 
-```erg
+```python
 C = Class {i = Int}
 NewInt = Class Int
 Months = Class 1..12
@@ -111,7 +111,7 @@ match jan:
 引数の型を返す。実行時のクラスを得たい場合は`classof`を使う。
 型指定に使うとWarningが出る。
 
-```erg
+```python
 x: Typeof i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

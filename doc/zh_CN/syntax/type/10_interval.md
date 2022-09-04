@@ -2,7 +2,7 @@
 
 The most basic use of `Range` objects is as iterator.
 
-```erg
+```python
 for! 0..9, i =>
     print! i
 ```
@@ -11,7 +11,7 @@ Note that unlike Python, it includes a end number.
 
 However, this is not only use for the `Range` objects. It can also be used the type. Such a type is called the Interval type.
 
-```erg
+```python
 i: 0..10 = 2
 ```
 
@@ -20,7 +20,7 @@ The `Nat` type is equivalent to `0..<Inf` and, `Int` and `Ratio` are equivalent 
 
 Since it is can also be used as iterator, it can be specified in reverse order, such as `10..0`, however `<..`, `..<` and `<..<` cannot be reversed.
 
-```erg
+```python
 a = 0..10 # OK
 b = 0..<10 # OK
 c = 10..0 # OK
@@ -31,6 +31,6 @@ f = 10<..<0 # Syntax error
 
 A Range operator can be used for non-numeric types, as long as they are `Ord` immutable types.
 
-```erg
+```python
 Alphabet = "A".."z"
 ```

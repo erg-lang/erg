@@ -2,7 +2,7 @@
 
 `[]`は通常のメソッドとは異なっています。
 
-```erg
+```python
 a = [!1, !2]
 a[0].inc!()
 assert a == [2, 2]
@@ -13,7 +13,7 @@ assert a == [2, 2]
 よって、`[]`は実際には`.`と同じく特別な構文の一部です。Pythonとは違い、オーバーロードできません。
 メソッドで`[]`の挙動を再現することもできません。
 
-```erg
+```python
 C = Class {i = Int!}
 C.get(ref self) =
     self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
@@ -33,7 +33,7 @@ own_do! C.new({i = 1}).steal(), i => i.inc!()
 
 また、`[]`は所有権を奪うこともできますが、その際に要素がシフトするわけではありません。
 
-```erg
+```python
 a = [!1, !2]
 i = a[0]
 i.inc!()

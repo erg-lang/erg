@@ -6,7 +6,7 @@ Provides APIs perform unsound and unsafe operations that cannot be guaranteed sa
 
 Executes a `Unsafe` procedure. Just like Rust, `Unsafe` APIs cannot be called directly, but are all passed as higher-order functions to this procedure.
 
-```erg
+```python
 unsound = import "unsound"
 
 i = unsound.unsafe! do!:

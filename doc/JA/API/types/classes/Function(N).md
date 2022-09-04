@@ -4,6 +4,6 @@
 
 * then(self, g: Self) -> Self
 
-```erg
+```python
 assert f(g(x)) == f.then(g) x
 ```

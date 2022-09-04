@@ -10,7 +10,7 @@ Union types can give multiple possibilities for types. As the name suggests, the
 A typical Union is the `Option` type. The `Option` type is a `T or NoneType` patch type, primarily representing values that may fail.
 
 
-```erg
+```python
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)
 
@@ -22,7 +22,7 @@ Option T = T or NoneType
 
 Intersection types are got by combining types with the `and` operation.
 
-```erg
+```python
 Num = Add and Sub and Mul and Eq
 ```
 
@@ -33,7 +33,7 @@ As mentioned above, normal classes cannot be combined with the `and` operation. 
 Diff types are got by `not` operation.
 It is better to use `and not` as a closer notation to English text, but it is recommended to use just `not` because it fits better alongside `and` and `or`.
 
-```erg
+```python
 CompleteNum = Add and Sub and Mul and Div and Eq and Ord
 Num = CompleteNum not Div not Ord
 
@@ -47,7 +47,7 @@ Complement types is got by the `not` operation, which is a unary operation. The 
 Intersection with type `not T` is equivalent to Diff, and Diff with type `not T` is equivalent to Intersection.
 However, this way of writing is not recommended.
 
-```erg
+```python
 # the simplest definition of the non-zero number type
 NonZero = Not {0}
 # deprecated styles
@@ -61,7 +61,7 @@ There are two algebraic types: apparent algebraic types that can be simplified a
 The "apparent algebraic types" include `or` and `and` of Enum, Interval, and the Record types.
 These are not true algebraic types because they are simplified, and using them as type specifiers will result in a Warning; to eliminate the Warning, you must either simplify them or define their types.
 
-```erg
+```python
 assert {1, 2, 3} or {2, 3} == {1, 2, 3}
 assert {1, 2, 3} and {2, 3} == {2, 3}
 assert -2..-1 or 1..2 == {-2, -1, 1, 2}
@@ -77,7 +77,7 @@ q: Point2D = {x = 1; y = 2; z = 3}
 
 True algebraic types include the types `Or` and `And`. Classes such as `or` between classes are of type `Or`.
 
-```erg
+```python
 assert Int or Str == Or(Int, Str)
 assert Int and Marker == And(Int, Marker)
 ```

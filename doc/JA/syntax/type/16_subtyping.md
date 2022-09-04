@@ -2,7 +2,7 @@
 
 Ergでは、クラス同士の包含関係は比較演算子`<`, `>`で判定可能です。
 
-```erg
+```python
 Nat < Int
 Int < Object
 1.._ < Nat
@@ -13,7 +13,7 @@ Int < Object
 
 `<:`演算子とは別の意味を持つことに注意してください。左辺のクラスが右辺の型のサブタイプであると宣言するもので、コンパイル時にのみ意味を持ちます。
 
-```erg
+```python
 C <: T # T: StructuralType
 f|D <: E| ...
 
@@ -26,7 +26,7 @@ assert F < G
 
 構造型は構造的型付けを実現するための型であり、構造が同じならば同じオブジェクトとみなされます。
 
-```erg
+```python
 T = Structural {i = Int}
 U = Structural {i = Int}
 
@@ -38,7 +38,7 @@ assert t in U
 
 対してクラスは記名的型付けを実現するための型であり、型およびインスタンスを構造的に比較することができません。
 
-```erg
+```python
 C = Class {i = Int}
 D = Class {i = Int}
 
@@ -54,7 +54,7 @@ assert not c in D
 すなわち、構造型やトレイトを関数の型として直接指定することはできない。
 部分型指定を使って「その型のサブタイプである単一のクラス」として指定する必要がある。
 
-```erg
+```python
 # OK
 f1 x, y: Int = x + y
 # NG
@@ -68,7 +68,7 @@ f3<A <: Add> x, y: A = x + y
 
 ## クラスのアップキャスト
 
-```erg
+```python
 i: Int
 i as (Int or Str)
 i as (1..10)

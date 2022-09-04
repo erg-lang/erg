@@ -1,5 +1,5 @@
 # Kind N: Nat
 
-```erg
+```python
 Kind N: Nat = (Type; N) -> Type
 ```

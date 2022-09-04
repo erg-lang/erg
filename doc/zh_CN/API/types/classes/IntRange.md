@@ -2,7 +2,7 @@
 
 `L..R`のクラス。
 
-```erg
+```python
 IntRange L, R: Int == L..R
 ```
 
@@ -12,7 +12,7 @@ IntRange L, R: Int == L..R
 
 正常加法。 `Int` 和 `Nat` 的添加在此定义为假装它在每个类中定义
 
-```erg
+```python
 0..10 + 1..12 == 1..22
 Int + 0..10 == _..|Int|_ + 0..10 == _..|Int|_ == Int
 Nat + Nat == 0.._ + 0.._ == 0.._ == Nat

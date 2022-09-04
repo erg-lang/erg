@@ -4,7 +4,7 @@ Erg does not allow modification of existing types and classes.
 This means, it is not possible to define additional methods in a class, nor to perform specialization (a language feature that monomorphizes a polymorphically declared type and defines a dedicated method, as in C++).
 However, there are many situations where you may want to add feature to an existing type or class, and there is a function called "patching" that allows you to do this.
 
-```erg
+```python
 StrReverse = Patch Str
 StrReverse.
     reverse self = self.iter().rev().collect(Str)
@@ -18,7 +18,7 @@ In fact, built-in method `.reverse` is not a method of `Str`, but a method added
 
 However, patch methods have lower precedence than methods of the nominal type (class/trait) and cannot override methods of existing types.
 
-```erg
+```python
 StrangeInt = Patch Int
 StrangeInt.
     `_+_` = Int.`_-_` # AssignError: . `_+_` is already defined in Int
@@ -28,7 +28,7 @@ If you want to override, you must inherit from the class.
 However, it is basically recommended not to override and to define a method with a different name.
 Overriding is not very easy to do because of some safety restrictions.
 
-```erg
+```python
 StrangeInt = Inherit Int
 StrangeInt.
     # Overriding methods must be given Override decorators.
@@ -41,7 +41,7 @@ StrangeInt.
 
 Patches can be defined for a single type, and can be grouped together.
 
-```erg
+```python
 # foo.er
 
 StrReverse = Patch(Str)
@@ -61,7 +61,7 @@ StrBoosterPack = StrReverse and StrMultiReplace and StrToCamelCase and StrToKeba
 StrBoosterPack = StrReverse and StrMultiReplace and StrToCamelCase and StrToKebabCase
 ```
 
-```erg
+```python
 {StrBoosterPack; ...} = import "foo"
 
 assert "abc".reverse() == "cba"
@@ -72,7 +72,7 @@ assert "to kebab case".to_kebab_case() == "to-kebab-case"
 
 If multiple patches are defined, some of them may result in duplicate implementations.
 
-```erg
+```python
 # foo.er
 
 StrReverse = Patch(Str)
@@ -88,13 +88,13 @@ StrReverseMk2.
 
 In such a case, you can make it unique by using the __related function__ form instead of the method form.
 
-```erg
+```python
 assert StrReverseMk2.reverse("hello") == "olleh"
 ```
 
 You can also make it unique by selectively importing.
 
-```erg
+```python
 {StrReverseMk2; ...} = import "foo"
 
 assert "hello".reverse() == "olleh"
@@ -106,7 +106,7 @@ Patches can also relate types to each other. The `StrReverse` patch relates `Str
 Such a patch is called a __glue patch__.
 Because `Str` is a built-in type, a glue patch is necessary for users to retrofit traits.
 
-```erg
+```python
 Reverse = Trait {
     .reverse = Self.() -> Self
 }
@@ -121,7 +121,7 @@ Only one glue patch can be defined per type/trait pair.
 This is because if multiple glue patches were "visible" at the same time, it would not be possible to uniquely determine which implementation to choose.
 However, you can swap patches when moving to another scope (module).
 
-```erg
+```python
 NumericStr = Inherit Str
 NumericStr.
     ...
@@ -152,7 +152,7 @@ impl Reverse for String {
 
 You could say that Rust's traits are features of Erg's traits and patches. This makes Rust's traits sound more convenient, but that is not necessarily the case.
 
-```erg
+```python
 # Erg
 Reverse = Trait {
     .reverse = Self.() -> Self
@@ -167,7 +167,7 @@ StrReverse.
 Because the `impl` block is objectized as a patch in Erg, selective inclusion is possible when importing from other modules. As a side-effect, it also allows implementation of external traits to external structures.
 Also, syntaxes such as `dyn trait` and `impl trait` are no longer required by the structure type.
 
-```erg
+```python
 # Erg
 reversible: [Reverse; 2] = [[1, 2, 3], "hello"]
 
@@ -189,7 +189,7 @@ A patch can be defined not only for one specific type, but also for "function ty
 In this case, the term to which the degree of freedom is to be given is given as an argument (in the case below, `T: Type`). A patch defined in this way is called an all-symmetric patch.
 As you can see, an all-symmetric patch is precisely a function that returns a patch, but it can also be considered a patch in its own right.
 
-```erg
+```python
 FnType T: Type = Patch(T -> T)
 FnType(T).
     type = T
@@ -204,7 +204,7 @@ However, this has a lower priority than nominal patches and class methods.
 
 Careful design should be used when defining structural patches, as some properties are lost by extension, such as the following.
 
-```erg
+```python
 # This should not be `Structural`
 Norm = Structural Patch {x = Int; y = Int}
 Norm.

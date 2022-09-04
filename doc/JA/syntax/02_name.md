@@ -5,7 +5,7 @@
 変数は以下のように定義します。
 `n`の部分を変数名(または、識別子)、`=`を代入演算子、`1`の部分を代入値と呼びます。
 
-```erg
+```python
 n = 1
 ```
 
@@ -15,13 +15,13 @@ n = 1
 変数の「型」を指定したい場合は以下のようにします。型とは、これも後述しますが、大まかにはオブジェクトの属する集合です。
 ここでは`n`は自然数(`Nat`)型であると指定しています。
 
-```erg
+```python
 n: Nat = 1
 ```
 
 他の言語とは違い、多重代入はできないので注意してください。
 
-```erg
+```python
 # NG
 l1 = l2 = [1, 2, 3] # SyntaxError: 多重代入はできません
 # OK
@@ -31,7 +31,7 @@ l2 = l1.clone()
 
 また、変数への再代入もできません。その代わりに使える機能、すなわち可変な状態を保持する機能については後述します。
 
-```erg
+```python
 i = 1
 i = i + 1 # AssignError: cannot assign twice
 ```
@@ -40,7 +40,7 @@ i = i + 1 # AssignError: cannot assign twice
 これはPythonの「文」のスコープとは違う挙動なので注意してください。
 このような機能は一般にシャドーイングと言います。ただし他言語のシャドーイングとは違い同一スコープではシャドーイングできません。
 
-```erg
+```python
 x = 0
 # x = 1 # AssignError: cannot assign twice
 if x.is_zero(), do:
@@ -51,7 +51,7 @@ assert x == 0
 
 以下は一見すると可能なように思えますが、やはりできません。これは技術的な制約ではなく、設計判断です。
 
-```erg
+```python
 x = 0
 if x.is_zero(), do:
     x = x + 1 # NameError: cannot define variables refer to variables with the same name
@@ -64,7 +64,7 @@ assert x == 0
 定数も代数の一種です。識別子を大文字で始めると定数として扱われます。一度定義したら変わらないので、定数と呼ばれます。
 `N`の部分を定数名(または、識別子)と呼びます。その他は変数と同じです。
 
-```erg
+```python
 N = 0
 if True, do:
     N = 1 # AssignError: constants cannot be shadowed
@@ -77,13 +77,13 @@ if True, do:
 定数は、数学的定数、外部リソースに関する情報など不変な値に対して使用すると良いでしょう。
 [型](./type/01_type_system.md)以外のオブジェクトは、オールキャップス(全ての文字を大文字にするスタイル)にするのが一般的です。
 
-```erg
+```python
 PI = 3.141592653589793
 URL = "https://example.com"
 CHOICES = ["a", "b", "c"]
 ```
 
-```erg
+```python
 PI = 3.141592653589793
 match! x:
     PI => print! "π"
@@ -95,7 +95,7 @@ match! x:
 定数には代入できないものがあります。可変オブジェクトなどです。詳しくは後述しますが、可変オブジェクトは内容を変更することができるオブジェクトです。
 これは定数には定数式のみを代入できるという規則があるためです。定数式についても後述することとします。
 
-```erg
+```python
 X = 1 # OK
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
@@ -104,7 +104,7 @@ X = !1 # TypeError: cannot define Int! object as a constant
 
 `Del`関数を使うことで、代数を削除することが出来ます。その代数に依存している(その代数の値を直接参照している)他の代数もまとめて削除されます。
 
-```erg
+```python
 x = 1
 y = 2
 Z = 3
@@ -119,7 +119,7 @@ f(2) # NameError: f is not defined (deleted in line 6)
 
 ただし、`Del`によって削除できるのはモジュール内で定義された代数のみです。`True`などの組み込み定数は削除できません。
 
-```erg
+```python
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
@@ -128,7 +128,7 @@ Del print! # TypeError: cannot delete built-in variables
 
 注意として、`x = a`であるとき、`x == a`とは限らない。例としては`Float.NaN`がある。これはIEEE 754により定められた正式な浮動小数点数の仕様である。
 
-```erg
+```python
 x = Float.NaN
 assert x != Float.NaN
 assert x != x
@@ -136,7 +136,7 @@ assert x != x
 
 その他、そもそも同値関係が定義されていないオブジェクトも存在する。
 
-```erg
+```python
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # TypeError: cannot compare function objects
@@ -150,7 +150,7 @@ C == D # TypeError: cannot compare class objects
 関数オブジェクトやクラスオブジェクトの場合、オブジェクトに変数名の情報を与えるなどの「修飾」を行う。
 ただし構造型の場合はその限りではない。
 
-```erg
+```python
 f x = x
 print! f # <function f>
 g x = x + 1
