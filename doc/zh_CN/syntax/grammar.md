@@ -1,4 +1,5 @@
-# The Grammar of Erg (ver 0.1.0, provisional)
+# Erg 的语法（版本 0.1.0, 临时）
+```
 special_op ::= '=' | '->' | '=>' | '.' | ',' | ':' | '::' | '|>' | '&'
 separator ::= ';' | '\n'
 escape ::= '\'
@@ -86,3 +87,4 @@ expr ::= accessor | literal
     | call | def | lambda
 line ::= expr separator+
 program ::= expr? | (line | comment)*
+```

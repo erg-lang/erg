@@ -16,13 +16,13 @@ assert a == [2, 2]
 ```python
 C = Class {i = Int!}
 C. get(ref self) =
-    self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
+    self::i # 类型错误：`self::i` 是 `Int!`（需要所有权）但 `get` 不拥有 `self`
 C.steal(self) =
     self::i
 #NG
-C.new({i = 1}).steal().inc!() # OwnershipWarning: `C.new({i = 1}).steal()` is not owned by anyone
-# hint: assign to a variable or use `uwn_do!`
-# OK (assigning)
+C.new({i = 1}).steal().inc!() # 所有权警告：`C.new({i = 1}).steal()` 不属于任何人
+# 提示：分配给变量或使用 `uwn_do!`
+# OK (分配)
 c = C.new({i = 1})
 i = c.steal()
 i.inc!()
@@ -31,12 +31,12 @@ assert i == 2
 own_do! C.new({i = 1}).steal(), i => i.inc!()
 ```
 
-Also, `[]` can be disowned, but the element is not shifted.
+此外，`[]` 可以不承认，但元素不会移动
 
 ```python
 a = [!1, !2]
 i = a[0]
 i.inc!()
 assert a[1] == 2
-a[0] # OwnershipError: `a[0]` is moved to `i`
+a[0] # 所有权错误：`a[0]` 被移动到 `i`
 ```
