@@ -1,6 +1,5 @@
 # Technical FAQ
 
-
 This section answers technical questions about using the Erg language. In other words, it contains questions that begin with What or Which, and questions that can be answered with Yes/No.
 
 For more information on how the grammar was determined, see [here](./dev_guide/faq_syntax.md) for the underlying syntax decisions, and [here](./dev_guide/../faq_general.md).

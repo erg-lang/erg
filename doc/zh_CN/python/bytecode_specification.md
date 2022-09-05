@@ -70,7 +70,6 @@
 * 1~4   byte: length of string
 * 5~    byte: payload
 
-
 # Python 字节码规范
 
 ## 格式

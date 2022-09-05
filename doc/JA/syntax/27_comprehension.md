@@ -1,6 +1,5 @@
 # Comprehension(内包表記)
 
-
 `[expr | (name <- iterable)+ (predicate)*]`で配列、
 `{expr | (name <- iterable)+ (predicate)*}`でセット、
 `{key: value | (name <- iterable)+ (predicate)*}`でDictが作れます。

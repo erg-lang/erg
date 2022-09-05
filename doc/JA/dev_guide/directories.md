@@ -1,6 +1,5 @@
 # Ergリポジトリのディレクトリ構造
 
-
 ```console
  └─┬ assets: 画像など
    ├─ CODE_OF_CONDUCT: 行動規範

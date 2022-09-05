@@ -1,6 +1,5 @@
 # 一般化代数的データ型(Generalized Algebraic Data Types, GADTs)
 
-
 ErgはOr型をクラス化することで一般化代数的データ型(GADTs)を作成出来ます。
 
 ```python

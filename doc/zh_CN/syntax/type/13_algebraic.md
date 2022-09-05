@@ -9,7 +9,6 @@
 联合类型可以为类型提供多种可能性。 顾名思义，它们是由“或”运算符生成的。
 一个典型的 Union 是 `Option` 类型。 `Option` 类型是 `T 或 NoneType` 补丁类型，主要表示可能失败的值。
 
-
 ```python
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)

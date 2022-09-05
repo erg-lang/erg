@@ -1,6 +1,5 @@
 # Projection Type(射影型)
 
-
 射影型は、次のコードにおける`Self.AddO`のような型を表します。
 
 ```python

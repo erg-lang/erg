@@ -1,6 +1,5 @@
 # Interval Type
 
-
 `Range`オブジェクトの最も基本的な使い方は、イテレータとしての使用です。
 
 ```python

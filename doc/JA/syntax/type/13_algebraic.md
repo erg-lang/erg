@@ -1,6 +1,5 @@
 # Algebraic type (代数演算型)
 
-
 代数演算型は、型を代数のようにみなして演算することで生成される型のことです。
 代数演算型が扱う演算は、Union, Intersection, Diff, Complementなどがあります。
 通常のクラスはUnionのみが行えて、他の演算は型エラーになります。

@@ -1,6 +1,5 @@
 # 用語の統一
 
-
 ## Accessibility, Visibility (参照性、可視性)
 
 Visibility(可視性)を使用する。

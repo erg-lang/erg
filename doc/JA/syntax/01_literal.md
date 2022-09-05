@@ -1,6 +1,5 @@
 # Literal
 
-
 ## 基本的なリテラル
 
 ### 整数リテラル(Int Literal)

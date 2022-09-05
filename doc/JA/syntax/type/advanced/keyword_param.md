@@ -1,6 +1,5 @@
 # キーワード引数付き関数型
 
-
 ```python
 h(f) = f(y: 1, x: 2)
 h: |T: Type|((y: Int, x: Int) -> T) -> T
