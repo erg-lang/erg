@@ -19,7 +19,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 ```
 
 此错误是在使用 `List(_, 0).new Nil.new()` 时无法推断 `T` 的抱怨。
-在这种情况下，无论 `T` 类型是什么，它都必须在右侧使用。 大小为零的类型（例如长度为零的元组）很方便，因为它没有运行时开销。
+在这种情况下，无论 `T` 类型是什么，它都必须在右侧使用。 大小为零的类型(例如长度为零的元组)很方便，因为它没有运行时开销。
 ```python
 Nil T = Class((T; 0))
 List T, 0 = Inherit Nil T
@@ -53,4 +53,4 @@ VM!("stopped").
 ```
 
 `state` 是通过 `update_phantom!` 或 `set_phantom!` 方法更新的。
-这是标准补丁为`Phantom!`（`Phantom`的变量版本）提供的方法，其用法与变量`update!`和`set!`相同。
+这是标准补丁为`Phantom!`(`Phantom`的变量版本)提供的方法，其用法与变量`update!`和`set!`相同。

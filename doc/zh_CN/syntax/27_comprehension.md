@@ -4,7 +4,7 @@ Array 和 `[expr | (name <- iterable)+ (predicate)*]`,
 set 和 `{expr | (name <- iterable)+ (predicate)*}`,
 你可以创建一个字典 `{key: value | (name <- iterable)+ (predicate)*}`.
 
-由`|`分隔的子句的第一部分称为布局子句（位置子句），第二部分称为绑定子句（绑定子句），第三部分称为保护子句（条件子句）。
+由`|`分隔的子句的第一部分称为布局子句(位置子句)，第二部分称为绑定子句(绑定子句)，第三部分称为保护子句(条件子句)。
 保护子句可以省略，但绑定子句不能省略，保护子句不能在绑定子句之前。
 
 理解示例
@@ -50,8 +50,8 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 
 ## 筛子类型
 
-与推导类似的是筛类型。 筛子类型是以`{Name: Type | Predicate}`创建的（枚举类型）
-sieve类型的情况下，只能指定一个Name，不能指定布局（但是如果是tuple类型可以处理多个值），Predicate可以在编译时计算，即 ，只能指定一个常量表达式。
+与推导类似的是筛类型。 筛子类型是以`{Name: Type | Predicate}`创建的(枚举类型)
+sieve类型的情况下，只能指定一个Name，不能指定布局(但是如果是tuple类型可以处理多个值)，Predicate可以在编译时计算，即 ，只能指定一个常量表达式。
 
 ```python
 Nat = {I: Int | I >= 0}

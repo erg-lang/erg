@@ -1,12 +1,12 @@
-# index
+# 指数
 
-See [here](../API/index.md) for APIs not in this index.
-See [here](../dev_guide/terms.md) for terminology.
+有关不在此索引中的 API，请参阅 [此处](../API/index.md)。
+有关术语，请参见 [此处](../dev_guide/terms.md)。
 
-## symbol
+## 符号
 
 * !
-  * !-type → [mutable type](./type/mut.md)
+  * !-type → [可变性](./type/mut.md)
 * [&#35;](./00_basic.md/#comment)
 * $
 * %
@@ -16,18 +16,18 @@ See [here](../dev_guide/terms.md) for terminology.
 * &lpar;&rpar;
 * &ast;
   * [*-less multiplication](./01_literal.md/#less-multiplication)
-* &plus; (prefix)
-  * &plus;_ → &plus; (prefix)
-* &plus; (infix)
+* &plus; (前置)
+  * &plus;_ → &plus; (前置)
+* &plus; (中置)
 * ,
-* &minus; (prefix)
-  * &minus;_ → &minus; (prefix)
-* &minus; (infix)
+* &minus; (前置)
+  * &minus;_ → &minus; (前置)
+* &minus; (中置)
   * &minus;>
-* . → [Visibility]
+* . → [可见性]
 * /
 * :
-  * :: → [visibility]
+  * :: → [可见性]
 * ;
 * &lt;
   * &lt;:
@@ -58,7 +58,7 @@ See [here](../dev_guide/terms.md) for terminology.
   * ||
 * ~
 
-## alphabet
+## 字母
 
 ### A
 
@@ -177,276 +177,276 @@ See [here](../dev_guide/terms.md) for terminology.
 
 ## A line
 
-* Assertion
-* value object
-* [Attachment patch](./29_decorator.md#attach)
-* Ad-hoc polymorphism → [No overloading](./type/overloading.md)
-* Attribute → Attribute
-* arity
-* [dependent type](./type/dependent_type.md)
-* immutable → immutable
-* Argument → Argument
-* instance
-* [instant block](./00_basic.md# expression separator)
-* index
-* [indent](./00_basic.md#indent)
-* alias
-* error
-  * [Error handling]
-* [operator](./06_operator.md)
-  * [operator binding strength]
-* Override
-* [No overloading](./type/overloading.md)
-* Offside rule → [indent](./00_basic.md#indent)
-* object
-  * Object-orientation
-* Operand → [operand](./06_operator.md)
-* operator → [operator](./06_operator.md)
+* 断言
+* 值对象
+* [附件补丁](./29_decorator.md#attach)
+* Ad-hoc 多态性 → [无重载](./type/overloading.md)
+* 属性→属性
+* 稀有度
+* [依赖类型](./type/dependent_type.md)
+* 不可变 → 不可变
+* 论证 → 论证
+* 实例
+* [即时块](./00_basic.md#表达式分隔符)
+* 指数
+* [缩进](./00_basic.md#indent)
+* 别名
+* 错误
+  * [错误处理]
+* [运算符](./06_operator.md)
+  * [运算符绑定强度]
+* 覆盖
+* [不重载](./type/overloading.md)
+* 越位规则 → [缩进](./00_basic.md#indent)
+* 目的
+  * 面向对象
+* 操作数 → [操作数](./06_operator.md)
+* 运算符 → [运算符](./06_operator.md)
 
 ## Ka line
 
-* [Kind](./type/advanced/kind.md)
-* [Visibility]
-* [type]
-  * [type specification]
-  * [type erasure](./type/advanced/erasure.md)
-  * [type inference]
-  * [type annotation](./type/conv_type.md)
-  * [type argument]
-  * [type addition](./type/advanced/erasure.md)
-  * [type variable](./type/type_variable.md)
-  * [type constraint]
-* [Guard]
-* Encapsulation
-* [variable]
-  * [mutable object]
-  * [variable]
-  * [variable reference]
-  * [variable array]
-  * [variable arguments]
-* [function](./04_function.md)
-  * [Functional programming] (./23_scope.md#Avoiding mutable state Functional programming)
-* base type
-* Signed
-  * [Named type] → [Class](./type/04_class.md)
-  * [Annunciation]
-  * [nominal subtype](./type/05_nst_vs_sst.md)
-* Capture → [Closure]
-* [covariant]
-* [keyword argument]
-* empty set → [{}]
-* section
-  * [Interval type](./type/11_interval.md)
-  * interval operator
-* built-in
-  * [Built-in type]
-  * [Built-in functions](./05_builtin_funcs.md)
-  * [Built-in procedures](./09_builtin_procs.md)
-* [class](./type/04_class.md)
-* [Closure]
-* [global variables]
-* [Clone]
-* [Inheritance](./type/07_inheritance.md)
-* high floor
-  * [Advanced kind](./type/advanced/kind.md)
-  * higher order type
-  * Higher-order functions
-* [public variable]
-* [structural subtype]
-* ~~backreference~~ → [backreference]
-* [copy]
-* comment
-* [Collection](./10_array.md)
-* colon → [:]
-* [constructor](./type/04_class.md)
-* container
-* Compiler
-* [compile-time calculation](./04_function.md#compile-time function)
-* Comma → [,]
+* [种类](./type/advanced/kind.md)
+* [可见性]
+* [类型]
+  * [类型规格]
+  * [类型擦除](./type/advanced/erasure.md)
+  * [类型推断]
+  * [类型注释](./type/conv_type.md)
+  * [类型参数]
+  * [类型添加](./type/advanced/erasure.md)
+  * [类型变量](./type/type_variable.md)
+  * [类型约束]
+* [警卫]
+* 封装
+* [多变的]
+  * [可变对象]
+  * [多变的]
+  * [变量参考]
+  * [变量数组]
+  * [可变参数]
+* [函数](./04_function.md)
+  * [函数式编程] (./23_scope.md#Avoiding mutable state 函数式编程)
+* 基本类型
+* 签
+  * [命名类型] → [类](./type/04_class.md)
+  * [报喜]
+  * [名义子类型](./type/05_nst_vs_sst.md)
+*捕获→[关闭]
+* [协变]
+* [关键字参数]
+* 空集 → [{}]
+* 部分
+  * [间隔类型](./type/11_interval.md)
+  * 区间运算符
+* 内置
+  * [内置型]
+  * [内置函数](./05_builtin_funcs.md)
+  * [内置程序](./09_builtin_procs.md)
+* [类](./type/04_class.md)
+* [关闭]
+* [全局变量]
+* [克隆]
+* [继承](./type/07_inheritance.md)
+* 高楼层
+  * [高级种类](./type/advanced/kind.md)
+  * 高阶类型
+  * 高阶函数
+* [公共变量]
+* [结构亚型]
+* ~~反向引用~~ → [反向引用]
+* [复制]
+* 评论
+* [集合](./10_array.md)
+* 冒号 → [:]
+* [构造函数](./type/04_class.md)
+* 容器
+* 编译器
+* [编译时计算](./04_function.md#compile-time函数)
+* 逗号 → [,]
 
 ## sa line
 
-* recursion
-  * recursive
-  * [Recursive function](./04_function.md#Recursive function)
-* subscript → [index]
-* [Subtyping Polymorphism](./type/overloading.md)
-* Subroutine
-* [reference] (./18_memory_management.md# borrowed)
-  * reference object
-  * [Reference counting (RC)] (./18_memory_management.md# memory management)
-  * Reference equality → [side effect](./07_side_effect.md)
-* [identifier](./02_variable.md/# assignment)
-* Signature
-  * type signature
-* [dict](./11_dict.md)
-* [Natural number] → [Nat]
-* generics → [universal type]
-* Generator
-* [projective type]
-* Borrow → [Reference](./18_memory_management.md#Borrow)
-* [Shadowing] (./02_name.md# variables)
-* Species → [Kind](./type/advanced/kind.md)
-* [Set] → [Set]
-* predicate
-  * [predicate function]
-* Conditional branch
-* [Ownership]
-* Boolean → [Bool]
-* Singleton
-* [Symbol] → [Identifier](./02_name.md)
-  * [symbolization]
-* [script](./00_basic.md# script)
-* scope
-* Spread operator → [expansion assignment]
-* [slice](./10_array.md#slice)
-* control character
-* [Integer] → [Int]
-* [set](./12_set.md)
-* Semicolon → [;]
-* [Declaration](./03_declaration.md)
-* full name
-  * Universal type → [polymorphic type](./type/quantified.md)
-    * closed universal
-    * Open Universal
-  * universal function → polycorrelation function
-  * universal quantification
-* prefix operator
-* mutually recursive
-* subscript → [index]
-* [attribute]
-  * [attribute subtype]
+* 递归
+  * 递归
+  * [递归函数](./04_function.md#递归函数)
+* 下标 → [索引]
+* [子类型多态性](./type/overloading.md)
+* 子程序
+* [参考] (./18_memory_management.md#借用)
+  * 参考对象
+  * [引用计数(RC)](./18_memory_management.md#内存管理)
+  * 引用相等 → [副作用](./07_side_effect.md)
+* [标识符](./02_variable.md/# 赋值)
+* 签名
+  * 类型签名
+* [字典](./11_dict.md)
+* [自然数] → [Nat]
+* 泛型 → [通用类型]
+* 发电机
+* [投影类型]
+* 借用 → [参考](./18_memory_management.md#Borrow)
+* [阴影] (./02_name.md# 变量)
+* 物种 → [种类](./type/advanced/kind.md)
+* [套装] → [套装]
+* 谓词
+  * [谓词函数]
+* 条件分支
+* [所有权]
+* 布尔 → [布尔]
+* 单身人士
+* [符号] → [标识符](./02_name.md)
+  * [符号化]
+* [脚本](./00_basic.md# 脚本)
+* 范围
+* 扩展运算符 → [扩展赋值]
+* [切片](./10_array.md#slice)
+* 控制字符
+* [整数] → [整数]
+* [设置](./12_set.md)
+* 分号 → [;]
+* [声明](./03_declaration.md)
+* 全名
+  * 通用类型 → [多态类型](./type/quantified.md)
+    * 封闭式通用
+    * 打开通用
+  * 通用函数 → 多相关函数
+  * 通用量化
+* 前缀运算符
+* 相互递归
+* 下标 → [索引]
+* [属性]
+  * [属性子类型]
 
 ## Ta line
 
-* [algebra](./02_name.md)
-  * [Algebraic type](./type/13_algebraic.md)
-  * algebraic data types
-* [assignment](./02_variable.md/#assignment)
-* Multiple
-  * [Multiple inheritance](./type/07_inheritance.md/#Prohibition of multiple inheritance)
-  * Multiple assignment
-  * Overloading → [No overloading]
-* Polyphase
-  * [polymorphic type](./type/quantified.md)
-  * polycorrelation coefficient
-* polymorphism → [polymorphism]
-* duck typing
-* [tuple](./11_tuple.md)
-* Single-phase
-  * Single phase
-  * Single-phase type
-  * Single correlation coefficient
-* [lazy initialization]
-* extraction assignment
-* Abstract syntax tree → [AST]
-* infix operator
-* [constant](./02_name.md/#constant)
-  * [constant type](./type/advanced/const.md)
-  * [constant expression](./type/advanced/const.md)
-*[definition]
-* provided attributes
-* [Apply]
-* [decorator](./29_decorator.md)
-* Destructor
-* procedure → [procedure](./08_procedure.md)
-* [default arguments](./04_function.md/#default arguments default-parameters)
-* expand
-  * [expansion operator]
-  * [expansion assignment]
-* [special format](./../API/special.md)
-* Anonymous function → [anonymous function](./20_lambda.md)
-* Dot operator (`.`) → [attribute reference]
-* Top
-  * Top type → [Structural Object]
-  * Top class → [Object]
-* [trait](./type/03_trait.md)
+* [代数](./02_name.md)
+  * [代数类型](./type/13_algebraic.md)
+  * 代数数据类型
+* [赋值](./02_variable.md/#assignment)
+* 多
+  * [多重继承](./type/07_inheritance.md/#禁止多重继承)
+  * 多重赋值
+  * 重载 → [不重载]
+* 多相
+  * [多态类型](./type/quantified.md)
+  * 多相关系数
+* 多态 → [多态]
+* 鸭子打字
+* [元组](./11_tuple.md)
+* 单相
+  * 单相
+  * 单相型
+  * 单相关系数
+* [延迟初始化]
+* 提取任务
+* 抽象语法树 → [AST]
+* 中缀运算符
+* [常数](./02_name.md/#constant)
+  * [常量类型](./type/advanced/const.md)
+  * [常量表达式](./type/advanced/const.md)
+* [定义]
+* 提供的属性
+* [申请]
+* [装饰器](./29_decorator.md)
+* 析构函数
+* 程序 → [程序](./08_procedure.md)
+* [默认参数](./04_function.md/#default arguments default-parameters)
+* 扩张
+  * [扩展运算符]
+  * [扩展分配]
+* [特殊格式](./../API/special.md)
+* 匿名函数 → [匿名函数](./20_lambda.md)
+* 点运算符 (`.`) → [属性参考]
+* 顶部
+  * 顶部类型 → [结构对象]
+  * 顶级 → [对象]
+* [特质](./type/03_trait.md)
 
-## na line
+## 没有一行
 
-* [Comprehension](./27_comprehension.md)
-* ~~Infix operator~~ → [Infix operator]
-* [namespace]
+* [理解](./27_comprehension.md)
+* ~~中缀运算符~~ → [中缀运算符]
+* [命名空间]
 
 ## is a line
 
-* [Array](./10_array.md)
-* [derived type](./type/variances.md/# user-defined type variations)
-* [pattern (match)](./26_pattern_matching.md)
-* [package](./33_package_ssystem.md)
-* Hashmap → [dictionary](./11_dict.md)
-* [patch](./type/07_patch.md)
-* public variable → [public variable](./19_visibility.md)
-* Parameter → [argument](./04_function.md)
-* [Parametric Polymorphism](./type/overloading.md)
-* [contravariant](./type/advanced/variance.md)
-* Compare
-  * [comparison operator]
-  * [comparable type]
-* [private variable](./19_visibility.md)
-* standard
-  * standard output
-  * standard input
-  * standard library
-* [side effect](./07_side_effect.md)
-* Complex number → [Complex]
-* [Float] → [Float]
-* Private Variable → [Private Variable]
-* Boolean algebra → [Bool]
-* [procedure](./08_procedure.md)
-* [argument](./04_function.md)
-* Partial Typing → [Subtyping]
-* [immutable]
-  * [immutable object]
-  * [immutable type]
-  * [immutable reference]
-* [sieve type](./type/12_refinement.md)
-* [block]
-* deconstruction assignment
-* [variable](./02_variable.md)
-* Bottom
-  * bottom type → [{}]
-  * Bottom class → [Never]
-* [Polymorphism]
+* [数组](./10_array.md)
+* [派生类型](./type/variances.md/#用户定义的类型变体)
+* [模式(匹配)](./26_pattern_matching.md)
+* [包](./33_package_ssystem.md)
+* Hashmap → [字典](./11_dict.md)
+* [补丁](./type/07_patch.md)
+* 公共变量 → [公共变量](./19_visibility.md)
+* 参数 → [参数](./04_function.md)
+* [参数多态](./type/overloading.md)
+* [逆变](./type/advanced/variance.md)
+* 相比
+  * [比较运算符]
+  * [可比类型]
+* [私有变量](./19_visibility.md)
+* 标准
+  * 标准输出
+  * 标准输入
+  * 标准库
+* [副作用](./07_side_effect.md)
+* 复数 → [复数]
+* [浮动] → [浮动]
+* 私有变量 → [私有变量]
+* 布尔代数 → [布尔]
+* [程序](./08_procedure.md)
+* [参数](./04_function.md)
+* 部分输入 → [子输入]
+* [不可变]
+  * [不可变对象]
+  * [不可变类型]
+  * [不可变引用]
+* [筛子类型](./type/12_refinement.md)
+* [堵塞]
+* 解构赋值
+* [变量](./02_variable.md)
+* 底部
+  * 底部类型 → [{}]
+  * 底层 → [从不]
+* [多态性]
 
 ## ma line
 
-* ~~ prefix operator ~~ → prefix operator
-* [Marker type](./type/advanced/marker_trait.md)
-* [anonymous function](./21_lambda.md)
-* mutable → [mutable]
-* [Move]
+* ~~ 前缀运算符 ~~ → 前缀运算符
+* [标记类型](./type/advanced/marker_trait.md)
+* [匿名函数](./21_lambda.md)
+* 可变 → [可变]
+* [移动]
 * 方法
-* Metacharacter
-* [module](./24_module.md)
-* [String] → [Str]
-  * [String interpolation](./01_literal.md/#str literal)
-* Return value
+* 元字符
+* [模块](./24_module.md)
+* [字符串] → [字符串]
+  * [字符串插值](./01_literal.md/#str字面量)
+* 返回值
 
 ## or line
 
-* [Ghost type](./type/advanced/phantom.md)
-* request attributes
-* [element]
-* [call]
+* [幽灵类型](./type/advanced/phantom.md)
+* 请求属性
+* [元素]
+* [称呼]
 
 ## Ra line
 
-* [Library]
-* Lambda expression → [anonymous function](./20_lambda.md)
-* rank
-  * [Rank 2 Polymorphism](./type/advanced/rank2type.md)
-* [literal](./01_literal.md)
-  * [literal identifier](./18_naming_rule.md/#literal identifier)
-* [quantified](./type/quantified.md)
-* [Layout](./type/mut.md)
-* [enum](./type/10_enum.md)
-* [record](./12_record.md)
-  * [record type]
-  * Record Polymorphism → [Column Polymorphism]
-* [column polymorphic]
-* [local variable](./19_visibility.md)
+* [图书馆]
+* Lambda 表达式 → [匿名函数](./20_lambda.md)
+* 排名
+  * [Rank 2 多态性](./type/advanced/rank2type.md)
+* [文字](./01_literal.md)
+  * [文字标识符](./18_naming_rule.md/#literal identifier)
+* [量化](./type/quantified.md)
+* [布局](./type/mut.md)
+* [枚举](./type/10_enum.md)
+* [记录](./12_record.md)
+  * [记录类型]
+  * 记录多态 → [列多态]
+* [列多态]
+* [局部变量](./19_visibility.md)
 
 ## line
 
-* Wildcard
+* 通配符
