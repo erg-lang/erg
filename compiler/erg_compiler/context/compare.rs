@@ -80,7 +80,7 @@ impl Context {
             }
             (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                    return self.eq_tp(t, other)
+                    return self.eq_tp(t, other);
                 }
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
@@ -89,7 +89,9 @@ impl Context {
                     return self.structural_supertype_of(t, &other_t);
                 }
             },
-            (l, r) if l == r => return true,
+            (l, r) if l == r => {
+                return true;
+            }
             _ => {}
         }
         self.shallow_eq_tp(lhs, rhs)

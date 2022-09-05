@@ -526,7 +526,7 @@ impl Context {
             (TyParam::FreeVar(fv), tp) | (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify_tp(l, tp, lhs_variance, allow_divergence)
+                        return self.unify_tp(l, tp, lhs_variance, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
@@ -733,7 +733,7 @@ impl Context {
             (Type::FreeVar(fv), t) | (t, Type::FreeVar(fv)) => {
                 match &mut *fv.borrow_mut() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify(l, t, lhs_loc, rhs_loc)
+                        return self.unify(l, t, lhs_loc, rhs_loc);
                     }
                     FreeKind::Unbound {
                         lev, constraint, ..
