@@ -1,6 +1,5 @@
 # カインド(Kind)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Deccd113c1512076c367fb87ea73406f91ff83ba7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=eccd113c1512076c367fb87ea73406f91ff83ba7)
 
 Ergでは全てが型付けられている。型自体も例外ではない。「型の型」を表すのが __カインド(種)__ である。例えば`1`が`Int`に属しているように、`Int`は`Type`に属している。`Type`は最もシンプルなカインドである __原子カインド(Atomic kind)__ である。型理論的の記法では、`Type`は`*`に対応する。
 

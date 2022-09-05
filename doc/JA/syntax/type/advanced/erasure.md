@@ -1,6 +1,5 @@
 # 型消去(Type erasure)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/erasure.md%26commit_hash%3Deccd113c1512076c367fb87ea73406f91ff83ba7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/erasure.md&commit_hash=eccd113c1512076c367fb87ea73406f91ff83ba7)
 
 型消去とは、型引数に`_`を指定し、その情報をあえて捨てることです。型消去は多相型を持つ言語の多くが併せて持つ機能ですが、Ergの文法に即して言えば型引数消去といった方が正確でしょう。
 
