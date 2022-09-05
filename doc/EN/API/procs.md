@@ -8,7 +8,7 @@ print!(x) -> NoneType
 
    Returns x with a newline.
 
-##debug&excl;
+## debug&excl;
 
 ```python
 debug!(x, type = Info) -> NoneType

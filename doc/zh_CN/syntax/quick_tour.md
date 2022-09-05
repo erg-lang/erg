@@ -1,14 +1,14 @@
-# Quick Tour
+# 快速浏览
 
-The documentation below `syntax` is written with the aim of being understandable even for programming beginners.
-For those who have already mastered languages ​​such as Python, Rust, Haskell, etc., it may be a bit verbose.
+`syntax` 下面的文档是为了让编程初学者也能理解而编写的。
+对于已经掌握 Python、Rust、Haskell 等语言的人来说，可能有点啰嗦。
 
-So, here's an overview of the Erg grammar.
-Please think that the parts not mentioned are the same as Python.
+所以，这里是 Erg 语法的概述。
+请认为未提及的部分与 Python 相同。
 
-## variables, constants
+## 变量，常量
 
-Variables are defined with `=`. As with Haskell, variables once defined cannot be changed. However, it can be shadowed in another scope.
+变量用 `=` 定义。 与 Haskell 一样，变量一旦定义就不能更改。 但是，它可以在另一个范围内被遮蔽。
 
 ```python
 i = 0
@@ -17,8 +17,8 @@ if True:
 assert i == 0
 ```
 
-Anything starting with an uppercase letter is a constant. Only things that can be computed at compile time can be constants.
-Also, a constant is identical in all scopes since its definition.
+任何以大写字母开头的都是常数。 只有可以在编译时计算的东西才能是常量。
+此外，自定义以来，常量在所有范围内都是相同的。
 
 ```python
 PI = 3.141592653589793
@@ -27,19 +27,19 @@ match random.random!(0..10):
         log "You get PI, it's a miracle!"
 ```
 
-## declaration
+## 类型声明
 
-Unlike Python, only the variable type can be declared first.
-Of course, the declared type and the type of the object actually assigned to must be compatible.
+与 Python 不同的是，只能先声明变量类型。
+当然，声明的类型和实际分配的对象的类型必须兼容。
 
 ```python
 i: Int
 i = 10
 ```
 
-## Functions
+## 函数
 
-You can define it just like in Haskell.
+你可以像在 Haskell 中一样定义它。
 
 ```python
 fib0 = 0
@@ -47,20 +47,20 @@ fib1 = 1
 fibn = fib(n - 1) + fib(n - 2)
 ```
 
-An anonymous function can be defined like this:
+匿名函数可以这样定义：
 
 ```python
 i -> i + 1
 assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 ```
 
-## operator
+## 运算符
 
-The Erg-specific operators are:
+特定于 Erg 的运算符是：
 
-### mutating operator (!)
+### 变异运算符 (!)
 
-It's like `ref` in Ocaml.
+这就像 Ocaml 中的`ref`。
 
 ```python
 i = !0
@@ -68,15 +68,15 @@ i.update! x -> x + 1
 assert i == 1
 ```
 
-## procedures
+## 程序
 
-Subroutines with side effects are called procedures and are marked with `!`.
+具有副作用的子例程称为过程，并标有`!`。
 
 ```python
 print! 1 # 1
 ```
 
-## generic function (polycorrelation)
+## 泛型函数(多相关)
 
 ```python
 id|T|(x: T): T = x
@@ -84,30 +84,30 @@ id(1): Int
 id("a"): Str
 ```
 
-## Records
+## 记录
 
-You can use the equivalent of records in ML-like languages ​​(or object literals in JS).
+您可以使用类似 ML 的语言中的记录等价物(或 JS 中的对象字面量)。
 
 ```python
 p = {x = 1; y = 2}
 ```
 
-## Ownership
+## 所有权
 
-Ergs are owned by mutable objects (objects mutated with the `!` operator) and cannot be rewritten from multiple places.
+Ergs 由可变对象(使用 `!` 运算符突变的对象)拥有，并且不能从多个位置重写。
 
 ```python
 i = !0
 j = i
 assert j == 0
-i#MoveError
+i#移动错误
 ```
 
-Immutable objects, on the other hand, can be referenced from multiple places.
+另一方面，不可变对象可以从多个位置引用。
 
-## Visibility
+## 可见性
 
-Prefixing a variable with `.` makes it a public variable and allows it to be referenced from external modules.
+使用 `.` 前缀变量使其成为公共变量并允许从外部模块引用它。
 
 ```python
 # foo.er
@@ -118,41 +118,41 @@ y = 1
 ```python
 foo = import "foo"
 assert foo.x == 1
-foo.y # VisibilityError
+foo.y # 可见性错误
 ```
 
-## pattern matching
+## 模式匹配
 
-### variable pattern
+### 变量模式
 
 ```python
-# basic assignments
+# 基本任务
 i = 1
-# with type
+# with 类型
 i: Int = 1
-# functions
+# 函数
 fn x = x + 1
 fn: Int -> Int = x -> x + 1
 ```
 
-### Literal patterns
+### 文字模式
 
 ```python
-# if `i` cannot be determined to be 1 at compile time, TypeError occurs.
-# shorthand of `_: {1} = i`
+# 如果 `i` 在编译时无法确定为 1，则发生 类型错误
+# 简写：`_ {1} = i`
 1 = i
-# simple pattern matching
+# 简单的模式匹配
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
-# fibonacci function
+# 斐波那契函数
 fib0 = 0
 fib1 = 1
 fibn: Nat = fibn-1 + fibn-2
 ```
 
-### constant pattern
+### 常量模式
 
 ```python
 PI = 3.141592653589793
@@ -164,7 +164,7 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### discard (wildcard) pattern
+### 丢弃(通配符)模式
 
 ```python
 _ = 1
@@ -172,9 +172,9 @@ _: Int = 1
 right(_, r) = r
 ```
 
-### Variable length patterns
+### 可变长度模式
 
-Used in combination with the tuple/array/record pattern described later.
+与稍后描述的元组/数组/记录模式结合使用。
 
 ```python
 [i,...j] = [1, 2, 3, 4]
@@ -183,27 +183,27 @@ first|T|(fst: T, ...rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
-### Tuple pattern
+### 元组模式
 
 ```python
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
-# If not nested, () can be omitted (1, 2 are treated as (1, 2))
+# 如果不嵌套，() 可以省略(1, 2 被视为(1, 2))
 m, n = 1, 2
 ```
 
-### array pattern
+### 数组模式
 
 ```python
 length[] = 0
 length[_, ...rest] = 1 + lengthrest
 ```
 
-#### record pattern
+#### 记录模式
 
 ```python
 {sin; cos; tan; ...} = import "math"
-{*} = import "math" # import all
+{*} = import "math" # 全部导入
 
 person = {name = "John Smith"; age = 20}
 age = match person:
@@ -211,7 +211,7 @@ age = match person:
     {_; age} -> age
 ```
 
-### Data class pattern
+### 数据类模式
 
 ```python
 Point = Inherit {x = Int; y = Int}
@@ -219,20 +219,20 @@ p = Point::{x = 1; y = 2}
 Point::{x; y} = p
 ```
 
-## Comprehensions
+## 理解(Comprehensions)
 
 ```python
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
-## class
+## 班级
 
-Erg does not support multiple/multilevel inheritance.
+Erg 不支持多级/多级继承。
 
-## Traits
+## 特质
 
-They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and 方法 as equals.
-Also, it does not involve implementation.
+它们类似于 Rust 特征，但在更字面意义上，允许组合和解耦，并将属性和方法视为平等。
+此外，它不涉及实施。
 
 ```python
 XY = Trait {x = Int; y = Int}
@@ -246,19 +246,19 @@ Point.
     ...
 ```
 
-## patch
+## 修补
 
-You can give implementations to classes and traits.
+您可以为类和特征提供实现。
 
-## Sieve type
+## 筛子类型
 
-A predicate expression can be type-restricted.
+谓词表达式可以是类型限制的。
 
 ```python
 Nat = {I: Int | I >= 0}
 ```
 
-## parametric type with value (dependent type)
+## 带值的参数类型(依赖类型)
 
 ```python
 a: [Int; 3]

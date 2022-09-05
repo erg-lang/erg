@@ -91,7 +91,7 @@ steal_str ref(s: Str!) =
 
 ```python
 steal_str ref(s: Str!) =
-    # 这也不好（=消耗右边）
+    # 这也不好(=消耗右边)
      x = s # OwnershipError: 不能消费借来的值
     x
 ```

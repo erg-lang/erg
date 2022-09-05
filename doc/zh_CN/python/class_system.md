@@ -1,10 +1,10 @@
-# Python 类系统（与 Erg 比较）
+# Python 类系统(与 Erg 比较)
 
 ## 方法
 
 方法可以被前向引用，但这不是一种特殊的技术。
 这是因为动态检查方法的存在。
-（在 Erg 中，方法存在是静态检查的。对于前向引用，函数必须是常量。）
+(在 Erg 中，方法存在是静态检查的。对于前向引用，函数必须是常量。)
 
 ```python
 >>> class C:
@@ -45,7 +45,7 @@
 Traceback (most recent call last):
   File "<stdin>", line 1, in <module
   File "<stdin>", line 3, in g
-类型错误：只能将str（不是“int”）连接到str
+类型错误：只能将str(不是“int”)连接到str
 ```
 
 Erg 静态检查与父类的一致性。

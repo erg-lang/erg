@@ -1,6 +1,6 @@
 # fmt
 
-Code formatting can be done with the fmt subcommand.
-Commonly used flags are:
+可以使用 fmt 子命令来完成代码格式化。
+常用的标志有：
 
-* explicit-type: Automatically completes where the type specification is omitted.
+* 显式类型：在省略类型说明的情况下自动完成。

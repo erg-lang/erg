@@ -29,7 +29,7 @@ foo = import "foo"
 assert foo.x == "this is a visible variable"
 ```
 
-您不需要向私有变量添加任何内容，但您也可以添加 `::` 或 `self::`（用于类型等的`Self::`）以表明它们是私有的。 增加。 如果它是一个模块，它也可以是 `module::`
+您不需要向私有变量添加任何内容，但您也可以添加 `::` 或 `self::`(用于类型等的`Self::`)以表明它们是私有的。 增加。 如果它是一个模块，它也可以是 `module::`
 
 ```python
 ::x = "this is an invisible variable"
@@ -79,7 +79,7 @@ f1# 0 1
 x = 0
 C = Class {x = Int}
 C.
-    # 顶级 x 被引用（警告使用 module::x）
+    # 顶级 x 被引用(警告使用 module::x)
     f1 self = x
     # 实例属性 x 被引用
     f2 self = self::x
@@ -118,7 +118,7 @@ Foo.
 {Foo; ...} = import "foo"
 
 foo = Foo.new()
-foo.public() # 属性错误：“Foo”没有属性“public”（“public”在模块“bar”中定义）
+foo.public() # 属性错误：“Foo”没有属性“public”(“public”在模块“bar”中定义)
 ```
 
 此外，方法不能在要重新导出的类型中定义。

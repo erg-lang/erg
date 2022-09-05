@@ -16,7 +16,7 @@ Attributes of the type itself are not stored in the `.__dict__` and cannot be re
 
 * `__str__`: returns the string representation (rich) of the object
 
-###Fmt
+### Fmt
 
 * `__format__`: Returns a formatted string
 
@@ -151,13 +151,13 @@ As an example other than Complex, Vector, Matrix, and Tensor are Num (* in Matri
 * `isdecimal`:
 * `is sight`:
 * `is identifier`
-*`islower`
+* `islower`
 * `is numeric`
 * `isprintable`
 * `isspace`
 * `is title`
 * `isupper`
-*`lower`
+* `lower`
 * `swapcase`
 * `title`
 * `upper`
@@ -182,9 +182,9 @@ Nat and Range have Iterators, so `Nat.iter().map n -> n**2`, `(3..10).iter().fol
 Since all and any are destroyed after use, there are no side effects. These are supposed to be implemented using `next` which has no side effects, but internally `Iterator!.next!` is used for execution efficiency.
 
 * `next`: Returns the first element and the remaining Iterator.
-*`all`
-*`any`
-*`filter`
+* `all`
+* `any`
+* `filter`
 * `filter_map`
 * `find`
 * `find_map`
@@ -192,13 +192,13 @@ Since all and any are destroyed after use, there are no side effects. These are 
 * `flatten`
 * `fold`
 * `for_each`
-*`map`
+* `map`
 * `map_while`
 * `nth`
-*`pos`
+* `pos`
 * `take`
 * `unzip`
-*`zip`
+* `zip`
 
 ### Iterator!T = IteratorT and ...
 

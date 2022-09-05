@@ -1,14 +1,14 @@
-# build subcommand
+# 构建子命令
 
-The build subcommand builds the package.
-The steps performed in the default build are as follows:
+build 子命令构建包。
+默认构建中执行的步骤如下：
 
-1. Inspect code in comments/documentation (md files under doc).
-2. Compile the code needed for the package.
-3. For application packages, generate batch files or shell scripts equivalent to commands.
-4. Run the test.
+1. 检查注释/文档中的代码(doc 下的 md 文件)
+2. 编译打包所需的代码。
+3. 对于应用程序包，生成批处理文件或相当于命令的shell脚本。
+4. 运行测试。
 
-The deliverables after the build is completed are output to the following directory.
+构建完成后的交付物输出到以下目录。
 
-* During debug build: build/debug
-* For release build: build/release
+* 在调试构建期间：build/debug
+* 对于发布构建：build/release

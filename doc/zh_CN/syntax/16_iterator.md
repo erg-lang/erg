@@ -8,7 +8,7 @@ for! 0..9, i =>
 ```
 
 此代码打印数字 0 到 9。
-每个数字（=Int 对象）都分配给`i`，并执行以下操作（=`print！i`）。 这种重复执行称为__iteration__。
+每个数字(=Int 对象)都分配给`i`，并执行以下操作(=`print！i`)。 这种重复执行称为__iteration__。
 
 现在让我们看看 `for!` 过程的类型签名。
 
@@ -27,7 +27,7 @@ Iterable T = Trait {
 }
 ```
 
-`.Iterator` 属性的类型 `{Iterator}` 是所谓的 set-kind（kind 在 [here](./type/advanced/kind.md) 中描述）
+`.Iterator` 属性的类型 `{Iterator}` 是所谓的 set-kind(kind 在 [here](./type/advanced/kind.md) 中描述)
 
 ```python
 assert [1, 2, 3] in Iterable(Int)
@@ -78,7 +78,7 @@ classDiagram
     Range <-- RangeIterator
 ```
 
-诸如 `Iterable` 之类的以静态分派但统一的方式提供用于处理特征（在本例中为 `Iterator`）的接口的类型称为伴生类适配器。
+诸如 `Iterable` 之类的以静态分派但统一的方式提供用于处理特征(在本例中为 `Iterator`)的接口的类型称为伴生类适配器。
 
 ---
 

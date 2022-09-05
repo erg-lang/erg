@@ -3,7 +3,7 @@
 依赖类型是一个特性，可以说是 Erg 的最大特性。
 依赖类型是将值作为参数的类型。 普通的多态类型只能将类型作为参数，但依赖类型放宽了这个限制。
 
-依赖类型等价于`[T; N]`（`数组（T，N）`）。
+依赖类型等价于`[T; N]`(`数组(T，N)`)。
 这种类型不仅取决于内容类型“T”，还取决于内容数量“N”。 `N` 包含一个`Nat` 类型的对象。
 
 ```python
@@ -51,7 +51,7 @@ VM!().
         self.initialize_something!()
         self::set_phantom!("running")
 
-# 你也可以按类型参数切出（仅在定义它的模块中）
+# 你也可以按类型参数切出(仅在定义它的模块中)
 VM!.new() = VM!(!"stopped", 1).new()
 VM!("running" ~> "running").stop!ref!self =
     self.close_something!()

@@ -24,7 +24,7 @@ j: Int or NoneType
 ids(i, j) # ?
 ```
 
-在解释这一点之前，我们必须关注 Erg 的类型系统实际上并不关注（运行时）类这一事实。
+在解释这一点之前，我们必须关注 Erg 的类型系统实际上并不关注(运行时)类这一事实。
 
 ```python
 1: {__valueclass_tag__ = Phantom Int}
@@ -47,7 +47,7 @@ ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phanto
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # 类型错误：i 和 j 的类型不匹配
-# 提示：尝试扩大类型（例如 ids<Int or Str or NoneType>）
+# 提示：尝试扩大类型(例如 ids<Int or Str or NoneType>)
 ids<Int or Str or NoneType>(i, j) # OK
 ```
 
@@ -61,7 +61,7 @@ ids<Int or Str or NoneType>(i, j) # OK
 
 * `A 或 B == A`：当`A :> B` 或`A == B` 时。
 * `A or B == B`：当`A <: B`或`A == B`时。
-* `A 或 B` 是不可约的（独立类型）：如果 `!(A :> B)` 和 `!(A <: B)`。
+* `A 或 B` 是不可约的(独立类型)：如果 `!(A :> B)` 和 `!(A <: B)`。
 
 ## 子程序定义中的类型扩展
 
