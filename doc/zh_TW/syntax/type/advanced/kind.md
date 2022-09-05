@@ -1,44 +1,44 @@
 # Kind
 
-一切都在 Erg 中输入。类型本身也不例外。 __kind__ 表示“类型的类型”。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。 `Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`。
+一切都在 Erg 中輸入。類型本身也不例外。 __kind__ 表示“類型的類型”。例如，`Int` 屬于 `Type`，就像 `1` 屬于 `Int`。 `Type` 是最簡單的一種，__atomic kind__。在類型論符號中，`Type` 對應于 `*`。
 
-在Kind的概念中，实际上重要的是一种或多种Kind(多项式Kind)。单项类型，例如`Option`，属于它。一元Kind表示为 `Type -> Type` [<sup id="f1">1</sup>](#1)。诸如 `Array` 或 `Option` 之类的 __container__ 特别是一种以类型作为参数的多项式类型。
-正如符号 `Type -> Type` 所表明的，`Option` 实际上是一个接收类型 `T` 并返回类型 `Option T` 的函数。但是，由于这个函数不是通常意义上的函数，所以通常称为一元类。
+在Kind的概念中，實際上重要的是一種或多種Kind(多項式Kind)。單項類型，例如`Option`，屬于它。一元Kind表示為 `Type -> Type` [<sup id="f1">1</sup>](#1)。諸如 `Array` 或 `Option` 之類的 __container__ 特別是一種以類型作為參數的多項式類型。
+正如符號 `Type -> Type` 所表明的，`Option` 實際上是一個接收類型 `T` 并返回類型 `Option T` 的函數。但是，由于這個函數不是通常意義上的函數，所以通常稱為一元類。
 
-注意`->`本身，它是一个匿名函数操作符，当它接收一个类型并返回一个类型时，也可以看作是一Kind型。
+注意`->`本身，它是一個匿名函數操作符，當它接收一個類型并返回一個類型時，也可以看作是一Kind型。
 
-另请注意，不是原子Kind的Kind不是类型。正如 `-1` 是一个数字但 `-` 不是，`Option Int` 是一个类型但 `Option` 不是。 `Option` 等有时被称为类型构造函数。
+另請注意，不是原子Kind的Kind不是類型。正如 `-1` 是一個數字但 `-` 不是，`Option Int` 是一個類型但 `Option` 不是。 `Option` 等有時被稱為類型構造函數。
 
 ```python
 assert not Option in Type
 assert Option in Type -> Type
 ```
 
-所以像下面这样的代码会报错：
-在 Erg 中，方法只能在原子类型中定义，并且名称 `self` 不能在方法的第一个参数以外的任何地方使用。
+所以像下面這樣的代碼會報錯：
+在 Erg 中，方法只能在原子類型中定義，并且名稱 `self` 不能在方法的第一個參數以外的任何地方使用。
 
 ```python
-#K 是一元类型
+#K 是一元類型
 K: Type -> Type
 K T = Class...
 K.
-foo x = ... # OK，这就像是所谓的静态方法
-     bar self, x = ... # 类型错误: 无法为非类型对象定义方法
+foo x = ... # OK，這就像是所謂的靜態方法
+     bar self, x = ... # 類型錯誤: 無法為非類型對象定義方法
 K(T).
     baz self, x = ... # OK
 ```
 
-二进制或更高类型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type `), ... 等等。
+二進制或更高類型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type `), ... 等等。
 
-还有一个零项类型`() -> Type`。 这有时等同于类型论中的原子类型，但在 Erg 中有所区别。 一个例子是`类`。
+還有一個零項類型`() -> Type`。 這有時等同于類型論中的原子類型，但在 Erg 中有所區別。 一個例子是`類`。
 
 ```python
 Nil = Class()
 ```
 
-## 收容类
+## 收容類
 
-多项类型之间也存在部分类型关系，或者更确切地说是部分类型关系。
+多項類型之間也存在部分類型關系，或者更確切地說是部分類型關系。
 
 ```python
 K T = ...
@@ -46,15 +46,15 @@ L = Inherit K
 L<: K
 ```
 
-也就是说，对于任何 `T`，如果 `L T <: K T`，则 `L <: K`，反之亦然。
+也就是說，對于任何 `T`，如果 `L T <: K T`，則 `L <: K`，反之亦然。
 
 ```python
-∀T. L T <: K T <=> L <: K
+?T. L T <: K T <=> L <: K
 ```
 
-## 高阶Kind
+## 高階Kind
 
-还有一种高阶Kind。 这是一种与高阶函数相同的概念，一种自身接收一种类型。 `(Type -> Type) -> Type` 是一种更高的Kind。 让我们定义一个属于更高Kind的对象。
+還有一種高階Kind。 這是一種與高階函數相同的概念，一種自身接收一種類型。 `(Type -> Type) -> Type` 是一種更高的Kind。 讓我們定義一個屬于更高Kind的對象。
 
 ```python
 IntContainerOf K: Type -> Type = K Int
@@ -63,46 +63,46 @@ assert IntContainerOf Result == Result Int
 assert IntContainerOf in (Type -> Type) -> Type
 ```
 
-多项式类型的有界变量通常表示为 K, L, ...，其中 K 是 Kind 的 K
+多項式類型的有界變量通常表示為 K, L, ...，其中 K 是 Kind 的 K
 
-## 设置Kind
+## 設置Kind
 
-在类型论中，有记录的概念。 这与 Erg 记录 [<sup id="f2">2</sup>](#2) 几乎相同。
+在類型論中，有記錄的概念。 這與 Erg 記錄 [<sup id="f2">2</sup>](#2) 幾乎相同。
 
 ```python
-# 这是一条记录，对应于类型论中所谓的记录
+# 這是一條記錄，對應于類型論中所謂的記錄
 {x = 1; y = 2}
 ```
 
-当所有的记录值都是类型时，它是一种类型，称为记录类型。
+當所有的記錄值都是類型時，它是一種類型，稱為記錄類型。
 
 ```python
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
-记录类型键入记录。 一个好的猜测者可能认为应该有一个“记录类型”来键入记录类型。 实际上它是存在的。
+記錄類型鍵入記錄。 一個好的猜測者可能認為應該有一個“記錄類型”來鍵入記錄類型。 實際上它是存在的。
 
 ```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}
 ```
 
-像 `{{x = Int; 这样的类型 y = Int}}` 是一种记录类型。 这不是一个特殊的符号。 它只是一个枚举类型，只有 `{x = Int; y = Int}` 作为一个元素。
+像 `{{x = Int; 這樣的類型 y = Int}}` 是一種記錄類型。 這不是一個特殊的符號。 它只是一個枚舉類型，只有 `{x = Int; y = Int}` 作為一個元素。
 
 ```python
 Point = {x = Int; y = Int}
 Pointy = {Point}
 ```
 
-记录类型的一个重要属性是，如果 `T: |T|` 和 `U <: T` 则 `U: |T|`。
-从枚举实际上是筛子类型的语法糖这一事实也可以看出这一点。
+記錄類型的一個重要屬性是，如果 `T: |T|` 和 `U <: T` 則 `U: |T|`。
+從枚舉實際上是篩子類型的語法糖這一事實也可以看出這一點。
 
 ```python
-# {c} == {X: T | X == c} 对于普通对象，但是不能为类型定义相等性，所以 |T| == {X | X <: T}
+# {c} == {X: T | X == c} 對于普通對象，但是不能為類型定義相等性，所以 |T| == {X | X <: T}
 {Point} == {P | P <: Point}
 ```
 
-类型约束中的 `U <: T` 实际上是 `U: |T|` 的语法糖。
-作为此类类型的集合的种类通常称为集合种类。 Setkind 也出现在迭代器模式中。
+類型約束中的 `U <: T` 實際上是 `U: |T|` 的語法糖。
+作為此類類型的集合的種類通常稱為集合種類。 Setkind 也出現在迭代器模式中。
 
 ```python
 Iterable T = Trait {
@@ -111,7 +111,7 @@ Iterable T = Trait {
 }
 ```
 
-## 多项式类型的类型推断
+## 多項式類型的類型推斷
 
 ```python
 Container K: Type -> Type, T: Type = Patch K(T, T)
@@ -127,21 +127,21 @@ Fn2 T, U: Type = Patch T -> U
 Fn2(T, U).
     f self = ...
 
-(Int -> Int).f() # 选择了哪一个？
+(Int -> Int).f() # 選擇了哪一個？
 ```
-在上面的示例中，方法 `f` 会选择哪个补丁？
-天真，似乎选择了`Fn T`，但是`Fn2 T，U`也是可以的，`Option T`原样包含`T`，所以任何类型都适用，`Container K，T`也匹配`->(Int, Int)`，即 `Container(`->`, Int)` 为 `Int -> Int`。因此，上述所有四个修复程序都是可能的选择。
+在上面的示例中，方法 `f` 會選擇哪個補丁？
+天真，似乎選擇了`Fn T`，但是`Fn2 T，U`也是可以的，`Option T`原樣包含`T`，所以任何類型都適用，`Container K，T`也匹配`->(Int, Int)`，即 `Container(`->`, Int)` 為 `Int -> Int`。因此，上述所有四個修復程序都是可能的選擇。
 
-在这种情况下，根据以下优先标准选择修复程序。
+在這種情況下，根據以下優先標準選擇修復程序。
 
-* 任何 `K(T)`(例如 `T or NoneType`)优先匹配 `Type -> Type` 而不是 `Type`。
-* 任何 `K(T, U)`(例如 `T -> U`)优先匹配 `(Type, Type) -> Type` 而不是 `Type`。
-* 类似的标准适用于种类 3 或更多。
-* 选择需要较少类型变量来替换的那个。例如，`Int -> Int` 是 `T -> T` 而不是 `K(T, T)`(替换类型变量：K, T)或 `T -> U`(替换类型变量：T, U )。(替换类型变量：T)优先匹配。
-* 如果更换的次数也相同，则报错为不可选择。
+* 任何 `K(T)`(例如 `T or NoneType`)優先匹配 `Type -> Type` 而不是 `Type`。
+* 任何 `K(T, U)`(例如 `T -> U`)優先匹配 `(Type, Type) -> Type` 而不是 `Type`。
+* 類似的標準適用于種類 3 或更多。
+* 選擇需要較少類型變量來替換的那個。例如，`Int -> Int` 是 `T -> T` 而不是 `K(T, T)`(替換類型變量：K, T)或 `T -> U`(替換類型變量：T, U )。(替換類型變量：T)優先匹配。
+* 如果更換的次數也相同，則報錯為不可選擇。
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 在类型理论符号中，`*=>*` [↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 在類型理論符號中，`*=>*` [?](#f1)</span>
 
-<span id="2" style="font-size:x-small"><sup>2</sup> 可见性等细微差别。[↩](#f2)</span>
+<span id="2" style="font-size:x-small"><sup>2</sup> 可見性等細微差別。[?](#f2)</span>

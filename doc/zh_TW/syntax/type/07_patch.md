@@ -1,8 +1,8 @@
-# 修补
+# 修補
 
-Erg 不允许修改现有类型和类。
-这意味着，不可能在类中定义额外的方法，也不能执行特化(一种语言特性，单态化多态声明的类型并定义专用方法，如在 C++ 中)。
-但是，在许多情况下，您可能希望向现有类型或类添加功能，并且有一个称为“修补”的功能允许您执行此操作。
+Erg 不允許修改現有類型和類。
+這意味著，不可能在類中定義額外的方法，也不能執行特化(一種語言特性，單態化多態聲明的類型并定義專用方法，如在 C++ 中)。
+但是，在許多情況下，您可能希望向現有類型或類添加功能，并且有一個稱為“修補”的功能允許您執行此操作。
 
 ```python
 StrReverse = Patch Str
@@ -12,34 +12,34 @@ StrReverse.
 assert "abc".reverse() == "cba"
 ```
 
-补丁的名称应该是要添加的主要功能的简单描述。
-这样，被修补类型的对象(`Str`)可以使用修补程序的方法(`StrReverse`)。
-实际上，内置方法`.reverse`并不是`Str`的方法，而是`StrRReverse`中添加的方法。
+補丁的名稱應該是要添加的主要功能的簡單描述。
+這樣，被修補類型的對象(`Str`)可以使用修補程序的方法(`StrReverse`)。
+實際上，內置方法`.reverse`并不是`Str`的方法，而是`StrRReverse`中添加的方法。
 
-但是，补丁方法的优先级低于名义类型(类/特质)的方法，并且不能覆盖现有类型。
+但是，補丁方法的優先級低于名義類型(類/特質)的方法，并且不能覆蓋現有類型。
 
 ```python
 StrangeInt = Patch Int
 StrangeInt.
-    `_+_` = Int.`_-_` # 赋值错误：. `_+_` 已在 Int 中定义
+    `_+_` = Int.`_-_` # 賦值錯誤：. `_+_` 已在 Int 中定義
 ```
 
-如果要覆盖，则必须从类继承。
-但是，基本上建议不要覆盖并定义具有不同名称的方法。
-由于一些安全限制，覆盖不是很容易做到。
+如果要覆蓋，則必須從類繼承。
+但是，基本上建議不要覆蓋并定義具有不同名稱的方法。
+由于一些安全限制，覆蓋不是很容易做到。
 
 ```python
 StrangeInt = Inherit Int
 StrangeInt.
-# 覆盖方法必须被赋予覆盖装饰器。
-    # 另外，你需要覆盖所有依赖于 Int.`_+_` 的 Int 方法。
+# 覆蓋方法必須被賦予覆蓋裝飾器。
+    # 另外，你需要覆蓋所有依賴于 Int.`_+_` 的 Int 方法。
     @Override
-    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` 被 ... ````` 引用，所以这些方法也必须被覆盖
+    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` 被 ... ````` 引用，所以這些方法也必須被覆蓋
 ```
 
-## 选择修补程序
+## 選擇修補程序
 
-可以为单一类型定义修复程序，并且可以组合在一起。
+可以為單一類型定義修復程序，并且可以組合在一起。
 
 ```python
 # foo.er
@@ -70,7 +70,7 @@ assert "to camel case".to_camel_case() == "toCamelCase"
 assert "to kebab case".to_kebab_case() == "to-kebab-case"
 ```
 
-如果定义了多个修复程序，其中一些可能会导致重复实施
+如果定義了多個修復程序，其中一些可能會導致重復實施
 
 ```python
 # foo.er
@@ -78,15 +78,15 @@ assert "to kebab case".to_kebab_case() == "to-kebab-case"
 StrReverse = Patch(Str)
 StrReverse.
     reverse self = ...
-# 更高效的实现
+# 更高效的實現
 StrReverseMk2 = Patch(Str)
 StrReverseMk2.
     reverse self = ...
 
-"hello".reverse() # 补丁选择错误: `.reverse` 的多个选择: StrReverse, StrReverseMk2
+"hello".reverse() # 補丁選擇錯誤: `.reverse` 的多個選擇: StrReverse, StrReverseMk2
 ```
 
-在这种情况下，您可以使用 __related function__ 形式而不是方法形式使其唯一
+在這種情況下，您可以使用 __related function__ 形式而不是方法形式使其唯一
 
 ```python
 assert StrReverseMk2.reverse("hello") == "olleh"
@@ -100,11 +100,11 @@ You can also make it unique by selectively importing.
 assert "hello".reverse() == "olleh"
 ```
 
-## 胶水补丁
+## 膠水補丁
 
-维修程序也可以将类型相互关联。 `StrReverse` 补丁涉及 `Str` 和 `Reverse`。
-这样的补丁称为 __glue patch__。
-因为 `Str` 是内置类型，所以用户需要使用胶水补丁来改造特征。
+維修程序也可以將類型相互關聯。 `StrReverse` 補丁涉及 `Str` 和 `Reverse`。
+這樣的補丁稱為 __glue patch__。
+因為 `Str` 是內置類型，所以用戶需要使用膠水補丁來改造特征。
 
 ```python
 Reverse = Trait {
@@ -117,9 +117,9 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-每个类型/特征对只能定义一个胶水补丁。
-这是因为如果多个胶水修复程序同时“可见”，就不可能唯一确定选择哪个实现。
-但是，当移动到另一个范围(模块)时，您可以交换维修程序。
+每個類型/特征對只能定義一個膠水補丁。
+這是因為如果多個膠水修復程序同時“可見”，就不可能唯一確定選擇哪個實現。
+但是，當移動到另一個范圍(模塊)時，您可以交換維修程序。
 
 ```python
 NumericStr = Inherit Str
@@ -129,13 +129,13 @@ NumericStr.
 NumStrRev = Patch NumericStr, Impl := Reverse
 NumStrRev.
     ...
-# 重复修补程序错误：数值Str已与“反向”关联`
-# 提示：'Str'(NumericStr'的超类)通过'StrReverse'与'Reverse'关联
+# 重復修補程序錯誤：數值Str已與“反向”關聯`
+# 提示：'Str'(NumericStr'的超類)通過'StrReverse'與'Reverse'關聯
 ```
 
-## 附录：与 Rust 特征的关系
+## 附錄：與 Rust 特征的關系
 
-Erg 修复程序相当于 Rust 的(改造的)`impl` 块。
+Erg 修復程序相當于 Rust 的(改造的)`impl` 塊。
 
 ```rust
 // Rust
@@ -150,7 +150,7 @@ impl Reverse for String {
 }
 ```
 
-可以说，Rust 的特征是 Erg 的特征和修复程序的特征。 这使得 Rust 的特征听起来更方便，但事实并非如此。
+可以說，Rust 的特征是 Erg 的特征和修復程序的特征。 這使得 Rust 的特征聽起來更方便，但事實并非如此。
 
 ```python
 # Erg
@@ -164,8 +164,8 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-因为 impl 块在 Erg 中被对象化为补丁，所以在从其他模块导入时可以选择性地包含。 作为副作用，它还允许将外部特征实现到外部结构。
-此外，结构类型不再需要诸如 `dyn trait` 和 `impl trait` 之类的语法。
+因為 impl 塊在 Erg 中被對象化為補丁，所以在從其他模塊導入時可以選擇性地包含。 作為副作用，它還允許將外部特征實現到外部結構。
+此外，結構類型不再需要諸如 `dyn trait` 和 `impl trait` 之類的語法。
 
 ```python
 # Erg
@@ -183,11 +183,11 @@ fn iter<I>(i: I) -> impl Iterator<Item = I::Item> where I: IntoIterator {
 }
 ```
 
-## 通用补丁
+## 通用補丁
 
-补丁不仅可以为一种特定类型定义，还可以为“一般功能类型”等定义。
-在这种情况下，要给出自由度的项作为参数给出(在下面的情况下，`T：Type`)。 以这种方式定义的补丁称为全对称补丁。
-如您所见，全对称补丁正是一个返回补丁的函数，但它本身也可以被视为补丁。
+補丁不僅可以為一種特定類型定義，還可以為“一般功能類型”等定義。
+在這種情況下，要給出自由度的項作為參數給出(在下面的情況下，`T：Type`)。 以這種方式定義的補丁稱為全對稱補丁。
+如您所見，全對稱補丁正是一個返回補丁的函數，但它本身也可以被視為補丁。
 
 ```python
 FnType T: Type = Patch(T -> T)
@@ -197,15 +197,15 @@ FnType(T).
 assert (Int -> Int).type == Int
 ```
 
-## 结构补丁
+## 結構補丁
 
-此外，可以为满足特定结构的任何类型定义修复程序。
-但是，这比名义上的维修程序和类方法具有较低的优先级。
+此外，可以為滿足特定結構的任何類型定義修復程序。
+但是，這比名義上的維修程序和類方法具有較低的優先級。
 
-在定义结构修复程序时应使用仔细的设计，因为某些属性会因扩展而丢失，例如以下内容。
+在定義結構修復程序時應使用仔細的設計，因為某些屬性會因擴展而丟失，例如以下內容。
 
 ```python
-# 这不应该是 `Structural`
+# 這不應該是 `Structural`
 Norm = Structural Patch {x = Int; y = Int}
 Norm.
     norm self = self::x**2 + self::y**2
@@ -218,5 +218,5 @@ assert Point3D.new({x = 1; y = 2; z = 3}).norm() == 14 # AssertionError:
 ```
 
 <p align='center'>
-    <a href='./06_nst_vs_sst.md'>上一页</a> | <a href='./08_value.md'>下一页</a>
+    <a href='./06_nst_vs_sst.md'>上一頁</a> | <a href='./08_value.md'>下一頁</a>
 </p>

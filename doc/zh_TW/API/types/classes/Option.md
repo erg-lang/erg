@@ -1,12 +1,12 @@
 # Option T = T or NoneType
 
-表示“可能失败”的类型。
+表示“可能失敗”的類型。
 
 ## 方法
 
 * unwrap(self, msg = "unwrapped a None value") -> T or Panic
 
-提取它，期望内容是 `T` 类型。 如果是 `None`，则输出 `msg` 并恐慌
+提取它，期望內容是 `T` 類型。 如果是 `None`，則輸出 `msg` 并恐慌
 
 ```python
 x = "...".parse(Int).into(Option Int)

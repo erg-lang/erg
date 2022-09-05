@@ -1,7 +1,7 @@
 # Record
 
-记录所属的类。例如，`{i = 1}` 是`Structural {i = Int}` 类型的元素，并且是`{i = Int}` 类的实例
-请注意，其他类的实例是记录类型的元素，而不是记录类的实例
+記錄所屬的類。例如，`{i = 1}` 是`Structural {i = Int}` 類型的元素，并且是`{i = Int}` 類的實例
+請注意，其他類的實例是記錄類型的元素，而不是記錄類的實例
 
 ```python
 assert not Structural({i = Int}) in Class

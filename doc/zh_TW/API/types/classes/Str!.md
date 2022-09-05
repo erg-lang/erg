@@ -1,3 +1,3 @@
 # StrWithLen! N: Nat! = Inherit StrWithLen N
 
-表示可变长度字符串的类型
+表示可變長度字符串的類型

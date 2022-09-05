@@ -1,12 +1,12 @@
 # Subroutine
 
-Func和Proc的基本类型。
+Func和Proc的基本類型。
 
 ## 方法
 
 * return
 
-中断子程序并返回指定的值。 用于快速逃离嵌套
+中斷子程序并返回指定的值。 用于快速逃離嵌套
 
 ```python
 f x =

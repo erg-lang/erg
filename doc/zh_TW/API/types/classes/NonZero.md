@@ -1,6 +1,6 @@
 # NonZero N
 
-表示非零数的类。 保证除零的安全性
+表示非零數的類。 保證除零的安全性
 
 ```mermaid
 classDiagram

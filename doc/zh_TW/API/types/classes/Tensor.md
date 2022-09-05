@@ -1,7 +1,7 @@
 # Tensor Shape: [Nat; N]
 
-  用于有效操作多维数组的类。 它还定义了诸如多维数组上的乘法之类的操作
-  Matrix、Vector 等都继承自该类型
+  用于有效操作多維數組的類。 它還定義了諸如多維數組上的乘法之類的操作
+  Matrix、Vector 等都繼承自該類型
 
 ```python
 Tensor.arange(0..9) # Tensor [10]

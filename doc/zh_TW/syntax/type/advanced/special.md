@@ -1,6 +1,6 @@
-# 特殊类型(Self、Super)
+# 特殊類型(Self、Super)
 
-`Self` 代表它自己的类型。 您可以将其用作别名，但请注意派生类型的含义会发生变化(指的是自己的类型)。
+`Self` 代表它自己的類型。 您可以將其用作別名，但請注意派生類型的含義會發生變化(指的是自己的類型)。
 
 ```python
 @Inheritable
@@ -14,7 +14,7 @@ classof D. new_self() # D
 classof D. new_c() # C
 ```
 
-`Super` 表示基类的类型。方法本身引用基类，但实例使用自己的类型。
+`Super` 表示基類的類型。方法本身引用基類，但實例使用自己的類型。
 
 ```python
 @Inheritable
@@ -29,9 +29,9 @@ classof D. new_super() # D
 classof D. new_c() # C
 ```
 
-## 特殊类型变量
+## 特殊類型變量
 
-`Self` 和 `Super` 可以用作结构化类型和特征中的类型变量。 这指的是作为该类型子类型的类。 也就是说，`T` 类型中的`Self` 表示`Self <: T`。
+`Self` 和 `Super` 可以用作結構化類型和特征中的類型變量。 這指的是作為該類型子類型的類。 也就是說，`T` 類型中的`Self` 表示`Self <: T`。
 
 ```python
 Add R = Trait {

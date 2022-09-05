@@ -1,16 +1,16 @@
-# 枚举类型
+# 枚舉類型
 
-Set 生成的枚举类型。
-枚举类型可以与类型规范一起使用，但可以通过将它们分类为类或定义修复程序来定义进一步的方法。
+Set 生成的枚舉類型。
+枚舉類型可以與類型規范一起使用，但可以通過將它們分類為類或定義修復程序來定義進一步的方法。
 
-具有枚举类型的部分类型系统称为枚举部分类型。
+具有枚舉類型的部分類型系統稱為枚舉部分類型。
 
 ```python
 Bool = {True, False}
 Status = {"ok", "error"}
 ```
 
-由于 `1..7` 可以重写为 `{1, 2, 3, 4, 5, 6, 7}`，所以当元素是有限的时，Enum 类型本质上等同于 Range 类型。
+由于 `1..7` 可以重寫為 `{1, 2, 3, 4, 5, 6, 7}`，所以當元素是有限的時，Enum 類型本質上等同于 Range 類型。
 
 ```python
 Binary! = Class {0, 1}!.
@@ -25,7 +25,7 @@ b = Binary!.new !0
 b.invert!()
 ```
 
-顺便说一下，Erg 的 Enum 类型是一个包含其他语言中常见的枚举类型的概念。
+順便說一下，Erg 的 Enum 類型是一個包含其他語言中常見的枚舉類型的概念。
 
 ```rust
 // Rust
@@ -37,14 +37,14 @@ enum Status { Ok, Error }
 Status = {"Ok", "Error"}
 ```
 
-Rust 的不同之处在于它使用了结构子类型(SST)。
+Rust 的不同之處在于它使用了結構子類型(SST)。
 
 ```rust
-// Status 和 ExtraStatus 之间没有关系。
+// Status 和 ExtraStatus 之間沒有關系。
 enum Status { Ok, Error }
 enum ExtraStatus { Ok, Error, Unknown }
 
-// 可实施的方法
+// 可實施的方法
 impl Status {
     // ...
 }
@@ -61,19 +61,19 @@ ExtraStatus = Trait {"Ok", "Error", "Unknown"}
     # ...
 ```
 
-方法也可以通过补丁添加。
+方法也可以通過補丁添加。
 
-使用“或”运算符明确指示包含或向现有 Enum 类型添加选项。
+使用“或”運算符明確指示包含或向現有 Enum 類型添加選項。
 
 ```python
 ExtraStatus = Status or {"Unknown"}
 ```
 
-一个元素所属的所有类都相同的枚举类型称为同质枚举类型。
+一個元素所屬的所有類都相同的枚舉類型稱為同質枚舉類型。
 
-默认情况下，可以将需求类型为同类枚举类型的类视为元素所属类的子类。
+默認情況下，可以將需求類型為同類枚舉類型的類視為元素所屬類的子類。
 
-如果您不想这样做，可以将其设为包装类
+如果您不想這樣做，可以將其設為包裝類
 
 ```python
 Abc = Class {"A", "B", "C"}
@@ -81,5 +81,5 @@ Abc.new("A").is_uppercase()
 
 OpaqueAbc = Class {inner = {"A", "B", "C"}}.
     new inner: {"A", "B", "C"} = Self.new {inner;}
-OpaqueAbc.new("A").is_uppercase() # 类型错误
+OpaqueAbc.new("A").is_uppercase() # 類型錯誤
 ```

@@ -1,4 +1,4 @@
-# 名义子类型与结构子类型
+# 名義子類型與結構子類型
 
 ```python
 Months = 0..12
@@ -27,17 +27,17 @@ assert 12 in Months
 assert 2.name() == "February"
 assert not 12 in MonthsClass
 assert MonthsClass.new(12) in MonthsClass
-# 它可以使用结构类型，即使包装在一个类中。
+# 它可以使用結構類型，即使包裝在一個類中。
 assert MonthsClass.new(12) in Months
-# 如果两者都存在，则类方法优先
+# 如果兩者都存在，則類方法優先
 assert MonthsClass.new(2).name() == "february"
 ```
 
-## 最后，我应该使用哪个，NST 还是 SST？
+## 最后，我應該使用哪個，NST 還是 SST？
 
-如果您无法决定使用哪一个，我们的建议是 NST。
-SST 需要抽象技能来编写在任何用例中都不会崩溃的代码。 好的抽象可以带来高生产力，但错误的抽象(外观上的共性)会导致适得其反的结果。(NST 可以通过故意将抽象保持在最低限度来降低这种风险。如果您不是库实现者，那么仅使用 NST 进行编码并不是一个坏主意。
+如果您無法決定使用哪一個，我們的建議是 NST。
+SST 需要抽象技能來編寫在任何用例中都不會崩潰的代碼。 好的抽象可以帶來高生產力，但錯誤的抽象(外觀上的共性)會導致適得其反的結果。(NST 可以通過故意將抽象保持在最低限度來降低這種風險。如果您不是庫實現者，那么僅使用 NST 進行編碼并不是一個壞主意。
 
 <p align='center'>
-    <a href='./04_class.md'>上一页</a> | <a href='./06_inheritance.md'>下一页</a>
+    <a href='./04_class.md'>上一頁</a> | <a href='./06_inheritance.md'>下一頁</a>
 </p>

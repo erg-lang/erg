@@ -1,7 +1,7 @@
 # Operator [...T], O
 
-是运算符的类型
+是運算符的類型
 
-## 定义
+## 定義
 
 Inherit Func [...T], O

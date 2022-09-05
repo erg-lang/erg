@@ -1,6 +1,6 @@
 # Interval begin, end := WellOrder
 
-表示有序集合类型 (WellOrder) 的子类型的类型。Interval 类型具有派生类型，例如 PreOpen(x<..y)。
+表示有序集合類型 (WellOrder) 的子類型的類型。Interval 類型具有派生類型，例如 PreOpen(x<..y)。
 
 ```python
 Months = 1..12
@@ -10,9 +10,9 @@ Winter = November..December or January..February
 ```
 
 ```python
-0..1 # 整数范围
-0.0..1.0 # 真实(有理)范围
+0..1 # 整數范圍
+0.0..1.0 # 真實(有理)范圍
 # 或 0/1..1/1 相同
 ```
 
-计算机无法处理无限位数的数字，所以实数的范围实际上是有理数的范围。
+計算機無法處理無限位數的數字，所以實數的范圍實際上是有理數的范圍。

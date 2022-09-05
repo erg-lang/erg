@@ -1,22 +1,22 @@
-# 模块`repl`
+# 模塊`repl`
 
-提供REPL(Read-Eval-Print-Loop)相关的API。
+提供REPL(Read-Eval-Print-Loop)相關的API。
 
 ## 功能
 
 * `gui_help`
 
-在浏览器中查看有关对象的信息。 可以离线使用。
+在瀏覽器中查看有關對象的信息。 可以離線使用。
 
-## 类型
+## 類型
 
-### 猜测 = 对象
+### 猜測 = 對象
 
 #### 方法
 
 * `.guess`
 
-在给定参数和返回值的情况下推断函数。
+在給定參數和返回值的情況下推斷函數。
 
 ```python
 1.guess((1,), 2) # <Int.__add__ method>

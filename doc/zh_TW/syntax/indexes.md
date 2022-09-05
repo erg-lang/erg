@@ -1,12 +1,12 @@
-# 指数
+# 指數
 
-有关不在此索引中的 API，请参阅 [此处](../API/index.md)。
-有关术语，请参见 [此处](../dev_guide/terms.md)。
+有關不在此索引中的 API，請參閱 [此處](../API/index.md)。
+有關術語，請參見 [此處](../dev_guide/terms.md)。
 
-## 符号
+## 符號
 
 * !
-  * !-type → [可变性](./type/mut.md)
+  * !-type → [可變性](./type/mut.md)
 * [&#35;](./00_basic.md/#comment)
 * $
 * %
@@ -24,10 +24,10 @@
   * &minus;_ → &minus; (前置)
 * &minus; (中置)
   * &minus;>
-* . → [可见性]
+* . → [可見性]
 * /
 * :
-  * :: → [可见性]
+  * :: → [可見性]
 * ;
 * &lt;
   * &lt;:

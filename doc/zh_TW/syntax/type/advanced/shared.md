@@ -1,7 +1,7 @@
-# 共享参考
+# 共享參考
 
-共享引用是必须小心处理的语言特性之一。
-例如，在 TypeScript 中，以下代码将通过类型检查。
+共享引用是必須小心處理的語言特性之一。
+例如，在 TypeScript 中，以下代碼將通過類型檢查。
 
 ```typescript
 class NormalMember {}
@@ -14,12 +14,12 @@ normal_area.push(new NormalMember())
 console.log(vip_area) # [NormalMember]
 ```
 
-一个 NormalMember 已进入 vip_area。 这是一个明显的错误，但是出了什么问题？
-原因是共享引用 [denatured](./variance.md)。 `normal_area` 是通过复制 `vip_area` 来创建的，但是这样做的时候类型已经改变了。
-但是 `VIPMember` 继承自 `NormalMember`，所以 `VIPMember[] <: NormalMember[]`，这不是问题。
-关系 `VIPMember[] <: NormalMember[]` 适用于不可变对象。 但是，如果您执行上述破坏性操作，则会出现故障。
+一個 NormalMember 已進入 vip_area。 這是一個明顯的錯誤，但是出了什么問題？
+原因是共享引用 [denatured](./variance.md)。 `normal_area` 是通過復制 `vip_area` 來創建的，但是這樣做的時候類型已經改變了。
+但是 `VIPMember` 繼承自 `NormalMember`，所以 `VIPMember[] <: NormalMember[]`，這不是問題。
+關系 `VIPMember[] <: NormalMember[]` 適用于不可變對象。 但是，如果您執行上述破壞性操作，則會出現故障。
 
-在 Erg 中，由于所有权系统，此类代码会被回放。
+在 Erg 中，由于所有權系統，此類代碼會被回放。
 
 ```python
 NormalMember = Class()
@@ -29,20 +29,20 @@ vip_area = [].into [VIPMember; !_]
 normal_area: [NormalMember; !_] = vip_area
 
 normal_area.push!(NormalMember.new())
-log vip_area # 所有权错误：`vip_room` 已移至 `normal_room`
+log vip_area # 所有權錯誤：`vip_room` 已移至 `normal_room`
 ```
 
-然而，一个对象只属于一个地方可能会很不方便。
-出于这个原因，Erg 有一个类型 `SharedCell!T!`，它代表一个共享状态。
+然而，一個對象只屬于一個地方可能會很不方便。
+出于這個原因，Erg 有一個類型 `SharedCell!T!`，它代表一個共享狀態。
 
 ```python
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
-# 如果$p1 == $p2，比较内容类型Int！
+# 如果$p1 == $p2，比較內容類型Int！
 assert $p1 == $p2
 assert $p1 == $p3
-# 检查 $p1 和 $p2 是否用 `.addr!` 指向同一个东西。
+# 檢查 $p1 和 $p2 是否用 `.addr!` 指向同一個東西。
 assert $p1.addr!() == $p2.addr!()
 assert $p1.addr!() != $p3.addr!()
 $p1.add! 1
@@ -51,19 +51,19 @@ assert $p2 == 2
 assert $p3 == 1
 ```
 
-`SharedCell!` 类型的对象必须以`$` 为前缀。 此外，就其性质而言，它们不可能是常数。
+`SharedCell!` 類型的對象必須以`$` 為前綴。 此外，就其性質而言，它們不可能是常數。
 
-`SharedCell！ T!` 类型也是 `T!` 的子类型，可以调用 `T!` 类型的方法。 `SharedCell!T!` 类型特有的唯一方法是 `.addr!`、`.mirror!` 和 `.try_take`。
+`SharedCell！ T!` 類型也是 `T!` 的子類型，可以調用 `T!` 類型的方法。 `SharedCell!T!` 類型特有的唯一方法是 `.addr!`、`.mirror!` 和 `.try_take`。
 
-一个重要的事实是`SharedCell! T!` 是非变体的，即没有为不同类型的参数定义包含。
+一個重要的事實是`SharedCell! T!` 是非變體的，即沒有為不同類型的參數定義包含。
 
 ```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
-$normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() #类型错误：预期 SharedCell！([NormalMember；！_])，但得到 SharedCell！([VIPMember;!_])
-# 提示：SharedCell!(T) 是非变体的，这意味着它不能有超类型或子类型。
+$normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() #類型錯誤：預期 SharedCell！([NormalMember；！_])，但得到 SharedCell！([VIPMember;!_])
+# 提示：SharedCell!(T) 是非變體的，這意味著它不能有超類型或子類型。
 ```
 
-但是，下面的代码没有问题。 在最后一行，它是 `VIPMember` 参数已被类型转换
+但是，下面的代碼沒有問題。 在最后一行，它是 `VIPMember` 參數已被類型轉換
 
 ```python
 $normal_area = SharedCell!.new([].into [NormalMember; !_])

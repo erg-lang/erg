@@ -1,10 +1,10 @@
-# 词汇表
+# 詞匯表
 
 ## 象征
 
 ### &excl;
 
-添加到标识符末尾的标记以指示它是过程，变量类型或变异运算符。
+添加到標識符末尾的標記以指示它是過程，變量類型或變異運算符。
 
 ### [&#35;](../syntax/00_basic.md/# comment)
 
@@ -234,7 +234,7 @@
 
 ### [Assertion]
 
-检查(通常在运行时)代码中的条件是否为真。 这是使用 `assert` 函数等来完成的。
+檢查(通常在運行時)代碼中的條件是否為真。 這是使用 `assert` 函數等來完成的。
 
 ```python
 sum = !0
@@ -244,42 +244,42 @@ for! 0..10, i =>
 assert sum == 55
 ```
 
-### 值对象
+### 值對象
 
-在 Erg 中，相当于基础对象。 它可以在编译时进行评估，并且具有简单的比较方法。
+在 Erg 中，相當于基礎對象。 它可以在編譯時進行評估，并且具有簡單的比較方法。
 
-### [附件补丁](../syntax/29_decorator.md#attach)
+### [附件補丁](../syntax/29_decorator.md#attach)
 
-为特征提供标准实现的补丁。
+為特征提供標準實現的補丁。
 
-### Ad hoc 多态性 -> [无重载](../syntax/type/overloading.md)
+### Ad hoc 多態性 -> [無重載](../syntax/type/overloading.md)
 
-具有所谓重载的多态性。
+具有所謂重載的多態性。
 
-### 属性-> [属性]
+### 屬性-> [屬性]
 
-`x.y` 标识符中的 `y` 部分。
+`x.y` 標識符中的 `y` 部分。
 
 ### Arity
 
-运算符需要多少个操作数。
+運算符需要多少個操作數。
 
-### [依赖类型](../syntax/type/dependent_type.md)
+### [依賴類型](../syntax/type/dependent_type.md)
 
-参数是值的类型(习惯上说，不是类型)。
+參數是值的類型(習慣上說，不是類型)。
 
-### 不可变 -> [不可变]
+### 不可變 -> [不可變]
 
-表示目标不会改变。
-其他语言中的变量也是不可变/可变的，但是在 Erg 中所有的变量都是不可变的。
+表示目標不會改變。
+其他語言中的變量也是不可變/可變的，但是在 Erg 中所有的變量都是不可變的。
 
-### 参数 -> [参数]
+### 參數 -> [參數]
 
-### 实例
+### 實例
 
-由类创建的对象。 类类型的元素。
+由類創建的對象。 類類型的元素。
 
-### [即时封锁](../syntax/00_basic.md#expression separator)
+### [即時封鎖](../syntax/00_basic.md#expression separator)
 
 ```python
 x =
@@ -288,401 +288,401 @@ x =
     y+z
 ```
 
-### 指数
+### 指數
 
-形式为“x[i]”，或其“i”部分。我们称 `x` 为 Indexable 对象。
+形式為“x[i]”，或其“i”部分。我們稱 `x` 為 Indexable 對象。
 
-### [缩进](../syntax/00_basic.md#indent)
+### [縮進](../syntax/00_basic.md#indent)
 
-通过向空格移动将文本向右对齐。缩进。
-Ergs 通过缩进表示块。这称为越位规则。
+通過向空格移動將文本向右對齊。縮進。
+Ergs 通過縮進表示塊。這稱為越位規則。
 
-### 别名
+### 別名
 
-别名。
+別名。
 
-### 错误
+### 錯誤
 
-规范中定义的异常情况。
+規范中定義的異常情況。
 
-* [错误处理]
+* [錯誤處理]
 
-### [运算符](../syntax/06_operator.md)
+### [運算符](../syntax/06_operator.md)
 
-将操作应用于其操作数的对象。或表示该对象的符号。
+將操作應用于其操作數的對象。或表示該對象的符號。
 
-* [运算符绑定强度]
+* [運算符綁定強度]
 
-### 覆盖
+### 覆蓋
 
-在子类中覆盖超类方法。
-在 Erg 中，您必须在覆盖时添加 `Override` 装饰器。
+在子類中覆蓋超類方法。
+在 Erg 中，您必須在覆蓋時添加 `Override` 裝飾器。
 
-### [不重载](../syntax/type/overloading.md)
+### [不重載](../syntax/type/overloading.md)
 
-### 越位规则-> [缩进](../syntax/00_basic.md#indent)
+### 越位規則-> [縮進](../syntax/00_basic.md#indent)
 
 ### [目的]
 
-* 面向对象
+* 面向對象
 
-### 操作数 -> [操作数](../syntax/06_operator.md)
+### 操作數 -> [操作數](../syntax/06_operator.md)
 
-### 运算符 -> [运算符](../syntax/06_operator.md)
+### 運算符 -> [運算符](../syntax/06_operator.md)
 
-##嘉线
+##嘉線
 
-### [种类](../syntax/type/advanced/kind.md)
+### [種類](../syntax/type/advanced/kind.md)
 
-所谓类型的类型。
+所謂類型的類型。
 
-### [可见性]
+### [可見性]
 
-标识符是否可以被外部引用(超出范围，或在另一个模块或包中)的属性。
+標識符是否可以被外部引用(超出范圍，或在另一個模塊或包中)的屬性。
 
-### [类型]
+### [類型]
 
-对术语进行分组的对象。
+對術語進行分組的對象。
 
-* [类型规格]
-* [类型擦除](../syntax/type/advanced/erasure.md)
-* [类型推断]
-* [类型注释](../syntax/type/conv_type.md)
-* [类型参数]
-* [类型添加](../syntax/type/advanced/erasure.md)
-* [类型变量](../syntax/type/type_variable.md)
-* [类型约束]
+* [類型規格]
+* [類型擦除](../syntax/type/advanced/erasure.md)
+* [類型推斷]
+* [類型注釋](../syntax/type/conv_type.md)
+* [類型參數]
+* [類型添加](../syntax/type/advanced/erasure.md)
+* [類型變量](../syntax/type/type_variable.md)
+* [類型約束]
 
-### 监视
+### 監視
 
-### 封装
+### 封裝
 
-隐藏实现细节。
+隱藏實現細節。
 
-### [多变的]
+### [多變的]
 
-不能是一成不变的。
+不能是一成不變的。
 
-* [可变对象]
-* [多变的]
-* [变量参考]
-* [变量数组]
-* [可变参数]
+* [可變對象]
+* [多變的]
+* [變量參考]
+* [變量數組]
+* [可變參數]
 
-### [函数](../syntax/04_function.md)
+### [函數](../syntax/04_function.md)
 
-没有副作用的子程序。
+沒有副作用的子程序。
 
-* [函数式编程](../syntax/23_scope.md#避免可变状态函数式编程)
+* [函數式編程](../syntax/23_scope.md#避免可變狀態函數式編程)
 
-### 基本类型
+### 基本類型
 
 ###主格
 
-通过名称而不是对称结构来区分。
+通過名稱而不是對稱結構來區分。
 
-* [命名类型] -> [类](../syntax/type/04_class.md)
-* [报喜]
-* [名义子类型](../syntax/type/05_nst_vs_sst.md)
+* [命名類型] -> [類](../syntax/type/04_class.md)
+* [報喜]
+* [名義子類型](../syntax/type/05_nst_vs_sst.md)
 
-### 捕获-> [关闭]
+### 捕獲-> [關閉]
 
-### [协变]
+### [協變]
 
-在 Erg 中，如果 `T <: U` 则 `K(T) <: K(U)` 则称 `K` 是协变的。
+在 Erg 中，如果 `T <: U` 則 `K(T) <: K(U)` 則稱 `K` 是協變的。
 
-### [关键字参数]
+### [關鍵字參數]
 
-`k` 以函数调用 `f(k: v)` 的形式出现。您可以通过形式参数名称而不是按顺序指定实际参数。
+`k` 以函數調用 `f(k: v)` 的形式出現。您可以通過形式參數名稱而不是按順序指定實際參數。
 
 ### 空集 -> [{}]
 
 ### 部分
 
-* [区间类型](../syntax/type/11_interval.md)
-* 区间运算符
+* [區間類型](../syntax/type/11_interval.md)
+* 區間運算符
 
 ### 嵌入式
 
-Erg 标准 API 未在 .er 文件中实现。
+Erg 標準 API 未在 .er 文件中實現。
 
-### [类](../syntax/type/04_class.md)
+### [類](../syntax/type/04_class.md)
 
-具有继承功能的结构/抽象数据类型。在 Erg 中，它是一种实现命名子类型化和覆盖的类型。
-在 Erg 中，模块是模块对象负责，类型是类型对象，而其他语言可能负责模块和类型。
+具有繼承功能的結構/抽象數據類型。在 Erg 中，它是一種實現命名子類型化和覆蓋的類型。
+在 Erg 中，模塊是模塊對象負責，類型是類型對象，而其他語言可能負責模塊和類型。
 
-### [关闭]
+### [關閉]
 
-### [全局变量]
+### [全局變量]
 
 ### [克隆]
 
-### [继承](../syntax/type/07_inheritance.md)
+### [繼承](../syntax/type/07_inheritance.md)
 
-定义一个类是另一个类的父类集。
-继承的类称为超类，继承的类称为子类。
-子类具有其超类的所有功能。
+定義一個類是另一個類的父類集。
+繼承的類稱為超類，繼承的類稱為子類。
+子類具有其超類的所有功能。
 
-### 高楼层
+### 高樓層
 
-* [高阶种类](../syntax/type/advanced/kind.md)
-* 高阶类型
-* 高阶函数
+* [高階種類](../syntax/type/advanced/kind.md)
+* 高階類型
+* 高階函數
 
-### [公共变量]
+### [公共變量]
 
-### [结构子类型]
+### [結構子類型]
 
 ### ~~后向引用~~ -> [后向引用]
 
-### [复制]
+### [復制]
 
-### 评论
+### 評論
 
 ### [集合](../syntax/10_array.md)
 
-### 冒号 -> [:]
+### 冒號 -> [:]
 
-### [构造函数](../syntax/type/04_class.md)
+### [構造函數](../syntax/type/04_class.md)
 
 ### 容器
 
-### 编译器
+### 編譯器
 
-### [编译时计算](../syntax/04_function.md#compile-time function)
+### [編譯時計算](../syntax/04_function.md#compile-time function)
 
-### 逗号 -> [,]
+### 逗號 -> [,]
 
-## sa线
+## sa線
 
-### 递归
+### 遞歸
 
-参考自己。
+參考自己。
 
-* 递归
-* [递归函数](../syntax/04_function.md#递归函数)
+* 遞歸
+* [遞歸函數](../syntax/04_function.md#遞歸函數)
 
-### 下标 -> [索引]
+### 下標 -> [索引]
 
-### [子类型多态性](../syntax/type/overloading.md)
+### [子類型多態性](../syntax/type/overloading.md)
 
-具有子类型的多态性。子类型对应于类型中的集合包含。
+具有子類型的多態性。子類型對應于類型中的集合包含。
 
 ### 子程序
 
-模块化处理的对象。 Erg 中函数、过程和方法的通用术语。
+模塊化處理的對象。 Erg 中函數、過程和方法的通用術語。
 
-### [参考](../syntax/18_memory_management.md#borrowed)
+### [參考](../syntax/18_memory_management.md#borrowed)
 
-* 参考对象
-* [引用计数 (RC)](../syntax/18_memory_management.md#memory management)
+* 參考對象
+* [引用計數 (RC)](../syntax/18_memory_management.md#memory management)
 * 引用相等 -> [副作用](../syntax/07_side_effect.md)
 
-### [标识符](../syntax/02_variable.md/# 赋值)
+### [標識符](../syntax/02_variable.md/# 賦值)
 
-### 签名
+### 簽名
 
-* 类型签名
+* 類型簽名
 
 ### [dict](../syntax/11_dict.md)
 
-### 自然数 -> Nat
+### 自然數 -> Nat
 
 ### 泛型 -> 泛型
 
-### 发电机
+### 發電機
 
-### 投影类型
+### 投影類型
 
-### 借用-> [参考](../syntax/18_memory_management.md#borrowed)
+### 借用-> [參考](../syntax/18_memory_management.md#borrowed)
 
-### [阴影](../syntax/02_name.md# variables)
+### [陰影](../syntax/02_name.md# variables)
 
-通过在内部范围内定义具有相同名称的变量来覆盖对变量的引用。
+通過在內部范圍內定義具有相同名稱的變量來覆蓋對變量的引用。
 
 ### kind -> [kind](../syntax/type/advanced/kind.md)
 
-大致类型的类型。
+大致類型的類型。
 
 ### set -> set
 
-在 Erg 中，它表示一个 Set 对象。
+在 Erg 中，它表示一個 Set 對象。
 
-### 谓词
+### 謂詞
 
-* 谓词函数
+* 謂詞函數
 
-返回布尔类型的函数。
+返回布爾類型的函數。
 
-### 条件分支
+### 條件分支
 
-### 所有权
+### 所有權
 
-对象唯一性的概念。
-如果您拥有对象的所有权，则可以使用 mutable 参考它。
+對象唯一性的概念。
+如果您擁有對象的所有權，則可以使用 mutable 參考它。
 
 ###  Boolean -> Bool
 
-### 单例
+### 單例
 
-从只能创建一个实例的类创建的实例。一种设计模式，可确保只创建一个类的一个实例。
+從只能創建一個實例的類創建的實例。一種設計模式，可確保只創建一個類的一個實例。
 
 ### [Symbol] -> [Identifier](../syntax/02_name.md)
 
-* 符号化
+* 符號化
 
-### [脚本](../syntax/00_basic.md# 脚本)
+### [腳本](../syntax/00_basic.md# 腳本)
 
 包含 Erg 程序的文件。
 
-### 范围
+### 范圍
 
-变量管理单元。外部作用域不能引用内部作用域中存在的变量。
-当范围退出时，引用计数为 0 的对象将被释放。
+變量管理單元。外部作用域不能引用內部作用域中存在的變量。
+當范圍退出時，引用計數為 0 的對象將被釋放。
 
-### 扩展运算符 -> expansion assignment
+### 擴展運算符 -> expansion assignment
 
 ### [切片](../syntax/10_array.md#slice)
 
-表示数组子序列的对象，以 `x[a..b]` 的形式生成。
+表示數組子序列的對象，以 `x[a..b]` 的形式生成。
 
 ### 控制字符
 
-### 整数 -> Int
+### 整數 -> Int
 
-一组自然数加上负数。
+一組自然數加上負數。
 
-### [设置](../syntax/12_set.md)
+### [設置](../syntax/12_set.md)
 
-### 分号 -> ;
+### 分號 -> ;
 
-### [声明](../syntax/03_declaration.md)
+### [聲明](../syntax/03_declaration.md)
 
-显式类型变量。
+顯式類型變量。
 
 ### 全名
 
-* 通用类型 -> [多态类型](../syntax/type/quantified.md)
-  * 封闭式通用
-  * 打开通用
-* 通用函数 -> 多相关函数
+* 通用類型 -> [多態類型](../syntax/type/quantified.md)
+  * 封閉式通用
+  * 打開通用
+* 通用函數 -> 多相關函數
 * 通用量化
 
-### 前缀运算符
+### 前綴運算符
 
-运算符 `∘` 以 `∘x` 的形式应用。
+運算符 `°` 以 `°x` 的形式應用。
 
-### 相互递归
+### 相互遞歸
 
-### 下标 -> index
+### 下標 -> index
 
-### 属性
+### 屬性
 
-* 属性子类型
+* 屬性子類型
 
-## 塔线
+## 塔線
 
-### [代数](../syntax/02_name.md)
+### [代數](../syntax/02_name.md)
 
-* [代数类型](../syntax/type/13_algebraic.md)
-* 代数数据类型
+* [代數類型](../syntax/type/13_algebraic.md)
+* 代數數據類型
 
-### [赋值](../syntax/02_variable.md/#assignment)
+### [賦值](../syntax/02_variable.md/#assignment)
 
 ＃＃＃ 多
 
-* [多重继承](../syntax/type/07_inheritance.md/#禁止多重继承)
-* 多重赋值
-* 重载 -> [不重载]
+* [多重繼承](../syntax/type/07_inheritance.md/#禁止多重繼承)
+* 多重賦值
+* 重載 -> [不重載]
 
-### 多态性
+### 多態性
 
-* [多态类型](../syntax/type/quantified.md)
-* 多相关系数
+* [多態類型](../syntax/type/quantified.md)
+* 多相關系數
 
-### 多态性 -> [多态性]
+### 多態性 -> [多態性]
 
-### 鸭子类型
+### 鴨子類型
 
-### [元组](../syntax/11_tuple.md)
+### [元組](../syntax/11_tuple.md)
 
-### 单相
+### 單相
 
-* 单相
-* 单相型
-* 单相关系数
+* 單相
+* 單相型
+* 單相關系數
 
-### [延迟初始化]
+### [延遲初始化]
 
 ### 提取分配
 
-### 抽象语法树 -> [AST]
+### 抽象語法樹 -> [AST]
 
-### 中缀运算符
+### 中綴運算符
 
-运算符 `∘` 以 `x∘y` 的形式应用。
+運算符 `°` 以 `x°y` 的形式應用。
 
-### [常数](../syntax/02_name.md/#constant)
+### [常數](../syntax/02_name.md/#constant)
 
-不可变的，编译时可评估的代数。
+不可變的，編譯時可評估的代數。
 
-* [常量类型](../syntax/type/advanced/const.md)
-* [常量表达式](../syntax/type/advanced/const.md)
+* [常量類型](../syntax/type/advanced/const.md)
+* [常量表達式](../syntax/type/advanced/const.md)
 
-### 定义
+### 定義
 
-分配与变量对应的对象。
+分配與變量對應的對象。
 
-### 提供的属性
+### 提供的屬性
 
-可作为 API 使用的属性。特别是由特征自动实现的属性。
+可作為 API 使用的屬性。特別是由特征自動實現的屬性。
 
-＃＃＃ 申请
+＃＃＃ 申請
 
-将参数传递给函数对象并获取评估结果。
+將參數傳遞給函數對象并獲取評估結果。
 
-### [装饰器](../syntax/29_decorator.md)
+### [裝飾器](../syntax/29_decorator.md)
 
 ``` python
 @deco
 f x = ...
 ```
 
-语法糖，或“装饰”。大致等于`_f x = ...; f = 装饰 _f`。 `deco` 本身只是一个高阶子程序。
+語法糖，或“裝飾”。大致等于`_f x = ...; f = 裝飾 _f`。 `deco` 本身只是一個高階子程序。
 
-### 析构函数
+### 析構函數
 
-对象被销毁时调用的方法。
+對象被銷毀時調用的方法。
 
 ### 程序 -> [procedure](../syntax/08_procedure.md)
 
-读取和写入可变状态的子程序。
-有时会说程序的执行结果可以根据调用过程的顺序而改变，但如果我们谈论交换性，这是不正确的。
-例如，作为函数子类型的运算符通常不可交换。
+讀取和寫入可變狀態的子程序。
+有時會說程序的執行結果可以根據調用過程的順序而改變，但如果我們談論交換性，這是不正確的。
+例如，作為函數子類型的運算符通常不可交換。
 
-### [默认参数](../syntax/04_function.md/#default arguments default-parameters)
+### [默認參數](../syntax/04_function.md/#default arguments default-parameters)
 
-通过指定形式参数的默认值，可以在调用时省略实际参数的指定的函数。
+通過指定形式參數的默認值，可以在調用時省略實際參數的指定的函數。
 
-＃＃＃ 扩张
+＃＃＃ 擴張
 
-* 扩展运算符
-* 扩展分配
+* 擴展運算符
+* 擴展分配
 
 ### [特殊格式](../syntax/../API/special.md)
 
-不能作为实际参数传递的对象。
+不能作為實際參數傳遞的對象。
 
-### 匿名函数 -> [anonymous function](../syntax/20_lambda.md)
+### 匿名函數 -> [anonymous function](../syntax/20_lambda.md)
 
-由匿名函数运算符`->`创建的函数对象。可以在不定义名称的情况下使用。
+由匿名函數運算符`->`創建的函數對象。可以在不定義名稱的情況下使用。
 
-### 点运算符 (`.`) -> attribute reference
+### 點運算符 (`.`) -> attribute reference
 
-### 顶部
+### 頂部
 
-* 顶部类型 -> [结构对象]
-* 顶级 -> [对象]
+* 頂部類型 -> [結構對象]
+* 頂級 -> [對象]
 
 ### [特征](../syntax/type/03_trait.md)
 
@@ -690,15 +690,15 @@ f x = ...
 
 ### [理解](../syntax/27_comprehension.md)
 
-### ~~中缀运算符~~ -> 中缀运算符
+### ~~中綴運算符~~ -> 中綴運算符
 
-### 命名空间
+### 命名空間
 
 ## 是一行
 
-### [数组](../syntax/10_array.md)
+### [數組](../syntax/10_array.md)
 
-### [派生类型](../syntax/type/variances.md/# 用户定义的类型变体)
+### [派生類型](../syntax/type/variances.md/# 用戶定義的類型變體)
 
 ### [模式(匹配)](../syntax/26_pattern_matching.md)
 
@@ -706,87 +706,87 @@ f x = ...
 
 ### hashmap -> [dict](../syntax/11_dict.md)
 
-### [补丁](../syntax/type/07_patch.md)
+### [補丁](../syntax/type/07_patch.md)
 
-### 公共变量-> [public variables](../syntax/19_visibility.md)
+### 公共變量-> [public variables](../syntax/19_visibility.md)
 
-### 参数 -> [argument](../syntax/04_function.md)
+### 參數 -> [argument](../syntax/04_function.md)
 
-### [参数多态](../syntax/type/overloading.md)
+### [參數多態](../syntax/type/overloading.md)
 
-### [逆变](../syntax/type/advanced/variance.md)
+### [逆變](../syntax/type/advanced/variance.md)
 
 ### 相比
 
-* 比较运算符
-* 可比类型
+* 比較運算符
+* 可比類型
 
-### [私有变量](../syntax/19_visibility.md)
+### [私有變量](../syntax/19_visibility.md)
 
-### 标准
+### 標準
 
-* 标准输出
-* 标准输入
-* 标准库
+* 標準輸出
+* 標準輸入
+* 標準庫
 
 ### [副作用](../syntax/07_side_effect.md)
 
-代码应该/不应该读/写外部可变状态。
+代碼應該/不應該讀/寫外部可變狀態。
 
-### 复数 -> 复数
+### 復數 -> 復數
 
-### 浮动 -> 浮动
+### 浮動 -> 浮動
 
-### 私有变量 -> 私有变量
+### 私有變量 -> 私有變量
 
-### 布尔代数-> Bool
+### 布爾代數-> Bool
 
 ### [程序](../syntax/08_procedure.md)
 
-### [参数](../syntax/04_function.md)
+### [參數](../syntax/04_function.md)
 
-### 部分类型 -> Subtyping
+### 部分類型 -> Subtyping
 
-### [不可变]
+### [不可變]
 
-在 Erg 中，一个对象永远不应该改变它的内容。
+在 Erg 中，一個對象永遠不應該改變它的內容。
 
-* [不可变对象]
-* [不可变类型]
-* [不可变引用]
+* [不可變對象]
+* [不可變類型]
+* [不可變引用]
 
-### [筛子类型](../syntax/type/12_refinement.md)
+### [篩子類型](../syntax/type/12_refinement.md)
 
 ### [堵塞]
 
-### 解构赋值
+### 解構賦值
 
-### [变量](../syntax/02_variable.md)
+### [變量](../syntax/02_variable.md)
 
 ### 底部
 
-* 底部类型 -> [{}]
-* 底层 -> [从不]
+* 底部類型 -> [{}]
+* 底層 -> [從不]
 
-### [多态性]
+### [多態性]
 
 ## ma line
 
-### ~~ 前缀运算符 ~~ -> 前缀运算符
+### ~~ 前綴運算符 ~~ -> 前綴運算符
 
-### [标记类型](../syntax/type/advanced/marker_trait.md)
+### [標記類型](../syntax/type/advanced/marker_trait.md)
 
-### [匿名函数](../syntax/21_lambda.md)
+### [匿名函數](../syntax/21_lambda.md)
 
-### 可变 -> [可变]
+### 可變 -> [可變]
 
-### [移动]
+### [移動]
 
 ### 方法
 
 ### 元字符
 
-### [模块](../syntax/24_module.md)
+### [模塊](../syntax/24_module.md)
 
 ### [字符串] -> [字符串]
 
@@ -796,43 +796,43 @@ f x = ...
 
 ## 或行
 
-### [幻像类型](../syntax/type/advanced/phantom.md)
+### [幻像類型](../syntax/type/advanced/phantom.md)
 
-### 请求属性
+### 請求屬性
 
 ### [元素]
 
-### [称呼]
+### [稱呼]
 
-## 拉线
+## 拉線
 
-### [图书馆]
+### [圖書館]
 
-### lambda 表达式 -> [匿名函数](../syntax/20_lambda.md)
+### lambda 表達式 -> [匿名函數](../syntax/20_lambda.md)
 
 ### 排名
 
-* [rank2 多态性](../syntax/type/advanced/rank2type.md)
+* [rank2 多態性](../syntax/type/advanced/rank2type.md)
 
 ### [文字](../syntax/01_literal.md)
 
-* [文字标识符](../syntax/18_naming_rule.md/#literal identifier)
+* [文字標識符](../syntax/18_naming_rule.md/#literal identifier)
 
 ### [量化](../syntax/type/quantified.md)
 
 ### [布局](../syntax/type/mut.md)
 
-### [枚举](../syntax/type/10_enum.md)
+### [枚舉](../syntax/type/10_enum.md)
 
-### [记录](../syntax/12_record.md)
+### [記錄](../syntax/12_record.md)
 
-* [记录类型]
-* 记录多态 -> Column Polymorphism
+* [記錄類型]
+* 記錄多態 -> Column Polymorphism
 
-### 列多态
+### 列多態
 
-### [局部变量](../syntax/19_visibility.md)
+### [局部變量](../syntax/19_visibility.md)
 
-## 线
+## 線
 
 ### 通配符

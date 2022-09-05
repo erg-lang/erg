@@ -1,12 +1,12 @@
-＃ 投掷
+＃ 投擲
 
-## 向上转型
+## 向上轉型
 
-因为 Python 是一种使用鸭子类型的语言，所以没有强制转换的概念。没有必要向上转型，本质上也没有向下转型。
-但是，Erg 是静态类型的，因此有时必须进行强制转换。
-一个简单的例子是 `1 + 2.0`：`+`(Int, Ratio) 或 Int(<: Add(Ratio, Ratio)) 操作在 Erg 语言规范中没有定义。这是因为 `Int <: Ratio`，所以 1 向上转换为 1.0，即 Ratio 的一个实例。
+因為 Python 是一種使用鴨子類型的語言，所以沒有強制轉換的概念。沒有必要向上轉型，本質上也沒有向下轉型。
+但是，Erg 是靜態類型的，因此有時必須進行強制轉換。
+一個簡單的例子是 `1 + 2.0`：`+`(Int, Ratio) 或 Int(<: Add(Ratio, Ratio)) 操作在 Erg 語言規范中沒有定義。這是因為 `Int <: Ratio`，所以 1 向上轉換為 1.0，即 Ratio 的一個實例。
 
-~~ Erg扩展字节码在BINARY_ADD中增加了类型信息，此时类型信息为Ratio-Ratio。在这种情况下，BINARY_ADD 指令执行 Int 的转换，因此没有插入指定转换的特殊指令。因此，例如，即使您在子类中重写了某个方法，如果您将父类指定为类型，则会执行类型强制，并在父类的方法中执行该方法(在编译时执行名称修改以引用父母的方法)。编译器只执行类型强制验证和名称修改。运行时不强制转换对象(当前。可以实现强制转换指令以优化执行)。 ~~
+~~ Erg擴展字節碼在BINARY_ADD中增加了類型信息，此時類型信息為Ratio-Ratio。在這種情況下，BINARY_ADD 指令執行 Int 的轉換，因此沒有插入指定轉換的特殊指令。因此，例如，即使您在子類中重寫了某個方法，如果您將父類指定為類型，則會執行類型強制，并在父類的方法中執行該方法(在編譯時執行名稱修改以引用父母的方法)。編譯器只執行類型強制驗證和名稱修改。運行時不強制轉換對象(當前。可以實現強制轉換指令以優化執行)。 ~~
 
 ```python
 @Inheritable
@@ -16,7 +16,7 @@ Parent.
 
 Child = Inherit Parent
 Child.
-    # Override 需要 Override 装饰器
+    # Override 需要 Override 裝飾器
     @Override
     greet!() = print! "Hello from Child"
 
@@ -25,11 +25,11 @@ greet! p: Parent = p.greet!()
 parent = Parent.new()
 child = Child.new()
 
-parent # 来自Parent的问候！
-child #  来自child的问候！
+parent # 來自Parent的問候！
+child #  來自child的問候！
 ```
 
-此行为不会造成与 Python 的不兼容。 首先，Python 没有指定变量的类型，所以可以这么说，所有的变量都是类型变量。 由于类型变量会选择它们可以适应的最小类型，因此如果您没有在 Erg 中指定类型，则可以实现与 Python 中相同的行为。
+此行為不會造成與 Python 的不兼容。 首先，Python 沒有指定變量的類型，所以可以這么說，所有的變量都是類型變量。 由于類型變量會選擇它們可以適應的最小類型，因此如果您沒有在 Erg 中指定類型，則可以實現與 Python 中相同的行為。
 
 ```python
 @Inheritable
@@ -46,11 +46,11 @@ greet! some = some.greet!()
 parent = Parent.new()
 child = Child.new()
 
-parent # 来自Parent的问候！
-child #  来自child的问候！
+parent # 來自Parent的問候！
+child #  來自child的問候！
 ```
 
-您还可以使用 `.from` 和 `.into`，它们会为相互继承的类型自动实现
+您還可以使用 `.from` 和 `.into`，它們會為相互繼承的類型自動實現
 
 ```python
 assert 1 == 1.0
@@ -58,9 +58,9 @@ assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
 ```
 
-## 向下转型
+## 向下轉型
 
-由于向下转换通常是不安全的并且转换方法很重要，我们改为实现“TryFrom.try_from”
+由于向下轉換通常是不安全的并且轉換方法很重要，我們改為實現“TryFrom.try_from”
 
 ```python
 IntTryFromFloat = Patch Int

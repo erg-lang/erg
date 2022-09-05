@@ -1,36 +1,36 @@
-# `erg` 概览
+# `erg` 概覽
 
-我们将介绍每一层的功能以及特别重要的功能和方法。
+我們將介紹每一層的功能以及特別重要的功能和方法。
 
-## 1. 词法分析
+## 1. 詞法分析
 
-* `Lexer` 进行词法分析。 `Lexer::next`(`Lexer`被实现为一个迭代器)负责词法分析的主要逻辑。 `Token` 作为解析的结果输出。
+* `Lexer` 進行詞法分析。 `Lexer::next`(`Lexer`被實現為一個迭代器)負責詞法分析的主要邏輯。 `Token` 作為解析的結果輸出。
 
 ## 2. 解析
 
-* `Parser` 进行解析。特别重要的是`Parser::parse_expr`。作为解析的结果，输出作为`ast::Expr`的集合的`AST`。
+* `Parser` 進行解析。特別重要的是`Parser::parse_expr`。作為解析的結果，輸出作為`ast::Expr`的集合的`AST`。
 
-## 3. 脱糖
+## 3. 脫糖
 
-* 脱糖由 `Desugarer` 完成。 `AST` 将被输出。
+* 脫糖由 `Desugarer` 完成。 `AST` 將被輸出。
 
-## 4. 类型检查/类型推断
+## 4. 類型檢查/類型推斷
 
-* `ASTLowerer` 进行打字。类型检查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`(确定子类型关系)、`Context::unify/sub_unify`(统一/半统一类型变量)、`Context::init_builtin_*`(定义内置 API)。 `HIR` 作为分析结果输出。
+* `ASTLowerer` 進行打字。類型檢查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`(確定子類型關系)、`Context::unify/sub_unify`(統一/半統一類型變量)、`Context::init_builtin_*`(定義內置 API)。 `HIR` 作為分析結果輸出。
 
-## 5. 副作用检查
+## 5. 副作用檢查
 
 * `SideEffectChecker` 可以。
 
-## 6. 所有权检查
+## 6. 所有權檢查
 
 * `OwnershipChecker` 可以。
 
-## 7. 字节码生成
+## 7. 字節碼生成
 
-* `CodeGenerator` 将 `HIR` 转换为 `CodeObj`。 `CodeObj` 保存字节码和执行配置。特别重要的是`CodeGenerator::compile_expr`。
+* `CodeGenerator` 將 `HIR` 轉換為 `CodeObj`。 `CodeObj` 保存字節碼和執行配置。特別重要的是`CodeGenerator::compile_expr`。
 
 ---
 
-* 以上所有的处理都是由`Compiler`作为一个门面组合起来的。
-* 当然 Python 会执行生成的字节码，称为 `DummyVM`。
+* 以上所有的處理都是由`Compiler`作為一個門面組合起來的。
+* 當然 Python 會執行生成的字節碼，稱為 `DummyVM`。

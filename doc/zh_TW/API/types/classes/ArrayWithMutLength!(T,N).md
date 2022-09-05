@@ -1,6 +1,6 @@
 # ArrayWithMutLength! T: Type, N: Nat&excl;
 
-一个可变长度数组，其长度在编译时已知。还有语法糖`ArrayWithMutLength(T, !N) == [T; !N]`
+一個可變長度數組，其長度在編譯時已知。還有語法糖`ArrayWithMutLength(T, !N) == [T; !N]`
 
 ## 方法
 
@@ -10,14 +10,14 @@
 
 * sample!(ref! self) -> T
 * sample! ref! self, M: Nat -> [T; M]
-  随机选择里面的一个元素并返回一个副本
+  隨機選擇里面的一個元素并返回一個副本
 
 * shuffle!(ref! self)
-  把里面的东西随机摆放
+  把里面的東西隨機擺放
 
 * assert_len ref! self(_ ~> N, ...), N: Nat -> () or Panic
-  验证长度。
-  `panic!` 如果长度无效。
+  驗證長度。
+  `panic!` 如果長度無效。
 
 ## Impl
 

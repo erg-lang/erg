@@ -1,15 +1,15 @@
-# Erg 代码如何转译成 Python 代码？
+# Erg 代碼如何轉譯成 Python 代碼？
 
-准确地说，Erg 代码被转译为 Python 字节码。
-但是，由于 Python 字节码几乎可以重构为 Python 代码，因此这里以等效的 Python 代码为例。
-顺便说一句，这里展示的示例是低优化级别。
-更高级的优化消除了不需要实例化的东西。
+準確地說，Erg 代碼被轉譯為 Python 字節碼。
+但是，由于 Python 字節碼幾乎可以重構為 Python 代碼，因此這里以等效的 Python 代碼為例。
+順便說一句，這里展示的示例是低優化級別。
+更高級的優化消除了不需要實例化的東西。
 
-## 记录，记录类型
+## 記錄，記錄類型
 
-它将被转译为一个命名元组。
-对于 namedtuple，请参阅 [此处](https://docs.python.jp/3/library/collections.html#collections.namedtuple)。
-有一个类似的函数，dataclass，但是由于 `__eq__` 和 `__hash__` 的自动实现，dataclass 的性能略有下降。
+它將被轉譯為一個命名元組。
+對于 namedtuple，請參閱 [此處](https://docs.python.jp/3/library/collections.html#collections.namedtuple)。
+有一個類似的函數，dataclass，但是由于 `__eq__` 和 `__hash__` 的自動實現，dataclass 的性能略有下降。
 
 ```python
 Employee = Class {.name = Str; .id = Int}
@@ -32,16 +32,16 @@ employee = Employee('John Smith', 100)
 assert employee.name == 'John Smith'
 ```
 
-如果可以进一步优化，它也将转换为简单的元组。
+如果可以進一步優化，它也將轉換為簡單的元組。
 
-## 多态类型
+## 多態類型
 
 > 在制品
 
-## 即时范围
+## 即時范圍
 
-如果没有发生命名空间冲突，它只会被破坏和扩展。
-`x::y` 等名称在字节码中使用，不能与 Python 代码关联，但如果强制表示，则会如下所示。
+如果沒有發生命名空間沖突，它只會被破壞和擴展。
+`x::y` 等名稱在字節碼中使用，不能與 Python 代碼關聯，但如果強制表示，則會如下所示。
 
 ```python
 x =
@@ -54,7 +54,7 @@ x::y = 1
 x = x::y + 1
 ```
 
-万一发生冲突，定义和使用只能在内部引用的函数。
+萬一發生沖突，定義和使用只能在內部引用的函數。
 
 ```python
 x =
@@ -70,10 +70,10 @@ def _():
 x = _()
 ```
 
-## 可见性
+## 可見性
 
-它对公共变量没有任何作用，因为它是 Python 的默认值。
-私有变量由 mangling 处理。
+它對公共變量沒有任何作用，因為它是 Python 的默認值。
+私有變量由 mangling 處理。
 
 ```python
 x=1

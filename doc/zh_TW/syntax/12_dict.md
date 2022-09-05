@@ -1,37 +1,37 @@
 # 字典
 
-Dict 是键/值对的集合。
+Dict 是鍵/值對的集合。
 
 ```python
 ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-如果键是“哈希”对象，则键不必是字符串。
+如果鍵是“哈希”對象，則鍵不必是字符串。
 
 ```python
-# 不推荐使用范围对象作为键(与切片混淆)
+# 不推薦使用范圍對象作為鍵(與切片混淆)
 r = {1..3: "1~3", 4..6: "4~6", 7..9: "7~9"}
 assert r[1..3] == "1~3"
 l = {[]: "empty", [1]: "1"}
 assert l[[]] == "empty"
 ```
 
-对于字典来说，顺序无关紧要。 它也不能有重复的元素。 在这方面，Dict 与 Set 类似。
-您可以说 Dict 是具有值的 Set。
+對于字典來說，順序無關緊要。 它也不能有重復的元素。 在這方面，Dict 與 Set 類似。
+您可以說 Dict 是具有值的 Set。
 
 ```python
 {"Alice": 145, "Bob": 214, "Charlie": 301} == {"Alice": 145, "Charlie": 301, "Bob": 214}
 ```
 
-从 dict 文字生成 dict 时，会检查重复键。
-任何重复都会导致编译错误。
+從 dict 文字生成 dict 時，會檢查重復鍵。
+任何重復都會導致編譯錯誤。
 
 ```python
-{"Alice": 145, "Alice": 1} # Key错误：重复键`Alice`
+{"Alice": 145, "Alice": 1} # Key錯誤：重復鍵`Alice`
 ```
 
-空字典是用 `{:}` 创建的。 请注意，`{}` 表示一个空集。
+空字典是用 `{:}` 創建的。 請注意，`{}` 表示一個空集。
 
 ```python
 mut_dict = !{:}
@@ -40,9 +40,9 @@ mut_dict.insert! "Bob", 214
 assert mut_dict["Alice"] == 145
 ```
 
-## 异构字典
+## 異構字典
 
-不需要有单一的键/值类型。 这样的字典称为 __heterogenous dict_。
+不需要有單一的鍵/值類型。 這樣的字典稱為 __heterogenous dict_。
 
 ```python
 d: {Str: Int, Int: Str} = {"a": 1, 1: "a"}
@@ -50,18 +50,18 @@ assert d["a"] == 1
 assert d[1] == "a"
 ```
 
-但是，不能将相同类型的值分配给不同类型的键，或者将不同类型的值分配给相同类型的键。
-在这种情况下，请改用 Or 类型。
+但是，不能將相同類型的值分配給不同類型的鍵，或者將不同類型的值分配給相同類型的鍵。
+在這種情況下，請改用 Or 類型。
 
 ```python
 invalid1 = {1: "a", "a": "b"}
 invalid2 = {1: "a", 2: 2}
 
-# Erg 类型推断不推断 Or 类型，因此需要类型说明
+# Erg 類型推斷不推斷 Or 類型，因此需要類型說明
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```
 
 <p align='center'>
-    <a href='./11_tuple.md'>上一页</a> | <a href='./13_record.md'>下一页</a>
+    <a href='./11_tuple.md'>上一頁</a> | <a href='./13_record.md'>下一頁</a>
 </p>

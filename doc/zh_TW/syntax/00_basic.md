@@ -1,46 +1,46 @@
 # 基本
 
-> __Warning__：本文档不完整。 它未经校对(样式、正确链接、误译等)。 此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。 请事先了解这一点。
-> 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。 我们将不胜感激您的建议。
+> __Warning__：本文檔不完整。 它未經校對(樣式、正確鏈接、誤譯等)。 此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，并且文檔可能沒有相應更新。 請事先了解這一點。
+> 如果您在本文檔中發現任何錯誤，請報告至 [此處的表單](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。 我們將不勝感激您的建議。
 >
 > [Erg原版(日文)](http://mtshiba.me/TheErgBook/)
 
-本文档描述 Erg 的基本语法。 [标准 API](./API/index.md) 和 [Erg 贡献者的内部文档](./dev_guide/index.md) 位于另一个目录中。
+本文檔描述 Erg 的基本語法。 [標準 API](./API/index.md) 和 [Erg 貢獻者的內部文檔](./dev_guide/index.md) 位于另一個目錄中。
 
 ## 你好，世界&excl;
 
-首先，让我们做“Hello World”。
+首先，讓我們做“Hello World”。
 
 ```python
 print!("Hello, World!")
 ```
 
-这与 Python 和同一家族中的其他语言几乎相同。 最显着的特征是`!`，后面会解释它的含义。
-在 Erg 中，括号 `()` 可以省略，除非在解释上有一些混淆。
-括号的省略与 Ruby 类似，但不能省略可以以多种方式解释的括号。
+這與 Python 和同一家族中的其他語言幾乎相同。 最顯著的特征是`!`，后面會解釋它的含義。
+在 Erg 中，括號 `()` 可以省略，除非在解釋上有一些混淆。
+括號的省略與 Ruby 類似，但不能省略可以以多種方式解釋的括號。
 
 ```python
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
-print! # OK, 但这并不意味着调用，只是将 `print!` 作为可调用对象
+print! # OK, 但這并不意味著調用，只是將 `print!` 作為可調用對象
 
-print! f x # OK, 解释为 `print!(f(x))`
+print! f x # OK, 解釋為 `print!(f(x))`
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, 可以理解为 `print!(f(x), y)` 或 `print!(f(x, y))` print!
+print! f x, y # NG, 可以理解為 `print!(f(x), y)` 或 `print!(f(x, y))` print!
 print!(f x, y) # NG, 可以表示“print！(f(x)，y)”或“print！(f(x，y))”
 print! f(x, g y, z) # NG, 可以表示“print！(x，g(y)，z)”或“print！(x，g(y，z))”
 ```
 
-## 脚本
+## 腳本
 
-Erg 代码称为脚本。 脚本可以以文件格式 (.er) 保存和执行。
+Erg 代碼稱為腳本。 腳本可以以文件格式 (.er) 保存和執行。
 
-## REPL/文件执行
+## REPL/文件執行
 
-要启动 REPL，只需键入：
+要啟動 REPL，只需鍵入：
 
 ```sh
 > erg
@@ -66,9 +66,9 @@ Or you can compile from a file.
 hello, world!
 ```
 
-## 注释
+## 注釋
 
-`#` 之后的代码作为注释被忽略。 使用它来解释代码的意图或暂时禁用代码。
+`#` 之后的代碼作為注釋被忽略。 使用它來解釋代碼的意圖或暫時禁用代碼。
 
 ```python
 # Comment
@@ -79,21 +79,21 @@ Treated as a comment all the way up to the corresponding `]#`
 ]#
 ```
 
-## 表达式，分隔符
+## 表達式，分隔符
 
-脚本是一系列表达式。 表达式是可以计算或评估的东西，在 Erg 中几乎所有东西都是表达式。
-每个表达式由分隔符分隔 - 新行或分号 `;`-。
-Erg 脚本基本上是从左到右、从上到下进行评估的。
+腳本是一系列表達式。 表達式是可以計算或評估的東西，在 Erg 中幾乎所有東西都是表達式。
+每個表達式由分隔符分隔 - 新行或分號 `;`-。
+Erg 腳本基本上是從左到右、從上到下進行評估的。
 
 ```python
-n = 1 # 赋值表达式
-f(1, 2) # 函数调用表达式
-1 + 1 # 运算符调用表达式
+n = 1 # 賦值表達式
+f(1, 2) # 函數調用表達式
+1 + 1 # 運算符調用表達式
 f(1, 2); 1 + 1
 ```
 
-如下所示，有一种称为 Instant block 的语法，它将块中评估的最后一个表达式作为变量的值。
-这与没有参数的函数不同，它不添加 `()`。 请注意，即时块仅在运行中评估一次
+如下所示，有一種稱為 Instant block 的語法，它將塊中評估的最后一個表達式作為變量的值。
+這與沒有參數的函數不同，它不添加 `()`。 請注意，即時塊僅在運行中評估一次
 
 ```python
 i =
@@ -102,15 +102,15 @@ i =
 assert i == 2
 ```
 
-这不能用分号 (`;`) 完成。
+這不能用分號 (`;`) 完成。
 
 ```python
-i = (x = 1; x + 1) # 语法错误：不能在括号中使用 `;`
+i = (x = 1; x + 1) # 語法錯誤：不能在括號中使用 `;`
 ```
 
-## 缩进
+## 縮進
 
-Erg 和 Python 一样，使用缩进来表示块。 有五个运算符(特殊形式)触发块的开始：`=`、`->`、`=>`、`do` 和 `do!`(此外，`:` 和 `|` ，虽然不是运算符，但也会产生缩进)。 每个的含义将在后面描述。
+Erg 和 Python 一樣，使用縮進來表示塊。 有五個運算符(特殊形式)觸發塊的開始：`=`、`->`、`=>`、`do` 和 `do!`(此外，`:` 和 `|` ，雖然不是運算符，但也會產生縮進)。 每個的含義將在后面描述。
 
 ```python
 f x, y =
@@ -129,20 +129,20 @@ ans = match x:
     _ -> "unknown"
 ```
 
-如果一行太长，可以使用 `\` 将其断开
+如果一行太長，可以使用 `\` 將其斷開
 
 ```python
-# 这不是表示 `x + y + z` 而是表示 `x; +y; +z`
+# 這不是表示 `x + y + z` 而是表示 `x; +y; +z`
 X
 + y
 + z
 
-# 这意味着`x + y + z`
+# 這意味著`x + y + z`
 x \
 + y \
 + z
 ```
 
 <p align='center'>
-    上一页 | <a href='./01_literal.md'>下一页</a>
+    上一頁 | <a href='./01_literal.md'>下一頁</a>
 </p>

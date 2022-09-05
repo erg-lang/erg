@@ -1,10 +1,10 @@
-# 结构
+# 結構
 
-模块为它们提供代表代数结构和补丁的特征
+模塊為它們提供代表代數結構和補丁的特征
 
-* 成员
+* 成員
 
-## 二进制运算
+## 二進制運算
 
 ```python
 BinOp Op: Kind 2 = Subsume Op(Self, Self.ReturnTypeOf Op), Additional: {
@@ -18,7 +18,7 @@ assert Nat. ReturnTypeof(Mul) == Nat
 assert Nat.ReturnTypeof(Div) == Positive Ratio
 ```
 
-## 半群(一个二元运算的代数系统)
+## 半群(一個二元運算的代數系統)
 
 ```python
 SemiGroup Op: Kind 2 = Op(Self, Self)
@@ -38,7 +38,7 @@ Functor = Trait {
 }
 ```
 
-## 应用
+## 應用
 
 ```python
 # * Identity law: x.app(X.pure(id)) == x
@@ -48,7 +48,7 @@ Applicative = Subsume Functor, Additional: {
 }
 ```
 
-## 单子(交互式命令行工具以及面向对象的脚本技术)
+## 單子(交互式命令行工具以及面向對象的腳本技術)
 
 ```python
 Monad = Subsume Applicative, Additional: {

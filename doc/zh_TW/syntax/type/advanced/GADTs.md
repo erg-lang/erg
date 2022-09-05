@@ -1,6 +1,6 @@
-# 广义代数数据类型 (GADT)
+# 廣義代數數據類型 (GADT)
 
-Erg 可以通过对 Or 类型进行分类来创建广义代数数据类型 (GADT)。
+Erg 可以通過對 Or 類型進行分類來創建廣義代數數據類型 (GADT)。
 
 ```python
 Nil T = Class(Impl := Phantom T)
@@ -15,18 +15,18 @@ List.
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil())).head() # 1
-print! nil.head() # 运行时错误：“空list”
+print! nil.head() # 運行時錯誤：“空list”
 ```
 
-我们说 `List.nil|T|() = ...` 而不是 `List(T).nil() = ...` 的原因是我们在使用它时不需要指定类型。
+我們說 `List.nil|T|() = ...` 而不是 `List(T).nil() = ...` 的原因是我們在使用它時不需要指定類型。
 
 ```python
 i = List.nil()
 _: List Int = cons 1, i
 ```
 
-这里定义的 `List T` 是 GADTs，但它是一个幼稚的实现，并没有显示 GADTs 的真正价值。
-例如，上面的 .head 方法会在 body 为空时抛出运行时错误，但是这个检查可以在编译时进行。
+這里定義的 `List T` 是 GADTs，但它是一個幼稚的實現，并沒有顯示 GADTs 的真正價值。
+例如，上面的 .head 方法會在 body 為空時拋出運行時錯誤，但是這個檢查可以在編譯時進行。
 
 ```python
 List: (Type, {"Empty", "Nonempty"}) -> Type
@@ -40,11 +40,11 @@ List(T, "Nonempty").
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil())).head() # 1
-print! nil().head() # 类型错误
+print! nil().head() # 類型錯誤
 ```
 
-街上经常解释的 GADT 的一个例子是一个列表，可以像上面那样通过类型来判断内容是否为空。
-Erg 可以进一步细化以定义一个有长度的列表。
+街上經常解釋的 GADT 的一個例子是一個列表，可以像上面那樣通過類型來判斷內容是否為空。
+Erg 可以進一步細化以定義一個有長度的列表。
 
 ```python
 List: (Type, Nat) -> Type
@@ -60,7 +60,7 @@ List(_, N | N >= 2).
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil)).pair() # [1, 2]
-print! cons(1, nil).pair() # 类型错误
+print! cons(1, nil).pair() # 類型錯誤
 print! cons(1, nil).head() # 1
-print! nil. head() # 类型错误
+print! nil. head() # 類型錯誤
 ```

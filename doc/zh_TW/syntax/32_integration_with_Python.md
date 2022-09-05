@@ -1,9 +1,9 @@
-# 与 Python 集成
+# 與 Python 集成
 
-## 导出到 Python
+## 導出到 Python
 
-编译 Erg 脚本时，会生成一个 .pyc 文件，可以简单地将其作为 Python 模块导入。
-但是，无法从 Python 访问在 Erg 端设置为私有的变量。
+編譯 Erg 腳本時，會生成一個 .pyc 文件，可以簡單地將其作為 Python 模塊導入。
+但是，無法從 Python 訪問在 Erg 端設置為私有的變量。
 
 ```python
 # foo.er
@@ -19,26 +19,26 @@ erg --compile foo.er
 import foo
 
 print(foo.public)
-print(foo.private) # 属性错误：
+print(foo.private) # 屬性錯誤：
 ```
 
-## 从 Python 导入
+## 從 Python 導入
 
-默认情况下，从 Python 导入的所有对象都是“Object”类型。 由于此时无法进行比较，因此有必要细化类型。
+默認情況下，從 Python 導入的所有對象都是“Object”類型。 由于此時無法進行比較，因此有必要細化類型。
 
-## 标准库中的类型规范
+## 標準庫中的類型規范
 
-Python 标准库中的所有 API 都是由 Erg 开发团队指定的类型。
+Python 標準庫中的所有 API 都是由 Erg 開發團隊指定的類型。
 
 ```python
 time = pyimport "time"
 time.sleep! 1
 ```
 
-## 用户脚本的类型规范
+## 用戶腳本的類型規范
 
-创建一个类型为 Python `foo` 模块的 `foo.d.er` 文件。
-Python 端的类型提示被忽略，因为它们不是 100% 保证的。
+創建一個類型為 Python `foo` 模塊的 `foo.d.er` 文件。
+Python 端的類型提示被忽略，因為它們不是 100% 保證的。
 
 ```python
 # foo.py
@@ -63,12 +63,12 @@ foo = pyimport "foo"
 assert foo.bar(1) in Int
 ```
 
-这通过在运行时执行类型检查来确保类型安全。 ``declare`` 函数大致如下工作
+這通過在運行時執行類型檢查來確保類型安全。 ``declare`` 函數大致如下工作
 
 
 ```python
 declare|S: Subroutine| sub!: S, T =
-    # 实际上，=> 可以强制转换为没有块副作用的函数
+    # 實際上，=> 可以強制轉換為沒有塊副作用的函數
     x =>
         assert x in T.Input
         y = sub!(x)
@@ -76,8 +76,8 @@ declare|S: Subroutine| sub!: S, T =
         y
 ```
 
-由于这是运行时开销，因此计划使用 Erg 的类型系统对 Python 脚本进行静态类型分析
+由于這是運行時開銷，因此計劃使用 Erg 的類型系統對 Python 腳本進行靜態類型分析
 
 <p align='center'>
-    <a href='./31_pipeline.md'>上一页</a> | <a href='./33_package_system.md'>下一页</a>
+    <a href='./31_pipeline.md'>上一頁</a> | <a href='./33_package_system.md'>下一頁</a>
 </p>

@@ -1,6 +1,6 @@
 # Div R, O
 
-如果除以零没有错误，请使用“SafeDiv”
+如果除以零沒有錯誤，請使用“SafeDiv”
 
 ```python
 Div R, O = Trait {

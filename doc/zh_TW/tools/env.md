@@ -1,7 +1,7 @@
-# 环境子命令
+# 環境子命令
 
-env 子命令指定 erg 执行环境。
-使用 `erg env new [env name]` 创建一个新的执行环境。 将打开一个交互式工具，当您指定 erg 版本时，将安装该版本的 erg(如果已存在，将使用它)，您将能够将其用作新环境。
-您可以使用 `erg env switch [env name]` 切换环境。
-可以使用 `erg env edit` 编辑创建的环境以预安装软件包并指定其他语言的依赖项。
-该命令最大的特点是`erg env export`可以将重现环境的信息输出为`[env name].env.er`文件。 这使您可以立即开始在与其他人相同的环境中进行开发。 此外，`erg env publish` 可以像包一样发布环境。
+env 子命令指定 erg 執行環境。
+使用 `erg env new [env name]` 創建一個新的執行環境。 將打開一個交互式工具，當您指定 erg 版本時，將安裝該版本的 erg(如果已存在，將使用它)，您將能夠將其用作新環境。
+您可以使用 `erg env switch [env name]` 切換環境。
+可以使用 `erg env edit` 編輯創建的環境以預安裝軟件包并指定其他語言的依賴項。
+該命令最大的特點是`erg env export`可以將重現環境的信息輸出為`[env name].env.er`文件。 這使您可以立即開始在與其他人相同的環境中進行開發。 此外，`erg env publish` 可以像包一樣發布環境。

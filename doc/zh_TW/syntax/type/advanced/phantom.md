@@ -1,7 +1,7 @@
-# 幻影(phantom)类
+# 幻影(phantom)類
 
-幻像类型是标记特征，其存在仅用于向编译器提供注释。
-作为幻像类型的一种用法，让我们看一下列表的结构。
+幻像類型是標記特征，其存在僅用于向編譯器提供注釋。
+作為幻像類型的一種用法，讓我們看一下列表的結構。
 
 ```python
 Nil = Class()
@@ -9,26 +9,26 @@ List T, 0 = Inherit Nil
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 ```
 
-此代码导致错误。
+此代碼導致錯誤。
 
 ```python
 3 | List T, 0 = Inherit Nil
                         ^^^
-类型构造错误：由于Nil没有参数T，所以无法用Nil构造List(T, 0)
-提示：使用 'Phantom' 特质消耗 T
+類型構造錯誤：由于Nil沒有參數T，所以無法用Nil構造List(T, 0)
+提示：使用 'Phantom' 特質消耗 T
 ```
 
-此错误是在使用 `List(_, 0).new Nil.new()` 时无法推断 `T` 的抱怨。
-在这种情况下，无论 `T` 类型是什么，它都必须在右侧使用。 大小为零的类型(例如长度为零的元组)很方便，因为它没有运行时开销。
+此錯誤是在使用 `List(_, 0).new Nil.new()` 時無法推斷 `T` 的抱怨。
+在這種情況下，無論 `T` 類型是什么，它都必須在右側使用。 大小為零的類型(例如長度為零的元組)很方便，因為它沒有運行時開銷。
 ```python
 Nil T = Class((T; 0))
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 ```
 
-此代码通过编译。 但是理解意图有点棘手，除非类型参数是类型，否则不能使用它。
+此代碼通過編譯。 但是理解意圖有點棘手，除非類型參數是類型，否則不能使用它。
 
-在这种情况下，幻影类型正是您所需要的。 幻像类型是大小为 0 的广义类型。
+在這種情況下，幻影類型正是您所需要的。 幻像類型是大小為 0 的廣義類型。
 
 ```python
 Nil T = Class(Impl := Phantom T)
@@ -39,10 +39,10 @@ nil = Nil(Int).new()
 assert nil.__size__ == 0
 ```
 
-`Phantom` 拥有`T` 类型。 但实际上 `Phantom T` 类型的大小是 0 并且不包含 `T` 类型的对象。
+`Phantom` 擁有`T` 類型。 但實際上 `Phantom T` 類型的大小是 0 并且不包含 `T` 類型的對象。
 
-此外，`Phantom` 可以使用除其类型之外的任意类型参数。 在下面的示例中，`Phantom` 包含一个名为 `State` 的类型参数，它是 `Str` 的子类型对象。
-同样，`State` 是一个假的类型变量，不会出现在对象的实体中。
+此外，`Phantom` 可以使用除其類型之外的任意類型參數。 在下面的示例中，`Phantom` 包含一個名為 `State` 的類型參數，它是 `Str` 的子類型對象。
+同樣，`State` 是一個假的類型變量，不會出現在對象的實體中。
 
 ```python
 VM! State: {"stopped", "running"}! = Class(... State)
@@ -52,5 +52,5 @@ VM!("stopped").
         self::set_phantom!("running"))
 ```
 
-`state` 是通过 `update_phantom!` 或 `set_phantom!` 方法更新的。
-这是标准补丁为`Phantom!`(`Phantom`的变量版本)提供的方法，其用法与变量`update!`和`set!`相同。
+`state` 是通過 `update_phantom!` 或 `set_phantom!` 方法更新的。
+這是標準補丁為`Phantom!`(`Phantom`的變量版本)提供的方法，其用法與變量`update!`和`set!`相同。

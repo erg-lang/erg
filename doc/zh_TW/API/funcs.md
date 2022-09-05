@@ -6,31 +6,31 @@
 
 ### map|T; U|(i: Iterable T, f: T -> U) -> Map U
 
-请注意，参数的顺序与 Python 相反
+請注意，參數的順序與 Python 相反
 
 ### log(x: Object, type: LogType = Info) -> None
 
-在调试显示中记录“x”。 执行完成后汇总并显示日志
-支持表情符号的终端根据“类型”添加前缀
+在調試顯示中記錄“x”。 執行完成后匯總并顯示日志
+支持表情符號的終端根據“類型”添加前綴
 
-* type == Info: 💬
-* type == Ok: ✅
-* type == Warn: ⚠️
-* type == Hint: 💡
+* type == Info: ??
+* type == Ok: ?
+* type == Warn: ??
+* type == Hint: ??
 
 ### panic(msg: Str) -> Panic
 
-显示msg并停止。
-支持表情符号的终端有一个🚨前缀。
+顯示msg并停止。
+支持表情符號的終端有一個??前綴。
 
 ### discard|T|(x: ...T) -> NoneType
 
-扔掉`x`。不使用返回值时使用。与 `del` 不同，它不会使变量 `x` 不可访问
+扔掉`x`。不使用返回值時使用。與 `del` 不同，它不會使變量 `x` 不可訪問
 
 ```python
 p! x =
-    # q!应该返回一些不是None或()的值
-    # 如果不需要，请使用`discard`
+    # q!應該返回一些不是None或()的值
+    # 如果不需要，請使用`discard`
     discard q!(x)
     f x
 
@@ -40,19 +40,19 @@ assert True # OK
 
 ### import(path: Path) -> Module or CompilerPanic
 
-导入一个模块。如果找不到模块，则引发编译错误
+導入一個模塊。如果找不到模塊，則引發編譯錯誤
 
 ### eval(code: Str) -> Object
 
-将`code`作为代码进行评估并返回。
+將`code`作為代碼進行評估并返回。
 
 ### classof(object: Object) -> Class
 
-返回`object`的类。
-但是，由于无法比较类，如果要判断实例，请使用`object in Class`而不是`classof(object) == Class`
-编译时确定的结构类型是通过`Typeof`获得的
+返回`object`的類。
+但是，由于無法比較類，如果要判斷實例，請使用`object in Class`而不是`classof(object) == Class`
+編譯時確定的結構類型是通過`Typeof`獲得的
 
-## Iterator, Array生成系统
+## Iterator, Array生成系統
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
@@ -78,12 +78,12 @@ cycle([0, 1]).take 4 # [0, 1, 0, 1]
 cycle("hello").take 3 # "hellohellohello"
 ```
 
-## 定数式関数
+## 定數式関數
 
 ### Class
 
-创建一个新类。 与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
-您将无法进行比较，但您可以进行模式匹配等操作
+創建一個新類。 與`Inherit`不同，通過`Class`傳遞與基類型無關，并且方法會丟失
+您將無法進行比較，但您可以進行模式匹配等操作
 
 ```python
 C = Class {i = Int}
@@ -96,20 +96,20 @@ match jan:
     _ -> log "Other"
 ```
 
-第二个参数 Impl 是要实现的特征
+第二個參數 Impl 是要實現的特征
 
 ### Inherit
 
-继承一个类。您可以按原样使用基类方法
+繼承一個類。您可以按原樣使用基類方法
 
 ### Trait
 
-创造一个新的特质。目前，只能指定记录类型
+創造一個新的特質。目前，只能指定記錄類型
 
 ### Typeof
 
-返回参数类型。如果要获取运行时类，请使用`classof`。
-如果您将其用于类型规范，则会出现警告。
+返回參數類型。如果要獲取運行時類，請使用`classof`。
+如果您將其用于類型規范，則會出現警告。
 
 ```python
 x: Typeof i = ...
@@ -118,4 +118,4 @@ x: Typeof i = ...
 
 ### Deprecated
 
-作为解码器使用。警告不推荐使用的类型或函数
+作為解碼器使用。警告不推薦使用的類型或函數

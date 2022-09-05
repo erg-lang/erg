@@ -1,88 +1,88 @@
-# 内置 Erg 类型列表
+# 內置 Erg 類型列表
 
-类型本身的属性不存储在 `.__dict__` 中，不能从实例中引用
+類型本身的屬性不存儲在 `.__dict__` 中，不能從實例中引用
 
-## 基本类型
+## 基本類型
 
-### 对象
+### 對象
 
-* `__dir__`：将对象的属性作为数组返回(dir函数)
-* `__getattribute__`: 获取并返回一个属性
-* `__hash__`：返回对象的哈希值
-* `__repr__`：对象的字符串表示(不存在丰富/默认实现)
-* `__sizeof__`：返回对象的大小(包括在堆中分配的大小)
+* `__dir__`：將對象的屬性作為數組返回(dir函數)
+* `__getattribute__`: 獲取并返回一個屬性
+* `__hash__`：返回對象的哈希值
+* `__repr__`：對象的字符串表示(不存在豐富/默認實現)
+* `__sizeof__`：返回對象的大小(包括在堆中分配的大小)
 
-### 显示
+### 顯示
 
-* `__str__`：返回对象的字符串表示(丰富)
+* `__str__`：返回對象的字符串表示(豐富)
 
 ### Fmt
 
-* `__format__`: 返回一个格式化的字符串
+* `__format__`: 返回一個格式化的字符串
 
-### 文档
+### 文檔
 
-* `__doc__`：对象描述
+* `__doc__`：對象描述
 
 ### 命名
 
-* `__name__`: 对象的名称
+* `__name__`: 對象的名稱
 
 ### 泡菜
 
-* `__reduce__`: 用 Pickle 序列化对象
-* `__reduce_ex__`: __reduce__ 允许你指定协议版本
+* `__reduce__`: 用 Pickle 序列化對象
+* `__reduce_ex__`: __reduce__ 允許你指定協議版本
 
-## 对象系统
+## 對象系統
 
-Trait 类相当于 Python 中的 ABC(抽象基类，接口)
-实例属于1、True、“aaa”等。
-类是 Int、Bool、Str 等。
+Trait 類相當于 Python 中的 ABC(抽象基類，接口)
+實例屬于1、True、“aaa”等。
+類是 Int、Bool、Str 等。
 
-### 类型
+### 類型
 
-* `__父类__`：超类型(`__mro__` 是一个数组，但这个是一个 Set)
+* `__父類__`：超類型(`__mro__` 是一個數組，但這個是一個 Set)
 * `__basicsize__`:
 * `__dictoffset__`：Evm 不支持
 * `__flags__`:
-* `__itemsize__`：实例的大小(如果不是类，则为 0)
+* `__itemsize__`：實例的大小(如果不是類，則為 0)
 * `__weakrefoffset__`：Evm 不支持
-* `__membercheck__`: 相当于`ismember(x, T)`
-* `__subtypecheck__`：等价于`issubtype(U, T)`，别名`__subclasshook__`(兼容CPython)
+* `__membercheck__`: 相當于`ismember(x, T)`
+* `__subtypecheck__`：等價于`issubtype(U, T)`，別名`__subclasshook__`(兼容CPython)
 
-### 实例
+### 實例
 
-* `__class__`：返回创建实例的类(自动附加到使用 `.new` 创建的对象)
+* `__class__`：返回創建實例的類(自動附加到使用 `.new` 創建的對象)
 
 ### Class
 
-* `__mro__`：用于方法解析的类型数组(包括自身，始终以 Object 结尾)
-* `__base__`：基本类型(`__mro__[1]` 如果有多个)
-* `__new__`: 实例化
-* `__init__`: 初始化实例
-* `__init_subclass__`: 初始化实例
-* `__intstancecheck__`：使用类似于 `MyClass.__instancecheck__(x)`，等价于 `isinstance(x, MyClass)`
-* `__subclasscheck__`：等价于 `issubclass(C, MyClass)`
+* `__mro__`：用于方法解析的類型數組(包括自身，始終以 Object 結尾)
+* `__base__`：基本類型(`__mro__[1]` 如果有多個)
+* `__new__`: 實例化
+* `__init__`: 初始化實例
+* `__init_subclass__`: 初始化實例
+* `__intstancecheck__`：使用類似于 `MyClass.__instancecheck__(x)`，等價于 `isinstance(x, MyClass)`
+* `__subclasscheck__`：等價于 `issubclass(C, MyClass)`
 
-## 运算符
+## 運算符
 
-此处指定以外的运算符没有特殊类型
+此處指定以外的運算符沒有特殊類型
 
 ### 方程
 
-* `__eq__(self, rhs: Self) -> Bool`: 对象比较函数 (==)
-* `__ne__`: 对象比较函数 (!=)，默认实现
+* `__eq__(self, rhs: Self) -> Bool`: 對象比較函數 (==)
+* `__ne__`: 對象比較函數 (!=)，默認實現
 
 ### 秩序
 
-* `__lt__(self, rhs: Self) -> Bool`: 对象比较函数 (<)
-* `__le__`：对象比较函数(<=)，默认实现
-* `__gt__`：对象比较函数(>)，默认实现
-* `__ge__`：对象比较函数(>=)，默认实现
+* `__lt__(self, rhs: Self) -> Bool`: 對象比較函數 (<)
+* `__le__`：對象比較函數(<=)，默認實現
+* `__gt__`：對象比較函數(>)，默認實現
+* `__ge__`：對象比較函數(>=)，默認實現
 
 ### BinAdd
 
-* 实现 `__add__(self, rhs: Self) -> Self`: `+`
+* 實現 `__add__(self, rhs: Self) -> Self`: `+`
 
 ### 添加R
 
@@ -98,27 +98,27 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 
 ### BinMul <: Mul Self
 
-* `__pow__`：实现 `**`(默认实现)
+* `__pow__`：實現 `**`(默認實現)
 
 ### Div R, O
 
-* 实现 `__div__(self, rhs: Self) -> Self`: `/`，可能会因为 0 而恐慌
+* 實現 `__div__(self, rhs: Self) -> Self`: `/`，可能會因為 0 而恐慌
 
 ### BinDiv <: Div Self
 
-* `__mod__`: 实现 `%` (默认实现)
+* `__mod__`: 實現 `%` (默認實現)
 
-## 数值型
+## 數值型
 
 ### Num (= Add and Sub and Mul and Eq)
 
-例如，除了Complex，Vector、Matrix和Tensor都是Num(Matrix和Tensor中的*分别与dot和product相同)
+例如，除了Complex，Vector、Matrix和Tensor都是Num(Matrix和Tensor中的*分別與dot和product相同)
 
 ### Complex (= Inherit(Object, Impl := Num))
 
-* `imag: Ratio`：返回虚部
-* `real: Ratio`：返回实部
-* `conjugate self -> Complex`：返回复共轭
+* `imag: Ratio`：返回虛部
+* `real: Ratio`：返回實部
+* `conjugate self -> Complex`：返回復共軛
 
 ### Float (= Inherit(FloatComplex, Impl := Num))
 
@@ -131,11 +131,11 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 
 ### Nat (= Inherit Int)
 
-* `times!`: 运行 proc self 时间
+* `times!`: 運行 proc self 時間
 
-## 其他基本类型
+## 其他基本類型
 
-### 布尔值
+### 布爾值
 
 * `__and__`:
 * `__or__`:
@@ -144,7 +144,7 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 ## 字符串 (<: 序列)
 
 * `capitalize`
-* `chomp`: 删除换行符
+* `chomp`: 刪除換行符
 * `isalnum`:
 * `isascii`:
 * `isalpha`:
@@ -166,22 +166,22 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 
 ### 位
 
-* `from_bytes`：从字节转换
-* `to_bytes`：转换为字节(指定长度和字节序(字节序))
-* `bit_length`：返回位长度
+* `from_bytes`：從字節轉換
+* `to_bytes`：轉換為字節(指定長度和字節序(字節序))
+* `bit_length`：返回位長度
 
 ### 可迭代 T
 
-请注意，它不是 `Iterator` 本身的类型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`。
+請注意，它不是 `Iterator` 本身的類型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`。
 
-* `iter`：创建一个迭代器。
+* `iter`：創建一個迭代器。
 
 ### 迭代器 T
 
 Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().fold (sum, n) -> sum + n*2`等是可能的。
-由于所有和任何在使用后都会被破坏，因此没有副作用。这些应该使用没有副作用的 `next` 来实现，但内部使用 `Iterator!.next!` 来提高执行效率。
+由于所有和任何在使用后都會被破壞，因此沒有副作用。這些應該使用沒有副作用的 `next` 來實現，但內部使用 `Iterator!.next!` 來提高執行效率。
 
-* `next`：返回第一个元素和剩余的迭代器。
+* `next`：返回第一個元素和剩余的迭代器。
 * `all`
 * `any`
 * `filter`
@@ -202,11 +202,11 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 
 ### Iterator!T = IteratorT 和 ...
 
-* `next!`：获取第一个元素。
+* `next!`：獲取第一個元素。
 
 ## SizedIterator T = 迭代器 T 和 ...
 
-有限数量元素的迭代器。
+有限數量元素的迭代器。
 
 * `len`:
 * `chain`:
@@ -223,22 +223,22 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 
 ## Seq T = SizedIterable T 和 ...
 
-* `concat`: 合并两个 Seq
-* `__getitem__`：等同于使用 `[]` 访问(否则会出现恐慌)
-* 与 `get`: __getitem__ 不同，它返回 Option
-* `maketrans`：创建替换表(静态方法)
-* `replace`: 替换
-* `translate`：根据替换表替换
+* `concat`: 合并兩個 Seq
+* `__getitem__`：等同于使用 `[]` 訪問(否則會出現恐慌)
+* 與 `get`: __getitem__ 不同，它返回 Option
+* `maketrans`：創建替換表(靜態方法)
+* `replace`: 替換
+* `translate`：根據替換表替換
 * `insert`: 添加到 idx
-* `remove`: 删除 idx
+* `remove`: 刪除 idx
 * `prepend`: 前置
-* `dequeue`: 移除头部
+* `dequeue`: 移除頭部
 * `push`：添加到末尾
 * `pop`: 取尾巴
-* `dedup`：删除连续值
-* `uniq`：删除重复元素(通过 sort |> dedup 实现，因此顺序可能会改变)
-* `swap`：交换元素
-* `reverse`：反转元素
+* `dedup`：刪除連續值
+* `uniq`：刪除重復元素(通過 sort |> dedup 實現，因此順序可能會改變)
+* `swap`：交換元素
+* `reverse`：反轉元素
 * `sort`: 排序元素
 * `first`:
 * `last`:
@@ -248,15 +248,15 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 * `__setitem__!`:
 * `__delitem__!`:
 * `插入！`：添加到 idx
-* `remove!`: 删除 idx
+* `remove!`: 刪除 idx
 * `prepend!`：前置
-* `dequeue!`: 删除开头
+* `dequeue!`: 刪除開頭
 * `push!`：添加到末尾
 * `pop!`：拿尾巴
-* `dedup!`：删除连续值
-* `uniq!`: 删除重复元素(通过排序实现！|> dedup!，因此顺序可能会改变)
-* `swap!`：交换元素
-* `reverse!`：反转元素
+* `dedup!`：刪除連續值
+* `uniq!`: 刪除重復元素(通過排序實現！|> dedup!，因此順序可能會改變)
+* `swap!`：交換元素
+* `reverse!`：反轉元素
 * `set!`
 * `sort!`: 排序元素
 * `translate!`

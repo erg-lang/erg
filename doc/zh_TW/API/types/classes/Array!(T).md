@@ -1,3 +1,3 @@
 # Array! T
 
-表示可变长度数组的类型。在编译时长度未知时使用。 有一个语法糖叫做` [t]!`。在`Array! T = ArrayWithMutLength! T, !_`中被定义
+表示可變長度數組的類型。在編譯時長度未知時使用。 有一個語法糖叫做` [t]!`。在`Array! T = ArrayWithMutLength! T, !_`中被定義

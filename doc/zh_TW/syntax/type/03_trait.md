@@ -1,16 +1,16 @@
-# 特质
+# 特質
 
-Trait 是一种名义类型，它将类型属性要求添加到记录类型。
-它类似于 Python 中的抽象基类 (ABC)，但区别在于能够执行代数运算。
+Trait 是一種名義類型，它將類型屬性要求添加到記錄類型。
+它類似于 Python 中的抽象基類 (ABC)，但區別在于能夠執行代數運算。
 
 ```python
 Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 ```
 
-特质不区分属性和方法。
+特質不區分屬性和方法。
 
-注意，trait 只能声明，不能实现(实现是通过一个叫做 patching 的特性来实现的，后面会讨论)。
-可以通过指定部分类型来检查特征在类中的实现。
+注意，trait 只能聲明，不能實現(實現是通過一個叫做 patching 的特性來實現的，后面會討論)。
+可以通過指定部分類型來檢查特征在類中的實現。
 
 ```python
 Point2D <: Norm
@@ -21,11 +21,11 @@ Point2D.norm self = self.x**2 + self.y**2
 Error if the required attributes are not implemented.
 
 ```python
-Point2D <: Norm # 类型错误：Point2D 不是 Norm 的子类型
+Point2D <: Norm # 類型錯誤：Point2D 不是 Norm 的子類型
 Point2D = Class {.x = Int; .y = Int}
 ```
 
-特征与结构类型一样，可以应用组合、替换和消除等操作(例如“T 和 U”)。 由此产生的特征称为即时特征。
+特征與結構類型一樣，可以應用組合、替換和消除等操作(例如“T 和 U”)。 由此產生的特征稱為即時特征。
 
 ```python
 T = Trait {.x = Int}
@@ -38,7 +38,7 @@ assert Structural(W) ! = Structural(T)
 assert Structural(W) == Structural(T.replace {.x = Ratio})
 ```
 
-Trait 也是一种类型，因此可以用于普通类型规范
+Trait 也是一種類型，因此可以用于普通類型規范
 
 ```python
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
@@ -47,9 +47,9 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 
 ## 特征包含
 
-扩展运算符 `...` 允许您将包含某个特征的特征定义为超类型。 这称为特征的 __subsumption__。
+擴展運算符 `...` 允許您將包含某個特征的特征定義為超類型。 這稱為特征的 __subsumption__。
 在下面的示例中，`BinAddSub` 包含 `BinAdd` 和 `BinSub`。
-这对应于类中的继承，但与继承不同的是，可以使用“和”组合多个基类型。 也允许被 `not` 部分排除的特征。
+這對應于類中的繼承，但與繼承不同的是，可以使用“和”組合多個基類型。 也允許被 `not` 部分排除的特征。
 
 ```python
 Add R = Trait {
@@ -65,9 +65,9 @@ Sub R = Trait {
 BinAddSub = Subsume Add(Self) and Sub(Self)
 ```
 
-## 结构特征
+## 結構特征
 
-特征可以结构化
+特征可以結構化
 
 ```python
 SAdd = Structural Trait {
@@ -84,8 +84,8 @@ C.
 assert add(C.new(1), C.new(2)) == C.new(3)
 ```
 
-名义特征不能简单地通过实现请求方法来使用，而必须明确声明已实现。
-在以下示例中，`add`不能与`C`类型的参数一起使用，因为没有明确的实现声明。 它必须是`C = Class {i = Int}, Impl := Add`。
+名義特征不能簡單地通過實現請求方法來使用，而必須明確聲明已實現。
+在以下示例中，`add`不能與`C`類型的參數一起使用，因為沒有明確的實現聲明。 它必須是`C = Class {i = Int}, Impl := Add`。
 
 ```python
 Add = Trait {
@@ -99,15 +99,15 @@ C.
     new i = Self.__new__ {i;}
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
-add C.new(1), C.new(2) # 类型错误：C 不是 Add 的子类
-# 提示：继承或修补“添加”
+add C.new(1), C.new(2) # 類型錯誤：C 不是 Add 的子類
+# 提示：繼承或修補“添加”
 ```
 
-不需要为此实现声明结构特征，但类型推断不起作用。 使用时需要指定类型。
+不需要為此實現聲明結構特征，但類型推斷不起作用。 使用時需要指定類型。
 
-## 多态特征
+## 多態特征
 
-特征可以带参数。 这与多态类型相同。
+特征可以帶參數。 這與多態類型相同。
 
 ```python
 Mapper T: Type = Trait {
@@ -124,8 +124,8 @@ assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"].
 
 ## Override特征
 
-派生特征可以Override基本特征的类型定义。
-在这种情况下，Override方法的类型必须是基方法类型的子类型。
+派生特征可以Override基本特征的類型定義。
+在這種情況下，Override方法的類型必須是基方法類型的子類型。
 
 ```python
 # `Self.(R) -> O` is a subtype of ``Self.(R) -> O or Panic
@@ -138,9 +138,9 @@ SafeDiv R, O = Subsume Div, {
 }
 ```
 
-## 在 API 中实现和解决重复的特征
+## 在 API 中實現和解決重復的特征
 
-`Add`、`Sub` 和 `Mul` 的实际定义如下所示。
+`Add`、`Sub` 和 `Mul` 的實際定義如下所示。
 
 ```python
 Add R = Trait {
@@ -157,11 +157,11 @@ Mul R = Trait {
 }
 ```
 
-`.Output` 重复。 如果要同时实现这些多个特征，请指定以下内容
+`.Output` 重復。 如果要同時實現這些多個特征，請指定以下內容
 
 ```python
 P = Class {.x = Int; .y = Int}
-# P|Self <: Add(P)|可简写为 P|<: Add(P)|
+# P|Self <: Add(P)|可簡寫為 P|<: Add(P)|
 P|Self <: Add(P)|.
     Output = P
     `_+_` self, other = P.new {.x = self.x + other.x; .y = self.y + other.y}
@@ -170,18 +170,18 @@ P|Self <: Mul(Int)|.
     `*` self, other = P.new {.x = self.x * other; .y = self.y * other}
 ```
 
-以这种方式实现的重复 API 在使用时几乎总是类型推断，但也可以通过使用 `||` 显式指定类型来解决。
+以這種方式實現的重復 API 在使用時幾乎總是類型推斷，但也可以通過使用 `||` 顯式指定類型來解決。
 
 ```python
-print! P.Output # 类型错误：不明确的类型
+print! P.Output # 類型錯誤：不明確的類型
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
-## 附录：与 Rust 特征的区别
+## 附錄：與 Rust 特征的區別
 
-Erg 的特征忠实于 [Schärli 等人] (https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf) 提出的特征。
-为了允许代数运算，特征被设计为不能有方法实现目录，但可以在必要时进行修补。
+Erg 的特征忠實于 [Sch?rli 等人] (https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf) 提出的特征。
+為了允許代數運算，特征被設計為不能有方法實現目錄，但可以在必要時進行修補。
 
-<p 对齐='中心'>
-     <a href='./02_basic.md'>上一页</a> | <a href='./04_class.md'>下一步</a>
+<p 對齊='中心'>
+     <a href='./02_basic.md'>上一頁</a> | <a href='./04_class.md'>下一步</a>
 </p>

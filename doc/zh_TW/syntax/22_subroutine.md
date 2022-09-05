@@ -1,43 +1,43 @@
-# 子程序签名
+# 子程序簽名
 
-## 函数
+## 函數
 
 ```python
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
-## 过程
+## 過程
 
 ```python
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
 
-## 函数方法
+## 函數方法
 
-方法类型不能用`Self`在外部指定
+方法類型不能用`Self`在外部指定
 
 ```python
 .some_method(self, x: T, y: U) => ()
-# Self.(T, U) => () 拥有 self 的所有权
+# Self.(T, U) => () 擁有 self 的所有權
 .some_method: Ref(Self). (T, U) => ()
 ```
 
-## 过程方法(依赖)
+## 過程方法(依賴)
 
-在下文中，假设类型 `T!` 采用类型参数 `N: Nat`。 要在外部指定它，请使用类型变量
+在下文中，假設類型 `T!` 采用類型參數 `N: Nat`。 要在外部指定它，請使用類型變量
 
 ```python
 T!: Nat -> Type
-# ~> 表示应用前后类型参数的状态(此时self必须是变量引用)
+# ~> 表示應用前后類型參數的狀態(此時self必須是變量引用)
 T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 ```
 
-注意，`.some_method` 的类型是 `Ref!(T(N ~> N+X))。 ({X}) => () | N，X：Nat`。
-对于没有 `ref!` 的方法，即在应用后被剥夺所有权，不能使用类型参数转换(`~>`)。
+注意，`.some_method` 的類型是 `Ref!(T(N ~> N+X))。 ({X}) => () | N，X：Nat`。
+對于沒有 `ref!` 的方法，即在應用后被剝奪所有權，不能使用類型參數轉換(`~>`)。
 
-如果取得所有权，则如下所示。
+如果取得所有權，則如下所示。
 
 ```python
 # 如果不使用N，可以用_省略。
@@ -45,11 +45,11 @@ T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
 .some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
 ```
 
-## 运算符
+## 運算符
 
-可以通过用 ` 括起来将其定义为普通函数。
+可以通過用 ` 括起來將其定義為普通函數。
 
-中性字母运算符，例如 `and` 和 `or` 可以通过用 ` 括起来定义为中性运算符。
+中性字母運算符，例如 `and` 和 `or` 可以通過用 ` 括起來定義為中性運算符。
 
 ```python
 and(x, y, z) = x and y and z
@@ -58,5 +58,5 @@ and(x, y, z) = x and y and z
 ```
 
 <p align='center'>
-    <a href='./21_lambda.md'>上一页</a> | <a href='./23_closure.md'>下一页</a>
+    <a href='./21_lambda.md'>上一頁</a> | <a href='./23_closure.md'>下一頁</a>
 </p>

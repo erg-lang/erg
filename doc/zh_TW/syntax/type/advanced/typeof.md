@@ -1,6 +1,6 @@
 # Typeof, classof
 
-`Typeof` 是一个可以窥探 Erg 类型推断系统的函数，它的行为很复杂
+`Typeof` 是一個可以窺探 Erg 類型推斷系統的函數，它的行為很復雜
 
 ```python
 assert Typeof(1) == {I: Int | I == 1}
@@ -16,10 +16,10 @@ assert Typeof(J) == {i = Int}
 assert {X: C | X == I} < C and C <= {i = Int}
 ```
 
-`Typeof` 函数返回派生类型，而不是对象的类。
-因此，例如 `C = Class T` 类的`I: C`，`Typeof(I) == T`。
-值类没有对应的记录类型。 为了解决这个问题，值类应该是具有 `__valueclass_tag__` 属性的记录类型。
-请注意，您不能访问此属性，也不能在用户定义的类型上定义 `__valueclass_tag__` 属性。
+`Typeof` 函數返回派生類型，而不是對象的類。
+因此，例如 `C = Class T` 類的`I: C`，`Typeof(I) == T`。
+值類沒有對應的記錄類型。 為了解決這個問題，值類應該是具有 `__valueclass_tag__` 屬性的記錄類型。
+請注意，您不能訪問此屬性，也不能在用戶定義的類型上定義 `__valueclass_tag__` 屬性。
 
 ```python
 i: Int = ...
@@ -28,15 +28,15 @@ s: Str = ...
 assert Typeof(s) == {__valueclass_tag__ = Phantom Str}
 ```
 
-`Typeof` 仅输出结构化类型。 我解释说结构化类型包括属性类型、筛类型和(真正的)代数类型。
-这些是独立的类型(存在推理优先级)，不会发生推理冲突。
-属性类型和代数类型可以跨越多个类，而筛类型是单个类的子类型。
-Erg 尽可能将对象类型推断为筛类型，如果不可能，则将筛基类扩展为结构化类型(见下文)。
+`Typeof` 僅輸出結構化類型。 我解釋說結構化類型包括屬性類型、篩類型和(真正的)代數類型。
+這些是獨立的類型(存在推理優先級)，不會發生推理沖突。
+屬性類型和代數類型可以跨越多個類，而篩類型是單個類的子類型。
+Erg 盡可能將對象類型推斷為篩類型，如果不可能，則將篩基類擴展為結構化類型(見下文)。
 
-## 结构化的
+## 結構化的
 
-所有类都可以转换为派生类型。 这称为 __结构化__。 类的结构化类型可以通过 `Structure` 函数获得。
-如果一个类是用`C = Class T`定义的(所有类都以这种形式定义)，那么`Structure(C) == T`。
+所有類都可以轉換為派生類型。 這稱為 __結構化__。 類的結構化類型可以通過 `Structure` 函數獲得。
+如果一個類是用`C = Class T`定義的(所有類都以這種形式定義)，那么`Structure(C) == T`。
 
 ```python
 C = Class {i = Int}
@@ -47,13 +47,13 @@ Nat = Class {I: Int | I >= 0}
 assert Structure(Nat) == {I: Int | I >= 0}
 Option T = Class (T or NoneType)
 assert Structure(Option Int) == Or(Int, NoneType)
-assert Structure(Option) # 类型错误：只能构造单态类型
-# 你实际上不能用 __valueclass_tag__ 定义一条记录，但在概念上
+assert Structure(Option) # 類型錯誤：只能構造單態類型
+# 你實際上不能用 __valueclass_tag__ 定義一條記錄，但在概念上
 assert Structure(Int) == {__valueclass_tag__ = Phantom Int}
 assert Structure(Str) == {__valueclass_tag__ = Phantom Str}
 assert Structure((Nat, Nat)) == {__valueclass_tag__ = Phantom(Tuple(Nat, Nat))}
 assert Structure(Nat -> Nat) == {__valueclass_tag__ = Phantom(Func(Nat, Nat))}
-# 标记类也是带有 __valueclass_tag__ 的记录类型
+# 標記類也是帶有 __valueclass_tag__ 的記錄類型
 M = Inherit Marker
 assert Structure(M) == {__valueclass_tag__ = Phantom M}
 D = Inherit(C and M)
