@@ -939,7 +939,7 @@ impl Context {
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
     /// sub_unify(Nat, ?T(:> Int)): (/* OK */)
-    /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
+    /// sub_unify(Nat, Add(?R)): (?R => Nat, Nat.AddO => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     pub(crate) fn sub_unify(
@@ -981,7 +981,8 @@ impl Context {
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
             // sub_unify(?T[1](:> Never, <: Nat), ?U[0](:> Never, <: Int)): (/* ?T[1] --> ?U[0](:> Never, <: Nat))
-            // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (/* Error */)
+            // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (?T[0](:> Never, <: Str and Int) --> Error!)
+            // sub_unify(?T[0](:> Int, <: Add()), ?U[1](:> Never, <: Mul())): (?T[0](:> Int, <: Add() and Mul()))
             // sub_unify(?T[0](:> Str, <: Obj), ?U[1](:> Int, <: Obj)): (/* ?U[1] --> ?T[0](:> Str or Int) */)
             (Type::FreeVar(lfv), Type::FreeVar(rfv))
                 if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
@@ -991,10 +992,18 @@ impl Context {
                 let (rsub, rsup) = rfv.get_bound_types().unwrap();
                 let r_cyc = rfv.cyclicity();
                 let cyclicity = l_cyc.combine(r_cyc);
-                let new_constraint = if let Some(min) = self.min(&lsup, &rsup) {
-                    Constraint::new_sandwiched(self.rec_union(&lsub, &rsub), min.clone(), cyclicity)
+                let intersec = self.rec_intersection(&lsup, &rsup);
+                let new_constraint = if intersec != Type::Never {
+                    Constraint::new_sandwiched(self.rec_union(&lsub, &rsub), intersec, cyclicity)
                 } else {
-                    todo!()
+                    return Err(TyCheckError::subtyping_error(
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        sub_loc,
+                        sup_loc,
+                        self.caused_by(),
+                    ));
                 };
                 if lfv.level().unwrap() <= rfv.level().unwrap() {
                     lfv.update_constraint(new_constraint);
@@ -1019,7 +1028,7 @@ impl Context {
                         // sub = max(l, sub) if max exists
                         // * sub_unify(Nat,   ?T(:> Int,   <: _)): (/* OK */)
                         // * sub_unify(Int,   ?T(:> Nat,   <: Obj)): (?T(:> Int, <: Obj))
-                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R, ?O))): (?T(:> Nat, <: Add(?R, ?O))
+                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R))): (?T(:> Nat, <: Add(?R))
                         // sub = union(l, sub) if max does not exist
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))

@@ -17,7 +17,7 @@ use erg_parser::token::Token;
 use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::{TypeObj, ValueObj};
+use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
@@ -233,7 +233,10 @@ impl Context {
                 return Err(e);
             }
         }
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(&self_t) {
+        for (_, ctx) in self
+            .rec_get_nominal_super_type_ctxs(&self_t)
+            .ok_or_else(|| todo!())?
+        {
             if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
                 return Ok(t);
             }
@@ -298,8 +301,8 @@ impl Context {
             other => {
                 if let Some(v) = self.rec_get_const_obj(&other.name()) {
                     match v {
-                        ValueObj::Type(TypeObj::Generated(gen)) => gen
-                            .get_require_attr_t(&name.inspect()[..])
+                        ValueObj::Type(TypeObj::Generated(gen)) => self
+                            .get_gen_t_require_attr_t(gen, &name.inspect()[..])
                             .map(|t| t.clone())
                             .ok_or(TyCheckError::dummy(line!() as usize)),
                         ValueObj::Type(TypeObj::Builtin(t)) => todo!("{t}"),
@@ -320,7 +323,10 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            for (_, ctx) in self.rec_get_nominal_super_type_ctxs(obj.ref_t()) {
+            for (_, ctx) in self
+                .rec_get_nominal_super_type_ctxs(obj.ref_t())
+                .ok_or_else(|| todo!())?
+            {
                 if let Some(vi) = ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
                 } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
@@ -825,7 +831,10 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self
+            .rec_get_nominal_super_type_ctxs(self_t)
+            .ok_or_else(|| todo!())?
+        {
             if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }
@@ -881,7 +890,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -988,52 +997,45 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn rec_get_nominal_super_classctxs<'a>(
+    pub(crate) fn rec_get_nominal_super_trait_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            ctx.super_traits.iter().map(|sup| {
-                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
-                (sup, sup_ctx)
-            })
-        } else {
-            todo!("{t} has no trait, or not a nominal type")
-        }
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+        let (_ctx_t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        Some(ctx.super_traits.iter().map(|sup| {
+            let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+            (sup, sup_ctx)
+        }))
     }
 
     pub(crate) fn rec_get_nominal_super_class_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
         // if `t` is {S: Str | ...}, `ctx_t` will be Str
         // else if `t` is Array(Int, 10), `ctx_t` will be Array(T, N) (if Array(Int, 10) is not specialized)
-        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
-            // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
-            ctx.super_classes.iter().map(|sup| {
-                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
-                (sup, sup_ctx)
-            })
-        } else {
-            todo!("{t} has no class, or not a nominal type")
-        }
+        let (_ctx_t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
+        // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
+        Some(ctx.super_classes.iter().map(|sup| {
+            let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+            (sup, sup_ctx)
+        }))
     }
 
     pub(crate) fn rec_get_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((t, ctx)) = self.rec_get_nominal_type_ctx(t) {
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+        let (t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        Some(
             vec![(t, ctx)].into_iter().chain(
                 ctx.super_classes
                     .iter()
                     .chain(ctx.super_traits.iter())
                     .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap()),
-            )
-        } else {
-            todo!("{t} not found")
-        }
+            ),
+        )
     }
 
     pub(crate) fn rec_get_nominal_type_ctx<'a>(
@@ -1067,12 +1069,12 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
-            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
                 // TODO: reference RecordType (inherits Type)
                 if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
                     return Some(res);
                 }
-            }
+            }*/
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
                 if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
@@ -1084,7 +1086,9 @@ impl Context {
                     return Some(res);
                 }
             }
-            other => todo!("{other}"),
+            other => {
+                log!("{other} has no nominal definition");
+            }
         }
         if let Some(outer) = &self.outer {
             outer.rec_get_nominal_type_ctx(typ)
@@ -1200,6 +1204,47 @@ impl Context {
             outer.rec_get_poly_type(name)
         } else {
             None
+        }
+    }
+
+    fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
+        match gen.require_or_sup.typ() {
+            Type::Record(rec) => {
+                if let Some(t) = rec.get(attr) {
+                    return Some(t);
+                }
+            }
+            other => {
+                let obj = self.rec_get_const_obj(&other.name());
+                let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
+                if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
+                    return Some(t);
+                }
+            }
+        }
+        if let Some(additional) = &gen.additional {
+            if let Type::Record(gen) = additional.typ() {
+                if let Some(t) = gen.get(attr) {
+                    return Some(t);
+                }
+            }
+        }
+        None
+    }
+
+    pub(crate) fn _is_class(&self, typ: &Type) -> bool {
+        if let Some((_, ctx)) = self.rec_get_nominal_type_ctx(typ) {
+            ctx.kind.is_class()
+        } else {
+            todo!()
+        }
+    }
+
+    pub(crate) fn is_trait(&self, typ: &Type) -> bool {
+        if let Some((_, ctx)) = self.rec_get_nominal_type_ctx(typ) {
+            ctx.kind.is_trait()
+        } else {
+            todo!()
         }
     }
 }

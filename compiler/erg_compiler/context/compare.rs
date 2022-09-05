@@ -1,7 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
-use erg_type::constructors::or;
+use erg_type::constructors::{and, or};
 use erg_type::free::fresh_varname;
 use erg_type::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
 use erg_type::typaram::{TyParam, TyParamOrdering};
@@ -260,7 +260,7 @@ impl Context {
             }
             _ => {}
         }
-        match self.classsupertype_of(lhs, rhs) {
+        match self.traits_supertype_of(lhs, rhs) {
             (Absolutely, judge) => {
                 self.register_cache(rhs, lhs, judge);
                 return judge;
@@ -294,17 +294,19 @@ impl Context {
     }
 
     fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        for (rhs_sup, _) in self.rec_get_nominal_super_class_ctxs(rhs) {
-            match self.cheap_supertype_of(lhs, rhs_sup) {
-                (Absolutely, true) => {
-                    return (Absolutely, true);
-                }
-                (Maybe, _) => {
-                    if self.structural_supertype_of(lhs, rhs_sup) {
+        if let Some(sup_classes) = self.rec_get_nominal_super_class_ctxs(rhs) {
+            for (rhs_sup, _) in sup_classes {
+                match self.cheap_supertype_of(lhs, rhs_sup) {
+                    (Absolutely, true) => {
                         return (Absolutely, true);
                     }
+                    (Maybe, _) => {
+                        if self.structural_supertype_of(lhs, rhs_sup) {
+                            return (Absolutely, true);
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         (Maybe, false)
@@ -312,19 +314,21 @@ impl Context {
 
     // e.g. Eq(Nat) :> Nat
     // Nat.super_traits = [Add(Nat), Eq(Nat), ...]
-    fn classsupertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        for (rhs_sup, _) in self.rec_get_nominal_super_classctxs(rhs) {
-            match self.cheap_supertype_of(lhs, rhs_sup) {
-                (Absolutely, true) => {
-                    return (Absolutely, true);
-                }
-                (Maybe, _) => {
-                    // nominal type同士の比較なので、nominal_supertype_ofは使わない
-                    if self.structural_supertype_of(lhs, rhs_sup) {
+    fn traits_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
+        if let Some(sup_traits) = self.rec_get_nominal_super_trait_ctxs(rhs) {
+            for (rhs_sup, _) in sup_traits {
+                match self.cheap_supertype_of(lhs, rhs_sup) {
+                    (Absolutely, true) => {
                         return (Absolutely, true);
                     }
+                    (Maybe, _) => {
+                        // nominal type同士の比較なので、nominal_supertype_ofは使わない
+                        if self.structural_supertype_of(lhs, rhs_sup) {
+                            return (Absolutely, true);
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         (Maybe, false)
@@ -609,15 +613,18 @@ impl Context {
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
         let (defined_rhs, _) = self.rec_get_nominal_type_ctx(rhs).unwrap();
-        let super_traits = self.rec_get_nominal_super_classctxs(rhs);
-        for (sup_trait, _) in super_traits.into_iter() {
-            if self.sup_conforms(lhs, defined_rhs, sup_trait) {
-                return true;
+        if let Some(super_traits) = self.rec_get_nominal_super_trait_ctxs(rhs) {
+            for (sup_trait, _) in super_traits {
+                if self.sup_conforms(lhs, defined_rhs, sup_trait) {
+                    return true;
+                }
             }
         }
-        for (sup_class, _) in self.rec_get_nominal_super_class_ctxs(rhs) {
-            if self.cyclic_supertype_of(lhs, sup_class) {
-                return true;
+        if let Some(sup_classes) = self.rec_get_nominal_super_class_ctxs(rhs) {
+            for (sup_class, _) in sup_classes {
+                if self.cyclic_supertype_of(lhs, sup_class) {
+                    return true;
+                }
             }
         }
         false
@@ -762,7 +769,7 @@ impl Context {
         }
     }
 
-    /// 和集合(A or B)を返す
+    /// returns union of two types (A or B)
     pub(crate) fn rec_union(&self, lhs: &Type, rhs: &Type) -> Type {
         match (
             self.rec_supertype_of(lhs, rhs),
@@ -801,6 +808,28 @@ impl Context {
         } else {
             log!(info "{lhs}\n{rhs}");
             todo!()
+        }
+    }
+
+    /// returns intersection of two types (A and B)
+    pub(crate) fn rec_intersection(&self, lhs: &Type, rhs: &Type) -> Type {
+        match (
+            self.rec_supertype_of(lhs, rhs),
+            self.rec_subtype_of(lhs, rhs),
+        ) {
+            (true, true) => return lhs.clone(),  // lhs = rhs
+            (true, false) => return rhs.clone(), // lhs :> rhs
+            (false, true) => return lhs.clone(),
+            (false, false) => {}
+        }
+        match (lhs, rhs) {
+            /*(Type::FreeVar(_), _) | (_, Type::FreeVar(_)) => {
+                todo!()
+            }*/
+            // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
+            (Type::Record(l), Type::Record(r)) => Type::Record(l.clone().concat(r.clone())),
+            (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),
+            (_l, _r) => Type::Never,
         }
     }
 

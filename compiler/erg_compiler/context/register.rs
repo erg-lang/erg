@@ -534,7 +534,9 @@ impl Context {
                     let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
-                    ctx.register_gen_impl("__new__", new_t, Immutable, Private);
+                    ctx.register_gen_impl("__new__", new_t.clone(), Immutable, Private);
+                    // 必要なら、ユーザーが独自に上書きする
+                    ctx.register_gen_impl("new", new_t, Immutable, Public);
                     self.register_gen_mono_type(gen, ctx, Const);
                 } else {
                     todo!()
@@ -546,10 +548,25 @@ impl Context {
                     let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx =
                         Self::mono_class(gen.t.name(), super_classes, super_traits, self.level);
-                    let sup = gen.require_or_sup.typ().clone();
-                    let new_t = func1(sup, gen.t.clone());
-                    ctx.register_gen_impl("__new__", new_t, Immutable, Private);
-                    self.register_gen_mono_type(gen, ctx, Const);
+                    if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
+                        let sup = enum_unwrap!(sup, ValueObj::Type);
+                        let param_t = match sup {
+                            TypeObj::Builtin(t) => t,
+                            TypeObj::Generated(t) => t.require_or_sup.as_ref().typ(),
+                        };
+                        let param_t = if let Some(additional) = &gen.additional {
+                            self.rec_intersection(&param_t, additional.typ())
+                        } else {
+                            param_t.clone()
+                        };
+                        let new_t = func1(param_t, gen.t.clone());
+                        ctx.register_gen_impl("__new__", new_t.clone(), Immutable, Private);
+                        // 必要なら、ユーザーが独自に上書きする
+                        ctx.register_gen_impl("new", new_t, Immutable, Public);
+                        self.register_gen_mono_type(gen, ctx, Const);
+                    } else {
+                        todo!("super class not found")
+                    }
                 } else {
                     todo!()
                 }

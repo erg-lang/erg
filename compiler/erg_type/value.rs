@@ -63,20 +63,6 @@ impl GenTypeObj {
             additional: additional.map(Box::new),
         }
     }
-
-    pub fn get_require_attr_t(&self, attr: &str) -> Option<&Type> {
-        if let Type::Record(rec) = &self.require_or_sup.typ() {
-            rec.get(attr)
-        } else if let Some(additional) = &self.additional {
-            if let Type::Record(gen) = additional.typ() {
-                gen.get(attr)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -99,13 +85,6 @@ impl TypeObj {
         match self {
             TypeObj::Builtin(t) => t,
             TypeObj::Generated(t) => &t.t,
-        }
-    }
-
-    pub fn get_require_attr_t(&self, attr: &str) -> Option<&Type> {
-        match self {
-            TypeObj::Builtin(_t) => None,
-            TypeObj::Generated(gen) => gen.get_require_attr_t(attr),
         }
     }
 }

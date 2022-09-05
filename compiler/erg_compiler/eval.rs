@@ -537,7 +537,10 @@ impl Context {
                     }
                     _ => *lhs,
                 };
-                for (_ty, ty_ctx) in self.rec_get_nominal_super_type_ctxs(&lhs) {
+                for (_ty, ty_ctx) in self
+                    .rec_get_nominal_super_type_ctxs(&lhs)
+                    .ok_or_else(|| todo!())?
+                {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
@@ -557,6 +560,7 @@ impl Context {
                         "{lhs}.{rhs} not found in [{}]",
                         erg_common::fmt_iter(
                             self.rec_get_nominal_super_type_ctxs(&lhs)
+                                .unwrap()
                                 .map(|(_, ctx)| &ctx.name)
                         )
                     )

@@ -211,6 +211,14 @@ impl ContextKind {
     pub const fn is_type(&self) -> bool {
         matches!(self, Self::Class | Self::Trait | Self::StructuralTrait)
     }
+
+    pub fn is_class(&self) -> bool {
+        matches!(self, Self::Class)
+    }
+
+    pub fn is_trait(&self) -> bool {
+        matches!(self, Self::Trait | Self::StructuralTrait)
+    }
 }
 
 /// 記号表に登録されているモードを表す

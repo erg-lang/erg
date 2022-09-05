@@ -18,7 +18,7 @@ use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{and, int_interval, mono, mono_q};
+use crate::constructors::{int_interval, mono, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
@@ -1775,24 +1775,6 @@ impl Type {
             Self::Ref(_) => Ownership::Ref,
             Self::RefMut(_) => Ownership::RefMut,
             _ => Ownership::Owned,
-        }
-    }
-
-    /// 共通部分(A and B)を返す
-    /// 型同士の包含関係はここでは検査しない(TypeCheckerでする)
-    pub fn intersection(lhs: &Self, rhs: &Self) -> Self {
-        if lhs == rhs {
-            return lhs.clone();
-        }
-        match (lhs, rhs) {
-            (Self::FreeVar(_), _) | (_, Self::FreeVar(_)) => {
-                todo!()
-            }
-            // { .i: Int } and { .s: Str } == { .i: Int, .s: Str }
-            (Self::Record(l), Self::Record(r)) => Self::Record(l.clone().concat(r.clone())),
-            (t, Self::Obj) | (Self::Obj, t) => t.clone(),
-            (_, Self::Never) | (Self::Never, _) => Self::Never,
-            (l, r) => and(l.clone(), r.clone()),
         }
     }
 
