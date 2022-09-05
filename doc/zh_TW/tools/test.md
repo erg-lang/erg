@@ -5,7 +5,7 @@ erg 命令有一个名为 test 的子命令，它支持测试的实现和执行�
 ## 测试装饰器 (@Test)
 
 Erg 使用 `erg test` 命令测试包中 `tests` 目录或 `*.test.er` 文件中的 `@Test` 子例程。
-`tests` 子例程负责黑盒测试（不测试私有函数），`*.test.er` 子例程负责白盒测试（也测试私有函数）。
+`tests` 子例程负责黑盒测试(不测试私有函数)，`*.test.er` 子例程负责白盒测试(也测试私有函数)。
 
 ```python
 # tests/test1.er
@@ -16,7 +16,7 @@ test_1_plus_n(n: Nat) =
     assert add(1, n) == n + 1
 ```
 
-执行结果以摘要形式显示，可以以各种文件格式（.md、.csv 等）输出。
+执行结果以摘要形式显示，可以以各种文件格式(.md、.csv 等)输出。
 
 ## 文档测试
 
@@ -42,4 +42,4 @@ VMs =...
     ...
 ```
 
-用于测试的模拟对象（mock objects）在 `tests/mock` 模块中定义。
+用于测试的模拟对象(mock objects)在 `tests/mock` 模块中定义。

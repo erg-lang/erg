@@ -6,7 +6,7 @@
 
 ## [compiler/](./compiler/index.md)
 
-    描述 Erg 编译器的设计（厘米）
+    描述 Erg 编译器的设计(厘米)
 
 ## [dev_guide/](./dev_guide/index.md)
 
