@@ -9,7 +9,7 @@ use erg_common::Str;
 use Visibility::*;
 
 use crate::error::{EffectError, EffectErrors, EffectResult};
-use crate::hir::{Accessor, Def, Expr, Signature, HIR};
+use crate::hir::{Accessor, Array, Def, Expr, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -83,6 +83,11 @@ impl SideEffectChecker {
             match expr {
                 Expr::Def(def) => {
                     self.check_def(def);
+                }
+                Expr::MethodDefs(method_defs) => {
+                    for def in method_defs.defs.iter() {
+                        self.check_def(def);
+                    }
                 }
                 Expr::Call(call) => {
                     for parg in call.args.pos_args.iter() {
@@ -173,6 +178,31 @@ impl SideEffectChecker {
         match expr {
             Expr::Def(def) => {
                 self.check_def(def);
+            }
+            Expr::MethodDefs(method_defs) => {
+                for def in method_defs.defs.iter() {
+                    self.check_def(def);
+                }
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    for arg in arr.elems.pos_args.iter() {
+                        self.check_expr(&arg.expr);
+                    }
+                }
+                other => todo!("{other}"),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    for arg in tup.elems.pos_args.iter() {
+                        self.check_expr(&arg.expr);
+                    }
+                }
+            },
+            Expr::Record(record) => {
+                for attr in record.attrs.iter() {
+                    self.check_def(attr);
+                }
             }
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
