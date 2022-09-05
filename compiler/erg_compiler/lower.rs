@@ -563,7 +563,7 @@ impl ASTLowerer {
         }
         match self.ctx.pop() {
             Ok(ctx) => {
-                if let Some((_, class_root)) = self.ctx.poly_types.get_mut(&class.name()) {
+                if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
                     class_root.method_defs.push((class, ctx));
                 } else {
                     todo!()

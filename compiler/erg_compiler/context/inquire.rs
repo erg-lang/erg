@@ -1097,6 +1097,71 @@ impl Context {
         }
     }
 
+    pub(crate) fn rec_get_mut_nominal_type_ctx<'a>(
+        &'a mut self,
+        typ: &Type,
+    ) -> Option<(&'a Type, &'a mut Context)> {
+        // SAFETY: `rec_get_nominal_type_ctx` is called only when `self` is not borrowed
+        let outer = unsafe {
+            (&mut self.outer as *mut Option<Box<Context>>)
+                .as_mut()
+                .unwrap()
+        };
+        match typ {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&fv.crack()) {
+                    return Some(res);
+                }
+            }
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&sup) {
+                    return Some(res);
+                }
+            }
+            Type::Refinement(refine) => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&refine.t) {
+                    return Some(res);
+                }
+            }
+            Type::Quantified(_) => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                    return Some(res);
+                }
+            }
+            Type::Poly { name, params: _ } => {
+                if let Some((t, ctx)) = self.rec_get_mut_poly_type(name) {
+                    return Some((t, ctx));
+                }
+            }
+            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+                // TODO: reference RecordType (inherits Type)
+                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
+                    return Some(res);
+                }
+            }*/
+            // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
+            other if other.is_monomorphic() => {
+                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&other.name()) {
+                    return Some((t, ctx));
+                }
+            }
+            Type::Ref(t) | Type::RefMut(t) => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(t) {
+                    return Some(res);
+                }
+            }
+            other => {
+                log!("{other} has no nominal definition");
+            }
+        }
+        if let Some(outer) = outer {
+            outer.rec_get_mut_nominal_type_ctx(typ)
+        } else {
+            None
+        }
+    }
+
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
         match obj.ref_t() {
             // TODO: attr
@@ -1202,6 +1267,26 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = &self.outer {
             outer.rec_get_poly_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = self.outer.as_mut() {
+            outer.rec_get_mut_mono_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        if let Some((t, ctx)) = self.poly_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = self.outer.as_mut() {
+            outer.rec_get_mut_poly_type(name)
         } else {
             None
         }

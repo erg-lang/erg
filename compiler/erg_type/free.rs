@@ -180,6 +180,17 @@ impl Constraint {
         }
     }
 
+    pub fn lift(&self) {
+        match self {
+            Self::Sandwiched { sub, sup, .. } => {
+                sub.lift();
+                sup.lift();
+            }
+            Self::TypeOf(t) => t.lift(),
+            Self::Uninited => {}
+        }
+    }
+
     pub fn get_type(&self) -> Option<&Type> {
         match self {
             Self::TypeOf(ty) => Some(ty),
@@ -259,7 +270,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             return write!(f, "...");
         }
         match self {
-            Self::Linked(t) | Self::UndoableLinked { t, .. } => t.limited_fmt(f, limit),
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => {
+                write!(f, "(")?;
+                t.limited_fmt(f, limit)?;
+                write!(f, ")")
+            }
             Self::NamedUnbound {
                 name,
                 lev,
@@ -434,13 +449,17 @@ impl<T: Clone + HasLevel> Free<T> {
 
     pub fn lift(&self) {
         match &mut *self.borrow_mut() {
-            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
+            FreeKind::Unbound {
+                lev, constraint, ..
+            }
+            | FreeKind::NamedUnbound {
+                lev, constraint, ..
+            } => {
                 *lev += 1;
+                constraint.lift();
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                if let Some(lev) = t.level() {
-                    t.update_level(lev + 1);
-                }
+                t.lift();
             }
         }
     }
@@ -579,7 +598,10 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn is_linked(&self) -> bool {
-        matches!(&*self.borrow(), FreeKind::Linked(_))
+        matches!(
+            &*self.borrow(),
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
+        )
     }
 
     pub fn unbound_name(&self) -> Option<Str> {

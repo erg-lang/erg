@@ -273,7 +273,7 @@ impl Context {
                     drop(constraint);
                     fv.link(&t);
                     self.deref_tyvar(Type::FreeVar(fv))
-                } else if self.level == 0 || self.level <= fv.level().unwrap() {
+                } else if self.level <= fv.level().unwrap() {
                     let new_t = if sub_t == &Never {
                         super_t.clone()
                     } else {

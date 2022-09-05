@@ -531,15 +531,18 @@ impl Context {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.
                 let lhs = match *lhs {
+                    Type::FreeVar(fv) if fv.is_linked() => {
+                        self.eval_t_params(mono_proj(fv.crack().clone(), rhs.clone()), level)?
+                    }
                     Type::FreeVar(fv) if fv.is_unbound() => {
                         fv.lift();
                         self.deref_tyvar(Type::FreeVar(fv))?
                     }
-                    _ => *lhs,
+                    other => other,
                 };
                 for (_ty, ty_ctx) in self
                     .rec_get_nominal_super_type_ctxs(&lhs)
-                    .ok_or_else(|| todo!())?
+                    .ok_or_else(|| todo!("{lhs}"))?
                 {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
