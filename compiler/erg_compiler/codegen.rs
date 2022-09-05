@@ -23,8 +23,8 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, TypeCode, TypePair};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
+use crate::context::eval::eval_lit;
 use crate::error::{CompileError, CompileErrors, CompileResult};
-use crate::eval::eval_lit;
 use crate::hir::{
     Accessor, Args, Array, Block, Call, DefBody, Expr, Local, Signature, SubrSignature, Tuple,
     VarSignature, HIR,

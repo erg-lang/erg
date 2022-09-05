@@ -23,9 +23,9 @@ use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
 
+use crate::context::eval::eval_lit;
 use crate::context::{Context, RegistrationMode};
 use crate::error::TyCheckResult;
-use crate::eval::eval_lit;
 use crate::hir;
 use RegistrationMode::*;
 

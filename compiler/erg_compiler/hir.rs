@@ -19,8 +19,8 @@ use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
+use crate::context::eval::type_from_token_kind;
 use crate::error::readable_name;
-use crate::eval::type_from_token_kind;
 
 #[derive(Debug, Clone)]
 pub struct Literal {
