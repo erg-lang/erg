@@ -303,7 +303,7 @@ impl TyVarContext {
     }
 
     fn check_cyclicity_and_link(&self, name: &str, fv_inst: &FreeTyVar, tv: &Type) {
-        let (sub, sup) = enum_unwrap!(tv, Type::FreeVar).crack_bound_types().unwrap();
+        let (sub, sup) = enum_unwrap!(tv, Type::FreeVar).get_bound_types().unwrap();
         let new_cyclicity = match (sup.contains_tvar(name), sub.contains_tvar(name)) {
             (true, true) => Cyclicity::Both,
             // T <: Super

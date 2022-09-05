@@ -512,19 +512,19 @@ impl<T: Clone + HasLevel> Free<T> {
         })
     }
 
-    pub fn type_of(&self) -> Option<Type> {
+    pub fn get_type(&self) -> Option<Type> {
         self.borrow()
             .constraint()
             .and_then(|c| c.get_type().cloned())
     }
 
-    pub fn crack_sup(&self) -> Option<Type> {
+    pub fn get_sup(&self) -> Option<Type> {
         self.borrow()
             .constraint()
             .and_then(|c| c.get_super().cloned())
     }
 
-    pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
+    pub fn get_bound_types(&self) -> Option<(Type, Type)> {
         self.borrow()
             .constraint()
             .and_then(|c| c.get_sub_sup().map(|(sub, sup)| (sub.clone(), sup.clone())))

@@ -1715,7 +1715,7 @@ impl Type {
             Self::FreeVar(fv) => {
                 fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
                     || fv
-                        .crack_bound_types()
+                        .get_bound_types()
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }

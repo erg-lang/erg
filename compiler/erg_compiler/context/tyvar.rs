@@ -986,9 +986,9 @@ impl Context {
             (Type::FreeVar(lfv), Type::FreeVar(rfv))
                 if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
             {
-                let (lsub, lsup) = lfv.crack_bound_types().unwrap();
+                let (lsub, lsup) = lfv.get_bound_types().unwrap();
                 let l_cyc = lfv.cyclicity();
-                let (rsub, rsup) = rfv.crack_bound_types().unwrap();
+                let (rsub, rsup) = rfv.get_bound_types().unwrap();
                 let r_cyc = rfv.cyclicity();
                 let cyclicity = l_cyc.combine(r_cyc);
                 let new_constraint = if let Some(min) = self.min(&lsup, &rsup) {

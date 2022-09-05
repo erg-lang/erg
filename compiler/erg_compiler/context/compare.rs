@@ -232,7 +232,7 @@ impl Context {
             {
                 (Absolutely, true)
             }
-            (_, Type::FreeVar(fv)) | (Type::FreeVar(fv), _) => match fv.crack_bound_types() {
+            (_, Type::FreeVar(fv)) | (Type::FreeVar(fv), _) => match fv.get_bound_types() {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
@@ -335,7 +335,7 @@ impl Context {
     /// assert sup_conforms(?E(<: Eq(?R)), base: T, sup_trait: Eq(U))
     /// ```
     fn sup_conforms(&self, free: &FreeTyVar, base: &Type, sup_trait: &Type) -> bool {
-        let (_sub, sup) = free.crack_bound_types().unwrap();
+        let (_sub, sup) = free.get_bound_types().unwrap();
         free.forced_undoable_link(base);
         let judge = self.supertype_of(&sup, sup_trait);
         free.undo();
@@ -345,7 +345,7 @@ impl Context {
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
     fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstance) -> bool {
-        let (_sub, sup) = free.crack_bound_types().unwrap();
+        let (_sub, sup) = free.get_bound_types().unwrap();
         log!(info "{free}");
         free.forced_undoable_link(&inst_pair.sub_type);
         log!(info "{free}");
@@ -403,20 +403,18 @@ impl Context {
             }
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
-            (FreeVar(lfv), FreeVar(rfv)) => {
-                match (lfv.crack_bound_types(), rfv.crack_bound_types()) {
-                    (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
-                    _ => {
-                        if lfv.is_linked() {
-                            self.supertype_of(&lfv.crack(), rhs)
-                        } else if rfv.is_linked() {
-                            self.supertype_of(lhs, &rfv.crack())
-                        } else {
-                            false
-                        }
+            (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_bound_types(), rfv.get_bound_types()) {
+                (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
+                _ => {
+                    if lfv.is_linked() {
+                        self.supertype_of(&lfv.crack(), rhs)
+                    } else if rfv.is_linked() {
+                        self.supertype_of(lhs, &rfv.crack())
+                    } else {
+                        false
                     }
                 }
-            }
+            },
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             (FreeVar(lfv), rhs) => {

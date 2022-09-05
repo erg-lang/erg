@@ -609,7 +609,7 @@ impl Context {
             TyParam::Value(v) => Ok(enum_t(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
-                if let Some(t) = fv.type_of() {
+                if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
                     todo!()
@@ -637,7 +637,7 @@ impl Context {
             TyParam::Value(v) => Ok(v.class()),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
-                if let Some(t) = fv.type_of() {
+                if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
                     todo!()
