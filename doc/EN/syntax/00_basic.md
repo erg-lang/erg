@@ -2,8 +2,6 @@
 
 > __Warning__: This document is incomplete. It has not been proofread (style, correct links, mistranslation, etc.). Also, Erg's syntax may be change destructively during version 0.*, and the documentation may not have been updated accordingly. Please be aware of this beforehand.
 > If you find any errors in this document, please report then to [here form](https://forms.gle/HtLYRfYzWCAaeTGb6) or [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new). We would appreciate your suggestions.
->
-> [The Erg book original version (Japanese)](http://mtshiba.me/TheErgBook/)
 
 This document describes the basic syntax of Erg. The [Standard API](./API/index.md) and [internal documents for Erg contributors](./dev_guide/index.md) are located in another directory.
 
