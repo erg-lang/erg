@@ -65,7 +65,6 @@ assert foo.bar(1) in Int
 
 这通过在运行时执行类型检查来确保类型安全。 ``declare`` 函数大致如下工作
 
-
 ```python
 declare|S: Subroutine| sub!: S, T =
     # 实际上，=> 可以强制转换为没有块副作用的函数

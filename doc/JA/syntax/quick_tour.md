@@ -1,7 +1,5 @@
 # Quick Tour
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/34_generator.md%26commit_hash%3D7d43acdf0e2b71528b038b9a8e70be6c93831f96)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=7d43acdf0e2b71528b038b9a8e70be6c93831f96)
-
 `syntax`以下のドキュメントは、概ねプログラミング初心者でも理解できることを目指して書かれています。
 すでにPythonやRust, Haskellなどの言語を習得されている方にとっては、少し冗長であるかもしれません。
 
