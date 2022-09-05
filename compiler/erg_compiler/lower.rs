@@ -138,7 +138,7 @@ impl ASTLowerer {
             new_array.push(elem);
         }
         let elem_t = if union == Type::Never {
-            free_var(self.ctx.level, Constraint::type_of(Type::Type))
+            free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
         } else {
             union
         };

@@ -239,13 +239,13 @@ impl Context {
                 if cyclic.is_cyclic() {
                     return Err(TyCheckError::dummy_infer_error(fn_name!(), line!()));
                 }
-                Ok(Constraint::sandwiched(
+                Ok(Constraint::new_sandwiched(
                     self.deref_tyvar(sub)?,
                     self.deref_tyvar(sup)?,
                     cyclic,
                 ))
             }
-            Constraint::TypeOf(t) => Ok(Constraint::type_of(self.deref_tyvar(t)?)),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t)?)),
             _ => unreachable!(),
         }
     }
@@ -262,7 +262,7 @@ impl Context {
             // ?T(:> Never, <: Nat)[n] => Nat
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let constraint = fv.crack_constraint();
-                let (sub_t, super_t) = constraint.get_sub_sup_type().unwrap();
+                let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.rec_same_type_of(sub_t, super_t) {
                     self.unify(sub_t, super_t, None, None)?;
                     let t = if sub_t == &Never {
@@ -541,7 +541,7 @@ impl Context {
                 if self.rec_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::subtype_of(tp_t, Cyclicity::Not);
+                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
                         if self.is_sub_constraint_of(
                             fv.borrow().constraint().unwrap(),
                             &new_constraint,
@@ -743,7 +743,7 @@ impl Context {
                     } => {
                         t.update_level(*lev);
                         // TODO: constraint.type_of()
-                        if let Some(sup) = constraint.get_super_type_mut() {
+                        if let Some(sup) = constraint.get_super_mut() {
                             // 下のような場合は制約を弱化する
                             // unify(?T(<: Nat), Int): (?T(<: Int))
                             if self.rec_subtype_of(sup, t) {
@@ -754,7 +754,7 @@ impl Context {
                         }
                     }
                 } // &fv is dropped
-                let new_constraint = Constraint::subtype_of(t.clone(), fv.cyclicity());
+                let new_constraint = Constraint::new_subtype_of(t.clone(), fv.cyclicity());
                 // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                 // fv == ?T(: Type)の場合は?T(<: U)にする
                 if fv.level() < Some(self.level) {
@@ -992,7 +992,7 @@ impl Context {
                 let r_cyc = rfv.cyclicity();
                 let cyclicity = l_cyc.combine(r_cyc);
                 let new_constraint = if let Some(min) = self.min(&lsup, &rsup) {
-                    Constraint::sandwiched(self.rec_union(&lsub, &rsub), min.clone(), cyclicity)
+                    Constraint::new_sandwiched(self.rec_union(&lsub, &rsub), min.clone(), cyclicity)
                 } else {
                     todo!()
                 };
@@ -1041,16 +1041,16 @@ impl Context {
                             }
                             if let Some(new_sub) = self.rec_max(maybe_sub, sub) {
                                 *constraint =
-                                    Constraint::sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
+                                    Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
                             } else {
                                 let new_sub = self.rec_union(maybe_sub, sub);
-                                *constraint = Constraint::sandwiched(new_sub, mem::take(sup), *cyclicity);
+                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
                             }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
                             if self.rec_supertype_of(&Type, ty) {
-                                *constraint = Constraint::supertype_of(maybe_sub.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_supertype_of(maybe_sub.clone(), Cyclicity::Not);
                             } else {
                                 todo!()
                             }
@@ -1090,16 +1090,16 @@ impl Context {
                             }
                             if let Some(new_sup) = self.rec_min(sup, maybe_sup) {
                                 *constraint =
-                                    Constraint::sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
+                                    Constraint::new_sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
                             } else {
                                 let new_sup = self.rec_union(sup, maybe_sup);
-                                *constraint = Constraint::sandwiched(mem::take(sub), new_sup, *cyclicity);
+                                *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup, *cyclicity);
                             }
                         }
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
                         Constraint::TypeOf(ty) => {
                             if self.rec_supertype_of(&Type, ty) {
-                                *constraint = Constraint::subtype_of(maybe_sup.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_subtype_of(maybe_sup.clone(), Cyclicity::Not);
                             } else {
                                 todo!()
                             }

@@ -80,7 +80,7 @@ impl TyVarContext {
             ConstTemplate::Obj(o) => match o {
                 ValueObj::Type(t) if t.typ().is_mono_q() => {
                     if &t.typ().name()[..] == "Self" {
-                        let constraint = Constraint::type_of(Type);
+                        let constraint = Constraint::new_type_of(Type);
                         let t = named_free_var(Str::rc(var_name), self.level, constraint);
                         TyParam::t(t)
                     } else {
@@ -168,7 +168,8 @@ impl TyVarContext {
                     sup => sup,
                 };
                 let name = mid.name();
-                let constraint = Constraint::sandwiched(sub_instance, sup_instance, Cyclicity::Not);
+                let constraint =
+                    Constraint::new_sandwiched(sub_instance, sup_instance, Cyclicity::Not);
                 self.push_or_init_tyvar(
                     &name,
                     &named_free_var(name.clone(), self.level, constraint),
@@ -181,7 +182,7 @@ impl TyVarContext {
                     }
                     t => t,
                 };
-                let constraint = Constraint::type_of(t.clone());
+                let constraint = Constraint::new_type_of(t.clone());
                 // TODO: type-like types
                 if t == Type {
                     if let Some(tv) = self.tyvar_instances.get(&name) {
@@ -374,7 +375,7 @@ impl Context {
         let spec_t = if let Some(s) = t_spec {
             self.instantiate_typespec(s, mode)?
         } else {
-            free_var(self.level, Constraint::type_of(Type))
+            free_var(self.level, Constraint::new_type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
             self.sub_unify(&eval_t, &spec_t, None, t_spec.map(|s| s.loc()), None)?;
@@ -425,7 +426,7 @@ impl Context {
             } else {
                 self.level + 1
             };
-            free_var(level, Constraint::type_of(Type))
+            free_var(level, Constraint::new_type_of(Type))
         };
         if let Some(eval_ret_t) = eval_ret_t {
             self.sub_unify(
@@ -462,7 +463,7 @@ impl Context {
                     } else {
                         self.level + 1
                     };
-                    free_var(level, Constraint::type_of(Type))
+                    free_var(level, Constraint::new_type_of(Type))
                 }
             }
         };

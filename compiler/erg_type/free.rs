@@ -145,7 +145,7 @@ impl LimitedDisplay for Constraint {
 }
 
 impl Constraint {
-    pub const fn sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
+    pub const fn new_sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
         Self::Sandwiched {
             sub,
             sup,
@@ -153,20 +153,20 @@ impl Constraint {
         }
     }
 
-    pub fn type_of(t: Type) -> Self {
+    pub fn new_type_of(t: Type) -> Self {
         if t == Type::Type {
-            Self::sandwiched(Type::Never, Type::Obj, Not)
+            Self::new_sandwiched(Type::Never, Type::Obj, Not)
         } else {
             Self::TypeOf(t)
         }
     }
 
-    pub const fn subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
-        Self::sandwiched(Type::Never, sup, cyclicity)
+    pub const fn new_subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
+        Self::new_sandwiched(Type::Never, sup, cyclicity)
     }
 
-    pub const fn supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
-        Self::sandwiched(sub, Type::Obj, cyclicity)
+    pub const fn new_supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
+        Self::new_sandwiched(sub, Type::Obj, cyclicity)
     }
 
     pub const fn is_uninited(&self) -> bool {
@@ -192,28 +192,28 @@ impl Constraint {
         }
     }
 
-    pub fn get_sub_type(&self) -> Option<&Type> {
+    pub fn get_sub(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sub, .. } => Some(sub),
             _ => None,
         }
     }
 
-    pub fn get_super_type(&self) -> Option<&Type> {
+    pub fn get_super(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
     }
 
-    pub fn get_sub_sup_type(&self) -> Option<(&Type, &Type)> {
+    pub fn get_sub_sup(&self) -> Option<(&Type, &Type)> {
         match self {
             Self::Sandwiched { sub, sup, .. } => Some((sub, sup)),
             _ => None,
         }
     }
 
-    pub fn get_super_type_mut(&mut self) -> Option<&mut Type> {
+    pub fn get_super_mut(&mut self) -> Option<&mut Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
@@ -521,14 +521,13 @@ impl<T: Clone + HasLevel> Free<T> {
     pub fn crack_sup(&self) -> Option<Type> {
         self.borrow()
             .constraint()
-            .and_then(|c| c.get_super_type().cloned())
+            .and_then(|c| c.get_super().cloned())
     }
 
     pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
-        self.borrow().constraint().and_then(|c| {
-            c.get_sub_sup_type()
-                .map(|(sub, sup)| (sub.clone(), sup.clone()))
-        })
+        self.borrow()
+            .constraint()
+            .and_then(|c| c.get_sub_sup().map(|(sub, sup)| (sub.clone(), sup.clone())))
     }
 
     pub fn is_unbound(&self) -> bool {
@@ -559,7 +558,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub().is_some()
         )
     }
 
@@ -567,7 +566,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super().is_some()
         )
     }
 
@@ -575,7 +574,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup().is_some()
         )
     }
 

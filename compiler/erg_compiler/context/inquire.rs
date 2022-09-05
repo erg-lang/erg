@@ -435,7 +435,7 @@ impl Context {
                     }
                 );
                 let (new_sub, new_sup) = (self.resolve_trait(sub)?, self.resolve_trait(sup)?);
-                let new_constraint = Constraint::sandwiched(new_sub, new_sup, cyclic);
+                let new_constraint = Constraint::new_sandwiched(new_sub, new_sup, cyclic);
                 fv.update_constraint(new_constraint);
                 Ok(Type::FreeVar(fv))
             }
