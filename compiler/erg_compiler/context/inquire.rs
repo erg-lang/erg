@@ -17,7 +17,7 @@ use erg_parser::token::Token;
 use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
+use erg_type::value::{TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
@@ -224,7 +224,7 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         let self_t = obj.t();
-        match self.get_attr_t_from_t(obj, &self_t, name, namespace) {
+        match self.get_attr_t_from_attributive_t(obj, &self_t, name, namespace) {
             Ok(t) => {
                 return Ok(t);
             }
@@ -253,7 +253,7 @@ impl Context {
         }
     }
 
-    fn get_attr_t_from_t(
+    fn get_attr_t_from_attributive_t(
         &self,
         obj: &hir::Expr,
         t: &Type,
@@ -261,11 +261,19 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         match t {
-            Type => todo!(),
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_t_from_t(obj, &fv.crack(), name, namespace)
+                self.get_attr_t_from_attributive_t(obj, &fv.crack(), name, namespace)
             }
-            Type::Refinement(refine) => self.get_attr_t_from_t(obj, &refine.t, name, namespace),
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                self.get_attr_t_from_attributive_t(obj, &sup, name, namespace)
+            }
+            Type::Ref(t) | Type::RefMut(t) => {
+                self.get_attr_t_from_attributive_t(obj, t, name, namespace)
+            }
+            Type::Refinement(refine) => {
+                self.get_attr_t_from_attributive_t(obj, &refine.t, name, namespace)
+            }
             Type::Record(record) => {
                 // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
                 if let Some(attr) = record.get(&Field::new(Public, name.inspect().clone())) {
@@ -287,7 +295,20 @@ impl Context {
                 let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
                 Ok(t)
             }
-            _ => Err(TyCheckError::dummy(line!() as usize)),
+            other => {
+                if let Some(v) = self.rec_get_const_obj(&other.name()) {
+                    match v {
+                        ValueObj::Type(TypeObj::Generated(gen)) => gen
+                            .get_require_attr_t(&name.inspect()[..])
+                            .map(|t| t.clone())
+                            .ok_or(TyCheckError::dummy(line!() as usize)),
+                        ValueObj::Type(TypeObj::Builtin(t)) => todo!("{t}"),
+                        other => todo!("{other}"),
+                    }
+                } else {
+                    Err(TyCheckError::dummy(line!() as usize))
+                }
+            }
         }
     }
 
@@ -753,7 +774,7 @@ impl Context {
     ) -> TyCheckResult<Type> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Local(local)) if &local.inspect()[..] == "match" => {
-                return self.get_match_call_t(pos_args, kw_args)
+                return self.get_match_call_t(pos_args, kw_args);
             }
             _ => {}
         }
@@ -1021,33 +1042,48 @@ impl Context {
     ) -> Option<(&'a Type, &'a Context)> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                return self.rec_get_nominal_type_ctx(&fv.crack());
+                if let Some(res) = self.rec_get_nominal_type_ctx(&fv.crack()) {
+                    return Some(res);
+                }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.crack_sup()?;
-                return self.rec_get_nominal_type_ctx(&sup);
+                let sup = fv.get_sup().unwrap();
+                if let Some(res) = self.rec_get_nominal_type_ctx(&sup) {
+                    return Some(res);
+                }
             }
             Type::Refinement(refine) => {
-                return self.rec_get_nominal_type_ctx(&refine.t);
+                if let Some(res) = self.rec_get_nominal_type_ctx(&refine.t) {
+                    return Some(res);
+                }
             }
             Type::Quantified(_) => {
-                return self.rec_get_nominal_type_ctx(&mono("QuantifiedFunction"));
+                if let Some(res) = self.rec_get_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                    return Some(res);
+                }
             }
             Type::Poly { name, params: _ } => {
-                if let Some((t, ctx)) = self.poly_types.get(name) {
+                if let Some((t, ctx)) = self.rec_get_poly_type(name) {
                     return Some((t, ctx));
                 }
             }
             Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                return self.rec_get_nominal_type_ctx(&Type)
+                // TODO: reference RecordType (inherits Type)
+                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
+                    return Some(res);
+                }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.mono_types.get(&typ.name()) {
+                if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
                     return Some((t, ctx));
                 }
             }
-            Type::Ref(t) | Type::RefMut(t) => return self.rec_get_nominal_type_ctx(t),
+            Type::Ref(t) | Type::RefMut(t) => {
+                if let Some(res) = self.rec_get_nominal_type_ctx(t) {
+                    return Some(res);
+                }
+            }
             other => todo!("{other}"),
         }
         if let Some(outer) = &self.outer {
@@ -1119,9 +1155,8 @@ impl Context {
 
     pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
-            return Some(impls);
-        }
-        if let Some(outer) = &self.outer {
+            Some(impls)
+        } else if let Some(outer) = &self.outer {
             outer.rec_get_const_param_defaults(name)
         } else {
             None
@@ -1145,6 +1180,26 @@ impl Context {
             } else {
                 todo!()
             }
+        }
+    }
+
+    fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.mono_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_mono_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.poly_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_poly_type(name)
+        } else {
+            None
         }
     }
 }

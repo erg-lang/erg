@@ -271,7 +271,7 @@ impl Context {
             let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
             let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
             erg_common::log!();
-            self.register_const(__name__, obj);
+            self.register_gen_const(__name__, obj);
             Ok(ValueObj::None)
         } else {
             Err(EvalError::not_const_expr(

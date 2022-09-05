@@ -9,12 +9,12 @@ use erg_type::free::HasLevel;
 use ast::{DefId, VarName};
 use erg_parser::ast;
 
-use erg_type::constructors::{enum_t, func, proc, ref_, ref_mut};
-use erg_type::value::ValueObj;
+use erg_type::constructors::{enum_t, func, func1, proc, ref_, ref_mut};
+use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
-use crate::context::{Context, DefaultInfo, RegistrationMode};
+use crate::context::{Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
@@ -446,7 +446,7 @@ impl Context {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
-                    self.register_const(__name__.unwrap(), obj);
+                    self.register_gen_const(__name__.unwrap(), obj);
                 } else {
                     let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
@@ -468,11 +468,125 @@ impl Context {
                     let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
-                self.register_const(__name__.unwrap(), obj);
+                self.register_gen_const(__name__.unwrap(), obj);
             }
             _ => {}
         }
         Ok(())
+    }
+
+    fn _register_gen_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+        let name = VarName::from_static(name);
+        if self.decls.get(&name).is_some() {
+            panic!("already registered: {name}");
+        } else {
+            self.decls
+                .insert(name, VarInfo::new(t, Immutable, vis, VarKind::Declared));
+        }
+    }
+
+    fn register_gen_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+    ) {
+        let name = VarName::from_static(name);
+        if self.locals.get(&name).is_some() {
+            panic!("already registered: {name}");
+        } else {
+            let id = DefId(get_hash(&(&self.name, &name)));
+            self.locals
+                .insert(name, VarInfo::new(t, muty, vis, VarKind::Defined(id)));
+        }
+    }
+
+    pub(crate) fn register_gen_const(&mut self, name: &Str, obj: ValueObj) {
+        if self.rec_get_const_obj(name).is_some() {
+            panic!("already registered: {name}");
+        } else {
+            match obj {
+                ValueObj::Type(t) => {
+                    let gen = enum_unwrap!(t, TypeObj::Generated);
+                    self.register_gen_type(gen);
+                }
+                other => {
+                    let id = DefId(get_hash(name));
+                    let vi = VarInfo::new(
+                        enum_t(set! {other.clone()}),
+                        Const,
+                        Private,
+                        VarKind::Defined(id),
+                    );
+                    self.consts.insert(VarName::from_str(Str::rc(name)), other);
+                    self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                }
+            }
+        }
+    }
+
+    fn register_gen_type(&mut self, gen: GenTypeObj) {
+        match gen.kind {
+            TypeKind::Class => {
+                if gen.t.is_monomorphic() {
+                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
+                    let require = gen.require_or_sup.typ().clone();
+                    let new_t = func1(require, gen.t.clone());
+                    ctx.register_gen_impl("__new__", new_t, Immutable, Private);
+                    self.register_gen_mono_type(gen, ctx, Const);
+                } else {
+                    todo!()
+                }
+            }
+            TypeKind::InheritedClass => {
+                if gen.t.is_monomorphic() {
+                    let super_classes = vec![gen.require_or_sup.typ().clone()];
+                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx =
+                        Self::mono_class(gen.t.name(), super_classes, super_traits, self.level);
+                    let sup = gen.require_or_sup.typ().clone();
+                    let new_t = func1(sup, gen.t.clone());
+                    ctx.register_gen_impl("__new__", new_t, Immutable, Private);
+                    self.register_gen_mono_type(gen, ctx, Const);
+                } else {
+                    todo!()
+                }
+            }
+            other => todo!("{other:?}"),
+        }
+    }
+
+    fn register_gen_mono_type(&mut self, gen: GenTypeObj, ctx: Self, muty: Mutability) {
+        // FIXME: not panic but error
+        // FIXME: recursive search
+        if self.mono_types.contains_key(&gen.t.name()) {
+            panic!("{} has already been registered", gen.t.name());
+        } else if self.rec_get_const_obj(&gen.t.name()).is_some() {
+            panic!("{} has already been registered as const", gen.t.name());
+        } else {
+            let t = gen.t.clone();
+            let name = VarName::from_str(gen.t.name());
+            let id = DefId(get_hash(&(&self.name, &name)));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(Type, muty, Private, VarKind::Defined(id)),
+            );
+            self.consts
+                .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
+            for impl_trait in ctx.super_traits.iter() {
+                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                } else {
+                    self.trait_impls.insert(
+                        impl_trait.name(),
+                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                    );
+                }
+            }
+            self.mono_types.insert(name, (t, ctx));
+        }
     }
 
     pub(crate) fn import_mod(

@@ -63,19 +63,33 @@ impl GenTypeObj {
             additional: additional.map(Box::new),
         }
     }
+
+    pub fn get_require_attr_t(&self, attr: &str) -> Option<&Type> {
+        if let Type::Record(rec) = &self.require_or_sup.typ() {
+            rec.get(attr)
+        } else if let Some(additional) = &self.additional {
+            if let Type::Record(gen) = additional.typ() {
+                gen.get(attr)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeObj {
     Builtin(Type),
-    Gen(GenTypeObj),
+    Generated(GenTypeObj),
 }
 
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TypeObj::Builtin(t) => write!(f, "{t}"),
-            TypeObj::Gen(t) => write!(f, "{t}"),
+            TypeObj::Generated(t) => write!(f, "{t}"),
         }
     }
 }
@@ -84,7 +98,14 @@ impl TypeObj {
     pub const fn typ(&self) -> &Type {
         match self {
             TypeObj::Builtin(t) => t,
-            TypeObj::Gen(t) => &t.t,
+            TypeObj::Generated(t) => &t.t,
+        }
+    }
+
+    pub fn get_require_attr_t(&self, attr: &str) -> Option<&Type> {
+        match self {
+            TypeObj::Builtin(_t) => None,
+            TypeObj::Generated(gen) => gen.get_require_attr_t(attr),
         }
     }
 }
@@ -329,7 +350,7 @@ impl HasType for ValueObj {
 }
 
 impl ValueObj {
-    pub fn t(t: Type) -> Self {
+    pub fn builtin_t(t: Type) -> Self {
         ValueObj::Type(TypeObj::Builtin(t))
     }
 
@@ -340,7 +361,7 @@ impl ValueObj {
         impls: Option<TypeObj>,
         additional: Option<TypeObj>,
     ) -> Self {
-        ValueObj::Type(TypeObj::Gen(GenTypeObj::new(
+        ValueObj::Type(TypeObj::Generated(GenTypeObj::new(
             kind,
             t,
             require_or_sup,

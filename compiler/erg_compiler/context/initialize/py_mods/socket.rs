@@ -14,7 +14,7 @@ impl Context {
     pub(crate) fn init_py_socket_mod() -> Self {
         let mut socket = Context::module("socket".into(), 15);
         let mut sock = Context::mono_class(Str::ever("Socket!"), vec![Obj], vec![], 0);
-        sock.register_impl(
+        sock.register_builtin_impl(
             "new",
             func(
                 vec![],
@@ -30,7 +30,7 @@ impl Context {
             Immutable,
             Public,
         );
-        socket.register_type(mono("Socket!"), sock, Const);
+        socket.register_builtin_type(mono("Socket!"), sock, Const);
         socket
     }
 }
