@@ -1,10 +1,10 @@
-# install subcommand
+# 安装子命令
 
-You can install packages registered on the registry site with install.
-The basic usage is the same as package managers such as cargo.
+您可以使用 install 安装在注册表站点上注册的软件包。
+基本用法与cargo等包管理器相同。
 
-## Convenience functions
+## 便利功能
 
-* If there is a package name with a similar name and the number of downloads is more than 10 times that of that one, a suggestion will appear that you may have entered it incorrectly. This prevents typo squatting.
-* If the package size is large (more than 50MB), display the size and suggest if you really want to install it.
-* Suggest an alternative package if the package is duplicated.
+* 如果有同名的包名，且下载次数超过该包名的10倍以上，会提示可能输入错误。 这可以防止拼写错误。
+* 如果包很大（超过 50MB），请显示大小并建议您是否真的要安装它。
+* 如果包装重复，建议使用替代包装。

@@ -1,11 +1,11 @@
-# test subcommand
+# 测试子命令
 
-The erg command has a subcommand called test, which supports test implementation and execution.
+erg 命令有一个名为 test 的子命令，它支持测试的实现和执行。
 
-## Test decorator (@Test)
+## 测试装饰器 (@Test)
 
-Erg tests the `@Test` subroutine in the `tests` directory in the package or in the `*.test.er` file with the `erg test` command.
-`tests` subroutines are in charge of black-box testing (not testing private functions), and `*.test.er` subroutines are in charge of white-box testing (testing private functions as well).
+Erg 使用 `erg test` 命令测试包中 `tests` 目录或 `*.test.er` 文件中的 `@Test` 子例程。
+`tests` 子例程负责黑盒测试（不测试私有函数），`*.test.er` 子例程负责白盒测试（也测试私有函数）。
 
 ```python
 # tests/test1.er
@@ -16,13 +16,13 @@ test_1_plus_n(n: Nat) =
     assert add(1, n) == n + 1
 ```
 
-The execution result is displayed as a summary and can be output in various file formats (.md, .csv, etc.).
+执行结果以摘要形式显示，可以以各种文件格式（.md、.csv 等）输出。
 
-## Doc Test
+## 文档测试
 
-In Erg, `#` and `#[` are comment lines, but `##` and `#[[` are doc comments, and comments can be displayed as markdown from editors such as VSCode.
-Furthermore, the source code in the doc comment is automatically tested with the erg test command if erg is specified.
-Below is an example test.
+在 Erg 中，`#` 和 `#[` 是注释行，但 `##` 和 `#[[` 是 doc 注释，并且注释可以从 VSCode 等编辑器显示为 markdown。
+此外，如果指定了 erg，则使用 erg test 命令自动测试文档注释中的源代码。
+下面是一个示例测试。
 
 ```python
 VMs =...
@@ -30,7 +30,7 @@ VMs =...
     #[[
     execute commands.
     ```python
-    # VM in standard configuration
+    # 标准配置的虚拟机
     {vm1; ...} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
@@ -42,4 +42,4 @@ VMs =...
     ...
 ```
 
-Mock objects (mock objects) used for testing are defined in the `tests/mock` module.
+用于测试的模拟对象（mock objects）在 `tests/mock` 模块中定义。

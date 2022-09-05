@@ -1,4 +1,4 @@
-#REPL
+# REPL
 
 Running the `erg` command with no arguments invokes the REPL. It can also be invoked with the `repl` subcommand.
 Additionally, you can specify the following flags:

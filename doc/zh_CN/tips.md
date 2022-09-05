@@ -1,11 +1,11 @@
-# Tips
+# 提示
 
-## Want to change the language in which errors are displayed
+## 想要更改显示错误的语言
 
-Please download Erg for your language.
-However, external libraries may not support multiple languages.
+请为您的语言下载 Erg。
+但是，外部库可能不支持多种语言。
 
-## Want to change only certain attributes of a record
+## 只想更改记录的某些属性
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
@@ -13,21 +13,21 @@ record: {.name = Str; .age = Nat; .height = CentiMeter}
 mut_record = {.height = !height; ...rest}
 ```
 
-## Want to shadow variables
+## 想要隐藏变量
 
-Shadowing in the same scope is not possible with Erg. However, you can redefine them if the scope changes (This is a syntax called instance block).
+使用 Erg 无法在相同范围内进行遮蔽。 但是，如果范围发生变化，您可以重新定义它们（这是一种称为实例块的语法）。
 
 ````python
-## Get a T!-type object and finally assign it to a variable as type T
+## 获取一个 T!-type 对象，最后将它作为 T 类型赋值给一个变量
 x: T =
     x: T! = foo()
     x.bar!()
     x.freeze()
 ````
 
-## Want to reuse a final class (non-inheritable class) somehow
+## 想以某种方式重用最终类（不可继承的类）
 
-You can create a wrapper class. This is a so-called composition pattern.
+您可以创建一个包装类。 这就是所谓的构图模式。
 
 ```python
 FinalWrapper = Class {inner = FinalClass}
@@ -37,11 +37,11 @@ FinalWrapper.
     ...
 ```
 
-## Want to use an enumerated type that is not a string
+## 想使用不是字符串的枚举类型
 
-You can define a traditional enumerated type (algebraic data type) commonly found in other languages as follows
-If you implement `Singleton`, classes and instances are identical.
-Also, if you use `Enum`, the type of choice is automatically defined as a redirect attribute.
+可以定义其他语言中常见的传统枚举类型（代数数据类型）如下
+如果您实现“单例”，则类和实例是相同的。
+此外，如果您使用 `Enum`，则选择的类型会自动定义为重定向属性。
 
 ```python
 Ok = Class Impl := Singleton
@@ -57,7 +57,7 @@ match! stat:
 
 ```python
 Status = Enum Ok, Err, ErrWithInfo
-# is equivalent to
+# 相当于
 Status = Class Ok or Err or ErrWithInfo
 Status.
     Ok = Ok
@@ -65,9 +65,9 @@ Status.
     ErrWithInfo = ErrWithInfo
 ```
 
-## I want to enumerate at the beginning of 1
+## 我想在1开头枚举
 
-method 1:
+方法一：
 
 ```python
 arr = [...]
@@ -83,10 +83,10 @@ for! arr.iter().zip(1...) , i =>
     ...
 ```
 
-## Want to test a (white box) non-public API
+## 想要测试一个（白盒）非公共 API
 
-The private API in `foo.er` is specially accessible in the module `foo.test.er`.
-The `foo.test.er` module cannot be imported, so it remains hidden.
+`foo.er` 中的私有 API 可在 `foo.test.er` 模块中特别访问。
+`foo.test.er` 模块无法导入，因此它保持隐藏状态。
 
 ```python
 # foo.er
@@ -104,9 +104,9 @@ foo = import "foo"
     ...
 ```
 
-## Want to define a (variable) attribute that is read-only from the outside
+## 想定义一个从外部只读的（变量）属性
 
-You can make the attribute private and define a getter.
+您可以将属性设为私有并定义一个 getter。
 
 ```python
 C = Class {v = Int!}
@@ -118,9 +118,9 @@ C.
     ...
 ```
 
-## Want the argument names to be identified on the type system
+## 希望在类型系统上识别参数名称
 
-You can receive arguments by record.
+您可以按记录接收参数。
 
 ```python
 Point = {x = Int; y = Int}
@@ -130,6 +130,6 @@ norm({x: Int; y: Int}): Int = x**2 + y**2
 assert norm({x = 1; y = 2}) == norm({y = 2; x = 1})
 ```
 
-## Want to stop warnings
+## 想要停止警告
 
-There is no option in Erg to stop warnings (this is by design). Please rewrite your code.
+Erg 中没有停止警告的选项（这是设计使然）。 请重写你的代码。

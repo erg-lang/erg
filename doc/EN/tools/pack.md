@@ -29,7 +29,7 @@ Also see [package_system.md](../syntax/33_package_system.md) for the Erg package
     /package.er # file that defines package settings
 ```
 
-##package.er
+## package.er
 
 `erg pack init` will generate `package.er` file like below. `package.er` describes the configuration of the package.
 Below is an example of `package.er`.

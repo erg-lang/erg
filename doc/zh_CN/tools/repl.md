@@ -1,9 +1,9 @@
-#REPL
+# REPL
 
-Running the `erg` command with no arguments invokes the REPL. It can also be invoked with the `repl` subcommand.
-Additionally, you can specify the following flags:
+运行不带参数的 `erg` 命令会调用 REPL。 它也可以用 `repl` 子命令调用。
+此外，您可以指定以下标志：
 
-* typed: Show objects and their types.
+* typed：显示对象及其类型。
 
 ```console
 $ erg repl --typed
