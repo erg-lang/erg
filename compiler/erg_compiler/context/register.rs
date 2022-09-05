@@ -584,11 +584,12 @@ impl Context {
             panic!("{} has already been registered as const", gen.t.name());
         } else {
             let t = gen.t.clone();
+            let meta_t = gen.meta_type();
             let name = VarName::from_str(gen.t.name());
             let id = DefId(get_hash(&(&self.name, &name)));
             self.locals.insert(
                 name.clone(),
-                VarInfo::new(Type, muty, Private, VarKind::Defined(id)),
+                VarInfo::new(meta_t, muty, Private, VarKind::Defined(id)),
             );
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));

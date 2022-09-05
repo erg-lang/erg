@@ -63,6 +63,13 @@ impl GenTypeObj {
             additional: additional.map(Box::new),
         }
     }
+
+    pub fn meta_type(&self) -> Type {
+        match self.kind {
+            TypeKind::Class | TypeKind::InheritedClass => Type::Class,
+            TypeKind::Trait | TypeKind::SubsumedTrait | TypeKind::StructuralTrait => Type::Trait,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -464,7 +471,11 @@ impl ValueObj {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
             Self::Subr(subr) => subr.class(),
-            Self::Type(_) => Type::Type,
+            Self::Type(t_obj) => match t_obj {
+                // TODO: builtin
+                TypeObj::Builtin(_t) => Type::Type,
+                TypeObj::Generated(gen_t) => gen_t.meta_type(),
+            },
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,
             Self::NotImplemented => Type::NotImplemented,

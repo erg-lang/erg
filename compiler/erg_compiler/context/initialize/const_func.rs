@@ -17,7 +17,7 @@ fn value_obj_to_t(value: ValueObj) -> TypeObj {
     }
 }
 
-/// Requirement: Type, Impl := Type -> Type
+/// Requirement: Type, Impl := Type -> Class
 pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let require = args.pos_args.remove(0);
     let require = value_obj_to_t(require);
@@ -27,7 +27,7 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     ValueObj::gen_t(TypeKind::Class, t, require, impls, None)
 }
 
-/// Super: Type, Impl := Type, Additional := Type -> Type
+/// Super: Type, Impl := Type, Additional := Type -> Class
 pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let sup = args.pos_args.remove(0);
     let sup = value_obj_to_t(sup);
@@ -42,7 +42,7 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     ValueObj::gen_t(TypeKind::InheritedClass, t, sup, impls, additional)
 }
 
-/// Type -> Type
+/// Class -> Class
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
 pub fn inheritable_func(args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     args.pos_args.into_iter().next().unwrap()

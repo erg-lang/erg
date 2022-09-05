@@ -553,13 +553,23 @@ impl Context {
             "Type",
             vec![Obj],
             vec![
-                poly("Eq", vec![ty_tp(Type)]),
+                // poly("Eq", vec![ty_tp(Type)]),
                 poly("In", vec![ty_tp(Obj)]), // x in Type
                 mono("Named"),
             ],
             Self::TOP_LEVEL,
         );
         type_.register_builtin_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
+        let class_type = Self::mono_class(
+            "ClassType",
+            vec![Type, Obj],
+            vec![
+                // poly("Eq", vec![ty_tp(Class)]),
+                poly("In", vec![ty_tp(Obj)]), // x in Class
+                mono("Named"),
+            ],
+            Self::TOP_LEVEL,
+        );
         let module = Self::mono_class(
             "Module",
             vec![Obj],
@@ -930,6 +940,7 @@ impl Context {
         self.register_builtin_type(Bool, bool_, Const);
         self.register_builtin_type(Str, str_, Const);
         self.register_builtin_type(Type, type_, Const);
+        self.register_builtin_type(Class, class_type, Const);
         self.register_builtin_type(Module, module, Const);
         self.register_builtin_type(array_t, array_, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
@@ -1076,21 +1087,21 @@ impl Context {
             vec![param_t("Requirement", Type)],
             None,
             vec![param_t("Impl", Type)],
-            Type,
+            Class,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new(class_func, class_t));
         self.register_builtin_const("Class", ValueObj::Subr(class));
         let inherit_t = func(
-            vec![param_t("Super", Type)],
+            vec![param_t("Super", Class)],
             None,
             vec![param_t("Impl", Type), param_t("Additional", Type)],
-            Type,
+            Class,
         );
         let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(inherit_func, inherit_t));
         self.register_builtin_const("Inherit", ValueObj::Subr(inherit));
         // decorators
         let inheritable =
-            ConstSubr::Builtin(BuiltinConstSubr::new(inheritable_func, func1(Type, Type)));
+            ConstSubr::Builtin(BuiltinConstSubr::new(inheritable_func, func1(Class, Class)));
         self.register_builtin_const("Inheritable", ValueObj::Subr(inheritable));
     }
 

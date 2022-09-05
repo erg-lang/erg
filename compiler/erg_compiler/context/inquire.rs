@@ -1166,10 +1166,9 @@ impl Context {
         match obj.ref_t() {
             // TODO: attr
             Type::Module => self.rec_get_mod(&obj.var_full_name()?),
-            Type::Type => self
+            Type::Type | Type::Class => self
                 .rec_get_nominal_type_ctx(&Type::Mono(Str::from(obj.var_full_name().unwrap())))
                 .map(|(_, ctx)| ctx),
-            Type::Class => todo!(),
             Type::Trait => todo!(),
             Type::Refinement(refine) => {
                 self.rec_get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx)
