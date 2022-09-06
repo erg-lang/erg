@@ -10,7 +10,6 @@
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
     <a href="https://github.com/erg-lang/erg/actions/workflows/rust.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg"></a>
 <br>
-    <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | <a href='./README_zh-CN.md'>简体中文</a> | 繁體中文
 </p>
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D585ebe9d59fb2190c8c3aeca49d53385a5f7e256)
@@ -233,6 +232,6 @@ nix build
 
 ## License
 
-在此存儲庫[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)文件夾內的所有文件使用[CC-BY-4.0](./doc/LICENSE)授權。其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授權
+在此存儲庫[assets](./assets)和[doc](./doc)文件夾內的所有文件使用[CC-BY-4.0](./doc/LICENSE)授權。其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授權
 
 關於第三方crates的製作人員，請參閱：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
