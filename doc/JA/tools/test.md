@@ -1,5 +1,7 @@
 # testサブコマンド
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/test.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/test.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ergコマンドにはtestというサブコマンドがあり、テスト実装、及び実行の支援を行う。
 
 ## Testデコレータ(@Test)
@@ -7,7 +9,7 @@ ergコマンドにはtestというサブコマンドがあり、テスト実装�
 Ergではパッケージ中の`tests`ディレクトリか`*.test.er`ファイル中の`@Test`を付けたサブルーチンを`erg test`コマンドでテストする。
 `tests`のサブルーチンはブラックボックステスト(非公開関数をテストしない)、`*.test.er`のサブルーチンはホワイトボックステスト(非公開関数もテストする)を担当する。
 
-```erg
+```python
 # tests/test1.er
 {add; ...} = import "foo"
 
@@ -24,12 +26,12 @@ Ergでは`#`, `#[`以降がコメント行となるが、`##`, `#[[`でdoc comme
 さらにdoc comment中のソースコードはergと指定されていれば、erg testコマンドで自動テストされる。
 以下はテストの例である。
 
-```erg
+```python
 VM = ...
     ...
     #[[
     execute commands.
-    ```erg
+    ```python
     # VM in standard configuration
     {vm1; ...} = import "tests/mock"
 

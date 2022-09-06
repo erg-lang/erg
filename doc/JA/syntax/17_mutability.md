@@ -1,9 +1,11 @@
 # Mutability
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/17_mutability.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/17_mutability.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 すでに見たように、Ergの変数は全て不変です。しかし、Ergのオブジェクトには可変性という概念があります。
 以下のコードを例にします。
 
-```erg
+```python
 a = [1, 2, 3]
 a = a + [4, 5, 6]
 print! a # [1, 2, 3, 4, 5, 6]
@@ -12,7 +14,7 @@ print! a # [1, 2, 3, 4, 5, 6]
 上のコードは実際にはErgでは実現できません。再代入不可だからです。
 このコードは実行できます。
 
-```erg
+```python
 b = ![1, 2, 3]
 b.concat! [4, 5, 6]
 print! b # [1, 2, 3, 4, 5, 6]
@@ -21,7 +23,7 @@ print! b # [1, 2, 3, 4, 5, 6]
 `a, b`は、最終的な結果は同じように見えますが、その意味は大きく異なります。
 `a`は`Nat`の配列を示す変数ですが、1行目と2行目では指しているオブジェクトが異なります。`a`という名前が同じだけで、中身はさし変わっているのです。
 
-```erg
+```python
 a = [1, 2, 3]
 print! id! a # 0x000002A798DFE940
 _a = a + [4, 5, 6]
@@ -32,14 +34,14 @@ print! id! _a # 0x000002A798DFE980
 
 `b`は`Nat`の「動的」配列です。オブジェクトの中身は変わりますが、変数の指すものは同じです。
 
-```erg
+```python
 b = [1,2,3].into [Int; !3]
 print! id! b # 0x000002A798DFE220
 b.concat! [4, 5, 6]
 print! id! b # 0x000002A798DFE220
 ```
 
-```erg
+```python
 i = !0
 if! True:
     do! i.inc!() # or i.add!(1)
@@ -50,7 +52,7 @@ print! i # 1
 `!`は __可変化演算子(mutation operator)__ とよばれる特殊な演算子です。引数の不変オブジェクトを可変化して返します。
 `!`がついたオブジェクトの振る舞いはカスタム可能です。
 
-```erg
+```python
 Point = Class {.x = Int; .y = Int}
 
 # この場合.xは可変化し、yは不変のまま
@@ -67,7 +69,7 @@ print! p.x # 1
 変数と違い、すべてのスコープで同じものを指すのが定数です。
 定数は`=`演算子で宣言します。
 
-```erg
+```python
 PI = 3.141592653589
 match! x:
     PI => print! "this is pi"

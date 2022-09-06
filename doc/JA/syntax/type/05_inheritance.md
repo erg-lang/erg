@@ -1,9 +1,11 @@
 # 継承(Inheritance)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 継承を使うと、既存のクラスに機能を加えたり特化したりした新しいクラスを定義できます。
 継承はトレイトにおける包摂に似ています。継承してできたクラスは、もとのクラスのサブタイプになります。
 
-```erg
+```python
 NewInt = Inherit Int
 NewInt.
     plus1 self = self + 1
@@ -16,7 +18,7 @@ assert NewInt.new(1) + NewInt.new(1) == 2
 
 オプション引数`additional`を指定すると追加のインスタンス属性を持つことができます。ただし値クラスの場合はインスタンス属性を追加できません。
 
-```erg
+```python
 @Inheritable
 Person = Class {name = Str}
 Student = Inherit Person, additional: {id = Int}
@@ -34,7 +36,7 @@ Ergでは例外的に`Never`型の継承はできない設計となっている�
 [Or型](./13_algebraic.md)をクラス化した列挙クラスも継承ができます。この際、オプション引数`Excluding`を指定することで選択肢のどれか(`or`で複数選択可)を外せます。
 なお追加はできません。選択肢を追加したクラスは、元のクラスのサブタイプとはならないからです。
 
-```erg
+```python
 Number = Class Int or Float or Complex
 Number.
     abs(self): Float =
@@ -49,7 +51,7 @@ RealNumber = Inherit Number, Excluding: Complex
 
 同様に、[篩型](./12_refinement.md)も指定できます。
 
-```erg
+```python
 Months = Class 0..12
 MonthsNot31Days = Inherit Months, Excluding: {1, 3, 5, 7, 8, 10, 12}
 
@@ -74,7 +76,7 @@ StrMoreThan4 = Inherit StrMoreThan3, Excluding: StrWithLen N | N == 3
 
 最後に、3つ目の条件について考えます。この条件はErg特有で、他のオブジェクト指向言語ではあまり見られないものですが、これも安全のためです。これがなかったとき、どんなまずいことが起こりうるか見てみましょう。
 
-```erg
+```python
 # Bad example
 @Inheritable
 Base! = Class {x = Int!}
@@ -95,7 +97,7 @@ Inherited!.
 
 なので、オーバーライドの影響を受ける可能性のあるメソッドは一般に全て書き直す必要があるわけです。Ergはこのルールを仕様に組み込んでいます。
 
-```erg
+```python
 # OK
 @Inheritable
 Base! = Class {x = Int!}
@@ -124,7 +126,7 @@ Inherited!.
 
 例えば`Real`(`Add()`を実装する)のサブタイプである`Int`では`Add()`を再実装しているようにみえます。
 
-```erg
+```python
 Int = Class ..., Impl := Add() and ...
 ```
 
@@ -135,13 +137,13 @@ Int = Class ..., Impl := Add() and ...
 
 Ergでは通常のクラス同士でIntersection(交差), Diff(除外), Complement(否定)が行えません。
 
-```erg
+```python
 Int and Str # TypeError: cannot unite classes
 ```
 
 このルールにより、複数のクラスを継承すること、すなわち多重継承が行えません。
 
-```erg
+```python
 IntAndStr = Inherit Int and Str # SyntaxError: multiple inheritance of classes is not allowed
 ```
 
@@ -161,7 +163,7 @@ Ergでは継承元の属性を書き換えることができません。これ�
 
 オーバーライドはより特化したメソッドで上書きする操作であるため書き換えとは異なります。オーバーライドの際も互換性のある型で置き換えなくてはなりません。
 
-```erg
+```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
 Base!.
@@ -180,7 +182,7 @@ Inherited!.
 2つ目は、継承元の(可変)インスタンス属性に対する更新操作です。これも禁止されています。基底クラスのインスタンス属性は、基底クラスの用意したメソッドからのみ更新できます。
 属性の可視性にかかわらず、直接更新はできません。ただし読み取りはできます。
 
-```erg
+```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
 Base!.
@@ -209,7 +211,7 @@ Ergが多重継承、多層継承を禁止したのはこの危険性を低減�
 Ergはサブタイプ判定の一部を型システムが自動で判定してくれます(e.g. 0以上のIntであるところのNat)。
 しかし例えば、「有効なメールアドレスを表す文字列型」をErgの型システムのみに頼って作成することは困難です。通常の文字列にバリデーションを行うべきでしょう。そして、バリデーションが通った文字列オブジェクトには何らかの「保証書」を付加したいところです。それが継承クラスへのダウンキャストに相当するわけです。`Strオブジェクト`を`ValidMailAddressStr`にダウンキャストすることは、文字列が正しいメールアドレスの形式であるか検証することと一対一対応します。
 
-```erg
+```python
 ValidMailAddressStr = Inherit Str
 ValidMailAddressStr.
     init s: Str =
@@ -229,7 +231,7 @@ valid: ValidMailAddressStr # assurance that it is in the correct email address f
 こうすれば、引数として受け付けるのは`Person`オブジェクトとそれを継承したクラス、`Student`オブジェクトのみです。
 この方が保守的で、不必要に多くの責任を負う必要がなくなります。
 
-```erg
+```python
 Named = {name = Str; ...}
 Dog = Class {name = Str; breed = Str}
 Person = Class {name = Str}

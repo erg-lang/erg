@@ -1,5 +1,7 @@
 # パッケージシステム
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/33_package_system.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/33_package_system.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 Ergのパッケージはアプリケーションであるappパッケージとライブラリであるlibパッケージに大別できます。
 appパッケージのエントリポイントは`src/app.er`です。`app.er`内に定義された`main`関数が実行されます。
 libパッケージのエントリポイントは`src/lib.er`です。パッケージをインポートすることは`lib.er`をインポートすることと等価になります。
@@ -25,7 +27,7 @@ libパッケージのエントリポイントは`src/lib.er`です。パッケ�
 `foo`モジュールはファイルからなるモジュールで、`bar`モジュールはディレクトリからなるモジュールです。`bar`モジュールはさらに`baz`, `qux`モジュールを内部に持ちます。
 このモジュールは単に`bar`モジュールの属性であり、`app.er`からは以下のようにアクセスできます。
 
-```erg
+```python
 # app.er
 foo = import "foo"
 bar = import "bar"
@@ -47,7 +49,7 @@ main args =
   └─ foo.test.er
 ```
 
-```erg
+```python
 # app.er
 foo = import "foo"
 
@@ -66,14 +68,14 @@ main args =
     └─ qux.er
 ```
 
-```erg
+```python
 # foo.er
 bar = import "bar"
 bar.qux
 bar.baz # AttributeError: module 'baz' is private
 ```
 
-```erg
+```python
 # qux.er
 baz = import "baz"
 ```

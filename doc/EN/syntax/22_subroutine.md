@@ -2,14 +2,14 @@
 
 ## Func
 
-```erg
+```python
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
 ## Proc
 
-```erg
+```python
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
@@ -18,7 +18,7 @@ some_proc!: (T, U) => V
 
 The method type cannot be specified externally with ``Self``.
 
-```erg
+```python
 .some_method(self, x: T, y: U) => ()
 # Self.(T, U) => () takes ownership of self
 .some_method: Ref(Self). (T, U) => ()
@@ -28,7 +28,7 @@ The method type cannot be specified externally with ``Self``.
 
 In the following, assume that the type `T!` takes the type argument `N: Nat`. To specify it externally, use a type variable.
 
-```erg
+```python
 T!: Nat -> Type
 # ~> indicates the state of the type argument before and after application (in this case, self must be a variable reference)
 T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
@@ -39,7 +39,7 @@ For methods that do not have `ref!`, i.e., are deprived of ownership after appli
 
 If ownership is taken, it is as follows.
 
-```erg
+```python
 # If you don't use N, you can omit it with _.
 # .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
 .some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
@@ -51,7 +51,7 @@ It can be defined as a normal function by enclosing it with ``.
 
 Neuter alphabetic operators such as `and` and `or` can be defined as neuter operators by enclosing them with ``.
 
-```erg
+```python
 and(x, y, z) = x and y and z
 `_+_`(x: Foo, y: Foo) = x.a + y.a
 `-_`(x: Foo) = Foo.new(-x.a)

@@ -81,7 +81,7 @@ impl Context {
     }
 
     /// see doc/LANG/compiler/inference.md#一般化 for details
-    /// ```erg
+    /// ```python
     /// generalize_t(?T) == 'T: Type
     /// generalize_t(?T(<: Nat) -> ?T) == |'T <: Nat| 'T -> 'T
     /// generalize_t(?T(<: Eq(?T(<: Eq(?T(<: ...)))) -> ?T) == |'T <: Eq('T)| 'T -> 'T
@@ -258,7 +258,7 @@ impl Context {
     }
 
     /// e.g.
-    /// ```erg
+    /// ```python
     /// deref_tyvar(?T(:> Never, <: Int)[n]): ?T => Int (if self.level <= n)
     /// deref_tyvar((Int)): (Int) => Int
     /// ```
@@ -983,7 +983,7 @@ impl Context {
     /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected)
     ///
     /// The parameter type must be a supertype of the argument type
-    /// ```erg
+    /// ```python
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
     /// sub_unify(Nat, ?T(:> Int)): (/* OK */)

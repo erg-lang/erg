@@ -1,9 +1,11 @@
 # 幽霊型(Phantom class)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/phantom.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/phantom.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 幽霊型は、コンパイラに注釈を与えるためだけに存在するマーカートレイトである。
 幽霊型の使い方として、リストの構成をみる。
 
-```erg
+```python
 Nil = Class()
 List T, 0 = Inherit Nil
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -11,7 +13,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 
 このコードはエラーとなる。
 
-```erg
+```python
 3 | List T, 0 = Inherit Nil
                         ^^^
 TypeConstructionError: since Nil does not have a parameter T, it is not possible to construct List(T, 0) with Nil
@@ -21,7 +23,7 @@ hint: use 'Phantom' trait to consume T
 このエラーはつまり、`List(_, 0).new Nil.new()`とされたときに`T`の型推論ができないという文句である。Ergでは型引数を未使用のままにすることができないのである。
 このような場合は何でもよいので`T`型を右辺で消費する必要がある。サイズが0の型、例えば長さ0のタプルならば実行時のオーバーヘッドもなく都合がよい。
 
-```erg
+```python
 Nil T = Class((T; 0))
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -31,7 +33,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 
 このようなときにちょうどよいのが幽霊型である。幽霊型はサイズ0の型を一般化した型である。
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -45,7 +47,7 @@ assert nil.__size__ == 0
 また、`Phantom`は型以外にも任意の型引数を消費することができる。以下の例では`State`という`Str`のサブタイプオブジェクトである型引数を`Phantom`が保持している。
 この場合も、`state`はオブジェクトの実体に現れないハリボテの型変数である。
 
-```erg
+```python
 VM! State: {"stopped", "running"}! = Class(..., Impl := Phantom! State)
 VM!("stopped").
     start ref! self("stopped" ~> "running") =

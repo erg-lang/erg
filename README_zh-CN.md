@@ -10,11 +10,10 @@
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
     <a href="https://github.com/erg-lang/erg/actions/workflows/rust.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg"></a>
 <br>
-    <a href='./README.md'>English</a> | <a href='./README_JA.md'>日本語</a> | 简体中文 | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D46ffc45c6890d939b97fb5aa18338d554d3a8696)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=46ffc45c6890d939b97fb5aa18338d554d3a8696)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Df2118ff45d9e46ca8fa44242363223be43b046dd)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=f2118ff45d9e46ca8fa44242363223be43b046dd)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -233,6 +232,6 @@ nix build
 
 ## License
 
-在此存储库[CODE_OF_CONDUCT](./CODE_OF_CONDUCT)，[assets](./assets)和[doc](./doc)文件夹内的所有文件使用[CC-BY-4.0](./doc/LICENSE)授权。其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权
+在此存储库[assets](./assets)和[doc](./doc)文件夹内的所有文件使用[CC-BY-4.0](./doc/LICENSE)授权。其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权
 
 关于第三方crates的制作人员，请参阅：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）

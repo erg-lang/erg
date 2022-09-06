@@ -1,15 +1,15 @@
 # Type Bound
 
-A type boundary is a condition on the type specification. The guard (guard clause) is the function that makes this possible.
-In addition to function signatures and anonymous function signatures, sieve types can also use this feature.
-The guard is described after the return type.
+Type bounds add conditions to type specifications. A function that realizes this is a guard (guard clause).
+This feature is available for function signatures, anonymous function signatures, as well as sieve types.
+Guards are written after the return type.
 
-## Predicate Expressions (Predicate)
+## Predicate
 
-The condition that a variable satisfies can be specified by an expression (predicate) that returns a `Bool`.
-You can use [value object](./08_value.md) and operators. Compile-time functions may be supported in future versions.
+You can specify the condition that the variable satisfies with an expression (predicate expression) that returns `Bool`.
+Only [value objects](./08_value.md) and operators can be used. Compile-time functions may be supported in future versions.
 
-```erg
+```python
 f a: [T; N] | T, N, N > 5 = ...
 g a: [T; N | N > 5] | T, N = ...
 Odd = {I: Int | I % 2 == 1}

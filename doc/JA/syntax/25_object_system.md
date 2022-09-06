@@ -1,5 +1,7 @@
 # Object(対象体)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/25_object_system.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/25_object_system.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 変数に代入できる全てのデータです。`Object`クラスの持つ属性は以下の通りです。
 
 * `.__repr__`: オブジェクトの(リッチでない)文字列表現を返します
@@ -7,15 +9,15 @@
 * `.__dir__`: オブジェクトの属性を一覧にして返します
 * `.__hash__`: オブジェクトのハッシュ値を返します
 * `.__getattribute__`: オブジェクトの属性を取得して返します
-* `.clone`: オブジェクトのクローン（メモリ上に独立な実体を持つ）を生成して返します
-* `.copy`: オブジェクトのコピー（メモリ上で同じものをさす）を返します
+* `.clone`: オブジェクトのクローン(メモリ上に独立な実体を持つ)を生成して返します
+* `.copy`: オブジェクトのコピー(メモリ上で同じものをさす)を返します
 
 ## Record(レコード)
 
 レコードリテラル(`{attr = value; ...}`)で生成されるオブジェクトです。
 このオブジェクトは`.clone`や`.__sizeof__`などの基本的なメソッドを持ちます。
 
-```erg
+```python
 obj = {.x = 1}
 assert obj.x == 1
 
@@ -27,7 +29,7 @@ assert obj2.x == 1 and obj2.y == 2
 
 オブジェクトと関連付けられたオブジェクトです。特に自身(`self`)を暗黙の第一引数にとるサブルーチン属性はメソッド(method)と呼ばれます。
 
-```erg
+```python
 # private_attrには`.`がないことに注意
 record = {.public_attr = j; private_attr = 2; .method = self -> self.i + 1}
 record.public_attr == 2

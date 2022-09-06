@@ -1,5 +1,7 @@
 # Erg Compiler Errors
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/errors.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/errors.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 ## AssignError
 
 イミュータブル変数を書き換えようとすると発生します。
@@ -24,7 +26,7 @@
 
 明らかに停止しない循環を起こしている場合に発生します。
 
-```erg
+```python
 i: Int = i
 
 f(): Int = g()
@@ -91,7 +93,7 @@ SyntaxErrorの派生です。
 変数を定義前に使用すると発生します。
 正確には、あるスコープ内で定義された変数がそれ以前に使われていると発生します。
 
-```erg
+```python
 i = 0
 f x =
     y = i + x
@@ -102,7 +104,7 @@ f x =
 このコードでは`y = i + x`の`i`が未定義変数になります。
 しかし、定数の場合は定義前に別の関数中で呼び出し可能です。
 
-```erg
+```python
 f() = g()
 g() = f()
 ```
@@ -113,7 +115,7 @@ g() = f()
 
 文法上は問題ありませんが、冗長だったり一般的でないコードを検出した際に発生します(不要な`()`など)。
 
-```erg
+```python
 if (True): # SyntaxWarning: unnecessary parentheses
     ...
 ```

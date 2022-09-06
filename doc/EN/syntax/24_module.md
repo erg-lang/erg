@@ -2,17 +2,17 @@
 
 Erg allows you to think of the file itself as a single record. This is called a module.
 
-```erg: foo.er
+```python: foo.er
 # foo.er
 .i = 1
 ```
 
-``` erg
+```python
 # Defining the foo module is almost the same as defining this record
 foo = {.i = 1}
 ```
 
-```erg: bar.er
+```python: bar.er
 #bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -21,7 +21,7 @@ assert foo.i == 1
 
 Since module types are also record types, deconstruction assignment is possible.
 
-``` erg
+```python
 {sin; cos; ...} = import "math"
 ```
 

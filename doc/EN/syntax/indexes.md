@@ -1,12 +1,12 @@
-# Index
+# index
 
-For APIs not in this index, see [here](./API/index.md).
-For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of terms.
+See [here](../API/index.md) for APIs not in this index.
+See [here](../dev_guide/terms.md) for terminology.
 
-## Symbols
+## symbol
 
 * !
-  * !-type → [Mutable type](./type/mut.md)
+  * !-type → [mutable type](./type/mut.md)
 * [&#35;](./00_basic.md/#comment)
 * $
 * %
@@ -16,18 +16,18 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 * &lpar;&rpar;
 * &ast;
   * [*-less multiplication](./01_literal.md/#less-multiplication)
-* &plus; (unary)
-  * &plus;_ → &plus; (unary)
-* &plus; (binary)
+* &plus; (prefix)
+  * &plus;_ → &plus; (prefix)
+* &plus; (infix)
 * ,
-* &minus; (unary)
-  * &minus;_ → &minus; (unary)
-* &minus; (binary)
+* &minus; (prefix)
+  * &minus;_ → &minus; (prefix)
+* &minus; (infix)
   * &minus;>
 * . → [Visibility]
 * /
 * :
-  * :]
+  * :: → [visibility]
 * ;
 * &lt;
   * &lt;:
@@ -46,9 +46,9 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 * ^
   * ^^
 * _
-  * &#95;+&#95; → &plus; (binary)
-  * &#95;-&#95; → &minus; (binary)
-* ``
+  * &#95;+&#95; → &plus; (infix)
+  * &#95;-&#95; → &minus; (infix)
+*``
 * {}
   * {} type
 * {:}
@@ -58,39 +58,39 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
   * ||
 * ~
 
-## Alphabet
+## alphabet
 
 ### A
 
-* [algebraic&nbsp;type]
-* [And]
-* [and]
-* [assert]
-* [attribute]
+* algebraic&nbsp;type
+* And
+* and
+* assert
+* attribute
 
 ### B
 
-* [Base]
-* [Bool]
+* Base
+* Bool
 
 ### C
 
-* [Class]
+* Class
 
 ### D
 
 * Deprecated
-* [distinct]
+* distinct
 
 ### E
 
-* [enum&nbsp;type]
-* [Eq]
-* [Erg]
+* enum&nbsp;type
+* Eq
+* Erg
 
 ### F
 
-* [for]
+* for
 
 ### G
 
@@ -98,10 +98,10 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 
 ### I
 
-* [if]
-* [import]
-* [in]
-* [Int]
+* if
+* import
+* in
+* Int
 
 ### J
 
@@ -109,34 +109,34 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 
 ### L
 
-* let-polymorphism → [rank-1 polymorphism]
-* [log]
+* let-polymorphism → [rank 1 polymorphism]
+* log
 
 ### M
 
-* [match]
+* match
 
 ### N
 
-* [Nat]
+* Nat
 * Never
 * None
 * None
-* [Not]
-* [not]
+* Not
+* not
 
 ### O
 
-* [Option]
-* [Or]
-* [or]
-* [Ord]
+* Option
+* Or
+* or
+* Ord
 
 ### P
 
 * panic
 * [print!](./../API/procs.md#print)
-* [Python]
+* Python
 
 ### Q
 
@@ -144,22 +144,22 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 
 * ref
 * ref!
-* [Result]
-* [rootobj]
+* Result
+* rootobj
 
 ### S
 
 * self
 * [Self](./type/special.md)
 * [side-effect](./07_side_effect.md)
-* [Str]
+* Str
 
 ### T
 
-* Trait
-* [True]
-* [Type]
-* [type]
+* Traits
+* True
+* Type
+* type
 
 ### U
 
@@ -167,10 +167,11 @@ For the meaning of terms, see [here](./dev_guide/terms.md) for the meaning of te
 
 ### W
 
-* [while!]
+* while!
 
 ### X
 
 ### Y
 
 ### Z
+

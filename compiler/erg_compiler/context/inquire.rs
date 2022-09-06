@@ -391,7 +391,7 @@ impl Context {
     /// Just return input if the type is already concrete (or there is still a type variable that cannot be resolved)
     /// 単相化されたトレイトを具体的な型に置換する
     /// 既に具体的な型である(か、まだ型変数があり解決できない)場合はそのまま返す
-    /// ```erg
+    /// ```python
     /// instantiate_trait(Add(Int)) => Ok(Int)
     /// instantiate_trait(Array(Add(Int), 2)) => Ok(Array(Int, 2))
     /// instantiate_trait(Array(Int, 2)) => Ok(Array(Int, 2))
@@ -502,7 +502,7 @@ impl Context {
     }
 
     /// e.g.
-    /// ```erg
+    /// ```python
     /// substitute_call(instance: ((?T, ?U) -> ?T), [Int, Str], []) => instance: (Int, Str) -> Int
     /// substitute_call(instance: ((?T, Int) -> ?T), [Int, Nat], []) => instance: (Int, Int) -> Str
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
@@ -889,7 +889,7 @@ impl Context {
     /// C3 linearization requires prior knowledge of inter-type dependencies, and cannot be used for Erg structural subtype linearization
     ///
     /// Algorithm:
-    /// ```erg
+    /// ```python
     /// [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [], [Int, Str, Nat, Never, Obj, Str!, Module]
     /// => [[Int]], [Str, Nat, Never, Obj, Str!, Module]

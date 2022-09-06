@@ -1,5 +1,7 @@
 # エラーハンドリングシステム
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 主にResult型を使用します。
 ErgではError型オブジェクトを捨てる(トップレベルで対応しない)とエラーが発生します。
 
@@ -30,7 +32,7 @@ except e:
 
 上の例では、例外がどの関数から送出されたものなのか、このコードだけでは分かりません。関数定義まで遡っても、その関数が例外を出すかを判別するのは難しいです。
 
-```erg
+```python
 # Erg
 try!:
     do!:
@@ -50,7 +52,7 @@ try!:
 
 `Error`/`Result`型単体では副作用が発生しないので、例外と違い送出場所などの情報(Context、文脈)を持てませんが、`.context`メソッドを使えば`Error`オブジェクトに情報を付加できます。`.context`メソッドは`Error`オブジェクト自身を消費して新しい`Error`オブジェクトを作るタイプのメソッドです。チェイン可能であり、複数のコンテクストを保持できます。
 
-```erg
+```python
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -71,7 +73,7 @@ f()
 `.stack`は呼び出し元オブジェクトの配列です。Errorオブジェクトは`return`(`?`によるものも含む)されるたびにその呼出元サブルーチンを`.stack`に積んでいきます。
 そして`return`ができないコンテクストで`?`されるなり`.unwrap`されるなりすると、トレースバックを表示しながらパニックします。
 
-```erg
+```python
 f x =
     ...
     y = foo.try_some(x)?
@@ -100,7 +102,7 @@ Ergには回復不能なエラーへの対処として __パニッキング__ �
 
 パニックは`panic`関数で行います。
 
-```erg
+```python
 panic "something went wrong!"
 ```
 

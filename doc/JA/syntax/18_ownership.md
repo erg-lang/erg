@@ -1,5 +1,7 @@
 # 所有権システム
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ErgはPythonをホスト言語にした言語であるため、メモリ管理の方法はPythonの処理系に依存しています。
 しかし、意味論的にはErgのメモリ管理はPythonのそれとは別物です。顕著な違いは、所有権システムと循環参照の禁止に現れています。
 
@@ -9,7 +11,7 @@ ErgはRustから影響を受けた所有権システムを持っています。
 Rustの所有権システムは一般的に難解だと言われていますが、Ergのそれは直感的になるよう簡略化されています。
 Ergでは __可変オブジェクト__ に所有権がついており、所有権を失った後はそのオブジェクトを参照できません。
 
-```erg
+```python
 v = [1, 2, 3].into [Int; !3]
 
 push! vec, x =
@@ -34,7 +36,7 @@ print! w # [1, 2, 3, 4]
 複製はPythonのディープコピーに相当し、同一のオブジェクトをまるごと作り直すので、凍結・借用と比べて一般に計算コスト、メモリコストが高くなります。
 オブジェクトを複製する必要があるようなサブルーチンは、「引数を消費する」サブルーチンといいます。
 
-```erg
+```python
 capitalize s: Str! =
     s.capitalize!()
     s
@@ -51,7 +53,7 @@ log s2, s1 # !"HELLO hello"
 可変配列からは直接イテレータを作ることができないので、不変配列に変換します。
 配列を壊したくない場合は、[`.freeze_map`メソッド](./type/mut.md)等を使います。
 
-```erg
+```python
 # イテレータが出す値の合計を計算する
 sum|T <: Add + HasUnit| i: Iterator T = ...
 
@@ -69,7 +71,7 @@ y # この後もyは触れられる
 借用は複製や凍結よりも低コストです。
 以下のような単純な場合では、借用を行えます。
 
-```erg
+```python
 peek_str ref(s: Str!) =
     log s
 
@@ -80,7 +82,7 @@ peek_str s
 借用した値は元のオブジェクトに対する __参照__ と呼ばれます。
 参照をまた別のサブルーチンに渡す「又貸し」はできますが、借りているだけなので消費することはできません。
 
-```erg
+```python
 steal_str ref(s: Str!) =
     # log関数は引数を借用するだけなので、又貸しできる
     log s
@@ -89,7 +91,7 @@ steal_str ref(s: Str!) =
     # hint: use `clone` method
 ```
 
-```erg
+```python
 steal_str ref(s: Str!) =
     # これもダメ(=は右辺を消費する)
     x = s # OwnershipError: cannot consume a borrowed value

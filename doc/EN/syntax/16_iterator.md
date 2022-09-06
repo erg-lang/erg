@@ -2,7 +2,7 @@
 
 An iterator is an object used to retrieve elements of a container.
 
-```erg
+```python
 for! 0..9, i =>
     print! i
 ```
@@ -12,7 +12,7 @@ Each number (=Int object) is assigned to `i` and the following operation (=`prin
 
 Now let's look at the type signature of the `for!` procedure.
 
-```erg
+```python
 for!: |T: Type, I <: Iterable T| (I, T => None) => None
 ```
 
@@ -20,7 +20,7 @@ The first argument seems to accept an object of type `Iterable`.
 
 `Iterable` is a type with `.Iterator` attribute, `.iter` method in the request method.
 
-```erg
+```python
 Iterable T = Trait {
     .Iterator = {Iterator}
     .iter = Self(T). () -> Self.Iterator T
@@ -29,7 +29,7 @@ Iterable T = Trait {
 
 The type `{Iterator}` of the `.Iterator` attribute is so-called set-kind (kind is described [here](./type/advanced/kind.md)).
 
-```erg
+```python
 assert [1, 2, 3] in Iterable(Int)
 assert 1..3 in Iterable(Int)
 assert [1, 2, 3].Iterator == ArrayIterator

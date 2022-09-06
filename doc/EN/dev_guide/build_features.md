@@ -2,18 +2,20 @@
 
 ## debug
 
-Put into debug mode. This will log the behavior of Erg internally as it happens.
+Enter debug mode. As a result, the behavior inside Erg is sequentially displayed in the log.
 Independent of Rust's `debug_assertions` flag.
 
 ## japanese
 
 Set the system language to Japanese.
-In this build, Erg internal options, help (help, copyright, license, etc.) and error messages are guaranteed to be in Japanese.
+Erg internal options, help (help, copyright, license, etc.) and error display are guaranteed to be Japanese.
 
-## simplified_chinese
+## simplified Chinese
 
 Set the system language to Simplified Chinese.
+Erg internal options, help (help, copyright, license, etc.) and errors are displayed in Simplified Chinese.
 
-## traditional_chinese
+## traditional Chinese
 
 Set the system language to Traditional Chinese.
+Erg internal options, help (help, copyright, license, etc.) and errors are displayed in Traditional Chinese.

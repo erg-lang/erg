@@ -1,9 +1,11 @@
 # Class
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 Ergにおけるクラスは、大まかには自身の要素(インスタンス)を生成できる型と言えます。
 以下は単純なクラスの例です。
 
-```erg
+```python
 Person = Class {.name = Str; .age = Nat}
 # .newが定義されなかった場合、自動で`Person.new = Person::__new__`となります
 Person.
@@ -22,7 +24,7 @@ print! classof(john) # Person
 
 以下のように改行せず定義すると文法エラーになるので注意してください。
 
-```erg
+```python
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
@@ -39,7 +41,7 @@ class Person:
     age: int
 ```
 
-```erg
+```python
 # Ergでこの書き方はクラス属性の宣言を意味する(インスタンス属性ではない)
 Person = Class()
 Person.
@@ -47,7 +49,7 @@ Person.
     age: Int
 ```
 
-```erg
+```python
 # 上のPythonコードに対応するErgコード
 Person = Class {
     .name = Str
@@ -61,7 +63,7 @@ Person = Class {
 
 下の例で説明する。`species`という属性は全てのインスタンスで共通なので、クラス属性とした方が自然である。だが`name`という属性は各インスタンスが個々に持っておくべきなのでインスタンス属性とすべきなのである。
 
-```erg
+```python
 Person = Class {name = Str}
 Person::
     species = "human"
@@ -85,7 +87,7 @@ alice.greet() # Hello, My name is Alice.
 
 因みに、インスタンス属性と型属性で同名、同型のものが存在する場合、コンパイルエラーとなる。これは混乱を避けるためである。
 
-```erg
+```python
 C = Class {.i = Int}
 C.
     i = 1 # AttributeError: `.i` is already defined in instance fields
@@ -104,7 +106,7 @@ Ergではクラスメソッドを追加したりはできませんが、[パッ�
 既存のクラスを継承することも出来ます([Inheritable](./../27_decorator.md/#inheritable)クラスの場合)。
 `Inherit`は継承を意味します。左辺の型を派生クラス、右辺の`Inherit`の引数型を基底クラスと言います。
 
-```erg
+```python
 MyStr = Inherit Str
 # other: StrとしておけばMyStrでもOK
 MyStr.
@@ -119,7 +121,7 @@ Pythonと違い、定義されたErgのクラスはデフォルトで`final`(継
 継承可能にするためには`Inheritable`デコレータをクラスに付ける必要があります。
 `Str`は継承可能クラスのひとつです。
 
-```erg
+```python
 MyStr = Inherit Str # OK
 MyStr2 = Inherit MyStr # NG
 
@@ -133,7 +135,7 @@ MyStr3 = Inherit InheritableMyStr # OK
 クラスは型とは同値判定の仕組みが異なります。
 型は構造に基づいて同値性が判定されます。
 
-```erg
+```python
 Person = {.name = Str; .age = Nat}
 Human = {.name = Str; .age = Nat}
 
@@ -142,7 +144,7 @@ assert Person == Human
 
 クラスは同値関係が定義されていません。
 
-```erg
+```python
 Person = Class {.name = Str; .age = Nat}
 Human = Class {.name = Str; .age = Nat}
 
@@ -153,7 +155,7 @@ Person == Human # TypeError: cannot compare classes
 
 クラスは自身の要素を生成することができる型といいましたが、それだけは厳密な説明ではありません。実際はレコード型+パッチでも同じことができるからです。
 
-```erg
+```python
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
 PersonImpl.
@@ -176,7 +178,7 @@ john = Person.new("John Smith", 25)
 ErgではクラスでNSTを実現します。NSTの利点として、堅牢性などが挙げられます。
 大規模なプログラムを書いていると、オブジェクトの構造が偶然一致することはままあります。
 
-```erg
+```python
 Dog = {.name = Str; .age = Nat}
 DogImpl = Patch Dog
 DogImpl.
@@ -194,7 +196,7 @@ john.bark() # "Yelp!"
 `Dog`と`Person`の構造は全く同一ですが、動物が挨拶したり人間が吠えたりできるようにするのは明らかにナンセンスです。
 後者はともかく、前者は不可能なので適用できないようにする方が安全です。このような場合はクラスを使用すると良いでしょう。
 
-```erg
+```python
 Dog = Class {.name = Str; .age = Nat}
 Dog.
     bark = log "Yelp!"
@@ -211,7 +213,7 @@ john.bark() # TypeError: `Person` object has no method `.bark`
 つまり、`T.x`, `T.bar`は`{i = Int}`と互換性のある型がアクセスできる(コンパイル時に結びつける)オブジェクトであり、`{i =  Int}`や`C`に定義されているわけではありません。
 対してクラス属性はクラス自身が保持しています。なので、構造が同じであっても継承関係にないクラスからはアクセスできません。
 
-```erg
+```python
 C = Class {i = Int}
 C.
     foo self = ...
@@ -233,11 +235,11 @@ print! C.new({i = 1}).bar # <method bar>
 
 ## データクラスとの違い
 
-クラスには、レコードクラスに`Class`を通した通常のクラスと、レコードクラスを継承(`Inherit`)したデータクラスがあります。
+クラスには、レコードを要求型とする`Class`を通した通常のクラスと、レコードを継承(`Inherit`)したデータクラスがあります。
 データクラスはレコードの機能を受け継いでおり、分解代入ができる、`==`や`hash`がデフォルトで実装されているなどの特徴があります。
 逆に独自の同値関係やフォーマット表示を定義したい場合は通常のクラスを使用するとよいでしょう。
 
-```erg
+```python
 C = Class {i = Int}
 c = C.new {i = 1}
 d = C.new {i = 2}
@@ -245,9 +247,9 @@ print! c # <C object>
 c == d # TypeError: `==` is not implemented for `C`
 
 D = Inherit {i = Int}
-e = D.new {i = 1}
-f = D.new {i = 2}
-print! e # D{i = 1}
+e = D::{i = 1} # e = D.new {i = 1}と同じ
+f = D::{i = 2}
+print! e # D(i = 1)
 assert e != f
 ```
 
@@ -255,7 +257,7 @@ assert e != f
 
 Or型のクラスを定義しやすくするために、`Enum`が用意されています。
 
-```erg
+```python
 X = Class()
 Y = Class()
 XorY = Enum X, Y
@@ -264,7 +266,7 @@ XorY = Enum X, Y
 それぞれの型には`XorY.X`, `XorY.Y`のようにしてアクセスでき、コンストラクタは`XorY.cons(X)`のようにして取得できます。
 `.cons`はクラスを受け取ってそのコンストラクタを返すメソッドです。
 
-```erg
+```python
 x1 = XorY.new X.new()
 x2 = XorY.cons(X)()
 assert x1 == x2
@@ -274,7 +276,7 @@ assert x1 == x2
 
 クラスは、要件型のサブタイプです。要件型のメソッド(パッチメソッド含む)を使用できます。
 
-```erg
+```python
 T = Trait {.foo = Foo}
 C = Class(..., Impl: T)
 C.

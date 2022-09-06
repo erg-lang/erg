@@ -1,9 +1,11 @@
 # デコレータ(修飾子)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 デコレータは型や関数に特定の状態や振る舞いを追加したり明示するために使われます。
 デコレータの文法は以下の通りです。
 
-```erg
+```python
 @deco
 X = ...
 ```
@@ -12,7 +14,7 @@ X = ...
 
 デコレータは特別なオブジェクトではなく、その実体は単なる1引数関数です。デコレータは以下の疑似コードと等価です。
 
-```erg
+```python
 X = ...
 X = deco(X)
 ```
@@ -20,7 +22,7 @@ X = deco(X)
 Ergでは変数の再代入が出来ないので、上のようなコードは通りません。
 単なる変数の場合は`X = deco(...)`と同じなのですが、インスタントブロックやサブルーチンの場合はそうすることができないので、デコレータが必要になってきます。
 
-```erg
+```python
 @deco
 f x =
     y = ...
@@ -50,7 +52,7 @@ C = Class ...
 
 引数のトレイトを実装することを示します。
 
-```erg
+```python
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -71,7 +73,7 @@ C.
 トレイトにデフォルトで付属するアタッチメントパッチを指定します。
 これによって、Rustのトレイトと同じ挙動を再現できます。
 
-```erg
+```python
 # foo.er
 Add R = Trait {
     .AddO = Type
@@ -88,7 +90,7 @@ AddForOdd.AddO = Even
 
 こうすると、他のモジュールからトレイトをインポートした際に、アタッチメントパッチが自動で適用されます。
 
-```erg
+```python
 # 本来IntIsBinAdd, OddIsBinAddも同時にインポートする必要があるが、アタッチメントパッチなら省略可
 {BinAdd; ...} = import "foo"
 
@@ -98,7 +100,7 @@ assert Odd.AddO == Even
 
 内部的にはトレイトの`.attach`メソッドを使って結びつけているだけです。コンフリクトする場合はトレイトの`.detach`メソッドで外すことができます。
 
-```erg
+```python
 @Attach X
 T = Trait ...
 assert X in T.attaches

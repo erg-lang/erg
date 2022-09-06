@@ -1,82 +1,81 @@
-# Decorator
+# decorator (modifier)
 
-Decorators are used to add or make explicit a specific state or behavior for a type or function.
-The syntax for decorators is as follows.
+Decorators are used to add or demonstrate a particular state or behavior to a type or function.
+The syntax of the decorator is as follows.
 
-```erg
+```python
 @deco
-X = ...
+X=...
 ```
 
-There can be more than one decorator, as long as they do not conflict.
+You can have multiple decorators as long as they don't conflict.
 
-A decorator is not a special object; its entity is simply a single-argument function. A decorator is equivalent to the following pseudo code.
+A decorator is not a special object, it's just a one-argument function. The decorator is equivalent to the following pseudocode.
 
-```erg
-X = ...
+```python
+X=...
 X = deco(X)
 ```
 
-Erg does not allow reassignment of variables, so the above code will not pass.
-For a simple variable, `X = deco(...)` is the same, but for instant blocks and subroutines, you can't do that, so you need decorators.
+Erg doesn't allow reassignment of variables, so code like the one above won't work.
+For simple variables it's the same as `X = deco(...)`, but for instant blocks and subroutines you can't do that, so you need a decorator.
 
-```erg
+```python
 @deco
-f x = ...
+f x =
     y = ...
     x + y
 
-# Can also prevent code from going horizontal.
+# You can also prevent the code from becoming horizontal
 @LongNameDeco1
 @LongNameDeco2
-C = Class ...
+C = Class...
 ```
 
-Here are some frequently used built-in decorators.
+Below are some frequently used built-in decorators.
 
 ## Inheritable
 
-Indicates that the type being defined is an inheritable class. If the `scope` argument is set to `"public"`, the class can be inherited by classes in external modules. By default, it is `"private"` and cannot be inherited from outside.
+Indicates that the defining type is an inheritable class. If you specify `"public"` for the argument `scope`, it will be possible to inherit even the class of the external module. By default it is `"private"` and cannot be inherited externally.
 
-## Final
+##Final
 
-disables overriding the `"final"` method. If you attach it to a class, it becomes a non-inheritable class, but since it is the default, it is meaningless.
+Make the method non-overridable. Adding it to a class makes it a non-inheritable class, but since it's the default it doesn't make sense.
 
 ## Override
 
-Use to override an attribute, which by default Erg will fail if you try to define an attribute that is the same as the base class.
+Used when overriding attributes. By default, Erg will throw an error if you try to define the same attribute as the base class.
 
 ## Impl
 
-Indicates implementation of traits.
+Indicates that the argument trait is implemented.
 
-```erg
-ClosedAdd = Trait {
-    . `_+_` = Self.(Self) -> Self
+```python
+Add = Trait {
+    .`_+_` = Self.(Self) -> Self
 }
-ClosedSub = Trait {
-    . `_-_` = Self.(Self) -> Self
+Sub = Trait {
+    .`_-_` = Self.(Self) -> Self
 }
 
-C = Class {i = Int}
+C = Class({i = Int}, Impl := Add and Sub)
 C.
-    @Impl ClosedAdd
+    @Impl Add
     `_+_` self, other = C.new {i = self::i + other::i}
-    @Impl ClosedSub
+    @Impl Sub
     `_-_` self, other = C.new {i = self::i - other::}
 ```
 
 ## Attach
 
 Specifies the attachment patch that comes with the trait by default.
-This allows you to reproduce the same behavior as the Rust trait.
+This allows you to reproduce the same behavior as Rust traits.
 
-```erg
+```python
 # foo.er
-
 Add R = Trait {
-    .`_+_` = Self.(R) -> Self.AddO
     .AddO = Type
+    .`_+_` = Self.(R) -> Self.AddO
 }
 @Attach AddForInt, AddForOdd
 ClosedAdd = Subsume Add(Self)
@@ -87,34 +86,34 @@ AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 
-This way, when you import traits from other modules, the attachment patch is automatically applied.
+This will automatically apply the attachment patch when importing traits from other modules.
 
-```erg
-# Originally IntIsBinAdd, OddIsBinAdd must be imported at the same time, but can be omitted with attachment patch
+```python
+# Originally, IntIsBinAdd and OddIsBinAdd should be imported at the same time, but if it's an attachment patch, you can omit it
 {BinAdd; ...} = import "foo"
 
-assert Int.AddO == Int
+assert Int. AddO == Int
 assert Odd.AddO == Even
 ```
 
-Internally, they are only connected together using the trait's `.attach` method. If there is a conflict, it can be removed using the trait's `.detach` method.
+Internally it's just attached using the trait's `.attach` method. Conflicts can be removed with the trait's `.detach` method.
 
-```erg
+```python
 @Attach X
-T = Trait ...
-assert X in T.attaches
+T = Trait...
+assert X in T. attaches
 U = T.detach(X).attach(Y)
-assert X not in U.attaches
-assert Y in U.attaches
+assert X not in U. attaches
+assert Y in U. attaches
 ```
 
-## Deprecated
+##Deprecated
 
-Indicates that the variable is outdated and deprecated.
+Indicates that the variable specification is obsolete and deprecated.
 
 ## Test
 
-Indicates a subroutine for tests. Test subroutines are executed with the `erg test` command.
+Indicates that this is a test subroutine. Test subroutines are run with the `erg test` command.
 
 <p align='center'>
     <a href='./28_spread_syntax.md'>Previous</a> | <a href='./30_error_handling.md'>Next</a>

@@ -311,12 +311,12 @@ impl Desugarer {
         todo!()
     }
 
-    /// ```erg
+    /// ```python
     /// @deco
     /// f x = ...
     /// ```
     /// ↓
-    /// ```erg
+    /// ```python
     /// _f x = ...
     /// f = deco _f
     /// ```

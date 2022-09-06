@@ -1,9 +1,11 @@
 # トレイト
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 トレイトは、レコード型に型属性の要求を追加した記名型です。
 Pythonでいう抽象基底クラス(Abstract Base Class, ABC)に類似しますが、代数的演算を行えるという特徴があります。
 
-```erg
+```python
 Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 ```
 
@@ -12,7 +14,7 @@ Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 トレイトは宣言ができるのみで実装を持てないことに注意してください(実装は後に述べるパッチという機能で実現します)。
 トレイトは部分型指定でクラスに実装されているかチェックできます。
 
-```erg
+```python
 Point2D <: Norm
 Point2D = Class {.x = Int; .y = Int}
 Point2D.norm self = self.x**2 + self.y**2
@@ -20,14 +22,14 @@ Point2D.norm self = self.x**2 + self.y**2
 
 要求属性を実装していないとエラーになります。
 
-```erg
+```python
 Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
 Point2D = Class {.x = Int; .y = Int}
 ```
 
 トレイトは構造型と同じく合成、置換、排除などの演算を適用できます(e.g. `T and U`)。このようにしてできたトレイトをインスタントトレイトと呼びます。
 
-```erg
+```python
 T = Trait {.x = Int}
 U = Trait {.y = Int}
 V = Trait {.x = Int; y: Int}
@@ -40,7 +42,7 @@ assert Structural(W) == Structural(T.replace {.x = Ratio})
 
 トレイトは型でもあるので、通常の型指定にも使えます。
 
-```erg
+```python
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
 assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
 ```
@@ -51,7 +53,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
 下の例でいうと、`BinAddSub`は`BinAdd`と`BinSub`を包摂しています。
 これはクラスにおける継承(Inheritance)に対応しますが、継承と違い複数の基底型を`and`で合成して指定できます。`not`によって一部を除外したトレイトでもOKです。
 
-```erg
+```python
 Add R = Trait {
     .AddO = Type
     .`_+_` = Self.(R) -> Self.AddO
@@ -69,7 +71,7 @@ ClosedAddSub = Subsume ClosedAdd and ClosedSub
 
 トレイトは構造化できます。
 
-```erg
+```python
 SAdd = Structural Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -87,7 +89,7 @@ assert add(C.new(1), C.new(2)) == C.new(3)
 記名的トレイトは単に要求メソッドを実装しただけでは使えず、実装したことを明示的に宣言する必要があります。
 以下の例では明示的な実装の宣言がないため、`add`が`C`型の引数で使えません。`C = Class {i = Int}, Impl := Add`としなくてはならないのです。
 
-```erg
+```python
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -109,7 +111,7 @@ add C.new(1), C.new(2) # TypeError: C is not subclass of Add
 
 トレイトは引数を取ることができます。これは依存型と同じです。
 
-```erg
+```python
 Mapper T: Type = Trait {
     .MapIter = {Iterator}
     .map = Self(T).(T -> U) -> Self.MapIter U
@@ -127,7 +129,7 @@ assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"]
 派生トレイトでは基底トレイトの型定義をオーバーライドできます。
 この場合、オーバーライドするメソッドの型は、基底メソッドの型の部分型でなければなりません。
 
-```erg
+```python
 # `Self.(R) -> O`は`Self.(R) -> O or Panic`の部分型
 Div R, O: Type = Trait {
     .`/` = Self.(R) -> O or Panic
@@ -142,7 +144,7 @@ SafeDiv R, O = Subsume Div, {
 
 実際の`Add`, `Sub`, `Mul`の定義はこのようになっています。
 
-```erg
+```python
 Add R = Trait {
     .Output = Type
     .`_+_` = Self.(R) -> .Output
@@ -159,7 +161,7 @@ Mul R = Trait {
 
 `.Output`という変数の名前が重複しています。これら複数のトレイトを同時に実装したい場合、以下のように指定します。
 
-```erg
+```python
 P = Class {.x = Int; .y = Int}
 # P|Self <: Add(P)|はP|<: Add(P)|に省略可能
 P|Self <: Add(P)|.
@@ -172,7 +174,7 @@ P|Self <: Mul(Int)|.
 
 このようにして実装した重複のあるAPIは、使用時は殆どの場合型推論されますが、`||`で明示的に型指定することで解決もできます。
 
-```erg
+```python
 print! P.Output # TypeError: ambiguous type resolution
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```

@@ -1,5 +1,7 @@
 # 変性(variance)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 Ergは多相型のサブタイピングを行えるが、一部注意しなくてはならない点がある。
 
 まずは通常の多相型の包含関係を考える。一般に、コンテナ`K`と代入する型`A, B`があり、`A < B`のとき、`K A < K B`となる。
@@ -49,7 +51,7 @@ Ergにはもう一つ変性がある。それは非変性(non-variance)である
 
 全称型の型変数は、その上限・下限を指定できます。
 
-```erg
+```python
 |A <: T| K(A)
 |B :> T| K(B)
 ```
@@ -59,14 +61,14 @@ Ergにはもう一つ変性がある。それは非変性(non-variance)である
 
 変性指定は重ねがけすることもできます。
 
-```erg
+```python
 # U < A < T
 {... | A <: T; A :> U}
 ```
 
 以下に変性指定を使ったコードの例を示します。
 
-```erg
+```python
 show|S <: Show| s: S = log s
 
 Nil T = Class(Impl=Phantom T)
@@ -90,7 +92,7 @@ List(T).
 
 ここで、メソッドの変性指定を省略した場合どうなるか考えます。
 
-```erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -109,7 +111,7 @@ List(T).
 では、このアップキャストを許可するようにした場合はどうなるか考えます。
 変性指定を反転させてみましょう。
 
-```erg
+```python
 ...
 List T = Class {head = T; rest = Cons T}
 List(T).
@@ -128,7 +130,7 @@ List(T).
 `Inputs(T)`と指定すると、その型は`T`に関して反変となる。
 `Outputs(T)`と指定すると、その型は`T`に関して共変となる。
 
-```erg
+```python
 K T = Class(...)
 assert not K(Str) <= K(Object)
 assert not K(Str) >= K(Object)

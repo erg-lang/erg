@@ -104,7 +104,7 @@ impl TyParamIdx {
         }
     }
 
-    /// ```erg
+    /// ```python
     /// Nested(Nth(1), 0).select(F(X, G(Y, Z))) == Y
     /// ```
     pub fn select(self, from: &Type) -> Type {
@@ -246,7 +246,7 @@ pub struct Context {
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names
     // 型の一致はHashMapでは判定できないため、keyはVarNameとして1つずつ見ていく
-    /// ```erg
+    /// ```python
     /// f [x, y], z = ...
     /// ```
     /// => params: vec![(None, [T; 2]), (Some("z"), U)]

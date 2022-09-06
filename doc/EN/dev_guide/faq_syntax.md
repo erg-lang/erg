@@ -1,112 +1,116 @@
 # Erg design's "Why" and Answers
 
-## Why do Erg's have an ownership system but also coexist with the reference counting system?
+## Why coexist with GC when we have an ownership system?
 
-This is because Erg's motivation for introducing an ownership system is not for "memory management that does not rely on GC" like Rust.
-To begin with, Erg is currently a language that is transpiled into Python bytecode, so GC is used after all.
-Erg's aim in introducing the ownership system is "localization of mutable state"; in Erg, mutable objects have the concept of ownership.
-This is because shared mutable state can easily become a breeding ground for bugs and even violates type safety (see [here](./syntax/type/advanced/shared.md#SharedReference).
+Erg's motivation for introducing an ownership system is not for "memory management without relying on GC" like Rust.
+In the first place, Erg is currently a language that is reduced to Python bytecode, so GC is used after all.
+The aim of Erg's ownership system is ``localization of mutable state''. Erg has a notion of ownership attached to mutable objects.
+This is because shared mutable state is prone to bugs and even violates type safety (see [here](../syntax/type/advanced/shared.md#SharedReference)). It's a judgmental decision.
 
-## Why are the parentheses surrounding type parameters || instead of <> or []?
+## Why are the braces around type parameters || instead of <> or []?
 
-Because `<>` and `[]` cause syntax conflicts.
+This is because `<>` and `[]` cause syntax conflicts.
 
-```erg
+```python
+# version []
 id[T: Type] [t]: [T] = t
-y = id[Int] # is this a function or array accessing?
-
+y = id[Int] # is this a function?
+# <> version
 id<T: Type> {t: T} = t
-y = (id < Int, 1 > 1) # is this a tuple of bools or a call?
-
-id{T: Type} {t: T} = t # conflicts with record pattern
-y = id{Int}
-
+y = (id<Int, 1> 1) # Is this a tuple?
+# {} version
+id {T: Type} {t: T} = t
+y = id{Int} # is this a function?
+# || version
 id|T: Type| t: T = t
 y = id|Int| # OK
 ```
 
-## The type of {i = 1} is {i = Int}, but in OCaml and other languages it is {i: Int}. Why did Erg adopt the former syntax?
+## The type of {i = 1} is {i = Int}, but in OCaml etc. it is {i: Int}. Why did Erg adopt the former syntax?
 
-Because Erg is designed to treat the type itself as a value.
+This is because Erg is designed so that the type itself can also be treated as a value.
 
-```erg
+```python
 A = [Int; 3]
 assert A[2] == Int
 T = (Int, Str)
 assert T.1 == Str
 D = {Int: Str}
-assert D[Int] == Str
+assert D[Int] == ​​Str
 S = {.i = Int}
 assert S.i == Int
 ```
 
-## Are there any plans to implement macros in Erg?
+## Any plans to implement macros in Erg?
 
-No. Macros have four main purposes: first, they are compile-time calculations. This is the role of compile-time functions in Erg.
-The second is to delay code execution. The third is common processing, for which polymorphic functions and all-symmetric types are better solutions than macros.
-Thus, the type system in Erg takes most of the functionality of macros on its shoulders, so there is no motivation to implement it.
+Not currently. Macros have four main purposes. The first is compile-time computation. This is what compile-time functions do in Erg.
+The second is code execution delays. This can be replaced with a do block. The third is the commonality of processing, for which polycorrelation and universal types are a better solution than macros. The fourth is automatic code generation, but this is not possible in Erg because it reduces readability.
+Since the Erg type system takes over most of the functionality of macros, there is no motivation to introduce them.
 
-## Why is there no exception mechanism in Erg?
+## Why doesn't Erg have an exception mechanism?
 
-Because in many cases, error handling with the `Result` type is a better solution. The `Result` type is a common error handling technique used in many relatively new programming languages.
+Because in many cases error handling with the `Result` type is a better solution. The `Result` type is a common error handling technique used in relatively new programming languages.
 
-Erg allows the `?` operator allows you to write without much awareness of errors.
+In Erg, the `?` operator makes writing error-free.
 
-```erg
+```python
 read_file!() =
-    f = open!("foo.txt")? # If it fails, it returns an error immediately, so `f` is of type `File`
+    f = open!("foo.txt")? # Returns an error immediately if it fails, so f is of type File
     f.read_all!()
 
-# `try` procedure can be used to catch and process like an exception
+# Capturing like exceptions is also possible with the try procedure
 try!:
-    do!:
+    do!
         s = read_file!()?
-        print! s
+        print!s
     e =>
-        # Blocks to execute when an error occurs
+        # block to execute when an error occurs
         print! e
         exit 1
 ```
 
-When Python functions are imported, by default they are all considered to be functions with exceptions (if they are not typed manually), and their return type is of type `Result`.
-If it is known that an exception will not be sent, it is made explicit by `assert`.
+When introducing Python functions, by default they are all assumed to be functions containing exceptions, with a return type of `Result`.
+If you know it won't throw an exception, make it explicit with `assert`.
+
+Another reason Erg does not introduce an exception mechanism is that it plans to introduce features for parallel programming.
+This is because the exception mechanism is not compatible with parallel execution (it is troublesome to deal with cases such as when multiple exceptions occur due to parallel execution).
 
 ## Erg seems to eliminate Python features that are considered bad practice, why didn't you do away with inheritance?
 
-Because some classes in the Python library are designed to be inherited, and completely eliminating inheritance would cause problems in their use.
-However, in Erg, classes are `Final` by default, and multiple and multi-layer inheritance is prohibited in principle, so inheritance can be used relatively safely.
+This is because Python libraries have classes that are designed on the assumption that they will be inherited, and if inheritance is completely abolished, problems will arise in their operation.
+However, in Erg, classes are final by default and multiple/multilevel inheritance is prohibited in principle, so inheritance can be used relatively safely.
 
-## Why does subtype inference for polymorphic functions point to nominal traits by default?
+## Why do polymorphic subtype inferences point to nominal traits by default?
 
-Because pointing to structural traits by default complicates type specification and may introduce unintended behavior by the programmer.
+Pointing to structural traits by default complicates typing and can introduce behavior unintended by the programmer.
 
-```erg
+```python
 # If T is a subtype of a structural trait...
-# f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
+# f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T.
 f|T| x, y: T = x + y - x
 # T is a subtype of a nominal trait
 # g: |T <: Add() and Sub()| (T, T) -> T
 g|T| x, y: T = x + y - x
 ```
 
-## Will Erg implement the ability to define its own operators?
+## Will Erg not implement the ability to define its own operators?
 
-A: There are no plans to do so. The main reason is that allowing the definition of custom operators raises the question of how to handle the concatenation order. Scala and Haskell, which allow the definition of custom operators, have different approaches, and this can be seen as evidence of a syntax that can lead to differences in interpretation. This can be seen as evidence of a syntax that can lead to differences in interpretation, and also has the disadvantage of creating code with low readability.
+A: There are no plans for that. The main reason is that allowing the definition of custom operators raises the question of what to do with their associativity. Scala and Haskell, which can define their own operators, handle them differently, but this can be seen as proof that the grammar can lead to different interpretations. Another disadvantage of custom operators is that they can create code that is not readable.
 
-## Why did Erg do away with augmented assignment operators like `+=`?
+## Why did Erg deprecate extended assignment operators like +=?
 
-First of all, variables are not mutable in Erg. In other words, reassignment is not possible. Once an object is assigned to a variable, it is bound to that variable forever until it is released out of scope. Once this is understood, the story is simple. For example, `i += 1` means `i = i + 1`, but such a construction is incorrect because variables are not reassignable. Another design principle of Erg is that operators have no side effects, and while Python generally does this, for some objects, such as Dict, the augmented assignment operator changes the internal state of the object. This is not a very beautiful design.
-That is why augmented assignment operators have been deprecated in its entirety.
+First, there is no variable mutability in Erg. In other words, it cannot be reassigned. Once an object is bound to a variable, it remains bound to that variable until it goes out of scope and is freed. Mutability in Erg means object mutability. Once you know this, the story is easy. For example, `i += 1` means `i = i + 1`, but such syntax is illegal because variables are not reassigned. Another Erg design principle is that operators should not have side effects. Python is mostly like that, but for some objects such as Dict, extended assignment operators change the internal state of the object. This is not a very beautiful design.
+That's why extended assignment operators are obsolete altogether.
 
-## Why does Erg give special grammatical treatment to objects with side effects?
+## Why does Erg syntactically specialize objects with side effects?
 
-Localization of side effects is an important part of code maintainability.
+Localizing side effects is an important aspect of code maintainability.
 
-However, there are certainly ways to avoid giving side effects special linguistic treatment. For example, procedures can be substituted with algebraic effects (features on the type system).
-But such congruence is not always correct. For example, Haskell did not treat strings as special, just arrays of characters, but this abstraction was wrong.
+But there is certainly a way to get around side effects without linguistic specialization. For example, procedures can be substituted with algebraic effects (functions on the type system).
+But such a union is not always correct. For example, Haskell treats strings as just arrays of characters without special treatment, but this abstraction is wrong.
 
-In what cases can we say that unification was wrong? One indicator is "does the congruence make the error message difficult to read?
-The Erg designers decided that the error messages would be easier to read if side effects were treated specially.
+In what cases could it be said that union was wrong? One indicator is "whether the unification makes the error message less readable".
+The Erg designers decided that giving special treatment to side effects would make error messages easier to read.
 
-Erg has a powerful type system, but it does not dominate everything with types.
-If it did, it would end up the same way as Java, which tried to dominate everything with classes.
+Erg has a strong type system, but types don't rule everything.
+If you do, you'll end up with the same fate that Java tried to rule everything with classes.
