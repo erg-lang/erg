@@ -13,8 +13,8 @@
     <a href='./README.md'>English</a> | 日本語 | <a href='./README_zh-CN.md'>简体中文</a> | <a href='./README_zh-TW.md'>繁體中文</a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D46ffc45c6890d939b97fb5aa18338d554d3a8696)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=46ffc45c6890d939b97fb5aa18338d554d3a8696)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D585ebe9d59fb2190c8c3aeca49d53385a5f7e256)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=585ebe9d59fb2190c8c3aeca49d53385a5f7e256)
 
 ## Ergはこんな人におすすめです&#58;
 
