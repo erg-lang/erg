@@ -1,5 +1,7 @@
 # 与 Python 集成
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/32_integration_with_Python.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/32_integration_with_Python.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 ## 导出到 Python
 
 编译 Erg 脚本时，会生成一个 .pyc 文件，可以简单地将其作为 Python 模块导入。

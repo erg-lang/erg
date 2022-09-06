@@ -1,5 +1,7 @@
 # 类型擦除
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/erasure.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/erasure.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 类型擦除是将类型参数设置为 `_` 并故意丢弃其信息的过程。类型擦除是许多多态语言的特性，但在 Erg 的语法上下文中，将其称为类型参数擦除更为准确。
 
 类型擦除的最常见示例是 `[T, _]`。数组在编译时并不总是知道它们的长度。例如，引用命令行参数的 `sys.argv` 的类型为 `[Str, _]`。由于 Erg 的编译器无法知道命令行参数的长度，因此必须放弃有关其长度的信息。

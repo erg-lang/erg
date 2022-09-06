@@ -1,5 +1,7 @@
 # Erg design's "Why" and Answers
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ## 当我们有所有权系统时，为什么要与 GC 共存？
 
 因为 Erg 推出所有权系统的动机并不是为了 Rust 那样的“不依赖 GC 的内存管理”。最初，由于 Erg 是一种语言，目前使用 Python VM，因此最终仍使用 GC。Erg 引入产权系统的目标是“可变状态的局部化”。在 Erg 中，可变对象具有所有权概念。这是根据共享可变状态容易成为 bug 的温床，甚至是类型安全性的侵犯(详见)来判断的。

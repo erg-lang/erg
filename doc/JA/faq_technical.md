@@ -1,5 +1,7 @@
 # 技術的なFAQ
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_technical.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_technical.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
+
 本項はErg言語を使用する上での技術的な質問に答えるものです。すなわち、WhatやWhichで始まる質問、Yes/Noで答えられる質問を載せています。
 
 根本的な文法の決定経緯については[こちら](./dev_guide/faq_syntax.md)を、なぜこの言語を作ったのか、この機能はどのように実装されているのかなど、より大きな話題は[こちら](./dev_guide/../faq_general.md)を参照してください。

@@ -1,5 +1,7 @@
 # Erg 代码如何转译成 Python 代码？
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 准确地说，Erg 代码被转译为 Python 字节码。
 但是，由于 Python 字节码几乎可以重构为 Python 代码，因此这里以等效的 Python 代码为例。
 顺便说一句，这里展示的示例是低优化级别。

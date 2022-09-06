@@ -1,5 +1,7 @@
 # 类型变量，量化类型
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 类型变量是用于例如指定子程序参数类型的变量，它的类型是任意的(不是单态的)。
 首先，作为引入类型变量的动机，考虑 `id` 函数，它按原样返回输入。
 
