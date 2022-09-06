@@ -1,5 +1,7 @@
 # Algebraic type (代数演算型)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
+
 代数演算型は、型を代数のようにみなして演算することで生成される型のことです。
 代数演算型が扱う演算は、Union, Intersection, Diff, Complementなどがあります。
 通常のクラスはUnionのみが行えて、他の演算は型エラーになります。

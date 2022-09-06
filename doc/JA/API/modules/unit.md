@@ -1,5 +1,7 @@
 # module `unit`
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/modules/unit.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/modules/unit.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `unit`モジュールは数値計算でよく使われる単位を型として定義したモジュールです。
 Ergの数値型は`Nat`, `Int`, `Ratio`などがあります。しかしこれらの型は「何を意味する数値なのか」という情報を持っておらず、メートルとヤード同士の足し算などといったナンセンスな計算を行えてしまいます。
 `unit`モジュールを使うことにより、単位の違う数値を関数に渡すといったミスを防げます。
