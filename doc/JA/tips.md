@@ -1,5 +1,7 @@
 # Tips
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tips.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tips.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 ## エラーの表示言語を変えたい
 
 各国語版のergをダウンロードしてください。
@@ -7,7 +9,7 @@
 
 ## レコードの特定の属性だけ可変化したい
 
-```erg
+```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
 {height; rest; ...} = record
 mut_record = {.height = !height; ...rest}
@@ -17,7 +19,7 @@ mut_record = {.height = !height; ...rest}
 
 Ergで同一スコープ内でのシャドーイングはできません。しかし、スコープが変われば定義しなおせるので、インスタントブロックを使うといいでしょう。
 
-```erg
+```python
 # T!型オブジェクトを取得し、最終的にT型として変数へ代入
 x: T =
     x: T! = foo()
@@ -29,7 +31,7 @@ x: T =
 
 ラッパークラスを作りましょう。これはいわゆるコンポジション(合成)と言われるパターンです。
 
-```erg
+```python
 FinalWrapper = Class {inner = FinalClass}
 FinalWrapper.
     method self =
@@ -43,7 +45,7 @@ FinalWrapper.
 `Singleton`を実装すると、クラスとインスタンスが同一視されます。
 また、`Enum`を使うと、その選択肢となる型がリダイレクト属性として自動的に定義されます。
 
-```erg
+```python
 Ok = Class Impl := Singleton
 Err = Class Impl := Singleton
 ErrWithInfo = Inherit {info = Str}
@@ -55,7 +57,7 @@ match! stat:
     Status.ErrWithInfo::{info;} -> ...
 ```
 
-```erg
+```python
 Status = Enum Ok, Err, ErrWithInfo
 # is equivalent to
 Status = Class Ok or Err or ErrWithInfo
@@ -69,7 +71,7 @@ Status.
 
 method 1:
 
-```erg
+```python
 arr = [...]
 for! arr.iter().enumerate(start: 1), i =>
     ...
@@ -77,7 +79,7 @@ for! arr.iter().enumerate(start: 1), i =>
 
 method 2:
 
-```erg
+```python
 arr = [...]
 for! arr.iter().zip(1..), i =>
     ...
@@ -88,12 +90,12 @@ for! arr.iter().zip(1..), i =>
 `foo.er`の非公開APIは`foo.test.er`というモジュールでは特別にアクセス可能となります。
 `foo.test.er`モジュールはインポートできないので、隠蔽性は保たれます。
 
-```erg
+```python
 # foo.er
 private x = ...
 ```
 
-```erg
+```python
 # foo.test.er
 foo = import "foo"
 
@@ -108,7 +110,7 @@ foo = import "foo"
 
 属性をプライベートにして、ゲッタを定義するとよいでしょう。
 
-```erg
+```python
 C = Class {v = Int!}
 C::
     inc_v!(ref! self) = self::v.inc!()
@@ -122,7 +124,7 @@ C.
 
 引数をレコードで受け取ると良いでしょう。
 
-```erg
+```python
 Point = {x = Int; y = Int}
 
 norm: Point -> Int

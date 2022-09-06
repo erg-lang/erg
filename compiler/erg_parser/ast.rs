@@ -2776,7 +2776,7 @@ impl Def {
 }
 
 /// e.g.
-/// ```erg
+/// ```python
 /// T = Class ...
 /// T.
 ///     x = 1

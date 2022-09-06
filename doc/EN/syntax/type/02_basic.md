@@ -1,12 +1,10 @@
 # Basic syntax for types
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3D2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)
-
 ## Type specification
 
 In Erg, the type of a variable can be specified after `:` as follows. This can be done at the same time as an assignment.
 
-```erg
+```python
 i: Int # Declare the variable i to be of type Int
 i: Int = 1
 j = 1 # type specification can be omitted
@@ -14,7 +12,7 @@ j = 1 # type specification can be omitted
 
 You can also specify a type for ordinary expressions.
 
-```erg
+```python
 i = 1: Int
 f([1, "a"]: [Int or Str])
 ```
@@ -22,7 +20,7 @@ f([1, "a"]: [Int or Str])
 For simple variable assignments, most type specifications can be omitted.
 Type specifications are more useful when defining subroutines and types.
 
-```erg
+```python
 # Type specification for parameters
 f x, y: Array Int = ...
 T X, Y: Array Int = ...
@@ -30,20 +28,20 @@ T X, Y: Array Int = ...
 
 Note that in the above case, `x, y` are both `Array Int`.
 
-```erg
+```python
 # The value of a capital variable must be a constant expression
 f X: Int = X
 ```
 
 Alternatively, if you don't need complete information about the type argument, you can omit it with `_`.
 
-```erg
+```python
 g v: [T; _] = ...
 ```
 
 Note, however, `_` at a type specification implies `Object`.
 
-```erg
+```python
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 
@@ -54,7 +52,7 @@ The left side of `<:` can only specify a class. Use `Subtypeof` or similar opera
 
 This is also often used when defining subroutines or types, rather than simply specifying variables.
 
-```erg
+```python
 # Subtype specification of an argument
 f X <: T = ...
 
@@ -68,7 +66,7 @@ Iterable T = Trait {
 
 You can also use a subtype specification when defining a class to statically check whether the class is a subtype of the specified type.
 
-```erg
+```python
 # Class C is a subtype of Show
 C = Class Object, Impl := Show
 C.show self = ... # Show's required attributes.
@@ -76,7 +74,7 @@ C.show self = ... # Show's required attributes.
 
 You can also specify a subtype only in specific cases.
 
-```erg
+```python
 K T: Eq
 K Int <: Show and Eq
 K T = Class Object
@@ -89,7 +87,7 @@ K(Int).
 Subtype specification is recommended when implementing structural types.
 This is because, due to the nature of structural subtyping, typo or type specification errors will not cause errors when implementing required attributes.
 
-```erg
+```python
 C = Class Object
 C.shoe self = ... # Show is not implemented due to Typo (it is considered just a unique method).
 ```
@@ -98,7 +96,7 @@ C.shoe self = ... # Show is not implemented due to Typo (it is considered just a
 
 Attributes can be defined for traits and classes only in modules.
 
-```erg
+```python
 C = Class()
 C.pub_attr = "this is public"
 C::private_attr = "this is private"
@@ -109,7 +107,7 @@ assert c.pub_attr == "this is public"
 
 The syntax for defining a batch definition is called a batch definition, in which a newline is added after `C.` or `C::` and the definitions are grouped together below the indentation.
 
-```erg
+```python
 C = Class()
 C.pub1 = ...
 C.pub2 = ...
@@ -129,7 +127,7 @@ C::
 
 Types can be aliased. This allows long types, such as record types, to be shortened.
 
-```erg
+```python
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
@@ -142,7 +140,7 @@ However, only one alias of the same type is allowed per module, and multiple ali
 This means that types with different purposes should be defined as separate types.
 The purpose is also to prevent adding aliases on top of types that already have aliases.
 
-```erg
+```python
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 

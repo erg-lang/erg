@@ -1,8 +1,10 @@
 # ジェネレータ
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/34_generator.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/34_generator.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 ジェネレータは、ブロック中で`yield!`プロシージャを使う特殊なプロシージャです。
 
-```erg
+```python
 g!() =
     yield! 1
     yield! 2
@@ -13,7 +15,7 @@ g!() =
 これは`return`と同じく渡された値を戻り値として返すものですが、その時点でのブロックの実行状態を保存し、もう一度呼び出された際に続きから実行するという特徴があります。
 ジェネレータはプロシージャでありながらイテレータでもあります。Pythonのジェネレータはイテレータを生成する関数ですが、Ergは直接イテレートします。プロシージャ自体は一般に可変オブジェクトではありません(`!`が付かない)が、ジェネレータは実行ごとに自身の内容が変わる得るので可変オブジェクトです。
 
-```erg
+```python
 # Generator! < Proc
 g!: Generator!((), Int)
 assert g!() == 1
@@ -23,7 +25,7 @@ assert g!() == 3
 
 Pythonスタイルのジェネレータは以下のようにして定義できます。
 
-```erg
+```python
 make_g() = () =>
     yield! 1
     yield! 2

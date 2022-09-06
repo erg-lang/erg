@@ -1,11 +1,9 @@
 # Inheritance
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D8586bf6f02bd04fd5c823b3a476238881ef037de)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=8586bf6f02bd04fd5c823b3a476238881ef037de)
-
 Inheritance allows you to define a new class that adds functionality or specialization to an existing class.
 Inheritance is similar to inclusion in a trait. The inherited class becomes a subtype of the original class.
 
-```erg
+```python
 NewInt = Inherit Int
 NewInt.
     plus1 self = self + 1
@@ -18,7 +16,7 @@ If you want the newly defined class to be inheritable, you must give it the `Inh
 
 You can specify an optional argument `additional` to allow the class to have additional instance attributes, but only if the class is a value class. However, you cannot add instance attributes if the class is a value class.
 
-```erg
+```python
 @Inheritable
 Person = Class {name = Str}
 Student = Inherit Person, additional: {id = Int}
@@ -36,7 +34,7 @@ Erg is exceptionally designed not to allow inheritance of type ``Never``. Erg is
 [Or type](./13_algebraic.md) can also be inherited. In this case, you can remove any of the choices (multiple choices are possible with `or`) by specifying the optional argument `Excluding`.
 No additional choices can be added. The class to which you add an option is not a subtype of the original class.
 
-```erg
+```python
 Number = Class Int or Float or Complex
 Number.abs(self): Float =
     match self:
@@ -50,7 +48,7 @@ RealNumber = Inherit Number, Excluding: Complex
 
 Similarly, [refinement type](./12_refinement.md) can also be specified.
 
-```erg
+```python
 Months = Class 0..12
 MonthsNot31Days = Inherit Months, Excluding: {1, 3, 5, 7, 8, 10, 12}
 
@@ -75,7 +73,7 @@ Next, consider the second condition. This is for type consistency. Since the der
 
 Finally, consider the third condition. This condition is unique to Erg and not often found in other object-oriented languages, again for safety. Let's look at what could go wrong if this were not the case.
 
-```erg
+```python
 # Bad example
 @Inheritable
 Base! = Class {x = Int!}
@@ -96,7 +94,7 @@ In the inherited class `Inherited!`, the `.g!` method is overridden to transfer 
 
 Erg has built this rule into the specification.
 
-```erg
+```python
 # OK.
 @Inheritable
 Base! = Class {x = Int!}
@@ -125,7 +123,7 @@ Although it is not possible to replace traits at inheritance time, there are exa
 
 For example, `Int`, a subtype of `Real` (which implements `Add()`), appears to reimplement `Add()`.
 
-```erg
+```python
 Int = Class ... , Impl := Add() and ...
 ```
 
@@ -136,13 +134,13 @@ They are two different traits (`Add` is a [covariate](./advanced/variance.md), s
 
 Erg does not allow intersection, diff, and complement between normal classes.
 
-```erg
+```python
 Int and Str # TypeError: cannot unite classes
 ```
 
 This rule prevents inheritance from multiple classes, i.e., multiple inheritance.
 
-```erg
+```python
 IntAndStr = Inherit Int and Str # SyntaxError: multiple inheritance of classes is not allowed
 ```
 
@@ -163,7 +161,7 @@ The first is an update operation on the inherited source class attribute. It can
 
 Overriding is different from rewriting because it is an operation to override with a more specialized method. Overrides must also be replaced by compatible types.
 
-```erg
+```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
 Base!
@@ -182,7 +180,7 @@ Inherited!
 The second is an update operation on the (variable) instance attribute of the inherited source. This is also prohibited. Instance attributes of the base class may only be updated from methods provided by the base class.
 Regardless of the visibility of the attribute, it cannot be updated directly. However, they can be read.
 
-```erg
+```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
 Base!
@@ -211,7 +209,7 @@ So, conversely, where should inheritance be used? One indicator is when "semanti
 Erg allows the type system to automatically do part of the subtype determination (e.g., Nat, where Int is greater than or equal to 0).
 However, for example, it is difficult to create a "string type representing a valid e-mail address" relying solely on Erg's type system. You should probably perform validation on a normal string. Then, we would like to add some kind of "warrant" to the string object that has passed validation. That is the equivalent of downcasting to an inherited class. Downcasting a `Str object` to `ValidMailAddressStr` is a one-to-one correspondence with validating that the string is in the correct email address format.
 
-```erg
+```python
 ValidMailAddressStr = Inherit Str
 ValidMailAddressStr.
     init s: Str =
@@ -231,7 +229,7 @@ But obviously it is wrong to apply a `Dog` type object. So we will use the `Pers
 This way, only `Person` objects, classes that inherit from them, and `Student` objects will be accepted as arguments.
 This is more conservative and avoids unnecessarily assuming too much responsibility.
 
-```erg
+```python
 Named = {name = Str; ...}
 Dog = Class {name = Str; breed = Str}
 Person = Class {name = Str}

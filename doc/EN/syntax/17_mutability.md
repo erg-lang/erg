@@ -1,12 +1,9 @@
 # Mutability
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/17_mutability.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/17_mutability.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 As we have already seen, all Erg variables are immutable. However, Erg objects have the concept of mutability.
 Take the following code as an example.
 
-```erg
+```python
 a = [1, 2, 3]
 a = a + [4, 5, 6]
 print! a # [1, 2, 3, 4, 5, 6]
@@ -16,7 +13,7 @@ The above code cannot actually be executed by Erg. This is because it is not rea
 
 This code can be executed.
 
-```erg
+```python
 b = ![1, 2, 3]
 b.concat! [4, 5, 6]
 print! b # [1, 2, 3, 4, 5, 6]
@@ -25,7 +22,7 @@ print! b # [1, 2, 3, 4, 5, 6]
 The final result of `a, b` looks the same, but their meanings are very different.
 Although `a` is a variable that represents an array of `Nat`, the objects pointed to in the first and second lines are different. The name `a` is the same, but the contents are different.
 
-```erg
+```python
 a = [1, 2, 3]
 print! id! a # 0x000002A798DFE940
 _a = a + [4, 5, 6]
@@ -36,14 +33,14 @@ The `id!` procedure returns the address in memory where the object resides.
 
 `b` is a `Nat` "dynamic" array. The content of the object changes, but the variables point to the same thing.
 
-```erg
+```python
 b = ![1, 2, 3]
 print! id! b # 0x000002A798DFE220
 b.concat! [4, 5, 6]
 print! id! b # 0x000002A798DFE220
 ```
 
-```erg
+```python
 i = !0
 if! True. do!
     do! i.inc!() # or i.add!(1)
@@ -54,7 +51,7 @@ print! i # 1
 `!` is a special operator called the __mutation operator__. It makes immutable objects mutable.
 The behavior of objects marked with `!` can be customized.
 
-```erg
+```python
 Point = Class {.x = Int; .y = Int}
 
 # In this case .x is made mutable and .y remains immutable
@@ -72,7 +69,7 @@ print! p.x # 1
 Unlike variables, constants point to the same thing in all scopes.
 Constants are declared with the `=` operator.
 
-```erg
+```python
 PI = 3.141592653589
 match! x:
     PI => print! "this is pi"

@@ -1,11 +1,9 @@
 # Phantom class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/phantom.md%26commit_hash%3D317b5973c354984891523d14a5e6e8f1cc3923ec)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/phantom.md&commit_hash=317b5973c354984891523d14a5e6e8f1cc3923ec)
-
 Phantom types are marker traits that exist only to provide annotations to the compiler.
 As a usage of phantom types, let's look at the structure of a list.
 
-```erg
+```python
 Nil = Class()
 List T, 0 = Inherit Nil
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -13,7 +11,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 
 This code results in an error.
 
-```erg
+```python
 3 | List T, 0 = Inherit Nil
                         ^^^
 TypeConstructionError: since Nil does not have a parameter T, it is not possible to construct List(T, 0) with Nil
@@ -23,7 +21,7 @@ hint: use 'Phantom' trait to consume T
 This error is a complaint that `T` cannot be type inferred when `List(_, 0).new Nil.new()` is used.
 In such a case, whatever the `T` type is, it must be consumed on the right-hand side. A type of size zero, such as a tuple of length zero, is convenient because it has no runtime overhead.
 
-```erg
+```python
 Nil T = Class((T; 0))
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -33,7 +31,7 @@ This code passes compilation. But it's a little tricky to understand the intent,
 
 In such a case, a phantom type is just what you need. A phantom type is a generalized type of size 0.
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
@@ -47,7 +45,7 @@ assert nil.__size__ == 0
 Also, `Phantom` can consume arbitrary type arguments in addition to its type. In the following example, `Phantom` holds a type argument called `State`, which is a subtype object of `Str`.
 Again, `State` is a fake type variable that does not appear in the object's entity.
 
-```erg
+```python
 VM! State: {"stopped", "running"}! = Class(... State)
 VM!("stopped").
     start ref! self("stopped" ~> "running") =

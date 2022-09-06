@@ -1,11 +1,13 @@
 # 可変型(Mutable Type)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 > __Warning__: この項の情報は古く、一部に間違いを含みます。
 
 Ergではデフォルトですべての型が不変型、すなわち内部状態を更新できないようになっています。
 しかし可変な型ももちろん定義できます。可変型は`!`を付けて宣言します。
 
-```erg
+```python
 Person! = Class({name = Str; age = Nat!})
 Person!.
     greet! ref! self = print! "Hello, my name is {self::name}. I am {self::age}."
@@ -19,7 +21,7 @@ Person!.
 
 可変型オブジェクトの破壊的操作は、主に`.update!`メソッドを介して行います。`.update!`メソッドは高階プロシージャで、`self`に関数`f`を適用して更新します。
 
-```erg
+```python
 i = !1
 i.update! old -> old + 1
 assert i == 2
@@ -27,7 +29,7 @@ assert i == 2
 
 `.set!`メソッドは単に古い内容を捨てて新しい値に差し替えます。`.set! x = .update! _ -> x`です。
 
-```erg
+```python
 i = !1
 i.set! 2
 assert i == 2
@@ -35,14 +37,14 @@ assert i == 2
 
 `.freeze_map`メソッドは値を不変化して操作を行います。
 
-```erg
+```python
 a = [1, 2, 3].into [Nat; !3]
 x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(Array)
 ```
 
 多相不変型において型の型引数`T`は暗黙に不変型であると仮定されます。
 
-```erg
+```python
 # ImmutType < Type
 K T: ImmutType = Class ...
 K! T: Type = Class ...
@@ -53,7 +55,7 @@ K! T: Type = Class ...
 注意として、オブジェクトの可変性にはいくつかの種類があります。
 以下では組み込みのコレクション型について、その不変/可変型の意味を確認します。
 
-```erg
+```python
 # 配列型
 ## 不変型(immutable types)
 [T; N]     # 可変操作は実行できない
@@ -72,7 +74,7 @@ K! T: Type = Class ...
 
 これらの配列型は糖衣構文であり、実際の型は以下の通りです。
 
-```erg
+```python
 # 実際は4種類の型
 [T; N] = Array(T, N)
 [T; !N] = Array!(T, !N)
@@ -85,7 +87,7 @@ K! T: Type = Class ...
 
 なお、型を変更可能とはこのような意味です。
 
-```erg
+```python
 a = [1, 2, 3].into [!Nat; 3]
 a.map!(_ -> "a")
 a: [!Str; 3]
@@ -93,7 +95,7 @@ a: [!Str; 3]
 
 他のコレクション型についても同様です。
 
-```erg
+```python
 # タプル型
 ## 不変型(immutable types)
 (T, U) # 要素数不変、中身を変更できない
@@ -103,7 +105,7 @@ a: [!Str; 3]
 ...
 ```
 
-```erg
+```python
 # セット型
 ## 不変型(immutable types)
 {T; N}        # 不変要素数、中身を変更できない
@@ -114,7 +116,7 @@ a: [!Str; 3]
 ...
 ```
 
-```erg
+```python
 # 辞書型
 ## 不変型(immutable types)
 {K: V}          # 不変長、中身を変更できない
@@ -124,7 +126,7 @@ a: [!Str; 3]
 ...
 ```
 
-```erg
+```python
 # レコード型
 ## 不変型(immutable types)
 {x = Int; y = Str}           # 中身を変更できない
@@ -137,7 +139,7 @@ a: [!Str; 3]
 `T = (...)`のとき単に`T! = (...)!`となる型`(...)`を単純構造型と呼びます。単純構造型は(意味論上)内部構造を持たない型ともいえます。
 配列、タプル、セット、辞書、レコード型は全て単純構造型ではありませんが、Int型や篩型は単純構造型です。
 
-```erg
+```python
 # 篩型
 ## 列挙型
 {1, 2, 3}    # 1, 2, 3のうちどれか、変更できない

@@ -1,7 +1,5 @@
 # Shared Reference
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/shared.md%26commit_hash%3D317b5973c354984891523d14a5e6e8f1cc3923ec)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/shared.md&commit_hash=317b5973c354984891523d14a5e6e8f1cc3923ec)
-
 Shared references are one of those language features that must be handled with care.
 In TypeScript, for example, the following code will pass type checking.
 
@@ -23,7 +21,7 @@ The relation `VIPMember[] <: NormalMember[]` is fine for immutable objects. Howe
 
 In Erg, such code is played back due to the ownership system.
 
-```erg
+```python
 NormalMember = Class()
 VIPMember = Class()
 
@@ -37,7 +35,7 @@ log vip_area # OwnershipError: `vip_room` was moved to `normal_room`
 However, it can be inconvenient for an object to be owned by only one place.
 For this reason, Erg has a type `SharedCell!T!`, which represents a shared state.
 
-```erg
+```python
 $p1 = SharedCell!.new(!1)
 $p2 = $p1.mirror!()
 $p3 = SharedCell!.new(!1)
@@ -59,7 +57,7 @@ The `SharedCell! T!` type is also a subtype of `T!` and can call methods of type
 
 An important fact is that `SharedCell! T!` is non-variant, i.e., no inclusions are defined for different type arguments.
 
-```erg
+```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
 $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError: expected SharedCell!([NormalMember; !_]), but got SharedCell!([VIPMember; !_])
 # hint: SharedCell!(T) is non-variant, which means it cannot have a supertype or a subtype.
@@ -67,7 +65,7 @@ $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # TypeError:
 
 However, the following code have not problem. In the last line, it's the `VIPMember` argument that has been typed converted.
 
-```erg
+```python
 $normal_area = SharedCell!.new([].into [NormalMember; !_])
 $normal_area.push!(NormalMember.new()) # OK
 $normal_area.push!(VIPMember.new()) # OK

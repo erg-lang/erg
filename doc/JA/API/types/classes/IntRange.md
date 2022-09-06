@@ -1,8 +1,10 @@
 # IntRange L, R
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/types/classes/IntRange.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/types/classes/IntRange.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `L..R`のクラス。
 
-```erg
+```python
 IntRange L, R: Int == L..R
 ```
 
@@ -12,7 +14,7 @@ IntRange L, R: Int == L..R
 
 通常の加算。`Int`や`Nat`の加算はそれぞれのクラスで定義されていると見せかけて、ここで定義されている。
 
-```erg
+```python
 0..10 + 1..12 == 1..22
 Int + 0..10 == _..|Int|_ + 0..10 == _..|Int|_ == Int
 Nat + Nat == 0.._ + 0.._ == 0.._ == Nat

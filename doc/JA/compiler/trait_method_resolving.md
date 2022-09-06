@@ -1,9 +1,11 @@
 # パッチメソッドの解決
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/trait_method_resolving.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/trait_method_resolving.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `Nat`は0以上の`Int`、つまり`Int`のサブタイプである。
 本来`Nat`はPythonのクラス階層には存在しない。Ergはこのパッチのメソッドをどうやって解決するのだろうか？
 
-```erg
+```python
 1.times do:
     log "hello, world"
 ```
@@ -27,7 +29,7 @@ Ergは`Int`のMROに`Int`, `Object`を持っている。これはPython由来で
 Ergコンパイラは、全ての提供メソッドとその実装を持つパッチ・型のハッシュマップを持っている。
 このテーブルは型が新たに定義されるたびに更新される。
 
-```erg
+```python
 provided_method_table = {
     ...
     "foo": [Foo],
@@ -58,7 +60,7 @@ provided_method_table = {
 両者に包含関係がない場合は、コンパイルエラーとなる(これはプログラマーの意図に反したメソッドが実行されないための安全策である)。
 エラーを解消させるためには、パッチを明示的に指定する必要がある。
 
-```erg
+```python
 o.method(x) -> P.method(o, x)
 ```
 
@@ -66,20 +68,20 @@ o.method(x) -> P.method(o, x)
 
 以下のようなパッチを定義する。
 
-```erg
+```python
 FnType T: Type = Patch T -> T
 FnType.type = T
 ```
 
 `FnType`パッチのもとで以下のようなコードが可能である。これはどのように解決されるのだろうか。
 
-```erg
+```python
 assert (Int -> Int).type == Int
 ```
 
 まず、`provided_method_table`には`FnType(T)`が以下の形式で登録される。
 
-```erg
+```python
 provided_method_table = {
     ...
     "type": [FnType(T)],
@@ -90,6 +92,6 @@ provided_method_table = {
 `FnType(T)`のパッチする型が適合するかチェックされる。この場合、`FnType(T)`のパッチ型は`Type -> Type`である。
 これは`Int -> Int`に適合する。適合したら、単相化を行って置換する(`T -> T`と`Int -> Int`のdiffを取る。`{T => Int}`)。
 
-```erg
+```python
 assert FnType(Int).type == Int
 ```

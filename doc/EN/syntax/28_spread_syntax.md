@@ -1,42 +1,39 @@
 # Spread assignment
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/28_spread_syntax.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/28_spread_syntax.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
+In a decomposing assignment, putting `...` in front of a variable expands all remaining elements into that variable. This is called expansion assignment.
 
-In a spread assignment, a variable can be prefixed with `...` in front of the variable, all the remaining elements can be expanded into the variable. This is called a spread assignment.
-
-```erg
-[x, ... .y] = [1, 2, 3]
+```python
+[x,...y] = [1, 2, 3]
 assert x == 1
-assert y == [2, 3].
-x, ... .y = (1, 2, 3)
+assert y == [2, 3]
+x, ...y = (1, 2, 3)
 assert x == 1
 assert y == (2, 3)
 ```
 
 ## Extract assignment
 
-If nothing is written after `...`, the remaining elements are ignored and an assignment is made. This type of expansion assignment is specifically called an extract assignment.
-Extract assignment is a useful syntax for bringing certain attributes local to a module or record.
+If nothing is written after `...`, the remaining elements are ignored and assigned. This type of expansion assignment is specifically called extractive assignment.
+Extraction assignment is a convenient syntax for localizing specific attributes within a module or record.
 
-```erg
-{sin; cos; tan; ...} = import "math"
+```python
+{sin; cos; tan; ..} = import "math"
 ```
 
-This way, `sin`, `cos`, `tan` can be used locally from then on.
+After that, you can use `sin, cos, tan` locally.
 
 You can do the same with records.
 
-```erg
+```python
 record = {x = 1; y = 2}
 {x; y; ...} = record
 ```
 
-If you want to expand all of them, use `{*} = record`, this is equivalent to `open` in OCaml and so on.
+If you want to expand all, use `{*} = record`. It is `open` in OCaml.
 
-```erg
+```python
 record = {x = 1; y = 2}
-{*} = record
+{*} = records
 assert x == 1 and y == 2
 ```
 

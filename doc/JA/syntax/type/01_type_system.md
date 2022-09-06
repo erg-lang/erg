@@ -1,12 +1,14 @@
 # Ergの型システム
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/01_type_system.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/01_type_system.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 以下では、Ergの型システムを概略的に説明します。詳細については他の項で解説します。
 
 ## 定義方法
 
 Ergの特徴的な点として、(通常の)変数、関数(サブルーチン)、型(カインド)の定義にあまり大きな構文上の違いがないというところがあります。すべて、通常の変数・関数定義の文法に従って定義されます。
 
-```erg
+```python
 f i: Int = i + 1
 f # <function f>
 f(1) # 2
@@ -64,7 +66,7 @@ Ergの配列(Array)はPythonでいうところのリストとなります。`[In
 
 > __Note__: `(Type; N)`は型であり値でもあるので、このような使い方もできます。
 >
-> ```erg
+> ```python
 > Types = (Int, Str, Bool)
 >
 > for! Types, T =>
@@ -73,7 +75,7 @@ Ergの配列(Array)はPythonでいうところのリストとなります。`[In
 > a: Types = (1, "aaa", True)
 > ```
 
-```erg
+```python
 pop|T, N|(l: [T; N]): ([T; N-1], T) =
     [...l, last] = l
     (l, last)
@@ -86,7 +88,7 @@ lpop|T, N|(l: [T; N]): (T, [T; N-1]) =
 `!`の付く型はオブジェクトの内部構造書き換えを許可する型です。例えば`[T; !N]`クラスは動的配列となります。
 `T`型オブジェクトから`T!`型オブジェクトを生成するには、単項演算子の`!`を使います。
 
-```erg
+```python
 i: Int! = !1
 i.update! i -> i + 1
 assert i == 2
@@ -101,7 +103,7 @@ assert mut_arr == [1, 2, 3, 4]
 
 型は以下のように定義します。
 
-```erg
+```python
 Point2D = {.x = Int; .y = Int}
 ```
 
@@ -114,7 +116,7 @@ Point2D = {.x = Int; .y = Int}
 以下は`+`(中置演算子)を要求する `Add`型の定義です。`R, O`はいわゆる型引数で、`Int`や`Str`など実装のある型(クラス)が入れられます。他の言語で型引数には特別な記法(ジェネリクス、テンプレートなど)が与えられていますが、Ergでは通常の引数と同じように定義できます。
 なお型引数は型オブジェクト以外も使用できます。例えば配列型`[Int; 3]`は`Array Int, 3`の糖衣文法です。型の実装がかぶる場合、ユーザは明示的に選択しなくてはなりません。
 
-```erg
+```python
 Add R = Trait {
     .AddO = Type
     .`_+_` = Self.(R) -> Self.AddO
@@ -123,7 +125,7 @@ Add R = Trait {
 
 .`_+_`は Add.`_+_`の省略形です。前置演算子の.`+_`は`Num`型のメソッドです。
 
-```erg
+```python
 Num = Add and Sub and Mul and Eq
 NumImpl = Patch Num
 NumImpl.
@@ -133,7 +135,7 @@ NumImpl.
 
 多相型は関数のように扱えます。`Mul Int, Str`などのように指定して単相化します(多くの場合は指定しなくても実引数で推論されます)。
 
-```erg
+```python
 1 + 1
 `_+_` 1, 1
 Nat.`_+_` 1, 1
@@ -145,7 +147,7 @@ Int.`_+_` 1, 1
 これは、`Int <: Ratio`であるために`1`が`Ratio`にダウンキャストされるからです。
 しかしこれはキャストされません。
 
-```erg
+```python
 i = 1
 if i: # TypeError: i: Int cannot cast to Bool, use Int.is_zero() instead.
     log "a"
@@ -158,7 +160,7 @@ if i: # TypeError: i: Int cannot cast to Bool, use Int.is_zero() instead.
 
 Ergは静的ダックタイピングを採用しており、明示的に型を指定する必要は殆どありません。
 
-```erg
+```python
 f x, y = x + y
 ```
 
@@ -167,7 +169,7 @@ f x, y = x + y
 `{0}`と`{1}`は`Int`や`Nat`などの部分型となる列挙型です。
 列挙型などには名前を付けて要求/実装メソッドを付けられます。その型にアクセスできる名前空間では、要求を満たすオブジェクトは実装メソッドを使用できます。
 
-```erg
+```python
 Binary = Patch {0, 1}
 Binary.
     # selfにはインスタンスが格納される。この例では0か1のどちらか。
@@ -184,7 +186,7 @@ Binary.
 以降は`0.to_bool()`というコードが可能となります(もっとも`0 as Bool == False`がビルトインで定義されていますが)。
 コード中に示されたように、実際に`self`を書き換える事のできる型の例を示します。
 
-```erg
+```python
 Binary! = Patch {0, 1}!
 Binary!.
     switch! ref! self = match! self:
@@ -198,7 +200,7 @@ print! b # => 0
 
 ## 構造型(無名型)
 
-```erg
+```python
 Binary = {0, 1}
 ```
 
@@ -211,14 +213,14 @@ Binary = {0, 1}
 下のような指定はできません。`Add`はそれぞれ別のものを指すと解釈されるからです。
 例えば、`Int`と`Str`はともに`Add`だが、`Int`と`Str`の加算はできません。
 
-```erg
+```python
 add l: Add, r: Add =
     l + r # TypeError: there is no implementation of  `_+_`: |T, U <: Add| (T, U) -> <Failure>
 ```
 
 また、下の`A`, `B`は同じ型とはみなされません。しかし、型`O`は一致するとみなされます。
 
-```erg
+```python
 ... |R1; R2; O; A <: Add(R1, O); B <: Add(R2, O)|
 ```
 

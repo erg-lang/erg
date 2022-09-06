@@ -1,11 +1,13 @@
 # 高レベル中間表現(HIR, High-level Intermediate Representation)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/hir.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/hir.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 HIRはErgコンパイラがASTから生成する構造体です。
 この構造体にはソースコード中のあらゆる式の完全な型情報が含まれており、また構文糖が脱糖されています。
 ASTは(プレーンテキストとしての)ソースコードと一対一対応しますが、HIRは不要なコードの情報が除去されていたり、また省略された型情報が付記されたりしているため、HIRからソースコードを復元することは困難です。
 以下のコードでHIRの例を見てみましょう。
 
-```erg
+```python
 v = ![]
 for! 0..10, i =>
     v.push! i
@@ -14,7 +16,7 @@ log v.sum()
 
 このコードから生成されるASTは以下のようになります。
 
-```erg
+```python
 AST(Module[
     VarDef{
         sig: VarSignature{
@@ -71,7 +73,7 @@ AST(Module[
 
 そしてASTから生成されるHIRは以下のようになります。
 
-```erg
+```python
 HIR(Module[
     VarDef{
         sig: VarSignature{

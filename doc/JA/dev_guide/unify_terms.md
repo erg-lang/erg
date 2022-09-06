@@ -1,5 +1,7 @@
 # 用語の統一
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/unify_terms.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/unify_terms.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ## Accessibility, Visibility (参照性、可視性)
 
 Visibility(可視性)を使用する。
@@ -51,7 +53,7 @@ Visibility(可視性)を使用する。
 * 名前(Name): 識別子とほぼ同じ意味。Ergにおいては代数と同じ意味で使われることもある。
 * 代数名(Algebra name): Ergにおいては識別子と同等の意味。C言語では関数名は識別子だが代数名ではない。「代数」は`=`(変数代入演算子)または`=`(定数代入演算子)でオブジェクトを代入できるという言語機能自体を指す。
 
-```erg
+```python
 代数名 <: (名前 == 識別子) <: シンボル
 変数 + 定数 == 代数
 ```

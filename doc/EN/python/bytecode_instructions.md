@@ -1,7 +1,7 @@
 # Python Bytecode Instructions
 
-Python bytecode variable manipulation instructions are accessed through namei (name index). This is to realize Python's dynamic variable access (access by string using eval, etc.).
-Each instruction is 2 bytes, and instructions and arguments are stored in a little endian.
+Python bytecode variable manipulation commands are accessed through namei (name index). This is to achieve dynamic variable access in Python (which can be accessed as a string using eval, etc.).
+One instruction is 2 bytes, and the instruction and arguments are stored in little endian.
 Instructions that do not take arguments also use 2 bytes (the argument part is 0).
 
 ## STORE_NAME(namei)
@@ -16,7 +16,7 @@ globals[namei] = stack.pop()
 stack.push(globals[namei])
 ```
 
-Only called at the top level.
+Only called at top level.
 
 ## LOAD_GLOBAL(namei)
 
@@ -24,7 +24,7 @@ Only called at the top level.
 stack.push(globals[namei])
 ```
 
-To Load what was STORE_NAME at the top level in the inner scope, but namei at the top level is not necessarily the same as namei in a code object of a certain scope (namei, not name, is the same).
+It is for loading STORE_NAME at the top level in the inner scope, but `namei` at the top level is not necessarily the same as namei in the code object of a certain scope (name is the same, not namei)
 
 ## LOAD_CONST(namei)
 
@@ -32,10 +32,10 @@ To Load what was STORE_NAME at the top level in the inner scope, but namei at th
 stack.push(consts[namei])
 ```
 
-Load constants in the constants table.
-Currently (Python 3.9), CPython MAKE_FUNCTION every time a lambda function is called "\<lambda\>".
+Load constants in the constant table.
+Currently (Python 3.9), in CPython, each lambda function is MAKE_FUNCTION with the name "\<lambda\>"
 
-````console
+```console
 >>> dis.dis("[1,2,3].map(lambda x: x+1)")
 1 0 LOAD_CONST 0 (1)
         2 LOAD_CONST 1 (2)
@@ -47,33 +47,30 @@ Currently (Python 3.9), CPython MAKE_FUNCTION every time a lambda function is ca
         14 MAKE_FUNCTION 0
         16 CALL_FUNCTION 1
         18 RETURN_VALUE
-````
+```
 
 ## STORE_FAST(namei)
 
-```python
 fastlocals[namei] = stack.pop()
-```
-
-Probably corresponds to STORE_NAME at the top level.
-This is supposed to store an unreferenced (or single) variable.
-Is it for optimization that the global space has its own instruction?
+Possibly corresponds to STORE_NAME at top level
+The unreferenced (or single) variable is assumed to be stored by this
+Is it for optimization that the global space has its own instructions?
 
 ## LOAD_FAST(namei)
 
 stack.push(fastlocals[namei])
-fastlocals is varnames?
+fastlocals are varnames?
 
 ## LOAD_CLOSURE(namei)
 
 ```python
 cell = freevars[namei]
-stack.push(cell)
+stack. push(cell)
 ```
 
-After that BUILD_TUPLE is called.
-It is only called in a closure, and cellvars is supposed to store references in the closure.
-Unlike LOAD_DEREF, the entire cell (container with references) is pushed onto the stack
+Then BUILD_TUPLE is called
+It is only called inside the closure, and cellvars are supposed to store references inside the closure.
+Unlike LOAD_DEREF, each cell (container filled with references) is pushed to the stack
 
 ## STORE_DEREF(namei)
 
@@ -82,8 +79,8 @@ cell = freevars[namei]
 cell.set(stack.pop())
 ```
 
-Variables without references in the inner scope are STORE_FAST, but referenced variables are STORE_DEREF.
-In Python, the reference count is increased or decreased within this instruction
+Variables without references in inner scopes are STORE_FAST, but referenced variables are STORE_DEREF
+In Python, the reference count is incremented and decremented within this instruction
 
 ## LOAD_DEREF(namei)
 
@@ -92,26 +89,26 @@ cell = freevars[namei]
 stack.push(cell.get())
 ```
 
-## Name List
+## name list
 
 ### varnames
 
-List of names of internal variables of the function corresponding to `fast_locals`.
-Even if there is a variable with the same name in names, it is not basically the same (it is newly created, and the outside variable cannot be accessed from its scope).
-In other words, variables defined in scope without external references go into varnames
+Name list of function internal variables corresponding to fast_locals
+Even if there are variables with the same name in names, they are basically not the same (newly created and outside variables cannot be accessed from that scope)
+i.e. variables without external references defined in scope go into varnames
 
 ### names
 
-Corresponding to `globals`.
-A list of names of external constants (reference only) used in a scope (even ordinary variables at the top level go into names).
-In other words, constants defined outside the scope go into names
+Compatible with globals
+Name list of external constants (only referenced) used within the scope (at the top level, even ordinary variables are included in names)
+i.e. constants defined outside the scope go into names
 
-## free variable
+## free variables
 
-Corresponds to `freevars`.
-Variables captured by closure. It behaves static within the same function instance.
+Compatible with freevars
+Variables captured by the closure. It behaves statically within the same function instance.
 
 ## cell variables
 
-Corresponds to `cellvars`.
-Variables captured by an inner closure function within a function. A copy is made, so the original variable remains intact.
+Corresponds to cellvars
+Variables captured within a function to an inner closure function. Since a copy is made, the original variable remains as it is.

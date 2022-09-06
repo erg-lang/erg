@@ -1,14 +1,12 @@
 # Erg's Type System
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/01_type_system.md%26commit_hash%3D2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/01_type_system.md&commit_hash=2f89a30335024a46ec0b3f6acc6d5a4b8238b7b0)
-
 The following is a brief description of Erg's type system. Details are explained in other sections.
 
 ## How to define
 
 One of the unique features of Erg is that there is not much difference in syntax between (normal) variable, function (subroutine), and type (Kind) definitions. All are defined according to the syntax of normal variable and function definitions.
 
-```erg
+```python
 f i: Int = i + 1
 f # <function f>
 f(1) # 2
@@ -66,7 +64,7 @@ Erg's array (Array) is what Python calls a list. `[Int; 3]` is an array class th
 
 > __Note__: `(Type; N)` is both a type and a value, so it can be used like this.
 >
-> ```erg.
+> ```python.
 > Types = (Int, Str, Bool)
 >
 > for! Types, T =>
@@ -75,7 +73,7 @@ Erg's array (Array) is what Python calls a list. `[Int; 3]` is an array class th
 > a: Types = (1, "aaa", True)
 > ```
 
-```erg
+```python
 pop|T, N|(l: [T; N]): ([T; N-1], T) =
     [...l, last] = l
     (l, last)
@@ -88,7 +86,7 @@ lpop|T, N|(l: [T; N]): (T, [T; N-1]) =
 A type ends with `!` can be rewritten internal structure. For example, the `[T; !N]` class is a dynamic array.
 To create an object of type `T!` from an object of type `T`, use the unary operator `!`.
 
-```erg
+```python
 i: Int! = !1
 i.update! i -> i + 1
 assert i == 2
@@ -103,7 +101,7 @@ assert mut_arr == [1, 2, 3, 4].
 
 Types are defined as follows.
 
-```erg
+```python
 Point2D = {.x = Int; .y = Int}
 ```
 
@@ -117,7 +115,7 @@ As mentioned earlier, a "type" in Erg roughly means a set of objects.
 The following is a definition of the `Add` type, which requires `+` (the middle operator). `R, O` are the so-called type parameters, which can be a true type (class) such as `Int` or `Str`. In other languages, type parameters are given a special notation (generics, templates, etc.), but in Erg they can be defined just like normal parameters.
 Type parameters can also be used for types other than type objects. For example, the array type `[Int; 3]` is a syntax sugar for `Array Int, 3`. If the type implementations overlap, the user must explicitly choose one.
 
-```erg
+```python
 Add R = Trait {
     .AddO = Type
     . `_+_` = Self.(R) -> Self.AddO
@@ -126,7 +124,7 @@ Add R = Trait {
 
 .`_+_` is an abbreviation for Add.`_+_`. The prefix operator .`+_` is a method of type `Num`.
 
-```erg
+```python
 Num = Add and Sub and Mul and Eq
 NumImpl = Patch Num
 NumImpl.
@@ -136,7 +134,7 @@ NumImpl.
 
 Polymorphic types can be treated like functions. They can be monomorphic by specifying them as `Mul Int, Str`, etc. (in many cases, they are inferred with real arguments without specifying them).
 
-```erg
+```python
 1 + 1
 `_+_` 1, 1
 Nat.`_+_` 1, 1
@@ -148,7 +146,7 @@ The top four lines return the same result (to be exact, the bottom one returns `
 This is because `Int <: Ratio`, so `1` is downcast to `Ratio`.
 But this is not cast.
 
-```erg
+```python
 i = 1
 if i: # TypeError: i: Int cannot be cast to Bool, use Int.is_zero() instead.
     log "a"
@@ -161,7 +159,7 @@ This is because `Bool <: Int` (`True == 1`, `False == 0`). Casts to subtypes gen
 
 Erg uses static duck typing, so there is little need to explicitly specify the type.
 
-```erg
+```python
 f x, y = x + y
 ```
 
@@ -170,7 +168,7 @@ If `{0}, {-1}`, it is monomorphic to `Int` since it does not match `Nat`. If the
 `{0}` and `{1}` are enumerated types that are partial types such as `Int` and `Nat`.
 Enumerated types, for example, can be given names and request/implementation methods. In namespaces that have access to that type, objects that satisfy the request can use the implementation method.
 
-```erg
+```python
 Binary = Patch {0, 1}
 Binary.
     # self contains an instance. In this example, either 0 or 1.
@@ -187,7 +185,7 @@ Binary.
 Thereafter, the code `0.to_bool()` is possible (although `0 as Bool == False` is defined built-in).
 Here is an example of a type that can actually rewrite `self` as shown in the code.
 
-```erg
+```python
 Binary! = Patch {0, 1}!
 Binary!
     switch! ref! self = match! self:
@@ -201,7 +199,7 @@ print! b # => 0
 
 ## Structure type (anonymous type)
 
-```erg
+```python
 Binary = {0, 1}
 ```
 
@@ -214,14 +212,14 @@ Such types are called structural types. When we want to emphasize its use as the
 The following cannot be specified. For example, you cannot specify `Int` and `Int` and `Int` and `Int` and `Int` and `Int`.
 For example, `Int` and `Str` are both `Add`, but `Int` and `Str` cannot be added.
 
-```erg
+```python
 add l: Add, r: Add =
     l + r # TypeError: there is no implementation of `_+_`: |T, U <: Add| (T, U) -> <Failure>
 ```
 
 Also, the types `A` and `B` below are not considered the same type. However, the type `O` is considered to match.
 
-```erg
+```python
 ... |R1; R2; O; A <: Add(R1, O); B <: Add(R2, O)|
 ```
 

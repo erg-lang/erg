@@ -1,8 +1,5 @@
 # Package System
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/33_package_system.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/33_package_system.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 Erg packages can be roughly classified into the app package, which is the application, and the lib package, which is the library.
 The entry point of the app package is `src/app.er`. The `main` function defined in `app.er` is executed.
 The entry point for the lib package is `src/lib.er`. Importing a package is equivalent to importing `lib.er`.
@@ -28,7 +25,7 @@ You can import `foo` and `bar` modules in `app.er`. The `bar` directory can be r
 A `foo` module is a module consisting of files, and a `bar` module is a module consisting of directories. The `bar` module also contains `baz` and `qux` modules.
 This module is simply an attribute of the `bar` module, and can be accessed from `app.er` as follows.
 
-```erg
+```python
 # app.er
 foo = import "foo"
 bar = import "bar"
@@ -50,7 +47,7 @@ For example, a module for testing. A file ending with `.test.er` is a (white box
   └─ foo.test.er
 ./src
 
-```erg
+```python
 # app.er
 foo = import "foo"
 
@@ -69,14 +66,14 @@ Also, files ending in ``.private.er`` are private modules and can only be access
     └─ qux.er
 ```
 
-```erg
+```python
 # foo.er
 bar = import "bar"
 bar.qux
 bar.baz # AttributeError: module 'baz' is private
 ```
 
-```erg
+```python
 # qux.er
 baz = import "baz"
 ```

@@ -1,11 +1,9 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D8586bf6f02bd04fd5c823b3a476238881ef037de)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=8586bf6f02bd04fd5c823b3a476238881ef037de)
-
 A class in Erg is roughly a type that can create its own elements (instances).
 Here is an example of a simple class.
 
-```erg
+```python
 Person = Class {.name = Str; .age = Nat}
 # If `.new` is not defined, then Erg will create `Person.new = Person::__new__`
 Person.
@@ -24,7 +22,7 @@ In the class above, the `.new` method is defined so that field names, etc. can b
 
 Note that the following definition without line breaks will result in a syntax error.
 
-```erg
+```python
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
@@ -41,7 +39,7 @@ class Person:
     age: int
 ```
 
-```erg
+```python
 # In Erg, this notation implies the declaration of a class attribute (not an instance attribute)
 Person = Class()
 Person.
@@ -49,7 +47,7 @@ Person.
     age: Int
 ```
 
-```erg
+```python
 # Erg code for the Python code above
 Person = Class {
     .name = Str
@@ -63,7 +61,7 @@ In addition, dividing the attributes in this way clarifies roles such as "this a
 
 The example below illustrates this. The attribute `species` is common to all instances, so it is more natural to use it as a class attribute. However, the attribute `name` should be an instance attribute because each instance should have it individually.
 
-```erg
+```python
 Person = Class {name = Str}
 Person::
     species = "human"
@@ -87,7 +85,7 @@ alice.greet() # Hello, My name is Alice.
 
 Incidentally, if an instance attribute and a type attribute have the same name and the same type, a compile error occurs. This is to avoid confusion.
 
-```erg
+```python
 C = Class {.i = Int}
 C.i = 1 # AttributeError: `.i` is already defined in instance fields
 ```
@@ -104,7 +102,7 @@ Erg does not allow you to add class methods, but you can use [patch](./07_patch.
 You can also inherit from existing classes ([Inheritable](./../27_decorator.md/#inheritable) class).
 You can create an inherited class by using `Inherit`. The type on the left-hand side is called the derived class, and the argument type of `Inherit` on the right-hand side is called the base class (inherited class).
 
-```erg
+```python
 MyStr = Inherit Str
 # other: You can use MyStr if you set ``other: Str''.
 MyStr.
@@ -119,7 +117,7 @@ Unlike Python, the defined Erg classes are `final` (non-inheritable) by default.
 To make a class inheritable, an `Inheritable` decorator must be attached to the class.
 Str` is one of the inheritable classes.
 
-```erg
+```python
 MyStr = Inherit Str # OK
 MyStr2 = Inherit MyStr # NG
 
@@ -133,7 +131,7 @@ MyStr3 = Inherit InheritableMyStr # OK
 Classes have a different equivalence checking mechanism than types.
 Types are equivalence tested based on their structure.
 
-```erg
+```python
 Person = {.name = Str; .age = Nat}
 Human = {.name = Str; .age = Nat}
 
@@ -142,7 +140,7 @@ assert Person == Human
 
 class has no equivalence relation defined.
 
-```erg
+```python
 Person = Class {.name = Str; .age = Nat}
 Human = Class {.name = Str; .age = Nat}
 
@@ -153,7 +151,7 @@ Person == Human # TypeError: cannot compare classes
 
 We said that a class is a type that can generate its own elements, but that is not a strict description. In fact, a record type + patch can do the same thing.
 
-```erg
+```python
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
 PersonImpl.
@@ -176,7 +174,7 @@ Type checking for classes is simply a matter of checking the object's `. __class
 Erg enables NSTs in classes; the advantages of NSTs include robustness.
 When writing large programs, it is often the case that the structure of an object is coincidentally matched.
 
-```erg
+```python
 Dog = {.name = Str; .age = Nat}
 DogImpl = Patch Dog
 DogImpl.
@@ -194,7 +192,7 @@ john.bark() # "Yelp!"
 The structure of `Dog` and `Person` is exactly the same, but it is obviously nonsense to allow animals to greet and humans to bark.
 The former is impossible, so it is safer to make it inapplicable. In such cases, it is better to use classes.
 
-```erg
+```python
 Dog = Class {.name = Str; .age = Nat}
 Dog.bark = log "Yelp!"
 ...
@@ -209,7 +207,7 @@ Another feature is that the type attributes added by the patch are virtual and a
 That is, `T.x`, `T.bar` are objects that can be accessed (compile-time bound) by types compatible with `{i = Int}`, and are not defined in `{i = Int}` or `C`.
 In contrast, class attributes are held by the class itself. Therefore, they cannot be accessed by classes that are not in an inheritance relationship, even if they have the same structure.
 
-```erg
+```python
 C = Class {i = Int}
 C.
     foo self = ...
@@ -235,7 +233,7 @@ There are two types of classes: regular classes, which are generated with `Class
 The data class inherits the functionality of the record class and has features such as decomposition assignment, `==` and `hash` implemented by default, etc. On the other hand, the data class has its own equivalence relation and format display.
 On the other hand, if you want to define your own equivalence relations or formatting displays, you should use the normal class.
 
-```erg
+```python
 C = Class {i = Int}
 c = C.new {i = 1}
 d = C.new {i = 2}
@@ -253,7 +251,7 @@ assert e ! = f
 
 To facilitate defining classes of type `Or`, an `Enum` is provided.
 
-```erg
+```python
 X = Class()
 Y = Class()
 XorY = Enum X, Y
@@ -262,7 +260,7 @@ XorY = Enum X, Y
 Each type can be accessed as `XorY.X`, `XorY.Y` and the constructor can be obtained as `XorY.cons(X)`.
 `.cons` is a method that takes a class and returns its constructor.
 
-```erg
+```python
 x1 = XorY.new X.new()
 x2 = XorY.cons(X)()
 assert x1 == x2
@@ -272,7 +270,7 @@ assert x1 == x2
 
 A class is a subtype of a requirement type. methods (including patch methods) of the requirement type can be used in the class.
 
-```erg
+```python
 T = Trait {.foo = Foo}
 C = Class(... , impl: T)
 C.

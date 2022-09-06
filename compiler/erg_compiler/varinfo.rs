@@ -35,7 +35,7 @@ impl Mutability {
 use Mutability::*;
 
 /// e.g.
-/// ```erg
+/// ```python
 /// K(T, [U, V]) = ...
 /// U.idx == Nested(Just(1), 0)
 /// ```

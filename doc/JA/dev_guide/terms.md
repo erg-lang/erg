@@ -1,5 +1,7 @@
 # 用語辞典
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/terms.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/terms.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ## 記号
 
 ### &excl;
@@ -237,7 +239,7 @@
 
 コード中である条件が成立しているか(典型的には実行時に)調べること。`assert`関数などを使用して行う。
 
-```erg
+```python
 sum = !0
 for! 0..10, i =>
     sum.add! i
@@ -282,7 +284,7 @@ Ergにおいては、基本オブジェクトと同等。コンパイル時に�
 
 ### [インスタントブロック](../syntax/00_basic.md#式セパレータ)
 
-```erg
+```python
 x =
     y = f(a)
     z = g(b, c)
@@ -644,7 +646,7 @@ APIとして利用可能な属性。特に、トレイトによって自動実�
 
 ### [デコレータ](../syntax/29_decorator.md)
 
-```erg
+```python
 @deco
 f x = ...
 ```

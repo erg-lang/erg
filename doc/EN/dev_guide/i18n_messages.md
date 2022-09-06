@@ -1,61 +1,58 @@
 # Multilingualization of Messages
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/i18n_messages.md%26commit_hash%3Dfc7a25a8d86c208fb07beb70ccc19e4722c759d3)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/i18n_messages.md&commit_hash=fc7a25a8d86c208fb07beb70ccc19e4722c759d3)
+Erg is making its messages (start, options, documentation, hints, warnings, error messages, etc.) multilingual.
+You don't need detailed knowledge of Rust or Erg to participate in this project. We appreciate your cooperation.
 
-Erg is working on making all messages (start, option, doc, hint, warning, error messages, etc.) multilingual within the language.
-This project is open to anyone without detailed knowledge of Rust or Erg. Your participation is always welcome.
+The method for multilingualization is explained below.
 
-Here is how to translate them.
+## Look for `switch_lang!`
 
-## Search `switch_lang!`
-
-In the Erg source code, look for the item `switch_lang!` (use grep or your editor's search function).
+Find the entry `switch_lang!` in the Erg source code (use grep or your editor's search function).
 You should find something like this:
 
 ```rust
 switch_lang!(
-    "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
+    "japanese" => format!("This feature ({name}) is not officially available yet"),
     "english" => format!("this feature({name}) is not implemented yet"),
 ),
 ```
 
-This message is currently supported only in Japanese and English. Let's add a simplified Chinese message as a test.
+This message is currently supported in Japanese and English only. Let's try adding a simplified Chinese message.
 
-## Add a New Message
+## add a message
 
-Add translated messages as you see the content in other languages. Don't forget the comma (`,`) last.
+Add translated messages while viewing content in other languages. Don't forget the comma (`,`) at the end.
 
 ```rust
 switch_lang!(
-    "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
-    "simplified_chinese" => format!("该功能({name})还没有正式提供"),
+    "japanese" => format!("This feature ({name}) is not officially available yet"),
+    "simplified_chinese" => format!("This function ({name}) has been officially provided"),
     "english" => format!("this feature({name}) is not implemented yet"),
 ),
 ```
 
-Note that English is the default and must come last.
-The `{name}` part is a Rust formatting feature that allows you to embed the contents of a variable (`name`) into a string.
+Note that English is the default and should always come last.
+The `{name}` part is Rust's formatting feature that allows you to embed the contents of a variable (`name`) into a string.
 
 ## Build
 
-Now, let's build with the `--features simplified_chinese` option.
+Now let's build with the `--features simplified_chinese` option.
 
 <img src="../../../assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
 
-We did it!
+You did it, did not you!
 
-## FAQ
+## FAQs
 
 Q: What does a specification like `{RED}{foo}{RESET}` mean?
-A: {RED} and subsequent letters will be displayed in red. {RESET} will restore the color.
+A: Everything after {RED} is displayed in red. {RESET} restores the color.
 
-Q: If I want to add my language, how do I replace the `"simplified_chinese" =>` part?
-
-The following languages are currently supported:
+Q: If I want to add my own language, how do I replace the `"simplified_chinese" =>` part?
+A: We currently support the following languages:
 
 * "english" (default)
-* "japanese"
-* "simplified_chinese"
-* "traditional_chinese"
+* "japanese" (Japanese)
+* "simplified_chinese" (Simplified Chinese)
+* "traditional_chinese" (Traditional Chinese)
 
-If you would like to add languages other than these, please make a request.
+If you would like to add languages ​​other than these, please make a request.

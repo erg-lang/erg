@@ -1,13 +1,10 @@
 # Built-in functions
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/05_builtin_funcs.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/05_buildtin_funcs.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 ## if
 
 `if` is a function that changes processing depending on a condition.
 
-```erg
+```python
 result: Option Int = if! Bool.sample!(), do:
     log "True was chosen"
     1
@@ -17,7 +14,7 @@ print! result # None (or 1)
 `.sample!()` returns a random set of values. If the return value is true, `print! "True"` is executed.
 You can also specify what to do if the condition is false; the second do block is called the else block.
 
-```erg
+```python
 result: Nat = if Bool.sample!():
     do:
         log "True was chosen"
@@ -30,7 +27,7 @@ print! result # 1 (or 0)
 
 If the process is a single line, you can omit indentation.
 
-```erg
+```python
 result = if Bool.sample!():
     do 1
     do 0
@@ -40,7 +37,7 @@ result = if Bool.sample!():
 
 You can use `for` to write a repeating process.
 
-```erg
+```python
 match_s(ss: Iterator(Str), pat: Pattern): Option Str =
     for ss, s ->
         if pat.match(s).is_some():

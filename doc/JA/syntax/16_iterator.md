@@ -1,8 +1,10 @@
 # イテレータ
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/16_iterator.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/16_iterator.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 イテレータは、コンテナの要素を取り出すためのオブジェクトです。
 
-```erg
+```python
 for! 0..9, i =>
     print! i
 ```
@@ -12,7 +14,7 @@ for! 0..9, i =>
 
 ではここで`for!`プロシージャの型シグネチャを見てみましょう。
 
-```erg
+```python
 for!: |T: Type, I <: Iterable T| (I, T => None) => None
 ```
 
@@ -20,7 +22,7 @@ for!: |T: Type, I <: Iterable T| (I, T => None) => None
 
 `Iterable`は`.Iterator`属性, `.iter`メソッドを要求メソッドに持つ型です。
 
-```erg
+```python
 Iterable T = Trait {
     .Iterator = {Iterator}
     .iter = Self(T).() -> Self.Iterator T
@@ -29,7 +31,7 @@ Iterable T = Trait {
 
 `.Iterator`属性の型`{Iterator}`はいわゆるセットカインド(カインドは[こちら](./type/advanced/kind.md)で説明されています)です。
 
-```erg
+```python
 assert [1, 2, 3] in Iterable(Int)
 assert 1..3 in Iterable(Int)
 assert [1, 2, 3].Iterator == ArrayIterator

@@ -1,5 +1,7 @@
 # Comprehension(内包表記)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/27_comprehension.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/27_comprehension.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `[expr | (name <- iterable)+ (predicate)*]`で配列、
 `{expr | (name <- iterable)+ (predicate)*}`でセット、
 `{key: value | (name <- iterable)+ (predicate)*}`でDictが作れます。
@@ -9,7 +11,7 @@
 
 内包表記の例
 
-```erg
+```python
 # レイアウト節はi
 # バインド節はi <- [0, 1, 2]
 assert [i | i <- [0, 1, 2]] == [0, 1, 2]
@@ -36,7 +38,7 @@ Haskellのリスト内包表記の場合、変数の順番は結果に違いを�
 [(i, j) | j <- [3..5], i <- [1..3]] == [(1,3),(2,3),(3,3),(1,4),(2,4),(3,4),(1,5),(2,5),(3,5)]
 ```
 
-```erg
+```python
 # Erg
 assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1..<3]
 ```
@@ -53,7 +55,7 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 内包表記と似たものに、篩型があります。篩型は`{Name: Type | Predicate}`という形式で作られる型(列挙型)です。
 篩型の場合、Nameは1つまででレイアウトは指定できず(ただしタプル型などにすれば複数の値は扱えます)、Predicateはコンパイル時計算できるもの、つまり定数式のみが指定できます。
 
-```erg
+```python
 Nat = {I: Int | I >= 0}
 # 述語式がandだけの場合、;で代替できる
 # Nat2D = {(I, J): (Int, Int) | I >= 0; J >= 0}

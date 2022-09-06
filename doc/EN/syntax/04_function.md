@@ -1,11 +1,8 @@
 # Function
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=21e8145e83fb54ed77e7631deeee8a7e39b028a3)
-
 A function is a block that takes an "argument", processes it, and returns it as a "return value". It is defined as follows.
 
-```erg
+```python
 add x, y = x + y
 # or
 add(x, y) = x + y
@@ -16,7 +13,7 @@ In contrast, the objects passed to a function are called arguments.
 The function `add` is a function that takes `x` and `y` as parameters and returns the sum of them, `x + y`.
 The defined function can be called (applied/invoked) as follows.
 
-```erg
+```python
 add 1, 2
 # or
 add(1, 2)
@@ -26,16 +23,16 @@ add(1, 2)
 
 Functions are invoked like `f x, y, ...`, but if there are too many arguments for a single line, they can be applied using `:` (colon).
 
-```erg
+```python
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```erg
+```python
 f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```erg
+```python
 f:
     some_long_name_variable_1 + some_long_name_variable_2
     some_long_name_variable_3 * some_long_name_variable_4
@@ -43,7 +40,7 @@ f:
 
 All three codes above mean the same thing. This style is also useful when using `if` functions, for example.
 
-```erg
+```python
 result = if Bool.sample!():
     do:
         log "True was chosen"
@@ -60,19 +57,19 @@ After `:`, no code other than comments may be written, and must always be on a n
 If a function is defined with a large number of parameters, there is a danger of passing the arguments in the wrong order.
 In such cases, it is safe to call the function using keyword arguments.
 
-```erg
+```python
 f x, y, z, w, v, u: Int = ...
 ```
 
 The functions defined above have many arguments and are arranged in a confusing order. You should not create such a function, but you may encounter such code when using code written by others. Therefore, we use keyword arguments. If you use keyword arguments, the values are passed from the name to the correct argument, even if they are in the wrong order.
 
-```erg
+```python
 f u: 6, v: 5, w: 4, x: 1, y: 2, z: 3
 ```
 
 Note that keyword arguments and a new line immediately after the `:` are considered a colon-call style.
 
-```erg
+```python
 # means `f(x: y)`
 f x: y
 
@@ -87,7 +84,7 @@ Default parameters are used when some parameters are mostly fixed and you want t
 
 Default parameters are specified by `:=`(walrus operator). If `base` is not specified, assign `math.E` to `base`.
 
-```erg
+```python
 math_log x: Ratio, base := math.E = ...
 
 assert math_log(100, 10) == 2
@@ -96,7 +93,7 @@ assert math_log(100) == math_log(100, math.E)
 
 Note that there is a distinction between specifying no argument and assigning `None`.
 
-```erg
+```python
 p! x := 0 = print!
 p!(2) # 2
 p!() # 0
@@ -105,20 +102,20 @@ p!(None) # None
 
 Can also be used with type specification and patterns.
 
-```erg
+```python
 math_log x, base: Ratio := math.E = ...
 f [x, y] := [1, 2] = ...
 ```
 
 However, within the default arguments, it is not possible to call the procedures (described later) or assign mutable objects.
 
-```erg
+```python
 f x := p! 1 = ... # NG
 ```
 
 Also, the argument just defined cannot be used as the value passed to the default argument.
 
-```erg
+```python
 f x := 1, y := x = ... # NG
 ```
 
@@ -126,13 +123,13 @@ f x := 1, y := x = ... # NG
 
 The `log` function, which outputs a log (record) of its arguments, can take any number of arguments.
 
-```erg
+```python
 log "Hello", "World", "!" # Hello World !
 ```
 
 To define such a function, add `...` to a parameter. This way, the function receives arguments as a variable-length array.
 
-```erg
+```python
 f ...x =
     for x, i ->
         log i
@@ -143,7 +140,7 @@ f 1, 2, 3, 4, 5
 
 ## Function definition with multiple patterns
 
-```erg
+```python
 fib n: Nat =
     match n:
         0 -> 0
@@ -153,7 +150,7 @@ fib n: Nat =
 
 Functions like the one above, where `match` appears directly under the definition, can be rewritten as follows.
 
-```erg
+```python
 fib 0 = 0
 fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)
@@ -163,7 +160,7 @@ Note that a function definition with multiple patterns is not so-called overload
 
 If instances of different classes are mixed, the last definition must specify that the function argument is of type `Or`.
 
-```erg
+```python
 f "aa" = ...
 f 1 = ...
 # `f x = ... ` is invalid
@@ -172,7 +169,7 @@ f x: Int or Str = ...
 
 Also, like `match`, it must also be exhaustive.
 
-```erg
+```python
 fib 0 = 0
 fib 1 = 1
 # PatternError: pattern of fib's parameter is not exhaustive
@@ -180,7 +177,7 @@ fib 1 = 1
 
 However, it can be made exhaustive by explicitly specifying the type using the [refinement type](./type/12_refinement.md) described later.
 
-```erg
+```python
 fib: 0..1 -> 0..1
 fib 0 = 0
 fib 1 = 1
@@ -194,7 +191,7 @@ A recursive function is a function that includes itself in its definition.
 As a simple example, let us define a function `factorial` that performs a factorial calculation. Factorial is a computation that "multiplies all positive numbers less than or equal to".
 The factorial of 5 is `5*4*3*2*1 == 120`.
 
-```erg
+```python
 factorial 0 = 1
 factorial 1 = 1
 factorial(n: Nat): Nat = n * factorial(n - 1)
@@ -208,7 +205,7 @@ Since the definition of `factorial` contains itself, `factorial` is a recursive 
 
 As a reminder, if you do not add a type specification, it is inferred like this.
 
-```erg
+```python
 factorial: |T <: Sub(Int, T) and Mul(Int, Int) and Eq(Int)| T -> Int
 factorial 0 = 1
 factorial 1 = 1
@@ -217,7 +214,7 @@ factorial n = n * factorial(n - 1)
 
 However, even if you can reason about it, you should explicitly specify the type of the recursive function. In the example above, a code like ``factorial(-1)`` would work, but
 
-```erg
+```python
 factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 ```
 
@@ -230,7 +227,7 @@ A function name begins with an uppercase letter to indicate a compile-time funct
 Compile-time functions are limited in what they can do. Only constant expressions can be used in compile-time functions, i.e., only some operators (such as quadrature, comparison, and type construction operations) and compile-time functions. Arguments to be passed must also be constant expressions.
 In return, the advantage is that the computation can be done at compile time.
 
-```erg
+```python
 Add(X, Y: Nat): Nat = X + Y
 assert Add(1, 2) == 3
 
@@ -244,7 +241,7 @@ Sin X = math.sin X # ConstantError: this function is not computable at compile t
 
 Compile-time functions are also used in polymorphic type definitions.
 
-```erg
+```python
 Option T: Type = T or NoneType
 Option: Type -> Type
 ```
@@ -253,7 +250,7 @@ Option: Type -> Type
 
 Erg does not define `==` for functions. This is because there is no structural equivalence algorithm for functions in general.
 
-```erg
+```python
 f = x: Int -> (x + 1)**2
 g = x: Int -> x**2 + 2x + 1
 
@@ -272,7 +269,7 @@ assert (lambda x: x) ! = (lambda x: x)
 
 ## Appendix2: ()-completion
 
-```erg
+```python
 f x: Object = ...
 # will be completed to
 f(x: Object) = ...

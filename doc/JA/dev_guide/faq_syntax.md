@@ -1,5 +1,7 @@
 # Erg design's "Why" and Answers
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ## なぜ所有権システムがあるのにGCも共存させているのですか？
 
 Ergが所有権システムを導入した動機は、Rustのような「GCに頼らないメモリ管理」のためではないからです。
@@ -11,7 +13,7 @@ Ergが所有権システムを導入した狙いは「可変状態の局所化�
 
 `<>`や`[]`では文法の衝突が起きるからです。
 
-```erg
+```python
 # []版
 id[T: Type] [t]: [T] = t
 y = id[Int] # これは関数?
@@ -30,7 +32,7 @@ y = id|Int| # OK
 
 Ergは型自体も値として扱える設計になっているためです。
 
-```erg
+```python
 A = [Int; 3]
 assert A[2] == Int
 T = (Int, Str)
@@ -53,7 +55,7 @@ assert S.i == Int
 
 Ergでは`?`演算子によってエラーをあまり意識せずに書けます。
 
-```erg
+```python
 read_file!() =
     f = open!("foo.txt")? # 失敗したらエラーをすぐさま返すので、fはFile型
     f.read_all!()
@@ -84,12 +86,12 @@ Pythonのライブラリには継承されることを前提に設計されて�
 
 デフォルトで構造的トレイトを指すと、型指定が複雑になり、プログラマの意図しない挙動を混入させる恐れがあるためです。
 
-```erg
+```python
 # If T is a subtype of a structural trait...
-# f: |T <: Structural Trait {.`_+_`: Self.(Self) -> Self; .`_-_`: Self.(Self) -> Self| (T, T) -> T
+# f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x
 # T is a subtype of a nominal trait
-# g: |T <: Add and Sub| (T, T) -> T
+# g: |T <: Add() and Sub()| (T, T) -> T
 g|T| x, y: T = x + y - x
 ```
 

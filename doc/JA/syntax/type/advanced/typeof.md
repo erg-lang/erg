@@ -1,8 +1,10 @@
 # Typeof, classof
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/typeof.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/typeof.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `Typeof`はErgの型推論システムを覗くことができる関数であり、その挙動は複雑である。
 
-```erg
+```python
 assert Typeof(1) == {I: Int | I == 1}
 i: 1..3 or 5..10 = ...
 assert Typeof(i) == {I: Int | (I >= 1 and I <= 3) or (I >= 5 and I <= 10)}
@@ -21,7 +23,7 @@ assert {X: C | X == I} < C and C <= {i = Int}
 値クラスに関しては本来対応するレコード型が存在しない。この問題を解消するため、値クラスは`__valueclass_tag__`属性を持っているレコード型ということになっている。
 なお、この属性にアクセスすることはできず、ユーザー定義型で`__valueclass_tag__`属性を定義することもできない。
 
-```erg
+```python
 i: Int = ...
 assert Typeof(i) == {__valueclass_tag__ = Phantom Int}
 s: Str = ...
@@ -38,7 +40,7 @@ Ergは可能な限りオブジェクトの型を篩型として推論し、そ�
 すべてのクラスは構造型に変換することができる。これを __構造化__ という。クラスの構造化された型は`Structure`関数で取得できる。
 クラスが`C = Class T`で定義されているとき(すべてのクラスはこの形式で定義されている)、`Structure(C) == T`になる。
 
-```erg
+```python
 C = Class {i = Int}
 assert Structure(C) == {i = Int}
 D = Inherit C

@@ -1,5 +1,7 @@
 # ErgコードはPythonコードにどのようにトランスパイルされるか？
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 正確には、ErgコードはPythonバイトコードにトランスパイルされます。
 しかしPythonバイトコードはほぼPythonコードに復元できるので、ここでは等価なPythonコードを例として上げています。
 ちなみに、ここで紹介する例は最適化レベルの低いものです。
@@ -11,7 +13,7 @@ namedtupleにトランスパイルされます。
 namedtupleについては、[こちら](https://docs.python.jp/3/library/collections.html#collections.namedtuple)を参照してください。
 似たような機能にdataclassがありますが、dataclassは`__eq__`や`__hash__`が自動実装されるなどの影響で少しパフォーマンスが落ちます。
 
-```erg
+```python
 Employee = Class {.name = Str; .id = Int}
 
 employee = Employee.new({.name = "John Smith"; .id = 100})
@@ -43,7 +45,7 @@ assert employee.name == 'John Smith'
 名前空間内での衝突が起きない場合は、単にマングリングして展開されます。
 `x::y`などの名前はバイトコードで使用されるものでPythonコードと対応させる事はできませんが、無理やり表現すると以下のようになります。
 
-```erg
+```python
 x =
     y = 1
     y + 1
@@ -56,7 +58,7 @@ x = x::y + 1
 
 衝突する場合は、内部的にしか参照できない関数を定義して使用します。
 
-```erg
+```python
 x =
     y = 1
     y + 1
@@ -75,7 +77,7 @@ x = _()
 公開変数に関してはPythonのデフォルトなので何もしません。
 非公開変数はマングリングで対処しています。
 
-```erg
+```python
 x = 1
 y =
     x = 2

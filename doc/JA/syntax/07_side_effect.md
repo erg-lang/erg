@@ -1,15 +1,17 @@
 # 副作用とプロシージャ
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 これまで`print!`の`!`の意味を説明せずにいましたが、いよいよその意味が明かされます。この!は、ズバリこのオブジェクトが「副作用」のある「プロシージャ」であることを示しています。プロシージャは関数に「副作用」という効果を与えたものです。
 
-```erg
+```python
 f x = print! x # EffectError: functions cannot be assigned objects with side effects
 # hint: change the name to 'f!'
 ```
 
 上のコードはコンパイルエラーになります。関数中でプロシージャを使用しているからです。このような場合は、プロシージャとして定義しなくてはなりません。
 
-```erg
+```python
 p! x = print! x
 ```
 
@@ -21,7 +23,7 @@ p! x = print! x
 関数とプロシージャにはそれぞれメソッドが存在します。関数メソッドは`self`の不変参照のみを取れ、プロシージャルメソッドは`self`の可変参照を取れます。
 `self`は特殊な引数で、メソッドの文脈では呼び出したオブジェクト自身を指します。参照の`self`は他のいかなる変数にも代入できません。
 
-```erg
+```python
 C.
     method ref self =
         x = self # OwnershipError: cannot move out 'self'
@@ -30,7 +32,7 @@ C.
 
 メソッドは`self`の所有権を奪うこともできます。そのメソッドの定義では`ref`または`ref!`を外します。
 
-```erg
+```python
 n = 1
 s = n.into(Str) # '1'
 n # ValueError: n was moved by .into (line 2)
@@ -40,7 +42,7 @@ n # ValueError: n was moved by .into (line 2)
 
 ただし、可変参照から(不変/可変)参照の生成はできることに注意してください。これによって、プロシージャルメソッド中で再帰したり`self`を`print!`できたりします。
 
-```erg
+```python
 T -> T # OK (move)
 T -> Ref T # OK
 T => Ref! T # OK (only once)
@@ -63,14 +65,14 @@ Ref! T => Ref! T # OK
 
 前者の例は`print!`で、後者の例は以下の関数です。
 
-```erg
+```python
 nan _ = Float.NaN
 assert nan(1) != nan(1)
 ```
 
 また、クラスや関数のように同値判定自体ができないオブジェクトも存在します。
 
-```erg
+```python
 T = Structural {i = Int}
 U = Structural {i = Int}
 assert T == U
@@ -88,7 +90,7 @@ assert C == D # TypeError: cannot compare classes
 
 例として`print!`プロシージャについて考えます。`print!`は一見何の変数も書き換えていないように見えます。しかし、もしこれが関数だったとすると、例えばこのようなコードで外側変数を書き換えられます。
 
-```erg
+```python
 camera = import "some_camera_module"
 ocr = import "some_ocr_module"
 
@@ -107,7 +109,7 @@ n = ocr.read_num(image) # n = 3.141592
 とはいえ、関数中で値を一時的に確認するとき、そのためだけに関連する関数まで`!`を付けたくない場合もあるでしょう。その際は`log`関数が使えます。
 `log`はコード全体の実行後に値を表示します。これにより、副作用は伝搬されません。
 
-```erg
+```python
 log "this will be printed after execution"
 print! "this will be printed immediately"
 # this will be printed immediately

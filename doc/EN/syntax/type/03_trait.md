@@ -1,11 +1,9 @@
 # Trait
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D76e2e858c300a614067fd1aa6934e5d8ceb71226)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=76e2e858c300a614067fd1aa6934e5d8ceb71226)
-
 Trait is a nominal type that adds a type attribute requirement to record types.
 It is similar to the Abstract Base Class (ABC) in Python, but with the distinction of being able to perform algebraic operations.
 
-```erg
+```python
 Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
 ```
 
@@ -14,7 +12,7 @@ Trait does not distinguish between attributes and methods.
 Note that traits can only be declared, not implemented (implementation is achieved by a feature called patching, which will be discussed later).
 Traits can be checked for implementation in a class by specifying a partial type.
 
-```erg
+```python
 Point2D <: Norm
 Point2D = Class {.x = Int; .y = Int}
 Point2D.norm self = self.x**2 + self.y**2
@@ -22,14 +20,14 @@ Point2D.norm self = self.x**2 + self.y**2
 
 Error if the required attributes are not implemented.
 
-```erg
+```python
 Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
 Point2D = Class {.x = Int; .y = Int}
 ```
 
 Traits, like structural types, can apply operations such as composition, substitution, and elimination (e.g. `T and U`). The resulting trait is called an instant trait.
 
-```erg
+```python
 T = Trait {.x = Int}
 U = Trait {.y = Int}
 V = Trait {.x = Int; y: Int}
@@ -42,7 +40,7 @@ assert Structural(W) == Structural(T.replace {.x = Ratio})
 
 Trait is also a type, so it can be used for normal type specification.
 
-```erg
+```python
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
 assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 ```
@@ -53,7 +51,7 @@ The expansion operator `...` allows you to define a trait that contains a certai
 In the example below, `BinAddSub` subsumes `BinAdd` and `BinSub`.
 This corresponds to Inheritance in a class, but unlike Inheritance, multiple base types can be combined using `and`. Traits that are partially excluded by `not` are also allowed.
 
-```erg
+```python
 Add R = Trait {
     .AddO = Type
     . `_+_` = Self.(R) -> Self.AddO
@@ -71,7 +69,7 @@ BinAddSub = Subsume Add(Self) and Sub(Self)
 
 Traits can be structured.
 
-```erg
+```python
 SAdd = Structural Trait {
     . `_+_` = Self.(Self) -> Self
 }
@@ -89,7 +87,7 @@ assert add(C.new(1), C.new(2)) == C.new(3)
 Nominal traits cannot be used simply by implementing a request method, but must be explicitly declared to have been implemented.
 In the following example, `add` cannot be used with an argument of type `C` because there is no explicit declaration of implementation. It must be `C = Class {i = Int}, Impl := Add`.
 
-```erg
+```python
 Add = Trait {
     .`_+_` = Self.(Self) -> Self
 }
@@ -111,7 +109,7 @@ Structural traits do not need to be declared for this implementation, but instea
 
 Traits can take parameters. This is the same as for polymorphic types.
 
-```erg
+```python
 Mapper T: Type = Trait {
     .mapIter = {Iterator}
     .map = Self(T). (T -> U) -> Self.MapIter U
@@ -129,7 +127,7 @@ assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"].
 Derived traits can override the type definitions of the base trait.
 In this case, the type of the overriding method must be a subtype of the base method type.
 
-```erg
+```python
 # `Self.(R) -> O` is a subtype of ``Self.(R) -> O or Panic
 Div R, O: Type = Trait {
     . `/` = Self.(R) -> O or Panic
@@ -144,7 +142,7 @@ SafeDiv R, O = Subsume Div, {
 
 The actual definitions of `Add`, `Sub`, and `Mul` look like this.
 
-```erg
+```python
 Add R = Trait {
     .Output = Type
     . `_+_` = Self.(R) -> .Output
@@ -161,7 +159,7 @@ Mul R = Trait {
 
 `.Output` is duplicated. If you want to implement these multiple traits at the same time, specify the following.
 
-```erg
+```python
 P = Class {.x = Int; .y = Int}
 # P|Self <: Add(P)| can be abbreviated to P|<: Add(P)|
 P|Self <: Add(P)|.
@@ -174,7 +172,7 @@ P|Self <: Mul(Int)|.
 
 Duplicate APIs implemented in this way are almost always type inferred when used, but can also be resolved by explicitly specifying the type with `||`.
 
-```erg
+```python
 print! P.Output # TypeError: ambiguous type
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```

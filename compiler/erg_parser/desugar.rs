@@ -507,7 +507,6 @@ impl Desugarer {
     fn rec_desugar_self(&self, _expr: Expr) -> Expr {
         todo!()
     }
-
     /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
     fn desugar_refinement_pattern(&self, _mod: Module) -> Module {
         todo!()

@@ -1,17 +1,19 @@
 # Enumerative Type(列挙型)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/11_enum.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/11_enum.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 列挙型(Enum type)はSetによって生成されます。
 列挙型はそのままでも型指定で使えますが、クラス化したりパッチを定義することで更にメソッドを定義できます。
 列挙型による部分型システムを列挙的部分型付けといいます。
 
-```erg
+```python
 Bool = {True, False}
 Status = {"ok", "error"}
 ```
 
 `1..7`は`{1, 2, 3, 4, 5, 6, 7}`と書き換えられるので、要素が有限の場合は本質的に列挙型と区間型は等価です。
 
-```erg
+```python
 Binary! = Class {0, 1}!.
     invert! ref! self =
         if! self == 0:
@@ -31,7 +33,7 @@ b.invert!()
 enum Status { Ok, Error }
 ```
 
-```erg
+```python
 # Erg
 Status = {"Ok", "Error"}
 ```
@@ -52,7 +54,7 @@ impl ExtraStatus {
 }
 ```
 
-```erg
+```python
 # Status > ExtraStatusであり、Statusの要素はExtraStatusのメソッドを使える
 Status = Trait {"Ok", "Error"}
     # ...
@@ -64,7 +66,7 @@ patchingによってメソッドの追加もできます。
 
 明示的に包含関係を示したい場合、または既存のEnum型に選択肢を追加したい場合は`or`演算子を使います。
 
-```erg
+```python
 ExtraStatus = Status or {"Unknown"}
 ```
 
@@ -72,7 +74,7 @@ ExtraStatus = Status or {"Unknown"}
 デフォルトでは、等質な列挙型を要件型とするクラスは、要素が属しているクラスのサブクラスとして扱えます。
 あえてそうしたくない場合は、ラッパークラスとするとよいでしょう。
 
-```erg
+```python
 Abc = Class {"A", "B", "C"}
 Abc.new("A").is_uppercase()
 

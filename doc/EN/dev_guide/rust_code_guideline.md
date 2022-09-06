@@ -1,26 +1,23 @@
 # Guidelines for Rust code
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/rust_code_guideline.md%26commit_hash%3Dfc7a25a8d86c208fb07beb70ccc19e4722c759d3)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/rust_code_guideline.md&commit_hash=fc7a25a8d86c208fb07beb70ccc19e4722c759d3)
+## local rules
 
-## Local rules
+* Use `log!` for output for debugging (use `println!` etc. for output processing that is also necessary for release).
+* Unused or internal variables/methods (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
 
-* Use `log!` for debugging output (use `println!` etc. for output processing required for release).
-* Unused or internal variables and methods (private and used only for specific functions) should be prefixed with `_`. To avoid conflicts with reserved words, add one trailing `_`.
+## Recommended code
 
-## Encouraged code
+* Define and use domain-specific Enums instead of numeric enumerations or bools.
+* Keep access modifiers to a minimum. Prioritize using `pub(mod)` or `pub(crate)` even when publishing.
+* Convert an iterable object in a for expression explicitly to an iterator (`for i in x.iter()` instead of `for i in x`).
+* Lazy evaluation. For example, if `default` is non-literal, use `unwrap_or_else` instead of `unwrap_or`.
 
-* Define domain-specific Enums instead of numeric enumerations or bools.
-* Minimize access modifiers. Use `pub(mod)` or `pub(crate)` in preference even when publishing.
-* Explicitly convert iterable objects in for expressions to iterators (`for i in x.iter()` instead of `for i in x`).
-* Evaluate Lazily. For example, use `unwrap_or_else` instead of `unwrap_or` if `default` is not a literal.
+## Code not encouraged
 
-## Unsolicited code
+* Make heavy use of return type overloading. Specifically code that uses a lot of non-obvious `.into`. This is because type inference results can be counter-intuitive. In this case it is recommended to use `from` instead.
+* Make heavy use of `Deref`. This effectively poses the same problem as inheritance.
 
-* Use return-type overloading a lot. Specifically, code that uses non-trivial `.into` too often. This is because the result of type inference may be counter-intuitive. In this case, it is recommended to use `from` instead.
-
-* Codes that use `Deref` a lot. This causes practically the same problem as inheritance.
-
-## Code that changes its decision depending on the context
+## Code that makes decisions based on context
 
 * Define unused helper methods.
-* Uses `unwrap`, `clone`. In some cases, there is no choice but to do so.
+* Use `unwrap` and `clone` a lot. In some cases there is nothing better than doing so.

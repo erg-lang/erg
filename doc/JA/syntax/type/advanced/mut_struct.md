@@ -1,8 +1,10 @@
 # 可変構造型
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/mut_struct.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/mut_struct.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 `T!`型は任意の`T`型オブジェクトを入れられて差し替え可能なボックス型であると説明した。
 
-```erg
+```python
 Particle! State: {"base", "excited"}! = Class(..., Impl := Phantom State)
 Particle!.
     # このメソッドはStateを"base"から"excited"に遷移させる
@@ -19,7 +21,7 @@ Particle!.
 
 それを実現するのが可変構造(可変)型である。
 
-```erg
+```python
 v = [Str; !0].new()
 v.push! "Hello"
 v: [Str; !1]
@@ -30,7 +32,7 @@ v: [Str; !1]
 
 可変構造型はもちろんユーザー定義も可能である。ただし、不変構造型とは構成法に関していくつか違いがあるので注意が必要である。
 
-```erg
+```python
 Nil T = Class(Impl := Phantom T)
 List T, !0 = Inherit Nil T
 List T, N: Nat! = Class {head = T; rest = List(T, !N-1)}

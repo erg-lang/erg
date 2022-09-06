@@ -1,8 +1,10 @@
 # 型拡大(Type Widening)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/widening.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/widening.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 例えば以下のような多相関数を定義する。
 
-```erg
+```python
 ids|T|(x: T, y: T) = x, y
 ```
 
@@ -10,7 +12,7 @@ ids|T|(x: T, y: T) = x, y
 包含関係にある別のクラスのインスタンスペアを代入すると、大きい方にアップキャストされて同じ型になる。
 また、包含関係にない別のクラスを代入するとエラーになるのも容易に理解できる。
 
-```erg
+```python
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
 ids(1, "a") # TypeError
@@ -18,7 +20,7 @@ ids(1, "a") # TypeError
 
 さて、では別の構造型を持つ型の場合はどうなるのだろうか。
 
-```erg
+```python
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # ?
@@ -26,7 +28,7 @@ ids(i, j) # ?
 
 これの説明を行う前に、Ergの型システムが実は(実行時の)クラスを見ていないという事実に注目しなくてはならない。
 
-```erg
+```python
 1: {__valueclass_tag__ = Phantom Int}
 2: {__valueclass_tag__ = Phantom Int}
 2.0: {__valueclass_tag__ = Phantom Ratio}
@@ -43,7 +45,7 @@ ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phanto
 さて、別の構造型の例に戻ろう。結論から言うと上のコードは型があっていないとしてTypeErrorになる。
 しかし型注釈で型拡大を行えばコンパイルが通る。
 
-```erg
+```python
 i: Int or Str
 j: Int or NoneType
 ids(i, j) # TypeError: types of i and j not matched
@@ -67,7 +69,7 @@ ids<Int or Str or NoneType>(i, j) # OK
 
 Ergでは、戻り値型が一致しない場合デフォルトでエラーとなる。
 
-```erg
+```python
 parse_to_int s: Str =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
@@ -81,7 +83,7 @@ parse_to_int s: Str =
 
 これを解決するためには、戻り値型を明示的にOr型と指定する必要がある。
 
-```erg
+```python
 parse_to_int(s: Str): Int or Error =
     if not s.is_numeric():
         do parse_to_int::return error("not numeric")
