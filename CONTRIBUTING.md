@@ -1,6 +1,6 @@
 # Contributing to Erg
 
-English | <a href='./doc/CONTRIBUTING/CCONTRIBUTING_JA.md'>日本語</a> | <a href='./doc/CONTRIBUTING/CCONTRIBUTING_zh-CN.md'>简体中文</a> | <a href='./doc/CONTRIBUTING/CONTRIBUTING_zh-TW.md'>繁體中文</a>
+English | <a href='./doc/CONTRIBUTING/CONTRIBUTING_JA.md'>日本語</a> | <a href='./doc/CONTRIBUTING/CONTRIBUTING_zh-CN.md'>简体中文</a> | <a href='./doc/CONTRIBUTING/CONTRIBUTING_zh-TW.md'>繁體中文</a>
 
 Beginners should read the instructions [here](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198).
 
