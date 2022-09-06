@@ -16,7 +16,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
 use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
+use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
@@ -689,6 +689,7 @@ impl NestedDisplay for RecordAttrs {
 }
 
 impl_display_from_nested!(RecordAttrs);
+impl_stream_for_wrapper!(RecordAttrs, Def);
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
@@ -703,10 +704,6 @@ impl From<Vec<Def>> for RecordAttrs {
 }
 
 impl RecordAttrs {
-    pub const fn new() -> Self {
-        Self(vec![])
-    }
-
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -725,6 +722,10 @@ impl RecordAttrs {
 
     pub fn push(&mut self, attr: Def) {
         self.0.push(attr);
+    }
+
+    pub fn extend(&mut self, attrs: RecordAttrs) {
+        self.0.extend(attrs.0);
     }
 }
 
@@ -1295,6 +1296,60 @@ impl MethodDefs {
 }
 
 #[derive(Debug, Clone)]
+pub struct ClassDef {
+    pub kind: TypeKind,
+    pub def: Def,
+    pub private_methods: RecordAttrs,
+    pub public_methods: RecordAttrs,
+}
+
+impl NestedDisplay for ClassDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        self.def.fmt_nest(f, level)?;
+        self.private_methods.fmt_nest(f, level)?;
+        self.public_methods.fmt_nest(f, level + 1)
+    }
+}
+
+impl_display_from_nested!(ClassDef);
+impl_locational!(ClassDef, def);
+
+impl HasType for ClassDef {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
+impl ClassDef {
+    pub const fn new(
+        kind: TypeKind,
+        def: Def,
+        private_methods: RecordAttrs,
+        public_methods: RecordAttrs,
+    ) -> Self {
+        Self {
+            kind,
+            def,
+            private_methods,
+            public_methods,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
@@ -1309,13 +1364,13 @@ pub enum Expr {
     Lambda(Lambda),
     Decl(Decl),
     Def(Def),
-    MethodDefs(MethodDefs),
+    ClassDef(ClassDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, MethodDefs);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

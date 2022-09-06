@@ -423,8 +423,14 @@ impl Context {
     // To allow forward references and recursive definitions
     pub(crate) fn preregister(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         for expr in block.iter() {
-            if let ast::Expr::Def(def) = expr {
-                self.preregister_def(def)?;
+            match expr {
+                ast::Expr::Def(def) => {
+                    self.preregister_def(def)?;
+                }
+                ast::Expr::ClassDef(class_def) => {
+                    self.preregister_def(&class_def.def)?;
+                }
+                _ => {}
             }
         }
         Ok(())
@@ -475,8 +481,23 @@ impl Context {
         Ok(())
     }
 
-    fn _register_gen_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+    fn register_auto_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+    ) {
         let name = VarName::from_static(name);
+        if self.locals.get(&name).is_some() {
+            panic!("already registered: {name}");
+        } else {
+            self.locals
+                .insert(name, VarInfo::new(t, muty, vis, VarKind::Auto));
+        }
+    }
+
+    fn _register_gen_decl(&mut self, name: VarName, t: Type, vis: Visibility) {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -485,14 +506,7 @@ impl Context {
         }
     }
 
-    fn register_gen_impl(
-        &mut self,
-        name: &'static str,
-        t: Type,
-        muty: Mutability,
-        vis: Visibility,
-    ) {
-        let name = VarName::from_static(name);
+    fn _register_gen_impl(&mut self, name: VarName, t: Type, muty: Mutability, vis: Visibility) {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -534,9 +548,9 @@ impl Context {
                     let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
-                    ctx.register_gen_impl("__new__", new_t.clone(), Immutable, Private);
+                    ctx.register_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
-                    ctx.register_gen_impl("new", new_t, Immutable, Public);
+                    ctx.register_auto_impl("new", new_t, Immutable, Public);
                     self.register_gen_mono_type(gen, ctx, Const);
                 } else {
                     todo!()
@@ -560,9 +574,9 @@ impl Context {
                             param_t.clone()
                         };
                         let new_t = func1(param_t, gen.t.clone());
-                        ctx.register_gen_impl("__new__", new_t.clone(), Immutable, Private);
+                        ctx.register_auto_impl("__new__", new_t.clone(), Immutable, Private);
                         // 必要なら、ユーザーが独自に上書きする
-                        ctx.register_gen_impl("new", new_t, Immutable, Public);
+                        ctx.register_auto_impl("new", new_t, Immutable, Public);
                         self.register_gen_mono_type(gen, ctx, Const);
                     } else {
                         todo!("super class not found")

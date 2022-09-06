@@ -19,6 +19,7 @@ use Opcode::*;
 use erg_parser::ast::{Identifier, ParamPattern, Params, VarName};
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::value::TypeKind;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, TypeCode, TypePair};
 
@@ -26,8 +27,8 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::eval_lit;
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, DefBody, Expr, Local, Signature, SubrSignature, Tuple,
-    VarSignature, HIR,
+    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Local, RecordAttrs, Signature,
+    SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -685,11 +686,24 @@ impl CodeGenerator {
             .collect()
     }
 
-    fn emit_mono_type_def(&mut self, sig: VarSignature, body: DefBody) {
+    fn emit_linked_type_def(&mut self, type_def: ClassDef) {
+        match type_def.def.sig {
+            Signature::Var(var) => match type_def.kind {
+                TypeKind::Class => self.emit_mono_class_def(var, type_def.public_methods),
+                TypeKind::InheritedClass => {
+                    todo!()
+                }
+                other => todo!("{other:?} is not supported"),
+            },
+            Signature::Subr(_) => todo!("polymorphic type definition"),
+        }
+    }
+
+    fn emit_mono_class_def(&mut self, sig: VarSignature, methods: RecordAttrs) {
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let code = self.codegen_typedef_block(sig.inspect().clone(), body.block);
+        let code = self.codegen_typedef_block(sig.inspect().clone(), methods);
         self.emit_load_const(code);
         self.emit_load_const(sig.inspect().clone());
         self.write_instr(Opcode::MAKE_FUNCTION);
@@ -705,9 +719,6 @@ impl CodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
-        if body.is_type() {
-            return self.emit_mono_type_def(sig, body);
-        }
         if body.block.len() == 1 {
             self.codegen_expr(body.block.remove(0));
         } else {
@@ -1055,6 +1066,7 @@ impl CodeGenerator {
                 Signature::Subr(sig) => self.emit_subr_def(sig, def.body),
                 Signature::Var(sig) => self.emit_var_def(sig, def.body),
             },
+            Expr::ClassDef(def) => self.emit_linked_type_def(def),
             // TODO:
             Expr::Lambda(lambda) => {
                 let params = self.gen_param_names(&lambda.params);
@@ -1311,14 +1323,14 @@ impl CodeGenerator {
         self.cancel_pop_top();
     }
 
-    fn codegen_typedef_block(&mut self, name: Str, block: Block) -> CodeObj {
+    fn codegen_typedef_block(&mut self, name: Str, methods: RecordAttrs) -> CodeObj {
         self.unit_size += 1;
         self.units.push(CodeGenUnit::new(
             self.unit_size,
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
-            block[0].ln_begin().unwrap(),
+            methods[0].ln_begin().unwrap(),
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
@@ -1326,8 +1338,8 @@ impl CodeGenerator {
         self.emit_load_const(name);
         self.emit_store_instr(Identifier::public("__qualname__"), Attr);
         // TODO: サブルーチンはT.subという書式でSTORE
-        for expr in block.into_iter() {
-            self.codegen_expr(expr);
+        for def in methods.into_iter() {
+            self.codegen_expr(Expr::Def(def));
             // TODO: discard
             if self.cur_block().stack_len == 1 {
                 self.emit_pop_top();

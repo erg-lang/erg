@@ -13,7 +13,7 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
+use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{Context, ContextKind, RegistrationMode};
@@ -229,7 +229,7 @@ impl ASTLowerer {
     fn lower_normal_record(&mut self, record: ast::NormalRecord) -> LowerResult<hir::Record> {
         log!(info "entered {}({record})", fn_name!());
         let mut hir_record =
-            hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::new());
+            hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
         self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
         for attr in record.attrs.into_iter() {
             let attr = self.lower_def(attr)?;
@@ -546,37 +546,54 @@ impl ASTLowerer {
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }
 
-    fn lower_method_defs(&mut self, method_defs: ast::MethodDefs) -> LowerResult<hir::MethodDefs> {
-        log!(info "entered {}({method_defs})", fn_name!());
-        let mut hir_defs = hir::RecordAttrs::new();
-        let class = self
-            .ctx
-            .instantiate_typespec(&method_defs.class, RegistrationMode::Normal)?;
-        self.ctx
-            .grow(&class.name(), ContextKind::MethodDefs, Private)?;
-        for def in method_defs.defs.iter() {
-            self.ctx.preregister_def(def)?;
-        }
-        for def in method_defs.defs.into_iter() {
-            let def = self.lower_def(def)?;
-            hir_defs.push(def);
-        }
-        match self.ctx.pop() {
-            Ok(ctx) => {
-                if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
-                    class_root.method_defs.push((class, ctx));
+    fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
+        log!(info "entered {}({class_def})", fn_name!());
+        let hir_def = self.lower_def(class_def.def)?;
+        let mut private_methods = hir::RecordAttrs::empty();
+        let mut public_methods = hir::RecordAttrs::empty();
+        for methods in class_def.methods_list.into_iter() {
+            let class = self
+                .ctx
+                .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
+            self.ctx
+                .grow(&class.name(), ContextKind::MethodDefs, Private)?;
+            for def in methods.defs.iter() {
+                self.ctx.preregister_def(def)?;
+            }
+            for def in methods.defs.into_iter() {
+                let def = self.lower_def(def)?;
+                if methods.vis.is(TokenKind::Dot) {
+                    public_methods.push(def);
                 } else {
-                    todo!()
+                    private_methods.push(def);
                 }
             }
-            Err(mut errs) => {
-                self.errs.append(&mut errs);
+            match self.ctx.pop() {
+                Ok(ctx) => {
+                    if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
+                        class_root.method_defs.push((class, ctx));
+                    } else {
+                        todo!()
+                    }
+                }
+                Err(mut errs) => {
+                    self.errs.append(&mut errs);
+                }
             }
         }
-        Ok(hir::MethodDefs::new(
-            method_defs.class,
-            method_defs.vis,
-            hir_defs,
+        let definition = hir_def.body.block.first().unwrap();
+        let call = enum_unwrap!(definition, hir::Expr::Call);
+        // FIXME:
+        let kind = match &call.obj.var_full_name().unwrap()[..] {
+            "Class" | "Inheritable" => TypeKind::Class,
+            "Inherit" => TypeKind::InheritedClass,
+            _ => unreachable!(),
+        };
+        Ok(hir::ClassDef::new(
+            kind,
+            hir_def,
+            private_methods,
+            public_methods,
         ))
     }
 
@@ -596,7 +613,7 @@ impl ASTLowerer {
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
-            ast::Expr::MethodDefs(defs) => Ok(hir::Expr::MethodDefs(self.lower_method_defs(defs)?)),
+            ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             other => todo!("{other}"),
         }
     }

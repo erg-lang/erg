@@ -12,7 +12,7 @@ use erg_common::{enum_unwrap, get_hash, set};
 
 use crate::ast::{
     Accessor, Args, Array, BinOp, Block, Call, DataPack, Def, DefBody, DefId, Expr, Identifier,
-    KwArg, Lambda, LambdaSignature, Literal, Local, MethodDefs, Module, NormalArray, NormalRecord,
+    KwArg, Lambda, LambdaSignature, Literal, Local, Methods, Module, NormalArray, NormalRecord,
     NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
     ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
     UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
@@ -457,7 +457,7 @@ impl Desugarer {
                 let expr = self.rec_desugar_shortened_record(*tasc.expr);
                 Expr::TypeAsc(TypeAscription::new(expr, tasc.t_spec))
             }
-            Expr::MethodDefs(method_defs) => {
+            Expr::Methods(method_defs) => {
                 let mut new_defs = vec![];
                 for def in method_defs.defs.into_iter() {
                     let mut chunks = vec![];
@@ -468,11 +468,7 @@ impl Desugarer {
                     new_defs.push(Def::new(def.sig, body));
                 }
                 let new_defs = RecordAttrs::from(new_defs);
-                Expr::MethodDefs(MethodDefs::new(
-                    method_defs.class,
-                    method_defs.vis,
-                    new_defs,
-                ))
+                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_defs))
             }
             // TODO: Accessorにも一応レコードを入れられる
             other => other,

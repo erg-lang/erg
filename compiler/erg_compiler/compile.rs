@@ -15,6 +15,7 @@ use erg_parser::ParserRunner;
 use crate::codegen::CodeGenerator;
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, TyCheckErrors};
+use crate::link::Linker;
 use crate::lower::ASTLowerer;
 use crate::ownercheck::OwnershipChecker;
 
@@ -158,11 +159,13 @@ impl Compiler {
     }
 
     pub fn compile(&mut self, src: Str, mode: &str) -> Result<CodeObj, CompileErrors> {
-        log!(info "the compiling process has started");
+        log!(info "the compiling process has started.");
         let mut cfg = self.cfg.copy();
         cfg.input = Input::Str(src);
         let mut parser = ParserRunner::new(cfg);
         let ast = parser.parse()?;
+        let mut linker = Linker::new();
+        let ast = linker.link(ast);
         let (hir, warns) = self
             .lowerer
             .lower(ast, mode)
@@ -182,8 +185,7 @@ impl Compiler {
         let codeobj = self.code_generator.codegen(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(
-            c GREEN,
-            "the compiling process has completed, found errors: {}",
+            info "the compiling process has completed, found errors: {}",
             self.code_generator.errs.len()
         );
         if self.code_generator.errs.is_empty() {

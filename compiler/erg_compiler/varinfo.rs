@@ -59,12 +59,13 @@ impl ParamIdx {
 pub enum VarKind {
     Defined(DefId),
     Declared,
+    // TODO: flatten
     Parameter {
         def_id: DefId,
         idx: ParamIdx,
         default: DefaultInfo,
     },
-    Generated,
+    Auto,
     DoesNotExist,
     Builtin,
 }

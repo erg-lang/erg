@@ -477,8 +477,8 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::MethodDefs(method_defs) => {
-                for def in method_defs.defs.iter_mut() {
+            hir::Expr::ClassDef(type_def) => {
+                for def in type_def.public_methods.iter_mut() {
                     match &mut def.sig {
                         hir::Signature::Var(var) => {
                             var.t = self.deref_tyvar(mem::take(&mut var.t))?;

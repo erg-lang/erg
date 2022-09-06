@@ -2783,25 +2783,55 @@ impl Def {
 ///     f(a) = ...
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodDefs {
+pub struct Methods {
     pub class: TypeSpec,
     pub vis: Token,        // `.` or `::`
     pub defs: RecordAttrs, // TODO: allow declaration
 }
 
-impl NestedDisplay for MethodDefs {
+impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{}{}", self.class, self.vis.content)?;
         self.defs.fmt_nest(f, level + 1)
     }
 }
 
-impl_display_from_nested!(MethodDefs);
-impl_locational!(MethodDefs, class, defs);
+impl_display_from_nested!(Methods);
+impl_locational!(Methods, class, defs);
 
-impl MethodDefs {
+impl Methods {
     pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
         Self { class, vis, defs }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClassDef {
+    pub def: Def,
+    pub methods_list: Vec<Methods>,
+}
+
+impl NestedDisplay for ClassDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "(class)")?;
+        self.def.fmt_nest(f, level)?;
+        for methods in self.methods_list.iter() {
+            write!(f, "(methods)")?;
+            methods.fmt_nest(f, level + 1)?;
+        }
+        Ok(())
+    }
+}
+
+impl_display_from_nested!(ClassDef);
+impl_locational!(ClassDef, def);
+
+impl ClassDef {
+    pub const fn new(def: Def, methods: Vec<Methods>) -> Self {
+        Self {
+            def,
+            methods_list: methods,
+        }
     }
 }
 
@@ -2822,12 +2852,13 @@ pub enum Expr {
     Lambda(Lambda),
     TypeAsc(TypeAscription),
     Def(Def),
-    MethodDefs(MethodDefs),
+    Methods(Methods),
+    ClassDef(ClassDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, MethodDefs);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, MethodDefs);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -2893,6 +2924,9 @@ impl Stream<Expr> for Module {
 impl Module {
     pub const fn empty() -> Self {
         Self(Block::empty())
+    }
+    pub const fn new(payload: Vec<Expr>) -> Self {
+        Self(Block::new(payload))
     }
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {

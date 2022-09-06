@@ -84,8 +84,9 @@ impl SideEffectChecker {
                 Expr::Def(def) => {
                     self.check_def(def);
                 }
-                Expr::MethodDefs(method_defs) => {
-                    for def in method_defs.defs.iter() {
+                Expr::ClassDef(type_def) => {
+                    // TODO: grow
+                    for def in type_def.public_methods.iter() {
                         self.check_def(def);
                     }
                 }
@@ -179,8 +180,8 @@ impl SideEffectChecker {
             Expr::Def(def) => {
                 self.check_def(def);
             }
-            Expr::MethodDefs(method_defs) => {
-                for def in method_defs.defs.iter() {
+            Expr::ClassDef(type_def) => {
+                for def in type_def.public_methods.iter() {
                     self.check_def(def);
                 }
             }

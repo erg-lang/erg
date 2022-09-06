@@ -119,6 +119,13 @@ pub trait Stream<T>: Sized {
     fn take_all(&mut self) -> Vec<T> {
         self.ref_mut_payload().drain(..).collect()
     }
+
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        self.ref_mut_payload().extend(iter);
+    }
 }
 
 #[macro_export]

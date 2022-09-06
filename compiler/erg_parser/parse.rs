@@ -832,7 +832,7 @@ impl Parser {
         }
     }
 
-    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<MethodDefs> {
+    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<Methods> {
         debug_call_info!(self);
         if self.cur_is(Indent) {
             self.skip();
@@ -862,7 +862,7 @@ impl Parser {
             .convert_rhs_to_type_spec(class)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
-        Ok(MethodDefs::new(class, vis, defs))
+        Ok(Methods::new(class, vis, defs))
     }
 
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {
@@ -984,7 +984,7 @@ impl Parser {
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
-                            let expr = Expr::MethodDefs(defs);
+                            let expr = Expr::Methods(defs);
                             assert_eq!(stack.len(), 0);
                             self.level -= 1;
                             return Ok(expr);
@@ -1042,7 +1042,7 @@ impl Parser {
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
-                            return Ok(Expr::MethodDefs(defs));
+                            return Ok(Expr::Methods(defs));
                         }
                         other => {
                             self.restore(other);

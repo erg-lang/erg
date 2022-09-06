@@ -622,6 +622,7 @@ impl Context {
                     todo!()
                 }
             }
+            // TODO: Class, Trait
             TyParam::Type(_) => Ok(Type::Type),
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
