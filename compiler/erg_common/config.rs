@@ -107,7 +107,7 @@ impl Input {
         match self {
             Self::File(_filename) => todo!(),
             Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => GLOBAL_STDIN.reread(),
+            Self::REPL => Str::from(GLOBAL_STDIN.reread().trim_end().to_owned()),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }
