@@ -1,4 +1,4 @@
-＃ 功能
+# 功能
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -125,8 +125,8 @@ f x := 1, y := x = ... # NG
 
 输出其参数的日志(记录)的 `log` 函数可以采用任意数量的参数。
 
-```蟒蛇
-记录“你好”、“世界”、“！” ＃ 你好世界 ！
+```python
+记录“你好”、“世界”、“！” # 你好世界 ！
 ```
 
 要定义这样的函数，请将 `...` 添加到参数中。 这样，函数将参数作为可变长度数组接收

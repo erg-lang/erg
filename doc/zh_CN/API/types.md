@@ -164,7 +164,7 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 * `title`
 * `upper`
 
-＃＃ 其他
+## 其他
 
 ### 位
 

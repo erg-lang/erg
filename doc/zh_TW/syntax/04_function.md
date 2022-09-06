@@ -1,4 +1,4 @@
-＃ 功能
+# 功能
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -125,8 +125,8 @@ f x := 1, y := x = ... # NG
 
 輸出其參數的日志(記錄)的 `log` 函數可以采用任意數量的參數。
 
-```蟒蛇
-記錄“你好”、“世界”、“！” ＃ 你好世界 ！
+```python
+記錄“你好”、“世界”、“！” # 你好世界 ！
 ```
 
 要定義這樣的函數，請將 `...` 添加到參數中。 這樣，函數將參數作為可變長度數組接收

@@ -1,4 +1,4 @@
-＃ 目的
+# 目的
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/25_object_system.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/25_object_system.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -37,7 +37,7 @@ record.private_attr # AttributeError: private_attr 是私有的
 assert record.method() == 3
 ```
 
-＃＃ 元素
+## 元素
 
 屬于特定類型的對象(例如，“1”是“Int”類型的元素)。所有對象至少是`{=}`類型的元素。
 類的元素有時稱為實例。

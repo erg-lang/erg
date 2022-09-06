@@ -55,6 +55,6 @@ A: 現在、以下の言語がサポートされています。
 * "english" (デフォルト)
 * "japanese" (日本語)
 * "simplified_chinese" (簡体字中国語)
-* "traditional_chinese"（繁体字中国語）
+* "traditional_chinese"(繁体字中国語)
 
 これら以外の言語を追加したい場合は、リクエストしてください。
