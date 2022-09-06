@@ -1,5 +1,7 @@
 # 技术常见问题
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_technical.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_technical.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
+
 本节回答有关使用 Erg 语言的技术问题。换句话说，它包含以 What 或 Which 开头的问题，以及可以用 Yes/No 回答的问题。
 
 有关如何确定语法的更多信息，请参阅 [此处](./dev_guide/faq_syntax.md) 了解基础语法决策，以及 [此处](./dev_guide/../faq_general.md)。

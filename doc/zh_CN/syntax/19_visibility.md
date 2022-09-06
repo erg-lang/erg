@@ -1,5 +1,7 @@
 # 可见性
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 Erg 变量具有 __visibility__ 的概念。
 到目前为止，我们看到的所有变量都称为 __private variables__。 这是一个外部不可见的变量。
 例如，`foo` 模块中定义的私有变量不能被另一个模块引用。
