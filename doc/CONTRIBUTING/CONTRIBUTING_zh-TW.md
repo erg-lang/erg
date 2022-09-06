@@ -5,7 +5,7 @@
 
 初學者應閱讀說明 [此處](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)。
 
-## 文件
+## 文檔
 
 如果您正在考慮為 Erg 做貢獻，您應該閱讀 [doc/dev_guide](./doc/EN/dev_guide/) 下的文檔。
 或者您對 Erg 的內部結構感興趣，[doc/compiler](/doc/JA/compiler/) 可能會提供有用的信息（目前只有日語）。
