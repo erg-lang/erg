@@ -1,8 +1,10 @@
 # Erg常見問題
 
-此常見問題解答適用于一般 Erg 初學者。
-對于個別(常見)技術問題，請參閱 [此處](./faq_technical.md) 了解個別(常見)技術問題，以及
-[這里](./dev_guide/faq_syntax.md) 了解更多信息。
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3Deccd113c1512076c367fb87ea73406f91ff83ba7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=eccd113c1512076c367fb87ea73406f91ff83ba7)
+
+This FAQ is intended for the general Erg beginner.
+For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
+[Here](./dev_guide/faq_syntax.md) for more information.
 
 ## Erg 是 Python 兼容語言是什么意思？
 

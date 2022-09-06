@@ -1,5 +1,7 @@
 #所有權制度
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 由于 Erg 是一種使用 Python 作為宿主語言的語言，因此內存管理的方法取決于 Python 的實現。
 但語義上 Erg 的內存管理與 Python 的不同。 一個顯著的區別在于所有權制度和禁止循環引用。
 

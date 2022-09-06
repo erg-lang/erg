@@ -1,5 +1,7 @@
 # 代數類型
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
+
 代數類型是通過將類型視為代數來操作類型而生成的類型。
 它們處理的操作包括Union、Intersection、Diff、Complement等。
 普通類只能進行Union，其他操作會導致類型錯誤。
@@ -8,7 +10,6 @@
 
 聯合類型可以為類型提供多種可能性。 顧名思義，它們是由“或”運算符生成的。
 一個典型的 Union 是 `Option` 類型。 `Option` 類型是 `T 或 NoneType` 補丁類型，主要表示可能失敗的值。
-
 
 ```python
 IntOrStr = Int or Str

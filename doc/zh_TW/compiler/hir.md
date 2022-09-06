@@ -1,5 +1,7 @@
 # 高級中間表示(HIR, High-level Intermediate Representation)
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/hir.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/hir.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 HIR 是 Erg 編譯器從 AST 生成的結構
 此結構包含源代碼中每個表達式的完整類型信息，并且在語法上已脫糖
 AST與源代碼一一對應(純文本)，但是HIR去掉了不必要的代碼信息，添加了省略的類型信息，所以HIR可以轉換為源代碼很難恢復

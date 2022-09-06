@@ -1,5 +1,7 @@
 # Erg design's "Why" and Answers
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 ## 當我們有所有權系統時，為什么要與 GC 共存？
 
 因為 Erg 推出所有權系統的動機并不是為了 Rust 那樣的“不依賴 GC 的內存管理”。最初，由于 Erg 是一種語言，目前使用 Python VM，因此最終仍使用 GC。Erg 引入產權系統的目標是“可變狀態的局部化”。在 Erg 中，可變對象具有所有權概念。這是根據共享可變狀態容易成為 bug 的溫床，甚至是類型安全性的侵犯(詳見)來判斷的。
@@ -48,7 +50,6 @@ assert S.i == Int
 
 在 Erg 中，運算符使你可以在不太注意錯誤的情況下編寫。
 
-
 ```python
 read_file!() =
     f = open!("foo.txt")? # 如果失敗則立即返回錯誤，所以 f 是文件類型
@@ -76,7 +77,6 @@ Python 的庫中有一些類設計為繼承，如果完全取消繼承，這些�
 ## 為什么多相關數的子類型推理默認指向記名trait？
 
 默認情況下，指向結構托盤會使類型指定變得復雜，并且可能會混合程序員的非預期行為。
-
 
 ```python
 # 如果 T 是結構特征的子類型...

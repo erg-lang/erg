@@ -1,5 +1,7 @@
 # 模塊`unit`
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/modules/unit.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/modules/unit.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 `unit` 模塊是將數值計算中經常使用的單位定義為類型的模塊。
 Erg 數值類型包括 `Nat`、`Int`、`Ratio` 等。但是，這些類型沒有關于“數字的含義”的信息，因此可以執行諸如添加米和碼之類的無意義計算。
 通過使用 `unit` 模塊，您可以避免錯誤，例如將不同單位的數字傳遞給函數。

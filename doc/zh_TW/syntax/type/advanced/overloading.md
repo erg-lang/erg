@@ -1,5 +1,7 @@
 # 重載
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 Erg 不支持 __ad hoc 多態性__。 也就是說，函數和種類(重載)的多重定義是不可能的。 但是，您可以通過使用特征和補丁的組合來重現重載行為。
 您可以使用特征而不是特征類，但隨后將涵蓋所有實現 `.add1` 的類型。
 
@@ -46,7 +48,6 @@ Erg 的立場是，您不能定義行為完全不同的函數，例如根據參�
 
 首先，重載函數分布在它們的定義中。 這使得在發生錯誤時很難報告錯誤的原因。
 此外，導入子程序可能會改變已定義子程序的行為。
-
 
 ```python
 {id; ...} = import "foo"

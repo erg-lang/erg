@@ -1,5 +1,7 @@
 # 特質
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 Trait 是一種名義類型，它將類型屬性要求添加到記錄類型。
 它類似于 Python 中的抽象基類 (ABC)，但區別在于能夠執行代數運算。
 

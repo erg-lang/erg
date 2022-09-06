@@ -1,5 +1,7 @@
 # Kind
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 一切都在 Erg 中輸入。類型本身也不例外。 __kind__ 表示“類型的類型”。例如，`Int` 屬于 `Type`，就像 `1` 屬于 `Int`。 `Type` 是最簡單的一種，__atomic kind__。在類型論符號中，`Type` 對應于 `*`。
 
 在Kind的概念中，實際上重要的是一種或多種Kind(多項式Kind)。單項類型，例如`Option`，屬于它。一元Kind表示為 `Type -> Type` [<sup id="f1">1</sup>](#1)。諸如 `Array` 或 `Option` 之類的 __container__ 特別是一種以類型作為參數的多項式類型。

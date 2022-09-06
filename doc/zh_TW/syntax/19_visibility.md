@@ -1,5 +1,7 @@
 # 可見性
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 Erg 變量具有 __visibility__ 的概念。
 到目前為止，我們看到的所有變量都稱為 __private variables__。 這是一個外部不可見的變量。
 例如，`foo` 模塊中定義的私有變量不能被另一個模塊引用。

@@ -1,5 +1,7 @@
 # 匿名函數
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/21_lambda.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/21_lambda.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+
 匿名函數是一種無需命名即可動態創建函數對象的語法。
 
 ```python
@@ -58,7 +60,6 @@ now = if! True:
 
 您還可以鍵入和模式匹配。 正因為如此，`match` 函數大多是借助匿名函數的力量來實現的。
 作為 `match` 函數的參數給出的匿名函數從頂部開始按順序嘗試。 因此，您應該在頂部描述特殊情況，在底部描述更一般的情況。 如果你弄錯了順序，編譯器會發出警告(如果可能的話)
-
 
 ```python
 n = (Complex or Ratio or Int).sample!()

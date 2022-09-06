@@ -1,5 +1,7 @@
 # 修補
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/07_patch.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/07_patch.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+
 Erg 不允許修改現有類型和類。
 這意味著，不可能在類中定義額外的方法，也不能執行特化(一種語言特性，單態化多態聲明的類型并定義專用方法，如在 C++ 中)。
 但是，在許多情況下，您可能希望向現有類型或類添加功能，并且有一個稱為“修補”的功能允許您執行此操作。
