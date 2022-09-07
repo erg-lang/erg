@@ -17,7 +17,7 @@ We inherited many semantics from Python, expression-oriented and trait from Rust
 
 ## There are already languages that can call Python, such as Julia. Why did you create Erg?
 
-A: One of the motivations for Erg's design was to have a language that is easy to use, yet has a powerful type system. That is, a language with type inference, dependent types, etc.
+A: One of the motivations for Erg's design was to have a language that is easy to use, yet has a powerful type system. That is a language with type inference, dependent types, etc.
 Julia can be typed, but it is really a dynamically typed language and does not have the advantage of perfect compile-time type error detection like statically typed languages.
 
 ## Erg supports multiple styles of programming, including functional and object-oriented programming. Isn't this contrary to Python's "There should be one --and preferably only one-- obvious way to do it."?
