@@ -11,7 +11,11 @@ Point3D.
     @Override
     norm ref self = self::x**2 + self::y**2 + self::z**2
 
+p = Point3D.new {x = 1; y = 2; z = 3}
+print! p.norm()
+
 UnpackPoint2D = Class {x = Int; y = Int}, Impl := Unpack
 
-p = UnpackPoint2D::{x = 1; y = 2}
-UnpackPoint2D::{x; y} = p
+q = UnpackPoint2D::{x = 1; y = 2}
+UnpackPoint2D::{x; y} = q
+print! x, y
