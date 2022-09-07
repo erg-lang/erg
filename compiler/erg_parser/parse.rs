@@ -145,6 +145,12 @@ impl Parser {
         }
     }
 
+    fn throw_syntax_err<L: Locational>(&mut self, l: &L, caused_by: &str) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::simple_syntax_error(0, l.loc())
+    }
+
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
         let loc = self.peek().unwrap().loc();
         log!(err "error caused by: {caused_by}");
@@ -1663,7 +1669,12 @@ impl Parser {
                 self.level -= 1;
                 Ok(sig)
             }
-            other => todo!("{other}"), // Error
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -1683,7 +1694,12 @@ impl Parser {
                 self.level -= 1;
                 Ok(VarSignature::new(pat, None))
             }
-            other => todo!("{other}"),
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -1797,7 +1813,12 @@ impl Parser {
             Expr::Accessor(acc) => self
                 .convert_accessor_to_ident(acc)
                 .map_err(|_| self.stack_dec())?,
-            other => todo!("{other}"), // Error
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                return Err(());
+            }
         };
         let params = self
             .convert_args_to_params(call.args)
@@ -1814,7 +1835,12 @@ impl Parser {
             Accessor::Public(public) => {
                 Identifier::new(Some(public.dot), VarName::new(public.symbol))
             }
-            other => todo!("{other}"), // Error
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                return Err(());
+            }
         };
         self.level -= 1;
         Ok(ident)
@@ -1824,9 +1850,9 @@ impl Parser {
         debug_call_info!(self);
         let (pos_args, kw_args, parens) = args.deconstruct();
         let mut params = Params::new(vec![], None, vec![], parens);
-        for arg in pos_args.into_iter() {
+        for (i, arg) in pos_args.into_iter().enumerate() {
             let nd_param = self
-                .convert_pos_arg_to_non_default_param(arg)
+                .convert_pos_arg_to_non_default_param(arg, i == 0)
                 .map_err(|_| self.stack_dec())?;
             params.non_defaults.push(nd_param);
         }
@@ -1841,19 +1867,33 @@ impl Parser {
         Ok(params)
     }
 
-    fn convert_pos_arg_to_non_default_param(&mut self, arg: PosArg) -> ParseResult<ParamSignature> {
+    fn convert_pos_arg_to_non_default_param(
+        &mut self,
+        arg: PosArg,
+        allow_self: bool,
+    ) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         let param = self
-            .convert_rhs_to_param(arg.expr)
+            .convert_rhs_to_param(arg.expr, allow_self)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(param)
     }
 
-    fn convert_rhs_to_param(&mut self, expr: Expr) -> ParseResult<ParamSignature> {
+    fn convert_rhs_to_param(
+        &mut self,
+        expr: Expr,
+        allow_self: bool,
+    ) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         match expr {
             Expr::Accessor(Accessor::Local(local)) => {
+                if &local.inspect()[..] == "self" && !allow_self {
+                    self.level -= 1;
+                    let err = self.throw_syntax_err(&local, caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
                 let name = VarName::new(local.symbol);
                 let pat = ParamPattern::VarName(name);
                 let param = ParamSignature::new(pat, None, None);
@@ -1895,7 +1935,7 @@ impl Parser {
             }
             Expr::TypeAsc(tasc) => {
                 let param = self
-                    .convert_type_asc_to_param_pattern(tasc)
+                    .convert_type_asc_to_param_pattern(tasc, allow_self)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(param)
@@ -1919,10 +1959,20 @@ impl Parser {
                     self.level -= 1;
                     Ok(param)
                 }
-                // Spread
-                other => todo!("{other}"),
+                // TODO: Spread
+                _other => {
+                    self.level -= 1;
+                    let err = self.throw_syntax_err(&unary, caused_by!());
+                    self.errs.push(err);
+                    Err(())
+                }
             },
-            other => todo!("{other}"), // Error
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -1962,10 +2012,11 @@ impl Parser {
     fn convert_type_asc_to_param_pattern(
         &mut self,
         tasc: TypeAscription,
+        allow_self: bool,
     ) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         let param = self
-            .convert_rhs_to_param(*tasc.expr)
+            .convert_rhs_to_param(*tasc.expr, allow_self)
             .map_err(|_| self.stack_dec())?;
         let param = ParamSignature::new(param.pat, Some(tasc.t_spec), None);
         self.level -= 1;
@@ -2015,7 +2066,12 @@ impl Parser {
                 self.level -= 1;
                 Ok(sig)
             }
-            other => todo!("{other}"), // Error
+            other => {
+                self.level -= 1;
+                let err = self.throw_syntax_err(&other, caused_by!());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -2033,9 +2089,9 @@ impl Parser {
             Tuple::Normal(tup) => {
                 let (pos_args, kw_args, paren) = tup.elems.deconstruct();
                 let mut params = Params::new(vec![], None, vec![], paren);
-                for arg in pos_args {
+                for (i, arg) in pos_args.into_iter().enumerate() {
                     let param = self
-                        .convert_pos_arg_to_non_default_param(arg)
+                        .convert_pos_arg_to_non_default_param(arg, i == 0)
                         .map_err(|_| self.stack_dec())?;
                     params.non_defaults.push(param);
                 }

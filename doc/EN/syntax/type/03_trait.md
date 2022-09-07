@@ -112,7 +112,7 @@ Traits can take parameters. This is the same as for polymorphic types.
 ```python
 Mapper T: Type = Trait {
     .mapIter = {Iterator}
-    .map = Self(T). (T -> U) -> Self.MapIter U
+    .map = (self: Self, T -> U) -> Self.MapIter U
 }
 
 # ArrayIterator <: Mapper

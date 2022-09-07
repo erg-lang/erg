@@ -1,12 +1,12 @@
 # 结构
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/modules/external/alstruct.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/modules/external/alstruct.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/modules/external/alstruct.md%26commit_hash%3D14657486719a134f494e107774ac8f9d5a63f083)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/modules/external/alstruct.md&commit_hash=14657486719a134f494e107774ac8f9d5a63f083)
 
 模块为它们提供代表代数结构和补丁的特征
 
 * 成员
 
-## 二进制运算
+## BinOp(二进制运算)
 
 ```python
 BinOp Op: Kind 2 = Subsume Op(Self, Self.ReturnTypeOf Op), Additional: {
@@ -20,7 +20,7 @@ assert Nat. ReturnTypeof(Mul) == Nat
 assert Nat.ReturnTypeof(Div) == Positive Ratio
 ```
 
-## 半群(一个二元运算的代数系统)
+## SemiGroup(半群)
 
 ```python
 SemiGroup Op: Kind 2 = Op(Self, Self)
@@ -30,7 +30,7 @@ IntIsSemiGroupAdd = Patch Int, Impl=SemiGroupAdd
 Int <: SemiGroup Add
 ```
 
-## 函子
+## Functor(函子)
 
 ```python
 # * Identity law: x.map(id) == x
@@ -40,7 +40,7 @@ Functor = Trait {
 }
 ```
 
-## 应用
+## Applicative(应用)
 
 ```python
 # * Identity law: x.app(X.pure(id)) == x
@@ -50,7 +50,7 @@ Applicative = Subsume Functor, Additional: {
 }
 ```
 
-## 单子(交互式命令行工具以及面向对象的脚本技术)
+## Monad(单子)
 
 ```python
 Monad = Subsume Applicative, Additional: {

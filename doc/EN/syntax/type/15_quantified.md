@@ -93,8 +93,8 @@ So information that cannot be inferred, such as the return type, is passed from 
 ```python
 Iterator T = Trait {
     # Passing return types from arguments.
-    # .collect: |K: Type -> Type| Self(T). ({K}) -> K(T)
-    .collect(self(T), K: Type -> Type): K(T) = ...
+    # .collect: |K: Type -> Type| (self: Self, {K}) -> K(T)
+    .collect(self, K: Type -> Type): K(T) = ...
     ...
 }
 
