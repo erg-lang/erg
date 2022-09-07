@@ -110,7 +110,7 @@ Pointy = {Point}
 ```python
 Iterable T = Trait {
     .Iterator = {Iterator}
-    .iter = Self(T).() -> Self.Iterator T
+    .iter = (self: Self) -> Self.Iterator T
 }
 ```
 

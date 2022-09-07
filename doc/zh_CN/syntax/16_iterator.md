@@ -25,7 +25,7 @@ for!: |T: Type, I <: Iterable T| (I, T => None) => None
 ```python
 Iterable T = Trait {
     .Iterator = {Iterator}
-    .iter = Self(T). () -> Self.Iterator T
+    .iter = (self: Self) -> Self.Iterator T
 }
 ```
 

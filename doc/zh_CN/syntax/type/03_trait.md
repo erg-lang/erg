@@ -114,7 +114,7 @@ add C.new(1), C.new(2) # 类型错误：C 不是 Add 的子类
 ```python
 Mapper T: Type = Trait {
     .mapIter = {Iterator}
-    .map = Self(T). (T -> U) -> Self.MapIter U
+    .map = (self: Self, T -> U) -> Self.MapIter U
 }
 
 # ArrayIterator <: Mapper

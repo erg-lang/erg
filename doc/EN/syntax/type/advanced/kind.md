@@ -108,7 +108,7 @@ A kind that is a set of such types is commonly called a set kind. Setkind also a
 ```python
 Iterable T = Trait {
     .Iterator = {Iterator}
-    .iter = Self(T).() -> Self.Iterator T
+    .iter = (self: Self) -> Self.Iterator T
 }
 ```
 

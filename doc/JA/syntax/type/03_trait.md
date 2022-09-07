@@ -114,7 +114,7 @@ add C.new(1), C.new(2) # TypeError: C is not subclass of Add
 ```python
 Mapper T: Type = Trait {
     .MapIter = {Iterator}
-    .map = Self(T).(T -> U) -> Self.MapIter U
+    .map = (self: Self, T -> U) -> Self.MapIter U
 }
 
 # ArrayIterator <: Mapper
