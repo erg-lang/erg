@@ -367,7 +367,11 @@ pub struct Attribute {
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({}).{}(: {})", self.obj, self.name.content, self.t)
+        if self.t != Type::Uninited {
+            write!(f, "({}).{}(: {})", self.obj, self.name.content, self.t)
+        } else {
+            write!(f, "({}).{}", self.obj, self.name.content)
+        }
     }
 }
 
