@@ -22,8 +22,8 @@ some_proc!: (T, U) => V
 
 ```python
 .some_method(self, x: T, y: U) => ()
-# Self.(T, U) => () 拥有 self 的所有权
-.some_method: Ref(Self). (T, U) => ()
+# (Self, T, U) => () 拥有 self 的所有权
+.some_method: (Ref(Self), T, U) => ()
 ```
 
 ## 过程方法(依赖)
@@ -33,18 +33,18 @@ some_proc!: (T, U) => V
 ```python
 T!: Nat -> Type
 # ~> 表示应用前后类型参数的状态(此时self必须是变量引用)
-T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
+T!(N).some_method!: (Ref!(T! N ~> N+X), X: Nat) => ()
 ```
 
-注意，`.some_method` 的类型是 `Ref!(T(N ~> N+X))。 ({X}) => () | N，X：Nat`。
+注意，`.some_method` 的类型是 `| N，X：Nat| (Ref!(T! N ~> N+X), {X}) => ()`。
 对于没有 `ref!` 的方法，即在应用后被剥夺所有权，不能使用类型参数转换(`~>`)。
 
 如果取得所有权，则如下所示。
 
 ```python
 # 如果不使用N，可以用_省略。
-# .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
-.some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
+# .some_method!: |N, X: Nat| (T!(N), {X}) => T!(N+X)
+.some_method!|N, X: Nat| (self: T!(N), X: Nat) => T!(N+X)
 ```
 
 ## 运算符

@@ -23,7 +23,7 @@ The first argument seems to accept an object of type `Iterable`.
 ```python
 Iterable T = Trait {
     .Iterator = {Iterator}
-    .iter = Self(T). () -> Self.Iterator T
+    .iter = (self: Self) -> Self.Iterator T
 }
 ```
 

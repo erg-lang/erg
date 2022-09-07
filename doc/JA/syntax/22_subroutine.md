@@ -23,7 +23,7 @@ some_proc!: (T, U) => V
 ```python
 .some_method(self, x: T, y: U) => ()
 # Self.(T, U) => ()はselfの所有権を奪う
-.some_method: Ref(Self).(T, U) => ()
+.some_method: (Ref Self, T, U) => ()
 ```
 
 ## Proc Method (dependent)
@@ -33,18 +33,18 @@ some_proc!: (T, U) => V
 ```python
 T!: Nat -> Type
 # ~>は適用前後の型引数の状態を示す(このときselfは可変参照でなくてはならない)
-T!(N).some_method!: (Ref! T!(N ~> N+X), X: Nat) => ()
+T!(N).some_method!: (self: Ref!(T! N ~> N+X), X: Nat) => ()
 ```
 
-注意として、`.some_method`の型は`|N, X: Nat| Ref!(T(N ~> N+X)).({X}) => ()`となります。
+注意として、`.some_method`の型は`|N, X: Nat| (self: Ref!(T! N ~> N+X), {X}) => ()`となります。
 `ref!`がついていない、すなわち適用後所有権が奪われるメソッドでは、型引数の遷移(`~>`)を使用できません。
 
 所有権が奪われる場合は以下のようになります。
 
 ```python
 # Nを使わないなら_で省略可
-# .some_method!: |N, X: Nat| T!(N).({X}) => T!(N+X)
-.some_method!|N, X: Nat|(self(N), X: Nat) => T!(N+X)
+# .some_method!: |N, X: Nat| (T!(N+X), {X}) => T!(N+X)
+.some_method!|N, X: Nat|(self: T!(N), X: Nat) => T!(N+X)
 ```
 
 ## Operator
