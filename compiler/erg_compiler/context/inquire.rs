@@ -594,7 +594,7 @@ impl Context {
             }
             Type::Subr(subr) => {
                 let callee = if let Some(name) = method_name {
-                    let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Ellipsis);
+                    let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Uninited);
                     let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
                     acc
                 } else {
@@ -615,12 +615,34 @@ impl Context {
                     ));
                 }
                 let mut passed_params = set! {};
-                if pos_args.len() >= subr.non_default_params.len() {
-                    let (non_default_args, var_args) =
-                        pos_args.split_at(subr.non_default_params.len());
-                    for (nd_arg, nd_param) in
-                        non_default_args.iter().zip(subr.non_default_params.iter())
+                let non_default_params_len = if method_name.is_some() {
+                    subr.non_default_params.len() - 1
+                } else {
+                    subr.non_default_params.len()
+                };
+                if pos_args.len() >= non_default_params_len {
+                    let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
+                    let non_default_params = if subr
+                        .non_default_params
+                        .iter()
+                        .next()
+                        .map(|p| p.name().map(|s| &s[..]) == Some("self"))
+                        .unwrap_or(false)
                     {
+                        let mut non_default_params = subr.non_default_params.iter();
+                        let self_pt = non_default_params.next().unwrap();
+                        self.sub_unify(
+                            obj.ref_t(),
+                            self_pt.typ(),
+                            Some(obj.loc()),
+                            None,
+                            self_pt.name(),
+                        )?;
+                        non_default_params
+                    } else {
+                        subr.non_default_params.iter()
+                    };
+                    for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
                         self.substitute_pos_arg(
                             &callee,
                             &nd_arg.expr,

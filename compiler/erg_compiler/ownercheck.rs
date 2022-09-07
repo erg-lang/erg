@@ -102,8 +102,12 @@ impl OwnershipChecker {
                 if let Some(ownership) = args_owns.self_ {
                     self.check_expr(&call.obj, ownership);
                 }
-                let (non_default_args, var_args) =
-                    call.args.pos_args.split_at(args_owns.non_defaults.len());
+                let non_defaults_len = if call.method_name.is_some() {
+                    args_owns.non_defaults.len() - 1
+                } else {
+                    args_owns.non_defaults.len()
+                };
+                let (non_default_args, var_args) = call.args.pos_args.split_at(non_defaults_len);
                 for (nd_arg, ownership) in
                     non_default_args.iter().zip(args_owns.non_defaults.iter())
                 {
