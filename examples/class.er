@@ -1,7 +1,6 @@
 @Inheritable
 Point2D = Class {x = Int; y = Int}
 Point2D.
-    new x, y = Point2D::__new__ {x; y}
     norm ref self = self::x**2 + self::y**2
 
 Point3D = Inherit Point2D, Additional := {z = Int}
