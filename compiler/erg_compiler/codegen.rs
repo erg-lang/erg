@@ -11,7 +11,8 @@ use erg_common::opcode::Opcode;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
-    debug_power_assert, enum_unwrap, fn_name_full, impl_stream_for_wrapper, log, switch_unreachable,
+    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
+    switch_unreachable,
 };
 use erg_parser::ast::DefId;
 use erg_type::codeobj::{CodeObj, CodeObjFlags};
@@ -551,6 +552,7 @@ impl CodeGenerator {
     }
 
     fn emit_load_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(ident.inspect(), Name)
             .unwrap_or_else(|| self.register_name(ident));
@@ -567,6 +569,7 @@ impl CodeGenerator {
     }
 
     fn emit_import_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(ident.inspect(), Name)
             .unwrap_or_else(|| self.register_name(ident));
@@ -577,6 +580,7 @@ impl CodeGenerator {
     }
 
     fn emit_import_from_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(ident.inspect(), Name)
             .unwrap_or_else(|| self.register_name(ident));
@@ -592,6 +596,7 @@ impl CodeGenerator {
         uniq_obj_name: Option<&str>,
         name: Str,
     ) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(&name, Attr)
             .unwrap_or_else(|| self.register_attr(class, uniq_obj_name, name));
@@ -612,6 +617,7 @@ impl CodeGenerator {
         uniq_obj_name: Option<&str>,
         name: Str,
     ) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(&name, Method)
             .unwrap_or_else(|| self.register_method(class, uniq_obj_name, name));
@@ -627,6 +633,7 @@ impl CodeGenerator {
     }
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
+        log!(info "entered {}", fn_name!());
         let name = self
             .local_search(ident.inspect(), acc_kind)
             .unwrap_or_else(|| self.register_name(ident));
@@ -650,6 +657,7 @@ impl CodeGenerator {
     }
 
     fn store_acc(&mut self, acc: Accessor) {
+        log!(info "entered {}", fn_name!());
         match acc {
             Accessor::Local(local) => {
                 self.emit_store_instr(Identifier::new(None, VarName::new(local.name)), Name);
@@ -711,6 +719,7 @@ impl CodeGenerator {
     }
 
     fn emit_class_def(&mut self, class_def: ClassDef) {
+        log!(info "entered {}", fn_name!());
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
@@ -735,6 +744,7 @@ impl CodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     fn emit_require_type(&mut self, kind: TypeKind, require_or_sup: Expr) -> usize {
+        log!(info "entered {}", fn_name!());
         match kind {
             TypeKind::Class => 0,
             TypeKind::Subclass => {
@@ -746,11 +756,13 @@ impl CodeGenerator {
     }
 
     fn emit_attr_def(&mut self, attr_def: AttrDef) {
+        log!(info "entered {}", fn_name!());
         self.codegen_frameless_block(attr_def.block, vec![]);
         self.store_acc(attr_def.attr);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
+        log!(info "entered {}", fn_name!());
         if body.block.len() == 1 {
             self.codegen_expr(body.block.remove(0));
         } else {
@@ -760,6 +772,7 @@ impl CodeGenerator {
     }
 
     fn emit_subr_def(&mut self, sig: SubrSignature, body: DefBody) {
+        log!(info "entered {}", fn_name!());
         let name = sig.ident.inspect().clone();
         let mut opcode_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
@@ -784,6 +797,7 @@ impl CodeGenerator {
     }
 
     fn emit_discard_instr(&mut self, mut args: Args) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
             self.codegen_expr(arg);
             self.emit_pop_top();
@@ -792,6 +806,7 @@ impl CodeGenerator {
     }
 
     fn emit_if_instr(&mut self, mut args: Args) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let cond = args.remove(0);
         self.codegen_expr(cond);
         let idx_pop_jump_if_false = self.cur_block().lasti;
@@ -840,6 +855,7 @@ impl CodeGenerator {
     }
 
     fn emit_for_instr(&mut self, mut args: Args) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let iterable = args.remove(0);
         self.codegen_expr(iterable);
         self.write_instr(GET_ITER);
@@ -862,6 +878,7 @@ impl CodeGenerator {
     }
 
     fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         let expr = args.remove(0);
         self.codegen_expr(expr);
         let len = args.len();
@@ -898,6 +915,7 @@ impl CodeGenerator {
     }
 
     fn emit_match_pattern(&mut self, pat: ParamPattern) -> CompileResult<Vec<usize>> {
+        log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
         match pat {
             ParamPattern::VarName(name) => {
@@ -951,6 +969,7 @@ impl CodeGenerator {
     }
 
     fn emit_call(&mut self, call: Call) {
+        log!(info "entered {}", fn_name!());
         if let Some(method_name) = call.method_name {
             self.emit_call_method(*call.obj, method_name, call.args);
         } else {
@@ -964,6 +983,7 @@ impl CodeGenerator {
     }
 
     fn emit_call_local(&mut self, local: Local, mut args: Args) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
             "discard" => self.emit_discard_instr(args),
@@ -1003,6 +1023,7 @@ impl CodeGenerator {
     }
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Token, mut args: Args) {
+        log!(info "entered {}", fn_name!());
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
         }
@@ -1044,6 +1065,7 @@ impl CodeGenerator {
     /// X = (x -> x + 1)(X)
     /// X = X + 1
     fn emit_call_update(&mut self, obj: Expr, mut args: Args) {
+        log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
         self.codegen_expr(func);
@@ -1057,6 +1079,7 @@ impl CodeGenerator {
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)
     fn emit_assert_instr(&mut self, mut args: Args) -> CompileResult<()> {
+        log!(info "entered {}", fn_name!());
         self.codegen_expr(args.remove(0));
         let pop_jump_point = self.cur_block().lasti;
         self.write_instr(Opcode::POP_JUMP_IF_TRUE);
@@ -1077,6 +1100,7 @@ impl CodeGenerator {
     }
 
     fn codegen_expr(&mut self, expr: Expr) {
+        log!(info "entered {}", fn_name!());
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.cur_block().lasti - self.cur_block().prev_lasti;
             let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
@@ -1315,6 +1339,7 @@ impl CodeGenerator {
     }
 
     fn codegen_acc(&mut self, acc: Accessor) {
+        log!(info "entered {}", fn_name!());
         match acc {
             Accessor::Local(local) => {
                 self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
@@ -1360,6 +1385,7 @@ impl CodeGenerator {
 
     /// forブロックなどで使う
     fn codegen_frameless_block(&mut self, block: Block, params: Vec<Str>) {
+        log!(info "entered {}", fn_name!());
         for param in params {
             self.emit_store_instr(Identifier::private(param), Name);
         }
@@ -1375,6 +1401,7 @@ impl CodeGenerator {
     }
 
     fn codegen_typedef_block(&mut self, class: ClassDef) -> CodeObj {
+        log!(info "entered {}", fn_name!());
         let name = class.sig.ident().inspect().clone();
         self.unit_size += 1;
         let firstlineno = match (
@@ -1450,6 +1477,7 @@ impl CodeGenerator {
     }
 
     fn emit_auto_new(&mut self, sig: &Signature, __new__: Type) {
+        log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
         let ident = Identifier::private_with_line(Str::ever("__new__"), line);
         let param_name = fresh_varname();
@@ -1506,6 +1534,7 @@ impl CodeGenerator {
     }
 
     fn codegen_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
+        log!(info "entered {}", fn_name!());
         self.unit_size += 1;
         let name = if let Some(name) = opt_name {
             name
