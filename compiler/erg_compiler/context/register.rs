@@ -525,6 +525,7 @@ impl Context {
                     let gen = enum_unwrap!(t, TypeObj::Generated);
                     self.register_gen_type(gen);
                 }
+                // TODO: not all value objects are comparable
                 other => {
                     let id = DefId(get_hash(name));
                     let vi = VarInfo::new(
@@ -556,7 +557,7 @@ impl Context {
                     todo!()
                 }
             }
-            TypeKind::InheritedClass => {
+            TypeKind::Subclass => {
                 if gen.t.is_monomorphic() {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
@@ -568,6 +569,8 @@ impl Context {
                             TypeObj::Builtin(t) => t,
                             TypeObj::Generated(t) => t.require_or_sup.as_ref().typ(),
                         };
+                        // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
+                        // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = &gen.additional {
                             self.rec_intersection(&param_t, additional.typ())
                         } else {

@@ -57,6 +57,7 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {name}");
         } else {
+            // TODO: not all value objects are comparable
             let vi = VarInfo::new(enum_t(set! {obj.clone()}), Const, Private, Builtin);
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
@@ -360,8 +361,6 @@ impl Context {
         obj.register_builtin_impl("__dict__", fn0_met(Obj, dict(Str, Obj)), Immutable, Public);
         obj.register_builtin_impl("__bytes__", fn0_met(Obj, mono("Bytes")), Immutable, Public);
         obj.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Obj!")));
-        // let mut record = Self::mono_trait("Record", vec![Obj], Self::TOP_LEVEL);
-        // let mut class = Self::mono_class("Class", vec![Type, Obj], Self::TOP_LEVEL);
         let mut int = Self::mono_class(
             "Int",
             vec![Ratio, Obj],
@@ -1089,7 +1088,7 @@ impl Context {
             vec![param_t("Impl", Type)],
             Class,
         );
-        let class = ConstSubr::Builtin(BuiltinConstSubr::new(class_func, class_t));
+        let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t));
         self.register_builtin_const("Class", ValueObj::Subr(class));
         let inherit_t = func(
             vec![param_t("Super", Class)],
@@ -1097,11 +1096,15 @@ impl Context {
             vec![param_t("Impl", Type), param_t("Additional", Type)],
             Class,
         );
-        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(inherit_func, inherit_t));
+        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new("Inherit", inherit_func, inherit_t));
         self.register_builtin_const("Inherit", ValueObj::Subr(inherit));
         // decorators
-        let inheritable =
-            ConstSubr::Builtin(BuiltinConstSubr::new(inheritable_func, func1(Class, Class)));
+        let inheritable_t = func1(Class, Class);
+        let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
+            "Inheritable",
+            inheritable_func,
+            inheritable_t,
+        ));
         self.register_builtin_const("Inheritable", ValueObj::Subr(inheritable));
     }
 

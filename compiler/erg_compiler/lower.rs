@@ -13,13 +13,14 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::{TypeKind, ValueObj};
+use erg_type::value::{TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{Context, ContextKind, RegistrationMode};
 use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
 use crate::hir;
 use crate::hir::HIR;
+use crate::varinfo::VarKind;
 use Visibility::*;
 
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
@@ -548,7 +549,7 @@ impl ASTLowerer {
 
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
-        let hir_def = self.lower_def(class_def.def)?;
+        let mut hir_def = self.lower_def(class_def.def)?;
         let mut private_methods = hir::RecordAttrs::empty();
         let mut public_methods = hir::RecordAttrs::empty();
         for methods in class_def.methods_list.into_iter() {
@@ -581,20 +582,42 @@ impl ASTLowerer {
                 }
             }
         }
-        let definition = hir_def.body.block.first().unwrap();
-        let call = enum_unwrap!(definition, hir::Expr::Call);
-        // FIXME:
-        let kind = match &call.obj.var_full_name().unwrap()[..] {
-            "Class" | "Inheritable" => TypeKind::Class,
-            "Inherit" => TypeKind::InheritedClass,
-            _ => unreachable!(),
+        let (_, ctx) = self
+            .ctx
+            .rec_get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
+            .unwrap();
+        let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
+        // vi.t.non_default_params().unwrap()[0].typ().clone()
+        let (__new__, need_to_gen_new) = if let Some(vi) = ctx.get_current_scope_var("new") {
+            (vi.t.clone(), vi.kind == VarKind::Auto)
+        } else {
+            todo!()
         };
+        let require_or_sup = self.get_require_or_sup(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
-            kind,
-            hir_def,
+            type_obj.kind,
+            hir_def.sig,
+            require_or_sup,
+            need_to_gen_new,
+            __new__,
             private_methods,
             public_methods,
         ))
+    }
+
+    fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {
+        match expr {
+            acc @ hir::Expr::Accessor(_) => acc,
+            hir::Expr::Call(mut call) => match call.obj.var_full_name().as_ref().map(|s| &s[..]) {
+                Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
+                Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
+                Some("Inheritable") => {
+                    self.get_require_or_sup(call.args.remove_left_or_key("Class").unwrap())
+                }
+                _ => todo!(),
+            },
+            other => todo!("{other}"),
+        }
     }
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)

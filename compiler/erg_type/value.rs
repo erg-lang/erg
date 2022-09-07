@@ -25,9 +25,9 @@ use crate::{ConstSubr, HasType, Predicate, Type};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     Class,
-    InheritedClass,
+    Subclass,
     Trait,
-    SubsumedTrait,
+    Subtrait,
     StructuralTrait,
 }
 
@@ -35,7 +35,7 @@ pub enum TypeKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GenTypeObj {
     pub kind: TypeKind,
-    pub t: Type,
+    pub t: Type, // andやorが入る可能性あり
     pub require_or_sup: Box<TypeObj>,
     pub impls: Option<Box<TypeObj>>,
     pub additional: Option<Box<TypeObj>>,
@@ -66,8 +66,8 @@ impl GenTypeObj {
 
     pub fn meta_type(&self) -> Type {
         match self.kind {
-            TypeKind::Class | TypeKind::InheritedClass => Type::Class,
-            TypeKind::Trait | TypeKind::SubsumedTrait | TypeKind::StructuralTrait => Type::Trait,
+            TypeKind::Class | TypeKind::Subclass => Type::Class,
+            TypeKind::Trait | TypeKind::Subtrait | TypeKind::StructuralTrait => Type::Trait,
         }
     }
 }

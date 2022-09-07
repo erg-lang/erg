@@ -1,6 +1,8 @@
+use std::mem;
+
 use erg_common::Str;
 
-use erg_type::constructors::mono;
+use erg_type::constructors::{and, mono};
 use erg_type::value::{TypeKind, TypeObj, ValueObj};
 use erg_type::Type;
 use erg_type::ValueArgs;
@@ -19,9 +21,9 @@ fn value_obj_to_t(value: ValueObj) -> TypeObj {
 
 /// Requirement: Type, Impl := Type -> Class
 pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
-    let require = args.pos_args.remove(0);
+    let require = args.remove_left_or_key("Requirement").unwrap();
     let require = value_obj_to_t(require);
-    let impls = args.pos_args.pop().or_else(|| args.kw_args.remove("Impl"));
+    let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| value_obj_to_t(v));
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     ValueObj::gen_t(TypeKind::Class, t, require, impls, None)
@@ -29,21 +31,34 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
 
 /// Super: Type, Impl := Type, Additional := Type -> Class
 pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
-    let sup = args.pos_args.remove(0);
+    let sup = args.remove_left_or_key("Super").unwrap();
     let sup = value_obj_to_t(sup);
-    let impls = args.pos_args.pop().or_else(|| args.kw_args.remove("Impl"));
+    let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| value_obj_to_t(v));
-    let additional = args
-        .pos_args
-        .pop()
-        .or_else(|| args.kw_args.remove("Additional"));
+    let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| value_obj_to_t(v));
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
-    ValueObj::gen_t(TypeKind::InheritedClass, t, sup, impls, additional)
+    ValueObj::gen_t(TypeKind::Subclass, t, sup, impls, additional)
 }
 
-/// Class -> Class
+/// Class -> Class (with `Inheritable`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
 pub fn inheritable_func(args: ValueArgs, __name__: Option<Str>) -> ValueObj {
-    args.pos_args.into_iter().next().unwrap()
+    let class = args.pos_args.into_iter().next().unwrap();
+    match class {
+        ValueObj::Type(TypeObj::Generated(mut gen)) => {
+            if let Some(typ) = &mut gen.impls {
+                match typ.as_mut() {
+                    TypeObj::Generated(gen) => {
+                        gen.t = and(mem::take(&mut gen.t), mono("Inheritable"));
+                    }
+                    TypeObj::Builtin(t) => {
+                        *t = and(mem::take(t), mono("Inheritable"));
+                    }
+                }
+            }
+            ValueObj::Type(TypeObj::Generated(gen))
+        }
+        _ => todo!(),
+    }
 }

@@ -142,17 +142,36 @@ impl ValueArgs {
     pub const fn new(pos_args: Vec<ValueObj>, kw_args: Dict<Str, ValueObj>) -> Self {
         ValueArgs { pos_args, kw_args }
     }
+
+    pub fn remove_left_or_key(&mut self, key: &str) -> Option<ValueObj> {
+        if !self.pos_args.is_empty() {
+            Some(self.pos_args.remove(0))
+        } else {
+            self.kw_args.remove(key)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
+    name: &'static str,
     subr: fn(ValueArgs, Option<Str>) -> ValueObj,
     t: Type,
 }
 
+impl fmt::Display for BuiltinConstSubr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<built-in const subroutine '{}'>", self.name)
+    }
+}
+
 impl BuiltinConstSubr {
-    pub const fn new(subr: fn(ValueArgs, Option<Str>) -> ValueObj, t: Type) -> Self {
-        Self { subr, t }
+    pub const fn new(
+        name: &'static str,
+        subr: fn(ValueArgs, Option<Str>) -> ValueObj,
+        t: Type,
+    ) -> Self {
+        Self { name, subr, t }
     }
 }
 
@@ -165,8 +184,10 @@ pub enum ConstSubr {
 impl fmt::Display for ConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConstSubr::User(_) => write!(f, "<user-defined const subroutine>"),
-            ConstSubr::Builtin(_) => write!(f, "<builtin const subroutine>"),
+            ConstSubr::User(subr) => {
+                write!(f, "<user-defined const subroutine '{}'>", subr.code.name)
+            }
+            ConstSubr::Builtin(subr) => write!(f, "{subr}"),
         }
     }
 }
@@ -1837,6 +1858,13 @@ impl Type {
             Self::MonoProj { .. } => Str::ever("MonoProj"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
+        }
+    }
+
+    pub fn contains_intersec(&self, typ: &Type) -> bool {
+        match self {
+            Type::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),
+            _ => self == typ,
         }
     }
 

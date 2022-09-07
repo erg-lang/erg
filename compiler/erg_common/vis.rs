@@ -22,8 +22,8 @@ impl Visibility {
 /// same structure as `Identifier`, but only for Record fields.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Field {
-    vis: Visibility,
-    symbol: Str,
+    pub vis: Visibility,
+    pub symbol: Str,
 }
 
 impl fmt::Display for Field {

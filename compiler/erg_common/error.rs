@@ -488,8 +488,22 @@ pub trait ErrorDisplay {
                 }
                 res + RESET
             }
-            Location::LineRange(_begin, _end) => {
-                todo!()
+            Location::LineRange(ln_begin, ln_end) => {
+                let codes = if self.input() == &Input::REPL {
+                    vec![self.input().reread()]
+                } else {
+                    self.input().reread_lines(ln_begin, ln_end)
+                };
+                let mut res = CYAN.to_string();
+                for (i, lineno) in (ln_begin..=ln_end).enumerate() {
+                    let mut pointer = " ".repeat(lineno.to_string().len() + 2); // +2 means `| `
+                    pointer += &"^".repeat(cmp::max(1, codes[i].len()));
+                    res += &format!(
+                        "{lineno}{VBAR_UNICODE} {code}\n{pointer}\n",
+                        code = codes[i]
+                    );
+                }
+                res + RESET
             }
             Location::Line(lineno) => {
                 let code = if self.input() == &Input::REPL {

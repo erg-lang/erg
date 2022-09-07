@@ -243,6 +243,22 @@ impl Args {
                 .map(|a| &a.expr)
         }
     }
+
+    pub fn remove_left_or_key(&mut self, key: &str) -> Option<Expr> {
+        if !self.pos_args.is_empty() {
+            Some(self.pos_args.remove(0).expr)
+        } else {
+            if let Some(pos) = self
+                .kw_args
+                .iter()
+                .position(|arg| &arg.keyword.inspect()[..] == key)
+            {
+                Some(self.kw_args.remove(pos).expr)
+            } else {
+                None
+            }
+        }
+    }
 }
 
 /// represents local variables
@@ -894,9 +910,9 @@ impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         writeln!(
             f,
-            "({}){}(: {}):",
+            "({}){} (: {}):",
             self.obj,
-            fmt_option!(pre ".", self.method_name),
+            fmt_option!(pre ".", self.method_name.as_ref().map(|t| t.inspect())),
             self.sig_t
         )?;
         self.args.fmt_nest(f, level + 1)
@@ -1011,6 +1027,7 @@ impl NestedDisplay for VarSignature {
 
 impl_display_from_nested!(VarSignature);
 impl_locational!(VarSignature, ident);
+impl_t!(VarSignature);
 
 impl VarSignature {
     pub const fn new(ident: Identifier, t: Type) -> Self {
@@ -1041,6 +1058,7 @@ impl NestedDisplay for SubrSignature {
 
 impl_display_from_nested!(SubrSignature);
 impl_locational!(SubrSignature, ident, params);
+impl_t!(SubrSignature);
 
 impl SubrSignature {
     pub const fn new(ident: Identifier, params: Params, t: Type) -> Self {
@@ -1096,6 +1114,7 @@ pub enum Signature {
 
 impl_nested_display_for_chunk_enum!(Signature; Var, Subr);
 impl_display_for_enum!(Signature; Var, Subr,);
+impl_t_for_enum!(Signature; Var, Subr);
 impl_locational_for_enum!(Signature; Var, Subr,);
 
 impl Signature {
@@ -1128,6 +1147,13 @@ impl Signature {
         match self {
             Self::Var(v) => &v.ident,
             Self::Subr(s) => &s.ident,
+        }
+    }
+
+    pub fn ident_mut(&mut self) -> &mut Identifier {
+        match self {
+            Self::Var(v) => &mut v.ident,
+            Self::Subr(s) => &mut s.ident,
         }
     }
 }
@@ -1254,23 +1280,23 @@ impl Def {
 }
 
 #[derive(Debug, Clone)]
-pub struct MethodDefs {
+pub struct Methods {
     pub class: TypeSpec,
     pub vis: Token,        // `.` or `::`
     pub defs: RecordAttrs, // TODO: allow declaration
 }
 
-impl NestedDisplay for MethodDefs {
+impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{}{}", self.class, self.vis.content)?;
         self.defs.fmt_nest(f, level + 1)
     }
 }
 
-impl_display_from_nested!(MethodDefs);
-impl_locational!(MethodDefs, class, defs);
+impl_display_from_nested!(Methods);
+impl_locational!(Methods, class, defs);
 
-impl HasType for MethodDefs {
+impl HasType for Methods {
     #[inline]
     fn ref_t(&self) -> &Type {
         Type::NONE
@@ -1289,7 +1315,7 @@ impl HasType for MethodDefs {
     }
 }
 
-impl MethodDefs {
+impl Methods {
     pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
         Self { class, vis, defs }
     }
@@ -1298,21 +1324,25 @@ impl MethodDefs {
 #[derive(Debug, Clone)]
 pub struct ClassDef {
     pub kind: TypeKind,
-    pub def: Def,
+    pub sig: Signature,
+    pub require_or_sup: Box<Expr>,
+    /// The type of `new` and `__new__` that is automatically defined if not defined
+    pub need_to_gen_new: bool,
+    pub __new__: Type,
     pub private_methods: RecordAttrs,
     pub public_methods: RecordAttrs,
 }
 
 impl NestedDisplay for ClassDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        self.def.fmt_nest(f, level)?;
+        self.sig.fmt_nest(f, level)?;
         self.private_methods.fmt_nest(f, level)?;
         self.public_methods.fmt_nest(f, level + 1)
     }
 }
 
 impl_display_from_nested!(ClassDef);
-impl_locational!(ClassDef, def);
+impl_locational!(ClassDef, sig);
 
 impl HasType for ClassDef {
     #[inline]
@@ -1334,18 +1364,66 @@ impl HasType for ClassDef {
 }
 
 impl ClassDef {
-    pub const fn new(
+    pub fn new(
         kind: TypeKind,
-        def: Def,
+        sig: Signature,
+        require_or_sup: Expr,
+        need_to_gen_new: bool,
+        __new__: Type,
         private_methods: RecordAttrs,
         public_methods: RecordAttrs,
     ) -> Self {
         Self {
             kind,
-            def,
+            sig,
+            require_or_sup: Box::new(require_or_sup),
+            need_to_gen_new,
+            __new__,
             private_methods,
             public_methods,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AttrDef {
+    pub attr: Accessor,
+    pub block: Block,
+}
+
+impl NestedDisplay for AttrDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        self.attr.fmt_nest(f, level)?;
+        writeln!(f, " = ")?;
+        self.block.fmt_nest(f, level + 1)
+    }
+}
+
+impl_display_from_nested!(AttrDef);
+impl_locational!(AttrDef, attr, block);
+
+impl HasType for AttrDef {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
+impl AttrDef {
+    pub const fn new(attr: Accessor, block: Block) -> Self {
+        Self { attr, block }
     }
 }
 
@@ -1365,12 +1443,13 @@ pub enum Expr {
     Decl(Decl),
     Def(Def),
     ClassDef(ClassDef),
+    AttrDef(AttrDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

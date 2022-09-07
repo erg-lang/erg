@@ -376,6 +376,16 @@ impl Token {
         Self::from_str(TokenKind::Symbol, cont)
     }
 
+    #[inline]
+    pub fn symbol_with_line(cont: &str, line: usize) -> Self {
+        Token {
+            kind: TokenKind::Symbol,
+            content: Str::rc(cont),
+            lineno: line,
+            col_begin: 0,
+        }
+    }
+
     pub const fn static_symbol(s: &'static str) -> Self {
         Token {
             kind: TokenKind::Symbol,

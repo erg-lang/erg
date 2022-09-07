@@ -1872,13 +1872,17 @@ impl Identifier {
         Self::new(None, VarName::from_str_and_line(name, line))
     }
 
+    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+        Self::new(Some(dot), VarName::from_str_and_line(name, line))
+    }
+
     pub fn is_const(&self) -> bool {
         self.name.is_const()
     }
 
     pub const fn vis(&self) -> Visibility {
         match &self.dot {
-            Some(_dot) => Visibility::Public,
+            Some(_) => Visibility::Public,
             None => Visibility::Private,
         }
     }
