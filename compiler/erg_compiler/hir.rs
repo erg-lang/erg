@@ -1336,7 +1336,8 @@ pub struct ClassDef {
 impl NestedDisplay for ClassDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.sig.fmt_nest(f, level)?;
-        self.private_methods.fmt_nest(f, level)?;
+        writeln!(f, ":")?;
+        self.private_methods.fmt_nest(f, level + 1)?;
         self.public_methods.fmt_nest(f, level + 1)
     }
 }

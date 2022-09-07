@@ -70,6 +70,14 @@ impl Context {
                     })
                     .map(|(_, vi)| vi)
             })
+            .or_else(|| {
+                for (_, def) in self.method_defs.iter() {
+                    if let Some(vi) = def.get_current_scope_var(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
     }
 
     fn get_context(
@@ -332,12 +340,26 @@ impl Context {
                 } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
                     return Ok(vi.t());
                 }
+                for (_, methods_ctx) in ctx.method_defs.iter() {
+                    if let Some(vi) = methods_ctx.locals.get(method_name.inspect()) {
+                        return Ok(vi.t());
+                    } else if let Some(vi) = methods_ctx.decls.get(method_name.inspect()) {
+                        return Ok(vi.t());
+                    }
+                }
             }
-            if let Some(ctx) = self.rec_get_singular_ctx(obj) {
-                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
+            if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
+                if let Some(vi) = singular_ctx.locals.get(method_name.inspect()) {
                     return Ok(vi.t());
-                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
+                } else if let Some(vi) = singular_ctx.decls.get(method_name.inspect()) {
                     return Ok(vi.t());
+                }
+                for (_, method_ctx) in singular_ctx.method_defs.iter() {
+                    if let Some(vi) = method_ctx.locals.get(method_name.inspect()) {
+                        return Ok(vi.t());
+                    } else if let Some(vi) = method_ctx.decls.get(method_name.inspect()) {
+                        return Ok(vi.t());
+                    }
                 }
                 return Err(TyCheckError::singular_no_attr_error(
                     line!() as usize,
@@ -1163,12 +1185,14 @@ impl Context {
     }
 
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
+        log!("{}", obj.ref_t());
         match obj.ref_t() {
             // TODO: attr
             Type::Module => self.rec_get_mod(&obj.var_full_name()?),
-            Type::Type | Type::Class => self
-                .rec_get_nominal_type_ctx(&Type::Mono(Str::from(obj.var_full_name().unwrap())))
-                .map(|(_, ctx)| ctx),
+            Type::Type | Type::Class => {
+                let typ = Type::Mono(Str::from(obj.var_full_name().unwrap()));
+                self.rec_get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
+            }
             Type::Trait => todo!(),
             Type::Refinement(refine) => {
                 self.rec_get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx)
