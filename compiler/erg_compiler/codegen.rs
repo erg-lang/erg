@@ -32,7 +32,7 @@ use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::AttrDef;
 use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, Def, DefBody, Expr, Local, Signature,
+    Accessor, Args, Array, Block, Call, ClassDef, Def, DefBody, Expr, Literal, Local, Signature,
     SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
@@ -202,7 +202,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Array!", _, "push!") => Str::ever("append"),
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
         ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
-        ("Type", _, "new" | "__new__") => Str::ever("__call__"),
+        (_, _, "new" | "__new__") => Str::ever("__call__"),
         ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
         ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),
@@ -319,7 +319,7 @@ impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
 pub struct CodeGenerator {
     cfg: ErgConfig,
     str_cache: CacheSet<str>,
-    namedtuple_loaded: bool,
+    prelude_loaded: bool,
     unit_size: usize,
     units: CodeGenStack,
     pub(crate) errs: CompileErrors,
@@ -330,7 +330,7 @@ impl CodeGenerator {
         Self {
             cfg,
             str_cache: CacheSet::new(),
-            namedtuple_loaded: false,
+            prelude_loaded: false,
             unit_size: 0,
             units: CodeGenStack::empty(),
             errs: CompileErrors::empty(),
@@ -596,7 +596,7 @@ impl CodeGenerator {
         uniq_obj_name: Option<&str>,
         name: Str,
     ) -> CompileResult<()> {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({class}.{name})", fn_name!());
         let name = self
             .local_search(&name, Attr)
             .unwrap_or_else(|| self.register_attr(class, uniq_obj_name, name));
@@ -617,7 +617,7 @@ impl CodeGenerator {
         uniq_obj_name: Option<&str>,
         name: Str,
     ) -> CompileResult<()> {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({class}.{name})", fn_name!());
         let name = self
             .local_search(&name, Method)
             .unwrap_or_else(|| self.register_method(class, uniq_obj_name, name));
@@ -633,14 +633,22 @@ impl CodeGenerator {
     }
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({ident})", fn_name!());
         let name = self
             .local_search(ident.inspect(), acc_kind)
-            .unwrap_or_else(|| self.register_name(ident));
+            .unwrap_or_else(|| {
+                if acc_kind.is_local() {
+                    self.register_name(ident)
+                } else {
+                    self.register_attr("", None, ident.inspect().clone())
+                }
+            });
         let instr = match name.kind {
             StoreLoadKind::Fast => Opcode::STORE_FAST,
             StoreLoadKind::FastConst => Opcode::ERG_STORE_FAST_IMMUT,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::STORE_GLOBAL,
+            // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
+            // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::STORE_NAME,
             StoreLoadKind::Deref | StoreLoadKind::DerefConst => Opcode::STORE_DEREF,
             StoreLoadKind::Local | StoreLoadKind::LocalConst => {
                 match acc_kind {
@@ -654,10 +662,13 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
         self.stack_dec();
+        if instr == Opcode::STORE_ATTR {
+            self.stack_dec();
+        }
     }
 
     fn store_acc(&mut self, acc: Accessor) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({acc})", fn_name!());
         match acc {
             Accessor::Local(local) => {
                 self.emit_store_instr(Identifier::new(None, VarName::new(local.name)), Name);
@@ -719,7 +730,7 @@ impl CodeGenerator {
     }
 
     fn emit_class_def(&mut self, class_def: ClassDef) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({class_def})", fn_name!());
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
@@ -732,19 +743,20 @@ impl CodeGenerator {
         self.write_instr(Opcode::MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
-        let subclasses_len = self.emit_require_type(kind, *require_or_sup);
         // LOAD subclasses
+        let subclasses_len = self.emit_require_type(kind, *require_or_sup);
         self.write_instr(Opcode::CALL_FUNCTION);
         self.write_arg(2 + subclasses_len as u8);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
+        self.stack_dec();
     }
 
     // NOTE: use `TypeVar`, `Generic` in `typing` module
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     fn emit_require_type(&mut self, kind: TypeKind, require_or_sup: Expr) -> usize {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({kind:?}, {require_or_sup})", fn_name!());
         match kind {
             TypeKind::Class => 0,
             TypeKind::Subclass => {
@@ -756,13 +768,13 @@ impl CodeGenerator {
     }
 
     fn emit_attr_def(&mut self, attr_def: AttrDef) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({attr_def})", fn_name!());
         self.codegen_frameless_block(attr_def.block, vec![]);
         self.store_acc(attr_def.attr);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         if body.block.len() == 1 {
             self.codegen_expr(body.block.remove(0));
         } else {
@@ -772,7 +784,7 @@ impl CodeGenerator {
     }
 
     fn emit_subr_def(&mut self, sig: SubrSignature, body: DefBody) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         let name = sig.ident.inspect().clone();
         let mut opcode_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
@@ -969,7 +981,7 @@ impl CodeGenerator {
     }
 
     fn emit_call(&mut self, call: Call) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({call})", fn_name!());
         if let Some(method_name) = call.method_name {
             self.emit_call_method(*call.obj, method_name, call.args);
         } else {
@@ -1100,7 +1112,7 @@ impl CodeGenerator {
     }
 
     fn codegen_expr(&mut self, expr: Expr) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({expr})", fn_name!());
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.cur_block().lasti - self.cur_block().prev_lasti;
             let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
@@ -1280,20 +1292,6 @@ impl CodeGenerator {
             },
             Expr::Record(rec) => {
                 let attrs_len = rec.attrs.len();
-                // importing namedtuple
-                if !self.namedtuple_loaded {
-                    self.emit_load_const(0);
-                    self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
-                        Str::ever("namedtuple"),
-                    )])));
-                    let ident = Identifier::public("collections");
-                    self.emit_import_name_instr(ident).unwrap();
-                    let ident = Identifier::public("namedtuple");
-                    self.emit_import_from_instr(ident).unwrap();
-                    let ident = Identifier::private(Str::ever("#NamedTuple"));
-                    self.emit_store_instr(ident, Name);
-                    self.namedtuple_loaded = true;
-                }
                 // making record type
                 let ident = Identifier::private(Str::ever("#NamedTuple"));
                 self.emit_load_name_instr(ident).unwrap();
@@ -1339,7 +1337,7 @@ impl CodeGenerator {
     }
 
     fn codegen_acc(&mut self, acc: Accessor) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({acc})", fn_name!());
         match acc {
             Accessor::Local(local) => {
                 self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
@@ -1421,9 +1419,9 @@ impl CodeGenerator {
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
-        self.emit_store_instr(Identifier::public("__module__"), Attr);
+        self.emit_store_instr(Identifier::public("__module__"), Name);
         self.emit_load_const(name);
-        self.emit_store_instr(Identifier::public("__qualname__"), Attr);
+        self.emit_store_instr(Identifier::public("__qualname__"), Name);
         if class.need_to_gen_new {
             self.emit_auto_new(&class.sig, class.__new__);
         }
@@ -1479,19 +1477,13 @@ impl CodeGenerator {
     fn emit_auto_new(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
-        let ident = Identifier::private_with_line(Str::ever("__new__"), line);
+        let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let params = Params::new(
-            vec![ParamSignature::new(
-                ParamPattern::VarName(param),
-                None,
-                None,
-            )],
-            None,
-            vec![],
-            None,
-        );
+        let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
+        let self_param = VarName::from_str_and_line(Str::ever("self"), line);
+        let self_param = ParamSignature::new(ParamPattern::VarName(self_param), None, None);
+        let params = Params::new(vec![self_param, param], None, vec![], None);
         let sig = Signature::Subr(SubrSignature::new(ident, params.clone(), __new__.clone()));
         let mut attrs = vec![];
         match __new__.non_default_params().unwrap()[0].typ() {
@@ -1503,34 +1495,32 @@ impl CodeGenerator {
                         Token::symbol_with_line(&param_name[..], line),
                         Type::Failure,
                     ));
-                    let attr = Accessor::Attr(Attribute::new(
-                        obj,
-                        Token::symbol(&field.symbol[..]),
-                        Type::Failure,
-                    ));
-                    let obj = Expr::Accessor(Accessor::local(
-                        Token::symbol_with_line("self", line),
-                        Type::Failure,
-                    ));
                     let expr = Expr::Accessor(Accessor::Attr(Attribute::new(
                         obj,
                         Token::symbol(&field.symbol[..]),
                         Type::Failure,
                     )));
+                    let obj = Expr::Accessor(Accessor::local(
+                        Token::symbol_with_line("self", line),
+                        Type::Failure,
+                    ));
+                    let attr = Accessor::Attr(Attribute::new(
+                        obj,
+                        Token::symbol(&field.symbol[..]),
+                        Type::Failure,
+                    ));
                     let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
                     attrs.push(Expr::AttrDef(attr_def));
                 }
+                let none = Token::new(TokenKind::NoneLit, "None", line, 0);
+                attrs.push(Expr::Lit(Literal::from(none)));
             }
             other => todo!("{other}"),
         }
         let block = Block::new(attrs);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
-        let private_new_def = Def::new(sig, body.clone());
-        self.codegen_expr(Expr::Def(private_new_def));
-        let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
-        let sig = Signature::Subr(SubrSignature::new(ident, params, __new__));
-        let new_def = Def::new(sig, body);
-        self.codegen_expr(Expr::Def(new_def));
+        let init_def = Def::new(sig, body.clone());
+        self.codegen_expr(Expr::Def(init_def));
     }
 
     fn codegen_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
@@ -1582,7 +1572,10 @@ impl CodeGenerator {
         // end of flagging
         let unit = self.units.pop().unwrap();
         if !self.units.is_empty() {
-            let ld = unit.prev_lineno - self.cur_block().prev_lineno;
+            let ld = unit
+                .prev_lineno
+                .checked_sub(self.cur_block().prev_lineno)
+                .unwrap_or(0);
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
                     *l += ld as u8;
@@ -1591,6 +1584,25 @@ impl CodeGenerator {
             }
         }
         unit.codeobj
+    }
+
+    fn load_prelude(&mut self) {
+        self.init_record();
+    }
+
+    fn init_record(&mut self) {
+        // importing namedtuple
+        self.emit_load_const(0);
+        self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
+            Str::ever("namedtuple"),
+        )])));
+        let ident = Identifier::public("collections");
+        self.emit_import_name_instr(ident).unwrap();
+        let ident = Identifier::public("namedtuple");
+        self.emit_import_from_instr(ident).unwrap();
+        let ident = Identifier::private(Str::ever("#NamedTuple"));
+        self.emit_store_instr(ident, Name);
+        // self.namedtuple_loaded = true;
     }
 
     pub fn codegen(&mut self, hir: HIR) -> CodeObj {
@@ -1603,6 +1615,10 @@ impl CodeGenerator {
             "<module>",
             1,
         ));
+        if !self.prelude_loaded {
+            self.load_prelude();
+            self.prelude_loaded = true;
+        }
         let mut print_point = 0;
         if self.input().is_repl() {
             print_point = self.cur_block().lasti;
