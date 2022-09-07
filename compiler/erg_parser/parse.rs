@@ -145,12 +145,6 @@ impl Parser {
         }
     }
 
-    fn throw_syntax_err<L: Locational>(&mut self, l: &L, caused_by: &str) -> ParseError {
-        log!(err "error caused by: {caused_by}");
-        self.next_expr();
-        ParseError::simple_syntax_error(0, l.loc())
-    }
-
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
         let loc = self.peek().unwrap().loc();
         log!(err "error caused by: {caused_by}");
@@ -275,7 +269,10 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                Some(t) if t.is(Indent) || t.is(Dedent) => {
+                Some(t) if t.is(Indent) => {
+                    switch_unreachable!()
+                }
+                Some(t) if t.is(Dedent) => {
                     switch_unreachable!()
                 }
                 Some(_) => match self.try_reduce_chunk(true) {
@@ -284,7 +281,7 @@ impl Parser {
                     }
                     Err(_) => {}
                 },
-                _ => switch_unreachable!(),
+                None => switch_unreachable!(),
             }
         }
         self.level -= 1;
@@ -306,29 +303,22 @@ impl Parser {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
                 }
-                Some(t) => {
-                    if t.is(Indent) {
-                        self.skip();
-                        while self.cur_is(Newline) {
-                            self.skip();
-                        }
-                    } else if self.cur_is(Dedent) {
-                        self.skip();
-                        break;
-                    } else if t.is(EOF) {
-                        break;
-                    }
-                    match self.try_reduce_chunk(true) {
-                        Ok(expr) => {
-                            block.push(expr);
-                            if self.cur_is(Dedent) {
-                                self.skip();
-                                break;
-                            }
-                        }
-                        Err(_) => {}
-                    }
+                Some(t) if t.is(Indent) => {
+                    self.skip();
                 }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
+                Some(t) if t.is(EOF) => {
+                    break;
+                }
+                Some(_) => match self.try_reduce_chunk(true) {
+                    Ok(expr) => {
+                        block.push(expr);
+                    }
+                    Err(_) => {}
+                },
                 _ => switch_unreachable!(),
             }
         }
@@ -852,13 +842,22 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
-                    if self.cur_is(Dedent) {
-                        self.skip();
-                        break;
-                    }
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
+                Some(_) => {
                     let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
-                    defs.push(def);
+                    match def {
+                        Expr::Def(def) => {
+                            defs.push(def);
+                        }
+                        other => {
+                            self.errs
+                                .push(ParseError::simple_syntax_error(0, other.loc()));
+                        }
+                    }
                 }
                 _ => todo!(),
             }
@@ -1066,6 +1065,11 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
+                Some(t) if t.category_is(TC::Reserved) => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                }
                 _ => {
                     if stack.len() <= 1 {
                         break;
@@ -1207,6 +1211,12 @@ impl Parser {
                         .try_reduce_tuple(first_elem)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                Some(t) if t.category_is(TC::Reserved) => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
                 }
                 _ => {
                     if stack.len() <= 1 {
@@ -1481,26 +1491,28 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
-                    if self.cur_is(Dedent) {
-                        self.skip();
-                        if self.cur_is(RBrace) {
-                            let r_brace = self.lpop();
-                            self.level -= 1;
-                            let attrs = RecordAttrs::from(attrs);
-                            return Ok(NormalRecord::new(l_brace, r_brace, attrs));
-                        } else {
-                            todo!()
-                        }
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    if self.cur_is(RBrace) {
+                        let r_brace = self.lpop();
+                        self.level -= 1;
+                        let attrs = RecordAttrs::from(attrs);
+                        return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                    } else {
+                        todo!()
                     }
-                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
-                    attrs.push(def);
                 }
                 Some(term) if term.is(RBrace) => {
                     let r_brace = self.lpop();
                     self.level -= 1;
                     let attrs = RecordAttrs::from(attrs);
                     return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                }
+                Some(_) => {
+                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
+                    attrs.push(def);
                 }
                 _ => todo!(),
             }
@@ -1525,16 +1537,23 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
-                    if self.cur_is(Dedent) {
-                        self.skip();
-                        if self.cur_is(RBrace) {
-                            let r_brace = self.lpop();
-                            self.level -= 1;
-                            return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
-                        } else {
-                            todo!()
-                        }
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    if self.cur_is(RBrace) {
+                        let r_brace = self.lpop();
+                        self.level -= 1;
+                        return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
+                    } else {
+                        todo!()
                     }
+                }
+                Some(term) if term.is(RBrace) => {
+                    let r_brace = self.lpop();
+                    self.level -= 1;
+                    return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
+                }
+                Some(_) => {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
                     let acc = match acc {
                         Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
@@ -1544,11 +1563,6 @@ impl Parser {
                         other => todo!("{other}"), // syntax error
                     };
                     idents.push(acc);
-                }
-                Some(term) if term.is(RBrace) => {
-                    let r_brace = self.lpop();
-                    self.level -= 1;
-                    return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                 }
                 _ => todo!(),
             }
@@ -1671,7 +1685,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1696,7 +1710,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1815,7 +1829,7 @@ impl Parser {
                 .map_err(|_| self.stack_dec())?,
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 return Err(());
             }
@@ -1837,7 +1851,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 return Err(());
             }
@@ -1890,7 +1904,7 @@ impl Parser {
             Expr::Accessor(Accessor::Local(local)) => {
                 if &local.inspect()[..] == "self" && !allow_self {
                     self.level -= 1;
-                    let err = self.throw_syntax_err(&local, caused_by!());
+                    let err = ParseError::simple_syntax_error(line!() as usize, local.loc());
                     self.errs.push(err);
                     return Err(());
                 }
@@ -1962,14 +1976,14 @@ impl Parser {
                 // TODO: Spread
                 _other => {
                     self.level -= 1;
-                    let err = self.throw_syntax_err(&unary, caused_by!());
+                    let err = ParseError::simple_syntax_error(line!() as usize, unary.loc());
                     self.errs.push(err);
                     Err(())
                 }
             },
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -2068,7 +2082,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }

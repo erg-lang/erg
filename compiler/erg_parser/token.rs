@@ -187,10 +187,8 @@ pub enum TokenCategory {
     LambdaOp,
     /// \n ;
     Separator,
-    /// ^ (reserved)
-    Caret,
-    /// &
-    Amper,
+    /// ^ &
+    Reserved,
     /// @
     AtSign,
     /// |
@@ -224,8 +222,7 @@ impl TokenKind {
             Semi | Newline => TokenCategory::Separator,
             LParen | LBrace | LSqBr | Indent => TokenCategory::LEnclosure,
             RParen | RBrace | RSqBr | Dedent => TokenCategory::REnclosure,
-            Caret => TokenCategory::Caret,
-            Amper => TokenCategory::Amper,
+            Caret | Amper => TokenCategory::Reserved,
             AtSign => TokenCategory::AtSign,
             VBar => TokenCategory::VBar,
             UBar => TokenCategory::UBar,
