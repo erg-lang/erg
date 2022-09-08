@@ -251,6 +251,7 @@ pub struct Context {
     pub(crate) super_classes: Vec<Type>, // if self is a patch, means patch classes
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
     // method definitions, if the context is a type
+    // specializations are included and needs to be separated out
     pub(crate) method_defs: Vec<(Type, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
@@ -360,12 +361,12 @@ impl Context {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 // TODO: is_const { Const } else { Immutable }
-                let vi = VarInfo::new(param.t, Immutable, Private, kind);
+                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                let vi = VarInfo::new(param.t, Immutable, Private, kind);
+                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
                 params_.push((None, vi));
             }
         }

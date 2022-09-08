@@ -1724,7 +1724,7 @@ impl Locational for TypeBoundSpecs {
 /// デコレータは関数を返す関数オブジェクトならば何でも指定できる
 /// e.g. @(x -> x)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Decorator(Expr);
+pub struct Decorator(pub Expr);
 
 impl Decorator {
     pub const fn new(expr: Expr) -> Self {

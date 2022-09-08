@@ -1,6 +1,8 @@
 use std::fmt;
 
+use erg_common::set::Set;
 use erg_common::vis::Visibility;
+use erg_common::Str;
 use Visibility::*;
 
 use erg_parser::ast::DefId;
@@ -109,6 +111,7 @@ pub struct VarInfo {
     pub muty: Mutability,
     pub vis: Visibility,
     pub kind: VarKind,
+    pub comptime_decos: Option<Set<Str>>,
 }
 
 impl fmt::Display for VarInfo {
@@ -141,11 +144,28 @@ impl HasType for VarInfo {
 }
 
 impl VarInfo {
-    pub const ILLEGAL: &'static Self =
-        &VarInfo::new(Type::Failure, Immutable, Private, VarKind::DoesNotExist);
+    pub const ILLEGAL: &'static Self = &VarInfo::new(
+        Type::Failure,
+        Immutable,
+        Private,
+        VarKind::DoesNotExist,
+        None,
+    );
 
-    pub const fn new(t: Type, muty: Mutability, vis: Visibility, kind: VarKind) -> Self {
-        Self { t, muty, vis, kind }
+    pub const fn new(
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+        kind: VarKind,
+        comptime_decos: Option<Set<Str>>,
+    ) -> Self {
+        Self {
+            t,
+            muty,
+            vis,
+            kind,
+            comptime_decos,
+        }
     }
 
     pub fn same_id_as(&self, id: DefId) -> bool {

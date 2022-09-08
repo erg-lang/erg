@@ -75,8 +75,10 @@ impl Context {
                     let kind = id.map_or(VarKind::Declared, VarKind::Defined);
                     let sig_t =
                         self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
-                    self.decls
-                        .insert(ident.name.clone(), VarInfo::new(sig_t, muty, vis, kind));
+                    self.decls.insert(
+                        ident.name.clone(),
+                        VarInfo::new(sig_t, muty, vis, kind, None),
+                    );
                     Ok(())
                 }
             }
@@ -103,7 +105,17 @@ impl Context {
             ));
         }
         let t = self.instantiate_sub_sig_t(sig, opt_ret_t, PreRegister)?;
-        let vi = VarInfo::new(t, muty, vis, kind);
+        let comptime_decos = sig
+            .decorators
+            .iter()
+            .filter_map(|deco| match &deco.0 {
+                ast::Expr::Accessor(ast::Accessor::Local(local)) if local.is_const() => {
+                    Some(local.inspect().clone())
+                }
+                _ => None,
+            })
+            .collect();
+        let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos));
         if let Some(_decl) = self.decls.remove(name) {
             return Err(TyCheckError::duplicate_decl_error(
                 line!() as usize,
@@ -146,7 +158,7 @@ impl Context {
                 // something to do?
             }
             let vis = ident.vis();
-            let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id));
+            let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id), None);
             self.locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -198,7 +210,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None),
                     ));
                     Ok(())
                 }
@@ -239,7 +251,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None),
                     ));
                     Ok(())
                 }
@@ -280,7 +292,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None),
                     ));
                     Ok(())
                 }
@@ -412,8 +424,23 @@ impl Context {
                     ));
                 }
             }
-            // TODO: visibility
-            let vi = VarInfo::new(found_t, muty, Private, VarKind::Defined(id));
+            let comptime_decos = sig
+                .decorators
+                .iter()
+                .filter_map(|deco| match &deco.0 {
+                    ast::Expr::Accessor(ast::Accessor::Local(local)) if local.is_const() => {
+                        Some(local.inspect().clone())
+                    }
+                    _ => None,
+                })
+                .collect();
+            let vi = VarInfo::new(
+                found_t,
+                muty,
+                sig.ident.vis(),
+                VarKind::Defined(id),
+                Some(comptime_decos),
+            );
             log!(info "Registered {}::{name}: {}", self.name, &vi.t);
             self.locals.insert(name.clone(), vi);
             Ok(())
@@ -493,7 +520,7 @@ impl Context {
             panic!("already registered: {name}");
         } else {
             self.locals
-                .insert(name, VarInfo::new(t, muty, vis, VarKind::Auto));
+                .insert(name, VarInfo::new(t, muty, vis, VarKind::Auto, None));
         }
     }
 
@@ -501,8 +528,10 @@ impl Context {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.decls
-                .insert(name, VarInfo::new(t, Immutable, vis, VarKind::Declared));
+            self.decls.insert(
+                name,
+                VarInfo::new(t, Immutable, vis, VarKind::Declared, None),
+            );
         }
     }
 
@@ -512,7 +541,7 @@ impl Context {
         } else {
             let id = DefId(get_hash(&(&self.name, &name)));
             self.locals
-                .insert(name, VarInfo::new(t, muty, vis, VarKind::Defined(id)));
+                .insert(name, VarInfo::new(t, muty, vis, VarKind::Defined(id), None));
         }
     }
 
@@ -533,6 +562,7 @@ impl Context {
                         Const,
                         Private,
                         VarKind::Defined(id),
+                        None,
                     );
                     self.consts.insert(VarName::from_str(Str::rc(name)), other);
                     self.locals.insert(VarName::from_str(Str::rc(name)), vi);
@@ -606,7 +636,7 @@ impl Context {
             let id = DefId(get_hash(&(&self.name, &name)));
             self.locals.insert(
                 name.clone(),
-                VarInfo::new(meta_t, muty, Private, VarKind::Defined(id)),
+                VarInfo::new(meta_t, muty, Private, VarKind::Defined(id), None),
             );
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));

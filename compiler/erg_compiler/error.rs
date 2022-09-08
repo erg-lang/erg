@@ -1041,6 +1041,43 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn override_error<S: Into<Str>>(
+        errno: usize,
+        name: &str,
+        name_loc: Location,
+        superclass: &Type,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                name_loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}は{YELLOW}{superclass}{RESET}で既に定義されています",
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定义",
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定義",
+                    ),
+                    "english" => format!(
+                        "{RED}{name}{RESET} is already defined in {YELLOW}{superclass}{RESET}",
+                    ),
+                ),
+                Some(switch_lang!(
+                    "japanese" => "デフォルトでオーバーライドはできません(`Override`デコレータを使用してください)",
+                    "simplified_chinese" => "默认不可重写(请使用`Override`装饰器)",
+                    "traditional_chinese" => "默認不可重寫(請使用`Override`裝飾器)",
+                    "english" => "cannot override by default (use `Override` decorator)",
+                ).into()),
+            ),
+            caused_by.into(),
+        )
+    }
 }
 
 #[derive(Debug)]

@@ -33,7 +33,7 @@ impl Context {
             panic!("already registered: {name}");
         } else {
             self.decls
-                .insert(name, VarInfo::new(t, Immutable, vis, Builtin));
+                .insert(name, VarInfo::new(t, Immutable, vis, Builtin, None));
         }
     }
 
@@ -49,7 +49,7 @@ impl Context {
             panic!("already registered: {name}");
         } else {
             self.locals
-                .insert(name, VarInfo::new(t, muty, vis, Builtin));
+                .insert(name, VarInfo::new(t, muty, vis, Builtin, None));
         }
     }
 
@@ -58,7 +58,7 @@ impl Context {
             panic!("already registered: {name}");
         } else {
             // TODO: not all value objects are comparable
-            let vi = VarInfo::new(enum_t(set! {obj.clone()}), Const, Private, Builtin);
+            let vi = VarInfo::new(enum_t(set! {obj.clone()}), Const, Private, Builtin, None);
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
         }
@@ -88,8 +88,10 @@ impl Context {
             panic!("{} has already been registered as const", t.name());
         } else {
             let name = VarName::from_str(t.name());
-            self.locals
-                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(Type, muty, Private, Builtin, None),
+            );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -115,8 +117,10 @@ impl Context {
             root_ctx.method_defs.push((t, ctx));
         } else {
             let name = VarName::from_str(t.name());
-            self.locals
-                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(Type, muty, Private, Builtin, None),
+            );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -138,8 +142,10 @@ impl Context {
             panic!("{} has already been registered", name);
         } else {
             let name = VarName::from_static(name);
-            self.locals
-                .insert(name.clone(), VarInfo::new(Type, muty, Private, Builtin));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(Type, muty, Private, Builtin, None),
+            );
             for method_name in ctx.locals.keys() {
                 if let Some(patches) = self.method_impl_patches.get_mut(method_name) {
                     patches.push(name.clone());

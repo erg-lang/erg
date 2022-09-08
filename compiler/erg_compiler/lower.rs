@@ -571,6 +571,7 @@ impl ASTLowerer {
             }
             match self.ctx.pop() {
                 Ok(ctx) => {
+                    self.check_override(&class, &ctx);
                     if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
                         class_root.method_defs.push((class, ctx));
                     } else {
@@ -603,6 +604,30 @@ impl ASTLowerer {
             private_methods,
             public_methods,
         ))
+    }
+
+    fn check_override(&mut self, class: &Type, ctx: &Context) {
+        if let Some(sups) = self.ctx.rec_get_nominal_super_type_ctxs(class) {
+            for (sup_t, sup) in sups {
+                for (method_name, vi) in ctx.locals.iter() {
+                    if let Some(_sup_vi) = sup.get_current_scope_var(&method_name.inspect()) {
+                        // must `@Override`
+                        if let Some(decos) = &vi.comptime_decos {
+                            if decos.contains("Override") {
+                                continue;
+                            }
+                        }
+                        self.errs.push(LowerError::override_error(
+                            line!() as usize,
+                            method_name.inspect(),
+                            method_name.loc(),
+                            sup_t,
+                            ctx.caused_by(),
+                        ));
+                    }
+                }
+            }
+        }
     }
 
     fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {

@@ -1,14 +1,15 @@
 @Inheritable
 Point2D = Class {x = Int; y = Int}
 Point2D.
-    norm ref self = self::x**2 + self::y**2
+    norm self = self::x**2 + self::y**2
 
 Point3D = Inherit Point2D, Additional := {z = Int}
 Point3D.
+    # Overloading is prohibited by default. Remove this decorator and check for errors.
     @Override
     new x, y, z = Point3D::__new__ {x; y; z}
     @Override
-    norm ref self = self::x**2 + self::y**2 + self::z**2
+    norm self = self::x**2 + self::y**2 + self::z**2
 
 p = Point3D.new {x = 1; y = 2; z = 3}
 print! p.norm()
