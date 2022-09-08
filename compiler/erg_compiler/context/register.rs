@@ -277,7 +277,7 @@ impl Context {
                             Some(name.inspect()),
                         )?;
                     }
-                    let spec_t = ref_mut(spec_t);
+                    let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let idx = if let Some(outer) = outer {
                         ParamIdx::nested(outer, nth)
                     } else {

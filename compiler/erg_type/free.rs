@@ -107,7 +107,13 @@ impl LimitedDisplay for Constraint {
                 sup,
                 cyclicity,
             } => match (sub == &Type::Never, sup == &Type::Obj) {
-                (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
+                (true, true) => {
+                    write!(f, ": Type")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "(:> Never, <: Obj)")?;
+                    }
+                    Ok(())
+                }
                 (true, false) => {
                     write!(f, "<: ")?;
                     sup.limited_fmt(f, limit - 1)?;

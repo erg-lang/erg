@@ -12,7 +12,7 @@ use erg_type::constructors::*;
 use erg_type::free::{Constraint, Cyclicity, FreeKind, HasLevel};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, SubrKind, TyBound, Type};
+use erg_type::{HasType, Predicate, TyBound, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckResult};
@@ -118,22 +118,6 @@ impl Context {
                 _ => assume_unreachable!(),
             },
             Subr(mut subr) => {
-                let kind = match subr.kind {
-                    SubrKind::FuncMethod(self_t) => {
-                        let t = self.generalize_t_inner(*self_t, bounds, lazy_inits);
-                        SubrKind::fn_met(t)
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        let before = self.generalize_t_inner(*before, bounds, lazy_inits);
-                        if let Some(after) = after {
-                            let after = self.generalize_t_inner(*after, bounds, lazy_inits);
-                            SubrKind::pr_met(before, Some(after))
-                        } else {
-                            SubrKind::pr_met(before, None)
-                        }
-                    }
-                    other => other,
-                };
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
                     *nd_param.typ_mut() =
                         self.generalize_t_inner(mem::take(nd_param.typ_mut()), bounds, lazy_inits);
@@ -148,7 +132,7 @@ impl Context {
                 });
                 let return_t = self.generalize_t_inner(*subr.return_t, bounds, lazy_inits);
                 subr_t(
-                    kind,
+                    subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|x| *x),
                     subr.default_params,
@@ -157,7 +141,14 @@ impl Context {
             }
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            RefMut(t) => ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            RefMut { before, after } => {
+                let after = if let Some(after) = after {
+                    Some(self.generalize_t_inner(*after, bounds, lazy_inits))
+                } else {
+                    None
+                };
+                ref_mut(self.generalize_t_inner(*before, bounds, lazy_inits), after)
+            }
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
@@ -314,18 +305,6 @@ impl Context {
                 self.resolve_trait(t)
             }
             Type::Subr(mut subr) => {
-                match &mut subr.kind {
-                    SubrKind::FuncMethod(t) => {
-                        *t = Box::new(self.deref_tyvar(mem::take(t))?);
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        *before = Box::new(self.deref_tyvar(mem::take(before))?);
-                        if let Some(after) = after {
-                            *after = Box::new(self.deref_tyvar(mem::take(after))?);
-                        }
-                    }
-                    _ => {}
-                }
                 for param in subr.non_default_params.iter_mut() {
                     *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
                 }
@@ -342,9 +321,14 @@ impl Context {
                 let t = self.deref_tyvar(*t)?;
                 Ok(ref_(t))
             }
-            Type::RefMut(t) => {
-                let t = self.deref_tyvar(*t)?;
-                Ok(ref_mut(t))
+            Type::RefMut { before, after } => {
+                let before = self.deref_tyvar(*before)?;
+                let after = if let Some(after) = after {
+                    Some(self.deref_tyvar(*after)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(before, after))
             }
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
@@ -804,10 +788,7 @@ impl Context {
                 let lhs_t = self.into_refinement(l.clone());
                 self.unify(&Type::Refinement(lhs_t), rhs_t, lhs_loc, rhs_loc)
             }
-            (Type::Subr(ls), Type::Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
-                if let (Some(l), Some(r)) = (ls.kind.self_t(), rs.kind.self_t()) {
-                    self.unify(l, r, lhs_loc, rhs_loc)?;
-                }
+            (Type::Subr(ls), Type::Subr(rs)) if ls.kind == rs.kind => {
                 for (l, r) in ls
                     .non_default_params
                     .iter()
@@ -831,12 +812,32 @@ impl Context {
                 }
                 self.unify(&ls.return_t, &rs.return_t, lhs_loc, rhs_loc)
             }
-            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
-                self.unify(l, r, lhs_loc, rhs_loc)
+            (Type::Ref(l), Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (
+                Type::RefMut {
+                    before: lbefore,
+                    after: lafter,
+                },
+                Type::RefMut {
+                    before: rbefore,
+                    after: rafter,
+                },
+            ) => {
+                self.unify(lbefore, rbefore, lhs_loc, rhs_loc)?;
+                match (lafter, rafter) {
+                    (Some(lafter), Some(rafter)) => {
+                        self.unify(lafter, rafter, lhs_loc, rhs_loc)?;
+                    }
+                    (None, None) => {}
+                    _ => todo!(),
+                }
+                Ok(())
             }
+            (Type::Ref(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
             // REVIEW:
-            (Type::Ref(l), r) | (Type::RefMut(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
-            (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (Type::RefMut { before, .. }, r) => self.unify(before, r, lhs_loc, rhs_loc),
+            (l, Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (l, Type::RefMut { before, .. }) => self.unify(l, before, lhs_loc, rhs_loc),
             (
                 Type::Poly {
                     name: ln,
@@ -893,12 +894,32 @@ impl Context {
             (l, Type::FreeVar(fv)) if fv.is_linked() => {
                 self.reunify(l, &fv.crack(), bef_loc, aft_loc)
             }
-            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
-                self.reunify(l, r, bef_loc, aft_loc)
+            (Type::Ref(l), Type::Ref(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (
+                Type::RefMut {
+                    before: lbefore,
+                    after: lafter,
+                },
+                Type::RefMut {
+                    before: rbefore,
+                    after: rafter,
+                },
+            ) => {
+                self.reunify(lbefore, rbefore, bef_loc, aft_loc)?;
+                match (lafter, rafter) {
+                    (Some(lafter), Some(rafter)) => {
+                        self.reunify(lafter, rafter, bef_loc, aft_loc)?;
+                    }
+                    (None, None) => {}
+                    _ => todo!(),
+                }
+                Ok(())
             }
+            (Type::Ref(l), r) => self.reunify(l, r, bef_loc, aft_loc),
             // REVIEW:
-            (Type::Ref(l), r) | (Type::RefMut(l), r) => self.reunify(l, r, bef_loc, aft_loc),
-            (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (Type::RefMut { before, .. }, r) => self.reunify(before, r, bef_loc, aft_loc),
+            (l, Type::Ref(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (l, Type::RefMut { before, .. }) => self.reunify(l, before, bef_loc, aft_loc),
             (
                 Type::Poly {
                     name: ln,
@@ -1154,6 +1175,14 @@ impl Context {
                     |(l, r)| self.unify(l.typ(), r.typ(), sub_loc, sup_loc),
                 )?;
                 self.unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc)?;
+                return Ok(());
+            }
+            (_, Type::Ref(t)) => {
+                self.unify(maybe_sub, t, sub_loc, sup_loc)?;
+                return Ok(());
+            }
+            (_, Type::RefMut{ before, .. }) => {
+                self.unify(maybe_sub, before, sub_loc, sup_loc)?;
                 return Ok(());
             }
             (Type::MonoProj { .. }, _) => todo!(),

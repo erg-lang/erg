@@ -18,7 +18,7 @@ use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinem
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
+use erg_type::{HasType, ParamTy, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
 use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
@@ -279,8 +279,9 @@ impl Context {
                 let sup = fv.get_sup().unwrap();
                 self.get_attr_t_from_attributive_t(obj, &sup, name, namespace)
             }
-            Type::Ref(t) | Type::RefMut(t) => {
-                self.get_attr_t_from_attributive_t(obj, t, name, namespace)
+            Type::Ref(t) => self.get_attr_t_from_attributive_t(obj, t, name, namespace),
+            Type::RefMut { before, .. } => {
+                self.get_attr_t_from_attributive_t(obj, before, name, namespace)
             }
             Type::Refinement(refine) => {
                 self.get_attr_t_from_attributive_t(obj, &refine.t, name, namespace)
@@ -443,15 +444,17 @@ impl Context {
 
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
-        if let Type::Subr(SubrType {
-            kind: SubrKind::ProcMethod {
-                after: Some(after), ..
-            },
-            ..
-        }) = t
-        {
-            log!(info "{}, {}", callee.ref_t(), after);
-            self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
+        if let Type::Subr(subr) = t {
+            if let Some(after) = subr.self_t().and_then(|self_t| {
+                if let RefMut { after, .. } = self_t {
+                    after.as_ref()
+                } else {
+                    None
+                }
+            }) {
+                log!(info "{}, {}", callee.ref_t(), after);
+                self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
+            }
         }
         Ok(())
     }
@@ -560,9 +563,14 @@ impl Context {
                 let new_t = self.resolve_trait(*t)?;
                 Ok(ref_(new_t))
             }
-            Type::RefMut(t) => {
-                let new_t = self.resolve_trait(*t)?;
-                Ok(ref_mut(new_t))
+            Type::RefMut { before, after } => {
+                let new_before = self.resolve_trait(*before)?;
+                let new_after = if let Some(after) = after {
+                    Some(self.resolve_trait(*after)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(new_before, new_after))
             }
             Type::Callable { .. } => todo!(),
             Type::And(_, _) | Type::Or(_, _) | Type::Not(_, _) => todo!(),
@@ -1125,7 +1133,7 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
-            Type::Ref(t) | Type::RefMut(t) => {
+            Type::Ref(t) | Type::RefMut { before: t, .. } => {
                 if let Some(res) = self.rec_get_nominal_type_ctx(t) {
                     return Some(res);
                 }
@@ -1190,7 +1198,7 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
-            Type::Ref(t) | Type::RefMut(t) => {
+            Type::Ref(t) | Type::RefMut { before: t, .. } => {
                 if let Some(res) = self.rec_get_mut_nominal_type_ctx(t) {
                     return Some(res);
                 }

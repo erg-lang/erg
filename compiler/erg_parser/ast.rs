@@ -1479,33 +1479,13 @@ impl ParamTySpec {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SubrKindSpec {
-    Func,
-    Proc,
-    FuncMethod(Box<TypeSpec>),
-    ProcMethod {
-        before: Box<TypeSpec>,
-        after: Option<Box<TypeSpec>>,
-    },
-}
-
-impl SubrKindSpec {
-    pub const fn arrow(&self) -> Str {
-        match self {
-            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
-            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
-    pub kind: SubrKindSpec,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_args: Option<Box<ParamTySpec>>,
     pub defaults: Vec<ParamTySpec>,
+    pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
 
@@ -1517,7 +1497,7 @@ impl fmt::Display for SubrTypeSpec {
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
-            self.kind.arrow(),
+            self.arrow.content,
             self.return_t
         )
     }
@@ -1536,19 +1516,19 @@ impl Locational for SubrTypeSpec {
 
 impl SubrTypeSpec {
     pub fn new(
-        kind: SubrKindSpec,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_args: Option<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
+        arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
         Self {
-            kind,
             lparen,
             non_defaults,
             var_args: var_args.map(Box::new),
             defaults,
+            arrow,
             return_t: Box::new(return_t),
         }
     }
@@ -1646,40 +1626,6 @@ impl TypeSpec {
 
     pub const fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
         Self::Interval { op, lhs, rhs }
-    }
-
-    pub fn func(
-        lparen: Option<Token>,
-        non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
-        defaults: Vec<ParamTySpec>,
-        return_t: TypeSpec,
-    ) -> Self {
-        Self::Subr(SubrTypeSpec::new(
-            SubrKindSpec::Func,
-            lparen,
-            non_defaults,
-            var_args,
-            defaults,
-            return_t,
-        ))
-    }
-
-    pub fn proc(
-        lparen: Option<Token>,
-        non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
-        defaults: Vec<ParamTySpec>,
-        return_t: TypeSpec,
-    ) -> Self {
-        Self::Subr(SubrTypeSpec::new(
-            SubrKindSpec::Proc,
-            lparen,
-            non_defaults,
-            var_args,
-            defaults,
-            return_t,
-        ))
     }
 }
 

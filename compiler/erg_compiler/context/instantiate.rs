@@ -7,21 +7,21 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{assume_unreachable, enum_unwrap, set, try_map};
-use erg_type::free::{Constraint, Cyclicity, FreeTyVar};
-use TyParamOrdering::*;
-use Type::*;
 
 use ast::{
-    ParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, SubrKindSpec, TypeBoundSpec,
-    TypeBoundSpecs, TypeSpec,
+    ParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec, TypeBoundSpecs,
+    TypeSpec,
 };
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
 
 use erg_type::constructors::*;
+use erg_type::free::{Constraint, Cyclicity, FreeTyVar};
 use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use erg_type::value::ValueObj;
 use erg_type::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
+use TyParamOrdering::*;
+use Type::*;
 
 use crate::context::eval::eval_lit;
 use crate::context::{Context, RegistrationMode};
@@ -630,30 +630,17 @@ impl Context {
                 .collect();
                 let return_t = self.instantiate_typespec(&subr.return_t, mode)?;
                 Ok(subr_t(
-                    self.instantiate_subr_kind(&subr.kind)?,
+                    if subr.arrow.is(TokenKind::FuncArrow) {
+                        SubrKind::Func
+                    } else {
+                        SubrKind::Proc
+                    },
                     non_defaults,
                     var_args,
                     defaults,
                     return_t,
                 ))
             }
-        }
-    }
-
-    fn instantiate_subr_kind(&self, kind: &SubrKindSpec) -> TyCheckResult<SubrKind> {
-        match kind {
-            SubrKindSpec::Func => Ok(SubrKind::Func),
-            SubrKindSpec::Proc => Ok(SubrKind::Proc),
-            SubrKindSpec::FuncMethod(spec) => {
-                Ok(SubrKind::fn_met(self.instantiate_typespec(spec, Normal)?))
-            }
-            SubrKindSpec::ProcMethod { before, after } => Ok(SubrKind::pr_met(
-                self.instantiate_typespec(before, Normal)?,
-                after
-                    .as_ref()
-                    .map(|after| self.instantiate_typespec(after, Normal))
-                    .transpose()?,
-            )),
         }
     }
 
@@ -757,23 +744,6 @@ impl Context {
                 Type::Refinement(refine)
             }
             Subr(mut subr) => {
-                let kind = match subr.kind {
-                    SubrKind::FuncMethod(self_t) => {
-                        let res = Self::instantiate_t(*self_t, tv_ctx);
-                        SubrKind::FuncMethod(Box::new(res))
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        let before = Self::instantiate_t(*before, tv_ctx);
-                        let after = if let Some(after) = after {
-                            let after = Self::instantiate_t(*after, tv_ctx);
-                            Some(after)
-                        } else {
-                            None
-                        };
-                        SubrKind::pr_met(before, after)
-                    }
-                    other => other,
-                };
                 for pt in subr.non_default_params.iter_mut() {
                     *pt.typ_mut() = Self::instantiate_t(mem::take(pt.typ_mut()), tv_ctx);
                 }
@@ -786,7 +756,7 @@ impl Context {
                 }
                 let return_t = Self::instantiate_t(*subr.return_t, tv_ctx);
                 subr_t(
-                    kind,
+                    subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|p| *p),
                     subr.default_params,
@@ -803,9 +773,14 @@ impl Context {
                 let t = Self::instantiate_t(*t, tv_ctx);
                 ref_(t)
             }
-            RefMut(t) => {
-                let t = Self::instantiate_t(*t, tv_ctx);
-                ref_mut(t)
+            RefMut { before, after } => {
+                let before = Self::instantiate_t(*before, tv_ctx);
+                let after = if let Some(after) = after {
+                    Some(Self::instantiate_t(*after, tv_ctx))
+                } else {
+                    None
+                };
+                ref_mut(before, after)
             }
             MonoProj { lhs, rhs } => {
                 let lhs = Self::instantiate_t(*lhs, tv_ctx);
@@ -831,9 +806,15 @@ impl Context {
                 let mut tv_ctx = TyVarContext::new(self.level, quant.bounds, &self);
                 let t = Self::instantiate_t(*quant.unbound_callable, &mut tv_ctx);
                 match &t {
-                    Type::Subr(subr) => match subr.kind.self_t() {
-                        Some(l) => {
-                            self.unify(l, callee.ref_t(), None, Some(callee.loc()))?;
+                    Type::Subr(subr) => match subr.self_t() {
+                        Some(self_t) => {
+                            self.sub_unify(
+                                callee.ref_t(),
+                                self_t,
+                                None,
+                                Some(callee.loc()),
+                                Some(&Str::ever("self")),
+                            )?;
                         }
                         _ => {}
                     },

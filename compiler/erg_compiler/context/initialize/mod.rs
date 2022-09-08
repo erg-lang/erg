@@ -169,7 +169,7 @@ impl Context {
         let mut mutable = Self::mono_trait("Mutable", vec![], Self::TOP_LEVEL);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
         let f_t = func(vec![param_t("old", proj.clone())], None, vec![], proj);
-        let t = pr1_met(mono_q("Self"), None, f_t, NoneType);
+        let t = pr1_met(ref_mut(mono_q("Self"), None), f_t, NoneType);
         let t = quant(t, set! { subtypeof(mono_q("Self"), mono("Immutizable")) });
         mutable.register_builtin_decl("update!", t, Public);
         let mut immutizable =
@@ -422,7 +422,6 @@ impl Context {
             "times!",
             pr_met(
                 Nat,
-                None,
                 vec![param_t("p", nd_proc(vec![], None, NoneType))],
                 None,
                 vec![],
@@ -558,7 +557,7 @@ impl Context {
             "Type",
             vec![Obj],
             vec![
-                // poly("Eq", vec![ty_tp(Type)]),
+                poly("Eq", vec![ty_tp(Type)]),
                 poly("In", vec![ty_tp(Obj)]), // x in Type
                 mono("Named"),
             ],
@@ -569,7 +568,7 @@ impl Context {
             "ClassType",
             vec![Type, Obj],
             vec![
-                // poly("Eq", vec![ty_tp(Class)]),
+                poly("Eq", vec![ty_tp(Class)]),
                 poly("In", vec![ty_tp(Obj)]), // x in Class
                 mono("Named"),
             ],
@@ -820,7 +819,13 @@ impl Context {
         );
         int_mut.register_builtin_const("ImmutType", ValueObj::builtin_t(Int));
         let f_t = param_t("f", func(vec![param_t("old", Int)], None, vec![], Int));
-        let t = pr_met(mono("Int!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Int!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         int_mut.register_builtin_impl("update!", t, Immutable, Public);
         let mut nat_mut = Self::mono_class(
             "Nat!",
@@ -830,7 +835,13 @@ impl Context {
         );
         nat_mut.register_builtin_const("ImmutType", ValueObj::builtin_t(Nat));
         let f_t = param_t("f", func(vec![param_t("old", Nat)], None, vec![], Nat));
-        let t = pr_met(mono("Nat!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Nat!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         nat_mut.register_builtin_impl("update!", t, Immutable, Public);
         let mut float_mut = Self::mono_class(
             "Float!",
@@ -840,7 +851,13 @@ impl Context {
         );
         float_mut.register_builtin_const("ImmutType", ValueObj::builtin_t(Float));
         let f_t = param_t("f", func(vec![param_t("old", Float)], None, vec![], Float));
-        let t = pr_met(mono("Float!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Float!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         float_mut.register_builtin_impl("update!", t, Immutable, Public);
         let mut ratio_mut = Self::mono_class(
             "Ratio!",
@@ -858,7 +875,13 @@ impl Context {
                 mono("Ratio"),
             ),
         );
-        let t = pr_met(mono("Ratio!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Ratio!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         ratio_mut.register_builtin_impl("update!", t, Immutable, Public);
         let mut bool_mut = Self::mono_class(
             "Bool!",
@@ -868,7 +891,13 @@ impl Context {
         );
         bool_mut.register_builtin_const("ImmutType", ValueObj::builtin_t(Bool));
         let f_t = param_t("f", func(vec![param_t("old", Bool)], None, vec![], Bool));
-        let t = pr_met(mono("Bool!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Bool!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         bool_mut.register_builtin_impl("update!", t, Immutable, Public);
         let mut str_mut = Self::mono_class(
             "Str!",
@@ -878,7 +907,13 @@ impl Context {
         );
         str_mut.register_builtin_const("ImmutType", ValueObj::builtin_t(Str));
         let f_t = param_t("f", func(vec![param_t("old", Str)], None, vec![], Str));
-        let t = pr_met(mono("Str!"), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(mono("Str!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         str_mut.register_builtin_impl("update!", t, Immutable, Public);
         let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut = Self::poly_class(
@@ -889,11 +924,13 @@ impl Context {
             Self::TOP_LEVEL,
         );
         let t = pr_met(
-            ref_mut(array_mut_t.clone()),
-            Some(ref_mut(poly(
-                "Array!",
-                vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
-            ))),
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly(
+                    "Array!",
+                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
+                )),
+            ),
             vec![param_t("elem", mono_q("T"))],
             None,
             vec![],
@@ -913,7 +950,13 @@ impl Context {
                 array_t.clone(),
             ),
         );
-        let t = pr_met(array_mut_t.clone(), None, vec![f_t], None, vec![], NoneType);
+        let t = pr_met(
+            ref_mut(array_mut_t.clone(), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
         array_mut.register_builtin_impl("update!", t, Immutable, Public);
         let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
         let range = Self::poly_class(

@@ -50,9 +50,7 @@ impl Context {
 
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
-            (TyParam::Type(lhs), TyParam::Type(rhs)) => {
-                return self.structural_same_type_of(lhs, rhs)
-            }
+            (TyParam::Type(lhs), TyParam::Type(rhs)) => return self.same_type_of(lhs, rhs),
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if let (Some(l), Some(r)) = (self.rec_get_const_obj(l), self.rec_get_const_obj(r)) {
                     return l == r;
@@ -60,6 +58,23 @@ impl Context {
             }
             (TyParam::MonoQVar(name), _other) | (_other, TyParam::MonoQVar(name)) => {
                 panic!("Not instantiated type parameter: {name}")
+            }
+            (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval }) => {
+                return lop == rop && self.eq_tp(lval, rval);
+            }
+            (
+                TyParam::BinOp {
+                    op: lop,
+                    lhs: ll,
+                    rhs: lr,
+                },
+                TyParam::BinOp {
+                    op: rop,
+                    lhs: rl,
+                    rhs: rr,
+                },
+            ) => {
+                return lop == rop && self.eq_tp(ll, rl) && self.eq_tp(lr, rr);
             }
             (
                 TyParam::App {
@@ -86,7 +101,7 @@ impl Context {
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.get_type().unwrap();
                     let other_t = self.type_of(other);
-                    return self.structural_supertype_of(t, &other_t);
+                    return self.same_type_of(t, &other_t);
                 }
             },
             (l, r) if l == r => {
@@ -146,14 +161,18 @@ impl Context {
         }
     }
 
+    pub(crate) fn same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        self.supertype_of(lhs, rhs) && self.subtype_of(lhs, rhs)
+    }
+
     pub(crate) fn cheap_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
         if lhs == rhs {
             return (Absolutely, true);
         }
         match (lhs, rhs) {
-            // FIXME: Obj/Neverはクラス、Top/Bottomは構造型
             (Obj, _) | (_, Never) => (Absolutely, true),
-            (_, Obj) | (Never, _) => (Absolutely, false),
+            // (_, Obj) if !lhs.is_unbound_var() => (Absolutely, false),
+            // (Never, _) if !rhs.is_unbound_var() => (Absolutely, false),
             (Float | Ratio | Int | Nat | Bool, Bool)
             | (Float | Ratio | Int | Nat, Nat)
             | (Float | Ratio | Int, Int)
@@ -166,14 +185,9 @@ impl Context {
             ),
             (Type, Subr(subr)) => (
                 Absolutely,
-                subr.kind
-                    .self_t()
-                    .map(|t| self.supertype_of(&Type, t))
-                    .unwrap_or(true)
-                    && subr
-                        .non_default_params
-                        .iter()
-                        .all(|pt| self.supertype_of(&Type, &pt.typ()))
+                subr.non_default_params
+                    .iter()
+                    .all(|pt| self.supertype_of(&Type, &pt.typ()))
                     && subr
                         .default_params
                         .iter()
@@ -199,20 +213,6 @@ impl Context {
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
-            (
-                Type::Mono(n),
-                Subr(SubrType {
-                    kind: SubrKind::FuncMethod(_),
-                    ..
-                }),
-            ) if &n[..] == "GenericFuncMethod" => (Absolutely, true),
-            (
-                Type::Mono(n),
-                Subr(SubrType {
-                    kind: SubrKind::ProcMethod { .. },
-                    ..
-                }),
-            ) if &n[..] == "GenericProcMethod" => (Absolutely, true),
             (Type::Mono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericArray" && &r[..] == "Array" =>
             {
@@ -371,7 +371,7 @@ impl Context {
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         log!(info "structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         match (lhs, rhs) {
-            (Subr(ls), Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
+            (Subr(ls), Subr(rs)) if ls.kind == rs.kind => {
                 let kw_check = || {
                     for lpt in ls.default_params.iter() {
                         if let Some(rpt) = rs
@@ -388,9 +388,6 @@ impl Context {
                     }
                     true
                 };
-                if ls.kind.self_t().is_some() {
-                    todo!("method type is not supported yet")
-                }
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
                 ls.non_default_params.len() == rs.non_default_params.len()
@@ -578,11 +575,12 @@ impl Context {
             }
             (_lhs, Not(_, _)) => todo!(),
             (Not(_, _), _rhs) => todo!(),
-            // RefMut, OptionMut are invariant
-            (Ref(lhs), Ref(rhs)) => self.supertype_of(lhs, rhs),
+            // RefMut are invariant
+            (Ref(l), Ref(r)) => self.supertype_of(l, r),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             // REVIEW: RefMut is invariant, maybe
-            (Ref(lhs), rhs) | (RefMut(lhs), rhs) => self.supertype_of(lhs, rhs),
+            (Ref(l), r) => self.supertype_of(l, r),
+            (RefMut { before: l, .. }, r) => self.supertype_of(l, r),
             (
                 Poly {
                     name: ln,
@@ -663,7 +661,7 @@ impl Context {
         self.structural_supertype_of(rhs, lhs)
     }
 
-    pub(crate) fn structural_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
+    pub(crate) fn _structural_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.structural_supertype_of(lhs, rhs) && self.structural_subtype_of(lhs, rhs)
     }
 

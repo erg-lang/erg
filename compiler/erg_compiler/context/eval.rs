@@ -15,7 +15,7 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, SubrKind, TyBound, Type, ValueArgs};
+use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::Context;
@@ -485,21 +485,6 @@ impl Context {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), level),
             Type::Subr(mut subr) => {
-                let kind = match subr.kind {
-                    SubrKind::FuncMethod(self_t) => {
-                        SubrKind::fn_met(self.eval_t_params(*self_t, level)?)
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        let before = self.eval_t_params(*before, level)?;
-                        if let Some(after) = after {
-                            let after = self.eval_t_params(*after, level)?;
-                            SubrKind::pr_met(before, Some(after))
-                        } else {
-                            SubrKind::pr_met(before, None)
-                        }
-                    }
-                    other => other,
-                };
                 for pt in subr.non_default_params.iter_mut() {
                     *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level)?;
                 }
@@ -512,7 +497,7 @@ impl Context {
                 }
                 let return_t = self.eval_t_params(*subr.return_t, level)?;
                 Ok(subr_t(
-                    kind,
+                    subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|v| *v),
                     subr.default_params,
@@ -570,7 +555,15 @@ impl Context {
                 }
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
-            Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, level)?)),
+            Type::RefMut { before, after } => {
+                let before = self.eval_t_params(*before, level)?;
+                let after = if let Some(after) = after {
+                    Some(self.eval_t_params(*after, level)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(before, after))
+            }
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p))?;

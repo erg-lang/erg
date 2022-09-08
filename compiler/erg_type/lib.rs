@@ -241,7 +241,13 @@ impl LimitedDisplay for TyBound {
         }
         match self {
             Self::Sandwiched { sub, mid, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
-                (true, true) => write!(f, "{mid}: Type (:> Never, <: Obj)"),
+                (true, true) => {
+                    write!(f, "{mid}: Type")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "(:> Never, <: Obj)")?;
+                    }
+                    Ok(())
+                }
                 (true, false) => {
                     write!(f, "{mid} <: ")?;
                     sup.limited_fmt(f, limit - 1)
@@ -744,7 +750,7 @@ impl LimitedDisplay for SubrType {
         if limit == 0 {
             return write!(f, "...");
         }
-        write!(f, "{}(", self.kind.prefix())?;
+        write!(f, "(")?;
         for (i, param) in self.non_default_params.iter().enumerate() {
             if i != 0 {
                 write!(f, ", ")?;
@@ -786,11 +792,9 @@ impl SubrType {
     }
 
     pub fn contains_tvar(&self, name: &str) -> bool {
-        self.kind.contains_tvar(name)
-            || self
-                .non_default_params
-                .iter()
-                .any(|pt| pt.typ().contains_tvar(name))
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().contains_tvar(name))
             || self
                 .var_params
                 .as_ref()
@@ -804,8 +808,7 @@ impl SubrType {
     }
 
     pub fn has_qvar(&self) -> bool {
-        self.kind.has_qvar()
-            || self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
+        self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
             || self
                 .var_params
                 .as_ref()
@@ -817,11 +820,6 @@ impl SubrType {
 
     pub fn typarams(&self) -> Vec<TyParam> {
         [
-            self.kind
-                .self_t()
-                .map(|t| TyParam::t(t.clone()))
-                .into_iter()
-                .collect(),
             self.non_default_params
                 .iter()
                 .map(|pt| TyParam::t(pt.typ().clone()))
@@ -837,6 +835,13 @@ impl SubrType {
                 .collect(),
         ]
         .concat()
+    }
+
+    pub fn self_t(&self) -> Option<&Type> {
+        self.non_default_params
+            .iter()
+            .find(|p| p.name() == Some(&Str::ever("self")) || p.name() == Some(&Str::ever("Self")))
+            .map(|p| p.typ())
     }
 }
 
@@ -933,157 +938,17 @@ impl QuantifiedType {
     }
 }
 
-type SelfType = Type;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SubrKind {
     Func,
     Proc,
-    FuncMethod(Box<SelfType>),
-    ProcMethod {
-        before: Box<SelfType>,
-        after: Option<Box<SelfType>>,
-    },
-}
-
-impl HasLevel for SubrKind {
-    fn level(&self) -> Option<Level> {
-        todo!()
-    }
-
-    fn update_level(&self, level: usize) {
-        match self {
-            Self::FuncMethod(t) => t.update_level(level),
-            Self::ProcMethod { before, after } => {
-                before.update_level(level);
-                if let Some(t) = after.as_ref() {
-                    t.update_level(level);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::FuncMethod(t) => t.lift(),
-            Self::ProcMethod { before, after } => {
-                before.lift();
-                if let Some(t) = after.as_ref() {
-                    t.lift();
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 impl SubrKind {
-    pub fn fn_met(t: SelfType) -> Self {
-        SubrKind::FuncMethod(Box::new(t))
-    }
-
-    pub fn pr_met(before: SelfType, after: Option<SelfType>) -> Self {
-        Self::ProcMethod {
-            before: Box::new(before),
-            after: after.map(Box::new),
-        }
-    }
-
     pub const fn arrow(&self) -> Str {
         match self {
-            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
-            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
-        }
-    }
-
-    pub const fn inner_len(&self) -> usize {
-        match self {
-            Self::Func | Self::Proc => 0,
-            Self::FuncMethod(_) | Self::ProcMethod { .. } => 1,
-        }
-    }
-
-    pub fn prefix(&self) -> String {
-        match self {
-            Self::Func | Self::Proc => "".to_string(),
-            Self::FuncMethod(t) => format!("{t}."),
-            Self::ProcMethod { before, after } => {
-                if let Some(after) = after {
-                    format!("({before} ~> {after}).")
-                } else {
-                    format!("{before}.")
-                }
-            }
-        }
-    }
-
-    pub fn has_qvar(&self) -> bool {
-        match self {
-            Self::Func | Self::Proc => false,
-            Self::FuncMethod(t) => t.has_qvar(),
-            Self::ProcMethod { before, after } => {
-                before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
-            }
-        }
-    }
-
-    pub fn contains_tvar(&self, name: &str) -> bool {
-        match self {
-            Self::Func | Self::Proc => false,
-            Self::FuncMethod(t) => t.contains_tvar(name),
-            Self::ProcMethod { before, after } => {
-                before.contains_tvar(name)
-                    || after
-                        .as_ref()
-                        .map(|t| t.contains_tvar(name))
-                        .unwrap_or(false)
-            }
-        }
-    }
-
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::Func | Self::Proc => true,
-            Self::FuncMethod(t) => t.is_cachable(),
-            Self::ProcMethod { before, after } => {
-                before.is_cachable() && after.as_ref().map(|t| t.is_cachable()).unwrap_or(true)
-            }
-        }
-    }
-
-    pub fn has_unbound_var(&self) -> bool {
-        match self {
-            Self::Func | Self::Proc => false,
-            Self::FuncMethod(t) => t.has_unbound_var(),
-            Self::ProcMethod { before, after } => {
-                before.has_unbound_var()
-                    || after.as_ref().map(|t| t.has_unbound_var()).unwrap_or(false)
-            }
-        }
-    }
-
-    pub fn same_kind_as(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Func, Self::Func)
-                | (Self::Proc, Self::Proc)
-                | (Self::FuncMethod(_), Self::FuncMethod(_))
-                | (Self::ProcMethod { .. }, Self::ProcMethod { .. })
-        )
-    }
-
-    pub fn self_t(&self) -> Option<&SelfType> {
-        match self {
-            Self::FuncMethod(t) | Self::ProcMethod { before: t, .. } => Some(t),
-            _ => None,
-        }
-    }
-
-    pub fn self_t_mut(&mut self) -> Option<&mut SelfType> {
-        match self {
-            Self::FuncMethod(t) | Self::ProcMethod { before: t, .. } => Some(t),
-            _ => None,
+            Self::Func => Str::ever("->"),
+            Self::Proc => Str::ever("=>"),
         }
     }
 }
@@ -1109,7 +974,6 @@ impl Ownership {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgsOwnership {
-    pub self_: Option<Ownership>,
     pub non_defaults: Vec<Ownership>,
     pub var_params: Option<Ownership>,
     pub defaults: Vec<(Str, Ownership)>,
@@ -1117,9 +981,6 @@ pub struct ArgsOwnership {
 
 impl fmt::Display for ArgsOwnership {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(self_) = self.self_.as_ref() {
-            write!(f, "({self_:?}).")?;
-        }
         write!(f, "(")?;
         for (i, o) in self.non_defaults.iter().enumerate() {
             if i != 0 {
@@ -1140,13 +1001,11 @@ impl fmt::Display for ArgsOwnership {
 
 impl ArgsOwnership {
     pub const fn new(
-        self_: Option<Ownership>,
         non_defaults: Vec<Ownership>,
         var_params: Option<Ownership>,
         defaults: Vec<(Str, Ownership)>,
     ) -> Self {
         Self {
-            self_,
             non_defaults,
             var_params,
             defaults,
@@ -1182,7 +1041,10 @@ pub enum Type {
     Mono(Str),
     /* Polymorphic types */
     Ref(Box<Type>),
-    RefMut(Box<Type>),
+    RefMut {
+        before: Box<Type>,
+        after: Option<Box<Type>>,
+    },
     Subr(SubrType),
     // CallableはProcの上位型なので、変数に!をつける
     Callable {
@@ -1248,7 +1110,17 @@ impl PartialEq for Type {
             | (Self::Never, Self::Never) => true,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
-            (Self::Ref(l), Self::Ref(r)) | (Self::RefMut(l), Self::RefMut(r)) => l == r,
+            (Self::Ref(l), Self::Ref(r)) => l == r,
+            (
+                Self::RefMut {
+                    before: l1,
+                    after: l2,
+                },
+                Self::RefMut {
+                    before: r1,
+                    after: r2,
+                },
+            ) => l1 == r1 && l2 == r2,
             (Self::Subr(l), Self::Subr(r)) => l == r,
             (
                 Self::Callable {
@@ -1332,9 +1204,18 @@ impl LimitedDisplay for Type {
         }
         match self {
             Self::Mono(name) => write!(f, "{name}"),
-            Self::Ref(t) | Self::RefMut(t) => {
+            Self::Ref(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::RefMut { before, after } => {
+                write!(f, "{}(", self.name())?;
+                before.limited_fmt(f, limit - 1)?;
+                if let Some(after) = after {
+                    write!(f, " ~> ")?;
+                    after.limited_fmt(f, limit - 1)?;
+                }
                 write!(f, ")")
             }
             Self::Callable { param_ts, return_t } => {
@@ -1492,8 +1373,12 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
-            Self::Ref(t) | Self::RefMut(t) => {
+            Self::Ref(t) => {
                 vec![t.as_ref().clone()]
+            }
+            Self::RefMut { before, .. } => {
+                // REVIEW:
+                vec![before.as_ref().clone()]
             }
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
@@ -1522,7 +1407,13 @@ impl HasLevel for Type {
     fn update_level(&self, level: Level) {
         match self {
             Self::FreeVar(v) => v.update_level(level),
-            Self::Ref(t) | Self::RefMut(t) => t.update_level(level),
+            Self::Ref(t) => t.update_level(level),
+            Self::RefMut { before, after } => {
+                before.update_level(level);
+                if let Some(after) = after {
+                    after.update_level(level);
+                }
+            }
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.update_level(level);
@@ -1530,7 +1421,6 @@ impl HasLevel for Type {
                 return_t.update_level(level);
             }
             Self::Subr(subr) => {
-                subr.kind.update_level(level);
                 for pt in subr.non_default_params.iter() {
                     pt.typ().update_level(level);
                 }
@@ -1578,7 +1468,13 @@ impl HasLevel for Type {
     fn lift(&self) {
         match self {
             Self::FreeVar(v) => v.lift(),
-            Self::Ref(t) | Self::RefMut(t) => t.lift(),
+            Self::Ref(t) => t.lift(),
+            Self::RefMut { before, after } => {
+                before.lift();
+                if let Some(after) = after {
+                    after.lift();
+                }
+            }
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
                     p.lift();
@@ -1586,7 +1482,6 @@ impl HasLevel for Type {
                 return_t.lift();
             }
             Self::Subr(subr) => {
-                subr.kind.lift();
                 for pt in subr.non_default_params.iter() {
                     pt.typ().lift();
                 }
@@ -1763,12 +1658,11 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().args_ownership(),
             Self::Refinement(refine) => refine.t.args_ownership(),
             Self::Subr(subr) => {
-                let self_ = subr.kind.self_t().map(|t| t.ownership());
                 let mut nd_args = vec![];
                 for nd_param in subr.non_default_params.iter() {
                     let ownership = match nd_param.typ() {
                         Self::Ref(_) => Ownership::Ref,
-                        Self::RefMut(_) => Ownership::RefMut,
+                        Self::RefMut { .. } => Ownership::RefMut,
                         _ => Ownership::Owned,
                     };
                     nd_args.push(ownership);
@@ -1778,12 +1672,12 @@ impl Type {
                 for d_param in subr.default_params.iter() {
                     let ownership = match d_param.typ() {
                         Self::Ref(_) => Ownership::Ref,
-                        Self::RefMut(_) => Ownership::RefMut,
+                        Self::RefMut { .. } => Ownership::RefMut,
                         _ => Ownership::Owned,
                     };
                     d_args.push((d_param.name().unwrap().clone(), ownership));
                 }
-                ArgsOwnership::new(self_, nd_args, var_args, d_args)
+                ArgsOwnership::new(nd_args, var_args, d_args)
             }
             _ => todo!(),
         }
@@ -1794,7 +1688,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().ownership(),
             Self::Refinement(refine) => refine.t.ownership(),
             Self::Ref(_) => Ownership::Ref,
-            Self::RefMut(_) => Ownership::RefMut,
+            Self::RefMut { .. } => Ownership::RefMut,
             _ => Ownership::Owned,
         }
     }
@@ -1824,7 +1718,7 @@ impl Type {
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
             Self::Ref(_) => Str::ever("Ref"),
-            Self::RefMut(_) => Str::ever("RefMut"),
+            Self::RefMut { .. } => Str::ever("RefMut"),
             Self::Subr(SubrType {
                 kind: SubrKind::Func,
                 ..
@@ -1833,14 +1727,6 @@ impl Type {
                 kind: SubrKind::Proc,
                 ..
             }) => Str::ever("Proc"),
-            Self::Subr(SubrType {
-                kind: SubrKind::FuncMethod(_),
-                ..
-            }) => Str::ever("FuncMethod"),
-            Self::Subr(SubrType {
-                kind: SubrKind::ProcMethod { .. },
-                ..
-            }) => Str::ever("ProcMethod"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
             Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
@@ -1891,7 +1777,7 @@ impl Type {
         matches!(self, Self::Subr { .. } | Self::Callable { .. })
     }
 
-    pub fn is_tyvar(&self) -> bool {
+    pub fn is_unbound_var(&self) -> bool {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound())
     }
 
@@ -1905,7 +1791,10 @@ impl Type {
                     fv.crack().has_qvar()
                 }
             }
-            Self::Ref(t) | Self::RefMut(t) => t.has_qvar(),
+            Self::Ref(t) => t.has_qvar(),
+            Self::RefMut { before, after } => {
+                before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
+            }
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.has_qvar() || rhs.has_qvar()
             }
@@ -1930,7 +1819,10 @@ impl Type {
     pub fn is_cachable(&self) -> bool {
         match self {
             Self::FreeVar(_) => false,
-            Self::Ref(t) | Self::RefMut(t) => t.is_cachable(),
+            Self::Ref(t) => t.is_cachable(),
+            Self::RefMut { before, after } => {
+                before.is_cachable() && after.as_ref().map(|t| t.is_cachable()).unwrap_or(true)
+            }
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.is_cachable() && rhs.is_cachable()
             }
@@ -1938,15 +1830,13 @@ impl Type {
                 param_ts.iter().all(|t| t.is_cachable()) && return_t.is_cachable()
             }
             Self::Subr(subr) => {
-                subr.kind.is_cachable()
-                    && subr
-                        .non_default_params
-                        .iter()
-                        .all(|pt| pt.typ().has_unbound_var())
+                subr.non_default_params
+                    .iter()
+                    .all(|pt| pt.typ().is_cachable())
                     && subr
                         .var_params
                         .as_ref()
-                        .map(|pt| pt.typ().has_unbound_var())
+                        .map(|pt| pt.typ().is_cachable())
                         .unwrap_or(false)
                     && subr.default_params.iter().all(|pt| pt.typ().is_cachable())
                     && subr.return_t.is_cachable()
@@ -1975,7 +1865,11 @@ impl Type {
                     fv.crack().has_unbound_var()
                 }
             }
-            Self::Ref(t) | Self::RefMut(t) => t.has_unbound_var(),
+            Self::Ref(t) => t.has_unbound_var(),
+            Self::RefMut { before, after } => {
+                before.has_unbound_var()
+                    || after.as_ref().map(|t| t.has_unbound_var()).unwrap_or(false)
+            }
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.has_unbound_var() || rhs.has_unbound_var()
             }
@@ -1983,11 +1877,9 @@ impl Type {
                 param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
             }
             Self::Subr(subr) => {
-                subr.kind.has_unbound_var()
-                    || subr
-                        .non_default_params
-                        .iter()
-                        .any(|pt| pt.typ().has_unbound_var())
+                subr.non_default_params
+                    .iter()
+                    .any(|pt| pt.typ().has_unbound_var())
                     || subr
                         .var_params
                         .as_ref()
@@ -2024,11 +1916,10 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams_len(),
             Self::Refinement(refine) => refine.t.typarams_len(),
             // REVIEW:
-            Self::Ref(_) | Self::RefMut(_) => Some(1),
+            Self::Ref(_) | Self::RefMut { .. } => Some(1),
             Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => Some(2),
             Self::Subr(subr) => Some(
-                subr.kind.inner_len()
-                    + subr.non_default_params.len()
+                subr.non_default_params.len()
                     + subr.var_params.as_ref().map(|_| 1).unwrap_or(0)
                     + subr.default_params.len()
                     + 1,
@@ -2044,7 +1935,7 @@ impl Type {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),
             Self::FreeVar(_unbound) => vec![],
             Self::Refinement(refine) => refine.t.typarams(),
-            Self::Ref(t) | Self::RefMut(t) => vec![TyParam::t(*t.clone())],
+            Self::Ref(t) | Self::RefMut { before: t, .. } => vec![TyParam::t(*t.clone())],
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
@@ -2059,10 +1950,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => todo!("linked: {fv}"),
             Self::Refinement(refine) => refine.t.self_t(),
-            Self::Subr(SubrType {
-                kind: SubrKind::FuncMethod(self_t) | SubrKind::ProcMethod { before: self_t, .. },
-                ..
-            }) => Some(self_t),
+            Self::Subr(subr) => subr.self_t(),
             _ => None,
         }
     }

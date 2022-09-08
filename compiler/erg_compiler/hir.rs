@@ -1475,7 +1475,7 @@ impl Expr {
     pub fn __name__(&self) -> Option<&str> {
         match self {
             Expr::Accessor(acc) => acc.__name__(),
-            _ => todo!(),
+            _ => None,
         }
     }
 }

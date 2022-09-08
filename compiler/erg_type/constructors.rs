@@ -98,8 +98,11 @@ pub fn ref_(t: Type) -> Type {
     Type::Ref(Box::new(t))
 }
 
-pub fn ref_mut(t: Type) -> Type {
-    Type::RefMut(Box::new(t))
+pub fn ref_mut(before: Type, after: Option<Type>) -> Type {
+    Type::RefMut {
+        before: Box::new(before),
+        after: after.map(Box::new),
+    }
 }
 
 pub fn option(t: Type) -> Type {
@@ -207,13 +210,14 @@ pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
 
 pub fn fn_met(
     self_t: Type,
-    non_default_params: Vec<ParamTy>,
+    mut non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
+    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
     Type::Subr(SubrType::new(
-        SubrKind::FuncMethod(Box::new(self_t)),
+        SubrKind::Func,
         non_default_params,
         var_params,
         default_params,
@@ -236,15 +240,15 @@ pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
 }
 
 pub fn pr_met(
-    self_before: Type,
-    self_after: Option<Type>,
-    non_default_params: Vec<ParamTy>,
+    self_t: Type,
+    mut non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
+    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
     Type::Subr(SubrType::new(
-        SubrKind::pr_met(self_before, self_after),
+        SubrKind::Proc,
         non_default_params,
         var_params,
         default_params,
@@ -252,14 +256,13 @@ pub fn pr_met(
     ))
 }
 
-pub fn pr0_met(self_before: Type, self_after: Option<Type>, return_t: Type) -> Type {
-    pr_met(self_before, self_after, vec![], None, vec![], return_t)
+pub fn pr0_met(self_t: Type, return_t: Type) -> Type {
+    pr_met(self_t, vec![], None, vec![], return_t)
 }
 
-pub fn pr1_met(self_before: Type, self_after: Option<Type>, input_t: Type, return_t: Type) -> Type {
+pub fn pr1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
     pr_met(
-        self_before,
-        self_after,
+        self_t,
         vec![ParamTy::anonymous(input_t)],
         None,
         vec![],
