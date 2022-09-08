@@ -608,7 +608,7 @@ impl ASTLowerer {
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
         if let Some(sups) = self.ctx.rec_get_nominal_super_type_ctxs(class) {
-            for (sup_t, sup) in sups {
+            for (sup_t, sup) in sups.skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(&method_name.inspect()) {
                         // must `@Override`

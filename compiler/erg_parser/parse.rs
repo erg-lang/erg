@@ -835,6 +835,9 @@ impl Parser {
         } else {
             todo!()
         }
+        while self.cur_is(Newline) {
+            self.skip();
+        }
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         let first = option_enum_unwrap!(first, Expr::Def).unwrap_or_else(|| todo!());
         let mut defs = vec![first];
