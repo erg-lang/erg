@@ -508,6 +508,7 @@ impl Context {
         Ok(())
     }
 
+    /// e.g. .new
     fn register_auto_impl(
         &mut self,
         name: &'static str,
@@ -521,6 +522,23 @@ impl Context {
         } else {
             self.locals
                 .insert(name, VarInfo::new(t, muty, vis, VarKind::Auto, None));
+        }
+    }
+
+    /// e.g. ::__new__
+    fn register_fixed_auto_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+    ) {
+        let name = VarName::from_static(name);
+        if self.locals.get(&name).is_some() {
+            panic!("already registered: {name}");
+        } else {
+            self.locals
+                .insert(name, VarInfo::new(t, muty, vis, VarKind::FixedAuto, None));
         }
     }
 
@@ -577,11 +595,13 @@ impl Context {
                 if gen.t.is_monomorphic() {
                     let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
+                    let mut methods = Self::methods(gen.t.name(), self.level);
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
-                    ctx.register_auto_impl("__new__", new_t.clone(), Immutable, Private);
+                    methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
-                    ctx.register_auto_impl("new", new_t, Immutable, Public);
+                    methods.register_auto_impl("new", new_t, Immutable, Public);
+                    ctx.method_defs.push((gen.t.clone(), methods));
                     self.register_gen_mono_type(gen, ctx, Const);
                 } else {
                     todo!()
@@ -593,6 +613,7 @@ impl Context {
                     let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx =
                         Self::mono_class(gen.t.name(), super_classes, super_traits, self.level);
+                    let mut methods = Self::methods(gen.t.name(), self.level);
                     if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
                         let param_t = match sup {
@@ -607,9 +628,15 @@ impl Context {
                             param_t.clone()
                         };
                         let new_t = func1(param_t, gen.t.clone());
-                        ctx.register_auto_impl("__new__", new_t.clone(), Immutable, Private);
+                        methods.register_fixed_auto_impl(
+                            "__new__",
+                            new_t.clone(),
+                            Immutable,
+                            Private,
+                        );
                         // 必要なら、ユーザーが独自に上書きする
-                        ctx.register_auto_impl("new", new_t, Immutable, Public);
+                        methods.register_auto_impl("new", new_t, Immutable, Public);
+                        ctx.method_defs.push((gen.t.clone(), methods));
                         self.register_gen_mono_type(gen, ctx, Const);
                     } else {
                         todo!("super class not found")

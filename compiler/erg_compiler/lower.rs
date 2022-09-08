@@ -570,10 +570,33 @@ impl ASTLowerer {
                 }
             }
             match self.ctx.pop() {
-                Ok(ctx) => {
-                    self.check_override(&class, &ctx);
+                Ok(methods) => {
+                    self.check_override(&class, &methods);
                     if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
-                        class_root.method_defs.push((class, ctx));
+                        for (newly_defined_name, _vi) in methods.locals.iter() {
+                            for (_, already_defined_methods) in class_root.method_defs.iter_mut() {
+                                // TODO: 特殊化なら同じ名前でもOK
+                                // TODO: 定義のメソッドもエラー表示
+                                if let Some((_already_defined_name, already_defined_vi)) =
+                                    already_defined_methods
+                                        .get_local_kv(&newly_defined_name.inspect())
+                                {
+                                    if already_defined_vi.kind != VarKind::Auto {
+                                        self.errs.push(LowerError::duplicate_definition_error(
+                                            line!() as usize,
+                                            newly_defined_name.loc(),
+                                            methods.name.clone(),
+                                            newly_defined_name.inspect(),
+                                        ));
+                                    } else {
+                                        already_defined_methods
+                                            .locals
+                                            .remove(&newly_defined_name.inspect()[..]);
+                                    }
+                                }
+                            }
+                        }
+                        class_root.method_defs.push((class, methods));
                     } else {
                         todo!()
                     }
