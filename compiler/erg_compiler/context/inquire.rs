@@ -714,7 +714,7 @@ impl Context {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 log!(err "errno: {}", e.core.errno);
                 // REVIEW:
-                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckError::type_mismatch_error(
                     line!() as usize,
@@ -755,7 +755,7 @@ impl Context {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 log!(err "errno: {}", e.core.errno);
                 // REVIEW:
-                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckError::type_mismatch_error(
                     line!() as usize,
@@ -798,7 +798,7 @@ impl Context {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     log!(err "errno: {}", e.core.errno);
                     // REVIEW:
-                    let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                    let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                     let name = name + "::" + readable_name(kw_name);
                     TyCheckError::type_mismatch_error(
                         line!() as usize,
@@ -1218,9 +1218,9 @@ impl Context {
         log!("{}", obj.ref_t());
         match obj.ref_t() {
             // TODO: attr
-            Type::Module => self.rec_get_mod(&obj.var_full_name()?),
+            Type::Module => self.rec_get_mod(&obj.show_acc()?),
             Type::Type | Type::Class => {
-                let typ = Type::Mono(Str::from(obj.var_full_name().unwrap()));
+                let typ = Type::Mono(Str::from(obj.show_acc().unwrap()));
                 self.rec_get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
             }
             Type::Trait => todo!(),

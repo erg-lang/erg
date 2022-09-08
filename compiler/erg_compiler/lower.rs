@@ -633,7 +633,7 @@ impl ASTLowerer {
     fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {
         match expr {
             acc @ hir::Expr::Accessor(_) => acc,
-            hir::Expr::Call(mut call) => match call.obj.var_full_name().as_ref().map(|s| &s[..]) {
+            hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
                 Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
                 Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
                 Some("Inheritable") => {

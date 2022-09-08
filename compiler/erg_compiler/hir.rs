@@ -475,18 +475,26 @@ impl Accessor {
         Self::Subscr(Subscript::new(obj, index, t))
     }
 
-    pub fn var_full_name(&self) -> Option<String> {
+    pub fn show(&self) -> String {
         match self {
-            Self::Local(local) => Some(readable_name(local.inspect()).to_string()),
-            Self::Attr(attr) => attr
-                .obj
-                .var_full_name()
-                .map(|n| n + "." + readable_name(attr.name.inspect())),
-            Self::TupleAttr(t_attr) => t_attr
-                .obj
-                .var_full_name()
-                .map(|n| n + "." + t_attr.index.token.inspect()),
-            Self::Subscr(_) | Self::Public(_) => todo!(),
+            Self::Local(local) => readable_name(local.inspect()).to_string(),
+            Self::Public(public) => readable_name(public.inspect()).to_string(),
+            Self::Attr(attr) => {
+                attr.obj
+                    .show_acc()
+                    .unwrap_or_else(|| attr.obj.ref_t().to_string())
+                    + "."
+                    + readable_name(attr.name.inspect())
+            }
+            Self::TupleAttr(t_attr) => {
+                t_attr
+                    .obj
+                    .show_acc()
+                    .unwrap_or_else(|| t_attr.obj.ref_t().to_string())
+                    + "."
+                    + t_attr.index.token.inspect()
+            }
+            Self::Subscr(_) => todo!(),
         }
     }
 
@@ -970,7 +978,7 @@ impl Call {
 
     pub fn is_import_call(&self) -> bool {
         self.obj
-            .var_full_name()
+            .show_acc()
             .map(|s| &s[..] == "import" || &s[..] == "pyimport" || &s[..] == "py")
             .unwrap_or(false)
     }
@@ -1464,9 +1472,9 @@ impl Expr {
         }
     }
 
-    pub fn var_full_name(&self) -> Option<String> {
+    pub fn show_acc(&self) -> Option<String> {
         match self {
-            Expr::Accessor(acc) => acc.var_full_name(),
+            Expr::Accessor(acc) => Some(acc.show()),
             _ => None,
         }
     }
