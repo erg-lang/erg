@@ -32,8 +32,8 @@ use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::AttrDef;
 use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, Def, DefBody, Expr, Literal, Local, Signature,
-    SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, Block, Call, ClassDef, Def, DefBody, Expr, Literal, Local, PosArg,
+    Signature, SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -446,7 +446,7 @@ impl CodeGenerator {
         self.stack_inc();
     }
 
-    fn local_search(&self, name: &str, acc_kind: AccessKind) -> Option<Name> {
+    fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
         let current_is_toplevel = self.cur_block() == self.toplevel_block();
         if let Some(idx) = self
             .cur_block_codeobj()
@@ -454,11 +454,7 @@ impl CodeGenerator {
             .iter()
             .position(|n| &**n == name)
         {
-            if current_is_toplevel || !acc_kind.is_local() {
-                Some(Name::local(idx))
-            } else {
-                Some(Name::global(idx))
-            }
+            Some(Name::local(idx))
         } else if let Some(idx) = self
             .cur_block_codeobj()
             .varnames
@@ -667,6 +663,8 @@ impl CodeGenerator {
         }
     }
 
+    /// Ergの文法として、属性への代入は存在しない(必ずオブジェクトはすべての属性を初期化しなくてはならないため)
+    /// この関数はPythonへ落とし込むときに使う
     fn store_acc(&mut self, acc: Accessor) {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
@@ -719,6 +717,11 @@ impl CodeGenerator {
             .non_defaults
             .iter()
             .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
+            .chain(if let Some(var_args) = &params.var_args {
+                vec![var_args.inspect().map(|s| &s[..]).unwrap_or("_")]
+            } else {
+                vec![]
+            })
             .chain(
                 params
                     .defaults
@@ -783,7 +786,7 @@ impl CodeGenerator {
         self.emit_store_instr(sig.ident, Name);
     }
 
-    fn emit_subr_def(&mut self, sig: SubrSignature, body: DefBody) {
+    fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
         log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         let name = sig.ident.inspect().clone();
         let mut opcode_flag = 0u8;
@@ -800,7 +803,11 @@ impl CodeGenerator {
             self.write_arg(cellvars_len);
             opcode_flag += 8;
         }
-        self.emit_load_const(name.clone());
+        if let Some(class) = class_name {
+            self.emit_load_const(Str::from(format!("{class}.{name}")));
+        } else {
+            self.emit_load_const(name);
+        }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(opcode_flag);
         // stack_dec: <code obj> + <name> -> <function>
@@ -989,12 +996,15 @@ impl CodeGenerator {
                 Expr::Accessor(Accessor::Local(local)) => {
                     self.emit_call_local(local, call.args).unwrap()
                 }
-                other => todo!("calling {other}"),
+                other => {
+                    self.codegen_expr(other);
+                    self.emit_args(call.args);
+                }
             }
         }
     }
 
-    fn emit_call_local(&mut self, local: Local, mut args: Args) -> CompileResult<()> {
+    fn emit_call_local(&mut self, local: Local, args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
@@ -1008,33 +1018,13 @@ impl CodeGenerator {
                 self.emit_load_name_instr(ident).unwrap_or_else(|e| {
                     self.errs.push(e);
                 });
-                let argc = args.len();
-                let mut kws = Vec::with_capacity(args.kw_len());
-                while let Some(arg) = args.try_remove_pos(0) {
-                    self.codegen_expr(arg.expr);
-                }
-                while let Some(arg) = args.try_remove_kw(0) {
-                    kws.push(ValueObj::Str(arg.keyword.content.clone()));
-                    self.codegen_expr(arg.expr);
-                }
-                let kwsc = if !kws.is_empty() {
-                    let kws_tuple = ValueObj::from(kws);
-                    self.emit_load_const(kws_tuple);
-                    self.write_instr(CALL_FUNCTION_KW);
-                    1
-                } else {
-                    self.write_instr(CALL_FUNCTION);
-                    0
-                };
-                self.write_arg(argc as u8);
-                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
-                self.stack_dec_n((1 + argc + kwsc) - 1);
+                self.emit_args(args);
                 Ok(())
             }
         }
     }
 
-    fn emit_call_method(&mut self, obj: Expr, method_name: Token, mut args: Args) {
+    fn emit_call_method(&mut self, obj: Expr, method_name: Token, args: Args) {
         log!(info "entered {}", fn_name!());
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
@@ -1050,10 +1040,28 @@ impl CodeGenerator {
         .unwrap_or_else(|err| {
             self.errs.push(err);
         });
+        self.emit_args(args);
+    }
+
+    fn emit_args(&mut self, mut args: Args) {
         let argc = args.len();
+        let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
         while let Some(arg) = args.try_remove_pos(0) {
             self.codegen_expr(arg.expr);
+        }
+        if let Some(var_args) = &args.var_args {
+            if pos_len > 0 {
+                self.write_instr(Opcode::BUILD_LIST);
+                self.write_arg(pos_len as u8);
+            }
+            self.codegen_expr(var_args.expr.clone());
+            if pos_len > 0 {
+                self.write_instr(Opcode::LIST_EXTEND);
+                self.write_arg(1);
+                self.write_instr(Opcode::LIST_TO_TUPLE);
+                self.write_arg(0);
+            }
         }
         while let Some(arg) = args.try_remove_kw(0) {
             kws.push(ValueObj::Str(arg.keyword.content.clone()));
@@ -1063,13 +1071,23 @@ impl CodeGenerator {
             let kws_tuple = ValueObj::from(kws);
             self.emit_load_const(kws_tuple);
             self.write_instr(CALL_FUNCTION_KW);
+            self.write_arg(argc as u8);
             1
         } else {
-            self.write_instr(CALL_METHOD);
+            if args.var_args.is_some() {
+                self.write_instr(CALL_FUNCTION_EX);
+                if kws.is_empty() {
+                    self.write_arg(0);
+                } else {
+                    self.write_arg(1);
+                }
+            } else {
+                self.write_instr(CALL_FUNCTION);
+                self.write_arg(argc as u8);
+            }
             0
         };
-        self.write_arg(argc as u8);
-        // (1 (method) + argc + kwsc) input objects -> 1 return object
+        // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + argc + kwsc) - 1);
     }
 
@@ -1149,7 +1167,7 @@ impl CodeGenerator {
             }
             Expr::Accessor(acc) => self.codegen_acc(acc),
             Expr::Def(def) => match def.sig {
-                Signature::Subr(sig) => self.emit_subr_def(sig, def.body),
+                Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
                 Signature::Var(sig) => self.emit_var_def(sig, def.body),
             },
             Expr::ClassDef(class) => self.emit_class_def(class),
@@ -1420,14 +1438,17 @@ impl CodeGenerator {
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
         self.emit_store_instr(Identifier::public("__module__"), Name);
-        self.emit_load_const(name);
+        self.emit_load_const(name.clone());
         self.emit_store_instr(Identifier::public("__qualname__"), Name);
+        self.emit_init_method(&class.sig, class.__new__.clone());
         if class.need_to_gen_new {
-            self.emit_auto_new(&class.sig, class.__new__);
+            self.emit_new_func(&class.sig, class.__new__);
         }
-        // TODO: サブルーチンはT.subという書式でSTORE
         for def in class.private_methods.into_iter() {
-            self.codegen_expr(Expr::Def(def));
+            match def.sig {
+                Signature::Subr(sig) => self.emit_subr_def(Some(&name[..]), sig, def.body),
+                Signature::Var(sig) => self.emit_var_def(sig, def.body),
+            }
             // TODO: discard
             if self.cur_block().stack_len == 1 {
                 self.emit_pop_top();
@@ -1435,7 +1456,10 @@ impl CodeGenerator {
         }
         for mut def in class.public_methods.into_iter() {
             def.sig.ident_mut().dot = Some(Token::dummy());
-            self.codegen_expr(Expr::Def(def));
+            match def.sig {
+                Signature::Subr(sig) => self.emit_subr_def(Some(&name[..]), sig, def.body),
+                Signature::Var(sig) => self.emit_var_def(sig, def.body),
+            }
             // TODO: discard
             if self.cur_block().stack_len == 1 {
                 self.emit_pop_top();
@@ -1474,7 +1498,7 @@ impl CodeGenerator {
         unit.codeobj
     }
 
-    fn emit_auto_new(&mut self, sig: &Signature, __new__: Type) {
+    fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
@@ -1521,6 +1545,47 @@ impl CodeGenerator {
         let body = DefBody::new(Token::dummy(), block, DefId(0));
         let init_def = Def::new(sig, body.clone());
         self.codegen_expr(Expr::Def(init_def));
+    }
+
+    /// ```python
+    /// class C:
+    ///     def new(*x): return C.__call__(*x)
+    /// ```
+    fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
+        log!(info "entered {}", fn_name!());
+        let class_name = sig.ident().inspect();
+        let line = sig.ln_begin().unwrap();
+        let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
+        let param_name = fresh_varname();
+        let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+        let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
+        let sig = SubrSignature::new(
+            ident,
+            Params::new(vec![], Some(param), vec![], None),
+            __new__.clone(),
+        );
+        let var_args = PosArg::new(Expr::Accessor(Accessor::local(
+            Token::symbol_with_line(&param_name[..], line),
+            Type::Failure,
+        )));
+        let class = Expr::Accessor(Accessor::local(
+            Token::symbol_with_line(class_name, line),
+            Type::Failure,
+        ));
+        let class_new = Expr::Accessor(Accessor::attr(
+            class,
+            Token::symbol_with_line("__new__", line),
+            Type::Failure,
+        ));
+        let call = Expr::Call(Call::new(
+            class_new,
+            None,
+            Args::new(vec![], Some(var_args), vec![], None),
+            Type::Failure,
+        ));
+        let block = Block::new(vec![call]);
+        let body = DefBody::new(Token::dummy(), block, DefId(0));
+        self.emit_subr_def(Some(&class_name[..]), sig, body);
     }
 
     fn codegen_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
