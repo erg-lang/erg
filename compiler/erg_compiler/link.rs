@@ -1,25 +1,29 @@
 use erg_common::dict::Dict;
 use erg_common::log;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{ClassDef, Expr, Module, PreDeclTypeSpec, TypeSpec, AST};
+
+use crate::error::{TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug)]
 pub struct Linker {
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
+    pub errs: TyCheckErrors,
 }
 
 impl Linker {
     pub fn new() -> Self {
         Self {
             def_root_pos_map: Dict::new(),
+            errs: TyCheckErrors::empty(),
         }
     }
 
-    pub fn link(&mut self, mut ast: AST) -> AST {
+    pub fn link(mut self, mut ast: AST) -> Result<AST, TyCheckErrors> {
         log!(info "the linking process has started.");
         let mut new = vec![];
         while let Some(chunk) = ast.module.lpop() {
@@ -57,9 +61,18 @@ impl Linker {
                             class_def.methods_list.push(methods);
                             new.insert(*pos, Expr::ClassDef(class_def));
                         } else {
-                            log!("{}", simple.name.inspect());
-                            log!("{}", self.def_root_pos_map);
-                            todo!()
+                            let similar_name = Str::from(
+                                self.def_root_pos_map
+                                    .keys()
+                                    .fold("".to_string(), |acc, key| acc + &key[..] + ","),
+                            );
+                            self.errs.push(TyCheckError::no_var_error(
+                                line!() as usize,
+                                methods.class.loc(),
+                                "".into(),
+                                simple.name.inspect(),
+                                Some(&similar_name),
+                            ));
                         }
                     }
                     other => todo!("{other}"),
@@ -71,6 +84,10 @@ impl Linker {
         }
         let ast = AST::new(ast.name, Module::new(new));
         log!(info "the linking process has completed:\n{}", ast);
-        ast
+        if self.errs.is_empty() {
+            Ok(ast)
+        } else {
+            Err(self.errs)
+        }
     }
 }

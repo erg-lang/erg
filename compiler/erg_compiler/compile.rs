@@ -164,8 +164,8 @@ impl Compiler {
         cfg.input = Input::Str(src);
         let mut parser = ParserRunner::new(cfg);
         let ast = parser.parse()?;
-        let mut linker = Linker::new();
-        let ast = linker.link(ast);
+        let linker = Linker::new();
+        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
         let (hir, warns) = self
             .lowerer
             .lower(ast, mode)
