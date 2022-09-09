@@ -2628,6 +2628,19 @@ impl Signature {
         }
     }
 
+    pub fn ident_mut(&mut self) -> Option<&mut Identifier> {
+        match self {
+            Self::Var(var) => {
+                if let VarPattern::Ident(ident) = &mut var.pat {
+                    Some(ident)
+                } else {
+                    None
+                }
+            }
+            Self::Subr(subr) => Some(&mut subr.ident),
+        }
+    }
+
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),

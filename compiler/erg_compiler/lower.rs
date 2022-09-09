@@ -598,11 +598,18 @@ impl ASTLowerer {
             for def in methods.defs.iter() {
                 self.ctx.preregister_def(def)?;
             }
-            for def in methods.defs.into_iter() {
-                let def = self.lower_def(def)?;
+            for mut def in methods.defs.into_iter() {
                 if methods.vis.is(TokenKind::Dot) {
+                    def.sig.ident_mut().unwrap().dot = Some(Token::new(
+                        TokenKind::Dot,
+                        ".",
+                        def.sig.ln_begin().unwrap(),
+                        def.sig.col_begin().unwrap(),
+                    ));
+                    let def = self.lower_def(def)?;
                     public_methods.push(def);
                 } else {
+                    let def = self.lower_def(def)?;
                     private_methods.push(def);
                 }
             }

@@ -340,29 +340,41 @@ impl Context {
                 .rec_get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| todo!())?
             {
-                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
-                    return Ok(vi.t());
-                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
+                if let Some(vi) = ctx
+                    .locals
+                    .get(method_name.inspect())
+                    .or_else(|| ctx.decls.get(method_name.inspect()))
+                {
+                    self.validate_visibility(method_name, vi)?;
                     return Ok(vi.t());
                 }
                 for (_, methods_ctx) in ctx.method_defs.iter() {
-                    if let Some(vi) = methods_ctx.locals.get(method_name.inspect()) {
-                        return Ok(vi.t());
-                    } else if let Some(vi) = methods_ctx.decls.get(method_name.inspect()) {
+                    if let Some(vi) = methods_ctx
+                        .locals
+                        .get(method_name.inspect())
+                        .or_else(|| methods_ctx.decls.get(method_name.inspect()))
+                    {
+                        self.validate_visibility(method_name, vi)?;
                         return Ok(vi.t());
                     }
                 }
             }
             if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
-                if let Some(vi) = singular_ctx.locals.get(method_name.inspect()) {
-                    return Ok(vi.t());
-                } else if let Some(vi) = singular_ctx.decls.get(method_name.inspect()) {
+                if let Some(vi) = singular_ctx
+                    .locals
+                    .get(method_name.inspect())
+                    .or_else(|| singular_ctx.decls.get(method_name.inspect()))
+                {
+                    self.validate_visibility(method_name, vi)?;
                     return Ok(vi.t());
                 }
                 for (_, method_ctx) in singular_ctx.method_defs.iter() {
-                    if let Some(vi) = method_ctx.locals.get(method_name.inspect()) {
-                        return Ok(vi.t());
-                    } else if let Some(vi) = method_ctx.decls.get(method_name.inspect()) {
+                    if let Some(vi) = method_ctx
+                        .locals
+                        .get(method_name.inspect())
+                        .or_else(|| method_ctx.decls.get(method_name.inspect()))
+                    {
+                        self.validate_visibility(method_name, vi)?;
                         return Ok(vi.t());
                     }
                 }
@@ -387,6 +399,20 @@ impl Context {
             ))
         } else {
             Ok(obj.t())
+        }
+    }
+
+    fn validate_visibility(&self, ident: &Identifier, vi: &VarInfo) -> TyCheckResult<()> {
+        if ident.vis() != vi.vis {
+            Err(TyCheckError::visibility_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                vi.vis,
+            ))
+        } else {
+            Ok(())
         }
     }
 
