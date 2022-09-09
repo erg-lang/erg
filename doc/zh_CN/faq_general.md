@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3Deccd113c1512076c367fb87ea73406f91ff83ba7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=eccd113c1512076c367fb87ea73406f91ff83ba7)
 
-This FAQ is intended for the general Erg beginner.
-For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
-[Here](./dev_guide/faq_syntax.md) for more information.
+此常见问题解答适用于一般 Erg 初学者。
+对于个别（常见）技术问题，请参阅 [此处](./faq_technical.md) 了解个别（常见）技术问题，以及
+[这里](./dev_guide/faq_syntax.md) 了解更多信息。
 
 ## Erg 是 Python 兼容语言是什么意思？
 
@@ -19,7 +19,7 @@ A: Erg 代码被转译成 Python 字节码。也就是说，它运行在与 Pyth
 
 ## 可以调用 Python 的语言包括 Julia。你为什么创建 Erg？
 
-答：Erg 设计的动机之一是拥有一种易于使用且具有强大类型系统的语言。即具有类型推断、种类、依赖类型等的语言。
+答：Erg 设计的动机之一是拥有一种易于使用且具有强大类型系统的语言。即具有类型推断、Kind、依赖类型等的语言。
 Julia 是可以有类型的，但它确实是一种动态类型语言，不具备静态类型语言的编译时错误检测优势。
 
 ## Erg 支持多种编程风格，包括函数式和面向对象的编程。这不是与 Python 的“应该有一种——最好只有一种——明显的方法”相反吗？
