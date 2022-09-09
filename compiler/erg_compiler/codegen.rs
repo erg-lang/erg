@@ -1024,7 +1024,7 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_call_method(&mut self, obj: Expr, method_name: Token, args: Args) {
+    fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
@@ -1035,7 +1035,7 @@ impl CodeGenerator {
         self.emit_load_method_instr(
             &class,
             uniq_obj_name.as_ref().map(|s| &s[..]),
-            method_name.content,
+            method_name.name.into_token().content,
         )
         .unwrap_or_else(|err| {
             self.errs.push(err);

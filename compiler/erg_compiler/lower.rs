@@ -384,11 +384,19 @@ impl ASTLowerer {
         let class = self.lower_expr(*pack.class)?;
         let args = self.lower_record(pack.args)?;
         let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
-        let method_name = Token::new(
-            TokenKind::Symbol,
-            Str::rc("new"),
-            pack.connector.lineno,
-            pack.connector.col_begin,
+        let method_name = ast::Identifier::new(
+            Some(Token::new(
+                TokenKind::Dot,
+                Str::ever("."),
+                pack.connector.lineno,
+                pack.connector.col_begin,
+            )),
+            ast::VarName::new(Token::new(
+                TokenKind::Symbol,
+                Str::ever("new"),
+                pack.connector.lineno,
+                pack.connector.col_begin,
+            )),
         );
         let sig_t = self.ctx.get_call_t(
             &class,

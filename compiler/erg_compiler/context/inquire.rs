@@ -11,7 +11,7 @@ use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
 use Type::*;
 
 use ast::VarName;
-use erg_parser::ast;
+use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
 use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
@@ -332,7 +332,7 @@ impl Context {
     fn search_callee_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
@@ -592,7 +592,7 @@ impl Context {
     fn substitute_call(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
@@ -605,8 +605,12 @@ impl Context {
                 self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
             }
             Type::Subr(subr) => {
-                let callee = if let Some(name) = method_name {
-                    let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Uninited);
+                let callee = if let Some(ident) = method_name {
+                    let attr = hir::Attribute::new(
+                        obj.clone(),
+                        ident.name.clone().into_token(),
+                        Type::Uninited,
+                    );
                     let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
                     acc
                 } else {
@@ -829,7 +833,7 @@ impl Context {
     pub(crate) fn get_call_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         namespace: &Str,
@@ -843,7 +847,7 @@ impl Context {
         let found = self.search_callee_t(obj, method_name, namespace)?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
-            fmt_option!(pre ".", method_name.as_ref().map(|t| &t.content))
+            fmt_option!(pre ".", method_name.as_ref().map(|ident| &ident.name))
         );
         let instance = self.instantiate(found, obj)?;
         log!(

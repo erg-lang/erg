@@ -980,7 +980,8 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let acc = Accessor::attr(obj, vis, Local::new(symbol));
@@ -1038,7 +1039,8 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let acc = Accessor::attr(obj, vis, Local::new(symbol));
@@ -1192,7 +1194,8 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let acc = Accessor::attr(obj, vis, Local::new(symbol));
@@ -1382,7 +1385,22 @@ impl Parser {
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
             let (obj, method_name) = match acc {
-                Accessor::Attr(attr) => (*attr.obj, Some(attr.name.symbol)),
+                Accessor::Attr(attr) => {
+                    if attr.vis.is(Dot) {
+                        (
+                            *attr.obj,
+                            Some(Identifier::new(
+                                Some(attr.vis),
+                                VarName::new(attr.name.symbol),
+                            )),
+                        )
+                    } else {
+                        (
+                            *attr.obj,
+                            Some(Identifier::new(None, VarName::new(attr.name.symbol))),
+                        )
+                    }
+                }
                 Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
                 _ => todo!(),
             };

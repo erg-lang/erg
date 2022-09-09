@@ -856,7 +856,7 @@ impl UnaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
-    pub method_name: Option<Token>,
+    pub method_name: Option<Identifier>,
     pub args: Args,
 }
 
@@ -864,7 +864,7 @@ impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         write!(f, "({})", self.obj)?;
         if let Some(method_name) = self.method_name.as_ref() {
-            write!(f, ".{}", method_name.content)?;
+            write!(f, "{}", method_name)?;
         }
         writeln!(f, ":")?;
         self.args.fmt_nest(f, level + 1)
@@ -884,7 +884,7 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, method_name: Option<Token>, args: Args) -> Self {
+    pub fn new(obj: Expr, method_name: Option<Identifier>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
             method_name,
@@ -1777,7 +1777,7 @@ impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.dot {
             Some(_dot) => write!(f, ".{}", self.name),
-            None => write!(f, "{}", self.name),
+            None => write!(f, "::{}", self.name),
         }
     }
 }
