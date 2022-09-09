@@ -407,7 +407,10 @@ pub trait Locational {
 
     fn ln_begin(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair { ln_begin, .. }
+            Location::RangePair {
+                ln_first: (ln_begin, _),
+                ..
+            }
             | Location::Range { ln_begin, .. }
             | Location::LineRange(ln_begin, _) => Some(ln_begin),
             Location::Line(lineno) => Some(lineno),
@@ -417,7 +420,10 @@ pub trait Locational {
 
     fn ln_end(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair { ln_end, .. }
+            Location::RangePair {
+                ln_second: (_, ln_end),
+                ..
+            }
             | Location::Range { ln_end, .. }
             | Location::LineRange(_, ln_end) => Some(ln_end),
             Location::Line(lineno) => Some(lineno),

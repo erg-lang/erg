@@ -68,6 +68,7 @@ pub enum VarKind {
         default: DefaultInfo,
     },
     Auto,
+    FixedAuto,
     DoesNotExist,
     Builtin,
 }

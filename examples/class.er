@@ -7,9 +7,12 @@ Point3D = Inherit Point2D, Additional := {z = Int}
 Point3D.
     # Overloading is prohibited by default. Remove this decorator and check for errors.
     @Override
-    new x, y, z = Point3D::__new__ {x; y; z}
+    new x, y, z =
+        Point3D::__new__ {x; y; z}
     @Override
     norm self = self::x**2 + self::y**2 + self::z**2
 
-p = Point3D.new {x = 1; y = 2; z = 3}
-print! p.norm()
+p = Point2D.new {x = 1; y = 2}
+print! p, p.norm()
+q = Point3D.new 1, 2, 3
+print! q, q.norm()

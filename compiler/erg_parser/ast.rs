@@ -2236,9 +2236,6 @@ pub enum ParamPattern {
     // DataPack(ParamDataPackPattern),
     Ref(VarName),
     RefMut(VarName),
-    // e.g. `a` of `[...a, b] = [1, 2, 3]` (a == [1, 2], b == 3)
-    //      `b` of `[a, ...b] = [1, 2, 3]` (a == 1, b == [2, 3])
-    VarArgs(VarName),
 }
 
 impl NestedDisplay for ParamPattern {
@@ -2252,20 +2249,17 @@ impl NestedDisplay for ParamPattern {
             Self::Record(record) => write!(f, "{}", record),
             Self::Ref(var_name) => write!(f, "ref {}", var_name),
             Self::RefMut(var_name) => write!(f, "ref! {}", var_name),
-            Self::VarArgs(var_name) => write!(f, "...{}", var_name),
         }
     }
 }
 
 impl_display_from_nested!(ParamPattern);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
-            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => {
-                Some(n.inspect())
-            }
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => Some(n.inspect()),
             _ => None,
         }
     }
@@ -2277,9 +2271,7 @@ impl ParamPattern {
     pub fn is_procedural(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => {
-                n.is_procedural()
-            }
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => n.is_procedural(),
             _ => false,
         }
     }
@@ -2287,7 +2279,7 @@ impl ParamPattern {
     pub fn is_const(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgs(n) | Self::Ref(n) | Self::RefMut(n) => n.is_const(),
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => n.is_const(),
             _ => false,
         }
     }
@@ -2381,7 +2373,11 @@ impl Locational for Params {
         } else if !self.non_defaults.is_empty() {
             Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
         } else if let Some(var_args) = &self.var_args {
-            Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
+            if !self.defaults.is_empty() {
+                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
+            } else {
+                var_args.loc()
+            }
         } else if !self.defaults.is_empty() {
             Location::concat(&self.defaults[0], self.defaults.last().unwrap())
         } else {

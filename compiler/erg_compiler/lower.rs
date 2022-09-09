@@ -330,6 +330,7 @@ impl ASTLowerer {
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
+            None,
             Vec::with_capacity(kw_args.len()),
             paren,
         );
@@ -368,7 +369,7 @@ impl ASTLowerer {
             &[],
             &self.ctx.name,
         )?;
-        let args = hir::Args::new(args, vec![], None);
+        let args = hir::Args::new(args, None, vec![], None);
         Ok(hir::Call::new(class, Some(method_name), args, sig_t))
     }
 
@@ -570,10 +571,33 @@ impl ASTLowerer {
                 }
             }
             match self.ctx.pop() {
-                Ok(ctx) => {
-                    self.check_override(&class, &ctx);
+                Ok(methods) => {
+                    self.check_override(&class, &methods);
                     if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
-                        class_root.method_defs.push((class, ctx));
+                        for (newly_defined_name, _vi) in methods.locals.iter() {
+                            for (_, already_defined_methods) in class_root.method_defs.iter_mut() {
+                                // TODO: 特殊化なら同じ名前でもOK
+                                // TODO: 定義のメソッドもエラー表示
+                                if let Some((_already_defined_name, already_defined_vi)) =
+                                    already_defined_methods
+                                        .get_local_kv(&newly_defined_name.inspect())
+                                {
+                                    if already_defined_vi.kind != VarKind::Auto {
+                                        self.errs.push(LowerError::duplicate_definition_error(
+                                            line!() as usize,
+                                            newly_defined_name.loc(),
+                                            methods.name.clone(),
+                                            newly_defined_name.inspect(),
+                                        ));
+                                    } else {
+                                        already_defined_methods
+                                            .locals
+                                            .remove(&newly_defined_name.inspect()[..]);
+                                    }
+                                }
+                            }
+                        }
+                        class_root.method_defs.push((class, methods));
                     } else {
                         todo!()
                     }
@@ -589,8 +613,11 @@ impl ASTLowerer {
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         // vi.t.non_default_params().unwrap()[0].typ().clone()
-        let (__new__, need_to_gen_new) = if let Some(vi) = ctx.get_current_scope_var("new") {
-            (vi.t.clone(), vi.kind == VarKind::Auto)
+        let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
+            ctx.get_current_scope_var("__new__"),
+            ctx.get_current_scope_var("new"),
+        ) {
+            (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
             todo!()
         };

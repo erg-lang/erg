@@ -119,6 +119,7 @@ impl KwArg {
 #[derive(Debug, Clone)]
 pub struct Args {
     pub pos_args: Vec<PosArg>,
+    pub var_args: Option<Box<PosArg>>,
     pub kw_args: Vec<KwArg>,
     paren: Option<(Token, Token)>,
 }
@@ -127,6 +128,10 @@ impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         if !self.pos_args.is_empty() {
             fmt_lines(self.pos_args.iter(), f, level)?;
+        }
+        if let Some(var_args) = &self.var_args {
+            writeln!(f, "...")?;
+            var_args.fmt_nest(f, level)?;
         }
         if !self.kw_args.is_empty() {
             fmt_lines(self.kw_args.iter(), f, level)?;
@@ -139,6 +144,7 @@ impl From<Vec<Expr>> for Args {
     fn from(exprs: Vec<Expr>) -> Self {
         Self {
             pos_args: exprs.into_iter().map(PosArg::new).collect(),
+            var_args: None,
             kw_args: Vec::new(),
             paren: None,
         }
@@ -167,30 +173,33 @@ impl Locational for Args {
 // impl_stream!(Args, KwArg, kw_args);
 
 impl Args {
-    pub const fn new(
+    pub fn new(
         pos_args: Vec<PosArg>,
+        var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
+            var_args: var_args.map(Box::new),
             kw_args,
             paren,
         }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![], vec![], None)
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.pos_args.len() + self.kw_args.len()
+        let var_argc = if self.var_args.is_none() { 0 } else { 1 };
+        self.pos_args.len() + var_argc + self.kw_args.len()
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.pos_args.is_empty() && self.kw_args.is_empty()
+        self.pos_args.is_empty() && self.var_args.is_none() && self.kw_args.is_empty()
     }
 
     #[inline]
@@ -1338,7 +1347,7 @@ pub struct ClassDef {
     pub kind: TypeKind,
     pub sig: Signature,
     pub require_or_sup: Box<Expr>,
-    /// The type of `new` and `__new__` that is automatically defined if not defined
+    /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
     pub private_methods: RecordAttrs,

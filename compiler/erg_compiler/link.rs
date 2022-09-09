@@ -50,12 +50,12 @@ impl Linker {
                 Expr::Methods(methods) => match &methods.class {
                     TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => {
                         if let Some(pos) = self.def_root_pos_map.get(simple.name.inspect()) {
-                            let mut type_def = match new.remove(*pos) {
-                                Expr::ClassDef(type_def) => type_def,
+                            let mut class_def = match new.remove(*pos) {
+                                Expr::ClassDef(class_def) => class_def,
                                 _ => unreachable!(),
                             };
-                            type_def.methods_list.push(methods);
-                            new.insert(*pos, Expr::ClassDef(type_def));
+                            class_def.methods_list.push(methods);
+                            new.insert(*pos, Expr::ClassDef(class_def));
                         } else {
                             log!("{}", simple.name.inspect());
                             log!("{}", self.def_root_pos_map);

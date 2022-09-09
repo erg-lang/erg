@@ -80,6 +80,10 @@ impl Context {
             })
     }
 
+    pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.locals.get_key_value(name)
+    }
+
     fn get_context(
         &self,
         obj: &hir::Expr,

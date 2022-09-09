@@ -491,6 +491,20 @@ impl Context {
     }
 
     #[inline]
+    pub fn methods<S: Into<Str>>(name: S, level: usize) -> Self {
+        Self::with_capacity(
+            name.into(),
+            ContextKind::MethodDefs,
+            vec![],
+            None,
+            vec![],
+            vec![],
+            2,
+            level,
+        )
+    }
+
+    #[inline]
     pub fn poly_patch<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,

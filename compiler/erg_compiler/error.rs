@@ -331,6 +331,30 @@ impl TyCheckError {
         )
     }
 
+    pub fn duplicate_definition_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は既に定義されています"),
+                    "simplified_chinese" => format!("{name}已定义"),
+                    "traditional_chinese" => format!("{name}已定義"),
+                    "english" => format!("{name} is already defined"),
+                ),
+                Option::<Str>::None,
+            ),
+            caused_by,
+        )
+    }
+
     pub fn violate_decl_error(
         errno: usize,
         loc: Location,
