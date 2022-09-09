@@ -23,6 +23,34 @@ use crate::hir::HIR;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
+/// HACK: Cannot be methodized this because a reference has been taken immediately before.
+macro_rules! check_inheritable {
+    ($self: ident, $type_obj: expr, $sup_class: expr, $sub_sig: expr) => {
+        match $type_obj.require_or_sup.as_ref() {
+            TypeObj::Generated(gen) => {
+                if let Some(impls) = gen.impls.as_ref() {
+                    if !impls.contains_intersec(&mono("InheritableType")) {
+                        $self.errs.push(LowerError::inheritance_error(
+                            line!() as usize,
+                            $sup_class.to_string(),
+                            $sup_class.loc(),
+                            $sub_sig.ident().inspect().clone(),
+                        ));
+                    }
+                } else {
+                    $self.errs.push(LowerError::inheritance_error(
+                        line!() as usize,
+                        $sup_class.to_string(),
+                        $sup_class.loc(),
+                        $sub_sig.ident().inspect().clone(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    };
+}
+
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
@@ -612,6 +640,11 @@ impl ASTLowerer {
             .rec_get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
+        let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
+            .args
+            .get_left_or_key("Super")
+            .unwrap();
+        check_inheritable!(self, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
             ctx.get_current_scope_var("__new__"),

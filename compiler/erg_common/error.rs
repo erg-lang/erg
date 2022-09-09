@@ -36,6 +36,7 @@ pub enum ErrorKind {
     HasEffect,
     MoveError,
     NotConstExpr,
+    InheritanceError,
     DummyError,
     /* compile warnings */
     AttributeWarning = 60,

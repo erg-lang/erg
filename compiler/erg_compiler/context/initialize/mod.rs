@@ -165,6 +165,7 @@ impl Context {
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
         let unpack = Self::mono_trait("Unpack", vec![], Self::TOP_LEVEL);
+        let inheritable_type = Self::mono_trait("InheritableType", vec![], Self::TOP_LEVEL);
         let named = Self::mono_trait("Named", vec![], Self::TOP_LEVEL);
         let mut mutable = Self::mono_trait("Mutable", vec![], Self::TOP_LEVEL);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
@@ -309,6 +310,7 @@ impl Context {
         div.register_builtin_decl("__div__", op_t, Public);
         div.register_builtin_decl("DivO", Type, Public);
         self.register_builtin_type(mono("Unpack"), unpack, Const);
+        self.register_builtin_type(mono("InheritableType"), inheritable_type, Const);
         self.register_builtin_type(mono("Named"), named, Const);
         self.register_builtin_type(mono("Mutable"), mutable, Const);
         self.register_builtin_type(mono("Immutizable"), immutizable, Const);

@@ -19,7 +19,7 @@ fn value_obj_to_t(value: ValueObj) -> TypeObj {
     }
 }
 
-/// Requirement: Type, Impl := Type -> Class
+/// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let require = args.remove_left_or_key("Requirement").unwrap();
     let require = value_obj_to_t(require);
@@ -29,7 +29,7 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     ValueObj::gen_t(TypeKind::Class, t, require, impls, None)
 }
 
-/// Super: Type, Impl := Type, Additional := Type -> Class
+/// Super: Type, Impl := Type, Additional := Type -> ClassType
 pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let sup = args.remove_left_or_key("Super").unwrap();
     let sup = value_obj_to_t(sup);
@@ -41,21 +41,23 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     ValueObj::gen_t(TypeKind::Subclass, t, sup, impls, additional)
 }
 
-/// Class -> Class (with `Inheritable`)
+/// Class: ClassType -> ClassType (with `InheritableType`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
-pub fn inheritable_func(args: ValueArgs, __name__: Option<Str>) -> ValueObj {
-    let class = args.pos_args.into_iter().next().unwrap();
+pub fn inheritable_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
+    let class = args.remove_left_or_key("Class").unwrap();
     match class {
         ValueObj::Type(TypeObj::Generated(mut gen)) => {
             if let Some(typ) = &mut gen.impls {
                 match typ.as_mut() {
                     TypeObj::Generated(gen) => {
-                        gen.t = and(mem::take(&mut gen.t), mono("Inheritable"));
+                        gen.t = and(mem::take(&mut gen.t), mono("InheritableType"));
                     }
                     TypeObj::Builtin(t) => {
-                        *t = and(mem::take(t), mono("Inheritable"));
+                        *t = and(mem::take(t), mono("InheritableType"));
                     }
                 }
+            } else {
+                gen.impls = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
             }
             ValueObj::Type(TypeObj::Generated(gen))
         }

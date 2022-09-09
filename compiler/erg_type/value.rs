@@ -94,6 +94,13 @@ impl TypeObj {
             TypeObj::Generated(t) => &t.t,
         }
     }
+
+    pub fn contains_intersec(&self, other: &Type) -> bool {
+        match self {
+            TypeObj::Builtin(t) => t.contains_intersec(other),
+            TypeObj::Generated(t) => t.t.contains_intersec(other),
+        }
+    }
 }
 
 /// 値オブジェクト

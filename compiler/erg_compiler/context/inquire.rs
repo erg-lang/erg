@@ -1084,14 +1084,12 @@ impl Context {
         t: &Type,
     ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
         let (t, ctx) = self.rec_get_nominal_type_ctx(t)?;
-        Some(
-            vec![(t, ctx)].into_iter().chain(
-                ctx.super_classes
-                    .iter()
-                    .chain(ctx.super_traits.iter())
-                    .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap()),
-            ),
-        )
+        let sups = ctx
+            .super_classes
+            .iter()
+            .chain(ctx.super_traits.iter())
+            .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap());
+        Some(vec![(t, ctx)].into_iter().chain(sups))
     }
 
     pub(crate) fn rec_get_nominal_type_ctx<'a>(

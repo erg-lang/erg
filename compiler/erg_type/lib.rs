@@ -1747,6 +1747,7 @@ impl Type {
         }
     }
 
+    /// assert!((A and B).contains_intersec(B))
     pub fn contains_intersec(&self, typ: &Type) -> bool {
         match self {
             Type::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),

@@ -1102,6 +1102,24 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by.into(),
         )
     }
+
+    pub fn inheritance_error(errno: usize, class: String, loc: Location, caused_by: Str) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                InheritanceError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{class}は継承できません"),
+                    "simplified_chinese" => format!("{class}不可继承"),
+                    "traditional_chinese" => format!("{class}不可繼承"),
+                    "english" => format!("{class} is not inheritable"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]
