@@ -32,8 +32,8 @@ use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::AttrDef;
 use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, Def, DefBody, Expr, Literal, Local, PosArg,
-    Signature, SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Literal, Local, PosArg, Signature,
+    SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -998,7 +998,7 @@ impl CodeGenerator {
                 }
                 other => {
                     self.codegen_expr(other);
-                    self.emit_args(call.args);
+                    self.emit_args(call.args, Name);
                 }
             }
         }
@@ -1018,7 +1018,7 @@ impl CodeGenerator {
                 self.emit_load_name_instr(ident).unwrap_or_else(|e| {
                     self.errs.push(e);
                 });
-                self.emit_args(args);
+                self.emit_args(args, Name);
                 Ok(())
             }
         }
@@ -1040,10 +1040,10 @@ impl CodeGenerator {
         .unwrap_or_else(|err| {
             self.errs.push(err);
         });
-        self.emit_args(args);
+        self.emit_args(args, Method);
     }
 
-    fn emit_args(&mut self, mut args: Args) {
+    fn emit_args(&mut self, mut args: Args, kind: AccessKind) {
         let argc = args.len();
         let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
@@ -1082,7 +1082,11 @@ impl CodeGenerator {
                     self.write_arg(1);
                 }
             } else {
-                self.write_instr(CALL_FUNCTION);
+                if kind.is_method() {
+                    self.write_instr(CALL_METHOD);
+                } else {
+                    self.write_instr(CALL_FUNCTION);
+                }
                 self.write_arg(argc as u8);
             }
             0
@@ -1501,6 +1505,7 @@ impl CodeGenerator {
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
+        let class_name = sig.ident().inspect();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
@@ -1508,7 +1513,7 @@ impl CodeGenerator {
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let self_param = ParamSignature::new(ParamPattern::VarName(self_param), None, None);
         let params = Params::new(vec![self_param, param], None, vec![], None);
-        let sig = Signature::Subr(SubrSignature::new(ident, params.clone(), __new__.clone()));
+        let subr_sig = SubrSignature::new(ident, params.clone(), __new__.clone());
         let mut attrs = vec![];
         match __new__.non_default_params().unwrap()[0].typ() {
             // {x = Int; y = Int}
@@ -1543,13 +1548,13 @@ impl CodeGenerator {
         }
         let block = Block::new(attrs);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
-        let init_def = Def::new(sig, body.clone());
-        self.codegen_expr(Expr::Def(init_def));
+        self.emit_subr_def(Some(class_name), subr_sig, body);
     }
 
     /// ```python
     /// class C:
-    ///     def new(*x): return C.__call__(*x)
+    ///     # __new__ => __call__
+    ///     def new(x): return C.__call__(x)
     /// ```
     fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
@@ -1561,10 +1566,10 @@ impl CodeGenerator {
         let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
         let sig = SubrSignature::new(
             ident,
-            Params::new(vec![], Some(param), vec![], None),
+            Params::new(vec![param], None, vec![], None),
             __new__.clone(),
         );
-        let var_args = PosArg::new(Expr::Accessor(Accessor::local(
+        let arg = PosArg::new(Expr::Accessor(Accessor::local(
             Token::symbol_with_line(&param_name[..], line),
             Type::Failure,
         )));
@@ -1580,7 +1585,7 @@ impl CodeGenerator {
         let call = Expr::Call(Call::new(
             class_new,
             None,
-            Args::new(vec![], Some(var_args), vec![], None),
+            Args::new(vec![arg], None, vec![], None),
             Type::Failure,
         ));
         let block = Block::new(vec![call]);
