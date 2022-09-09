@@ -11,7 +11,7 @@ use erg_common::{
     impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Identifier, Params, TypeSpec};
+use erg_parser::ast::{fmt_lines, DefId, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
@@ -286,84 +286,55 @@ impl Args {
     }
 }
 
-/// represents local variables
-#[derive(Debug, Clone)]
-pub struct Local {
-    pub name: Token,
-    /// オブジェクト自身の名前
-    __name__: Option<Str>,
-    pub(crate) t: Type,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Identifier {
+    pub dot: Option<Token>,
+    pub name: VarName,
+    pub __name__: Option<Str>,
+    pub t: Type,
 }
 
-impl NestedDisplay for Local {
+impl NestedDisplay for Identifier {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        let __name__ = if let Some(__name__) = self.__name__() {
-            format!("(__name__ = {__name__})")
-        } else {
-            "".to_string()
-        };
-        write!(f, "{} (: {}){}", self.name.content, self.t, __name__)
+        match &self.dot {
+            Some(_dot) => {
+                write!(f, ".{}", self.name)?;
+            }
+            None => {
+                write!(f, "::{}", self.name)?;
+            }
+        }
+        if let Some(__name__) = &self.__name__ {
+            write!(f, "(__name__: {})", __name__)?;
+        }
+        if self.t != Type::Uninited {
+            write!(f, "(: {})", self.t)?;
+        }
+        Ok(())
     }
 }
 
-impl_display_from_nested!(Local);
-impl_t!(Local);
+impl_display_from_nested!(Identifier);
+impl_t!(Identifier);
 
-impl Locational for Local {
-    #[inline]
+impl Locational for Identifier {
     fn loc(&self) -> Location {
-        self.name.loc()
-    }
-}
-
-impl Local {
-    pub const fn new(name: Token, __name__: Option<Str>, t: Type) -> Self {
-        Self { name, __name__, t }
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    #[inline]
-    pub fn inspect(&self) -> &Str {
-        &self.name.content
-    }
-
-    pub const fn __name__(&self) -> Option<&Str> {
-        self.__name__.as_ref()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Public {
-    pub dot: Token,
-    pub name: Token,
-    /// オブジェクト自身の名前
-    __name__: Option<Str>,
-    t: Type,
-}
-
-impl NestedDisplay for Public {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        let __name__ = if let Some(__name__) = self.__name__() {
-            format!("(__name__ = {__name__})")
+        if let Some(dot) = &self.dot {
+            Location::concat(dot, &self.name)
         } else {
-            "".to_string()
-        };
-        write!(f, ".{} (: {}){}", self.name.content, self.t, __name__)
+            self.name.loc()
+        }
     }
 }
 
-impl_display_from_nested!(Public);
-impl_t!(Public);
-
-impl Locational for Public {
-    #[inline]
-    fn loc(&self) -> Location {
-        Location::concat(&self.dot, &self.name)
+impl From<&Identifier> for Field {
+    fn from(ident: &Identifier) -> Self {
+        Self::new(ident.vis(), ident.inspect().clone())
     }
 }
 
-impl Public {
-    pub const fn new(dot: Token, name: Token, __name__: Option<Str>, t: Type) -> Self {
+impl Identifier {
+    pub const fn new(dot: Option<Token>, name: VarName, __name__: Option<Str>, t: Type) -> Self {
         Self {
             dot,
             name,
@@ -372,43 +343,75 @@ impl Public {
         }
     }
 
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    #[inline]
-    pub fn inspect(&self) -> &Str {
-        &self.name.content
+    pub fn public(name: &'static str) -> Self {
+        Self::bare(
+            Some(Token::from_str(TokenKind::Dot, ".")),
+            VarName::from_static(name),
+        )
     }
 
-    pub const fn __name__(&self) -> Option<&Str> {
-        self.__name__.as_ref()
+    pub fn private(name: Str) -> Self {
+        Self::bare(None, VarName::from_str(name))
+    }
+
+    pub fn private_with_line(name: Str, line: usize) -> Self {
+        Self::bare(None, VarName::from_str_and_line(name, line))
+    }
+
+    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+        Self::bare(Some(dot), VarName::from_str_and_line(name, line))
+    }
+
+    pub const fn bare(dot: Option<Token>, name: VarName) -> Self {
+        Self::new(dot, name, None, Type::Uninited)
+    }
+
+    pub fn is_const(&self) -> bool {
+        self.name.is_const()
+    }
+
+    pub const fn vis(&self) -> Visibility {
+        match &self.dot {
+            Some(_) => Visibility::Public,
+            None => Visibility::Private,
+        }
+    }
+
+    pub const fn inspect(&self) -> &Str {
+        &self.name.inspect()
+    }
+
+    pub fn is_procedural(&self) -> bool {
+        self.name.is_procedural()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Attribute {
     pub obj: Box<Expr>,
-    pub name: Token,
+    pub ident: Identifier,
     t: Type,
 }
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         if self.t != Type::Uninited {
-            write!(f, "({}).{}(: {})", self.obj, self.name.content, self.t)
+            write!(f, "({}){}(: {})", self.obj, self.ident, self.t)
         } else {
-            write!(f, "({}).{}", self.obj, self.name.content)
+            write!(f, "({}){}", self.obj, self.ident)
         }
     }
 }
 
 impl_display_from_nested!(Attribute);
-impl_locational!(Attribute, obj, name);
+impl_locational!(Attribute, obj, ident);
 impl_t!(Attribute);
 
 impl Attribute {
-    pub fn new(obj: Expr, name: Token, t: Type) -> Self {
+    pub fn new(obj: Expr, ident: Identifier, t: Type) -> Self {
         Self {
             obj: Box::new(obj),
-            name,
+            ident,
             t,
         }
     }
@@ -471,29 +474,32 @@ impl Subscript {
 
 #[derive(Debug, Clone)]
 pub enum Accessor {
-    Local(Local),
-    Public(Public),
+    Ident(Identifier),
     Attr(Attribute),
     TupleAttr(TupleAttribute),
     Subscr(Subscript),
 }
 
-impl_nested_display_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
-impl_t_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
+impl_t_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
 
 impl Accessor {
-    pub const fn local(symbol: Token, t: Type) -> Self {
-        Self::Local(Local::new(symbol, None, t))
+    pub fn private_with_line(name: Str, line: usize) -> Self {
+        Self::Ident(Identifier::private_with_line(name, line))
     }
 
-    pub const fn public(dot: Token, name: Token, t: Type) -> Self {
-        Self::Public(Public::new(dot, name, None, t))
+    pub fn public_with_line(name: Str, line: usize) -> Self {
+        Self::Ident(Identifier::public_with_line(Token::dummy(), name, line))
     }
 
-    pub fn attr(obj: Expr, name: Token, t: Type) -> Self {
-        Self::Attr(Attribute::new(obj, name, t))
+    pub const fn private(name: Token, t: Type) -> Self {
+        Self::Ident(Identifier::new(None, VarName::new(name), None, t))
+    }
+
+    pub fn attr(obj: Expr, ident: Identifier, t: Type) -> Self {
+        Self::Attr(Attribute::new(obj, ident, t))
     }
 
     pub fn subscr(obj: Expr, index: Expr, t: Type) -> Self {
@@ -502,14 +508,13 @@ impl Accessor {
 
     pub fn show(&self) -> String {
         match self {
-            Self::Local(local) => readable_name(local.inspect()).to_string(),
-            Self::Public(public) => readable_name(public.inspect()).to_string(),
+            Self::Ident(ident) => readable_name(ident.inspect()).to_string(),
             Self::Attr(attr) => {
                 attr.obj
                     .show_acc()
                     .unwrap_or_else(|| attr.obj.ref_t().to_string())
-                    + "."
-                    + readable_name(attr.name.inspect())
+                    + "." // TODO: visibility
+                    + readable_name(attr.ident.inspect())
             }
             Self::TupleAttr(t_attr) => {
                 t_attr
@@ -526,8 +531,7 @@ impl Accessor {
     // 参照するオブジェクト自体が持っている固有の名前
     pub fn __name__(&self) -> Option<&str> {
         match self {
-            Self::Local(local) => local.__name__().map(|s| &s[..]),
-            Self::Public(public) => public.__name__().map(|s| &s[..]),
+            Self::Ident(ident) => ident.__name__.as_ref().map(|s| &s[..]),
             _ => None,
         }
     }
@@ -1259,19 +1263,6 @@ impl_locational!(DefBody, op, block);
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
-    }
-
-    pub fn is_type(&self) -> bool {
-        match self.block.first().unwrap() {
-            Expr::Call(call) => {
-                if let Expr::Accessor(Accessor::Local(local)) = call.obj.as_ref() {
-                    &local.inspect()[..] == "Type"
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
     }
 }
 

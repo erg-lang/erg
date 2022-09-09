@@ -109,7 +109,7 @@ impl Context {
             .decorators
             .iter()
             .filter_map(|deco| match &deco.0 {
-                ast::Expr::Accessor(ast::Accessor::Local(local)) if local.is_const() => {
+                ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
                     Some(local.inspect().clone())
                 }
                 _ => None,
@@ -428,7 +428,7 @@ impl Context {
                 .decorators
                 .iter()
                 .filter_map(|deco| match &deco.0 {
-                    ast::Expr::Accessor(ast::Accessor::Local(local)) if local.is_const() => {
+                    ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
                         Some(local.inspect().clone())
                     }
                     _ => None,

@@ -371,7 +371,7 @@ impl Context {
                         self.deref_expr_t(&mut subscr.obj)?;
                         self.deref_expr_t(&mut subscr.index)?;
                     }
-                    hir::Accessor::Local(_) | hir::Accessor::Public(_) => {}
+                    hir::Accessor::Ident(_) => {}
                 }
                 Ok(())
             }

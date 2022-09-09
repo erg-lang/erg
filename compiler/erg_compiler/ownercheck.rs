@@ -186,26 +186,15 @@ impl OwnershipChecker {
 
     fn check_acc(&mut self, acc: &Accessor, ownership: Ownership) {
         match acc {
-            Accessor::Local(local) => {
-                self.check_if_dropped(local.inspect(), local.loc());
+            Accessor::Ident(ident) => {
+                self.check_if_dropped(ident.inspect(), ident.loc());
                 if acc.ref_t().is_mut() && ownership.is_owned() {
                     log!(
                         "drop: {} (in {})",
-                        local.inspect(),
-                        local.ln_begin().unwrap_or(0)
+                        ident.inspect(),
+                        ident.ln_begin().unwrap_or(0)
                     );
-                    self.drop(local.inspect(), acc.loc());
-                }
-            }
-            Accessor::Public(public) => {
-                self.check_if_dropped(public.inspect(), public.loc());
-                if acc.ref_t().is_mut() && ownership.is_owned() {
-                    log!(
-                        "drop: {} (in {})",
-                        public.inspect(),
-                        public.ln_begin().unwrap_or(0)
-                    );
-                    self.drop(public.inspect(), acc.loc());
+                    self.drop(ident.inspect(), acc.loc());
                 }
             }
             Accessor::Attr(attr) => {

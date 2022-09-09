@@ -259,10 +259,10 @@ impl SideEffectChecker {
             Expr::Lambda(lambda) => lambda.is_procedural(),
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => self.is_procedural(&call.obj),
-            Expr::Accessor(Accessor::Local(local)) => local.name.is_procedural(),
+            Expr::Accessor(Accessor::Ident(ident)) => ident.name.is_procedural(),
             // procedural: x.y! (e.g. Array.sample!)
             // !procedural: !x.y
-            Expr::Accessor(Accessor::Attr(attr)) => attr.name.is_procedural(),
+            Expr::Accessor(Accessor::Attr(attr)) => attr.ident.is_procedural(),
             Expr::Accessor(_) => todo!(),
             _ => false,
         }

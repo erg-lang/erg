@@ -56,7 +56,7 @@ pub enum ArrayInner {
     WithLength(PosArg, Expr),
     Comprehension {
         elem: PosArg,
-        generators: Vec<(Local, Expr)>,
+        generators: Vec<(Identifier, Expr)>,
         guards: Vec<Expr>,
     },
 }
@@ -408,8 +408,8 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let attr = Local::new(token);
-                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
+                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                            acc = Accessor::attr(Expr::Accessor(acc), ident);
                         }
                         NatLit => {
                             let attr = Literal::from(token);
@@ -434,8 +434,8 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let attr = Local::new(token);
-                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
+                            let ident = Identifier::new(None, VarName::new(token));
+                            acc = Accessor::attr(Expr::Accessor(acc), ident);
                         }
                         // DataPack
                         LBrace => {
@@ -492,8 +492,8 @@ impl Parser {
     fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
-            Expr::Accessor(Accessor::Local(local)) => {
-                let local = ConstLocal::new(local.symbol);
+            Expr::Accessor(Accessor::Ident(local)) => {
+                let local = ConstLocal::new(local.name.into_token());
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
             // TODO: App, Array, Record, BinOp, UnaryOp,
@@ -744,8 +744,8 @@ impl Parser {
                     // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
-                    let kw = if let Accessor::Local(n) = acc {
-                        n.symbol
+                    let kw = if let Accessor::Ident(n) = acc {
+                        n.name.into_token()
                     } else {
                         self.next_expr();
                         self.level -= 1;
@@ -789,8 +789,8 @@ impl Parser {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
-                    let keyword = if let Accessor::Local(n) = acc {
-                        n.symbol
+                    let keyword = if let Accessor::Ident(n) = acc {
+                        n.name.into_token()
                     } else {
                         self.next_expr();
                         self.level -= 1;
@@ -984,7 +984,8 @@ impl Parser {
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1043,7 +1044,8 @@ impl Parser {
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1198,7 +1200,8 @@ impl Parser {
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1385,23 +1388,8 @@ impl Parser {
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
             let (obj, method_name) = match acc {
-                Accessor::Attr(attr) => {
-                    if attr.vis.is(Dot) {
-                        (
-                            *attr.obj,
-                            Some(Identifier::new(
-                                Some(attr.vis),
-                                VarName::new(attr.name.symbol),
-                            )),
-                        )
-                    } else {
-                        (
-                            *attr.obj,
-                            Some(Identifier::new(None, VarName::new(attr.name.symbol))),
-                        )
-                    }
-                }
-                Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
+                Accessor::Attr(attr) => (*attr.obj, Some(attr.ident)),
+                Accessor::Ident(ident) => (Expr::Accessor(Accessor::Ident(ident)), None),
                 _ => todo!(),
             };
             let call = Call::new(obj, method_name, args);
@@ -1547,10 +1535,7 @@ impl Parser {
     ) -> ParseResult<ShortenedRecord> {
         debug_call_info!(self);
         let first = match first {
-            Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
-            Accessor::Public(public) => {
-                Identifier::new(Some(public.dot), VarName::new(public.symbol))
-            }
+            Accessor::Ident(ident) => ident,
             other => todo!("{other}"), // syntax error
         };
         let mut idents = vec![first];
@@ -1577,10 +1562,7 @@ impl Parser {
                 Some(_) => {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
                     let acc = match acc {
-                        Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
-                        Accessor::Public(public) => {
-                            Identifier::new(Some(public.dot), VarName::new(public.symbol))
-                        }
+                        Accessor::Ident(ident) => ident,
                         other => todo!("{other}"), // syntax error
                     };
                     idents.push(acc);
@@ -1716,16 +1698,8 @@ impl Parser {
     fn convert_accessor_to_var_sig(&mut self, _accessor: Accessor) -> ParseResult<VarSignature> {
         debug_call_info!(self);
         match _accessor {
-            Accessor::Local(local) => {
-                let pat = VarPattern::Ident(Identifier::new(None, VarName::new(local.symbol)));
-                self.level -= 1;
-                Ok(VarSignature::new(pat, None))
-            }
-            Accessor::Public(public) => {
-                let pat = VarPattern::Ident(Identifier::new(
-                    Some(public.dot),
-                    VarName::new(public.symbol),
-                ));
+            Accessor::Ident(ident) => {
+                let pat = VarPattern::Ident(ident);
                 self.level -= 1;
                 Ok(VarSignature::new(pat, None))
             }
@@ -1866,10 +1840,7 @@ impl Parser {
     fn convert_accessor_to_ident(&mut self, _accessor: Accessor) -> ParseResult<Identifier> {
         debug_call_info!(self);
         let ident = match _accessor {
-            Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
-            Accessor::Public(public) => {
-                Identifier::new(Some(public.dot), VarName::new(public.symbol))
-            }
+            Accessor::Ident(ident) => ident,
             other => {
                 self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
@@ -1922,15 +1893,15 @@ impl Parser {
     ) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         match expr {
-            Expr::Accessor(Accessor::Local(local)) => {
-                if &local.inspect()[..] == "self" && !allow_self {
+            Expr::Accessor(Accessor::Ident(ident)) => {
+                if &ident.inspect()[..] == "self" && !allow_self {
                     self.level -= 1;
-                    let err = ParseError::simple_syntax_error(line!() as usize, local.loc());
+                    let err = ParseError::simple_syntax_error(line!() as usize, ident.loc());
                     self.errs.push(err);
                     return Err(());
                 }
-                let name = VarName::new(local.symbol);
-                let pat = ParamPattern::VarName(name);
+                // FIXME deny: public
+                let pat = ParamPattern::VarName(ident.name);
                 let param = ParamSignature::new(pat, None, None);
                 self.level -= 1;
                 Ok(param)
@@ -1978,18 +1949,18 @@ impl Parser {
             Expr::UnaryOp(unary) => match unary.op.kind {
                 TokenKind::RefOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Local:(_)))
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
-                    let pat = ParamPattern::Ref(VarName::new(var.symbol));
+                    let pat = ParamPattern::Ref(var.name);
                     let param = ParamSignature::new(pat, None, None);
                     self.level -= 1;
                     Ok(param)
                 }
                 TokenKind::RefMutOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Local:(_)))
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
-                    let pat = ParamPattern::RefMut(VarName::new(var.symbol));
+                    let pat = ParamPattern::RefMut(var.name);
                     let param = ParamSignature::new(pat, None, None);
                     self.level -= 1;
                     Ok(param)
@@ -2201,10 +2172,9 @@ impl Parser {
     ) -> ParseResult<PreDeclTypeSpec> {
         debug_call_info!(self);
         let t_spec = match accessor {
-            Accessor::Local(local) => PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
-                VarName::new(local.symbol),
-                ConstArgs::empty(),
-            )),
+            Accessor::Ident(ident) => {
+                PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident.name, ConstArgs::empty()))
+            }
             other => todo!("{other}"),
         };
         self.level -= 1;

@@ -166,17 +166,17 @@ impl SubstContext {
 impl Context {
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
-            Accessor::Local(local) => {
-                if let Some(val) = self.rec_get_const_obj(local.inspect()) {
+            Accessor::Ident(ident) => {
+                if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
                 } else {
-                    if local.is_const() {
+                    if ident.is_const() {
                         Err(EvalError::no_var_error(
                             line!() as usize,
-                            local.loc(),
+                            ident.loc(),
                             self.caused_by(),
-                            local.inspect(),
-                            self.get_similar_name(local.inspect()),
+                            ident.inspect(),
+                            self.get_similar_name(ident.inspect()),
                         ))
                     } else {
                         Err(EvalError::not_const_expr(
@@ -232,22 +232,22 @@ impl Context {
     fn eval_const_call(&self, call: &Call, __name__: Option<&Str>) -> EvalResult<ValueObj> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
-                Accessor::Local(name) => {
+                Accessor::Ident(ident) => {
                     let obj =
-                        self.rec_get_const_obj(&name.inspect())
+                        self.rec_get_const_obj(&ident.inspect())
                             .ok_or(EvalError::no_var_error(
                                 line!() as usize,
-                                name.loc(),
+                                ident.loc(),
                                 self.caused_by(),
-                                name.inspect(),
-                                self.get_similar_name(name.inspect()),
+                                ident.inspect(),
+                                self.get_similar_name(ident.inspect()),
                             ))?;
                     let subr = option_enum_unwrap!(obj, ValueObj::Subr)
                         .ok_or(EvalError::type_mismatch_error(
                             line!() as usize,
-                            name.loc(),
+                            ident.loc(),
                             self.caused_by(),
-                            name.inspect(),
+                            ident.inspect(),
                             &mono("Subroutine"),
                             &obj.t(),
                             None,
@@ -258,7 +258,6 @@ impl Context {
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
-                Accessor::Public(_name) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
             }
         } else {

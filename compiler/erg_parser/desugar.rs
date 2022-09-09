@@ -12,7 +12,7 @@ use erg_common::{enum_unwrap, get_hash, set};
 
 use crate::ast::{
     Accessor, Args, Array, BinOp, Block, Call, DataPack, Def, DefBody, DefId, Expr, Identifier,
-    KwArg, Lambda, LambdaSignature, Literal, Local, Methods, Module, NormalArray, NormalRecord,
+    KwArg, Lambda, LambdaSignature, Literal, Methods, Module, NormalArray, NormalRecord,
     NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
     ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
     UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
@@ -79,7 +79,7 @@ impl Desugarer {
                             } else {
                                 self.gen_match_call(previous, def)
                             };
-                            let param_name = enum_unwrap!(&call.args.pos_args().iter().next().unwrap().expr, Expr::Accessor:(Accessor::Local:(_))).inspect();
+                            let param_name = enum_unwrap!(&call.args.pos_args().iter().next().unwrap().expr, Expr::Accessor:(Accessor::Ident:(_))).inspect();
                             // FIXME: multiple params
                             let param = VarName::new(Token::new(
                                 TokenKind::Symbol,
@@ -279,12 +279,12 @@ impl Desugarer {
                 Accessor::subscr(obj, Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())))
             }
             BufIndex::Record(attr) => {
+                let ident = Identifier::new(
+                    Some(Token::from_str(TokenKind::Dot, ".")),
+                    VarName::new(Token::symbol_with_line(attr, sig.ln_begin().unwrap())),
+                );
                 // TODO: visibility
-                Accessor::attr(
-                    obj,
-                    Token::from_str(TokenKind::Dot, "."),
-                    Local::dummy_with_line(attr, sig.ln_begin().unwrap()),
-                )
+                Accessor::attr(obj, ident)
             }
         };
         let id = DefId(get_hash(&(&acc, buf_name)));

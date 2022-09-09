@@ -18,7 +18,7 @@ use erg_parser::ast::DefId;
 use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
-use erg_parser::ast::{Identifier, ParamPattern, ParamSignature, Params, VarName};
+use erg_parser::ast::{ParamPattern, ParamSignature, Params, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::free::fresh_varname;
@@ -32,10 +32,17 @@ use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::AttrDef;
 use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Literal, Local, PosArg, Signature,
-    SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Identifier, Literal, PosArg,
+    Signature, SubrSignature, Tuple, VarSignature, HIR,
 };
 use AccessKind::*;
+
+fn is_python_special(name: &str) -> bool {
+    match name {
+        "__call__" | "__init__" => true,
+        _ => false,
+    }
+}
 
 fn is_python_global(name: &str) -> bool {
     match name {
@@ -214,11 +221,17 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
     }
 }
 
-fn escape_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
-    let mut name = convert_to_python_attr(class, uniq_obj_name, name).to_string();
+fn escape_attr(class: &str, uniq_obj_name: Option<&str>, ident: Identifier) -> Str {
+    let vis = ident.vis();
+    let mut name =
+        convert_to_python_attr(class, uniq_obj_name, ident.name.into_token().content).to_string();
     name = name.replace('!', "__erg_proc__");
     name = name.replace('$', "__erg_shared__");
-    Str::rc(&name)
+    if vis.is_public() || is_python_global(&name) || is_python_special(&name) {
+        Str::from(name)
+    } else {
+        Str::from("::".to_string() + &name)
+    }
 }
 
 fn convert_to_python_name(name: Str) -> Str {
@@ -254,7 +267,7 @@ fn escape_name(ident: Identifier) -> Str {
     let mut name = convert_to_python_name(ident.name.into_token().content).to_string();
     name = name.replace('!', "__erg_proc__");
     name = name.replace('$', "__erg_shared__");
-    if vis.is_public() || is_python_global(&name) {
+    if vis.is_public() || is_python_global(&name) || is_python_special(&name) {
         Str::from(name)
     } else {
         Str::from("::".to_string() + &name)
@@ -500,9 +513,8 @@ impl CodeGenerator {
         Some(StoreLoadKind::Global)
     }
 
-    fn register_name(&mut self, ident: Identifier) -> Name {
+    fn register_name(&mut self, name: Str) -> Name {
         let current_is_toplevel = self.cur_block() == self.toplevel_block();
-        let name = escape_name(ident);
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
                 let st = if current_is_toplevel {
@@ -533,25 +545,22 @@ impl CodeGenerator {
         }
     }
 
-    fn register_attr(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
-        let name = Str::rc(name.split('.').last().unwrap());
-        let name = escape_attr(class, uniq_obj_name, name);
+    fn register_attr(&mut self, name: Str) -> Name {
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
-    fn register_method(&mut self, class: &str, uniq_obj_name: Option<&str>, name: Str) -> Name {
-        let name = Str::rc(name.split('.').last().unwrap());
-        let name = escape_attr(class, uniq_obj_name, name);
+    fn register_method(&mut self, name: Str) -> Name {
         self.mut_cur_block_codeobj().names.push(name);
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
     fn emit_load_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
+        let escaped = escape_name(ident);
         let name = self
-            .local_search(ident.inspect(), Name)
-            .unwrap_or_else(|| self.register_name(ident));
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -566,9 +575,10 @@ impl CodeGenerator {
 
     fn emit_import_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
+        let escaped = escape_name(ident);
         let name = self
-            .local_search(ident.inspect(), Name)
-            .unwrap_or_else(|| self.register_name(ident));
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx as u8);
         self.stack_dec(); // (level + from_list) -> module object
@@ -577,9 +587,10 @@ impl CodeGenerator {
 
     fn emit_import_from_instr(&mut self, ident: Identifier) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
+        let escaped = escape_name(ident);
         let name = self
-            .local_search(ident.inspect(), Name)
-            .unwrap_or_else(|| self.register_name(ident));
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_FROM);
         self.write_arg(name.idx as u8);
         // self.stack_inc(); (module object) -> attribute
@@ -590,12 +601,13 @@ impl CodeGenerator {
         &mut self,
         class: &str,
         uniq_obj_name: Option<&str>,
-        name: Str,
+        ident: Identifier,
     ) -> CompileResult<()> {
-        log!(info "entered {} ({class}.{name})", fn_name!());
+        log!(info "entered {} ({class}{ident})", fn_name!());
+        let escaped = escape_attr(class, uniq_obj_name, ident);
         let name = self
-            .local_search(&name, Attr)
-            .unwrap_or_else(|| self.register_attr(class, uniq_obj_name, name));
+            .local_search(&escaped, Attr)
+            .unwrap_or_else(|| self.register_attr(escaped));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -611,12 +623,13 @@ impl CodeGenerator {
         &mut self,
         class: &str,
         uniq_obj_name: Option<&str>,
-        name: Str,
+        ident: Identifier,
     ) -> CompileResult<()> {
-        log!(info "entered {} ({class}.{name})", fn_name!());
+        log!(info "entered {} ({class}{ident})", fn_name!());
+        let escaped = escape_attr(class, uniq_obj_name, ident);
         let name = self
-            .local_search(&name, Method)
-            .unwrap_or_else(|| self.register_method(class, uniq_obj_name, name));
+            .local_search(&escaped, Method)
+            .unwrap_or_else(|| self.register_method(escaped));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
@@ -630,15 +643,14 @@ impl CodeGenerator {
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         log!(info "entered {} ({ident})", fn_name!());
-        let name = self
-            .local_search(ident.inspect(), acc_kind)
-            .unwrap_or_else(|| {
-                if acc_kind.is_local() {
-                    self.register_name(ident)
-                } else {
-                    self.register_attr("", None, ident.inspect().clone())
-                }
-            });
+        let escaped = escape_name(ident);
+        let name = self.local_search(&escaped, acc_kind).unwrap_or_else(|| {
+            if acc_kind.is_local() {
+                self.register_name(escaped)
+            } else {
+                self.register_attr(escaped)
+            }
+        });
         let instr = match name.kind {
             StoreLoadKind::Fast => Opcode::STORE_FAST,
             StoreLoadKind::FastConst => Opcode::ERG_STORE_FAST_IMMUT,
@@ -668,18 +680,12 @@ impl CodeGenerator {
     fn store_acc(&mut self, acc: Accessor) {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
-            Accessor::Local(local) => {
-                self.emit_store_instr(Identifier::new(None, VarName::new(local.name)), Name);
-            }
-            Accessor::Public(public) => {
-                self.emit_store_instr(
-                    Identifier::new(Some(public.dot), VarName::new(public.name)),
-                    Name,
-                );
+            Accessor::Ident(ident) => {
+                self.emit_store_instr(ident, Name);
             }
             Accessor::Attr(attr) => {
                 self.codegen_expr(*attr.obj);
-                self.emit_store_instr(Identifier::new(None, VarName::new(attr.name)), Attr);
+                self.emit_store_instr(attr.ident, Attr);
             }
             acc => todo!("store: {acc}"),
         }
@@ -728,7 +734,8 @@ impl CodeGenerator {
                     .iter()
                     .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
             )
-            .map(|s| self.get_cached(s))
+            .map(|s| format!("::{s}"))
+            .map(|s| self.get_cached(&s))
             .collect()
     }
 
@@ -938,7 +945,7 @@ impl CodeGenerator {
         let mut pop_jump_points = vec![];
         match pat {
             ParamPattern::VarName(name) => {
-                let ident = Identifier::new(None, name);
+                let ident = Identifier::bare(None, name);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Lit(lit) => {
@@ -993,8 +1000,8 @@ impl CodeGenerator {
             self.emit_call_method(*call.obj, method_name, call.args);
         } else {
             match *call.obj {
-                Expr::Accessor(Accessor::Local(local)) => {
-                    self.emit_call_local(local, call.args).unwrap()
+                Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {
+                    self.emit_call_local(ident, call.args).unwrap()
                 }
                 other => {
                     self.codegen_expr(other);
@@ -1004,7 +1011,7 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_call_local(&mut self, local: Local, args: Args) -> CompileResult<()> {
+    fn emit_call_local(&mut self, local: Identifier, args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
@@ -1013,9 +1020,7 @@ impl CodeGenerator {
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             _ => {
-                let name = VarName::new(local.name);
-                let ident = Identifier::new(None, name);
-                self.emit_load_name_instr(ident).unwrap_or_else(|e| {
+                self.emit_load_name_instr(local).unwrap_or_else(|e| {
                     self.errs.push(e);
                 });
                 self.emit_args(args, Name);
@@ -1032,14 +1037,10 @@ impl CodeGenerator {
         let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
         self.codegen_expr(obj);
-        self.emit_load_method_instr(
-            &class,
-            uniq_obj_name.as_ref().map(|s| &s[..]),
-            method_name.name.into_token().content,
-        )
-        .unwrap_or_else(|err| {
-            self.errs.push(err);
-        });
+        self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name)
+            .unwrap_or_else(|err| {
+                self.errs.push(err);
+            });
         self.emit_args(args, Method);
     }
 
@@ -1361,14 +1362,7 @@ impl CodeGenerator {
     fn codegen_acc(&mut self, acc: Accessor) {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
-            Accessor::Local(local) => {
-                self.emit_load_name_instr(Identifier::new(None, VarName::new(local.name)))
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-            }
-            Accessor::Public(public) => {
-                let ident = Identifier::new(Some(public.dot), VarName::new(public.name));
+            Accessor::Ident(ident) => {
                 self.emit_load_name_instr(ident).unwrap_or_else(|err| {
                     self.errs.push(err);
                 });
@@ -1377,14 +1371,10 @@ impl CodeGenerator {
                 let class = a.obj.ref_t().name();
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
                 self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(
-                    &class,
-                    uniq_obj_name.as_ref().map(|s| &s[..]),
-                    a.name.content.clone(),
-                )
-                .unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
+                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.ident)
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
             }
             Accessor::TupleAttr(t_attr) => {
                 self.codegen_expr(*t_attr.obj);
@@ -1516,26 +1506,32 @@ impl CodeGenerator {
         let subr_sig = SubrSignature::new(ident, params.clone(), __new__.clone());
         let mut attrs = vec![];
         match __new__.non_default_params().unwrap()[0].typ() {
+            // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
-            // self.x = %x.x; self.y = %x.y
+            // => self::x = %x.x; self::y = %x.y
+            // {.x = Int; .y = Int}
+            // => self.x = %x.x; self.y = %x.y
             Type::Record(rec) => {
                 for field in rec.keys() {
-                    let obj = Expr::Accessor(Accessor::local(
-                        Token::symbol_with_line(&param_name[..], line),
-                        Type::Failure,
-                    ));
+                    let obj =
+                        Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
                     let expr = Expr::Accessor(Accessor::Attr(Attribute::new(
                         obj,
-                        Token::symbol(&field.symbol[..]),
+                        Identifier::bare(
+                            Some(Token::dummy()),
+                            VarName::from_str(field.symbol.clone()),
+                        ),
                         Type::Failure,
                     )));
-                    let obj = Expr::Accessor(Accessor::local(
-                        Token::symbol_with_line("self", line),
-                        Type::Failure,
-                    ));
+                    let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
+                    let dot = if field.vis.is_private() {
+                        None
+                    } else {
+                        Some(Token::dummy())
+                    };
                     let attr = Accessor::Attr(Attribute::new(
                         obj,
-                        Token::symbol(&field.symbol[..]),
+                        Identifier::bare(dot, VarName::from_str(field.symbol.clone())),
                         Type::Failure,
                     ));
                     let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
@@ -1569,17 +1565,14 @@ impl CodeGenerator {
             Params::new(vec![param], None, vec![], None),
             __new__.clone(),
         );
-        let arg = PosArg::new(Expr::Accessor(Accessor::local(
-            Token::symbol_with_line(&param_name[..], line),
-            Type::Failure,
+        let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
+            Str::from(param_name),
+            line,
         )));
-        let class = Expr::Accessor(Accessor::local(
-            Token::symbol_with_line(class_name, line),
-            Type::Failure,
-        ));
+        let class = Expr::Accessor(Accessor::private_with_line(class_name.clone(), line));
         let class_new = Expr::Accessor(Accessor::attr(
             class,
-            Token::symbol_with_line("__new__", line),
+            Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line)),
             Type::Failure,
         ));
         let call = Expr::Call(Call::new(

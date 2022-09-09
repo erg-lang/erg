@@ -271,7 +271,7 @@ impl ASTLowerer {
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
-            ast::Accessor::Local(local) => {
+            /*ast::Accessor::Local(local) => {
                 // `match` is an untypable special form
                 // `match`は型付け不可能な特殊形式
                 let (t, __name__) = if &local.inspect()[..] == "match" {
@@ -279,29 +279,23 @@ impl ASTLowerer {
                 } else {
                     (
                         self.ctx
-                            .rec_get_var_t(&local.symbol, Private, &self.ctx.name)?,
+                            .rec_get_var_t(&local.symbol, &self.ctx.name)?,
                         self.ctx.get_local_uniq_obj_name(&local.symbol),
                     )
                 };
                 let acc = hir::Accessor::Local(hir::Local::new(local.symbol, __name__, t));
                 Ok(acc)
-            }
-            ast::Accessor::Public(public) => {
-                let (t, __name__) = (
-                    self.ctx
-                        .rec_get_var_t(&public.symbol, Public, &self.ctx.name)?,
-                    self.ctx.get_local_uniq_obj_name(&public.symbol),
-                );
-                let public = hir::Public::new(public.dot, public.symbol, __name__, t);
-                let acc = hir::Accessor::Public(public);
+            }*/
+            ast::Accessor::Ident(ident) => {
+                let ident = self.lower_ident(ident)?;
+                let acc = hir::Accessor::Ident(ident);
                 Ok(acc)
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let t = self
-                    .ctx
-                    .rec_get_attr_t(&obj, &attr.name.symbol, &self.ctx.name)?;
-                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, attr.name.symbol, t));
+                let t = self.ctx.rec_get_attr_t(&obj, &attr.ident, &self.ctx.name)?;
+                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
+                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident, t));
                 Ok(acc)
             }
             ast::Accessor::TupleAttr(t_attr) => {
@@ -327,6 +321,19 @@ impl ASTLowerer {
                 Ok(acc)
             }
         }
+    }
+
+    fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
+        let (t, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
+            (Type::Failure, None)
+        } else {
+            (
+                self.ctx.rec_get_var_t(&ident, &self.ctx.name)?,
+                self.ctx.get_local_uniq_obj_name(ident.name.token()),
+            )
+        };
+        let ident = hir::Identifier::new(ident.dot, ident.name, __name__, t);
+        Ok(ident)
     }
 
     fn lower_bin(&mut self, bin: ast::BinOp) -> LowerResult<hir::BinOp> {
@@ -376,7 +383,17 @@ impl ASTLowerer {
             &hir_args.kw_args,
             &self.ctx.name,
         )?;
-        Ok(hir::Call::new(obj, call.method_name, hir_args, sig_t))
+        let method_name = if let Some(method_name) = call.method_name {
+            Some(hir::Identifier::new(
+                method_name.dot,
+                method_name.name,
+                None,
+                Type::Uninited,
+            ))
+        } else {
+            None
+        };
+        Ok(hir::Call::new(obj, method_name, hir_args, sig_t))
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -406,6 +423,7 @@ impl ASTLowerer {
             &self.ctx.name,
         )?;
         let args = hir::Args::new(args, None, vec![], None);
+        let method_name = hir::Identifier::bare(method_name.dot, method_name.name);
         Ok(hir::Call::new(class, Some(method_name), args, sig_t))
     }
 
@@ -540,7 +558,8 @@ impl ASTLowerer {
             }
             _other => {}
         }
-        let sig = hir::VarSignature::new(ident.clone(), found_body_t.clone());
+        let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+        let sig = hir::VarSignature::new(ident, found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
@@ -579,7 +598,8 @@ impl ASTLowerer {
             .as_mut()
             .unwrap()
             .assign_subr(&sig, id, found_body_t)?;
-        let sig = hir::SubrSignature::new(sig.ident, sig.params, t);
+        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+        let sig = hir::SubrSignature::new(ident, sig.params, t);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }

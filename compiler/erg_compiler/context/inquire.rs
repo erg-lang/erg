@@ -91,17 +91,17 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<&Context> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Local(name)) => {
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                 if kind == Some(ContextKind::Module) {
-                    if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+                    if let Some(ctx) = self.rec_get_mod(ident.inspect()) {
                         Ok(ctx)
                     } else {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,
                             obj.loc(),
                             namespace.clone(),
-                            name.inspect(),
-                            self.get_similar_name(name.inspect()),
+                            ident.inspect(),
+                            self.get_similar_name(ident.inspect()),
                         ))
                     }
                 } else {
@@ -197,34 +197,20 @@ impl Context {
         None
     }
 
-    pub(crate) fn rec_get_var_t(
-        &self,
-        name: &Token,
-        vis: Visibility,
-        namespace: &Str,
-    ) -> TyCheckResult<Type> {
-        if let Some(vi) = self.get_current_scope_var(&name.inspect()[..]) {
-            if vi.vis == vis {
-                Ok(vi.t())
-            } else {
-                Err(TyCheckError::visibility_error(
-                    line!() as usize,
-                    name.loc(),
-                    namespace.clone(),
-                    name.inspect(),
-                    vi.vis,
-                ))
-            }
+    pub(crate) fn rec_get_var_t(&self, ident: &Identifier, namespace: &Str) -> TyCheckResult<Type> {
+        if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
+            // self.validate_visibility(ident, vi, self)?;
+            Ok(vi.t())
         } else {
             if let Some(parent) = self.outer.as_ref() {
-                return parent.rec_get_var_t(name, vis, namespace);
+                return parent.rec_get_var_t(ident, namespace);
             }
             Err(TyCheckError::no_var_error(
                 line!() as usize,
-                name.loc(),
+                ident.loc(),
                 namespace.clone(),
-                name.inspect(),
-                self.get_similar_name(name.inspect()),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
             ))
         }
     }
@@ -232,11 +218,12 @@ impl Context {
     pub(crate) fn rec_get_attr_t(
         &self,
         obj: &hir::Expr,
-        name: &Token,
+        ident: &Identifier,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         let self_t = obj.t();
-        match self.get_attr_t_from_attributive_t(obj, &self_t, name, namespace) {
+        let name = ident.name.token();
+        match self.get_attr_t_from_attributive_t(obj, &self_t, ident, namespace) {
             Ok(t) => {
                 return Ok(t);
             }
@@ -245,17 +232,22 @@ impl Context {
                 return Err(e);
             }
         }
+        if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
+            if let Ok(t) = singular_ctx.rec_get_var_t(ident, namespace) {
+                return Ok(t);
+            }
+        }
         for (_, ctx) in self
             .rec_get_nominal_super_type_ctxs(&self_t)
             .ok_or_else(|| todo!())?
         {
-            if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
+            if let Ok(t) = ctx.rec_get_var_t(ident, namespace) {
                 return Ok(t);
             }
         }
         // TODO: dependent type widening
         if let Some(parent) = self.outer.as_ref() {
-            parent.rec_get_attr_t(obj, name, namespace)
+            parent.rec_get_attr_t(obj, ident, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
@@ -272,53 +264,56 @@ impl Context {
         &self,
         obj: &hir::Expr,
         t: &Type,
-        name: &Token,
+        ident: &Identifier,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_t_from_attributive_t(obj, &fv.crack(), name, namespace)
+                self.get_attr_t_from_attributive_t(obj, &fv.crack(), ident, namespace)
             }
             Type::FreeVar(fv) => {
                 let sup = fv.get_sup().unwrap();
-                self.get_attr_t_from_attributive_t(obj, &sup, name, namespace)
+                self.get_attr_t_from_attributive_t(obj, &sup, ident, namespace)
             }
-            Type::Ref(t) => self.get_attr_t_from_attributive_t(obj, t, name, namespace),
+            Type::Ref(t) => self.get_attr_t_from_attributive_t(obj, t, ident, namespace),
             Type::RefMut { before, .. } => {
-                self.get_attr_t_from_attributive_t(obj, before, name, namespace)
+                self.get_attr_t_from_attributive_t(obj, before, ident, namespace)
             }
             Type::Refinement(refine) => {
-                self.get_attr_t_from_attributive_t(obj, &refine.t, name, namespace)
+                self.get_attr_t_from_attributive_t(obj, &refine.t, ident, namespace)
             }
             Type::Record(record) => {
                 // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
-                if let Some(attr) = record.get(&Field::new(Public, name.inspect().clone())) {
+                if let Some(attr) = record.get(&Field::new(Public, ident.inspect().clone())) {
                     Ok(attr.clone())
                 } else {
                     let t = Type::Record(record.clone());
                     Err(TyCheckError::no_attr_error(
                         line!() as usize,
-                        name.loc(),
+                        ident.loc(),
                         namespace.clone(),
                         &t,
-                        name.inspect(),
-                        self.get_similar_attr(&t, name.inspect()),
+                        ident.inspect(),
+                        self.get_similar_attr(&t, ident.inspect()),
                     ))
                 }
             }
             Module => {
                 let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
-                let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
+                let t = mod_ctx.rec_get_var_t(ident, namespace)?;
                 Ok(t)
             }
             other => {
                 if let Some(v) = self.rec_get_const_obj(&other.name()) {
                     match v {
                         ValueObj::Type(TypeObj::Generated(gen)) => self
-                            .get_gen_t_require_attr_t(gen, &name.inspect()[..])
+                            .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
                             .map(|t| t.clone())
                             .ok_or(TyCheckError::dummy(line!() as usize)),
-                        ValueObj::Type(TypeObj::Builtin(t)) => todo!("{t}"),
+                        ValueObj::Type(TypeObj::Builtin(_t)) => {
+                            // FIXME:
+                            Err(TyCheckError::dummy(line!() as usize))
+                        }
                         other => todo!("{other}"),
                     }
                 } else {
@@ -421,8 +416,9 @@ impl Context {
             && self
                 .outer
                 .as_ref()
-                .map(|outer| outer.name.split("::").last().unwrap_or(&outer.name))
-                .map(|name| name != &ctx.name[..])
+                // TODO: also split with `.`
+                .map(|outer| outer.name.split("::"))
+                .map(|mut names| names.all(|name| name != &ctx.name[..]))
                 .unwrap_or(true)
         {
             Err(TyCheckError::visibility_error(
@@ -446,14 +442,17 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 2);
         let cont = binop_to_dname(op.inspect());
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
-        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
+        let t = self.rec_get_var_t(
+            &Identifier::new(None, VarName::new(symbol.clone())),
+            namespace,
+        )?;
+        let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
-                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
-                let bin = hir::BinOp::new(op.name, lhs, rhs, op.t);
+                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t.clone());
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                 let core = ErrorCore::new(
                     e.core.errno,
@@ -475,13 +474,16 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
-        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
+        let t = self.rec_get_var_t(
+            &Identifier::new(None, VarName::new(symbol.clone())),
+            namespace,
+        )?;
+        let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
-                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
-                let unary = hir::UnaryOp::new(op.name, expr, op.t);
+                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t.clone());
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
@@ -655,7 +657,7 @@ impl Context {
                 let callee = if let Some(ident) = method_name {
                     let attr = hir::Attribute::new(
                         obj.clone(),
-                        ident.name.clone().into_token(),
+                        hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
                         Type::Uninited,
                     );
                     let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
@@ -886,7 +888,9 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Local(local)) if &local.inspect()[..] == "match" => {
+            hir::Expr::Accessor(hir::Accessor::Ident(local))
+                if local.vis().is_private() && &local.inspect()[..] == "match" =>
+            {
                 return self.get_match_call_t(pos_args, kw_args);
             }
             _ => {}

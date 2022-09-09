@@ -226,107 +226,26 @@ impl Args {
     }
 }
 
-/// represents a local (private) variable
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Local {
-    pub symbol: Token,
-}
-
-impl NestedDisplay for Local {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(Local);
-impl_locational!(Local, symbol);
-
-impl Local {
-    pub const fn new(symbol: Token) -> Self {
-        Self { symbol }
-    }
-
-    pub fn static_dummy(name: &'static str) -> Self {
-        Self::new(Token::static_symbol(name))
-    }
-
-    pub fn dummy(name: &str) -> Self {
-        Self::new(Token::symbol(name))
-    }
-
-    pub fn dummy_with_line(name: &str, line: usize) -> Self {
-        Self::new(Token::new(TokenKind::Symbol, Str::rc(name), line, 0))
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn is_const(&self) -> bool {
-        self.symbol.inspect().chars().next().unwrap().is_uppercase()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Public {
-    pub dot: Token,
-    pub symbol: Token,
-}
-
-impl NestedDisplay for Public {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, ".{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(Public);
-impl_locational!(Public, dot, symbol);
-
-impl Public {
-    pub const fn new(dot: Token, symbol: Token) -> Self {
-        Self { dot, symbol }
-    }
-
-    pub fn dummy(name: &'static str) -> Self {
-        Self::new(
-            Token::from_str(TokenKind::Dot, "."),
-            Token::from_str(TokenKind::Symbol, name),
-        )
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn is_const(&self) -> bool {
-        self.symbol.inspect().chars().next().unwrap().is_uppercase()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
-    pub vis: Token,
-    pub name: Local,
+    pub ident: Identifier,
 }
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}){}{}", self.obj, self.vis.inspect(), self.name)
+        write!(f, "({}){}", self.obj, self.ident)
     }
 }
 
 impl_display_from_nested!(Attribute);
-impl_locational!(Attribute, obj, name);
+impl_locational!(Attribute, obj, ident);
 
 impl Attribute {
-    pub fn new(obj: Expr, vis: Token, name: Local) -> Self {
+    pub fn new(obj: Expr, ident: Identifier) -> Self {
         Self {
             obj: Box::new(obj),
-            vis,
-            name,
+            ident,
         }
     }
 }
@@ -382,28 +301,27 @@ impl Subscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Accessor {
-    Local(Local),
-    Public(Public),
+    Ident(Identifier),
     Attr(Attribute),
     TupleAttr(TupleAttribute),
     Subscr(Subscript),
 }
 
-impl_nested_display_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Ident Attr, TupleAttr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Local(Local::new(symbol))
+        Self::Ident(Identifier::new(None, VarName::new(symbol)))
     }
 
     pub const fn public(dot: Token, symbol: Token) -> Self {
-        Self::Public(Public::new(dot, symbol))
+        Self::Ident(Identifier::new(Some(dot), VarName::new(symbol)))
     }
 
-    pub fn attr(obj: Expr, vis: Token, name: Local) -> Self {
-        Self::Attr(Attribute::new(obj, vis, name))
+    pub fn attr(obj: Expr, ident: Identifier) -> Self {
+        Self::Attr(Attribute::new(obj, ident))
     }
 
     pub fn tuple_attr(obj: Expr, index: Literal) -> Self {
@@ -416,19 +334,17 @@ impl Accessor {
 
     pub const fn name(&self) -> Option<&Str> {
         match self {
-            Self::Local(local) => Some(local.inspect()),
-            Self::Public(local) => Some(local.inspect()),
+            Self::Ident(ident) => Some(ident.inspect()),
             _ => None,
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Local(local) => local.is_const(),
-            Self::Public(public) => public.is_const(),
+            Self::Ident(ident) => ident.is_const(),
             Self::Subscr(subscr) => subscr.obj.is_const_acc(),
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
-            Self::Attr(attr) => attr.obj.is_const_acc() && attr.name.is_const(),
+            Self::Attr(attr) => attr.obj.is_const_acc() && attr.ident.is_const(),
         }
     }
 }
@@ -494,7 +410,7 @@ pub struct ArrayComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elem: Box<Expr>,
-    pub generators: Vec<(Local, Expr)>,
+    pub generators: Vec<(Identifier, Expr)>,
     pub guards: Vec<Expr>,
 }
 
@@ -522,7 +438,7 @@ impl ArrayComprehension {
         l_sqbr: Token,
         r_sqbr: Token,
         elem: Expr,
-        generators: Vec<(Local, Expr)>,
+        generators: Vec<(Identifier, Expr)>,
         guards: Vec<Expr>,
     ) -> Self {
         Self {
@@ -1773,14 +1689,16 @@ pub struct Identifier {
     pub name: VarName,
 }
 
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Identifier {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match &self.dot {
             Some(_dot) => write!(f, ".{}", self.name),
             None => write!(f, "::{}", self.name),
         }
     }
 }
+
+impl_display_from_nested!(Identifier);
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
