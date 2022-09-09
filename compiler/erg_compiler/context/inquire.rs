@@ -345,7 +345,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi)?;
+                    self.validate_visibility(method_name, vi, ctx)?;
                     return Ok(vi.t());
                 }
                 for (_, methods_ctx) in ctx.method_defs.iter() {
@@ -354,7 +354,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| methods_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi)?;
+                        self.validate_visibility(method_name, vi, ctx)?;
                         return Ok(vi.t());
                     }
                 }
@@ -365,7 +365,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| singular_ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi)?;
+                    self.validate_visibility(method_name, vi, singular_ctx)?;
                     return Ok(vi.t());
                 }
                 for (_, method_ctx) in singular_ctx.method_defs.iter() {
@@ -374,7 +374,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| method_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi)?;
+                        self.validate_visibility(method_name, vi, singular_ctx)?;
                         return Ok(vi.t());
                     }
                 }
@@ -402,7 +402,12 @@ impl Context {
         }
     }
 
-    fn validate_visibility(&self, ident: &Identifier, vi: &VarInfo) -> TyCheckResult<()> {
+    fn validate_visibility(
+        &self,
+        ident: &Identifier,
+        vi: &VarInfo,
+        ctx: &Context,
+    ) -> TyCheckResult<()> {
         if ident.vis() != vi.vis {
             Err(TyCheckError::visibility_error(
                 line!() as usize,
@@ -410,6 +415,22 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
                 vi.vis,
+            ))
+        // check if the private variable is loaded from the other scope
+        } else if vi.vis.is_private()
+            && self
+                .outer
+                .as_ref()
+                .map(|outer| outer.name.split("::").last().unwrap_or(&outer.name))
+                .map(|name| name != &ctx.name[..])
+                .unwrap_or(true)
+        {
+            Err(TyCheckError::visibility_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                Private,
             ))
         } else {
             Ok(())
