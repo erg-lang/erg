@@ -1,14 +1,14 @@
 # Erg への貢献
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Da86bd4cd1bef4035a1ad23676c8324ab74f7b674)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=a86bd4cd1bef4035a1ad23676c8324ab74f7b674)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Dc0b4a426d3de4e2fb4ef908c897371c46cbacda3)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=c0b4a426d3de4e2fb4ef908c897371c46cbacda3)
 
 初心者は[こちら](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)の説明を読んでください。
 
 ## ドキュメント
 
-Erg への貢献を考えている場合は、[doc/dev_guide](./doc/EN/dev_guide/) にあるドキュメントを読む必要があります。
-または、Erg の内部構造に興味がある場合は、[doc/compiler](/doc/JA/compiler/) が役立つ情報を提供する可能性があります (現在は日本語のみ)。
+Erg への貢献を考えている場合は、`doc/*/dev_guide` にあるドキュメントを読む必要があります。
+または、Erg の内部構造に興味がある場合は、`doc/*/compiler` が役立つ情報を提供する可能性があります。
 
 ## バグレポート
 
