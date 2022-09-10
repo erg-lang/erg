@@ -11,11 +11,11 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, set};
 
 use crate::ast::{
-    Accessor, Args, Array, BinOp, Block, Call, DataPack, Def, DefBody, DefId, Expr, Identifier,
-    KwArg, Lambda, LambdaSignature, Literal, Methods, Module, NormalArray, NormalRecord,
-    NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record, RecordAttrs,
-    ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
-    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
+    DefBody, DefId, Expr, Identifier, KwArg, Lambda, LambdaSignature, Literal, Methods, Module,
+    NormalArray, NormalRecord, NormalTuple, ParamPattern, ParamSignature, Params, PosArg, Record,
+    RecordAttrs, ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs,
+    TypeSpec, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -383,7 +383,28 @@ impl Desugarer {
                     let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
                     Expr::Array(Array::Normal(arr))
                 }
-                _ => todo!(),
+                Array::WithLength(arr) => {
+                    let elem = PosArg::new(self.rec_desugar_shortened_record(arr.elem.expr));
+                    let len = self.rec_desugar_shortened_record(*arr.len);
+                    let arr = ArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
+                    Expr::Array(Array::WithLength(arr))
+                }
+                Array::Comprehension(arr) => {
+                    let elem = self.rec_desugar_shortened_record(*arr.elem);
+                    let generators = arr
+                        .generators
+                        .into_iter()
+                        .map(|(ident, gen)| (ident, self.rec_desugar_shortened_record(gen)))
+                        .collect();
+                    let guards = arr
+                        .guards
+                        .into_iter()
+                        .map(|guard| self.rec_desugar_shortened_record(guard))
+                        .collect();
+                    let arr =
+                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, elem, generators, guards);
+                    Expr::Array(Array::Comprehension(arr))
+                }
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
