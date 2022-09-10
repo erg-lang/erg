@@ -189,12 +189,13 @@ impl Runnable for ParserRunner {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        todo!()
+        let ast = self.parse()?;
+        println!("{ast}");
+        Ok(())
     }
 
     fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
-        self.cfg.input = Input::Str(src);
-        let ast = self.parse()?;
+        let ast = self.parse_with_input(src)?;
         Ok(format!("{ast}"))
     }
 }
@@ -221,6 +222,15 @@ impl ParserRunner {
         };
         let mut self_ = Self::new(cfg);
         self_.parse()
+    }
+
+    fn parse_with_input(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
+        let ts = Lexer::new(Input::Str(src))
+            .lex()
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+        Parser::new(ts)
+            .parse(Str::ever(self.cfg.module))
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 }
 
