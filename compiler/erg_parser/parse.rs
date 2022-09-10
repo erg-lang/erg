@@ -189,7 +189,9 @@ impl Runnable for ParserRunner {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        todo!()
+        let ast = self.parse()?;
+        println!("{ast}");
+        Ok(())
     }
 
     fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
