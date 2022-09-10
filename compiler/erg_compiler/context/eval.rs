@@ -209,7 +209,7 @@ impl Context {
                         if let Some(val) = ctx.consts.get(ident.inspect()) {
                             return Ok(val.clone());
                         }
-                        for (_, methods) in ctx.method_defs.iter() {
+                        for (_, methods) in ctx.methods_list.iter() {
                             if let Some(v) = methods.consts.get(ident.inspect()) {
                                 return Ok(v.clone());
                             }

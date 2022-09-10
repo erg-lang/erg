@@ -71,8 +71,8 @@ impl Context {
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
-                for (_, def) in self.method_defs.iter() {
-                    if let Some(vi) = def.get_current_scope_var(name) {
+                for (_, methods) in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_var(name) {
                         return Some(vi);
                     }
                 }
@@ -355,7 +355,7 @@ impl Context {
                     self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
-                for (_, methods_ctx) in ctx.method_defs.iter() {
+                for (_, methods_ctx) in ctx.methods_list.iter() {
                     if let Some(vi) = methods_ctx
                         .locals
                         .get(method_name.inspect())
@@ -375,7 +375,7 @@ impl Context {
                     self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
-                for (_, method_ctx) in singular_ctx.method_defs.iter() {
+                for (_, method_ctx) in singular_ctx.methods_list.iter() {
                     if let Some(vi) = method_ctx
                         .locals
                         .get(method_name.inspect())
@@ -1332,8 +1332,14 @@ impl Context {
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
         if let Some(val) = self.consts.get(name) {
-            Some(val)
-        } else if let Some(outer) = &self.outer {
+            return Some(val);
+        }
+        for (_, ctx) in self.methods_list.iter() {
+            if let Some(val) = ctx.consts.get(name) {
+                return Some(val);
+            }
+        }
+        if let Some(outer) = &self.outer {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -1350,21 +1356,21 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_self_t(&self) -> Type {
+    pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
             let name = self.name.split(&[':', '.']).last().unwrap();
             let mono_t = mono(Str::rc(name));
             if let Some((t, _)) = self.rec_get_nominal_type_ctx(&mono_t) {
-                t.clone()
+                Some(t.clone())
             } else {
-                todo!("{mono_t}")
+                None
             }
         } else {
             if let Some(outer) = &self.outer {
-                outer.get_self_t()
+                outer.rec_get_self_t()
             } else {
-                todo!()
+                None
             }
         }
     }

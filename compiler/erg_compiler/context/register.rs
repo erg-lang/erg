@@ -177,7 +177,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -217,7 +217,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -258,7 +258,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -591,7 +591,7 @@ impl Context {
                     methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public);
-                    ctx.method_defs.push((gen.t.clone(), methods));
+                    ctx.methods_list.push((gen.t.clone(), methods));
                     self.register_gen_mono_type(gen, ctx, Const);
                 } else {
                     todo!()
@@ -626,7 +626,7 @@ impl Context {
                         );
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public);
-                        ctx.method_defs.push((gen.t.clone(), methods));
+                        ctx.methods_list.push((gen.t.clone(), methods));
                         self.register_gen_mono_type(gen, ctx, Const);
                     } else {
                         todo!("super class not found")

@@ -640,7 +640,7 @@ impl ASTLowerer {
                     self.check_override(&class, &methods);
                     if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
                         for (newly_defined_name, _vi) in methods.locals.iter() {
-                            for (_, already_defined_methods) in class_root.method_defs.iter_mut() {
+                            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                                 // TODO: 特殊化なら同じ名前でもOK
                                 // TODO: 定義のメソッドもエラー表示
                                 if let Some((_already_defined_name, already_defined_vi)) =
@@ -662,7 +662,7 @@ impl ASTLowerer {
                                 }
                             }
                         }
-                        class_root.method_defs.push((class, methods));
+                        class_root.methods_list.push((class, methods));
                     } else {
                         todo!()
                     }
