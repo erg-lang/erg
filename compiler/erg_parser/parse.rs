@@ -1702,9 +1702,9 @@ impl Parser {
         }
     }
 
-    fn convert_accessor_to_var_sig(&mut self, _accessor: Accessor) -> ParseResult<VarSignature> {
+    fn convert_accessor_to_var_sig(&mut self, accessor: Accessor) -> ParseResult<VarSignature> {
         debug_call_info!(self);
-        match _accessor {
+        match accessor {
             Accessor::Ident(ident) => {
                 let pat = VarPattern::Ident(ident);
                 self.level -= 1;
@@ -1719,9 +1719,33 @@ impl Parser {
         }
     }
 
-    fn convert_array_to_array_pat(&mut self, _array: Array) -> ParseResult<VarArrayPattern> {
+    fn convert_array_to_array_pat(&mut self, array: Array) -> ParseResult<VarArrayPattern> {
         debug_call_info!(self);
-        todo!()
+        match array {
+            Array::Normal(arr) => {
+                let mut vars = Vars::empty();
+                for elem in arr.elems.into_iters().0 {
+                    let pat = self
+                        .convert_rhs_to_sig(elem.expr)
+                        .map_err(|_| self.stack_dec())?;
+                    match pat {
+                        Signature::Var(v) => {
+                            vars.push(v);
+                        }
+                        Signature::Subr(subr) => {
+                            self.level -= 1;
+                            let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                let pat = VarArrayPattern::new(arr.l_sqbr, vars, arr.r_sqbr);
+                self.level -= 1;
+                Ok(pat)
+            }
+            _ => todo!(),
+        }
     }
 
     fn convert_record_to_record_pat(&mut self, record: Record) -> ParseResult<VarRecordPattern> {
@@ -1998,12 +2022,20 @@ impl Parser {
         Ok(param)
     }
 
-    fn convert_array_to_param_array_pat(
-        &mut self,
-        _array: Array,
-    ) -> ParseResult<ParamArrayPattern> {
+    fn convert_array_to_param_array_pat(&mut self, array: Array) -> ParseResult<ParamArrayPattern> {
         debug_call_info!(self);
-        todo!()
+        match array {
+            Array::Normal(arr) => {
+                let mut params = vec![];
+                for arg in arr.elems.into_iters().0 {
+                    params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
+                }
+                let params = Params::new(params, None, vec![], None);
+                self.level -= 1;
+                Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
+            }
+            _ => todo!(),
+        }
     }
 
     fn convert_record_to_param_record_pat(
@@ -2014,12 +2046,20 @@ impl Parser {
         todo!()
     }
 
-    fn convert_tuple_to_param_tuple_pat(
-        &mut self,
-        _tuple: Tuple,
-    ) -> ParseResult<ParamTuplePattern> {
+    fn convert_tuple_to_param_tuple_pat(&mut self, tuple: Tuple) -> ParseResult<ParamTuplePattern> {
         debug_call_info!(self);
-        todo!()
+        match tuple {
+            Tuple::Normal(tup) => {
+                let mut params = vec![];
+                let (elems, _, parens) = tup.elems.deconstruct();
+                for arg in elems.into_iter() {
+                    params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
+                }
+                let params = Params::new(params, None, vec![], parens);
+                self.level -= 1;
+                Ok(ParamTuplePattern::new(params))
+            }
+        }
     }
 
     fn convert_type_asc_to_param_pattern(
@@ -2056,7 +2096,7 @@ impl Parser {
             }
             Expr::Array(array) => {
                 let arr = self
-                    .convert_array_to_param_pat(array)
+                    .convert_array_to_param_array_pat(array)
                     .map_err(|_| self.stack_dec())?;
                 let param = ParamSignature::new(ParamPattern::Array(arr), None, None);
                 let params = Params::new(vec![param], None, vec![], None);
@@ -2065,7 +2105,7 @@ impl Parser {
             }
             Expr::Record(record) => {
                 let rec = self
-                    .convert_record_to_param_pat(record)
+                    .convert_record_to_param_record_pat(record)
                     .map_err(|_| self.stack_dec())?;
                 let param = ParamSignature::new(ParamPattern::Record(rec), None, None);
                 let params = Params::new(vec![param], None, vec![], None);
@@ -2088,12 +2128,21 @@ impl Parser {
         }
     }
 
-    fn convert_accessor_to_param_sig(
-        &mut self,
-        _accessor: Accessor,
-    ) -> ParseResult<ParamSignature> {
+    fn convert_accessor_to_param_sig(&mut self, accessor: Accessor) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
-        todo!()
+        match accessor {
+            Accessor::Ident(ident) => {
+                let pat = ParamPattern::VarName(ident.name);
+                self.level -= 1;
+                Ok(ParamSignature::new(pat, None, None))
+            }
+            other => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                Err(())
+            }
+        }
     }
 
     fn convert_tuple_to_params(&mut self, tuple: Tuple) -> ParseResult<Params> {
@@ -2118,16 +2167,6 @@ impl Parser {
                 Ok(params)
             }
         }
-    }
-
-    fn convert_array_to_param_pat(&mut self, _array: Array) -> ParseResult<ParamArrayPattern> {
-        debug_call_info!(self);
-        todo!()
-    }
-
-    fn convert_record_to_param_pat(&mut self, _record: Record) -> ParseResult<ParamRecordPattern> {
-        debug_call_info!(self);
-        todo!()
     }
 
     fn convert_type_asc_to_lambda_sig(

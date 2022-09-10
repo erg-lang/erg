@@ -2132,6 +2132,12 @@ impl NestedDisplay for ParamTuplePattern {
 impl_display_from_nested!(ParamTuplePattern);
 impl_locational!(ParamTuplePattern, elems);
 
+impl ParamTuplePattern {
+    pub const fn new(elems: Params) -> Self {
+        Self { elems }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     l_brace: Token,
