@@ -28,7 +28,7 @@ impl Context {
     pub const GENERIC_LEVEL: usize = usize::MAX;
 
     /// 型を非依存化する
-    fn _independentise<'a>(_t: Type, _ts: &[Type]) -> Type {
+    fn _independentise(_t: Type, _ts: &[Type]) -> Type {
         todo!()
     }
 
@@ -194,7 +194,7 @@ impl Context {
                     let sub = self.generalize_t_inner(sub.clone(), bounds, lazy_inits);
                     let sup = self.generalize_t_inner(sup.clone(), bounds, lazy_inits);
                     // let bs = sub_bs.concat(sup_bs);
-                    bounds.insert(TyBound::sandwiched(sub, mono_q(name.clone()), sup));
+                    bounds.insert(TyBound::sandwiched(sub, mono_q(name), sup));
                 }
                 Constraint::TypeOf(t) => {
                     let t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
@@ -378,7 +378,7 @@ impl Context {
     pub(crate) fn deref_toplevel(&mut self, mut hir: hir::HIR) -> TyCheckResult<hir::HIR> {
         self.level = 0;
         for chunk in hir.module.iter_mut() {
-            self.deref_expr_t(chunk).map_err(|e| e)?;
+            self.deref_expr_t(chunk)?;
         }
         Ok(hir)
     }
@@ -805,7 +805,7 @@ impl Context {
                 {
                     self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
                 }
-                for (l, r) in ls.var_params.as_ref().zip(rs.var_params.as_ref()) {
+                if let Some((l, r)) = ls.var_params.as_ref().zip(rs.var_params.as_ref()) {
                     self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
                 }
                 for lpt in ls.default_params.iter() {
@@ -1051,7 +1051,7 @@ impl Context {
                     rfv.update_constraint(new_constraint);
                     lfv.link(maybe_sup);
                 }
-                return Ok(())
+                Ok(())
             }
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
@@ -1107,7 +1107,7 @@ impl Context {
                     },
                     _ => {}
                 }
-                return Ok(());
+                Ok(())
             }
             (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
                 let lfv_ref = &mut *lfv.borrow_mut();
@@ -1156,7 +1156,7 @@ impl Context {
                     },
                     _ => {}
                 }
-                return Ok(());
+                Ok(())
             }
             (Type::FreeVar(_fv), _r) => todo!(),
             (Type::Subr(lsub), Type::Subr(rsub)) => {
@@ -1169,7 +1169,7 @@ impl Context {
                     |(l, r)| self.unify(l.typ(), r.typ(), sub_loc, sup_loc),
                 )?;
                 self.unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc)?;
-                return Ok(());
+                Ok(())
             }
             (Type::MonoProj { .. }, _) => todo!(),
             (_, Type::MonoProj { .. }) => todo!(),

@@ -500,7 +500,7 @@ impl ASTLowerer {
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t().unwrap();
         if let Err(e) =
-            self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
+            self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
         {
             self.errs.push(e);
         }

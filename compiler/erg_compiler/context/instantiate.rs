@@ -103,7 +103,7 @@ impl TyVarContext {
         params: Vec<TyParam>,
         ctx: &Context,
     ) -> Type {
-        if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(&name) {
+        if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(name) {
             let (_, ctx) = ctx
                 .rec_get_nominal_type_ctx(&poly_trait(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
@@ -123,7 +123,7 @@ impl TyVarContext {
                 .collect();
             let mut inst_defaults = vec![];
             for template in temp_defaults
-                .into_iter()
+                .iter()
                 .take(defined_params_len - given_params_len)
             {
                 let tp = self.instantiate_const_template(&tvar_name, name, template);
@@ -197,15 +197,13 @@ impl TyVarContext {
                             &named_free_var(name.clone(), self.level, constraint),
                         );
                     }
+                } else if let Some(tp) = self.typaram_instances.get(&name) {
+                    tp.update_constraint(constraint);
                 } else {
-                    if let Some(tp) = self.typaram_instances.get(&name) {
-                        tp.update_constraint(constraint);
-                    } else {
-                        self.push_or_init_typaram(
-                            &name,
-                            &TyParam::named_free_var(name.clone(), self.level, t),
-                        );
-                    }
+                    self.push_or_init_typaram(
+                        &name,
+                        &TyParam::named_free_var(name.clone(), self.level, t),
+                    );
                 }
             }
         }
@@ -471,7 +469,7 @@ impl Context {
         };
         if let Some(decl_pt) = opt_decl_t {
             self.sub_unify(
-                &decl_pt.typ(),
+                decl_pt.typ(),
                 &spec_t,
                 None,
                 sig.t_spec.as_ref().map(|s| s.loc()),
@@ -530,7 +528,7 @@ impl Context {
 
     pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyParam {
         match expr {
-            ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(&lit)),
+            ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(lit)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
                 TyParam::Mono(name.inspect().clone())
             }
@@ -836,16 +834,14 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
-                let mut tv_ctx = TyVarContext::new(self.level, quant.bounds, &self);
+                let mut tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
                 let t = Self::instantiate_t(*quant.unbound_callable, &mut tv_ctx);
-                match &t {
-                    Type::Subr(subr) => match subr.kind.self_t() {
-                        Some(l) => {
-                            self.unify(l, callee.ref_t(), None, Some(callee.loc()))?;
-                        }
-                        _ => {}
-                    },
-                    _ => unreachable!(),
+                if let Type::Subr(subr) = &t {
+                    if let Some(l) = subr.kind.self_t() {
+                        self.unify(l, callee.ref_t(), None, Some(callee.loc()))?;
+                    }
+                } else {
+                    unreachable!()
                 }
                 Ok(t)
             }

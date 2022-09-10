@@ -274,14 +274,14 @@ impl Context {
             let sub_t = if sig.ident.is_procedural() {
                 proc(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )
             } else {
                 func(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )

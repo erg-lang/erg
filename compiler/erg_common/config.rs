@@ -146,33 +146,20 @@ impl Default for ErgConfig {
         } else {
             Input::REPL
         };
-        Self::new("exec", 1, false, None, 10, input, "<module>", 2)
+        Self {
+            mode: "exec",
+            opt_level: 1,
+            dump_as_pyc: false,
+            python_ver: None,
+            py_server_timeout: 10,
+            input,
+            module: "<module>",
+            verbose: 2,
+        }
     }
 }
 
 impl ErgConfig {
-    pub const fn new(
-        mode: &'static str,
-        opt_level: u8,
-        dump_as_pyc: bool,
-        python_ver: Option<u32>,
-        py_server_timeout: u64,
-        input: Input,
-        module: &'static str,
-        verbose: u8,
-    ) -> Self {
-        Self {
-            mode,
-            opt_level,
-            dump_as_pyc,
-            python_ver,
-            py_server_timeout,
-            input,
-            module,
-            verbose,
-        }
-    }
-
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
     pub fn copy(&self) -> Self {

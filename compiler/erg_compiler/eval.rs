@@ -176,13 +176,7 @@ impl Evaluator {
 
     fn eval_const_acc(&self, _acc: &Accessor, ctx: &Context) -> Option<ValueObj> {
         match _acc {
-            Accessor::Local(local) => {
-                if let Some(val) = ctx.rec_get_const_obj(local.inspect()) {
-                    Some(val.clone())
-                } else {
-                    None
-                }
-            }
+            Accessor::Local(local) => ctx.rec_get_const_obj(local.inspect()).cloned(),
             Accessor::Attr(attr) => {
                 let _obj = self.eval_const_expr(&attr.obj, ctx)?;
                 todo!()
@@ -220,7 +214,7 @@ impl Evaluator {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Local(name) if name.is_const() => {
-                    if let Some(ValueObj::Subr(subr)) = ctx.rec_get_const_obj(&name.inspect()) {
+                    if let Some(ValueObj::Subr(subr)) = ctx.rec_get_const_obj(name.inspect()) {
                         let args = self.eval_args(&call.args)?;
                         Some(subr.call(args))
                     } else {
@@ -382,9 +376,7 @@ impl Evaluator {
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::Value(c) => self
-                .eval_unary_lit(op, c.clone())
-                .map(|v| TyParam::Value(v)),
+            TyParam::Value(c) => self.eval_unary_lit(op, c.clone()).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),

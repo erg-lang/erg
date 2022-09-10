@@ -703,12 +703,12 @@ impl RecordAttrs {
         self.0.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Def> {
-        self.0.iter()
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
-    pub fn into_iter(self) -> impl Iterator<Item = Def> {
-        self.0.into_iter()
+    pub fn iter(&self) -> impl Iterator<Item = &Def> {
+        self.0.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
@@ -717,6 +717,14 @@ impl RecordAttrs {
 
     pub fn push(&mut self, attr: Def) {
         self.0.push(attr);
+    }
+}
+
+impl IntoIterator for RecordAttrs {
+    type Item = Def;
+    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -772,7 +780,7 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`(: {}):\n", self.op.content, self.sig_t)?;
+        writeln!(f, "`{}`(: {}):", self.op.content, self.sig_t)?;
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)

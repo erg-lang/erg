@@ -212,9 +212,8 @@ impl Constraint {
     }
 
     pub fn update_cyclicity(&mut self, new_cyclicity: Cyclicity) {
-        match self {
-            Self::Sandwiched { cyclicity, .. } => *cyclicity = cyclicity.combine(new_cyclicity),
-            _ => (),
+        if let Self::Sandwiched { cyclicity, .. } = self {
+            *cyclicity = cyclicity.combine(new_cyclicity);
         }
     }
 }

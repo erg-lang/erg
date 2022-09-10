@@ -1,5 +1,7 @@
 //! Defines `Context`.
+//!
 //! `Context` is used for type inference and type checking.
+#![allow(clippy::result_unit_err)]
 pub mod cache;
 pub mod compare;
 pub mod hint;
@@ -91,7 +93,7 @@ impl TyParamIdx {
                         TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),
                         TyParam::Type(t) if t.is_monomorphic() => {}
                         TyParam::Type(inner) => {
-                            if let Some(inner) = Self::search(&inner, target) {
+                            if let Some(inner) = Self::search(inner, target) {
                                 return Some(Self::nested(i, inner));
                             }
                         }
@@ -111,7 +113,7 @@ impl TyParamIdx {
         match self {
             Self::Nth(n) => {
                 let tps = from.typarams();
-                let tp = tps.iter().nth(n).unwrap();
+                let tp = tps.get(n).unwrap();
                 match tp {
                     TyParam::Type(t) => *t.clone(),
                     _ => todo!(),
@@ -328,6 +330,7 @@ impl Context {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn with_capacity(
         name: Str,
         kind: ContextKind,

@@ -3,7 +3,8 @@
 //! エラー処理に関する汎用的なコンポーネントを提供する
 use std::cmp;
 use std::fmt;
-use std::io::{stderr, BufWriter, Write};
+use std::fmt::Write as _;
+use std::io::{stderr, BufWriter, Write as _};
 
 use crate::color::*;
 use crate::config::Input;
@@ -362,7 +363,7 @@ pub trait ErrorDisplay {
     /// As for the internal error, do not put the fn name here.
     fn caused_by(&self) -> &str;
     /// the previous error that caused this error.
-    fn ref_inner(&self) -> Option<&Box<Self>>;
+    fn ref_inner(&self) -> Option<&Self>;
 
     fn write_to_stderr(&self) {
         let mut writer = BufWriter::new(stderr());
@@ -469,10 +470,12 @@ pub trait ErrorDisplay {
                     } else {
                         pointer += &"^".repeat(cmp::max(1, codes[i].len()));
                     }
-                    res += &format!(
-                        "{lineno}{VBAR_UNICODE} {code}\n{pointer}\n",
+                    writeln!(
+                        res,
+                        "{lineno}{VBAR_UNICODE} {code}\n{pointer}",
                         code = codes[i]
-                    );
+                    )
+                    .unwrap();
                 }
                 res + RESET
             }

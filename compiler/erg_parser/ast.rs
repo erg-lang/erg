@@ -1,6 +1,7 @@
 //! defines `Expr` (Expression, the minimum executing unit of Erg).
 use std::borrow::Borrow;
 use std::fmt;
+use std::fmt::Write as _;
 
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
@@ -134,7 +135,7 @@ pub struct Args {
 impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args.iter(), f, level)?;
-        writeln!(f, "")?;
+        writeln!(f)?;
         fmt_lines(self.kw_args.iter(), f, level)
     }
 }
@@ -504,7 +505,7 @@ impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
-            generators.push_str(&format!("{} <- {}, ", name, gen));
+            write!(generators, "{} <- {}, ", name, gen).unwrap();
         }
         write!(
             f,
@@ -678,8 +679,12 @@ impl RecordAttrs {
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
     }
+}
 
-    pub fn into_iter(self) -> impl IntoIterator<Item = Def> {
+impl IntoIterator for RecordAttrs {
+    type Item = Def;
+    type IntoIter = <Vec<Def> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
@@ -1220,7 +1225,7 @@ pub struct ConstArgs {
 impl NestedDisplay for ConstArgs {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args(), f, level)?;
-        writeln!(f, "")?;
+        writeln!(f)?;
         fmt_lines(self.kw_args(), f, level)
     }
 }
@@ -1713,6 +1718,7 @@ impl VarName {
         Self(Token::static_symbol(symbol))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(symbol: Str) -> Self {
         Self(Token::from_str(TokenKind::Symbol, &symbol))
     }
@@ -1817,7 +1823,7 @@ impl Identifier {
     }
 
     pub const fn inspect(&self) -> &Str {
-        &self.name.inspect()
+        self.name.inspect()
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -2298,6 +2304,12 @@ impl Locational for Params {
     }
 }
 
+type RawParams = (
+    Vec<ParamSignature>,
+    Option<Box<ParamSignature>>,
+    Vec<ParamSignature>,
+    Option<(Token, Token)>,
+);
 impl Params {
     pub fn new(
         non_defaults: Vec<ParamSignature>,
@@ -2313,14 +2325,7 @@ impl Params {
         }
     }
 
-    pub fn deconstruct(
-        self,
-    ) -> (
-        Vec<ParamSignature>,
-        Option<Box<ParamSignature>>,
-        Vec<ParamSignature>,
-        Option<(Token, Token)>,
-    ) {
+    pub fn deconstruct(self) -> RawParams {
         (self.non_defaults, self.var_args, self.defaults, self.parens)
     }
 

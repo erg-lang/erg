@@ -171,15 +171,15 @@ impl Context {
                     && subr
                         .non_default_params
                         .iter()
-                        .all(|pt| self.supertype_of(&Type, &pt.typ()))
+                        .all(|pt| self.supertype_of(&Type, pt.typ()))
                     && subr
                         .default_params
                         .iter()
-                        .all(|pt| self.supertype_of(&Type, &pt.typ()))
+                        .all(|pt| self.supertype_of(&Type, pt.typ()))
                     && subr
                         .var_params
                         .as_ref()
-                        .map(|va| self.supertype_of(&Type, &va.typ()))
+                        .map(|va| self.supertype_of(&Type, va.typ()))
                         .unwrap_or(true)
                     && self.supertype_of(&Type, &subr.return_t),
             ),
@@ -251,19 +251,13 @@ impl Context {
         if let Some(res) = self.inquire_cache(rhs, lhs) {
             return res;
         }
-        match self.classes_supertype_of(lhs, rhs) {
-            (Absolutely, judge) => {
-                self.register_cache(rhs, lhs, judge);
-                return judge;
-            }
-            _ => {}
+        if let (Absolutely, judge) = self.classes_supertype_of(lhs, rhs) {
+            self.register_cache(rhs, lhs, judge);
+            return judge;
         }
-        match self.trait_supertype_of(lhs, rhs) {
-            (Absolutely, judge) => {
-                self.register_cache(rhs, lhs, judge);
-                return judge;
-            }
-            _ => {}
+        if let (Absolutely, judge) = self.trait_supertype_of(lhs, rhs) {
+            self.register_cache(rhs, lhs, judge);
+            return judge;
         }
         for patch in self.patches.values() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
@@ -277,13 +271,13 @@ impl Context {
                     if self.supertype_of(&tr_inst.sub_type, rhs)
                         && self.subtype_of(&tr_inst.sup_trait, lhs)
                     {
-                        self.register_cache(&rhs, &lhs, true);
+                        self.register_cache(rhs, lhs, true);
                         return true;
                     }
                 }
             }
         }
-        self.register_cache(&rhs, &lhs, false);
+        self.register_cache(rhs, lhs, false);
         false
     }
 
@@ -620,6 +614,7 @@ impl Context {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
         let (defined_rhs, _) = self.rec_get_nominal_type_ctx(rhs).unwrap();
         let super_traits = self.rec_get_nominal_super_trait_ctxs(rhs);
+        #[allow(clippy::useless_conversion)]
         for (sup_trait, _) in super_traits.into_iter() {
             if self.sup_conforms(lhs, defined_rhs, sup_trait) {
                 return true;
@@ -636,8 +631,8 @@ impl Context {
     pub(crate) fn poly_supertype_of(
         &self,
         typ: &Type,
-        lparams: &Vec<TyParam>,
-        rparams: &Vec<TyParam>,
+        lparams: &[TyParam],
+        rparams: &[TyParam],
     ) -> bool {
         let (_, ctx) = self
             .rec_get_nominal_type_ctx(typ)
@@ -754,6 +749,7 @@ impl Context {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn into_refinement(&self, t: Type) -> RefinementType {
         match t {
             Nat => {

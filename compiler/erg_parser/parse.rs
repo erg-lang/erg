@@ -163,7 +163,7 @@ impl Parser {
         self.tokens.insert(0, token);
     }
 
-    fn stack_dec(&mut self) -> () {
+    fn stack_dec(&mut self) {
         self.level -= 1;
     }
 }
@@ -221,8 +221,10 @@ impl ParserRunner {
 
     /// Parses with default configuration
     pub fn parse_with_default_config(input: Input) -> Result<AST, ParserRunnerErrors> {
-        let mut cfg = ErgConfig::default();
-        cfg.input = input;
+        let cfg = ErgConfig {
+            input,
+            ..Default::default()
+        };
         let mut self_ = Self::new(cfg);
         self_.parse()
     }
@@ -278,12 +280,11 @@ impl Parser {
                 Some(t) if t.is(Indent) || t.is(Dedent) => {
                     switch_unreachable!()
                 }
-                Some(_) => match self.try_reduce_chunk(true) {
-                    Ok(expr) => {
+                Some(_) => {
+                    if let Ok(expr) = self.try_reduce_chunk(true) {
                         chunks.push(expr);
                     }
-                    Err(_) => {}
-                },
+                }
                 _ => switch_unreachable!(),
             }
         }
@@ -318,15 +319,12 @@ impl Parser {
                     } else if t.is(EOF) {
                         break;
                     }
-                    match self.try_reduce_chunk(true) {
-                        Ok(expr) => {
-                            block.push(expr);
-                            if self.cur_is(Dedent) {
-                                self.skip();
-                                break;
-                            }
+                    if let Ok(expr) = self.try_reduce_chunk(true) {
+                        block.push(expr);
+                        if self.cur_is(Dedent) {
+                            self.skip();
+                            break;
                         }
-                        Err(_) => {}
                     }
                 }
                 _ => switch_unreachable!(),
@@ -1281,11 +1279,8 @@ impl Parser {
                 }
                 let mut expr = self.try_reduce_expr(true).map_err(|_| self.stack_dec())?;
                 let rparen = self.lpop();
-                match &mut expr {
-                    Expr::Tuple(Tuple::Normal(tup)) => {
-                        tup.elems.paren = Some((lparen, rparen));
-                    }
-                    _ => {}
+                if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
+                    tup.elems.paren = Some((lparen, rparen));
                 }
                 self.level -= 1;
                 Ok(expr)
@@ -1328,7 +1323,7 @@ impl Parser {
                 self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
-                return Err(());
+                Err(())
             }
         }
     }

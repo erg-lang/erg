@@ -118,7 +118,7 @@ impl ErrorDisplay for CompileError {
     fn caused_by(&self) -> &str {
         &self.caused_by
     }
-    fn ref_inner(&self) -> Option<&Box<Self>> {
+    fn ref_inner(&self) -> Option<&Self> {
         None
     }
 }
@@ -245,7 +245,7 @@ impl ErrorDisplay for TyCheckError {
     fn caused_by(&self) -> &str {
         &self.caused_by
     }
-    fn ref_inner(&self) -> Option<&Box<Self>> {
+    fn ref_inner(&self) -> Option<&Self> {
         None
     }
 }

@@ -171,7 +171,7 @@ impl Context {
             .collect::<Vec<_>>();
         let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.rec_union(&return_t, &arg_t.typ().return_t().unwrap());
+            return_t = self.rec_union(&return_t, arg_t.typ().return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -520,8 +520,7 @@ impl Context {
             Type::Subr(subr) => {
                 let callee = if let Some(name) = method_name {
                     let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Ellipsis);
-                    let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
-                    acc
+                    hir::Expr::Accessor(hir::Accessor::Attr(attr))
                 } else {
                     obj.clone()
                 };
@@ -668,7 +667,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::KwArg,
-        default_params: &Vec<ParamTy>,
+        default_params: &[ParamTy],
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.expr.ref_t();
@@ -744,7 +743,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval.eval_t_params(instance, &self, self.level)?;
+        let res = self.eval.eval_t_params(instance, self, self.level)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -981,7 +980,7 @@ impl Context {
                 ctx.super_classes
                     .iter()
                     .chain(ctx.super_traits.iter())
-                    .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap()),
+                    .map(|sup| self.rec_get_nominal_type_ctx(sup).unwrap()),
             )
         } else {
             todo!("{t} not found")

@@ -1,4 +1,5 @@
 //! defines the compiler for Erg (ergc).
+#![allow(clippy::large_enum_variant)]
 extern crate erg_common;
 pub extern crate erg_parser;
 
