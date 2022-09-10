@@ -8,7 +8,7 @@ use erg_parser::ast::{ClassDef, Expr, Module, PreDeclTypeSpec, TypeSpec, AST};
 use crate::error::{TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Linker {
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,

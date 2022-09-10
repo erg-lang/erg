@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3D521426cba21ed8b6eae5aff965dd14ef99af1228)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=521426cba21ed8b6eae5aff965dd14ef99af1228)
 
-This FAQ is intended for the general Erg beginner.
-For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
-[Here](./dev_guide/faq_syntax.md) for more information.
+此常見問題解答適用於一般 Erg 初學者。
+對於個別（常見）技術問題，請參閱 [此處](./faq_technical.md) 了解個別（常見）技術問題，以及
+[這裡](./dev_guide/faq_syntax.md) 了解更多信息。
 
 ## Erg 是 Python 兼容語言是什么意思？
 
@@ -19,7 +19,7 @@ A: Erg 代碼被轉譯成 Python 字節碼。也就是說，它運行在與 Pyth
 
 ## 已經有一些語言可以調用Python，比如Julia。為什麼要創建Erg？
 
-答：Erg 設計的動機之一是擁有一種易于使用且具有強大類型系統的語言。即具有類型推斷、種類、依賴類型等的語言。
+答：Erg 設計的動機之一是擁有一種易于使用且具有強大類型系統的語言。即具有類型推斷、Kind、依賴類型等的語言。
 Julia 是可以有類型的，但它確實是一種動態類型語言，不具備靜態類型語言的編譯時錯誤檢測優勢。
 
 ## Erg 支持多種編程風格，包括函數式和面向對象的編程。這不是與 Python 的“應該有一種——最好只有一種——明顯的方法”相反嗎？

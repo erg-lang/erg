@@ -1,6 +1,7 @@
 use std::fmt;
+use std::fmt::Write as _;
 use std::fs::File;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Read, Write as _};
 use std::path::Path;
 
 use erg_common::impl_display_from_debug;
@@ -171,44 +172,6 @@ impl Default for CodeObj {
 }
 
 impl CodeObj {
-    pub fn new<S: Into<Str>>(
-        argcount: u32,
-        posonlyargcount: u32,
-        kwonlyargcount: u32,
-        nlocals: u32,
-        stacksize: u32,
-        flags: u32,
-        code: Vec<u8>,
-        consts: Vec<ValueObj>,
-        names: Vec<Str>,
-        varnames: Vec<Str>,
-        freevars: Vec<Str>,
-        cellvars: Vec<Str>,
-        filename: Str,
-        name: S,
-        firstlineno: u32,
-        lnotab: Vec<u8>,
-    ) -> Self {
-        Self {
-            argcount,
-            posonlyargcount,
-            kwonlyargcount,
-            nlocals,
-            stacksize,
-            flags,
-            code,
-            consts,
-            names,
-            varnames,
-            freevars,
-            cellvars,
-            filename,
-            name: name.into(),
-            firstlineno,
-            lnotab,
-        }
-    }
-
     pub fn empty<S: Into<Str>, T: Into<Str>>(
         params: Vec<Str>,
         filename: S,
@@ -269,7 +232,7 @@ impl CodeObj {
         let name = des.deserialize_str(v, python_ver)?;
         let firstlineno = Deserializer::deserialize_u32(v);
         let lnotab = des.deserialize_bytes(v)?;
-        Ok(CodeObj::new(
+        Ok(CodeObj {
             argcount,
             posonlyargcount,
             kwonlyargcount,
@@ -286,7 +249,7 @@ impl CodeObj {
             name,
             firstlineno,
             lnotab,
-        ))
+        })
     }
 
     pub fn into_bytes(self, python_ver: u32) -> Vec<u8> {
@@ -337,54 +300,54 @@ impl CodeObj {
             tables += "Constants:\n";
         }
         for (i, obj) in self.consts.iter().enumerate() {
-            tables += &format!("   {}: {}\n", i, obj);
+            writeln!(tables, "   {}: {}", i, obj).unwrap();
         }
         if !self.names.is_empty() {
             tables += "Names:\n";
         }
         for (i, name) in self.names.iter().enumerate() {
-            tables += &format!("   {}: {}\n", i, name);
+            writeln!(tables, "   {}: {}", i, name).unwrap();
         }
         if !self.varnames.is_empty() {
             tables += "Varnames:\n";
         }
         for (i, varname) in self.varnames.iter().enumerate() {
-            tables += &format!("   {}: {}\n", i, varname);
+            writeln!(tables, "   {}: {}", i, varname).unwrap();
         }
         if !self.cellvars.is_empty() {
             tables += "Cellvars:\n";
         }
         for (i, cellvar) in self.cellvars.iter().enumerate() {
-            tables += &format!("   {}: {}\n", i, cellvar);
+            writeln!(tables, "   {}: {}", i, cellvar).unwrap();
         }
         if !self.freevars.is_empty() {
             tables += "Freevars:\n";
         }
         for (i, freevar) in self.freevars.iter().enumerate() {
-            tables += &format!("   {}: {}\n", i, freevar);
+            writeln!(tables, "   {}: {}\n", i, freevar).unwrap();
         }
         tables
     }
 
     fn attrs_info(&self) -> String {
         let mut attrs = "".to_string();
-        attrs += &format!("Name:              {}\n", self.name);
-        attrs += &format!("FileName:          {}\n", self.filename);
-        attrs += &format!("Argument count:    {}\n", self.argcount);
-        attrs += &format!("Positional-only arguments: {}\n", self.posonlyargcount);
-        attrs += &format!("Kw-only arguments: {}\n", self.kwonlyargcount);
-        attrs += &format!("Number of locals:  {}\n", self.nlocals);
-        attrs += &format!("Stack size:        {}\n", self.stacksize);
+        writeln!(attrs, "Name:              {}", self.name).unwrap();
+        writeln!(attrs, "FileName:          {}", self.filename).unwrap();
+        writeln!(attrs, "Argument count:    {}", self.argcount).unwrap();
+        writeln!(attrs, "Positional-only arguments: {}", self.posonlyargcount).unwrap();
+        writeln!(attrs, "Kw-only arguments: {}", self.kwonlyargcount).unwrap();
+        writeln!(attrs, "Number of locals:  {}", self.nlocals).unwrap();
+        writeln!(attrs, "Stack size:        {}", self.stacksize).unwrap();
         let mut flagged = "".to_string();
         for i in 0..32 {
             if (self.flags & (1 << i)) != 0 {
                 let flag: CodeObjFlags = 2u32.pow(i).into();
-                flagged += &format!("{:?}, ", flag);
+                write!(flagged, "{:?}, ", flag).unwrap();
             }
         }
         flagged.pop();
         flagged.pop();
-        attrs += &format!("Flags:             {}\n", flagged);
+        writeln!(attrs, "Flags:             {}", flagged).unwrap();
         attrs
     }
 
@@ -397,22 +360,22 @@ impl CodeObj {
         let mut sdelta = lnotab_iter.next().unwrap_or(&0);
         let mut ldelta = lnotab_iter.next().unwrap_or(&0);
         let mut instrs = "".to_string();
-        instrs += &format!("lnotab: {:?}\n", self.lnotab);
+        writeln!(instrs, "lnotab: {:?}", self.lnotab).unwrap();
         if *sdelta != 0 {
-            instrs += &format!("{}:\n", lineno);
+            writeln!(instrs, "{}:", lineno).unwrap();
         }
         loop {
             if *sdelta == line_offset {
                 line_offset = 0;
                 lineno += ldelta;
-                instrs += &format!("{}:\n", lineno);
+                writeln!(instrs, "{}:", lineno).unwrap();
                 sdelta = lnotab_iter.next().unwrap_or(&0);
                 ldelta = lnotab_iter.next().unwrap_or(&0);
             }
             if let (Some(op), Some(arg)) = (code_iter.next(), code_iter.next()) {
                 let op = Opcode::from(*op);
                 let s_op = op.to_string();
-                instrs += &format!("{:>15} {:<25}", idx, s_op);
+                write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
                 match op {
                     Opcode::COMPARE_OP => {
                         let op = match arg {
@@ -424,7 +387,7 @@ impl CodeObj {
                             5 => ">=",
                             _ => "?",
                         };
-                        instrs += &format!("{} ({})", arg, op);
+                        write!(instrs, "{} ({})", arg, op).unwrap();
                     }
                     Opcode::STORE_NAME
                     | Opcode::LOAD_NAME
@@ -435,30 +398,52 @@ impl CodeObj {
                     | Opcode::LOAD_METHOD
                     | Opcode::IMPORT_NAME
                     | Opcode::IMPORT_FROM => {
-                        instrs += &format!("{} ({})", arg, self.names.get(*arg as usize).unwrap());
+                        write!(
+                            instrs,
+                            "{} ({})",
+                            arg,
+                            self.names.get(*arg as usize).unwrap()
+                        )
+                        .unwrap();
                     }
                     Opcode::STORE_DEREF | Opcode::LOAD_DEREF => {
-                        instrs +=
-                            &format!("{} ({})", arg, self.freevars.get(*arg as usize).unwrap());
+                        write!(
+                            instrs,
+                            "{} ({})",
+                            arg,
+                            self.freevars.get(*arg as usize).unwrap()
+                        )
+                        .unwrap();
                     }
                     Opcode::STORE_FAST | Opcode::LOAD_FAST => {
-                        instrs +=
-                            &format!("{} ({})", arg, self.varnames.get(*arg as usize).unwrap());
+                        write!(
+                            instrs,
+                            "{} ({})",
+                            arg,
+                            self.varnames.get(*arg as usize).unwrap()
+                        )
+                        .unwrap();
                     }
                     Opcode::LOAD_CONST => {
-                        instrs += &format!("{} ({})", arg, self.consts.get(*arg as usize).unwrap());
+                        write!(
+                            instrs,
+                            "{} ({})",
+                            arg,
+                            self.consts.get(*arg as usize).unwrap()
+                        )
+                        .unwrap();
                     }
                     Opcode::FOR_ITER => {
-                        instrs += &format!("{} (to {})", arg, idx + arg * 2 + 2);
+                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
                     }
                     Opcode::JUMP_FORWARD => {
-                        instrs += &format!("{} (to {})", arg, idx + arg * 2 + 2);
+                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
                     }
                     Opcode::JUMP_ABSOLUTE => {
-                        instrs += &format!("{} (to {})", arg, arg * 2);
+                        write!(instrs, "{} (to {})", arg, arg * 2).unwrap();
                     }
                     Opcode::POP_JUMP_IF_FALSE | Opcode::POP_JUMP_IF_TRUE => {
-                        instrs += &format!("{} (to {})", arg, arg * 2);
+                        write!(instrs, "{} (to {})", arg, arg * 2).unwrap();
                     }
                     Opcode::MAKE_FUNCTION => {
                         let flag = match arg {
@@ -466,17 +451,17 @@ impl CodeObj {
                             // TODO:
                             _ => "",
                         };
-                        instrs += &format!("{} {}", arg, flag);
+                        write!(instrs, "{} {}", arg, flag).unwrap();
                     }
                     // Ergでは引数で型キャストする
                     Opcode::BINARY_ADD
                     | Opcode::BINARY_SUBTRACT
                     | Opcode::BINARY_MULTIPLY
                     | Opcode::BINARY_TRUE_DIVIDE => {
-                        instrs += &format!("{} ({:?})", arg, TypePair::from(*arg));
+                        write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
                     }
                     other if other.take_arg() => {
-                        instrs += &format!("{}", arg);
+                        write!(instrs, "{}", arg).unwrap();
                     }
                     _ => {}
                 }
@@ -492,7 +477,7 @@ impl CodeObj {
 
     pub fn code_info(&self) -> String {
         let mut info = "".to_string();
-        info += &format!("Disassembly of {:?}:\n", self);
+        writeln!(info, "Disassembly of {:?}:", self).unwrap();
         info += &self.attrs_info();
         info += &self.tables_info();
         info += &self.instr_info();

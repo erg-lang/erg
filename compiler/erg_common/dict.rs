@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::hash_map::{IntoIter, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
+use std::collections::hash_map::{IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
@@ -120,17 +120,21 @@ impl<K, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn into_iter(self) -> IntoIter<K, V> {
-        self.dict.into_iter()
-    }
-
-    #[inline]
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
         self.dict.iter_mut()
     }
 
     pub fn clear(&mut self) {
         self.dict.clear();
+    }
+}
+
+impl<K, V> IntoIterator for Dict<K, V> {
+    type Item = (K, V);
+    type IntoIter = <FxHashMap<K, V> as IntoIterator>::IntoIter;
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.dict.into_iter()
     }
 }
 

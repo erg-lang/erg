@@ -38,170 +38,167 @@ use crate::hir::{
 use AccessKind::*;
 
 fn is_python_special(name: &str) -> bool {
-    match name {
-        "__call__" | "__init__" => true,
-        _ => false,
-    }
+    matches!(name, "__call__" | "__init__")
 }
 
 fn is_python_global(name: &str) -> bool {
-    match name {
+    matches!(
+        name,
         "ArithmeticError"
-        | "AssertionError"
-        | "AttributeError"
-        | "BaseException"
-        | "BlockingIOError"
-        | "BrokenPipeError"
-        | "BufferError"
-        | "BytesWarning"
-        | "ChildProcessError"
-        | "ConnectionAbortedError"
-        | "ConnectionError"
-        | "ConnectionRefusedError"
-        | "ConnectionResetError"
-        | "DeprecationWarning"
-        | "EOFError"
-        | "Ellipsis"
-        | "EncodingWarning"
-        | "EnvironmentError"
-        | "Exception"
-        | "False"
-        | "FileExistsError"
-        | "FileNotFoundError"
-        | "FloatingPointError"
-        | "FutureWarning"
-        | "GeneratorExit"
-        | "IOError"
-        | "ImportError"
-        | "ImportWarning"
-        | "IndentationError"
-        | "IndexError"
-        | "InterruptedError"
-        | "IsADirectoryError"
-        | "KeyError"
-        | "KeyboardInterrupt"
-        | "LookupError"
-        | "MemoryError"
-        | "ModuleNotFoundError"
-        | "NameError"
-        | "None"
-        | "NotADirectoryError"
-        | "NotImplemented"
-        | "NotImplementedError"
-        | "OSError"
-        | "OverflowError"
-        | "PendingDeprecationWarning"
-        | "PermissionError"
-        | "ProcessLookupError"
-        | "RecursionError"
-        | "ReferenceError"
-        | "ResourceWarning"
-        | "RuntimeError"
-        | "RuntimeWarning"
-        | "StopAsyncIteration"
-        | "StopIteration"
-        | "SyntaxError"
-        | "SyntaxWarning"
-        | "SystemError"
-        | "SystemExit"
-        | "TabError"
-        | "TimeoutError"
-        | "True"
-        | "TypeError"
-        | "UnboundLocalError"
-        | "UnicodeDecodeError"
-        | "UnicodeEncodeError"
-        | "UnicodeError"
-        | "UnicodeTranslateError"
-        | "UnicodeWarning"
-        | "UserWarning"
-        | "ValueError"
-        | "Warning"
-        | "WindowsError"
-        | "ZeroDivisionError"
-        | "__build__class__"
-        | "__debug__"
-        | "__doc__"
-        | "__import__"
-        | "__loader__"
-        | "__name__"
-        | "__package__"
-        | "__spec__"
-        | "__annotations__"
-        | "__builtins__"
-        | "abs"
-        | "aiter"
-        | "all"
-        | "any"
-        | "anext"
-        | "ascii"
-        | "bin"
-        | "bool"
-        | "breakpoint"
-        | "bytearray"
-        | "bytes"
-        | "callable"
-        | "chr"
-        | "classmethod"
-        | "compile"
-        | "complex"
-        | "delattr"
-        | "dict"
-        | "dir"
-        | "divmod"
-        | "enumerate"
-        | "eval"
-        | "exec"
-        | "filter"
-        | "float"
-        | "format"
-        | "frozenset"
-        | "getattr"
-        | "globals"
-        | "hasattr"
-        | "hash"
-        | "help"
-        | "hex"
-        | "id"
-        | "input"
-        | "int"
-        | "isinstance"
-        | "issubclass"
-        | "iter"
-        | "len"
-        | "list"
-        | "locals"
-        | "map"
-        | "max"
-        | "memoryview"
-        | "min"
-        | "next"
-        | "object"
-        | "oct"
-        | "open"
-        | "ord"
-        | "pow"
-        | "print"
-        | "property"
-        | "quit"
-        | "range"
-        | "repr"
-        | "reversed"
-        | "round"
-        | "set"
-        | "setattr"
-        | "slice"
-        | "sorted"
-        | "staticmethod"
-        | "str"
-        | "sum"
-        | "super"
-        | "tuple"
-        | "type"
-        | "vars"
-        | "zip" => true,
-        _ => false,
-    }
+            | "AssertionError"
+            | "AttributeError"
+            | "BaseException"
+            | "BlockingIOError"
+            | "BrokenPipeError"
+            | "BufferError"
+            | "BytesWarning"
+            | "ChildProcessError"
+            | "ConnectionAbortedError"
+            | "ConnectionError"
+            | "ConnectionRefusedError"
+            | "ConnectionResetError"
+            | "DeprecationWarning"
+            | "EOFError"
+            | "Ellipsis"
+            | "EncodingWarning"
+            | "EnvironmentError"
+            | "Exception"
+            | "False"
+            | "FileExistsError"
+            | "FileNotFoundError"
+            | "FloatingPointError"
+            | "FutureWarning"
+            | "GeneratorExit"
+            | "IOError"
+            | "ImportError"
+            | "ImportWarning"
+            | "IndentationError"
+            | "IndexError"
+            | "InterruptedError"
+            | "IsADirectoryError"
+            | "KeyError"
+            | "KeyboardInterrupt"
+            | "LookupError"
+            | "MemoryError"
+            | "ModuleNotFoundError"
+            | "NameError"
+            | "None"
+            | "NotADirectoryError"
+            | "NotImplemented"
+            | "NotImplementedError"
+            | "OSError"
+            | "OverflowError"
+            | "PendingDeprecationWarning"
+            | "PermissionError"
+            | "ProcessLookupError"
+            | "RecursionError"
+            | "ReferenceError"
+            | "ResourceWarning"
+            | "RuntimeError"
+            | "RuntimeWarning"
+            | "StopAsyncIteration"
+            | "StopIteration"
+            | "SyntaxError"
+            | "SyntaxWarning"
+            | "SystemError"
+            | "SystemExit"
+            | "TabError"
+            | "TimeoutError"
+            | "True"
+            | "TypeError"
+            | "UnboundLocalError"
+            | "UnicodeDecodeError"
+            | "UnicodeEncodeError"
+            | "UnicodeError"
+            | "UnicodeTranslateError"
+            | "UnicodeWarning"
+            | "UserWarning"
+            | "ValueError"
+            | "Warning"
+            | "WindowsError"
+            | "ZeroDivisionError"
+            | "__build__class__"
+            | "__debug__"
+            | "__doc__"
+            | "__import__"
+            | "__loader__"
+            | "__name__"
+            | "__package__"
+            | "__spec__"
+            | "__annotations__"
+            | "__builtins__"
+            | "abs"
+            | "aiter"
+            | "all"
+            | "any"
+            | "anext"
+            | "ascii"
+            | "bin"
+            | "bool"
+            | "breakpoint"
+            | "bytearray"
+            | "bytes"
+            | "callable"
+            | "chr"
+            | "classmethod"
+            | "compile"
+            | "complex"
+            | "delattr"
+            | "dict"
+            | "dir"
+            | "divmod"
+            | "enumerate"
+            | "eval"
+            | "exec"
+            | "filter"
+            | "float"
+            | "format"
+            | "frozenset"
+            | "getattr"
+            | "globals"
+            | "hasattr"
+            | "hash"
+            | "help"
+            | "hex"
+            | "id"
+            | "input"
+            | "int"
+            | "isinstance"
+            | "issubclass"
+            | "iter"
+            | "len"
+            | "list"
+            | "locals"
+            | "map"
+            | "max"
+            | "memoryview"
+            | "min"
+            | "next"
+            | "object"
+            | "oct"
+            | "open"
+            | "ord"
+            | "pow"
+            | "print"
+            | "property"
+            | "quit"
+            | "range"
+            | "repr"
+            | "reversed"
+            | "round"
+            | "set"
+            | "setattr"
+            | "slice"
+            | "sorted"
+            | "staticmethod"
+            | "str"
+            | "sum"
+            | "super"
+            | "tuple"
+            | "type"
+            | "vars"
+            | "zip"
+    )
 }
 
 fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
@@ -1106,7 +1103,7 @@ impl CodeGenerator {
         self.codegen_expr(func);
         self.codegen_acc(acc.clone());
         self.write_instr(CALL_FUNCTION);
-        self.write_arg(1 as u8);
+        self.write_arg(1);
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
@@ -1333,6 +1330,7 @@ impl CodeGenerator {
                 self.write_instr(CALL_FUNCTION);
                 self.write_arg(2);
                 // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                #[allow(clippy::identity_op)]
                 self.stack_dec_n((1 + 2 + 0) - 1);
                 let ident = Identifier::private(Str::ever("#rec"));
                 self.emit_store_instr(ident, Name);
@@ -1345,6 +1343,7 @@ impl CodeGenerator {
                 self.write_instr(CALL_FUNCTION);
                 self.write_arg(attrs_len as u8);
                 // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+                #[allow(clippy::identity_op)]
                 self.stack_dec_n((1 + attrs_len + 0) - 1);
             }
             other => {
@@ -1370,11 +1369,27 @@ impl CodeGenerator {
             Accessor::Attr(a) => {
                 let class = a.obj.ref_t().name();
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
-                self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.ident)
+                // C = Class ...
+                // C.
+                //     a = C.x
+                // ↓
+                // class C:
+                //     a = x
+                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
+                    self.codegen_expr(*a.obj);
+                    self.emit_load_attr_instr(
+                        &class,
+                        uniq_obj_name.as_ref().map(|s| &s[..]),
+                        a.ident,
+                    )
                     .unwrap_or_else(|err| {
                         self.errs.push(err);
                     });
+                } else {
+                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                }
             }
             Accessor::TupleAttr(t_attr) => {
                 self.codegen_expr(*t_attr.obj);
@@ -1503,7 +1518,7 @@ impl CodeGenerator {
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let self_param = ParamSignature::new(ParamPattern::VarName(self_param), None, None);
         let params = Params::new(vec![self_param, param], None, vec![], None);
-        let subr_sig = SubrSignature::new(ident, params.clone(), __new__.clone());
+        let subr_sig = SubrSignature::new(ident, params, __new__.clone());
         let mut attrs = vec![];
         match __new__.non_default_params().unwrap()[0].typ() {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -1560,11 +1575,7 @@ impl CodeGenerator {
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
         let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
-        let sig = SubrSignature::new(
-            ident,
-            Params::new(vec![param], None, vec![], None),
-            __new__.clone(),
-        );
+        let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None), __new__);
         let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
             Str::from(param_name),
             line,
@@ -1637,8 +1648,7 @@ impl CodeGenerator {
         if !self.units.is_empty() {
             let ld = unit
                 .prev_lineno
-                .checked_sub(self.cur_block().prev_lineno)
-                .unwrap_or(0);
+                .saturating_sub(self.cur_block().prev_lineno);
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
                     *l += ld as u8;

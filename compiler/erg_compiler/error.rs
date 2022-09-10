@@ -118,7 +118,7 @@ impl ErrorDisplay for CompileError {
     fn caused_by(&self) -> &str {
         &self.caused_by
     }
-    fn ref_inner(&self) -> Option<&Box<Self>> {
+    fn ref_inner(&self) -> Option<&Self> {
         None
     }
 }
@@ -245,7 +245,7 @@ impl ErrorDisplay for TyCheckError {
     fn caused_by(&self) -> &str {
         &self.caused_by
     }
-    fn ref_inner(&self) -> Option<&Box<Self>> {
+    fn ref_inner(&self) -> Option<&Self> {
         None
     }
 }
@@ -1034,7 +1034,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         Self::new(
             ErrorCore::new(
                 errno,
-                NameError,
+                VisibilityError,
                 loc,
                 switch_lang!(
                     "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),

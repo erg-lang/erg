@@ -256,32 +256,28 @@ impl Args {
     pub fn remove_left_or_key(&mut self, key: &str) -> Option<Expr> {
         if !self.pos_args.is_empty() {
             Some(self.pos_args.remove(0).expr)
+        } else if let Some(pos) = self
+            .kw_args
+            .iter()
+            .position(|arg| &arg.keyword.inspect()[..] == key)
+        {
+            Some(self.kw_args.remove(pos).expr)
         } else {
-            if let Some(pos) = self
-                .kw_args
-                .iter()
-                .position(|arg| &arg.keyword.inspect()[..] == key)
-            {
-                Some(self.kw_args.remove(pos).expr)
-            } else {
-                None
-            }
+            None
         }
     }
 
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
         if !self.pos_args.is_empty() {
             Some(&self.pos_args.get(0)?.expr)
+        } else if let Some(pos) = self
+            .kw_args
+            .iter()
+            .position(|arg| &arg.keyword.inspect()[..] == key)
+        {
+            Some(&self.kw_args.get(pos)?.expr)
         } else {
-            if let Some(pos) = self
-                .kw_args
-                .iter()
-                .position(|arg| &arg.keyword.inspect()[..] == key)
-            {
-                Some(&self.kw_args.get(pos)?.expr)
-            } else {
-                None
-            }
+            None
         }
     }
 }
@@ -378,7 +374,7 @@ impl Identifier {
     }
 
     pub const fn inspect(&self) -> &Str {
-        &self.name.inspect()
+        self.name.inspect()
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -528,7 +524,7 @@ impl Accessor {
         }
     }
 
-    // 参照するオブジェクト自体が持っている固有の名前
+    // 参照するオブジェクト自体が持っている固有の名前(クラス、モジュールなど)
     pub fn __name__(&self) -> Option<&str> {
         match self {
             Self::Ident(ident) => ident.__name__.as_ref().map(|s| &s[..]),
@@ -765,12 +761,12 @@ impl RecordAttrs {
         self.0.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Def> {
-        self.0.iter()
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
-    pub fn into_iter(self) -> impl Iterator<Item = Def> {
-        self.0.into_iter()
+    pub fn iter(&self) -> impl Iterator<Item = &Def> {
+        self.0.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
@@ -838,7 +834,7 @@ pub struct BinOp {
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "`{}`(: {}):\n", self.op.content, self.sig_t)?;
+        writeln!(f, "`{}`(: {}):", self.op.content, self.sig_t)?;
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)

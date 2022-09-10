@@ -1,5 +1,7 @@
 //! Defines `Context`.
+//!
 //! `Context` is used for type inference and type checking.
+#![allow(clippy::result_unit_err)]
 pub mod cache;
 pub mod compare;
 pub mod eval;
@@ -91,7 +93,7 @@ impl TyParamIdx {
                         TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),
                         TyParam::Type(t) if t.is_monomorphic() => {}
                         TyParam::Type(inner) => {
-                            if let Some(inner) = Self::search(&inner, target) {
+                            if let Some(inner) = Self::search(inner, target) {
                                 return Some(Self::nested(i, inner));
                             }
                         }
@@ -111,7 +113,7 @@ impl TyParamIdx {
         match self {
             Self::Nth(n) => {
                 let tps = from.typarams();
-                let tp = tps.iter().nth(n).unwrap();
+                let tp = tps.get(n).unwrap();
                 match tp {
                     TyParam::Type(t) => *t.clone(),
                     _ => todo!(),
@@ -252,7 +254,7 @@ pub struct Context {
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
-    pub(crate) method_defs: Vec<(Type, Context)>,
+    pub(crate) methods_list: Vec<(Type, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -344,6 +346,7 @@ impl Context {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn with_capacity(
         name: Str,
         kind: ContextKind,
@@ -378,7 +381,7 @@ impl Context {
             outer: outer.map(Box::new),
             super_classes,
             super_traits,
-            method_defs: vec![],
+            methods_list: vec![],
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),

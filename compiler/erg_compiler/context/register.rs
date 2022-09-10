@@ -6,7 +6,7 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 use erg_type::free::HasLevel;
 
-use ast::{DefId, VarName};
+use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
 
 use erg_type::constructors::{enum_t, func, func1, proc, ref_, ref_mut};
@@ -55,32 +55,22 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         match &sig.pat {
             ast::VarPattern::Ident(ident) => {
-                if sig.t_spec.is_none() && opt_t.is_none() {
-                    Err(TyCheckError::no_type_spec_error(
+                if self.registered(ident.inspect(), ident.is_const()) {
+                    return Err(TyCheckError::duplicate_decl_error(
                         line!() as usize,
                         sig.loc(),
                         self.caused_by(),
                         ident.inspect(),
-                    ))
-                } else {
-                    if self.registered(ident.inspect(), ident.is_const()) {
-                        return Err(TyCheckError::duplicate_decl_error(
-                            line!() as usize,
-                            sig.loc(),
-                            self.caused_by(),
-                            ident.inspect(),
-                        ));
-                    }
-                    let vis = ident.vis();
-                    let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-                    let sig_t =
-                        self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
-                    self.decls.insert(
-                        ident.name.clone(),
-                        VarInfo::new(sig_t, muty, vis, kind, None),
-                    );
-                    Ok(())
+                    ));
                 }
+                let vis = ident.vis();
+                let kind = id.map_or(VarKind::Declared, VarKind::Defined);
+                let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
+                self.decls.insert(
+                    ident.name.clone(),
+                    VarInfo::new(sig_t, muty, vis, kind, None),
+                );
+                Ok(())
             }
             _ => todo!(),
         }
@@ -187,7 +177,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -227,7 +217,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -268,7 +258,7 @@ impl Context {
                     // ok, not defined
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.get_self_t();
+                        let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
                             &spec_t,
                             &self_t,
@@ -391,14 +381,14 @@ impl Context {
             let sub_t = if sig.ident.is_procedural() {
                 proc(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )
             } else {
                 func(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )
@@ -479,7 +469,7 @@ impl Context {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
-                    self.register_gen_const(__name__.unwrap(), obj);
+                    self.register_gen_const(def.sig.ident().unwrap(), obj);
                 } else {
                     let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
@@ -501,7 +491,7 @@ impl Context {
                     let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
-                self.register_gen_const(__name__.unwrap(), obj);
+                self.register_gen_const(sig.ident().unwrap(), obj);
             }
             _ => {}
         }
@@ -563,9 +553,9 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_gen_const(&mut self, name: &Str, obj: ValueObj) {
-        if self.rec_get_const_obj(name).is_some() {
-            panic!("already registered: {name}");
+    pub(crate) fn register_gen_const(&mut self, ident: &Identifier, obj: ValueObj) {
+        if self.rec_get_const_obj(ident.inspect()).is_some() {
+            panic!("already registered: {ident}");
         } else {
             match obj {
                 ValueObj::Type(t) => {
@@ -574,16 +564,16 @@ impl Context {
                 }
                 // TODO: not all value objects are comparable
                 other => {
-                    let id = DefId(get_hash(name));
+                    let id = DefId(get_hash(ident));
                     let vi = VarInfo::new(
                         enum_t(set! {other.clone()}),
                         Const,
-                        Private,
+                        ident.vis(),
                         VarKind::Defined(id),
                         None,
                     );
-                    self.consts.insert(VarName::from_str(Str::rc(name)), other);
-                    self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                    self.consts.insert(ident.name.clone(), other);
+                    self.locals.insert(ident.name.clone(), vi);
                 }
             }
         }
@@ -601,7 +591,7 @@ impl Context {
                     methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public);
-                    ctx.method_defs.push((gen.t.clone(), methods));
+                    ctx.methods_list.push((gen.t.clone(), methods));
                     self.register_gen_mono_type(gen, ctx, Const);
                 } else {
                     todo!()
@@ -623,7 +613,7 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = &gen.additional {
-                            self.rec_intersection(&param_t, additional.typ())
+                            self.rec_intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
                         };
@@ -636,7 +626,7 @@ impl Context {
                         );
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public);
-                        ctx.method_defs.push((gen.t.clone(), methods));
+                        ctx.methods_list.push((gen.t.clone(), methods));
                         self.register_gen_mono_type(gen, ctx, Const);
                     } else {
                         todo!("super class not found")

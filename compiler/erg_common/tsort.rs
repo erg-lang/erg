@@ -63,6 +63,7 @@ fn dfs<T: Eq + Hash + Clone, U>(
 }
 
 /// perform topological sort on a graph
+#[allow(clippy::result_unit_err)]
 pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, ()> {
     let n = g.len();
     let mut idx = Vec::with_capacity(n);

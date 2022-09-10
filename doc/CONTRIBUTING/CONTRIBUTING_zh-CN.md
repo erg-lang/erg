@@ -1,14 +1,14 @@
 # 为Erg做贡献
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Da86bd4cd1bef4035a1ad23676c8324ab74f7b674)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=a86bd4cd1bef4035a1ad23676c8324ab74f7b674)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Dc0b4a426d3de4e2fb4ef908c897371c46cbacda3)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=c0b4a426d3de4e2fb4ef908c897371c46cbacda3)
 
 初学者应阅读说明 [此处](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)。
 
 ## 文档
 
-如果您正在考虑为 Erg 做贡献，您应该阅读 [doc/dev_guide](./doc/EN/dev_guide/) 下的文档。
-或者您对 Erg 的内部结构感兴趣，[doc/compiler](/doc/JA/compiler/) 可能会提供有用的信息（目前只有日语）。
+如果您正在考虑为 Erg 做贡献，您应该阅读 `doc/*/dev_guide` 下的文档。
+或者您对 Erg 的内部结构感兴趣，`doc/*/compiler` 可能会提供有用的信息。
 
 ## 错误报告
 

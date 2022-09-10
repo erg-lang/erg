@@ -6,8 +6,8 @@ Beginners should read the instructions [here](https://github.com/erg-lang/erg/is
 
 ## Documents
 
-If you are thinking of contributing to Erg, you should read documents under [doc/dev_guide](./doc/EN/dev_guide/).
-Or you are interested in the internal structure of Erg, [doc/compiler](/doc/JA/compiler/) may provide useful information (currently only Japanese).
+If you are thinking of contributing to Erg, you should read documents under `doc/*/dev_guide`.
+Or you are interested in the internal structure of Erg, `doc/*/compiler` may provide useful information.
 
 ## Bug reports
 

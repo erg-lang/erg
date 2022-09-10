@@ -169,50 +169,69 @@ impl Context {
             Accessor::Ident(ident) => {
                 if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
+                } else if ident.is_const() {
+                    Err(EvalError::no_var_error(
+                        line!() as usize,
+                        ident.loc(),
+                        self.caused_by(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    ))
                 } else {
-                    if ident.is_const() {
-                        Err(EvalError::no_var_error(
-                            line!() as usize,
-                            ident.loc(),
-                            self.caused_by(),
-                            ident.inspect(),
-                            self.get_similar_name(ident.inspect()),
-                        ))
-                    } else {
-                        Err(EvalError::not_const_expr(
-                            line!() as usize,
-                            acc.loc(),
-                            self.caused_by(),
-                        ))
-                    }
+                    Err(EvalError::not_const_expr(
+                        line!() as usize,
+                        acc.loc(),
+                        self.caused_by(),
+                    ))
                 }
             }
             Accessor::Attr(attr) => {
-                let _obj = self.eval_const_expr(&attr.obj, None);
-                todo!()
+                let obj = self.eval_const_expr(&attr.obj, None)?;
+                self.eval_attr(obj, &attr.ident)
             }
             _ => todo!(),
         }
+    }
+
+    fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> EvalResult<ValueObj> {
+        if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
+            return Ok(val);
+        }
+        if let ValueObj::Type(t) = &obj {
+            if let Some(sups) = self.rec_get_nominal_super_type_ctxs(t.typ()) {
+                for (_, ctx) in sups {
+                    if let Some(val) = ctx.consts.get(ident.inspect()) {
+                        return Ok(val.clone());
+                    }
+                    for (_, methods) in ctx.methods_list.iter() {
+                        if let Some(v) = methods.consts.get(ident.inspect()) {
+                            return Ok(v.clone());
+                        }
+                    }
+                }
+            }
+        }
+        Err(EvalError::no_attr_error(
+            line!() as usize,
+            ident.loc(),
+            self.caused_by(),
+            &obj.t(),
+            ident.inspect(),
+            None,
+        ))
     }
 
     fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
-        match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
-            (Expr::Lit(l), Expr::Lit(r)) => {
-                let op = try_get_op_kind_from_token(bin.op.kind)?;
-                self.eval_bin_lit(op, eval_lit(l), eval_lit(r))
-            }
-            _ => todo!(),
-        }
+        let lhs = self.eval_const_expr(&bin.args[0], None)?;
+        let rhs = self.eval_const_expr(&bin.args[1], None)?;
+        let op = try_get_op_kind_from_token(bin.op.kind)?;
+        self.eval_bin(op, lhs, rhs)
     }
 
     fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
-        match unary.args[0].as_ref() {
-            Expr::Lit(lit) => {
-                let op = try_get_op_kind_from_token(unary.op.kind)?;
-                self.eval_unary_lit(op, eval_lit(lit))
-            }
-            _ => todo!(),
-        }
+        let val = self.eval_const_expr(&unary.args[0], None)?;
+        let op = try_get_op_kind_from_token(unary.op.kind)?;
+        self.eval_unary(op, val)
     }
 
     fn eval_args(&self, args: &Args, __name__: Option<&Str>) -> EvalResult<ValueArgs> {
@@ -233,28 +252,30 @@ impl Context {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Ident(ident) => {
-                    let obj =
-                        self.rec_get_const_obj(&ident.inspect())
-                            .ok_or(EvalError::no_var_error(
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                ident.inspect(),
-                                self.get_similar_name(ident.inspect()),
-                            ))?;
-                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
-                        .ok_or(EvalError::type_mismatch_error(
+                    let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
+                        EvalError::no_var_error(
                             line!() as usize,
                             ident.loc(),
                             self.caused_by(),
                             ident.inspect(),
-                            &mono("Subroutine"),
-                            &obj.t(),
-                            None,
-                        ))?
+                            self.get_similar_name(ident.inspect()),
+                        )
+                    })?;
+                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
+                        .ok_or_else(|| {
+                            EvalError::type_mismatch_error(
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                ident.inspect(),
+                                &mono("Subroutine"),
+                                &obj.t(),
+                                None,
+                            )
+                        })?
                         .clone();
                     let args = self.eval_args(&call.args, __name__)?;
-                    Ok(subr.call(args, __name__.map(|n| n.clone())))
+                    Ok(subr.call(args, __name__.cloned()))
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
@@ -269,8 +290,7 @@ impl Context {
         if def.is_const() {
             let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
             let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
-            erg_common::log!();
-            self.register_gen_const(__name__, obj);
+            self.register_gen_const(def.sig.ident().unwrap(), obj);
             Ok(ValueObj::None)
         } else {
             Err(EvalError::not_const_expr(
@@ -373,7 +393,7 @@ impl Context {
         self.eval_const_chunk(block.last().unwrap(), __name__)
     }
 
-    fn eval_bin_lit(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
+    fn eval_bin(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
         match op {
             Add => lhs
                 .try_add(rhs)
@@ -411,10 +431,10 @@ impl Context {
     ) -> EvalResult<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
-                .eval_bin_lit(op, lhs.borrow().clone(), rhs.clone())
+                .eval_bin(op, lhs.borrow().clone(), rhs.clone())
                 .map(|v| TyParam::Value(ValueObj::Mut(RcCell::new(v)))),
             (TyParam::Value(lhs), TyParam::Value(rhs)) => self
-                .eval_bin_lit(op, lhs.clone(), rhs.clone())
+                .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
             (TyParam::FreeVar(fv), r) => {
                 if fv.is_linked() {
@@ -435,7 +455,7 @@ impl Context {
         }
     }
 
-    fn eval_unary_lit(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
+    fn eval_unary(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
             Pos => todo!(),
             Neg => todo!(),
@@ -447,9 +467,7 @@ impl Context {
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::Value(c) => self
-                .eval_unary_lit(op, c.clone())
-                .map(|v| TyParam::Value(v)),
+            TyParam::Value(c) => self.eval_unary(op, c.clone()).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),

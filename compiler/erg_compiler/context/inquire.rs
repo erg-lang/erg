@@ -71,8 +71,8 @@ impl Context {
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
-                for (_, def) in self.method_defs.iter() {
-                    if let Some(vi) = def.get_current_scope_var(name) {
+                for (_, methods) in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_var(name) {
                         return Some(vi);
                     }
                 }
@@ -181,7 +181,7 @@ impl Context {
             .collect::<Vec<_>>();
         let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.rec_union(&return_t, &arg_t.typ().return_t().unwrap());
+            return_t = self.rec_union(&return_t, arg_t.typ().return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -194,12 +194,15 @@ impl Context {
         if let Some(ctx) = self.rec_get_mod(name.inspect()) {
             return Some(ctx.name.clone());
         }
+        if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
+            return Some(ctx.name.clone());
+        }
         None
     }
 
     pub(crate) fn rec_get_var_t(&self, ident: &Identifier, namespace: &Str) -> TyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
-            // self.validate_visibility(ident, vi, self)?;
+            self.validate_visibility(ident, vi, namespace)?;
             Ok(vi.t())
         } else {
             if let Some(parent) = self.outer.as_ref() {
@@ -233,16 +236,28 @@ impl Context {
             }
         }
         if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
-            if let Ok(t) = singular_ctx.rec_get_var_t(ident, namespace) {
-                return Ok(t);
+            match singular_ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         for (_, ctx) in self
             .rec_get_nominal_super_type_ctxs(&self_t)
             .ok_or_else(|| todo!())?
         {
-            if let Ok(t) = ctx.rec_get_var_t(ident, namespace) {
-                return Ok(t);
+            match ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         // TODO: dependent type widening
@@ -308,8 +323,8 @@ impl Context {
                     match v {
                         ValueObj::Type(TypeObj::Generated(gen)) => self
                             .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
-                            .map(|t| t.clone())
-                            .ok_or(TyCheckError::dummy(line!() as usize)),
+                            .cloned()
+                            .ok_or_else(|| TyCheckError::dummy(line!() as usize)),
                         ValueObj::Type(TypeObj::Builtin(_t)) => {
                             // FIXME:
                             Err(TyCheckError::dummy(line!() as usize))
@@ -340,16 +355,16 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, ctx)?;
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
-                for (_, methods_ctx) in ctx.method_defs.iter() {
+                for (_, methods_ctx) in ctx.methods_list.iter() {
                     if let Some(vi) = methods_ctx
                         .locals
                         .get(method_name.inspect())
                         .or_else(|| methods_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, ctx)?;
+                        self.validate_visibility(method_name, vi, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -360,16 +375,16 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| singular_ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, singular_ctx)?;
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
-                for (_, method_ctx) in singular_ctx.method_defs.iter() {
+                for (_, method_ctx) in singular_ctx.methods_list.iter() {
                     if let Some(vi) = method_ctx
                         .locals
                         .get(method_name.inspect())
                         .or_else(|| method_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, singular_ctx)?;
+                        self.validate_visibility(method_name, vi, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -401,7 +416,7 @@ impl Context {
         &self,
         ident: &Identifier,
         vi: &VarInfo,
-        ctx: &Context,
+        namespace: &str,
     ) -> TyCheckResult<()> {
         if ident.vis() != vi.vis {
             Err(TyCheckError::visibility_error(
@@ -413,13 +428,9 @@ impl Context {
             ))
         // check if the private variable is loaded from the other scope
         } else if vi.vis.is_private()
-            && self
-                .outer
-                .as_ref()
-                // TODO: also split with `.`
-                .map(|outer| outer.name.split("::"))
-                .map(|mut names| names.all(|name| name != &ctx.name[..]))
-                .unwrap_or(true)
+            && &self.name[..] != "<builtins>"
+            && &self.name[..] != namespace
+            && !namespace.contains(&self.name[..])
         {
             Err(TyCheckError::visibility_error(
                 line!() as usize,
@@ -452,7 +463,7 @@ impl Context {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
-                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t.clone());
+                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t);
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                 let core = ErrorCore::new(
                     e.core.errno,
@@ -483,7 +494,7 @@ impl Context {
             .map_err(|e| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
-                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t.clone());
+                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t);
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
@@ -660,8 +671,7 @@ impl Context {
                         hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
                         Type::Uninited,
                     );
-                    let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
-                    acc
+                    hir::Expr::Accessor(hir::Accessor::Attr(attr))
                 } else {
                     obj.clone()
                 };
@@ -689,8 +699,7 @@ impl Context {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
                     let non_default_params = if subr
                         .non_default_params
-                        .iter()
-                        .next()
+                        .first()
                         .map(|p| p.name().map(|s| &s[..]) == Some("self"))
                         .unwrap_or(false)
                     {
@@ -830,7 +839,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::KwArg,
-        default_params: &Vec<ParamTy>,
+        default_params: &[ParamTy],
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.expr.ref_t();
@@ -908,8 +917,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let level = self.level;
-        let res = self.eval_t_params(instance, level)?;
+        let res = self.eval_t_params(instance, self.level)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -1143,7 +1151,7 @@ impl Context {
             .super_classes
             .iter()
             .chain(ctx.super_traits.iter())
-            .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap());
+            .map(|sup| self.rec_get_nominal_type_ctx(sup).unwrap());
         Some(vec![(t, ctx)].into_iter().chain(sups))
     }
 
@@ -1272,7 +1280,6 @@ impl Context {
     }
 
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
-        log!("{}", obj.ref_t());
         match obj.ref_t() {
             // TODO: attr
             Type::Module => self.rec_get_mod(&obj.show_acc()?),
@@ -1324,8 +1331,14 @@ impl Context {
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
         if let Some(val) = self.consts.get(name) {
-            Some(val)
-        } else if let Some(outer) = &self.outer {
+            return Some(val);
+        }
+        for (_, ctx) in self.methods_list.iter() {
+            if let Some(val) = ctx.consts.get(name) {
+                return Some(val);
+            }
+        }
+        if let Some(outer) = &self.outer {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -1342,23 +1355,20 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_self_t(&self) -> Type {
+    pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
-            let name = self.name.split("::").last().unwrap();
-            let name = name.split(".").last().unwrap();
+            let name = self.name.split(&[':', '.']).last().unwrap();
             let mono_t = mono(Str::rc(name));
             if let Some((t, _)) = self.rec_get_nominal_type_ctx(&mono_t) {
-                t.clone()
+                Some(t.clone())
             } else {
-                todo!("{mono_t}")
+                None
             }
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_self_t()
         } else {
-            if let Some(outer) = &self.outer {
-                outer.get_self_t()
-            } else {
-                todo!()
-            }
+            None
         }
     }
 
@@ -1397,6 +1407,18 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {
             outer.rec_get_mut_poly_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.mono_types.get(name) {
+            Some((t, ctx))
+        } else if let Some((t, ctx)) = self.poly_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_type(name)
         } else {
             None
         }
