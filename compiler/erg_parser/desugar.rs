@@ -46,6 +46,7 @@ impl Desugarer {
         var_name
     }
 
+    #[allow(clippy::let_and_return)]
     pub fn desugar(&mut self, module: Module) -> Module {
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);

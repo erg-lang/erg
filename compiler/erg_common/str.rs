@@ -111,6 +111,12 @@ impl Borrow<str> for Str {
     }
 }
 
+impl AsRef<str> for Str {
+    fn as_ref(&self) -> &str {
+        self.borrow()
+    }
+}
+
 impl Str {
     pub const fn ever(s: &'static str) -> Self {
         Str::Static(s)
@@ -118,10 +124,6 @@ impl Str {
 
     pub fn rc(s: &str) -> Self {
         Str::Rc(s.into())
-    }
-
-    pub fn as_ref(&self) -> &str {
-        self.borrow()
     }
 
     pub fn into_rc(self) -> RcStr {

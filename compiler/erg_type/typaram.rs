@@ -633,9 +633,8 @@ impl TyParam {
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        match self {
-            Self::Type(t) => t.update_constraint(new_constraint),
-            _ => {}
+        if let Self::Type(t) = self {
+            t.update_constraint(new_constraint);
         }
     }
 }

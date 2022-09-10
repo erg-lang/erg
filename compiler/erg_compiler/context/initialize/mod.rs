@@ -208,7 +208,7 @@ impl Context {
                 static_instance("R", Type)
             },
         );
-        eq.register_builtin_decl("__eq__", op_t.clone(), Public);
+        eq.register_builtin_decl("__eq__", op_t, Public);
         let mut partial_ord = Self::poly_trait(
             "PartialOrd",
             vec![PS::t("R", WithDefault)],
@@ -223,7 +223,7 @@ impl Context {
                 static_instance("R", Type)
             },
         );
-        partial_ord.register_builtin_decl("__lt__", op_t.clone(), Public);
+        partial_ord.register_builtin_decl("__lt__", op_t, Public);
         let ord = Self::mono_trait(
             "Ord",
             vec![poly("Eq", vec![]), poly("PartialOrd", vec![])],
@@ -260,7 +260,7 @@ impl Context {
         seq.register_builtin_decl("get", t, Public);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::poly_trait("Input", params.clone(), vec![], Self::TOP_LEVEL);
-        let output = Self::poly_trait("Output", params.clone(), vec![], Self::TOP_LEVEL);
+        let output = Self::poly_trait("Output", params, vec![], Self::TOP_LEVEL);
         let r = mono_q("R");
         let r_bound = static_instance("R", Type);
         let params = vec![PS::t("R", WithDefault)];
@@ -300,13 +300,13 @@ impl Context {
         mul.register_builtin_decl("MulO", Type, Public);
         let mut div = Self::poly_trait(
             "Div",
-            params.clone(),
+            params,
             vec![poly("Output", vec![ty_tp(mono_q("R"))])],
             Self::TOP_LEVEL,
         );
         let op_t = fn1_met(mono_q("Self"), r, mono_proj(mono_q("Self"), "DivO"));
         let self_bound = subtypeof(mono_q("Self"), poly("Div", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
+        let op_t = quant(op_t, set! {r_bound, self_bound});
         div.register_builtin_decl("__div__", op_t, Public);
         div.register_builtin_decl("DivO", Type, Public);
         self.register_builtin_type(mono("Unpack"), unpack, Const);
@@ -604,7 +604,7 @@ impl Context {
         let m = mono_q_tp("M");
         let array_t = array(mono_q("T"), n.clone());
         let t = fn_met(
-            array_t.clone(),
+            array_t,
             vec![param_t("rhs", array(mono_q("T"), m.clone()))],
             None,
             vec![],
@@ -617,8 +617,8 @@ impl Context {
         array_.register_builtin_impl("concat", t, Immutable, Public);
         let n = mono_q_tp("N");
         let array_inner = mono_q("T");
-        let array_t = array(array_inner.clone(), n.clone());
-        let proj_t = mono_proj(array_inner.clone(), "ImmutType");
+        let array_t = array(array_inner.clone(), n);
+        let proj_t = mono_proj(array_inner, "ImmutType");
         let t = fn_met(
             array_t.clone(),
             vec![param_t(
@@ -1242,12 +1242,12 @@ impl Context {
             },
         );
         self.register_builtin_impl("__mul__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "DivO"));
+        let op_t = bin_op(l.clone(), r, mono_proj(mono_q("L"), "DivO"));
         let op_t = quant(
             op_t,
             set! {
                 static_instance("R", Type),
-                subtypeof(l, poly("Mul", params.clone()))
+                subtypeof(l, poly("Mul", params))
             },
         );
         self.register_builtin_impl("__div__", op_t, Const, Private);
@@ -1276,7 +1276,7 @@ impl Context {
         self.register_builtin_impl("__or__", bin_op(Bool, Bool, Bool), Const, Private);
         let t = mono_q("T");
         let op_t = bin_op(t.clone(), t.clone(), range(t.clone()));
-        let op_t = quant(op_t, set! {subtypeof(t.clone(), mono("Ord"))});
+        let op_t = quant(op_t, set! {subtypeof(t, mono("Ord"))});
         self.register_builtin_decl("__rng__", op_t.clone(), Private);
         self.register_builtin_decl("__lorng__", op_t.clone(), Private);
         self.register_builtin_decl("__rorng__", op_t.clone(), Private);

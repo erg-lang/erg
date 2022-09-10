@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use crate::*;
 
 #[inline]
@@ -54,11 +56,15 @@ pub fn enum_t(s: Set<ValueObj>) -> Type {
 }
 
 #[inline]
-pub fn int_interval<P: Into<TyParam>, Q: Into<TyParam>>(op: IntervalOp, l: P, r: Q) -> Type {
-    let l = l.into();
-    let r = r.into();
-    let l = l.try_into().unwrap_or_else(|l| todo!("{l}"));
-    let r = r.try_into().unwrap_or_else(|r| todo!("{r}"));
+pub fn int_interval<P, PErr, Q, QErr>(op: IntervalOp, l: P, r: Q) -> Type
+where
+    P: TryInto<TyParam, Error = PErr>,
+    PErr: fmt::Debug,
+    Q: TryInto<TyParam, Error = QErr>,
+    QErr: fmt::Debug,
+{
+    let l = l.try_into().unwrap_or_else(|l| todo!("{l:?}"));
+    let r = r.try_into().unwrap_or_else(|r| todo!("{r:?}"));
     let name = Str::from(fresh_varname());
     let pred = match op {
         IntervalOp::LeftOpen if l == TyParam::value(NegInf) => Predicate::le(name.clone(), r),
@@ -168,8 +174,8 @@ pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
 pub fn bin_op(l: Type, r: Type, return_t: Type) -> Type {
     nd_func(
         vec![
-            ParamTy::kw(Str::ever("lhs"), l.clone()),
-            ParamTy::kw(Str::ever("rhs"), r.clone()),
+            ParamTy::kw(Str::ever("lhs"), l),
+            ParamTy::kw(Str::ever("rhs"), r),
         ],
         None,
         return_t,

@@ -581,7 +581,7 @@ impl ASTLowerer {
         let expect_body_t = t.return_t().unwrap();
         if !sig.is_const() {
             if let Err(e) =
-                self.return_t_check(sig.loc(), sig.ident.inspect(), &expect_body_t, found_body_t)
+                self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
             {
                 self.errs.push(e);
             }
@@ -645,7 +645,7 @@ impl ASTLowerer {
                                 // TODO: 定義のメソッドもエラー表示
                                 if let Some((_already_defined_name, already_defined_vi)) =
                                     already_defined_methods
-                                        .get_local_kv(&newly_defined_name.inspect())
+                                        .get_local_kv(newly_defined_name.inspect())
                                 {
                                     if already_defined_vi.kind != VarKind::Auto {
                                         self.errs.push(LowerError::duplicate_definition_error(
@@ -707,7 +707,7 @@ impl ASTLowerer {
         if let Some(sups) = self.ctx.rec_get_nominal_super_type_ctxs(class) {
             for (sup_t, sup) in sups.skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
-                    if let Some(_sup_vi) = sup.get_current_scope_var(&method_name.inspect()) {
+                    if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
                         if let Some(decos) = &vi.comptime_decos {
                             if decos.contains("Override") {

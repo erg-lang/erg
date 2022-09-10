@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::hash_set::{IntoIter, Iter};
+use std::collections::hash_set::Iter;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
@@ -105,9 +105,13 @@ impl<T: Hash> Set<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         self.elems.iter()
     }
+}
 
+impl<T: Hash> IntoIterator for Set<T> {
+    type Item = T;
+    type IntoIter = <FxHashSet<T> as IntoIterator>::IntoIter;
     #[inline]
-    pub fn into_iter(self) -> IntoIter<T> {
+    fn into_iter(self) -> Self::IntoIter {
         self.elems.into_iter()
     }
 }

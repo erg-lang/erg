@@ -24,7 +24,7 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let require = args.remove_left_or_key("Requirement").unwrap();
     let require = value_obj_to_t(require);
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| value_obj_to_t(v));
+    let impls = impls.map(value_obj_to_t);
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     ValueObj::gen_t(TypeKind::Class, t, require, impls, None)
 }
@@ -34,9 +34,9 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> ValueObj {
     let sup = args.remove_left_or_key("Super").unwrap();
     let sup = value_obj_to_t(sup);
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| value_obj_to_t(v));
+    let impls = impls.map(value_obj_to_t);
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(|v| value_obj_to_t(v));
+    let additional = additional.map(value_obj_to_t);
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     ValueObj::gen_t(TypeKind::Subclass, t, sup, impls, additional)
 }

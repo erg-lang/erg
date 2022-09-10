@@ -181,7 +181,7 @@ impl Context {
             .collect::<Vec<_>>();
         let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.rec_union(&return_t, &arg_t.typ().return_t().unwrap());
+            return_t = self.rec_union(&return_t, arg_t.typ().return_t().unwrap());
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -323,8 +323,8 @@ impl Context {
                     match v {
                         ValueObj::Type(TypeObj::Generated(gen)) => self
                             .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
-                            .map(|t| t.clone())
-                            .ok_or(TyCheckError::dummy(line!() as usize)),
+                            .cloned()
+                            .ok_or_else(|| TyCheckError::dummy(line!() as usize)),
                         ValueObj::Type(TypeObj::Builtin(_t)) => {
                             // FIXME:
                             Err(TyCheckError::dummy(line!() as usize))
@@ -463,7 +463,7 @@ impl Context {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
-                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t.clone());
+                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t);
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                 let core = ErrorCore::new(
                     e.core.errno,
@@ -494,7 +494,7 @@ impl Context {
             .map_err(|e| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
-                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t.clone());
+                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t);
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
@@ -671,8 +671,7 @@ impl Context {
                         hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
                         Type::Uninited,
                     );
-                    let acc = hir::Expr::Accessor(hir::Accessor::Attr(attr));
-                    acc
+                    hir::Expr::Accessor(hir::Accessor::Attr(attr))
                 } else {
                     obj.clone()
                 };
@@ -700,8 +699,7 @@ impl Context {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
                     let non_default_params = if subr
                         .non_default_params
-                        .iter()
-                        .next()
+                        .first()
                         .map(|p| p.name().map(|s| &s[..]) == Some("self"))
                         .unwrap_or(false)
                     {
@@ -841,7 +839,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::KwArg,
-        default_params: &Vec<ParamTy>,
+        default_params: &[ParamTy],
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.expr.ref_t();
@@ -919,8 +917,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let level = self.level;
-        let res = self.eval_t_params(instance, level)?;
+        let res = self.eval_t_params(instance, self.level)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -1154,7 +1151,7 @@ impl Context {
             .super_classes
             .iter()
             .chain(ctx.super_traits.iter())
-            .map(|sup| self.rec_get_nominal_type_ctx(&sup).unwrap());
+            .map(|sup| self.rec_get_nominal_type_ctx(sup).unwrap());
         Some(vec![(t, ctx)].into_iter().chain(sups))
     }
 
@@ -1368,12 +1365,10 @@ impl Context {
             } else {
                 None
             }
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_self_t()
         } else {
-            if let Some(outer) = &self.outer {
-                outer.rec_get_self_t()
-            } else {
-                None
-            }
+            None
         }
     }
 

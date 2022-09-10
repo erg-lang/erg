@@ -216,7 +216,7 @@ impl Deserializer {
                 let name = self.deserialize_str(v, python_ver)?;
                 let firstlineno = Self::deserialize_u32(v);
                 let lnotab = self.deserialize_bytes(v)?;
-                Ok(ValueObj::from(CodeObj::new(
+                Ok(ValueObj::from(CodeObj {
                     argcount,
                     posonlyargcount,
                     kwonlyargcount,
@@ -233,7 +233,7 @@ impl Deserializer {
                     name,
                     firstlineno,
                     lnotab,
-                )))
+                }))
             }
             DataTypePrefix::None => Ok(ValueObj::None),
             other => Err(DeserializeError::new(

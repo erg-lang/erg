@@ -33,7 +33,7 @@ impl TypeCmpCache {
     where
         SubtypePair: Borrow<Q>,
     {
-        self.cache.get(pair).map(|b| *b)
+        self.cache.get(pair).copied()
     }
 
     pub fn register(&mut self, pair: SubtypePair, b: bool) {

@@ -124,7 +124,7 @@ impl ErrorDisplay for ParserRunnerError {
     fn caused_by(&self) -> &str {
         ""
     }
-    fn ref_inner(&self) -> Option<&Box<Self>> {
+    fn ref_inner(&self) -> Option<&Self> {
         None
     }
 }

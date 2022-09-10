@@ -7,13 +7,20 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
     let r_len = rhs.len();
     // l_len+1 × r_len+1 array
     let mut table = vec![vec![0; r_len + 1]; l_len + 1];
-    for i in 0..l_len + 1 {
-        table[i][0] = i;
-    }
-    for i in 0..r_len + 1 {
-        table[0][i] = i;
-    }
+    let _ = table
+        .iter_mut()
+        .take(l_len + 1)
+        .enumerate()
+        .map(|(i, row)| row[0] = i)
+        .collect::<()>();
+    let _ = table[0]
+        .iter_mut()
+        .take(r_len + 1)
+        .enumerate()
+        .map(|(i, elem)| *elem = i)
+        .collect::<()>();
     for i1 in 0..l_len {
+        #[allow(clippy::needless_range_loop)]
         for i2 in 0..r_len {
             let cost = if lhs[i1] == rhs[i2] { 0 } else { 1 };
             table[i1 + 1][i2 + 1] = *[

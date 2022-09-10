@@ -381,14 +381,14 @@ impl Context {
             let sub_t = if sig.ident.is_procedural() {
                 proc(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )
             } else {
                 func(
                     non_default_params.clone(),
-                    var_args.as_ref().map(|v| *(*v).clone()),
+                    var_args.cloned(),
                     default_params.clone(),
                     body_t.clone(),
                 )
@@ -613,7 +613,7 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = &gen.additional {
-                            self.rec_intersection(&param_t, additional.typ())
+                            self.rec_intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
                         };

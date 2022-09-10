@@ -1,6 +1,8 @@
 //! defines `Type` (type kind).
 //!
 //! Type(コンパイラ等で使われる「型」を表現する)を定義する
+#![allow(clippy::derive_hash_xor_eq)]
+#![allow(clippy::large_enum_variant)]
 pub mod codeobj;
 pub mod constructors;
 pub mod deserialize;
@@ -47,11 +49,11 @@ pub trait HasType {
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[0].typ()
+        self.ref_t().non_default_params().unwrap()[0].typ()
     }
     #[inline]
     fn rhs_t(&self) -> &Type {
-        &self.ref_t().non_default_params().unwrap()[1].typ()
+        self.ref_t().non_default_params().unwrap()[1].typ()
     }
 }
 
@@ -759,7 +761,7 @@ impl LimitedDisplay for SubrType {
             param.typ().limited_fmt(f, limit - 1)?;
         }
         if let Some(var_params) = &self.var_params {
-            if self.non_default_params.len() != 0 {
+            if !self.non_default_params.is_empty() {
                 write!(f, ", ")?;
             }
             write!(f, "...")?;
@@ -1424,9 +1426,9 @@ impl HasLevel for Type {
                 for pt in subr.non_default_params.iter() {
                     pt.typ().update_level(level);
                 }
-                subr.var_params
-                    .as_ref()
-                    .map(|pt| pt.typ().update_level(level));
+                if let Some(pt) = subr.var_params.as_ref() {
+                    pt.typ().update_level(level);
+                }
                 for pt in subr.default_params.iter() {
                     pt.typ().update_level(level);
                 }
@@ -1485,7 +1487,9 @@ impl HasLevel for Type {
                 for pt in subr.non_default_params.iter() {
                     pt.typ().lift();
                 }
-                subr.var_params.as_ref().map(|pt| pt.typ().lift());
+                if let Some(pt) = subr.var_params.as_ref() {
+                    pt.typ().lift();
+                }
                 for pt in subr.default_params.iter() {
                     pt.typ().lift();
                 }
@@ -1768,10 +1772,7 @@ impl Type {
     }
 
     pub fn is_monomorphic(&self) -> bool {
-        match self.typarams_len() {
-            Some(0) | None => true,
-            _ => false,
-        }
+        matches!(self.typarams_len(), Some(0) | None)
     }
 
     pub const fn is_callable(&self) -> bool {
@@ -1968,14 +1969,14 @@ impl Type {
         }
     }
 
-    pub const fn var_args(&self) -> Option<&Box<ParamTy>> {
+    pub fn var_args(&self) -> Option<&ParamTy> {
         match self {
             Self::FreeVar(_) => panic!("fv"),
             Self::Refinement(refine) => refine.t.var_args(),
             Self::Subr(SubrType {
                 var_params: var_args,
                 ..
-            }) => var_args.as_ref(),
+            }) => var_args.as_deref(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -2013,20 +2014,14 @@ impl Type {
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        match self {
-            Self::FreeVar(fv) => {
-                fv.update_constraint(new_constraint);
-            }
-            _ => {}
+        if let Self::FreeVar(fv) = self {
+            fv.update_constraint(new_constraint);
         }
     }
 
     pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
-        match self {
-            Self::FreeVar(fv) => {
-                fv.update_cyclicity(new_cyclicity);
-            }
-            _ => {}
+        if let Self::FreeVar(fv) = self {
+            fv.update_cyclicity(new_cyclicity);
         }
     }
 }

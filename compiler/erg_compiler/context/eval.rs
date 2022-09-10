@@ -169,22 +169,20 @@ impl Context {
             Accessor::Ident(ident) => {
                 if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
+                } else if ident.is_const() {
+                    Err(EvalError::no_var_error(
+                        line!() as usize,
+                        ident.loc(),
+                        self.caused_by(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    ))
                 } else {
-                    if ident.is_const() {
-                        Err(EvalError::no_var_error(
-                            line!() as usize,
-                            ident.loc(),
-                            self.caused_by(),
-                            ident.inspect(),
-                            self.get_similar_name(ident.inspect()),
-                        ))
-                    } else {
-                        Err(EvalError::not_const_expr(
-                            line!() as usize,
-                            acc.loc(),
-                            self.caused_by(),
-                        ))
-                    }
+                    Err(EvalError::not_const_expr(
+                        line!() as usize,
+                        acc.loc(),
+                        self.caused_by(),
+                    ))
                 }
             }
             Accessor::Attr(attr) => {
@@ -196,28 +194,22 @@ impl Context {
     }
 
     fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> EvalResult<ValueObj> {
-        match obj.try_get_attr(&Field::from(ident)) {
-            Some(val) => {
-                return Ok(val);
-            }
-            _ => {}
+        if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
+            return Ok(val);
         }
-        match &obj {
-            ValueObj::Type(t) => {
-                if let Some(sups) = self.rec_get_nominal_super_type_ctxs(t.typ()) {
-                    for (_, ctx) in sups {
-                        if let Some(val) = ctx.consts.get(ident.inspect()) {
-                            return Ok(val.clone());
-                        }
-                        for (_, methods) in ctx.methods_list.iter() {
-                            if let Some(v) = methods.consts.get(ident.inspect()) {
-                                return Ok(v.clone());
-                            }
+        if let ValueObj::Type(t) = &obj {
+            if let Some(sups) = self.rec_get_nominal_super_type_ctxs(t.typ()) {
+                for (_, ctx) in sups {
+                    if let Some(val) = ctx.consts.get(ident.inspect()) {
+                        return Ok(val.clone());
+                    }
+                    for (_, methods) in ctx.methods_list.iter() {
+                        if let Some(v) = methods.consts.get(ident.inspect()) {
+                            return Ok(v.clone());
                         }
                     }
                 }
             }
-            _ => {}
         }
         Err(EvalError::no_attr_error(
             line!() as usize,
@@ -260,28 +252,30 @@ impl Context {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Ident(ident) => {
-                    let obj =
-                        self.rec_get_const_obj(&ident.inspect())
-                            .ok_or(EvalError::no_var_error(
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                ident.inspect(),
-                                self.get_similar_name(ident.inspect()),
-                            ))?;
-                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
-                        .ok_or(EvalError::type_mismatch_error(
+                    let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
+                        EvalError::no_var_error(
                             line!() as usize,
                             ident.loc(),
                             self.caused_by(),
                             ident.inspect(),
-                            &mono("Subroutine"),
-                            &obj.t(),
-                            None,
-                        ))?
+                            self.get_similar_name(ident.inspect()),
+                        )
+                    })?;
+                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
+                        .ok_or_else(|| {
+                            EvalError::type_mismatch_error(
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                ident.inspect(),
+                                &mono("Subroutine"),
+                                &obj.t(),
+                                None,
+                            )
+                        })?
                         .clone();
                     let args = self.eval_args(&call.args, __name__)?;
-                    Ok(subr.call(args, __name__.map(|n| n.clone())))
+                    Ok(subr.call(args, __name__.cloned()))
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
@@ -473,7 +467,7 @@ impl Context {
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::Value(c) => self.eval_unary(op, c.clone()).map(|v| TyParam::Value(v)),
+            TyParam::Value(c) => self.eval_unary(op, c.clone()).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),
