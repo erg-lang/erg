@@ -2,7 +2,7 @@
 use erg_common::Str;
 use erg_common::{enum_unwrap, set};
 
-use erg_type::constructors::{func1, mono_q, poly_trait, quant, refinement};
+use erg_type::constructors::{func1, mono_q, poly, quant, refinement};
 use erg_type::typaram::TyParam;
 use erg_type::{Predicate, TyBound, Type};
 use Type::*;
@@ -28,7 +28,7 @@ impl Context {
     }
 
     pub fn test_resolve_trait(&self) -> Result<(), ()> {
-        let t = poly_trait("Add", vec![TyParam::t(Nat)]);
+        let t = poly("Add", vec![TyParam::t(Nat)]);
         match self.resolve_trait(t) {
             Ok(Nat) => Ok(()),
             Ok(other) => {
@@ -46,7 +46,7 @@ impl Context {
     pub fn test_resolve_trait_inner1(&self) -> Result<(), ()> {
         let name = Str::ever("Add");
         let params = vec![TyParam::t(Nat)];
-        let maybe_trait = poly_trait(name.clone(), params);
+        let maybe_trait = poly(name.clone(), params);
         let mut min = Type::Obj;
         for pair in self.rec_get_trait_impls(&name) {
             if self.rec_supertype_of(&pair.sup_trait, &maybe_trait) {
@@ -62,7 +62,7 @@ impl Context {
 
     pub fn test_instantiation_and_generalization(&self) -> Result<(), ()> {
         let t = mono_q("T");
-        let eq = poly_trait("Eq", vec![TyParam::t(t.clone())]);
+        let eq = poly("Eq", vec![TyParam::t(t.clone())]);
         let bound = TyBound::subtype_of(t.clone(), eq.clone());
         let bounds = set! {bound};
         let unbound_t = func1(t.clone(), t.clone());

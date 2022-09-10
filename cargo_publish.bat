@@ -4,7 +4,7 @@ if %~dp0 == C:%homepath%\GitHub\erg\ (
     cd compiler/erg_common
     echo publish erg_common ...
     cargo publish
-    timeout 10
+    timeout 12
     cd ../erg_type
     echo publish erg_type ...
     cargo publish

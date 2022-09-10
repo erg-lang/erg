@@ -63,6 +63,7 @@ pub enum Opcode {
     PRINT_EXPR = 70,
     LOAD_BUILD_CLASS = 71,
     LOAD_ASSERTION_ERROR = 74,
+    LIST_TO_TUPLE = 82,
     RETURN_VALUE = 83,
     /* ↓ These opcodes take an arg */
     STORE_NAME = 90,
@@ -101,8 +102,10 @@ pub enum Opcode {
     LOAD_DEREF = 136,
     STORE_DEREF = 137,
     CALL_FUNCTION_KW = 141,
+    CALL_FUNCTION_EX = 142,
     LOAD_METHOD = 160,
     CALL_METHOD = 161,
+    LIST_EXTEND = 162,
     // Erg-specific opcodes (must have a unary `ERG_`)
     // Define in descending order from 219, 255
     ERG_POP_NTH = 196,
@@ -205,6 +208,7 @@ impl From<u8> for Opcode {
             70 => PRINT_EXPR,
             71 => LOAD_BUILD_CLASS,
             74 => LOAD_ASSERTION_ERROR,
+            82 => LIST_TO_TUPLE,
             83 => RETURN_VALUE,
             /* ↓ These opcodes take an arg */
             90 => STORE_NAME,
@@ -243,8 +247,10 @@ impl From<u8> for Opcode {
             136 => LOAD_DEREF,
             137 => STORE_DEREF,
             141 => CALL_FUNCTION_KW,
+            142 => CALL_FUNCTION_EX,
             160 => LOAD_METHOD,
             161 => CALL_METHOD,
+            162 => LIST_EXTEND,
             // Erg-specific opcodes
             196 => ERG_POP_NTH,
             197 => ERG_PEEK_NTH,

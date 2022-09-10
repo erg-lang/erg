@@ -448,12 +448,12 @@ impl TyParam {
     }
 
     pub fn free_var(level: usize, t: Type) -> Self {
-        let constraint = Constraint::type_of(t);
+        let constraint = Constraint::new_type_of(t);
         Self::FreeVar(FreeTyParam::new_unbound(level, constraint))
     }
 
     pub fn named_free_var(name: Str, level: usize, t: Type) -> Self {
-        let constraint = Constraint::type_of(t);
+        let constraint = Constraint::new_type_of(t);
         Self::FreeVar(FreeTyParam::new_named_unbound(name, level, constraint))
     }
 

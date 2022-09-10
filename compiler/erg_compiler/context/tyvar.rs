@@ -12,7 +12,7 @@ use erg_type::constructors::*;
 use erg_type::free::{Constraint, Cyclicity, FreeKind, HasLevel};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, SubrKind, TyBound, Type};
+use erg_type::{HasType, Predicate, TyBound, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckResult};
@@ -118,22 +118,6 @@ impl Context {
                 _ => assume_unreachable!(),
             },
             Subr(mut subr) => {
-                let kind = match subr.kind {
-                    SubrKind::FuncMethod(self_t) => {
-                        let t = self.generalize_t_inner(*self_t, bounds, lazy_inits);
-                        SubrKind::fn_met(t)
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        let before = self.generalize_t_inner(*before, bounds, lazy_inits);
-                        if let Some(after) = after {
-                            let after = self.generalize_t_inner(*after, bounds, lazy_inits);
-                            SubrKind::pr_met(before, Some(after))
-                        } else {
-                            SubrKind::pr_met(before, None)
-                        }
-                    }
-                    other => other,
-                };
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
                     *nd_param.typ_mut() =
                         self.generalize_t_inner(mem::take(nd_param.typ_mut()), bounds, lazy_inits);
@@ -148,7 +132,7 @@ impl Context {
                 });
                 let return_t = self.generalize_t_inner(*subr.return_t, bounds, lazy_inits);
                 subr_t(
-                    kind,
+                    subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|x| *x),
                     subr.default_params,
@@ -157,20 +141,20 @@ impl Context {
             }
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            RefMut(t) => ref_mut(self.generalize_t_inner(*t, bounds, lazy_inits)),
-            PolyClass { name, mut params } => {
-                let params = params
-                    .iter_mut()
-                    .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
-                    .collect::<Vec<_>>();
-                poly_class(name, params)
+            RefMut { before, after } => {
+                let after = if let Some(after) = after {
+                    Some(self.generalize_t_inner(*after, bounds, lazy_inits))
+                } else {
+                    None
+                };
+                ref_mut(self.generalize_t_inner(*before, bounds, lazy_inits), after)
             }
-            PolyTrait { name, mut params } => {
+            Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
                     .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
                     .collect::<Vec<_>>();
-                poly_trait(name, params)
+                poly(name, params)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
@@ -246,13 +230,13 @@ impl Context {
                 if cyclic.is_cyclic() {
                     return Err(TyCheckError::dummy_infer_error(fn_name!(), line!()));
                 }
-                Ok(Constraint::sandwiched(
+                Ok(Constraint::new_sandwiched(
                     self.deref_tyvar(sub)?,
                     self.deref_tyvar(sup)?,
                     cyclic,
                 ))
             }
-            Constraint::TypeOf(t) => Ok(Constraint::type_of(self.deref_tyvar(t)?)),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t)?)),
             _ => unreachable!(),
         }
     }
@@ -269,7 +253,7 @@ impl Context {
             // ?T(:> Never, <: Nat)[n] => Nat
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let constraint = fv.crack_constraint();
-                let (sub_t, super_t) = constraint.get_sub_sup_type().unwrap();
+                let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.rec_same_type_of(sub_t, super_t) {
                     self.unify(sub_t, super_t, None, None)?;
                     let t = if sub_t == &Never {
@@ -280,7 +264,7 @@ impl Context {
                     drop(constraint);
                     fv.link(&t);
                     self.deref_tyvar(Type::FreeVar(fv))
-                } else if self.level == 0 || self.level <= fv.level().unwrap() {
+                } else if self.level <= fv.level().unwrap() {
                     let new_t = if sub_t == &Never {
                         super_t.clone()
                     } else {
@@ -313,32 +297,14 @@ impl Context {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             }
-            Type::PolyClass { name, mut params } => {
+            Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.deref_tp(mem::take(param))?;
                 }
-                Ok(Type::PolyClass { name, params })
-            }
-            Type::PolyTrait { name, mut params } => {
-                for param in params.iter_mut() {
-                    *param = self.deref_tp(mem::take(param))?;
-                }
-                let t = Type::PolyTrait { name, params };
+                let t = Type::Poly { name, params };
                 self.resolve_trait(t)
             }
             Type::Subr(mut subr) => {
-                match &mut subr.kind {
-                    SubrKind::FuncMethod(t) => {
-                        *t = Box::new(self.deref_tyvar(mem::take(t))?);
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        *before = Box::new(self.deref_tyvar(mem::take(before))?);
-                        if let Some(after) = after {
-                            *after = Box::new(self.deref_tyvar(mem::take(after))?);
-                        }
-                    }
-                    _ => {}
-                }
                 for param in subr.non_default_params.iter_mut() {
                     *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
                 }
@@ -355,9 +321,14 @@ impl Context {
                 let t = self.deref_tyvar(*t)?;
                 Ok(ref_(t))
             }
-            Type::RefMut(t) => {
-                let t = self.deref_tyvar(*t)?;
-                Ok(ref_mut(t))
+            Type::RefMut { before, after } => {
+                let before = self.deref_tyvar(*before)?;
+                let after = if let Some(after) = after {
+                    Some(self.deref_tyvar(*after)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(before, after))
             }
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
@@ -400,7 +371,7 @@ impl Context {
                         self.deref_expr_t(&mut subscr.obj)?;
                         self.deref_expr_t(&mut subscr.index)?;
                     }
-                    hir::Accessor::Local(_) | hir::Accessor::Public(_) => {}
+                    hir::Accessor::Ident(_) => {}
                 }
                 Ok(())
             }
@@ -490,6 +461,29 @@ impl Context {
                 }
                 Ok(())
             }
+            hir::Expr::ClassDef(type_def) => {
+                for def in type_def.public_methods.iter_mut() {
+                    match &mut def.sig {
+                        hir::Signature::Var(var) => {
+                            var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                        }
+                        hir::Signature::Subr(subr) => {
+                            subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                        }
+                    }
+                    for chunk in def.body.block.iter_mut() {
+                        self.deref_expr_t(chunk)?;
+                    }
+                }
+                Ok(())
+            }
+            hir::Expr::AttrDef(attr_def) => {
+                // REVIEW: attr_def.attr is not dereferenced
+                for chunk in attr_def.block.iter_mut() {
+                    self.deref_expr_t(chunk)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -523,7 +517,7 @@ impl Context {
             (TyParam::FreeVar(fv), tp) | (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify_tp(l, tp, lhs_variance, allow_divergence)
+                        return self.unify_tp(l, tp, lhs_variance, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
@@ -534,11 +528,11 @@ impl Context {
                     .get_type()
                     .unwrap()
                     .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
-                let tp_t = self.eval.get_tp_t(tp, self)?;
+                let tp_t = self.get_tp_t(tp)?;
                 if self.rec_supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::subtype_of(tp_t, Cyclicity::Not);
+                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
                         if self.is_sub_constraint_of(
                             fv.borrow().constraint().unwrap(),
                             &new_constraint,
@@ -553,7 +547,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.rec_subtype_of(&fv_t, &trait_("Num"))
+                    && self.rec_subtype_of(&fv_t, &mono("Num"))
                 {
                     fv.link(tp);
                     Ok(())
@@ -730,7 +724,7 @@ impl Context {
             (Type::FreeVar(fv), t) | (t, Type::FreeVar(fv)) => {
                 match &mut *fv.borrow_mut() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify(l, t, lhs_loc, rhs_loc)
+                        return self.unify(l, t, lhs_loc, rhs_loc);
                     }
                     FreeKind::Unbound {
                         lev, constraint, ..
@@ -740,7 +734,7 @@ impl Context {
                     } => {
                         t.update_level(*lev);
                         // TODO: constraint.type_of()
-                        if let Some(sup) = constraint.get_super_type_mut() {
+                        if let Some(sup) = constraint.get_super_mut() {
                             // 下のような場合は制約を弱化する
                             // unify(?T(<: Nat), Int): (?T(<: Int))
                             if self.rec_subtype_of(sup, t) {
@@ -751,7 +745,7 @@ impl Context {
                         }
                     }
                 } // &fv is dropped
-                let new_constraint = Constraint::subtype_of(t.clone(), fv.cyclicity());
+                let new_constraint = Constraint::new_subtype_of(t.clone(), fv.cyclicity());
                 // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                 // fv == ?T(: Type)の場合は?T(<: U)にする
                 if fv.level() < Some(self.level) {
@@ -794,10 +788,7 @@ impl Context {
                 let lhs_t = self.into_refinement(l.clone());
                 self.unify(&Type::Refinement(lhs_t), rhs_t, lhs_loc, rhs_loc)
             }
-            (Type::Subr(ls), Type::Subr(rs)) if ls.kind.same_kind_as(&rs.kind) => {
-                if let (Some(l), Some(r)) = (ls.kind.self_t(), rs.kind.self_t()) {
-                    self.unify(l, r, lhs_loc, rhs_loc)?;
-                }
+            (Type::Subr(ls), Type::Subr(rs)) if ls.kind == rs.kind => {
                 for (l, r) in ls
                     .non_default_params
                     .iter()
@@ -821,18 +812,38 @@ impl Context {
                 }
                 self.unify(&ls.return_t, &rs.return_t, lhs_loc, rhs_loc)
             }
-            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
-                self.unify(l, r, lhs_loc, rhs_loc)
+            (Type::Ref(l), Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (
+                Type::RefMut {
+                    before: lbefore,
+                    after: lafter,
+                },
+                Type::RefMut {
+                    before: rbefore,
+                    after: rafter,
+                },
+            ) => {
+                self.unify(lbefore, rbefore, lhs_loc, rhs_loc)?;
+                match (lafter, rafter) {
+                    (Some(lafter), Some(rafter)) => {
+                        self.unify(lafter, rafter, lhs_loc, rhs_loc)?;
+                    }
+                    (None, None) => {}
+                    _ => todo!(),
+                }
+                Ok(())
             }
+            (Type::Ref(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
             // REVIEW:
-            (Type::Ref(l), r) | (Type::RefMut(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
-            (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (Type::RefMut { before, .. }, r) => self.unify(before, r, lhs_loc, rhs_loc),
+            (l, Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
+            (l, Type::RefMut { before, .. }) => self.unify(l, before, lhs_loc, rhs_loc),
             (
-                Type::PolyClass {
+                Type::Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::PolyClass {
+                Type::Poly {
                     name: rn,
                     params: rps,
                 },
@@ -852,32 +863,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (
-                Type::PolyTrait {
-                    name: ln,
-                    params: lps,
-                },
-                Type::PolyTrait {
-                    name: rn,
-                    params: rps,
-                },
-            ) => {
-                if ln != rn {
-                    return Err(TyCheckError::unification_error(
-                        line!() as usize,
-                        lhs_t,
-                        rhs_t,
-                        lhs_loc,
-                        rhs_loc,
-                        self.caused_by(),
-                    ));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.unify_tp(l, r, None, false)?;
-                }
-                Ok(())
-            }
-            (Type::PolyClass { name: _, params: _ }, _r) => {
+            (Type::Poly { name: _, params: _ }, _r) => {
                 todo!()
             }
             (l, r) => Err(TyCheckError::unification_error(
@@ -908,50 +894,44 @@ impl Context {
             (l, Type::FreeVar(fv)) if fv.is_linked() => {
                 self.reunify(l, &fv.crack(), bef_loc, aft_loc)
             }
-            (Type::Ref(l), Type::Ref(r)) | (Type::RefMut(l), Type::RefMut(r)) => {
-                self.reunify(l, r, bef_loc, aft_loc)
-            }
-            // REVIEW:
-            (Type::Ref(l), r) | (Type::RefMut(l), r) => self.reunify(l, r, bef_loc, aft_loc),
-            (l, Type::Ref(r)) | (l, Type::RefMut(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (Type::Ref(l), Type::Ref(r)) => self.reunify(l, r, bef_loc, aft_loc),
             (
-                Type::PolyClass {
-                    name: ln,
-                    params: lps,
+                Type::RefMut {
+                    before: lbefore,
+                    after: lafter,
                 },
-                Type::PolyClass {
-                    name: rn,
-                    params: rps,
+                Type::RefMut {
+                    before: rbefore,
+                    after: rafter,
                 },
             ) => {
-                if ln != rn {
-                    let before_t = poly_class(ln.clone(), lps.clone());
-                    return Err(TyCheckError::re_unification_error(
-                        line!() as usize,
-                        &before_t,
-                        after_t,
-                        bef_loc,
-                        aft_loc,
-                        self.caused_by(),
-                    ));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.reunify_tp(l, r)?;
+                self.reunify(lbefore, rbefore, bef_loc, aft_loc)?;
+                match (lafter, rafter) {
+                    (Some(lafter), Some(rafter)) => {
+                        self.reunify(lafter, rafter, bef_loc, aft_loc)?;
+                    }
+                    (None, None) => {}
+                    _ => todo!(),
                 }
                 Ok(())
             }
+            (Type::Ref(l), r) => self.reunify(l, r, bef_loc, aft_loc),
+            // REVIEW:
+            (Type::RefMut { before, .. }, r) => self.reunify(before, r, bef_loc, aft_loc),
+            (l, Type::Ref(r)) => self.reunify(l, r, bef_loc, aft_loc),
+            (l, Type::RefMut { before, .. }) => self.reunify(l, before, bef_loc, aft_loc),
             (
-                Type::PolyTrait {
+                Type::Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::PolyTrait {
+                Type::Poly {
                     name: rn,
                     params: rps,
                 },
             ) => {
                 if ln != rn {
-                    let before_t = poly_trait(ln.clone(), lps.clone());
+                    let before_t = poly(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
                         line!() as usize,
                         &before_t,
@@ -987,7 +967,7 @@ impl Context {
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
     /// sub_unify(Nat, ?T(:> Int)): (/* OK */)
-    /// sub_unify(Nat, Add(?R, ?O)): (?R => Nat, ?O => Nat)
+    /// sub_unify(Nat, Add(?R)): (?R => Nat, Nat.AddO => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     pub(crate) fn sub_unify(
@@ -1029,20 +1009,29 @@ impl Context {
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
             // sub_unify(?T[1](:> Never, <: Nat), ?U[0](:> Never, <: Int)): (/* ?T[1] --> ?U[0](:> Never, <: Nat))
-            // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (/* Error */)
+            // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (?T[0](:> Never, <: Str and Int) --> Error!)
+            // sub_unify(?T[0](:> Int, <: Add()), ?U[1](:> Never, <: Mul())): (?T[0](:> Int, <: Add() and Mul()))
             // sub_unify(?T[0](:> Str, <: Obj), ?U[1](:> Int, <: Obj)): (/* ?U[1] --> ?T[0](:> Str or Int) */)
             (Type::FreeVar(lfv), Type::FreeVar(rfv))
                 if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
             {
-                let (lsub, lsup) = lfv.crack_bound_types().unwrap();
+                let (lsub, lsup) = lfv.get_bound_types().unwrap();
                 let l_cyc = lfv.cyclicity();
-                let (rsub, rsup) = rfv.crack_bound_types().unwrap();
+                let (rsub, rsup) = rfv.get_bound_types().unwrap();
                 let r_cyc = rfv.cyclicity();
                 let cyclicity = l_cyc.combine(r_cyc);
-                let new_constraint = if let Some(min) = self.min(&lsup, &rsup) {
-                    Constraint::sandwiched(self.rec_union(&lsub, &rsub), min.clone(), cyclicity)
+                let intersec = self.rec_intersection(&lsup, &rsup);
+                let new_constraint = if intersec != Type::Never {
+                    Constraint::new_sandwiched(self.rec_union(&lsub, &rsub), intersec, cyclicity)
                 } else {
-                    todo!()
+                    return Err(TyCheckError::subtyping_error(
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        sub_loc,
+                        sup_loc,
+                        self.caused_by(),
+                    ));
                 };
                 if lfv.level().unwrap() <= rfv.level().unwrap() {
                     lfv.update_constraint(new_constraint);
@@ -1067,7 +1056,7 @@ impl Context {
                         // sub = max(l, sub) if max exists
                         // * sub_unify(Nat,   ?T(:> Int,   <: _)): (/* OK */)
                         // * sub_unify(Int,   ?T(:> Nat,   <: Obj)): (?T(:> Int, <: Obj))
-                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R, ?O))): (?T(:> Nat, <: Add(?R, ?O))
+                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R))): (?T(:> Nat, <: Add(?R))
                         // sub = union(l, sub) if max does not exist
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
@@ -1089,16 +1078,16 @@ impl Context {
                             }
                             if let Some(new_sub) = self.rec_max(maybe_sub, sub) {
                                 *constraint =
-                                    Constraint::sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
+                                    Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
                             } else {
                                 let new_sub = self.rec_union(maybe_sub, sub);
-                                *constraint = Constraint::sandwiched(new_sub, mem::take(sup), *cyclicity);
+                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
                             }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
                             if self.rec_supertype_of(&Type, ty) {
-                                *constraint = Constraint::supertype_of(maybe_sub.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_supertype_of(maybe_sub.clone(), Cyclicity::Not);
                             } else {
                                 todo!()
                             }
@@ -1138,16 +1127,16 @@ impl Context {
                             }
                             if let Some(new_sup) = self.rec_min(sup, maybe_sup) {
                                 *constraint =
-                                    Constraint::sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
+                                    Constraint::new_sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
                             } else {
                                 let new_sup = self.rec_union(sup, maybe_sup);
-                                *constraint = Constraint::sandwiched(mem::take(sub), new_sup, *cyclicity);
+                                *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup, *cyclicity);
                             }
                         }
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
                         Constraint::TypeOf(ty) => {
                             if self.rec_supertype_of(&Type, ty) {
-                                *constraint = Constraint::subtype_of(maybe_sup.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_subtype_of(maybe_sup.clone(), Cyclicity::Not);
                             } else {
                                 todo!()
                             }
@@ -1159,6 +1148,23 @@ impl Context {
                 return Ok(());
             }
             (Type::FreeVar(_fv), _r) => todo!(),
+            (Type::Record(lrec), Type::Record(rrec)) => {
+                for (k, l) in lrec.iter() {
+                    if let Some(r) = rrec.get(k) {
+                        self.sub_unify(l, r, sub_loc, sup_loc, param_name)?;
+                    } else {
+                        return Err(TyCheckError::subtyping_error(
+                            line!() as usize,
+                            maybe_sub,
+                            maybe_sup,
+                            sub_loc,
+                            sup_loc,
+                            self.caused_by(),
+                        ));
+                    }
+                }
+                return Ok(());
+            }
             (Type::Subr(lsub), Type::Subr(rsub)) => {
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
@@ -1169,6 +1175,14 @@ impl Context {
                     |(l, r)| self.unify(l.typ(), r.typ(), sub_loc, sup_loc),
                 )?;
                 self.unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc)?;
+                return Ok(());
+            }
+            (_, Type::Ref(t)) => {
+                self.unify(maybe_sub, t, sub_loc, sup_loc)?;
+                return Ok(());
+            }
+            (_, Type::RefMut{ before, .. }) => {
+                self.unify(maybe_sub, before, sub_loc, sup_loc)?;
                 return Ok(());
             }
             (Type::MonoProj { .. }, _) => todo!(),

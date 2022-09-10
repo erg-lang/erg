@@ -6,15 +6,13 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
-// use erg_common::ty::SubrKind;
-// use erg_common::value::{Field, ValueObj, Visibility};
-use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_stream, impl_stream_for_wrapper,
 };
+use erg_common::{fmt_vec_split_with, Str};
 
 use crate::token::{Token, TokenKind};
 
@@ -228,107 +226,26 @@ impl Args {
     }
 }
 
-/// represents a local (private) variable
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Local {
-    pub symbol: Token,
-}
-
-impl NestedDisplay for Local {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(Local);
-impl_locational!(Local, symbol);
-
-impl Local {
-    pub const fn new(symbol: Token) -> Self {
-        Self { symbol }
-    }
-
-    pub fn static_dummy(name: &'static str) -> Self {
-        Self::new(Token::static_symbol(name))
-    }
-
-    pub fn dummy(name: &str) -> Self {
-        Self::new(Token::symbol(name))
-    }
-
-    pub fn dummy_with_line(name: &str, line: usize) -> Self {
-        Self::new(Token::new(TokenKind::Symbol, Str::rc(name), line, 0))
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn is_const(&self) -> bool {
-        self.symbol.inspect().chars().next().unwrap().is_uppercase()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Public {
-    pub dot: Token,
-    pub symbol: Token,
-}
-
-impl NestedDisplay for Public {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, ".{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(Public);
-impl_locational!(Public, dot, symbol);
-
-impl Public {
-    pub const fn new(dot: Token, symbol: Token) -> Self {
-        Self { dot, symbol }
-    }
-
-    pub fn dummy(name: &'static str) -> Self {
-        Self::new(
-            Token::from_str(TokenKind::Dot, "."),
-            Token::from_str(TokenKind::Symbol, name),
-        )
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn is_const(&self) -> bool {
-        self.symbol.inspect().chars().next().unwrap().is_uppercase()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
-    pub vis: Token,
-    pub name: Local,
+    pub ident: Identifier,
 }
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}){}{}", self.obj, self.vis.inspect(), self.name)
+        write!(f, "({}){}", self.obj, self.ident)
     }
 }
 
 impl_display_from_nested!(Attribute);
-impl_locational!(Attribute, obj, name);
+impl_locational!(Attribute, obj, ident);
 
 impl Attribute {
-    pub fn new(obj: Expr, vis: Token, name: Local) -> Self {
+    pub fn new(obj: Expr, ident: Identifier) -> Self {
         Self {
             obj: Box::new(obj),
-            vis,
-            name,
+            ident,
         }
     }
 }
@@ -384,28 +301,27 @@ impl Subscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Accessor {
-    Local(Local),
-    Public(Public),
+    Ident(Identifier),
     Attr(Attribute),
     TupleAttr(TupleAttribute),
     Subscr(Subscript),
 }
 
-impl_nested_display_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Local, Public, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Ident Attr, TupleAttr, Subscr);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Local(Local::new(symbol))
+        Self::Ident(Identifier::new(None, VarName::new(symbol)))
     }
 
     pub const fn public(dot: Token, symbol: Token) -> Self {
-        Self::Public(Public::new(dot, symbol))
+        Self::Ident(Identifier::new(Some(dot), VarName::new(symbol)))
     }
 
-    pub fn attr(obj: Expr, vis: Token, name: Local) -> Self {
-        Self::Attr(Attribute::new(obj, vis, name))
+    pub fn attr(obj: Expr, ident: Identifier) -> Self {
+        Self::Attr(Attribute::new(obj, ident))
     }
 
     pub fn tuple_attr(obj: Expr, index: Literal) -> Self {
@@ -418,19 +334,17 @@ impl Accessor {
 
     pub const fn name(&self) -> Option<&Str> {
         match self {
-            Self::Local(local) => Some(local.inspect()),
-            Self::Public(local) => Some(local.inspect()),
+            Self::Ident(ident) => Some(ident.inspect()),
             _ => None,
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self {
-            Self::Local(local) => local.is_const(),
-            Self::Public(public) => public.is_const(),
+            Self::Ident(ident) => ident.is_const(),
             Self::Subscr(subscr) => subscr.obj.is_const_acc(),
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
-            Self::Attr(attr) => attr.obj.is_const_acc() && attr.name.is_const(),
+            Self::Attr(attr) => attr.obj.is_const_acc() && attr.ident.is_const(),
         }
     }
 }
@@ -496,7 +410,7 @@ pub struct ArrayComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elem: Box<Expr>,
-    pub generators: Vec<(Local, Expr)>,
+    pub generators: Vec<(Identifier, Expr)>,
     pub guards: Vec<Expr>,
 }
 
@@ -524,7 +438,7 @@ impl ArrayComprehension {
         l_sqbr: Token,
         r_sqbr: Token,
         elem: Expr,
-        generators: Vec<(Local, Expr)>,
+        generators: Vec<(Identifier, Expr)>,
         guards: Vec<Expr>,
     ) -> Self {
         Self {
@@ -675,8 +589,16 @@ impl From<Vec<Def>> for RecordAttrs {
 }
 
 impl RecordAttrs {
+    pub const fn new(attrs: Vec<Def>) -> Self {
+        Self(attrs)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
+        self.0.iter_mut()
     }
 
     pub fn into_iter(self) -> impl IntoIterator<Item = Def> {
@@ -714,11 +636,44 @@ impl NormalRecord {
 
 /// e.g. {x; y; z} (syntax sugar of {x = x; y = y; z = z})
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SimpleRecord {
+pub struct ShortenedRecord {
     pub l_brace: Token,
     pub r_brace: Token,
-    idents: Vec<Identifier>,
+    pub idents: Vec<Identifier>,
 }
+
+impl NestedDisplay for ShortenedRecord {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{")?;
+        for ident in self.idents.iter() {
+            write!(f, "{}; ", ident)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+impl_display_from_nested!(ShortenedRecord);
+impl_locational!(ShortenedRecord, l_brace, r_brace);
+
+impl ShortenedRecord {
+    pub const fn new(l_brace: Token, r_brace: Token, idents: Vec<Identifier>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            idents,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Record {
+    Normal(NormalRecord),
+    Shortened(ShortenedRecord),
+}
+
+impl_nested_display_for_enum!(Record; Normal, Shortened);
+impl_display_for_enum!(Record; Normal, Shortened);
+impl_locational_for_enum!(Record; Normal, Shortened);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
@@ -821,7 +776,7 @@ impl UnaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
-    pub method_name: Option<Token>,
+    pub method_name: Option<Identifier>,
     pub args: Args,
 }
 
@@ -829,7 +784,7 @@ impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         write!(f, "({})", self.obj)?;
         if let Some(method_name) = self.method_name.as_ref() {
-            write!(f, ".{}", method_name.content)?;
+            write!(f, "{}", method_name)?;
         }
         writeln!(f, ":")?;
         self.args.fmt_nest(f, level + 1)
@@ -849,10 +804,42 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, method_name: Option<Token>, args: Args) -> Self {
+    pub fn new(obj: Expr, method_name: Option<Identifier>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
             method_name,
+            args,
+        }
+    }
+}
+
+/// e.g. `Data::{x = 1; y = 2}`
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DataPack {
+    pub class: Box<Expr>,
+    pub connector: Token,
+    pub args: Record,
+}
+
+impl NestedDisplay for DataPack {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{}::{}", self.class, self.args)
+    }
+}
+
+impl_display_from_nested!(DataPack);
+
+impl Locational for DataPack {
+    fn loc(&self) -> Location {
+        Location::concat(self.class.as_ref(), &self.args)
+    }
+}
+
+impl DataPack {
+    pub fn new(class: Expr, connector: Token, args: Record) -> Self {
+        Self {
+            class: Box::new(class),
+            connector,
             args,
         }
     }
@@ -1412,33 +1399,13 @@ impl ParamTySpec {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SubrKindSpec {
-    Func,
-    Proc,
-    FuncMethod(Box<TypeSpec>),
-    ProcMethod {
-        before: Box<TypeSpec>,
-        after: Option<Box<TypeSpec>>,
-    },
-}
-
-impl SubrKindSpec {
-    pub const fn arrow(&self) -> Str {
-        match self {
-            Self::Func | Self::FuncMethod(_) => Str::ever("->"),
-            Self::Proc | Self::ProcMethod { .. } => Str::ever("=>"),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
-    pub kind: SubrKindSpec,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_args: Option<Box<ParamTySpec>>,
     pub defaults: Vec<ParamTySpec>,
+    pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
 
@@ -1450,7 +1417,7 @@ impl fmt::Display for SubrTypeSpec {
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
-            self.kind.arrow(),
+            self.arrow.content,
             self.return_t
         )
     }
@@ -1469,19 +1436,19 @@ impl Locational for SubrTypeSpec {
 
 impl SubrTypeSpec {
     pub fn new(
-        kind: SubrKindSpec,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_args: Option<ParamTySpec>,
         defaults: Vec<ParamTySpec>,
+        arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
         Self {
-            kind,
             lparen,
             non_defaults,
             var_args: var_args.map(Box::new),
             defaults,
+            arrow,
             return_t: Box::new(return_t),
         }
     }
@@ -1580,40 +1547,6 @@ impl TypeSpec {
     pub const fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
         Self::Interval { op, lhs, rhs }
     }
-
-    pub fn func(
-        lparen: Option<Token>,
-        non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
-        defaults: Vec<ParamTySpec>,
-        return_t: TypeSpec,
-    ) -> Self {
-        Self::Subr(SubrTypeSpec::new(
-            SubrKindSpec::Func,
-            lparen,
-            non_defaults,
-            var_args,
-            defaults,
-            return_t,
-        ))
-    }
-
-    pub fn proc(
-        lparen: Option<Token>,
-        non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
-        defaults: Vec<ParamTySpec>,
-        return_t: TypeSpec,
-    ) -> Self {
-        Self::Subr(SubrTypeSpec::new(
-            SubrKindSpec::Proc,
-            lparen,
-            non_defaults,
-            var_args,
-            defaults,
-            return_t,
-        ))
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1657,7 +1590,7 @@ impl Locational for TypeBoundSpecs {
 /// デコレータは関数を返す関数オブジェクトならば何でも指定できる
 /// e.g. @(x -> x)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Decorator(Expr);
+pub struct Decorator(pub Expr);
 
 impl Decorator {
     pub const fn new(expr: Expr) -> Self {
@@ -1760,14 +1693,16 @@ pub struct Identifier {
     pub name: VarName,
 }
 
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Identifier {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match &self.dot {
             Some(_dot) => write!(f, ".{}", self.name),
-            None => write!(f, "{}", self.name),
+            None => write!(f, "::{}", self.name),
         }
     }
 }
+
+impl_display_from_nested!(Identifier);
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
@@ -1805,13 +1740,17 @@ impl Identifier {
         Self::new(None, VarName::from_str_and_line(name, line))
     }
 
+    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+        Self::new(Some(dot), VarName::from_str_and_line(name, line))
+    }
+
     pub fn is_const(&self) -> bool {
         self.name.is_const()
     }
 
     pub const fn vis(&self) -> Visibility {
         match &self.dot {
-            Some(_dot) => Visibility::Public,
+            Some(_) => Visibility::Public,
             None => Visibility::Private,
         }
     }
@@ -1908,28 +1847,92 @@ impl VarTuplePattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarRecordAttr {
+    pub lhs: Identifier,
+    pub rhs: VarSignature,
+}
+
+impl NestedDisplay for VarRecordAttr {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} = {}", self.lhs, self.rhs)
+    }
+}
+
+impl_display_from_nested!(VarRecordAttr);
+impl_locational!(VarRecordAttr, lhs, rhs);
+
+impl VarRecordAttr {
+    pub const fn new(lhs: Identifier, rhs: VarSignature) -> Self {
+        Self { lhs, rhs }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarRecordAttrs {
+    pub(crate) elems: Vec<VarRecordAttr>,
+}
+
+impl NestedDisplay for VarRecordAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec_split_with(&self.elems, "; "))
+    }
+}
+
+impl_display_from_nested!(VarRecordAttrs);
+impl_stream!(VarRecordAttrs, VarRecordAttr, elems);
+
+impl VarRecordAttrs {
+    pub const fn new(elems: Vec<VarRecordAttr>) -> Self {
+        Self { elems }
+    }
+
+    pub const fn empty() -> Self {
+        Self::new(vec![])
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordPattern {
     l_brace: Token,
-    // TODO: レコード専用の構造体を作る
-    pub(crate) elems: Vars,
+    pub(crate) attrs: VarRecordAttrs,
     r_brace: Token,
 }
 
 impl fmt::Display for VarRecordPattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{{}}}", self.elems)
+        write!(f, "{{{}}}", self.attrs)
     }
 }
 
 impl_locational!(VarRecordPattern, l_brace, r_brace);
 
 impl VarRecordPattern {
-    pub const fn new(l_brace: Token, elems: Vars, r_brace: Token) -> Self {
+    pub const fn new(l_brace: Token, attrs: VarRecordAttrs, r_brace: Token) -> Self {
         Self {
             l_brace,
-            elems,
+            attrs,
             r_brace,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VarDataPackPattern {
+    pub class: TypeSpec,
+    pub args: VarRecordPattern,
+}
+
+impl fmt::Display for VarDataPackPattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.class, self.args)
+    }
+}
+
+impl_locational!(VarDataPackPattern, class, args);
+
+impl VarDataPackPattern {
+    pub const fn new(class: TypeSpec, args: VarRecordPattern) -> Self {
+        Self { class, args }
     }
 }
 
@@ -1943,6 +1946,8 @@ pub enum VarPattern {
     Tuple(VarTuplePattern),
     // e.g. `{name; age}`, `{_; [car, cdr]}`
     Record(VarRecordPattern),
+    // e.g. `Data::{x, y}`
+    DataPack(VarDataPackPattern),
 }
 
 impl NestedDisplay for VarPattern {
@@ -1953,30 +1958,19 @@ impl NestedDisplay for VarPattern {
             Self::Array(a) => write!(f, "{}", a),
             Self::Tuple(t) => write!(f, "{}", t),
             Self::Record(r) => write!(f, "{}", r),
+            Self::DataPack(d) => write!(f, "{}", d),
         }
     }
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record);
+impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
             Self::Ident(ident) => Some(ident.inspect()),
             _ => None,
-        }
-    }
-
-    pub fn inspects(&self) -> Vec<&Str> {
-        match self {
-            Self::Ident(ident) => vec![ident.inspect()],
-            Self::Array(VarArrayPattern { elems, .. })
-            | Self::Tuple(VarTuplePattern { elems, .. })
-            | Self::Record(VarRecordPattern { elems, .. }) => {
-                elems.iter().flat_map(|s| s.pat.inspects()).collect()
-            }
-            _ => vec![],
         }
     }
 
@@ -2051,6 +2045,13 @@ impl VarSignature {
 
     pub const fn vis(&self) -> Visibility {
         self.pat.vis()
+    }
+
+    pub fn ident(&self) -> Option<&Identifier> {
+        match &self.pat {
+            VarPattern::Ident(ident) => Some(ident),
+            _ => None,
+        }
     }
 }
 
@@ -2156,26 +2157,38 @@ impl ParamRecordPattern {
 pub enum ParamPattern {
     Discard(Token),
     VarName(VarName),
-    // TODO: ConstField(),
-    // e.g. `a` of `[*a, b] = [1, 2, 3]` (a == [1, 2], b == 3)
-    //      `b` of `[a, *b] = [1, 2, 3]` (a == 1, b == [2, 3])
-    VarArgsName(VarName),
+    // TODO: ConstAttr(),
     Lit(Literal),
     Array(ParamArrayPattern),
     Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
+    // DataPack(ParamDataPackPattern),
     Ref(VarName),
     RefMut(VarName),
-    VarArgs(VarName),
 }
 
-impl_display_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, VarArgsName, Lit, Array, Tuple, Record, Ref, RefMut, VarArgs);
+impl NestedDisplay for ParamPattern {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        match self {
+            Self::Discard(tok) => write!(f, "{}", tok),
+            Self::VarName(var_name) => write!(f, "{}", var_name),
+            Self::Lit(lit) => write!(f, "{}", lit),
+            Self::Array(array) => write!(f, "{}", array),
+            Self::Tuple(tuple) => write!(f, "{}", tuple),
+            Self::Record(record) => write!(f, "{}", record),
+            Self::Ref(var_name) => write!(f, "ref {}", var_name),
+            Self::RefMut(var_name) => write!(f, "ref! {}", var_name),
+        }
+    }
+}
+
+impl_display_from_nested!(ParamPattern);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
         match self {
-            Self::VarName(n) | Self::VarArgsName(n) => Some(n.inspect()),
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => Some(n.inspect()),
             _ => None,
         }
     }
@@ -2187,7 +2200,7 @@ impl ParamPattern {
     pub fn is_procedural(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgsName(n) => n.is_procedural(),
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => n.is_procedural(),
             _ => false,
         }
     }
@@ -2195,7 +2208,7 @@ impl ParamPattern {
     pub fn is_const(&self) -> bool {
         match self {
             Self::Discard(_) => true,
-            Self::VarName(n) | Self::VarArgsName(n) => n.is_const(),
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => n.is_const(),
             _ => false,
         }
     }
@@ -2289,7 +2302,11 @@ impl Locational for Params {
         } else if !self.non_defaults.is_empty() {
             Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
         } else if let Some(var_args) = &self.var_args {
-            Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
+            if !self.defaults.is_empty() {
+                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
+            } else {
+                var_args.loc()
+            }
         } else if !self.defaults.is_empty() {
             Location::concat(&self.defaults[0], self.defaults.last().unwrap())
         } else {
@@ -2540,6 +2557,19 @@ impl Signature {
         }
     }
 
+    pub fn ident_mut(&mut self) -> Option<&mut Identifier> {
+        match self {
+            Self::Var(var) => {
+                if let VarPattern::Ident(ident) = &mut var.pat {
+                    Some(ident)
+                } else {
+                    None
+                }
+            }
+            Self::Subr(subr) => Some(&mut subr.ident),
+        }
+    }
+
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),
@@ -2610,7 +2640,8 @@ pub struct Def {
 
 impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{} {}", self.sig, self.body.op.content)?;
+        self.sig.fmt_nest(f, level)?;
+        writeln!(f, " {}", self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
     }
 }
@@ -2640,25 +2671,55 @@ impl Def {
 ///     f(a) = ...
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodDefs {
+pub struct Methods {
     pub class: TypeSpec,
     pub vis: Token,        // `.` or `::`
     pub defs: RecordAttrs, // TODO: allow declaration
 }
 
-impl NestedDisplay for MethodDefs {
+impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{}{}", self.class, self.vis)?;
+        writeln!(f, "{}{}", self.class, self.vis.content)?;
         self.defs.fmt_nest(f, level + 1)
     }
 }
 
-impl_display_from_nested!(MethodDefs);
-impl_locational!(MethodDefs, class, defs);
+impl_display_from_nested!(Methods);
+impl_locational!(Methods, class, defs);
 
-impl MethodDefs {
+impl Methods {
     pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
         Self { class, vis, defs }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClassDef {
+    pub def: Def,
+    pub methods_list: Vec<Methods>,
+}
+
+impl NestedDisplay for ClassDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "(class)")?;
+        self.def.fmt_nest(f, level)?;
+        for methods in self.methods_list.iter() {
+            write!(f, "(methods)")?;
+            methods.fmt_nest(f, level + 1)?;
+        }
+        Ok(())
+    }
+}
+
+impl_display_from_nested!(ClassDef);
+impl_locational!(ClassDef, def);
+
+impl ClassDef {
+    pub const fn new(def: Def, methods: Vec<Methods>) -> Self {
+        Self {
+            def,
+            methods_list: methods,
+        }
     }
 }
 
@@ -2671,19 +2732,21 @@ pub enum Expr {
     Tuple(Tuple),
     Dict(Dict),
     Set(Set),
-    Record(NormalRecord),
+    Record(Record),
     BinOp(BinOp),
     UnaryOp(UnaryOp),
     Call(Call),
+    DataPack(DataPack),
     Lambda(Lambda),
     TypeAsc(TypeAscription),
     Def(Def),
-    MethodDefs(MethodDefs),
+    Methods(Methods),
+    ClassDef(ClassDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, TypeAsc, Def, MethodDefs);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, Lambda, TypeAsc, Def, MethodDefs);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -2720,7 +2783,7 @@ impl Expr {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Module(Vec<Expr>);
+pub struct Module(Block);
 
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -2734,7 +2797,34 @@ impl Locational for Module {
     }
 }
 
-impl_stream_for_wrapper!(Module, Expr);
+impl Stream<Expr> for Module {
+    fn payload(self) -> Vec<Expr> {
+        self.0.payload()
+    }
+    fn ref_payload(&self) -> &Vec<Expr> {
+        self.0.ref_payload()
+    }
+    fn ref_mut_payload(&mut self) -> &mut Vec<Expr> {
+        self.0.ref_mut_payload()
+    }
+}
+
+impl Module {
+    pub const fn empty() -> Self {
+        Self(Block::empty())
+    }
+    pub const fn new(payload: Vec<Expr>) -> Self {
+        Self(Block::new(payload))
+    }
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Block::with_capacity(capacity))
+    }
+
+    pub fn block(&self) -> &Block {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub struct AST {

@@ -103,6 +103,10 @@ pub enum TokenKind {
     DotOp,
     /// `cross` (vector product)
     CrossOp,
+    /// `ref` (special unary)
+    RefOp,
+    /// `ref!` (special unary)
+    RefMutOp,
     /// =
     Equal,
     /// :=
@@ -183,10 +187,8 @@ pub enum TokenCategory {
     LambdaOp,
     /// \n ;
     Separator,
-    /// ^ (reserved)
-    Caret,
-    /// &
-    Amper,
+    /// ^ &
+    Reserved,
     /// @
     AtSign,
     /// |
@@ -210,7 +212,7 @@ impl TokenKind {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
             | InfLit => TokenCategory::Literal,
-            PrePlus | PreMinus | PreBitNot | Mutate => TokenCategory::UnaryOp,
+            PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus => {
                 TokenCategory::SpecialBinOp
@@ -220,8 +222,7 @@ impl TokenKind {
             Semi | Newline => TokenCategory::Separator,
             LParen | LBrace | LSqBr | Indent => TokenCategory::LEnclosure,
             RParen | RBrace | RSqBr | Dedent => TokenCategory::REnclosure,
-            Caret => TokenCategory::Caret,
-            Amper => TokenCategory::Amper,
+            Caret | Amper => TokenCategory::Reserved,
             AtSign => TokenCategory::AtSign,
             VBar => TokenCategory::VBar,
             UBar => TokenCategory::UBar,
@@ -234,16 +235,16 @@ impl TokenKind {
 
     pub const fn precedence(&self) -> Option<usize> {
         let prec = match self {
-            Dot | DblColon => 200,                                  // .
-            Pow => 190,                                             // **
-            PrePlus | PreMinus | PreBitNot => 180,                  // (unary) + - * ~
-            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170, // * / // % cross dot
-            Plus | Minus => 160,                                    // + -
-            Shl | Shr => 150,                                       // << >>
-            BitAnd => 140,                                          // &&
-            BitXor => 130,                                          // ^^
-            BitOr => 120,                                           // ||
-            Closed | LeftOpen | RightOpen | Open => 100,            // range operators
+            Dot | DblColon => 200,                                    // .
+            Pow => 190,                                               // **
+            PrePlus | PreMinus | PreBitNot | RefOp | RefMutOp => 180, // (unary) + - * ~ ref ref!
+            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170,   // * / // % cross dot
+            Plus | Minus => 160,                                      // + -
+            Shl | Shr => 150,                                         // << >>
+            BitAnd => 140,                                            // &&
+            BitXor => 130,                                            // ^^
+            BitOr => 120,                                             // ||
+            Closed | LeftOpen | RightOpen | Open => 100,              // range operators
             Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
             AndOp => 80,                           // and
             OrOp => 70,                            // or
@@ -370,6 +371,16 @@ impl Token {
     #[inline]
     pub fn symbol(cont: &str) -> Self {
         Self::from_str(TokenKind::Symbol, cont)
+    }
+
+    #[inline]
+    pub fn symbol_with_line(cont: &str, line: usize) -> Self {
+        Token {
+            kind: TokenKind::Symbol,
+            content: Str::rc(cont),
+            lineno: line,
+            col_begin: 0,
+        }
     }
 
     pub const fn static_symbol(s: &'static str) -> Self {

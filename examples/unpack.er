@@ -1,0 +1,5 @@
+UnpackPoint2D = Class {x = Int; y = Int}, Impl := Unpack
+
+q = UnpackPoint2D::{x = 1; y = 2}
+UnpackPoint2D::{x; y} = q
+print! x, y

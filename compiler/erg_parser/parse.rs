@@ -56,7 +56,7 @@ pub enum ArrayInner {
     WithLength(PosArg, Expr),
     Comprehension {
         elem: PosArg,
-        generators: Vec<(Local, Expr)>,
+        generators: Vec<(Identifier, Expr)>,
         guards: Vec<Expr>,
     },
 }
@@ -64,7 +64,7 @@ pub enum ArrayInner {
 pub enum BraceContainer {
     Set(Set),
     Dict(Dict),
-    Record(NormalRecord),
+    Record(Record),
 }
 
 /// Perform recursive descent parsing.
@@ -143,12 +143,6 @@ impl Parser {
                 }
             }
         }
-    }
-
-    fn throw_syntax_err<L: Locational>(&mut self, l: &L, caused_by: &str) -> ParseError {
-        log!(err "error caused by: {caused_by}");
-        self.next_expr();
-        ParseError::simple_syntax_error(0, l.loc())
     }
 
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
@@ -275,7 +269,10 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                Some(t) if t.is(Indent) || t.is(Dedent) => {
+                Some(t) if t.is(Indent) => {
+                    switch_unreachable!()
+                }
+                Some(t) if t.is(Dedent) => {
                     switch_unreachable!()
                 }
                 Some(_) => match self.try_reduce_chunk(true) {
@@ -284,7 +281,7 @@ impl Parser {
                     }
                     Err(_) => {}
                 },
-                _ => switch_unreachable!(),
+                None => switch_unreachable!(),
             }
         }
         self.level -= 1;
@@ -306,29 +303,22 @@ impl Parser {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
                 }
-                Some(t) => {
-                    if t.is(Indent) {
-                        self.skip();
-                        while self.cur_is(Newline) {
-                            self.skip();
-                        }
-                    } else if self.cur_is(Dedent) {
-                        self.skip();
-                        break;
-                    } else if t.is(EOF) {
-                        break;
-                    }
-                    match self.try_reduce_chunk(true) {
-                        Ok(expr) => {
-                            block.push(expr);
-                            if self.cur_is(Dedent) {
-                                self.skip();
-                                break;
-                            }
-                        }
-                        Err(_) => {}
-                    }
+                Some(t) if t.is(Indent) => {
+                    self.skip();
                 }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
+                Some(t) if t.is(EOF) => {
+                    break;
+                }
+                Some(_) => match self.try_reduce_chunk(true) {
+                    Ok(expr) => {
+                        block.push(expr);
+                    }
+                    Err(_) => {}
+                },
                 _ => switch_unreachable!(),
             }
         }
@@ -418,8 +408,8 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let attr = Local::new(token);
-                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
+                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                            acc = Accessor::attr(Expr::Accessor(acc), ident);
                         }
                         NatLit => {
                             let attr = Literal::from(token);
@@ -444,9 +434,16 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let attr = Local::new(token);
-                            acc = Accessor::attr(Expr::Accessor(acc), vis, attr);
+                            let ident = Identifier::new(None, VarName::new(token));
+                            acc = Accessor::attr(Expr::Accessor(acc), ident);
                         }
+                        // DataPack
+                        LBrace => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        // MethodDefs
                         Newline => {
                             self.restore(token);
                             self.restore(vis);
@@ -495,8 +492,8 @@ impl Parser {
     fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
-            Expr::Accessor(Accessor::Local(local)) => {
-                let local = ConstLocal::new(local.symbol);
+            Expr::Accessor(Accessor::Ident(local)) => {
+                let local = ConstLocal::new(local.name.into_token());
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
             // TODO: App, Array, Record, BinOp, UnaryOp,
@@ -606,7 +603,11 @@ impl Parser {
             {
                 Some(self.try_reduce_args())
             }
-            Some(t) if (t.is(Dot) || t.is(DblColon)) && !self.nth_is(1, Newline) => {
+            Some(t)
+                if (t.is(Dot) || t.is(DblColon))
+                    && !self.nth_is(1, Newline)
+                    && !self.nth_is(1, LBrace) =>
+            {
                 Some(self.try_reduce_args())
             }
             _ => None,
@@ -743,8 +744,8 @@ impl Parser {
                     // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
-                    let kw = if let Accessor::Local(n) = acc {
-                        n.symbol
+                    let kw = if let Accessor::Ident(n) = acc {
+                        n.name.into_token()
                     } else {
                         self.next_expr();
                         self.level -= 1;
@@ -788,8 +789,8 @@ impl Parser {
                     let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
-                    let keyword = if let Accessor::Local(n) = acc {
-                        n.symbol
+                    let keyword = if let Accessor::Ident(n) = acc {
+                        n.name.into_token()
                     } else {
                         self.next_expr();
                         self.level -= 1;
@@ -827,12 +828,15 @@ impl Parser {
         }
     }
 
-    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<MethodDefs> {
+    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<Methods> {
         debug_call_info!(self);
         if self.cur_is(Indent) {
             self.skip();
         } else {
             todo!()
+        }
+        while self.cur_is(Newline) {
+            self.skip();
         }
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         let first = option_enum_unwrap!(first, Expr::Def).unwrap_or_else(|| todo!());
@@ -841,13 +845,22 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
-                    if self.cur_is(Dedent) {
-                        self.skip();
-                        break;
-                    }
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
+                Some(_) => {
                     let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
-                    defs.push(def);
+                    match def {
+                        Expr::Def(def) => {
+                            defs.push(def);
+                        }
+                        other => {
+                            self.errs
+                                .push(ParseError::simple_syntax_error(0, other.loc()));
+                        }
+                    }
                 }
                 _ => todo!(),
             }
@@ -857,7 +870,7 @@ impl Parser {
             .convert_rhs_to_type_spec(class)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
-        Ok(MethodDefs::new(class, vis, defs))
+        Ok(Methods::new(class, vis, defs))
     }
 
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {
@@ -967,10 +980,12 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -979,7 +994,25 @@ impl Parser {
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
-                            return Ok(Expr::MethodDefs(defs));
+                            let expr = Expr::Methods(defs);
+                            assert_eq!(stack.len(), 0);
+                            self.level -= 1;
+                            return Ok(expr);
+                        }
+                        l_brace if l_brace.is(LBrace) => {
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            self.restore(l_brace);
+                            let container = self
+                                .try_reduce_brace_container()
+                                .map_err(|_| self.stack_dec())?;
+                            match container {
+                                BraceContainer::Record(args) => {
+                                    let pack = DataPack::new(maybe_class, vis, args);
+                                    stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
+                                }
+                                BraceContainer::Dict(dict) => todo!("{dict}"),
+                                BraceContainer::Set(set) => todo!("{set}"),
+                            }
                         }
                         other => {
                             self.restore(other);
@@ -1007,10 +1040,12 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1019,7 +1054,7 @@ impl Parser {
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec())?;
-                            return Ok(Expr::MethodDefs(defs));
+                            return Ok(Expr::Methods(defs));
                         }
                         other => {
                             self.restore(other);
@@ -1036,6 +1071,11 @@ impl Parser {
                         .try_reduce_tuple(first_elem)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                Some(t) if t.category_is(TC::Reserved) => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
                 }
                 _ => {
                     if stack.len() <= 1 {
@@ -1156,10 +1196,12 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
-                                let call = Call::new(obj, Some(symbol), args);
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let acc = Accessor::attr(obj, vis, Local::new(symbol));
+                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let acc = Accessor::attr(obj, ident);
                                 stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                             }
                         }
@@ -1178,6 +1220,12 @@ impl Parser {
                         .try_reduce_tuple(first_elem)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                Some(t) if t.category_is(TC::Reserved) => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
                 }
                 _ => {
                     if stack.len() <= 1 {
@@ -1340,8 +1388,8 @@ impl Parser {
         if let Some(res) = self.opt_reduce_args() {
             let args = res.map_err(|_| self.stack_dec())?;
             let (obj, method_name) = match acc {
-                Accessor::Attr(attr) => (*attr.obj, Some(attr.name.symbol)),
-                Accessor::Local(local) => (Expr::Accessor(Accessor::Local(local)), None),
+                Accessor::Attr(attr) => (*attr.obj, Some(attr.ident)),
+                Accessor::Ident(ident) => (Expr::Accessor(Accessor::Ident(ident)), None),
                 _ => todo!(),
             };
             let call = Call::new(obj, method_name, args);
@@ -1403,6 +1451,7 @@ impl Parser {
     /// Set, Dict, Record
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
+        assert!(self.cur_is(LBrace));
         let l_brace = self.lpop();
         if self.cur_is(Newline) {
             self.skip();
@@ -1416,12 +1465,20 @@ impl Parser {
         match first {
             Expr::Def(def) => {
                 let record = self
-                    .try_reduce_record(l_brace, def)
+                    .try_reduce_normal_record(l_brace, def)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(BraceContainer::Record(record))
+                Ok(BraceContainer::Record(Record::Normal(record)))
             }
-            Expr::TypeAsc(_) => todo!(), // invalid syntax
+            // Dict
+            Expr::TypeAsc(_) => todo!(),
+            Expr::Accessor(acc) if self.cur_is(Semi) => {
+                let record = self
+                    .try_reduce_shortened_record(l_brace, acc)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(BraceContainer::Record(Record::Shortened(record)))
+            }
             other => {
                 let set = self
                     .try_reduce_set(l_brace, other)
@@ -1432,33 +1489,83 @@ impl Parser {
         }
     }
 
-    fn try_reduce_record(&mut self, l_brace: Token, first: Def) -> ParseResult<NormalRecord> {
+    fn try_reduce_normal_record(
+        &mut self,
+        l_brace: Token,
+        first: Def,
+    ) -> ParseResult<NormalRecord> {
         debug_call_info!(self);
         let mut attrs = vec![first];
         loop {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
-                    if self.cur_is(Dedent) {
-                        self.skip();
-                        if self.cur_is(RBrace) {
-                            let r_brace = self.lpop();
-                            self.level -= 1;
-                            let attrs = RecordAttrs::from(attrs);
-                            return Ok(NormalRecord::new(l_brace, r_brace, attrs));
-                        } else {
-                            todo!()
-                        }
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    if self.cur_is(RBrace) {
+                        let r_brace = self.lpop();
+                        self.level -= 1;
+                        let attrs = RecordAttrs::from(attrs);
+                        return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                    } else {
+                        todo!()
                     }
-                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
-                    attrs.push(def);
                 }
                 Some(term) if term.is(RBrace) => {
                     let r_brace = self.lpop();
                     self.level -= 1;
                     let attrs = RecordAttrs::from(attrs);
                     return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                }
+                Some(_) => {
+                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
+                    attrs.push(def);
+                }
+                _ => todo!(),
+            }
+        }
+    }
+
+    fn try_reduce_shortened_record(
+        &mut self,
+        l_brace: Token,
+        first: Accessor,
+    ) -> ParseResult<ShortenedRecord> {
+        debug_call_info!(self);
+        let first = match first {
+            Accessor::Ident(ident) => ident,
+            other => todo!("{other}"), // syntax error
+        };
+        let mut idents = vec![first];
+        loop {
+            match self.peek() {
+                Some(t) if t.category_is(TC::Separator) => {
+                    self.skip();
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    if self.cur_is(RBrace) {
+                        let r_brace = self.lpop();
+                        self.level -= 1;
+                        return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
+                    } else {
+                        todo!()
+                    }
+                }
+                Some(term) if term.is(RBrace) => {
+                    let r_brace = self.lpop();
+                    self.level -= 1;
+                    return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
+                }
+                Some(_) => {
+                    let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+                    let acc = match acc {
+                        Accessor::Ident(ident) => ident,
+                        other => todo!("{other}"), // syntax error
+                    };
+                    idents.push(acc);
                 }
                 _ => todo!(),
             }
@@ -1556,6 +1663,14 @@ impl Parser {
                 self.level -= 1;
                 Ok(Signature::Var(var))
             }
+            Expr::DataPack(pack) => {
+                let data_pack = self
+                    .convert_data_pack_to_data_pack_pat(pack)
+                    .map_err(|_| self.stack_dec())?;
+                let var = VarSignature::new(VarPattern::DataPack(data_pack), None);
+                self.level -= 1;
+                Ok(Signature::Var(var))
+            }
             Expr::Tuple(tuple) => {
                 let tuple_pat = self
                     .convert_tuple_to_tuple_pat(tuple)
@@ -1573,7 +1688,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1583,22 +1698,14 @@ impl Parser {
     fn convert_accessor_to_var_sig(&mut self, _accessor: Accessor) -> ParseResult<VarSignature> {
         debug_call_info!(self);
         match _accessor {
-            Accessor::Local(local) => {
-                let pat = VarPattern::Ident(Identifier::new(None, VarName::new(local.symbol)));
-                self.level -= 1;
-                Ok(VarSignature::new(pat, None))
-            }
-            Accessor::Public(public) => {
-                let pat = VarPattern::Ident(Identifier::new(
-                    Some(public.dot),
-                    VarName::new(public.symbol),
-                ));
+            Accessor::Ident(ident) => {
+                let pat = VarPattern::Ident(ident);
                 self.level -= 1;
                 Ok(VarSignature::new(pat, None))
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1610,12 +1717,54 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_record_pat(
-        &mut self,
-        _record: NormalRecord,
-    ) -> ParseResult<VarRecordPattern> {
+    fn convert_record_to_record_pat(&mut self, record: Record) -> ParseResult<VarRecordPattern> {
         debug_call_info!(self);
-        todo!()
+        match record {
+            Record::Normal(rec) => {
+                let mut pats = vec![];
+                for mut attr in rec.attrs.into_iter() {
+                    let lhs =
+                        option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
+                    let lhs =
+                        option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+                    assert_eq!(attr.body.block.len(), 1);
+                    let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
+                        .unwrap_or_else(|| todo!());
+                    let rhs = self
+                        .convert_accessor_to_var_sig(rhs)
+                        .map_err(|_| self.stack_dec())?;
+                    pats.push(VarRecordAttr::new(lhs, rhs));
+                }
+                let attrs = VarRecordAttrs::new(pats);
+                self.level -= 1;
+                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
+            }
+            Record::Shortened(rec) => {
+                let mut pats = vec![];
+                for ident in rec.idents.into_iter() {
+                    let rhs = VarSignature::new(VarPattern::Ident(ident.clone()), None);
+                    pats.push(VarRecordAttr::new(ident.clone(), rhs));
+                }
+                let attrs = VarRecordAttrs::new(pats);
+                self.level -= 1;
+                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
+            }
+        }
+    }
+
+    fn convert_data_pack_to_data_pack_pat(
+        &mut self,
+        pack: DataPack,
+    ) -> ParseResult<VarDataPackPattern> {
+        debug_call_info!(self);
+        let class = self
+            .convert_rhs_to_type_spec(*pack.class)
+            .map_err(|_| self.stack_dec())?;
+        let args = self
+            .convert_record_to_record_pat(pack.args)
+            .map_err(|_| self.stack_dec())?;
+        self.level -= 1;
+        Ok(VarDataPackPattern::new(class, args))
     }
 
     fn convert_tuple_to_tuple_pat(&mut self, tuple: Tuple) -> ParseResult<VarTuplePattern> {
@@ -1675,7 +1824,7 @@ impl Parser {
                 .map_err(|_| self.stack_dec())?,
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 return Err(());
             }
@@ -1691,13 +1840,10 @@ impl Parser {
     fn convert_accessor_to_ident(&mut self, _accessor: Accessor) -> ParseResult<Identifier> {
         debug_call_info!(self);
         let ident = match _accessor {
-            Accessor::Local(local) => Identifier::new(None, VarName::new(local.symbol)),
-            Accessor::Public(public) => {
-                Identifier::new(Some(public.dot), VarName::new(public.symbol))
-            }
+            Accessor::Ident(ident) => ident,
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 return Err(());
             }
@@ -1747,15 +1893,15 @@ impl Parser {
     ) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         match expr {
-            Expr::Accessor(Accessor::Local(local)) => {
-                if &local.inspect()[..] == "self" && !allow_self {
+            Expr::Accessor(Accessor::Ident(ident)) => {
+                if &ident.inspect()[..] == "self" && !allow_self {
                     self.level -= 1;
-                    let err = self.throw_syntax_err(&local, caused_by!());
+                    let err = ParseError::simple_syntax_error(line!() as usize, ident.loc());
                     self.errs.push(err);
                     return Err(());
                 }
-                let name = VarName::new(local.symbol);
-                let pat = ParamPattern::VarName(name);
+                // FIXME deny: public
+                let pat = ParamPattern::VarName(ident.name);
                 let param = ParamSignature::new(pat, None, None);
                 self.level -= 1;
                 Ok(param)
@@ -1800,45 +1946,36 @@ impl Parser {
                 self.level -= 1;
                 Ok(param)
             }
-            Expr::Call(mut call) => match *call.obj {
-                Expr::Accessor(Accessor::Local(local)) => match &local.inspect()[..] {
-                    "ref" => {
-                        assert_eq!(call.args.len(), 1);
-                        let var = call.args.remove_pos(0).expr;
-                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
-                            .unwrap_or_else(|| todo!());
-                        let pat = ParamPattern::Ref(VarName::new(var.symbol));
-                        let param = ParamSignature::new(pat, None, None);
-                        self.level -= 1;
-                        Ok(param)
-                    }
-                    "ref!" => {
-                        assert_eq!(call.args.len(), 1);
-                        let var = call.args.remove_pos(0).expr;
-                        let var = option_enum_unwrap!(var, Expr::Accessor:(Accessor::Local:(_)))
-                            .unwrap_or_else(|| todo!());
-                        let pat = ParamPattern::RefMut(VarName::new(var.symbol));
-                        let param = ParamSignature::new(pat, None, None);
-                        self.level -= 1;
-                        Ok(param)
-                    }
-                    _other => {
-                        self.level -= 1;
-                        let err = self.throw_syntax_err(&local, caused_by!());
-                        self.errs.push(err);
-                        Err(())
-                    }
-                },
-                other => {
+            Expr::UnaryOp(unary) => match unary.op.kind {
+                TokenKind::RefOp => {
+                    let var = unary.args.into_iter().next().unwrap();
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
+                        .unwrap_or_else(|| todo!());
+                    let pat = ParamPattern::Ref(var.name);
+                    let param = ParamSignature::new(pat, None, None);
                     self.level -= 1;
-                    let err = self.throw_syntax_err(&other, caused_by!());
+                    Ok(param)
+                }
+                TokenKind::RefMutOp => {
+                    let var = unary.args.into_iter().next().unwrap();
+                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
+                        .unwrap_or_else(|| todo!());
+                    let pat = ParamPattern::RefMut(var.name);
+                    let param = ParamSignature::new(pat, None, None);
+                    self.level -= 1;
+                    Ok(param)
+                }
+                // TODO: Spread
+                _other => {
+                    self.level -= 1;
+                    let err = ParseError::simple_syntax_error(line!() as usize, unary.loc());
                     self.errs.push(err);
                     Err(())
                 }
             },
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1864,7 +2001,7 @@ impl Parser {
 
     fn convert_record_to_param_record_pat(
         &mut self,
-        _record: NormalRecord,
+        _record: Record,
     ) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
@@ -1937,7 +2074,7 @@ impl Parser {
             }
             other => {
                 self.level -= 1;
-                let err = self.throw_syntax_err(&other, caused_by!());
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
             }
@@ -1981,10 +2118,7 @@ impl Parser {
         todo!()
     }
 
-    fn convert_record_to_param_pat(
-        &mut self,
-        _record: NormalRecord,
-    ) -> ParseResult<ParamRecordPattern> {
+    fn convert_record_to_param_pat(&mut self, _record: Record) -> ParseResult<ParamRecordPattern> {
         debug_call_info!(self);
         todo!()
     }
@@ -2038,10 +2172,9 @@ impl Parser {
     ) -> ParseResult<PreDeclTypeSpec> {
         debug_call_info!(self);
         let t_spec = match accessor {
-            Accessor::Local(local) => PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
-                VarName::new(local.symbol),
-                ConstArgs::empty(),
-            )),
+            Accessor::Ident(ident) => {
+                PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident.name, ConstArgs::empty()))
+            }
             other => todo!("{other}"),
         };
         self.level -= 1;

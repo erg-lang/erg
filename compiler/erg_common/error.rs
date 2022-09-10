@@ -35,6 +35,10 @@ pub enum ErrorKind {
     PurityError,
     HasEffect,
     MoveError,
+    NotConstExpr,
+    InheritanceError,
+    VisibilityError,
+    DummyError,
     /* compile warnings */
     AttributeWarning = 60,
     CastWarning,
@@ -201,9 +205,9 @@ impl From<&str> for ErrorKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Location {
     RangePair {
-        ln_begin: usize,
+        ln_first: (usize, usize),
         col_first: (usize, usize),
-        ln_end: usize,
+        ln_second: (usize, usize),
         col_second: (usize, usize),
     },
     Range {
@@ -238,16 +242,19 @@ impl Location {
 
     pub fn pair(lhs: Self, rhs: Self) -> Self {
         Self::RangePair {
-            ln_begin: lhs.ln_begin().unwrap(),
+            ln_first: (lhs.ln_begin().unwrap(), lhs.ln_end().unwrap()),
             col_first: (lhs.col_begin().unwrap(), lhs.col_end().unwrap()),
-            ln_end: rhs.ln_end().unwrap(),
+            ln_second: (rhs.ln_begin().unwrap(), rhs.ln_end().unwrap()),
             col_second: (rhs.col_begin().unwrap(), rhs.col_end().unwrap()),
         }
     }
 
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair { ln_begin, .. }
+            Self::RangePair {
+                ln_first: (ln_begin, _),
+                ..
+            }
             | Self::Range { ln_begin, .. }
             | Self::LineRange(ln_begin, _)
             | Self::Line(ln_begin) => Some(*ln_begin),
@@ -257,7 +264,10 @@ impl Location {
 
     pub const fn ln_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair { ln_end, .. }
+            Self::RangePair {
+                ln_second: (_, ln_end),
+                ..
+            }
             | Self::Range { ln_end, .. }
             | Self::LineRange(ln_end, _)
             | Self::Line(ln_end) => Some(*ln_end),
@@ -316,8 +326,18 @@ impl ErrorCore {
         }
     }
 
+    pub fn dummy(errno: usize) -> Self {
+        Self::new(
+            errno,
+            DummyError,
+            Location::Line(errno as usize),
+            "<dummy>",
+            None,
+        )
+    }
+
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::bug(line as usize, Location::Unknown, fn_name, line)
+        Self::bug(line as usize, Location::Line(line as usize), fn_name, line)
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
@@ -338,6 +358,41 @@ impl ErrorCore {
 
 pub const VBAR_UNICODE: &str = "│";
 pub const VBAR_BREAK_UNICODE: &str = "·";
+
+fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
+    e: &E,
+    ln_begin: usize,
+    ln_end: usize,
+    col_begin: usize,
+    col_end: usize,
+) -> String {
+    let codes = if e.input() == &Input::REPL {
+        vec![e.input().reread()]
+    } else {
+        e.input().reread_lines(ln_begin, ln_end)
+    };
+    let mut res = CYAN.to_string();
+    let final_step = ln_end - ln_begin;
+    for (i, lineno) in (ln_begin..=ln_end).enumerate() {
+        let mut pointer = " ".repeat(lineno.to_string().len() + 2); // +2 means `| `
+        if i == 0 && i == final_step {
+            pointer += &" ".repeat(col_begin);
+            pointer += &"^".repeat(cmp::max(1, col_end - col_begin));
+        } else if i == 0 {
+            pointer += &" ".repeat(col_begin);
+            pointer += &"^".repeat(cmp::max(1, codes[i].len() - col_begin));
+        } else if i == final_step {
+            pointer += &"^".repeat(col_end);
+        } else {
+            pointer += &"^".repeat(cmp::max(1, codes[i].len()));
+        }
+        res += &format!(
+            "{lineno}{VBAR_UNICODE} {code}\n{pointer}\n",
+            code = codes[i]
+        );
+    }
+    res + RESET
+}
 
 /// format:
 /// ```console
@@ -418,13 +473,15 @@ pub trait ErrorDisplay {
             Location::Range {
                 ln_begin, ln_end, ..
             } if ln_begin == ln_end => format!(", line {ln_begin}"),
-            Location::RangePair {
-                ln_begin, ln_end, ..
-            }
-            | Location::Range {
+            Location::Range {
                 ln_begin, ln_end, ..
             }
             | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
+            Location::RangePair {
+                ln_first: (l1, l2),
+                ln_second: (l3, l4),
+                ..
+            } => format!(", line {l1}..{l2}, {l3}..{l4}"),
             Location::Line(lineno) => format!(", line {lineno}"),
             Location::Unknown => "".to_string(),
         };
@@ -442,42 +499,43 @@ pub trait ErrorDisplay {
 
     fn format_code_and_pointer(&self) -> String {
         match self.core().loc {
-            Location::RangePair { .. } => todo!(),
+            Location::RangePair {
+                ln_first,
+                col_first,
+                ln_second,
+                col_second,
+            } => {
+                format_code_and_pointer(self, ln_first.0, ln_first.1, col_first.0, col_first.1)
+                    + &format_code_and_pointer(
+                        self,
+                        ln_second.0,
+                        ln_second.1,
+                        col_second.0,
+                        col_second.1,
+                    )
+            }
             Location::Range {
                 ln_begin,
                 col_begin,
                 ln_end,
                 col_end,
-            } => {
+            } => format_code_and_pointer(self, ln_begin, ln_end, col_begin, col_end),
+            Location::LineRange(ln_begin, ln_end) => {
                 let codes = if self.input() == &Input::REPL {
                     vec![self.input().reread()]
                 } else {
                     self.input().reread_lines(ln_begin, ln_end)
                 };
                 let mut res = CYAN.to_string();
-                let final_step = ln_end - ln_begin;
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
                     let mut pointer = " ".repeat(lineno.to_string().len() + 2); // +2 means `| `
-                    if i == 0 && i == final_step {
-                        pointer += &" ".repeat(col_begin);
-                        pointer += &"^".repeat(cmp::max(1, col_end - col_begin));
-                    } else if i == 0 {
-                        pointer += &" ".repeat(col_begin);
-                        pointer += &"^".repeat(cmp::max(1, codes[i].len() - col_begin));
-                    } else if i == final_step {
-                        pointer += &"^".repeat(col_end);
-                    } else {
-                        pointer += &"^".repeat(cmp::max(1, codes[i].len()));
-                    }
+                    pointer += &"^".repeat(cmp::max(1, codes[i].len()));
                     res += &format!(
                         "{lineno}{VBAR_UNICODE} {code}\n{pointer}\n",
                         code = codes[i]
                     );
                 }
                 res + RESET
-            }
-            Location::LineRange(_begin, _end) => {
-                todo!()
             }
             Location::Line(lineno) => {
                 let code = if self.input() == &Input::REPL {
