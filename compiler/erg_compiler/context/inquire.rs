@@ -194,6 +194,9 @@ impl Context {
         if let Some(ctx) = self.rec_get_mod(name.inspect()) {
             return Some(ctx.name.clone());
         }
+        if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
+            return Some(ctx.name.clone());
+        }
         None
     }
 
@@ -1280,7 +1283,6 @@ impl Context {
     }
 
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
-        log!("{}", obj.ref_t());
         match obj.ref_t() {
             // TODO: attr
             Type::Module => self.rec_get_mod(&obj.show_acc()?),
@@ -1410,6 +1412,18 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {
             outer.rec_get_mut_poly_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.mono_types.get(name) {
+            Some((t, ctx))
+        } else if let Some((t, ctx)) = self.poly_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_type(name)
         } else {
             None
         }
