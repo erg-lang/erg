@@ -528,7 +528,7 @@ impl Accessor {
         }
     }
 
-    // 参照するオブジェクト自体が持っている固有の名前
+    // 参照するオブジェクト自体が持っている固有の名前(クラス、モジュールなど)
     pub fn __name__(&self) -> Option<&str> {
         match self {
             Self::Ident(ident) => ident.__name__.as_ref().map(|s| &s[..]),

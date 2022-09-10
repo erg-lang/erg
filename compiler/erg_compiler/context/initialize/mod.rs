@@ -114,7 +114,7 @@ impl Context {
         let t = Self::instantiate_t(t, &mut tv_ctx);
         // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
-            root_ctx.method_defs.push((t, ctx));
+            root_ctx.methods_list.push((t, ctx));
         } else {
             let name = VarName::from_str(t.name());
             self.locals.insert(

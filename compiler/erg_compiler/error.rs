@@ -1034,7 +1034,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         Self::new(
             ErrorCore::new(
                 errno,
-                NameError,
+                VisibilityError,
                 loc,
                 switch_lang!(
                     "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),

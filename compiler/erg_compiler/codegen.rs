@@ -1370,11 +1370,27 @@ impl CodeGenerator {
             Accessor::Attr(a) => {
                 let class = a.obj.ref_t().name();
                 let uniq_obj_name = a.obj.__name__().map(Str::rc);
-                self.codegen_expr(*a.obj);
-                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.ident)
+                // C = Class ...
+                // C.
+                //     a = C.x
+                // ↓
+                // class C:
+                //     a = x
+                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
+                    self.codegen_expr(*a.obj);
+                    self.emit_load_attr_instr(
+                        &class,
+                        uniq_obj_name.as_ref().map(|s| &s[..]),
+                        a.ident,
+                    )
                     .unwrap_or_else(|err| {
                         self.errs.push(err);
                     });
+                } else {
+                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                }
             }
             Accessor::TupleAttr(t_attr) => {
                 self.codegen_expr(*t_attr.obj);

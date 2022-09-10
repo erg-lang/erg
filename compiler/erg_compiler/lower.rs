@@ -261,7 +261,10 @@ impl ASTLowerer {
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
         self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
         for attr in record.attrs.into_iter() {
-            let attr = self.lower_def(attr)?;
+            let attr = self.lower_def(attr).map_err(|e| {
+                self.pop_append_errs();
+                e
+            })?;
             hir_record.push(attr);
         }
         self.pop_append_errs();
@@ -271,21 +274,6 @@ impl ASTLowerer {
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
-            /*ast::Accessor::Local(local) => {
-                // `match` is an untypable special form
-                // `match`は型付け不可能な特殊形式
-                let (t, __name__) = if &local.inspect()[..] == "match" {
-                    (Type::Failure, None)
-                } else {
-                    (
-                        self.ctx
-                            .rec_get_var_t(&local.symbol, &self.ctx.name)?,
-                        self.ctx.get_local_uniq_obj_name(&local.symbol),
-                    )
-                };
-                let acc = hir::Accessor::Local(hir::Local::new(local.symbol, __name__, t));
-                Ok(acc)
-            }*/
             ast::Accessor::Ident(ident) => {
                 let ident = self.lower_ident(ident)?;
                 let acc = hir::Accessor::Ident(ident);
@@ -324,6 +312,8 @@ impl ASTLowerer {
     }
 
     fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
+        // `match` is an untypable special form
+        // `match`は型付け不可能な特殊形式
         let (t, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
             (Type::Failure, None)
         } else {
@@ -491,20 +481,24 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
-        if let Some(name) = def.sig.name_as_str() {
-            self.ctx.grow(name, ContextKind::Instant, Private)?;
+        if def.body.block.len() >= 1 {
+            let name = if let Some(name) = def.sig.name_as_str() {
+                name
+            } else {
+                "<lambda>"
+            };
+            self.ctx.grow(name, ContextKind::Instant, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
                 ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
             };
             // TODO: Context上の関数に型境界情報を追加
             self.pop_append_errs();
-            res
-        } else {
-            match def.sig {
-                ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
-                ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
-            }
+            return res;
+        }
+        match def.sig {
+            ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
+            ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
         }
     }
 
@@ -609,16 +603,13 @@ impl ASTLowerer {
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut private_methods = hir::RecordAttrs::empty();
         let mut public_methods = hir::RecordAttrs::empty();
-        for methods in class_def.methods_list.into_iter() {
+        for mut methods in class_def.methods_list.into_iter() {
             let class = self
                 .ctx
                 .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
             self.ctx
                 .grow(&class.name(), ContextKind::MethodDefs, Private)?;
-            for def in methods.defs.iter() {
-                self.ctx.preregister_def(def)?;
-            }
-            for mut def in methods.defs.into_iter() {
+            for def in methods.defs.iter_mut() {
                 if methods.vis.is(TokenKind::Dot) {
                     def.sig.ident_mut().unwrap().dot = Some(Token::new(
                         TokenKind::Dot,
@@ -626,10 +617,21 @@ impl ASTLowerer {
                         def.sig.ln_begin().unwrap(),
                         def.sig.col_begin().unwrap(),
                     ));
-                    let def = self.lower_def(def)?;
+                }
+                self.ctx.preregister_def(def)?;
+            }
+            for def in methods.defs.into_iter() {
+                if methods.vis.is(TokenKind::Dot) {
+                    let def = self.lower_def(def).map_err(|e| {
+                        self.pop_append_errs();
+                        e
+                    })?;
                     public_methods.push(def);
                 } else {
-                    let def = self.lower_def(def)?;
+                    let def = self.lower_def(def).map_err(|e| {
+                        self.pop_append_errs();
+                        e
+                    })?;
                     private_methods.push(def);
                 }
             }
@@ -638,7 +640,7 @@ impl ASTLowerer {
                     self.check_override(&class, &methods);
                     if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
                         for (newly_defined_name, _vi) in methods.locals.iter() {
-                            for (_, already_defined_methods) in class_root.method_defs.iter_mut() {
+                            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                                 // TODO: 特殊化なら同じ名前でもOK
                                 // TODO: 定義のメソッドもエラー表示
                                 if let Some((_already_defined_name, already_defined_vi)) =
@@ -660,7 +662,7 @@ impl ASTLowerer {
                                 }
                             }
                         }
-                        class_root.method_defs.push((class, methods));
+                        class_root.methods_list.push((class, methods));
                     } else {
                         todo!()
                     }
