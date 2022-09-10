@@ -157,6 +157,14 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.get_mut(k)
     }
 
+    pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K, &V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.dict.get_key_value(k)
+    }
+
     #[inline]
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
     where

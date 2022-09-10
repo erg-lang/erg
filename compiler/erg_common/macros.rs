@@ -87,6 +87,9 @@ macro_rules! enum_unwrap {
     ($ex: expr, $Enum: path :( $Cons: path :(_) ) $(,)*) => {{
         if let $Enum($Cons(res)) = $ex { res } else { $crate::switch_unreachable!() }
     }};
+    ($ex: expr, $Enum: path :( $Cons: path :( $Cons2: path :(_) ) ) $(,)*) => {{
+        if let $Enum($Cons($Cons2(res))) = $ex { res } else { $crate::switch_unreachable!() }
+    }};
     // X::A{a, b}
     ($ex: expr, $Enum: path {$($fields: ident $(,)*)*}) => {{
         if let $Enum{$($fields,)*} = $ex { ($($fields,)*) } else { $crate::switch_unreachable!() }

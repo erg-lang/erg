@@ -17,14 +17,14 @@ fn test_instantiation_and_generalization() -> Result<(), ()> {
 /*
 #[test]
 fn test_resolve_trait() -> Result<(), ()> {
-    let context = Context::new_root_module();
+    let context = Context::new_main_module();
     context.test_resolve_trait()?;
     Ok(())
 }
 
 #[test]
 fn test_resolve_trait_inner1() -> Result<(), ()> {
-    let context = Context::new_root_module();
+    let context = Context::new_main_module();
     context.test_resolve_trait_inner1()?;
     Ok(())
 }

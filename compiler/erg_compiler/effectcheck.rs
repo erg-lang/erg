@@ -9,7 +9,7 @@ use erg_common::Str;
 use Visibility::*;
 
 use crate::error::{EffectError, EffectErrors, EffectResult};
-use crate::hir::{Accessor, Def, Expr, Signature, HIR};
+use crate::hir::{Accessor, Array, Def, Expr, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -83,6 +83,12 @@ impl SideEffectChecker {
             match expr {
                 Expr::Def(def) => {
                     self.check_def(def);
+                }
+                Expr::ClassDef(type_def) => {
+                    // TODO: grow
+                    for def in type_def.public_methods.iter() {
+                        self.check_def(def);
+                    }
                 }
                 Expr::Call(call) => {
                     for parg in call.args.pos_args.iter() {
@@ -174,6 +180,31 @@ impl SideEffectChecker {
             Expr::Def(def) => {
                 self.check_def(def);
             }
+            Expr::ClassDef(type_def) => {
+                for def in type_def.public_methods.iter() {
+                    self.check_def(def);
+                }
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    for arg in arr.elems.pos_args.iter() {
+                        self.check_expr(&arg.expr);
+                    }
+                }
+                other => todo!("{other}"),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    for arg in tup.elems.pos_args.iter() {
+                        self.check_expr(&arg.expr);
+                    }
+                }
+            },
+            Expr::Record(record) => {
+                for attr in record.attrs.iter() {
+                    self.check_def(attr);
+                }
+            }
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
                 if (self.is_procedural(&call.obj)
@@ -228,10 +259,10 @@ impl SideEffectChecker {
             Expr::Lambda(lambda) => lambda.is_procedural(),
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => self.is_procedural(&call.obj),
-            Expr::Accessor(Accessor::Local(local)) => local.name.is_procedural(),
+            Expr::Accessor(Accessor::Ident(ident)) => ident.name.is_procedural(),
             // procedural: x.y! (e.g. Array.sample!)
             // !procedural: !x.y
-            Expr::Accessor(Accessor::Attr(attr)) => attr.name.is_procedural(),
+            Expr::Accessor(Accessor::Attr(attr)) => attr.ident.is_procedural(),
             Expr::Accessor(_) => todo!(),
             _ => false,
         }

@@ -413,7 +413,9 @@ impl Lexer /*<'a>*/ {
         while let Some(ch) = self.peek_cur_ch() {
             match ch {
                 // `.` may be a dot operator, don't consume
-                '.' => return self.lex_num_dot(num),
+                '.' => {
+                    return self.lex_num_dot(num);
+                }
                 n if n.is_ascii_digit() || n == '_' => {
                     num.push(self.consume().unwrap());
                 }
@@ -526,6 +528,8 @@ impl Lexer /*<'a>*/ {
             "isnot" => IsNotOp,
             "dot" => DotOp,
             "cross" => CrossOp,
+            "ref" => RefOp,
+            "ref!" => RefMutOp,
             // これらはリテラルというより定数だが便宜的にリテラルということにしておく
             "True" | "False" => BoolLit,
             "None" => NoneLit,

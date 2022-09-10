@@ -107,23 +107,38 @@ impl LimitedDisplay for Constraint {
                 sup,
                 cyclicity,
             } => match (sub == &Type::Never, sup == &Type::Obj) {
-                (true, true) => write!(f, ": Type (:> Never, <: Obj)"),
+                (true, true) => {
+                    write!(f, ": Type")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "(:> Never, <: Obj)")?;
+                    }
+                    Ok(())
+                }
                 (true, false) => {
                     write!(f, "<: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
                 (false, true) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
                 (false, false) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
                     write!(f, ", <: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    write!(f, "(cyclicity: {cyclicity:?})")
+                    if cfg!(feature = "debug") {
+                        write!(f, "(cyclicity: {cyclicity:?})")?;
+                    }
+                    Ok(())
                 }
             },
             Self::TypeOf(t) => {
@@ -136,7 +151,7 @@ impl LimitedDisplay for Constraint {
 }
 
 impl Constraint {
-    pub const fn sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
+    pub const fn new_sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
         Self::Sandwiched {
             sub,
             sup,
@@ -144,20 +159,20 @@ impl Constraint {
         }
     }
 
-    pub fn type_of(t: Type) -> Self {
+    pub fn new_type_of(t: Type) -> Self {
         if t == Type::Type {
-            Self::sandwiched(Type::Never, Type::Obj, Not)
+            Self::new_sandwiched(Type::Never, Type::Obj, Not)
         } else {
             Self::TypeOf(t)
         }
     }
 
-    pub const fn subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
-        Self::sandwiched(Type::Never, sup, cyclicity)
+    pub const fn new_subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
+        Self::new_sandwiched(Type::Never, sup, cyclicity)
     }
 
-    pub const fn supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
-        Self::sandwiched(sub, Type::Obj, cyclicity)
+    pub const fn new_supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
+        Self::new_sandwiched(sub, Type::Obj, cyclicity)
     }
 
     pub const fn is_uninited(&self) -> bool {
@@ -168,6 +183,17 @@ impl Constraint {
         match self {
             Self::Sandwiched { cyclicity, .. } => *cyclicity,
             _ => Not,
+        }
+    }
+
+    pub fn lift(&self) {
+        match self {
+            Self::Sandwiched { sub, sup, .. } => {
+                sub.lift();
+                sup.lift();
+            }
+            Self::TypeOf(t) => t.lift(),
+            Self::Uninited => {}
         }
     }
 
@@ -183,28 +209,28 @@ impl Constraint {
         }
     }
 
-    pub fn get_sub_type(&self) -> Option<&Type> {
+    pub fn get_sub(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sub, .. } => Some(sub),
             _ => None,
         }
     }
 
-    pub fn get_super_type(&self) -> Option<&Type> {
+    pub fn get_super(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
         }
     }
 
-    pub fn get_sub_sup_type(&self) -> Option<(&Type, &Type)> {
+    pub fn get_sub_sup(&self) -> Option<(&Type, &Type)> {
         match self {
             Self::Sandwiched { sub, sup, .. } => Some((sub, sup)),
             _ => None,
         }
     }
 
-    pub fn get_super_type_mut(&mut self) -> Option<&mut Type> {
+    pub fn get_super_mut(&mut self) -> Option<&mut Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
             _ => None,
@@ -249,7 +275,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             return write!(f, "...");
         }
         match self {
-            Self::Linked(t) | Self::UndoableLinked { t, .. } => t.limited_fmt(f, limit),
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => {
+                write!(f, "(")?;
+                t.limited_fmt(f, limit)?;
+                write!(f, ")")
+            }
             Self::NamedUnbound {
                 name,
                 lev,
@@ -257,7 +287,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 write!(f, "?{name}(")?;
                 constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")[{lev}]")
+                write!(f, ")")?;
+                if cfg!(feature = "debug") {
+                    write!(f, "[{lev}]")?;
+                }
+                Ok(())
             }
             Self::Unbound {
                 id,
@@ -266,7 +300,11 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 write!(f, "?{id}(")?;
                 constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")[{lev}]")
+                write!(f, ")")?;
+                if cfg!(feature = "debug") {
+                    write!(f, "[{lev}]")?;
+                }
+                Ok(())
             }
         }
     }
@@ -416,13 +454,17 @@ impl<T: Clone + HasLevel> Free<T> {
 
     pub fn lift(&self) {
         match &mut *self.borrow_mut() {
-            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
+            FreeKind::Unbound {
+                lev, constraint, ..
+            }
+            | FreeKind::NamedUnbound {
+                lev, constraint, ..
+            } => {
                 *lev += 1;
+                constraint.lift();
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                if let Some(lev) = t.level() {
-                    t.update_level(lev + 1);
-                }
+                t.lift();
             }
         }
     }
@@ -494,23 +536,22 @@ impl<T: Clone + HasLevel> Free<T> {
         })
     }
 
-    pub fn type_of(&self) -> Option<Type> {
+    pub fn get_type(&self) -> Option<Type> {
         self.borrow()
             .constraint()
             .and_then(|c| c.get_type().cloned())
     }
 
-    pub fn crack_subtype(&self) -> Option<Type> {
+    pub fn get_sup(&self) -> Option<Type> {
         self.borrow()
             .constraint()
-            .and_then(|c| c.get_super_type().cloned())
+            .and_then(|c| c.get_super().cloned())
     }
 
-    pub fn crack_bound_types(&self) -> Option<(Type, Type)> {
-        self.borrow().constraint().and_then(|c| {
-            c.get_sub_sup_type()
-                .map(|(sub, sup)| (sub.clone(), sup.clone()))
-        })
+    pub fn get_bound_types(&self) -> Option<(Type, Type)> {
+        self.borrow()
+            .constraint()
+            .and_then(|c| c.get_sub_sup().map(|(sub, sup)| (sub.clone(), sup.clone())))
     }
 
     pub fn is_unbound(&self) -> bool {
@@ -541,7 +582,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub().is_some()
         )
     }
 
@@ -549,7 +590,7 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super().is_some()
         )
     }
 
@@ -557,12 +598,15 @@ impl<T: Clone + HasLevel> Free<T> {
         matches!(
             &*self.borrow(),
             FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup_type().is_some()
+            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup().is_some()
         )
     }
 
     pub fn is_linked(&self) -> bool {
-        matches!(&*self.borrow(), FreeKind::Linked(_))
+        matches!(
+            &*self.borrow(),
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
+        )
     }
 
     pub fn unbound_name(&self) -> Option<Str> {

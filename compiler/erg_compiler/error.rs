@@ -255,6 +255,10 @@ impl TyCheckError {
         Self { core, caused_by }
     }
 
+    pub fn dummy(errno: usize) -> Self {
+        Self::new(ErrorCore::dummy(errno), "".into())
+    }
+
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
         Self::new(ErrorCore::unreachable(fn_name, line), "".into())
     }
@@ -320,6 +324,30 @@ impl TyCheckError {
                     "simplified_chinese" => format!("{name}已声明"),
                     "traditional_chinese" => format!("{name}已聲明"),
                     "english" => format!("{name} is already declared"),
+                ),
+                Option::<Str>::None,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn duplicate_definition_error(
+        errno: usize,
+        loc: Location,
+        caused_by: Str,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は既に定義されています"),
+                    "simplified_chinese" => format!("{name}已定义"),
+                    "traditional_chinese" => format!("{name}已定義"),
+                    "english" => format!("{name} is already defined"),
                 ),
                 Option::<Str>::None,
             ),
@@ -521,10 +549,10 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{name}的类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{name}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "english" => format!("the type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                    "japanese" => format!("{YELLOW}{name}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "english" => format!("the type of {YELLOW}{name}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
                 ),
                 hint,
             ),
@@ -657,10 +685,10 @@ impl TyCheckError {
                 AssignError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("定数{name}には再代入できません"),
-                    "simplified_chinese" => format!("不能为不可变变量{name}分配两次"),
-                    "traditional_chinese" => format!("不能為不可變變量{name}分配兩次"),
-                    "english" => format!("cannot assign twice to the immutable variable {name}"),
+                    "japanese" => format!("変数{name}に再代入されています"),
+                    "simplified_chinese" => format!("不能为变量{name}分配两次"),
+                    "traditional_chinese" => format!("不能為變量{name}分配兩次"),
+                    "english" => format!("cannot assign twice to the variable {name}"),
                 ),
                 None,
             ),
@@ -1006,13 +1034,86 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         Self::new(
             ErrorCore::new(
                 errno,
-                NameError,
+                VisibilityError,
                 loc,
                 switch_lang!(
                     "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),
                     "simplified_chinese" => format!("{RED}{name}{RESET}是{visibility}变量",),
                     "traditional_chinese" => format!("{RED}{name}{RESET}是{visibility}變量",),
                     "english" => format!("{RED}{name}{RESET} is {visibility} variable",),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn not_const_expr(errno: usize, loc: Location, caused_by: Str) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NotConstExpr,
+                loc,
+                switch_lang!(
+                    "japanese" => "定数式ではありません",
+                    "simplified_chinese" => "不是常量表达式",
+                    "traditional_chinese" => "不是常量表達式",
+                    "english" => "not a constant expression",
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn override_error<S: Into<Str>>(
+        errno: usize,
+        name: &str,
+        name_loc: Location,
+        superclass: &Type,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                name_loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}は{YELLOW}{superclass}{RESET}で既に定義されています",
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定义",
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定義",
+                    ),
+                    "english" => format!(
+                        "{RED}{name}{RESET} is already defined in {YELLOW}{superclass}{RESET}",
+                    ),
+                ),
+                Some(switch_lang!(
+                    "japanese" => "デフォルトでオーバーライドはできません(`Override`デコレータを使用してください)",
+                    "simplified_chinese" => "默认不可重写(请使用`Override`装饰器)",
+                    "traditional_chinese" => "默認不可重寫(請使用`Override`裝飾器)",
+                    "english" => "cannot override by default (use `Override` decorator)",
+                ).into()),
+            ),
+            caused_by.into(),
+        )
+    }
+
+    pub fn inheritance_error(errno: usize, class: String, loc: Location, caused_by: Str) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                InheritanceError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{class}は継承できません"),
+                    "simplified_chinese" => format!("{class}不可继承"),
+                    "traditional_chinese" => format!("{class}不可繼承"),
+                    "english" => format!("{class} is not inheritable"),
                 ),
                 None,
             ),

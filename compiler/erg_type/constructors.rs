@@ -23,25 +23,25 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
 }
 
 pub fn array(elem_t: Type, len: TyParam) -> Type {
-    poly_class("Array", vec![TyParam::t(elem_t), len])
+    poly("Array", vec![TyParam::t(elem_t), len])
 }
 
 pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
-    poly_class("Array!", vec![TyParam::t(elem_t), len])
+    poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
 pub fn dict(k_t: Type, v_t: Type) -> Type {
-    poly_class("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+    poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
 }
 
 pub fn tuple(args: Vec<Type>) -> Type {
     let name = format!("Tuple{}", args.len());
-    poly_class(name, args.into_iter().map(TyParam::t).collect())
+    poly(name, args.into_iter().map(TyParam::t).collect())
 }
 
 #[inline]
 pub fn range(t: Type) -> Type {
-    poly_class("Range", vec![TyParam::t(t)])
+    poly("Range", vec![TyParam::t(t)])
 }
 
 pub fn enum_t(s: Set<ValueObj>) -> Type {
@@ -97,23 +97,26 @@ where
 }
 
 pub fn iter(t: Type) -> Type {
-    poly_class("Iter", vec![TyParam::t(t)])
+    poly("Iter", vec![TyParam::t(t)])
 }
 
 pub fn ref_(t: Type) -> Type {
     Type::Ref(Box::new(t))
 }
 
-pub fn ref_mut(t: Type) -> Type {
-    Type::RefMut(Box::new(t))
+pub fn ref_mut(before: Type, after: Option<Type>) -> Type {
+    Type::RefMut {
+        before: Box::new(before),
+        after: after.map(Box::new),
+    }
 }
 
 pub fn option(t: Type) -> Type {
-    poly_class("Option", vec![TyParam::t(t)])
+    poly("Option", vec![TyParam::t(t)])
 }
 
 pub fn option_mut(t: Type) -> Type {
-    poly_class("Option!", vec![TyParam::t(t)])
+    poly("Option!", vec![TyParam::t(t)])
 }
 
 pub fn subr_t(
@@ -213,13 +216,14 @@ pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
 
 pub fn fn_met(
     self_t: Type,
-    non_default_params: Vec<ParamTy>,
+    mut non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
+    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
     Type::Subr(SubrType::new(
-        SubrKind::FuncMethod(Box::new(self_t)),
+        SubrKind::Func,
         non_default_params,
         var_params,
         default_params,
@@ -242,15 +246,15 @@ pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
 }
 
 pub fn pr_met(
-    self_before: Type,
-    self_after: Option<Type>,
-    non_default_params: Vec<ParamTy>,
+    self_t: Type,
+    mut non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
+    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
     Type::Subr(SubrType::new(
-        SubrKind::pr_met(self_before, self_after),
+        SubrKind::Proc,
         non_default_params,
         var_params,
         default_params,
@@ -258,14 +262,13 @@ pub fn pr_met(
     ))
 }
 
-pub fn pr0_met(self_before: Type, self_after: Option<Type>, return_t: Type) -> Type {
-    pr_met(self_before, self_after, vec![], None, vec![], return_t)
+pub fn pr0_met(self_t: Type, return_t: Type) -> Type {
+    pr_met(self_t, vec![], None, vec![], return_t)
 }
 
-pub fn pr1_met(self_before: Type, self_after: Option<Type>, input_t: Type, return_t: Type) -> Type {
+pub fn pr1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
     pr_met(
-        self_before,
-        self_after,
+        self_t,
         vec![ParamTy::anonymous(input_t)],
         None,
         vec![],
@@ -292,13 +295,8 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn class<S: Into<Str>>(name: S) -> Type {
-    Type::MonoClass(name.into())
-}
-
-#[inline]
-pub fn trait_<S: Into<Str>>(name: S) -> Type {
-    Type::MonoTrait(name.into())
+pub fn mono<S: Into<Str>>(name: S) -> Type {
+    Type::Mono(name.into())
 }
 
 #[inline]
@@ -307,16 +305,8 @@ pub fn mono_q<S: Into<Str>>(name: S) -> Type {
 }
 
 #[inline]
-pub fn poly_class<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::PolyClass {
-        name: name.into(),
-        params,
-    }
-}
-
-#[inline]
-pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::PolyTrait {
+pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
+    Type::Poly {
         name: name.into(),
         params,
     }

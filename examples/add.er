@@ -1,7 +1,7 @@
 Point = Class {x = Int; y = Int}, Impl := Add() and Eq()
 Point.
     new x, y = Self::__new__ {x; y}
-    norm &self = self::x**2 + self::y**2
+    norm self = self::x**2 + self::y**2
     @Impl Add()
     `+` self, other =
         Self.new(self::x + other::x, self::y + other::y)

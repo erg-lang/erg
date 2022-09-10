@@ -17,10 +17,91 @@ use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, class, poly_class, refinement, tuple};
+use crate::constructors::{array, mono, poly, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TypeKind {
+    Class,
+    Subclass,
+    Trait,
+    Subtrait,
+    StructuralTrait,
+}
+
+/// Class
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct GenTypeObj {
+    pub kind: TypeKind,
+    pub t: Type, // andやorが入る可能性あり
+    pub require_or_sup: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+    pub additional: Option<Box<TypeObj>>,
+}
+
+impl fmt::Display for GenTypeObj {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{:?} {}>", self.kind, self.t)
+    }
+}
+
+impl GenTypeObj {
+    pub fn new(
+        kind: TypeKind,
+        t: Type,
+        require_or_sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        Self {
+            kind,
+            t,
+            require_or_sup: Box::new(require_or_sup),
+            impls: impls.map(Box::new),
+            additional: additional.map(Box::new),
+        }
+    }
+
+    pub fn meta_type(&self) -> Type {
+        match self.kind {
+            TypeKind::Class | TypeKind::Subclass => Type::Class,
+            TypeKind::Trait | TypeKind::Subtrait | TypeKind::StructuralTrait => Type::Trait,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TypeObj {
+    Builtin(Type),
+    Generated(GenTypeObj),
+}
+
+impl fmt::Display for TypeObj {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TypeObj::Builtin(t) => write!(f, "{t}"),
+            TypeObj::Generated(t) => write!(f, "{t}"),
+        }
+    }
+}
+
+impl TypeObj {
+    pub const fn typ(&self) -> &Type {
+        match self {
+            TypeObj::Builtin(t) => t,
+            TypeObj::Generated(t) => &t.t,
+        }
+    }
+
+    pub fn contains_intersec(&self, other: &Type) -> bool {
+        match self {
+            TypeObj::Builtin(t) => t.contains_intersec(other),
+            TypeObj::Generated(t) => t.t.contains_intersec(other),
+        }
+    }
+}
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能
@@ -37,7 +118,7 @@ pub enum ValueObj {
     Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
     Subr(ConstSubr),
-    Type(Box<Type>),
+    Type(TypeObj),
     None,
     Ellipsis,
     NotImplemented,
@@ -92,7 +173,7 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
-            Self::Subr(subr) => write!(f, "{subr:?}"),
+            Self::Subr(subr) => write!(f, "{subr}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
             Self::Ellipsis => write!(f, "Ellipsis"),
@@ -262,8 +343,24 @@ impl HasType for ValueObj {
 }
 
 impl ValueObj {
-    pub fn t(t: Type) -> Self {
-        ValueObj::Type(Box::new(t))
+    pub fn builtin_t(t: Type) -> Self {
+        ValueObj::Type(TypeObj::Builtin(t))
+    }
+
+    pub fn gen_t(
+        kind: TypeKind,
+        t: Type,
+        require_or_sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        ValueObj::Type(TypeObj::Generated(GenTypeObj::new(
+            kind,
+            t,
+            require_or_sup,
+            impls,
+            additional,
+        )))
     }
 
     pub fn is_num(&self) -> bool {
@@ -272,6 +369,10 @@ impl ValueObj {
             Self::Mut(n) => n.borrow().is_num(),
             _ => false,
         }
+    }
+
+    pub const fn is_type(&self) -> bool {
+        matches!(self, Self::Type(_))
     }
 
     pub const fn is_mut(&self) -> bool {
@@ -376,20 +477,24 @@ impl ValueObj {
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
-            Self::Subr(_) => todo!(),
-            Self::Type(_) => Type::Type,
+            Self::Subr(subr) => subr.class(),
+            Self::Type(t_obj) => match t_obj {
+                // TODO: builtin
+                TypeObj::Builtin(_t) => Type::Type,
+                TypeObj::Generated(gen_t) => gen_t.meta_type(),
+            },
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,
             Self::NotImplemented => Type::NotImplemented,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => class("Int!"),
-                Self::Nat(_) => class("Nat!"),
-                Self::Float(_) => class("Float!"),
-                Self::Str(_) => class("Str!"),
-                Self::Bool(_) => class("Bool!"),
-                Self::Array(arr) => poly_class(
+                Self::Int(_) => mono("Int!"),
+                Self::Nat(_) => mono("Nat!"),
+                Self::Float(_) => mono("Float!"),
+                Self::Str(_) => mono("Str!"),
+                Self::Bool(_) => mono("Bool!"),
+                Self::Array(arr) => poly(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),
@@ -638,6 +743,26 @@ impl ValueObj {
                 Some(Self::Mut(m))
             }
             (self_, Self::Mut(m)) => self_.try_ne(m.borrow().clone()),
+            _ => None,
+        }
+    }
+
+    pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
+        match self {
+            Self::Type(typ) => match typ {
+                TypeObj::Builtin(builtin) => todo!("{builtin}{attr}"),
+                TypeObj::Generated(gen) => match &gen.t {
+                    Type::Record(rec) => {
+                        let t = rec.get(attr)?;
+                        Some(ValueObj::builtin_t(t.clone()))
+                    }
+                    _ => None,
+                },
+            },
+            Self::Record(rec) => {
+                let v = rec.get(attr)?;
+                Some(v.clone())
+            }
             _ => None,
         }
     }

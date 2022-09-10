@@ -99,11 +99,12 @@ impl OwnershipChecker {
             // TODO: referenced
             Expr::Call(call) => {
                 let args_owns = call.signature_t().unwrap().args_ownership();
-                if let Some(ownership) = args_owns.self_ {
-                    self.check_expr(&call.obj, ownership);
-                }
-                let (non_default_args, var_args) =
-                    call.args.pos_args.split_at(args_owns.non_defaults.len());
+                let non_defaults_len = if call.method_name.is_some() {
+                    args_owns.non_defaults.len() - 1
+                } else {
+                    args_owns.non_defaults.len()
+                };
+                let (non_default_args, var_args) = call.args.pos_args.split_at(non_defaults_len);
                 for (nd_arg, ownership) in
                     non_default_args.iter().zip(args_owns.non_defaults.iter())
                 {
@@ -185,26 +186,15 @@ impl OwnershipChecker {
 
     fn check_acc(&mut self, acc: &Accessor, ownership: Ownership) {
         match acc {
-            Accessor::Local(local) => {
-                self.check_if_dropped(local.inspect(), local.loc());
+            Accessor::Ident(ident) => {
+                self.check_if_dropped(ident.inspect(), ident.loc());
                 if acc.ref_t().is_mut() && ownership.is_owned() {
                     log!(
                         "drop: {} (in {})",
-                        local.inspect(),
-                        local.ln_begin().unwrap_or(0)
+                        ident.inspect(),
+                        ident.ln_begin().unwrap_or(0)
                     );
-                    self.drop(local.inspect(), acc.loc());
-                }
-            }
-            Accessor::Public(public) => {
-                self.check_if_dropped(public.inspect(), public.loc());
-                if acc.ref_t().is_mut() && ownership.is_owned() {
-                    log!(
-                        "drop: {} (in {})",
-                        public.inspect(),
-                        public.ln_begin().unwrap_or(0)
-                    );
-                    self.drop(public.inspect(), acc.loc());
+                    self.drop(ident.inspect(), acc.loc());
                 }
             }
             Accessor::Attr(attr) => {

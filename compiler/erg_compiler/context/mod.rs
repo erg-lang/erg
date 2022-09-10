@@ -4,6 +4,7 @@
 #![allow(clippy::result_unit_err)]
 pub mod cache;
 pub mod compare;
+pub mod eval;
 pub mod hint;
 pub mod initialize;
 pub mod inquire;
@@ -35,7 +36,6 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::eval::Evaluator;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use Visibility::*;
@@ -87,7 +87,7 @@ pub enum TyParamIdx {
 impl TyParamIdx {
     pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
         match search_from {
-            Type::PolyClass { params, .. } => {
+            Type::Poly { params, .. } => {
                 for (i, tp) in params.iter().enumerate() {
                     match tp {
                         TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),
@@ -195,6 +195,7 @@ pub enum ContextKind {
     Func,
     Proc,
     Class,
+    MethodDefs,
     Trait,
     StructuralTrait,
     Patch(Type),
@@ -203,6 +204,24 @@ pub enum ContextKind {
     Module,
     Instant,
     Dummy,
+}
+
+impl ContextKind {
+    pub const fn is_method_def(&self) -> bool {
+        matches!(self, Self::MethodDefs)
+    }
+
+    pub const fn is_type(&self) -> bool {
+        matches!(self, Self::Class | Self::Trait | Self::StructuralTrait)
+    }
+
+    pub fn is_class(&self) -> bool {
+        matches!(self, Self::Class)
+    }
+
+    pub fn is_trait(&self) -> bool {
+        matches!(self, Self::Trait | Self::StructuralTrait)
+    }
 }
 
 /// 記号表に登録されているモードを表す
@@ -217,7 +236,7 @@ pub enum RegistrationMode {
 /// Represents the context of the current scope
 ///
 /// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Context {
     pub(crate) name: Str,
     pub(crate) kind: ContextKind,
@@ -233,8 +252,9 @@ pub struct Context {
     // patchによってsuper class/traitになったものはここに含まれない
     pub(crate) super_classes: Vec<Type>, // if self is a patch, means patch classes
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
-    // specialized contexts, If self is a type
-    pub(crate) specializations: Vec<(Type, Context)>,
+    // method definitions, if the context is a type
+    // specializations are included and needs to be separated out
+    pub(crate) methods_list: Vec<(Type, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -256,15 +276,12 @@ pub struct Context {
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
-    pub(crate) eval: Evaluator,
     // {"Nat": ctx, "Int": ctx, ...}
     pub(crate) mono_types: Dict<VarName, (Type, Context)>,
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
     // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
-    pub(crate) poly_classes: Dict<VarName, (Type, Context)>,
-    // Traits cannot be specialized
-    pub(crate) poly_traits: Dict<VarName, (Type, Context)>,
+    pub(crate) poly_types: Dict<VarName, (Type, Context)>,
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
@@ -298,9 +315,8 @@ impl fmt::Display for Context {
             .field("decls", &self.decls)
             .field("locals", &self.params)
             .field("consts", &self.consts)
-            .field("eval", &self.eval)
             .field("mono_types", &self.mono_types)
-            .field("poly_types", &self.poly_classes)
+            .field("poly_types", &self.poly_types)
             .field("patches", &self.patches)
             .field("mods", &self.mods)
             .finish()
@@ -348,12 +364,12 @@ impl Context {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 // TODO: is_const { Const } else { Immutable }
-                let vi = VarInfo::new(param.t, Immutable, Private, kind);
+                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                let vi = VarInfo::new(param.t, Immutable, Private, kind);
+                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
                 params_.push((None, vi));
             }
         }
@@ -365,7 +381,7 @@ impl Context {
             outer: outer.map(Box::new),
             super_classes,
             super_traits,
-            specializations: vec![],
+            methods_list: vec![],
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
@@ -373,10 +389,8 @@ impl Context {
             decls: Dict::default(),
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
-            eval: Evaluator::default(),
             mono_types: Dict::default(),
-            poly_classes: Dict::default(),
-            poly_traits: Dict::default(),
+            poly_types: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
             _nlocals: 0,
@@ -480,6 +494,20 @@ impl Context {
     }
 
     #[inline]
+    pub fn methods<S: Into<Str>>(name: S, level: usize) -> Self {
+        Self::with_capacity(
+            name.into(),
+            ContextKind::MethodDefs,
+            vec![],
+            None,
+            vec![],
+            vec![],
+            2,
+            level,
+        )
+    }
+
+    #[inline]
     pub fn poly_patch<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
@@ -513,6 +541,20 @@ impl Context {
     }
 
     #[inline]
+    pub fn instant(name: Str, capacity: usize, outer: Context) -> Self {
+        Self::with_capacity(
+            name,
+            ContextKind::Instant,
+            vec![],
+            Some(outer),
+            vec![],
+            vec![],
+            capacity,
+            Self::TOP_LEVEL,
+        )
+    }
+
+    #[inline]
     pub fn caused_by(&self) -> Str {
         self.name.clone()
     }
@@ -535,7 +577,7 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn pop(&mut self) -> Result<(), TyCheckErrors> {
+    pub(crate) fn pop(&mut self) -> Result<Context, TyCheckErrors> {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
@@ -547,12 +589,14 @@ impl Context {
             ));
         }
         if let Some(parent) = &mut self.outer {
-            *self = mem::take(parent);
+            let parent = mem::take(parent);
+            let ctx = mem::take(self);
+            *self = *parent;
             log!(info "{}: current namespace: {}", fn_name!(), self.name);
             if !uninited_errs.is_empty() {
                 Err(uninited_errs)
             } else {
-                Ok(())
+                Ok(ctx)
             }
         } else {
             Err(TyCheckErrors::from(TyCheckError::checker_bug(

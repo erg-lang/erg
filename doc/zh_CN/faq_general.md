@@ -1,6 +1,6 @@
 # Erg常见问题
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3Deccd113c1512076c367fb87ea73406f91ff83ba7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=eccd113c1512076c367fb87ea73406f91ff83ba7)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3D521426cba21ed8b6eae5aff965dd14ef99af1228)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=521426cba21ed8b6eae5aff965dd14ef99af1228)
 
 此常见问题解答适用于一般 Erg 初学者。
 对于个别（常见）技术问题，请参阅 [此处](./faq_technical.md) 了解个别（常见）技术问题，以及
@@ -17,7 +17,7 @@ A: Erg 代码被转译成 Python 字节码。也就是说，它运行在与 Pyth
 我们受到的语言多于我们双手所能指望的数量，但 Python、Rust、Nim 和 Haskell 的影响最大。
 我们从 Python 继承了许多语义，从 Rust 继承了面向表达式和 trait，从 Nim 继承了过程，从 Haskell 继承了函数式编程相关的特性。
 
-## 可以调用 Python 的语言包括 Julia。你为什么创建 Erg？
+## 已经有一些语言可以调用Python，比如Julia。为什么要创建Erg？
 
 答：Erg 设计的动机之一是拥有一种易于使用且具有强大类型系统的语言。即具有类型推断、Kind、依赖类型等的语言。
 Julia 是可以有类型的，但它确实是一种动态类型语言，不具备静态类型语言的编译时错误检测优势。

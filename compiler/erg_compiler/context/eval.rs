@@ -3,21 +3,19 @@ use std::mem;
 use erg_common::dict::Dict;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Field;
-use erg_common::{fn_name, set};
+use erg_common::{dict, fn_name, option_enum_unwrap, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{
-    enum_t, mono_proj, poly_class, poly_trait, ref_, ref_mut, refinement, subr_t,
-};
+use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{Predicate, SubrKind, TyBound, Type};
+use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::Context;
@@ -41,7 +39,7 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
     }
 }
 
-fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
+fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
     match kind {
         TokenKind::Plus => Ok(OpKind::Add),
         TokenKind::Minus => Ok(OpKind::Sub),
@@ -63,7 +61,7 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> Result<OpKind, ()> {
         TokenKind::Shl => Ok(OpKind::Shl),
         TokenKind::Shr => Ok(OpKind::Shr),
         TokenKind::Mutate => Ok(OpKind::Mutate),
-        _other => Err(()),
+        _other => todo!("{_other}"),
     }
 }
 
@@ -165,144 +163,237 @@ impl SubstContext {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Evaluator {}
-
-impl Evaluator {
-    #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn eval_const_acc(&self, _acc: &Accessor, ctx: &Context) -> Option<ValueObj> {
-        match _acc {
-            Accessor::Local(local) => ctx.rec_get_const_obj(local.inspect()).cloned(),
+impl Context {
+    fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
+        match acc {
+            Accessor::Ident(ident) => {
+                if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
+                    Ok(val.clone())
+                } else if ident.is_const() {
+                    Err(EvalError::no_var_error(
+                        line!() as usize,
+                        ident.loc(),
+                        self.caused_by(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    ))
+                } else {
+                    Err(EvalError::not_const_expr(
+                        line!() as usize,
+                        acc.loc(),
+                        self.caused_by(),
+                    ))
+                }
+            }
             Accessor::Attr(attr) => {
-                let _obj = self.eval_const_expr(&attr.obj, ctx)?;
-                todo!()
+                let obj = self.eval_const_expr(&attr.obj, None)?;
+                self.eval_attr(obj, &attr.ident)
             }
             _ => todo!(),
         }
     }
 
-    fn eval_const_bin(&self, bin: &BinOp) -> Option<ValueObj> {
-        match (bin.args[0].as_ref(), bin.args[1].as_ref()) {
-            (Expr::Lit(l), Expr::Lit(r)) => {
-                let op = try_get_op_kind_from_token(bin.op.kind).ok()?;
-                self.eval_bin_lit(op, eval_lit(l), eval_lit(r)).ok()
-            }
-            _ => None,
+    fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> EvalResult<ValueObj> {
+        if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
+            return Ok(val);
         }
-    }
-
-    fn eval_const_unary(&self, unary: &UnaryOp) -> Option<ValueObj> {
-        match unary.args[0].as_ref() {
-            Expr::Lit(lit) => {
-                let op = try_get_op_kind_from_token(unary.op.kind).ok()?;
-                self.eval_unary_lit(op, eval_lit(lit)).ok()
-            }
-            _ => None,
-        }
-    }
-
-    // TODO: kw args
-    fn eval_args(&self, _args: &Args) -> Option<Vec<ValueObj>> {
-        todo!()
-    }
-
-    fn eval_const_call(&self, call: &Call, ctx: &Context) -> Option<ValueObj> {
-        if let Expr::Accessor(acc) = call.obj.as_ref() {
-            match acc {
-                Accessor::Local(name) if name.is_const() => {
-                    if let Some(ValueObj::Subr(subr)) = ctx.rec_get_const_obj(name.inspect()) {
-                        let args = self.eval_args(&call.args)?;
-                        Some(subr.call(args))
-                    } else {
-                        None
+        if let ValueObj::Type(t) = &obj {
+            if let Some(sups) = self.rec_get_nominal_super_type_ctxs(t.typ()) {
+                for (_, ctx) in sups {
+                    if let Some(val) = ctx.consts.get(ident.inspect()) {
+                        return Ok(val.clone());
+                    }
+                    for (_, methods) in ctx.methods_list.iter() {
+                        if let Some(v) = methods.consts.get(ident.inspect()) {
+                            return Ok(v.clone());
+                        }
                     }
                 }
-                Accessor::Local(_) => None,
+            }
+        }
+        Err(EvalError::no_attr_error(
+            line!() as usize,
+            ident.loc(),
+            self.caused_by(),
+            &obj.t(),
+            ident.inspect(),
+            None,
+        ))
+    }
+
+    fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
+        let lhs = self.eval_const_expr(&bin.args[0], None)?;
+        let rhs = self.eval_const_expr(&bin.args[1], None)?;
+        let op = try_get_op_kind_from_token(bin.op.kind)?;
+        self.eval_bin(op, lhs, rhs)
+    }
+
+    fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
+        let val = self.eval_const_expr(&unary.args[0], None)?;
+        let op = try_get_op_kind_from_token(unary.op.kind)?;
+        self.eval_unary(op, val)
+    }
+
+    fn eval_args(&self, args: &Args, __name__: Option<&Str>) -> EvalResult<ValueArgs> {
+        let mut evaluated_pos_args = vec![];
+        for arg in args.pos_args().iter() {
+            let val = self.eval_const_expr(&arg.expr, __name__)?;
+            evaluated_pos_args.push(val);
+        }
+        let mut evaluated_kw_args = dict! {};
+        for arg in args.kw_args().iter() {
+            let val = self.eval_const_expr(&arg.expr, __name__)?;
+            evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
+        }
+        Ok(ValueArgs::new(evaluated_pos_args, evaluated_kw_args))
+    }
+
+    fn eval_const_call(&self, call: &Call, __name__: Option<&Str>) -> EvalResult<ValueObj> {
+        if let Expr::Accessor(acc) = call.obj.as_ref() {
+            match acc {
+                Accessor::Ident(ident) => {
+                    let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
+                        EvalError::no_var_error(
+                            line!() as usize,
+                            ident.loc(),
+                            self.caused_by(),
+                            ident.inspect(),
+                            self.get_similar_name(ident.inspect()),
+                        )
+                    })?;
+                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
+                        .ok_or_else(|| {
+                            EvalError::type_mismatch_error(
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                ident.inspect(),
+                                &mono("Subroutine"),
+                                &obj.t(),
+                                None,
+                            )
+                        })?
+                        .clone();
+                    let args = self.eval_args(&call.args, __name__)?;
+                    Ok(subr.call(args, __name__.cloned()))
+                }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
-                Accessor::Public(_name) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
             }
         } else {
-            None
-        }
-    }
-
-    fn eval_const_def(&self, def: &Def) -> Option<ValueObj> {
-        if def.is_const() {
             todo!()
         }
-        None
     }
 
-    fn eval_const_array(&self, arr: &Array, ctx: &Context) -> Option<ValueObj> {
+    fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
+        if def.is_const() {
+            let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
+            let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
+            self.register_gen_const(def.sig.ident().unwrap(), obj);
+            Ok(ValueObj::None)
+        } else {
+            Err(EvalError::not_const_expr(
+                line!() as usize,
+                def.body.block.loc(),
+                self.caused_by(),
+            ))
+        }
+    }
+
+    fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
         let mut elems = vec![];
         match arr {
             Array::Normal(arr) => {
                 for elem in arr.elems.pos_args().iter() {
-                    if let Some(elem) = self.eval_const_expr(&elem.expr, ctx) {
-                        elems.push(elem);
-                    } else {
-                        return None;
-                    }
+                    let elem = self.eval_const_expr(&elem.expr, None)?;
+                    elems.push(elem);
                 }
             }
             _ => {
-                return None;
+                todo!()
             }
         }
-        Some(ValueObj::Array(RcArray::from(elems)))
+        Ok(ValueObj::Array(RcArray::from(elems)))
     }
 
-    fn eval_const_record(&self, record: &NormalRecord, ctx: &Context) -> Option<ValueObj> {
+    fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
+        match record {
+            Record::Normal(rec) => self.eval_const_normal_record(rec),
+            Record::Shortened(_rec) => unreachable!(), // should be desugared
+        }
+    }
+
+    fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
         let mut attrs = vec![];
+        // HACK: should avoid cloning
+        let mut record_ctx = Context::instant(Str::ever("<unnamed record>"), 2, self.clone());
         for attr in record.attrs.iter() {
-            if let Some(elem) = self.eval_const_block(&attr.body.block, ctx) {
-                let ident = match &attr.sig {
-                    Signature::Var(var) => match &var.pat {
-                        VarPattern::Ident(ident) => {
-                            Field::new(ident.vis(), ident.inspect().clone())
-                        }
-                        _ => todo!(),
-                    },
+            let name = attr.sig.ident().map(|i| i.inspect());
+            let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
+            let ident = match &attr.sig {
+                Signature::Var(var) => match &var.pat {
+                    VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
                     _ => todo!(),
-                };
-                attrs.push((ident, elem));
-            } else {
-                return None;
-            }
+                },
+                _ => todo!(),
+            };
+            attrs.push((ident, elem));
         }
-        Some(ValueObj::Record(attrs.into_iter().collect()))
+        Ok(ValueObj::Record(attrs.into_iter().collect()))
     }
 
-    // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
-    // コンパイル時評価できないならNoneを返す
-    pub(crate) fn eval_const_expr(&self, expr: &Expr, ctx: &Context) -> Option<ValueObj> {
+    pub(crate) fn eval_const_expr(
+        &self,
+        expr: &Expr,
+        __name__: Option<&Str>,
+    ) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Some(eval_lit(lit)),
-            Expr::Accessor(acc) => self.eval_const_acc(acc, ctx),
+            Expr::Lit(lit) => Ok(eval_lit(lit)),
+            Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
-            Expr::Call(call) => self.eval_const_call(call, ctx),
-            Expr::Def(def) => self.eval_const_def(def),
-            Expr::Array(arr) => self.eval_const_array(arr, ctx),
-            Expr::Record(rec) => self.eval_const_record(rec, ctx),
+            Expr::Call(call) => self.eval_const_call(call, __name__),
+            Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::Record(rec) => self.eval_const_record(rec),
+            Expr::Lambda(lambda) => todo!("{lambda}"),
             other => todo!("{other}"),
         }
     }
 
-    pub(crate) fn eval_const_block(&self, block: &Block, ctx: &Context) -> Option<ValueObj> {
-        for chunk in block.iter().rev().skip(1).rev() {
-            self.eval_const_expr(chunk, ctx)?;
+    // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
+    // コンパイル時評価できないならNoneを返す
+    pub(crate) fn eval_const_chunk(
+        &mut self,
+        expr: &Expr,
+        __name__: Option<&Str>,
+    ) -> EvalResult<ValueObj> {
+        match expr {
+            Expr::Lit(lit) => Ok(eval_lit(lit)),
+            Expr::Accessor(acc) => self.eval_const_acc(acc),
+            Expr::BinOp(bin) => self.eval_const_bin(bin),
+            Expr::UnaryOp(unary) => self.eval_const_unary(unary),
+            Expr::Call(call) => self.eval_const_call(call, __name__),
+            Expr::Def(def) => self.eval_const_def(def),
+            Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::Record(rec) => self.eval_const_record(rec),
+            Expr::Lambda(lambda) => todo!("{lambda}"),
+            other => todo!("{other}"),
         }
-        self.eval_const_expr(block.last().unwrap(), ctx)
     }
 
-    fn eval_bin_lit(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_block(
+        &mut self,
+        block: &Block,
+        __name__: Option<&Str>,
+    ) -> EvalResult<ValueObj> {
+        for chunk in block.iter().rev().skip(1).rev() {
+            self.eval_const_chunk(chunk, __name__)?;
+        }
+        self.eval_const_chunk(block.last().unwrap(), __name__)
+    }
+
+    fn eval_bin(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
         match op {
             Add => lhs
                 .try_add(rhs)
@@ -340,10 +431,10 @@ impl Evaluator {
     ) -> EvalResult<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
-                .eval_bin_lit(op, lhs.borrow().clone(), rhs.clone())
+                .eval_bin(op, lhs.borrow().clone(), rhs.clone())
                 .map(|v| TyParam::Value(ValueObj::Mut(RcCell::new(v)))),
             (TyParam::Value(lhs), TyParam::Value(rhs)) => self
-                .eval_bin_lit(op, lhs.clone(), rhs.clone())
+                .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
             (TyParam::FreeVar(fv), r) => {
                 if fv.is_linked() {
@@ -364,7 +455,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_unary_lit(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
+    fn eval_unary(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
             Pos => todo!(),
             Neg => todo!(),
@@ -376,7 +467,7 @@ impl Evaluator {
 
     fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::Value(c) => self.eval_unary_lit(op, c.clone()).map(TyParam::Value),
+            TyParam::Value(c) => self.eval_unary(op, c.clone()).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
             other => todo!("{op} {other}"),
@@ -388,10 +479,10 @@ impl Evaluator {
     }
 
     /// 量化変数などはそのまま返す
-    pub(crate) fn eval_tp(&self, p: &TyParam, ctx: &Context) -> EvalResult<TyParam> {
+    pub(crate) fn eval_tp(&self, p: &TyParam) -> EvalResult<TyParam> {
         match p {
-            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(&fv.crack(), ctx),
-            TyParam::Mono(name) => ctx
+            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(&fv.crack()),
+            TyParam::Mono(name) => self
                 .rec_get_const_obj(name)
                 .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
@@ -407,45 +498,23 @@ impl Evaluator {
         }
     }
 
-    pub(crate) fn eval_t_params(
-        &self,
-        substituted: Type,
-        ctx: &Context,
-        level: usize,
-    ) -> EvalResult<Type> {
+    pub(crate) fn eval_t_params(&self, substituted: Type, level: usize) -> EvalResult<Type> {
         match substituted {
-            Type::FreeVar(fv) if fv.is_linked() => {
-                self.eval_t_params(fv.crack().clone(), ctx, level)
-            }
+            Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), level),
             Type::Subr(mut subr) => {
-                let kind = match subr.kind {
-                    SubrKind::FuncMethod(self_t) => {
-                        SubrKind::fn_met(self.eval_t_params(*self_t, ctx, level)?)
-                    }
-                    SubrKind::ProcMethod { before, after } => {
-                        let before = self.eval_t_params(*before, ctx, level)?;
-                        if let Some(after) = after {
-                            let after = self.eval_t_params(*after, ctx, level)?;
-                            SubrKind::pr_met(before, Some(after))
-                        } else {
-                            SubrKind::pr_met(before, None)
-                        }
-                    }
-                    other => other,
-                };
                 for pt in subr.non_default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), ctx, level)?;
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level)?;
                 }
                 if let Some(var_args) = subr.var_params.as_mut() {
                     *var_args.typ_mut() =
-                        self.eval_t_params(mem::take(var_args.typ_mut()), ctx, level)?;
+                        self.eval_t_params(mem::take(var_args.typ_mut()), level)?;
                 }
                 for pt in subr.default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), ctx, level)?;
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level)?;
                 }
-                let return_t = self.eval_t_params(*subr.return_t, ctx, level)?;
+                let return_t = self.eval_t_params(*subr.return_t, level)?;
                 Ok(subr_t(
-                    kind,
+                    subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|v| *v),
                     subr.default_params,
@@ -455,7 +524,7 @@ impl Evaluator {
             Type::Refinement(refine) => {
                 let mut preds = Set::with_capacity(refine.preds.len());
                 for pred in refine.preds.into_iter() {
-                    preds.insert(self.eval_pred(pred, ctx)?);
+                    preds.insert(self.eval_pred(pred)?);
                 }
                 Ok(refinement(refine.var, *refine.t, preds))
             }
@@ -464,144 +533,137 @@ impl Evaluator {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.
                 let lhs = match *lhs {
+                    Type::FreeVar(fv) if fv.is_linked() => {
+                        self.eval_t_params(mono_proj(fv.crack().clone(), rhs.clone()), level)?
+                    }
                     Type::FreeVar(fv) if fv.is_unbound() => {
                         fv.lift();
-                        ctx.deref_tyvar(Type::FreeVar(fv))?
+                        self.deref_tyvar(Type::FreeVar(fv))?
                     }
-                    _ => *lhs,
+                    other => other,
                 };
-                for (_ty, ty_ctx) in ctx.rec_get_nominal_super_type_ctxs(&lhs) {
-                    if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &ctx.name) {
+                for (_ty, ty_ctx) in self
+                    .rec_get_nominal_super_type_ctxs(&lhs)
+                    .ok_or_else(|| todo!("{lhs}"))?
+                {
+                    if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                            let t = subst_ctx.substitute(*quant_t, ty_ctx, level, ctx)?;
-                            let t = self.eval_t_params(t, ctx, level)?;
+                            let t =
+                                subst_ctx.substitute(quant_t.typ().clone(), ty_ctx, level, self)?;
+                            let t = self.eval_t_params(t, level)?;
                             return Ok(t);
                         } else {
                             todo!()
                         }
                     }
                 }
-                if let Some(outer) = &ctx.outer {
-                    self.eval_t_params(mono_proj(lhs, rhs), outer, level)
+                if let Some(outer) = self.outer.as_ref() {
+                    outer.eval_t_params(mono_proj(lhs, rhs), level)
                 } else {
                     todo!(
                         "{lhs}.{rhs} not found in [{}]",
                         erg_common::fmt_iter(
-                            ctx.rec_get_nominal_super_type_ctxs(&lhs)
+                            self.rec_get_nominal_super_type_ctxs(&lhs)
+                                .unwrap()
                                 .map(|(_, ctx)| &ctx.name)
                         )
                     )
                 }
             }
-            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, ctx, level)?)),
-            Type::RefMut(l) => Ok(ref_mut(self.eval_t_params(*l, ctx, level)?)),
-            Type::PolyClass { name, mut params } => {
-                for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p), ctx)?;
-                }
-                Ok(poly_class(name, params))
+            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
+            Type::RefMut { before, after } => {
+                let before = self.eval_t_params(*before, level)?;
+                let after = if let Some(after) = after {
+                    Some(self.eval_t_params(*after, level)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(before, after))
             }
-            Type::PolyTrait { name, mut params } => {
+            Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p), ctx)?;
+                    *p = self.eval_tp(&mem::take(p))?;
                 }
-                Ok(poly_trait(name, params))
+                Ok(poly(name, params))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
         }
     }
 
-    pub(crate) fn _eval_bound(
-        &self,
-        bound: TyBound,
-        ctx: &Context,
-        level: usize,
-    ) -> EvalResult<TyBound> {
+    pub(crate) fn _eval_bound(&self, bound: TyBound, level: usize) -> EvalResult<TyBound> {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
-                let sub = self.eval_t_params(sub, ctx, level)?;
-                let mid = self.eval_t_params(mid, ctx, level)?;
-                let sup = self.eval_t_params(sup, ctx, level)?;
+                let sub = self.eval_t_params(sub, level)?;
+                let mid = self.eval_t_params(mid, level)?;
+                let sup = self.eval_t_params(sup, level)?;
                 Ok(TyBound::sandwiched(sub, mid, sup))
             }
             TyBound::Instance { name: inst, t } => {
-                Ok(TyBound::instance(inst, self.eval_t_params(t, ctx, level)?))
+                Ok(TyBound::instance(inst, self.eval_t_params(t, level)?))
             }
         }
     }
 
-    pub(crate) fn eval_pred(&self, p: Predicate, ctx: &Context) -> EvalResult<Predicate> {
+    pub(crate) fn eval_pred(&self, p: Predicate) -> EvalResult<Predicate> {
         match p {
             Predicate::Value(_) | Predicate::Const(_) => Ok(p),
-            Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(&rhs, ctx)?)),
-            Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(&rhs, ctx)?)),
-            Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(&rhs, ctx)?)),
-            Predicate::GreaterEqual { lhs, rhs } => {
-                Ok(Predicate::ge(lhs, self.eval_tp(&rhs, ctx)?))
-            }
-            Predicate::And(l, r) => Ok(Predicate::and(
-                self.eval_pred(*l, ctx)?,
-                self.eval_pred(*r, ctx)?,
-            )),
-            Predicate::Or(l, r) => Ok(Predicate::or(
-                self.eval_pred(*l, ctx)?,
-                self.eval_pred(*r, ctx)?,
-            )),
-            Predicate::Not(l, r) => Ok(Predicate::not(
-                self.eval_pred(*l, ctx)?,
-                self.eval_pred(*r, ctx)?,
-            )),
+            Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(&rhs)?)),
+            Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(&rhs)?)),
+            Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(&rhs)?)),
+            Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(&rhs)?)),
+            Predicate::And(l, r) => Ok(Predicate::and(self.eval_pred(*l)?, self.eval_pred(*r)?)),
+            Predicate::Or(l, r) => Ok(Predicate::or(self.eval_pred(*l)?, self.eval_pred(*r)?)),
+            Predicate::Not(l, r) => Ok(Predicate::not(self.eval_pred(*l)?, self.eval_pred(*r)?)),
         }
     }
 
-    pub(crate) fn get_tp_t(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
-        let p = self.eval_tp(p, ctx)?;
+    pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
+        let p = self.eval_tp(p)?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
             TyParam::Value(v) => Ok(enum_t(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
-                if let Some(t) = fv.type_of() {
+                if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
                     todo!()
                 }
             }
+            // TODO: Class, Trait
             TyParam::Type(_) => Ok(Type::Type),
-            TyParam::Mono(name) => ctx
-                .consts
-                .get(&name)
+            TyParam::Mono(name) => self
+                .rec_get_const_obj(&name)
                 .map(|v| enum_t(set![v.clone()]))
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             TyParam::MonoQVar(name) => {
                 panic!("Not instantiated type variable: {name}")
             }
             TyParam::UnaryOp { op, val } => match op {
-                OpKind::Mutate => Ok(self.get_tp_t(&val, ctx)?.mutate()),
+                OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
                 _ => todo!(),
             },
             other => todo!("{other}"),
         }
     }
 
-    pub(crate) fn _get_tp_class(&self, p: &TyParam, ctx: &Context) -> EvalResult<Type> {
-        let p = self.eval_tp(p, ctx)?;
+    pub(crate) fn _get_tp_class(&self, p: &TyParam) -> EvalResult<Type> {
+        let p = self.eval_tp(p)?;
         match p {
             TyParam::Value(v) => Ok(v.class()),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
-                if let Some(t) = fv.type_of() {
+                if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
                     todo!()
                 }
             }
             TyParam::Type(_) => Ok(Type::Type),
-            TyParam::Mono(name) => ctx
-                .consts
-                .get(&name)
+            TyParam::Mono(name) => self
+                .rec_get_const_obj(&name)
                 .map(|v| v.class())
                 .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
             other => todo!("{other}"),
@@ -609,7 +671,7 @@ impl Evaluator {
     }
 
     /// NOTE: lとrが型の場合はContextの方で判定する
-    pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam, ctx: &Context) -> bool {
+    pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::Value(l), TyParam::Value(r)) => l == r,
@@ -618,7 +680,9 @@ impl Evaluator {
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if l == r {
                     true
-                } else if let (Some(l), Some(r)) = (ctx.consts.get(l), ctx.consts.get(r)) {
+                } else if let (Some(l), Some(r)) =
+                    (self.rec_get_const_obj(l), self.rec_get_const_obj(r))
+                {
                     l == r
                 } else {
                     // lとrが型の場合は...
@@ -629,7 +693,7 @@ impl Evaluator {
             (TyParam::UnaryOp { .. }, TyParam::UnaryOp { .. }) => todo!(),
             (TyParam::App { .. }, TyParam::App { .. }) => todo!(),
             (TyParam::Mono(m), TyParam::Value(l)) | (TyParam::Value(l), TyParam::Mono(m)) => {
-                if let Some(o) = ctx.consts.get(m) {
+                if let Some(o) = self.rec_get_const_obj(m) {
                     o == l
                 } else {
                     true

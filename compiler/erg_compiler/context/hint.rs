@@ -10,7 +10,7 @@ impl Context {
             if fv.is_linked() {
                 fv.crack().clone()
             } else {
-                let (_sub, sup) = fv.crack_bound_types().unwrap();
+                let (_sub, sup) = fv.get_bound_types().unwrap();
                 sup
             }
         } else {

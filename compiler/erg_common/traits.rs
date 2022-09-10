@@ -119,6 +119,13 @@ pub trait Stream<T>: Sized {
     fn take_all(&mut self) -> Vec<T> {
         self.ref_mut_payload().drain(..).collect()
     }
+
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        self.ref_mut_payload().extend(iter);
+    }
 }
 
 #[macro_export]
@@ -400,7 +407,10 @@ pub trait Locational {
 
     fn ln_begin(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair { ln_begin, .. }
+            Location::RangePair {
+                ln_first: (ln_begin, _),
+                ..
+            }
             | Location::Range { ln_begin, .. }
             | Location::LineRange(ln_begin, _) => Some(ln_begin),
             Location::Line(lineno) => Some(lineno),
@@ -410,7 +420,10 @@ pub trait Locational {
 
     fn ln_end(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair { ln_end, .. }
+            Location::RangePair {
+                ln_second: (_, ln_end),
+                ..
+            }
             | Location::Range { ln_end, .. }
             | Location::LineRange(_, ln_end) => Some(ln_end),
             Location::Line(lineno) => Some(lineno),

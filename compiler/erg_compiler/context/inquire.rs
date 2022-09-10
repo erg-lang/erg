@@ -1,7 +1,7 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::ErrorCore;
+use erg_common::error::{ErrorCore, ErrorKind};
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
@@ -11,16 +11,14 @@ use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
 use Type::*;
 
 use ast::VarName;
-use erg_parser::ast;
+use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{
-    class, func, mono_proj, poly_class, ref_, ref_mut, refinement, subr_t,
-};
+use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
+use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
+use erg_type::{HasType, ParamTy, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
 use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
@@ -72,6 +70,18 @@ impl Context {
                     })
                     .map(|(_, vi)| vi)
             })
+            .or_else(|| {
+                for (_, methods) in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_var(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
+    }
+
+    pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.locals.get_key_value(name)
     }
 
     fn get_context(
@@ -81,17 +91,17 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<&Context> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Local(name)) => {
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                 if kind == Some(ContextKind::Module) {
-                    if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+                    if let Some(ctx) = self.rec_get_mod(ident.inspect()) {
                         Ok(ctx)
                     } else {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,
                             obj.loc(),
                             namespace.clone(),
-                            name.inspect(),
-                            self.get_similar_name(name.inspect()),
+                            ident.inspect(),
+                            self.get_similar_name(ident.inspect()),
                         ))
                     }
                 } else {
@@ -119,9 +129,9 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &class("LambdaFunc"),
+                    &mono("LambdaFunc"),
                     t,
-                    self.get_type_mismatch_hint(&class("LambdaFunc"), t),
+                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
                 ));
             }
         }
@@ -184,37 +194,26 @@ impl Context {
         if let Some(ctx) = self.rec_get_mod(name.inspect()) {
             return Some(ctx.name.clone());
         }
+        if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
+            return Some(ctx.name.clone());
+        }
         None
     }
 
-    pub(crate) fn rec_get_var_t(
-        &self,
-        name: &Token,
-        vis: Visibility,
-        namespace: &Str,
-    ) -> TyCheckResult<Type> {
-        if let Some(vi) = self.get_current_scope_var(&name.inspect()[..]) {
-            if vi.vis == vis {
-                Ok(vi.t())
-            } else {
-                Err(TyCheckError::visibility_error(
-                    line!() as usize,
-                    name.loc(),
-                    namespace.clone(),
-                    name.inspect(),
-                    vi.vis,
-                ))
-            }
+    pub(crate) fn rec_get_var_t(&self, ident: &Identifier, namespace: &Str) -> TyCheckResult<Type> {
+        if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
+            self.validate_visibility(ident, vi, namespace)?;
+            Ok(vi.t())
         } else {
             if let Some(parent) = self.outer.as_ref() {
-                return parent.rec_get_var_t(name, vis, namespace);
+                return parent.rec_get_var_t(ident, namespace);
             }
             Err(TyCheckError::no_var_error(
                 line!() as usize,
-                name.loc(),
+                ident.loc(),
                 namespace.clone(),
-                name.inspect(),
-                self.get_similar_name(name.inspect()),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
             ))
         }
     }
@@ -222,43 +221,48 @@ impl Context {
     pub(crate) fn rec_get_attr_t(
         &self,
         obj: &hir::Expr,
-        name: &Token,
+        ident: &Identifier,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         let self_t = obj.t();
-        match self_t {
-            Type => todo!(),
-            Type::Record(rec) => {
-                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
-                if let Some(attr) = rec.get(&Field::new(Public, name.inspect().clone())) {
-                    return Ok(attr.clone());
-                } else {
-                    let t = Type::Record(rec);
-                    return Err(TyCheckError::no_attr_error(
-                        line!() as usize,
-                        name.loc(),
-                        namespace.clone(),
-                        &t,
-                        name.inspect(),
-                        self.get_similar_attr(&t, name.inspect()),
-                    ));
+        let name = ident.name.token();
+        match self.get_attr_t_from_attributive_t(obj, &self_t, ident, namespace) {
+            Ok(t) => {
+                return Ok(t);
+            }
+            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) => {
+                return Err(e);
+            }
+        }
+        if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
+            match singular_ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
                 }
             }
-            Module => {
-                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
-                let t = mod_ctx.rec_get_var_t(name, Public, namespace)?;
-                return Ok(t);
-            }
-            _ => {}
         }
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(&self_t) {
-            if let Ok(t) = ctx.rec_get_var_t(name, Public, namespace) {
-                return Ok(t);
+        for (_, ctx) in self
+            .rec_get_nominal_super_type_ctxs(&self_t)
+            .ok_or_else(|| todo!())?
+        {
+            match ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         // TODO: dependent type widening
         if let Some(parent) = self.outer.as_ref() {
-            parent.rec_get_attr_t(obj, name, namespace)
+            parent.rec_get_attr_t(obj, ident, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
@@ -271,26 +275,118 @@ impl Context {
         }
     }
 
+    fn get_attr_t_from_attributive_t(
+        &self,
+        obj: &hir::Expr,
+        t: &Type,
+        ident: &Identifier,
+        namespace: &Str,
+    ) -> TyCheckResult<Type> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.get_attr_t_from_attributive_t(obj, &fv.crack(), ident, namespace)
+            }
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                self.get_attr_t_from_attributive_t(obj, &sup, ident, namespace)
+            }
+            Type::Ref(t) => self.get_attr_t_from_attributive_t(obj, t, ident, namespace),
+            Type::RefMut { before, .. } => {
+                self.get_attr_t_from_attributive_t(obj, before, ident, namespace)
+            }
+            Type::Refinement(refine) => {
+                self.get_attr_t_from_attributive_t(obj, &refine.t, ident, namespace)
+            }
+            Type::Record(record) => {
+                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
+                if let Some(attr) = record.get(&Field::new(Public, ident.inspect().clone())) {
+                    Ok(attr.clone())
+                } else {
+                    let t = Type::Record(record.clone());
+                    Err(TyCheckError::no_attr_error(
+                        line!() as usize,
+                        ident.loc(),
+                        namespace.clone(),
+                        &t,
+                        ident.inspect(),
+                        self.get_similar_attr(&t, ident.inspect()),
+                    ))
+                }
+            }
+            Module => {
+                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
+                let t = mod_ctx.rec_get_var_t(ident, namespace)?;
+                Ok(t)
+            }
+            other => {
+                if let Some(v) = self.rec_get_const_obj(&other.name()) {
+                    match v {
+                        ValueObj::Type(TypeObj::Generated(gen)) => self
+                            .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
+                            .cloned()
+                            .ok_or_else(|| TyCheckError::dummy(line!() as usize)),
+                        ValueObj::Type(TypeObj::Builtin(_t)) => {
+                            // FIXME:
+                            Err(TyCheckError::dummy(line!() as usize))
+                        }
+                        other => todo!("{other}"),
+                    }
+                } else {
+                    Err(TyCheckError::dummy(line!() as usize))
+                }
+            }
+        }
+    }
+
     /// 戻り値ではなく、call全体の型を返す
     fn search_callee_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            for (_, ctx) in self.rec_get_nominal_super_type_ctxs(obj.ref_t()) {
-                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
-                    return Ok(vi.t());
-                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
+            for (_, ctx) in self
+                .rec_get_nominal_super_type_ctxs(obj.ref_t())
+                .ok_or_else(|| todo!())?
+            {
+                if let Some(vi) = ctx
+                    .locals
+                    .get(method_name.inspect())
+                    .or_else(|| ctx.decls.get(method_name.inspect()))
+                {
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
+                for (_, methods_ctx) in ctx.methods_list.iter() {
+                    if let Some(vi) = methods_ctx
+                        .locals
+                        .get(method_name.inspect())
+                        .or_else(|| methods_ctx.decls.get(method_name.inspect()))
+                    {
+                        self.validate_visibility(method_name, vi, namespace)?;
+                        return Ok(vi.t());
+                    }
+                }
             }
-            if let Some(ctx) = self.rec_get_singular_ctx(obj) {
-                if let Some(vi) = ctx.locals.get(method_name.inspect()) {
+            if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
+                if let Some(vi) = singular_ctx
+                    .locals
+                    .get(method_name.inspect())
+                    .or_else(|| singular_ctx.decls.get(method_name.inspect()))
+                {
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
-                } else if let Some(vi) = ctx.decls.get(method_name.inspect()) {
-                    return Ok(vi.t());
+                }
+                for (_, method_ctx) in singular_ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx
+                        .locals
+                        .get(method_name.inspect())
+                        .or_else(|| method_ctx.decls.get(method_name.inspect()))
+                    {
+                        self.validate_visibility(method_name, vi, namespace)?;
+                        return Ok(vi.t());
+                    }
                 }
                 return Err(TyCheckError::singular_no_attr_error(
                     line!() as usize,
@@ -316,6 +412,38 @@ impl Context {
         }
     }
 
+    fn validate_visibility(
+        &self,
+        ident: &Identifier,
+        vi: &VarInfo,
+        namespace: &str,
+    ) -> TyCheckResult<()> {
+        if ident.vis() != vi.vis {
+            Err(TyCheckError::visibility_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                vi.vis,
+            ))
+        // check if the private variable is loaded from the other scope
+        } else if vi.vis.is_private()
+            && &self.name[..] != "<builtins>"
+            && &self.name[..] != namespace
+            && !namespace.contains(&self.name[..])
+        {
+            Err(TyCheckError::visibility_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                Private,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     pub(crate) fn get_binop_t(
         &self,
         op: &Token,
@@ -325,14 +453,17 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 2);
         let cont = binop_to_dname(op.inspect());
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
-        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
+        let t = self.rec_get_var_t(
+            &Identifier::new(None, VarName::new(symbol.clone())),
+            namespace,
+        )?;
+        let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
-                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
-                let bin = hir::BinOp::new(op.name, lhs, rhs, op.t);
+                let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t);
                 // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                 let core = ErrorCore::new(
                     e.core.errno,
@@ -354,13 +485,16 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
-        let t = self.rec_get_var_t(&symbol, Private, namespace)?;
-        let op = hir::Expr::Accessor(hir::Accessor::local(symbol, t));
+        let t = self.rec_get_var_t(
+            &Identifier::new(None, VarName::new(symbol.clone())),
+            namespace,
+        )?;
+        let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
             .map_err(|e| {
-                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Local:(_)));
+                let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
-                let unary = hir::UnaryOp::new(op.name, expr, op.t);
+                let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t);
                 let core = ErrorCore::new(
                     e.core.errno,
                     e.core.kind,
@@ -374,15 +508,17 @@ impl Context {
 
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
-        if let Type::Subr(SubrType {
-            kind: SubrKind::ProcMethod {
-                after: Some(after), ..
-            },
-            ..
-        }) = t
-        {
-            log!(info "{}, {}", callee.ref_t(), after);
-            self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
+        if let Type::Subr(subr) = t {
+            if let Some(after) = subr.self_t().and_then(|self_t| {
+                if let RefMut { after, .. } = self_t {
+                    after.as_ref()
+                } else {
+                    None
+                }
+            }) {
+                log!(info "{}, {}", callee.ref_t(), after);
+                self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
+            }
         }
         Ok(())
     }
@@ -415,14 +551,14 @@ impl Context {
                     }
                 );
                 let (new_sub, new_sup) = (self.resolve_trait(sub)?, self.resolve_trait(sup)?);
-                let new_constraint = Constraint::sandwiched(new_sub, new_sup, cyclic);
+                let new_constraint = Constraint::new_sandwiched(new_sub, new_sup, cyclic);
                 fv.update_constraint(new_constraint);
                 Ok(Type::FreeVar(fv))
             }
-            Type::PolyTrait { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
+            Type::Poly { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
                 let t_name = name.clone();
                 let t_params = params.clone();
-                let maybe_trait = Type::PolyTrait { name, params };
+                let maybe_trait = Type::Poly { name, params };
                 let mut min = Type::Obj;
                 for pair in self.rec_get_trait_impls(&t_name) {
                     if self.rec_supertype_of(&pair.sup_trait, &maybe_trait) {
@@ -444,7 +580,7 @@ impl Context {
                             }
                         }
                     }
-                    Ok(poly_class(t_name, new_params))
+                    Ok(poly(t_name, new_params))
                 } else {
                     Ok(min)
                 }
@@ -491,9 +627,14 @@ impl Context {
                 let new_t = self.resolve_trait(*t)?;
                 Ok(ref_(new_t))
             }
-            Type::RefMut(t) => {
-                let new_t = self.resolve_trait(*t)?;
-                Ok(ref_mut(new_t))
+            Type::RefMut { before, after } => {
+                let new_before = self.resolve_trait(*before)?;
+                let new_after = if let Some(after) = after {
+                    Some(self.resolve_trait(*after)?)
+                } else {
+                    None
+                };
+                Ok(ref_mut(new_before, new_after))
             }
             Type::Callable { .. } => todo!(),
             Type::And(_, _) | Type::Or(_, _) | Type::Not(_, _) => todo!(),
@@ -511,15 +652,25 @@ impl Context {
     fn substitute_call(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<()> {
         match instance {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.substitute_call(obj, method_name, &fv.crack(), pos_args, kw_args)
+            }
+            Type::Refinement(refine) => {
+                self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
+            }
             Type::Subr(subr) => {
-                let callee = if let Some(name) = method_name {
-                    let attr = hir::Attribute::new(obj.clone(), name.clone(), Type::Ellipsis);
+                let callee = if let Some(ident) = method_name {
+                    let attr = hir::Attribute::new(
+                        obj.clone(),
+                        hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
+                        Type::Uninited,
+                    );
                     hir::Expr::Accessor(hir::Accessor::Attr(attr))
                 } else {
                     obj.clone()
@@ -539,12 +690,33 @@ impl Context {
                     ));
                 }
                 let mut passed_params = set! {};
-                if pos_args.len() >= subr.non_default_params.len() {
-                    let (non_default_args, var_args) =
-                        pos_args.split_at(subr.non_default_params.len());
-                    for (nd_arg, nd_param) in
-                        non_default_args.iter().zip(subr.non_default_params.iter())
+                let non_default_params_len = if method_name.is_some() {
+                    subr.non_default_params.len() - 1
+                } else {
+                    subr.non_default_params.len()
+                };
+                if pos_args.len() >= non_default_params_len {
+                    let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
+                    let non_default_params = if subr
+                        .non_default_params
+                        .first()
+                        .map(|p| p.name().map(|s| &s[..]) == Some("self"))
+                        .unwrap_or(false)
                     {
+                        let mut non_default_params = subr.non_default_params.iter();
+                        let self_pt = non_default_params.next().unwrap();
+                        self.sub_unify(
+                            obj.ref_t(),
+                            self_pt.typ(),
+                            Some(obj.loc()),
+                            None,
+                            self_pt.name(),
+                        )?;
+                        non_default_params
+                    } else {
+                        subr.non_default_params.iter()
+                    };
+                    for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
                         self.substitute_pos_arg(
                             &callee,
                             &nd_arg.expr,
@@ -608,7 +780,7 @@ impl Context {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 log!(err "errno: {}", e.core.errno);
                 // REVIEW:
-                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckError::type_mismatch_error(
                     line!() as usize,
@@ -649,7 +821,7 @@ impl Context {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 log!(err "errno: {}", e.core.errno);
                 // REVIEW:
-                let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckError::type_mismatch_error(
                     line!() as usize,
@@ -692,7 +864,7 @@ impl Context {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     log!(err "errno: {}", e.core.errno);
                     // REVIEW:
-                    let name = callee.var_full_name().unwrap_or_else(|| "".to_string());
+                    let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                     let name = name + "::" + readable_name(kw_name);
                     TyCheckError::type_mismatch_error(
                         line!() as usize,
@@ -719,21 +891,23 @@ impl Context {
     pub(crate) fn get_call_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Token>,
+        method_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Local(local)) if &local.inspect()[..] == "match" => {
-                return self.get_match_call_t(pos_args, kw_args)
+            hir::Expr::Accessor(hir::Accessor::Ident(local))
+                if local.vis().is_private() && &local.inspect()[..] == "match" =>
+            {
+                return self.get_match_call_t(pos_args, kw_args);
             }
             _ => {}
         }
         let found = self.search_callee_t(obj, method_name, namespace)?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
-            fmt_option!(pre ".", method_name.as_ref().map(|t| &t.content))
+            fmt_option!(pre ".", method_name.as_ref().map(|ident| &ident.name))
         );
         let instance = self.instantiate(found, obj)?;
         log!(
@@ -743,7 +917,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval.eval_t_params(instance, self, self.level)?;
+        let res = self.eval_t_params(instance, self.level)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -776,7 +950,10 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self
+            .rec_get_nominal_super_type_ctxs(self_t)
+            .ok_or_else(|| todo!())?
+        {
             if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }
@@ -832,7 +1009,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
-        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t) {
+        for (_, ctx) in self.rec_get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -942,49 +1119,40 @@ impl Context {
     pub(crate) fn rec_get_nominal_super_trait_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            ctx.super_traits.iter().map(|sup| {
-                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
-                (sup, sup_ctx)
-            })
-        } else {
-            todo!("{t} has no trait, or not a nominal type")
-        }
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+        let (_ctx_t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        Some(ctx.super_traits.iter().map(|sup| {
+            let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+            (sup, sup_ctx)
+        }))
     }
 
     pub(crate) fn rec_get_nominal_super_class_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
         // if `t` is {S: Str | ...}, `ctx_t` will be Str
         // else if `t` is Array(Int, 10), `ctx_t` will be Array(T, N) (if Array(Int, 10) is not specialized)
-        if let Some((_ctx_t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
-            // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
-            ctx.super_classes.iter().map(|sup| {
-                let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
-                (sup, sup_ctx)
-            })
-        } else {
-            todo!("{t} has no class, or not a nominal type")
-        }
+        let (_ctx_t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
+        // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
+        Some(ctx.super_classes.iter().map(|sup| {
+            let (_t, sup_ctx) = self.rec_get_nominal_type_ctx(sup).unwrap();
+            (sup, sup_ctx)
+        }))
     }
 
     pub(crate) fn rec_get_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> impl Iterator<Item = (&'a Type, &'a Context)> {
-        if let Some((t, ctx)) = self.rec_get_nominal_type_ctx(t) {
-            vec![(t, ctx)].into_iter().chain(
-                ctx.super_classes
-                    .iter()
-                    .chain(ctx.super_traits.iter())
-                    .map(|sup| self.rec_get_nominal_type_ctx(sup).unwrap()),
-            )
-        } else {
-            todo!("{t} not found")
-        }
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+        let (t, ctx) = self.rec_get_nominal_type_ctx(t)?;
+        let sups = ctx
+            .super_classes
+            .iter()
+            .chain(ctx.super_traits.iter())
+            .map(|sup| self.rec_get_nominal_type_ctx(sup).unwrap());
+        Some(vec![(t, ctx)].into_iter().chain(sups))
     }
 
     pub(crate) fn rec_get_nominal_type_ctx<'a>(
@@ -992,32 +1160,52 @@ impl Context {
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
         match typ {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                if let Some(res) = self.rec_get_nominal_type_ctx(&fv.crack()) {
+                    return Some(res);
+                }
+            }
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                if let Some(res) = self.rec_get_nominal_type_ctx(&sup) {
+                    return Some(res);
+                }
+            }
             Type::Refinement(refine) => {
-                return self.rec_get_nominal_type_ctx(&refine.t);
+                if let Some(res) = self.rec_get_nominal_type_ctx(&refine.t) {
+                    return Some(res);
+                }
             }
             Type::Quantified(_) => {
-                return self.rec_get_nominal_type_ctx(&class("QuantifiedFunction"));
+                if let Some(res) = self.rec_get_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                    return Some(res);
+                }
             }
-            Type::PolyClass { name, params: _ } => {
-                if let Some((t, ctx)) = self.poly_classes.get(name) {
+            Type::Poly { name, params: _ } => {
+                if let Some((t, ctx)) = self.rec_get_poly_type(name) {
                     return Some((t, ctx));
                 }
             }
-            Type::PolyTrait { name, params: _ } => {
-                if let Some((t, ctx)) = self.poly_traits.get(name) {
-                    return Some((t, ctx));
+            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+                // TODO: reference RecordType (inherits Type)
+                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
+                    return Some(res);
                 }
-            }
-            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                return self.rec_get_nominal_type_ctx(&Type)
-            }
+            }*/
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.mono_types.get(&typ.name()) {
+                if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
                     return Some((t, ctx));
                 }
             }
-            other => todo!("{other}"),
+            Type::Ref(t) | Type::RefMut { before: t, .. } => {
+                if let Some(res) = self.rec_get_nominal_type_ctx(t) {
+                    return Some(res);
+                }
+            }
+            other => {
+                log!("{other} has no nominal definition");
+            }
         }
         if let Some(outer) = &self.outer {
             outer.rec_get_nominal_type_ctx(typ)
@@ -1026,12 +1214,83 @@ impl Context {
         }
     }
 
+    pub(crate) fn rec_get_mut_nominal_type_ctx<'a>(
+        &'a mut self,
+        typ: &Type,
+    ) -> Option<(&'a Type, &'a mut Context)> {
+        // SAFETY: `rec_get_nominal_type_ctx` is called only when `self` is not borrowed
+        let outer = unsafe {
+            (&mut self.outer as *mut Option<Box<Context>>)
+                .as_mut()
+                .unwrap()
+        };
+        match typ {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&fv.crack()) {
+                    return Some(res);
+                }
+            }
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&sup) {
+                    return Some(res);
+                }
+            }
+            Type::Refinement(refine) => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&refine.t) {
+                    return Some(res);
+                }
+            }
+            Type::Quantified(_) => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                    return Some(res);
+                }
+            }
+            Type::Poly { name, params: _ } => {
+                if let Some((t, ctx)) = self.rec_get_mut_poly_type(name) {
+                    return Some((t, ctx));
+                }
+            }
+            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+                // TODO: reference RecordType (inherits Type)
+                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
+                    return Some(res);
+                }
+            }*/
+            // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
+            other if other.is_monomorphic() => {
+                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&other.name()) {
+                    return Some((t, ctx));
+                }
+            }
+            Type::Ref(t) | Type::RefMut { before: t, .. } => {
+                if let Some(res) = self.rec_get_mut_nominal_type_ctx(t) {
+                    return Some(res);
+                }
+            }
+            other => {
+                log!("{other} has no nominal definition");
+            }
+        }
+        if let Some(outer) = outer {
+            outer.rec_get_mut_nominal_type_ctx(typ)
+        } else {
+            None
+        }
+    }
+
     fn rec_get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
         match obj.ref_t() {
             // TODO: attr
-            Type::Module => self.rec_get_mod(&obj.var_full_name()?),
-            Type::Class => todo!(),
+            Type::Module => self.rec_get_mod(&obj.show_acc()?),
+            Type::Type | Type::Class => {
+                let typ = Type::Mono(Str::from(obj.show_acc().unwrap()));
+                self.rec_get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
+            }
             Type::Trait => todo!(),
+            Type::Refinement(refine) => {
+                self.rec_get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx)
+            }
             _ => None,
         }
     }
@@ -1072,8 +1331,14 @@ impl Context {
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
         if let Some(val) = self.consts.get(name) {
-            Some(val)
-        } else if let Some(outer) = &self.outer {
+            return Some(val);
+        }
+        for (_, ctx) in self.methods_list.iter() {
+            if let Some(val) = ctx.consts.get(name) {
+                return Some(val);
+            }
+        }
+        if let Some(outer) = &self.outer {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -1082,12 +1347,121 @@ impl Context {
 
     pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
-            return Some(impls);
-        }
-        if let Some(outer) = &self.outer {
+            Some(impls)
+        } else if let Some(outer) = &self.outer {
             outer.rec_get_const_param_defaults(name)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
+        if self.kind.is_method_def() || self.kind.is_type() {
+            // TODO: poly type
+            let name = self.name.split(&[':', '.']).last().unwrap();
+            let mono_t = mono(Str::rc(name));
+            if let Some((t, _)) = self.rec_get_nominal_type_ctx(&mono_t) {
+                Some(t.clone())
+            } else {
+                None
+            }
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_self_t()
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.mono_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_mono_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.poly_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_poly_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = self.outer.as_mut() {
+            outer.rec_get_mut_mono_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        if let Some((t, ctx)) = self.poly_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = self.outer.as_mut() {
+            outer.rec_get_mut_poly_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.mono_types.get(name) {
+            Some((t, ctx))
+        } else if let Some((t, ctx)) = self.poly_types.get(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = &self.outer {
+            outer.rec_get_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
+        match gen.require_or_sup.typ() {
+            Type::Record(rec) => {
+                if let Some(t) = rec.get(attr) {
+                    return Some(t);
+                }
+            }
+            other => {
+                let obj = self.rec_get_const_obj(&other.name());
+                let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
+                if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
+                    return Some(t);
+                }
+            }
+        }
+        if let Some(additional) = &gen.additional {
+            if let Type::Record(gen) = additional.typ() {
+                if let Some(t) = gen.get(attr) {
+                    return Some(t);
+                }
+            }
+        }
+        None
+    }
+
+    pub(crate) fn _is_class(&self, typ: &Type) -> bool {
+        if let Some((_, ctx)) = self.rec_get_nominal_type_ctx(typ) {
+            ctx.kind.is_class()
+        } else {
+            todo!()
+        }
+    }
+
+    pub(crate) fn is_trait(&self, typ: &Type) -> bool {
+        if let Some((_, ctx)) = self.rec_get_nominal_type_ctx(typ) {
+            ctx.kind.is_trait()
+        } else {
+            todo!()
         }
     }
 }
