@@ -261,7 +261,10 @@ impl ASTLowerer {
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
         self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
         for attr in record.attrs.into_iter() {
-            let attr = self.lower_def(attr)?;
+            let attr = self.lower_def(attr).map_err(|e| {
+                self.pop_append_errs();
+                e
+            })?;
             hir_record.push(attr);
         }
         self.pop_append_errs();
@@ -271,21 +274,6 @@ impl ASTLowerer {
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
-            /*ast::Accessor::Local(local) => {
-                // `match` is an untypable special form
-                // `match`は型付け不可能な特殊形式
-                let (t, __name__) = if &local.inspect()[..] == "match" {
-                    (Type::Failure, None)
-                } else {
-                    (
-                        self.ctx
-                            .rec_get_var_t(&local.symbol, &self.ctx.name)?,
-                        self.ctx.get_local_uniq_obj_name(&local.symbol),
-                    )
-                };
-                let acc = hir::Accessor::Local(hir::Local::new(local.symbol, __name__, t));
-                Ok(acc)
-            }*/
             ast::Accessor::Ident(ident) => {
                 let ident = self.lower_ident(ident)?;
                 let acc = hir::Accessor::Ident(ident);
@@ -324,6 +312,8 @@ impl ASTLowerer {
     }
 
     fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
+        // `match` is an untypable special form
+        // `match`は型付け不可能な特殊形式
         let (t, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
             (Type::Failure, None)
         } else {
@@ -491,20 +481,24 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
-        if let Some(name) = def.sig.name_as_str() {
-            self.ctx.grow(name, ContextKind::Instant, Private)?;
+        if def.body.block.len() >= 1 {
+            let name = if let Some(name) = def.sig.name_as_str() {
+                name
+            } else {
+                "<lambda>"
+            };
+            self.ctx.grow(name, ContextKind::Instant, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
                 ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
             };
             // TODO: Context上の関数に型境界情報を追加
             self.pop_append_errs();
-            res
-        } else {
-            match def.sig {
-                ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
-                ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
-            }
+            return res;
+        }
+        match def.sig {
+            ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
+            ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
         }
     }
 
@@ -626,10 +620,16 @@ impl ASTLowerer {
                         def.sig.ln_begin().unwrap(),
                         def.sig.col_begin().unwrap(),
                     ));
-                    let def = self.lower_def(def)?;
+                    let def = self.lower_def(def).map_err(|e| {
+                        self.pop_append_errs();
+                        e
+                    })?;
                     public_methods.push(def);
                 } else {
-                    let def = self.lower_def(def)?;
+                    let def = self.lower_def(def).map_err(|e| {
+                        self.pop_append_errs();
+                        e
+                    })?;
                     private_methods.push(def);
                 }
             }

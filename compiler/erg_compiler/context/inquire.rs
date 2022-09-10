@@ -199,7 +199,7 @@ impl Context {
 
     pub(crate) fn rec_get_var_t(&self, ident: &Identifier, namespace: &Str) -> TyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
-            // self.validate_visibility(ident, vi, self)?;
+            self.validate_visibility(ident, vi, namespace)?;
             Ok(vi.t())
         } else {
             if let Some(parent) = self.outer.as_ref() {
@@ -233,16 +233,28 @@ impl Context {
             }
         }
         if let Some(singular_ctx) = self.rec_get_singular_ctx(obj) {
-            if let Ok(t) = singular_ctx.rec_get_var_t(ident, namespace) {
-                return Ok(t);
+            match singular_ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         for (_, ctx) in self
             .rec_get_nominal_super_type_ctxs(&self_t)
             .ok_or_else(|| todo!())?
         {
-            if let Ok(t) = ctx.rec_get_var_t(ident, namespace) {
-                return Ok(t);
+            match ctx.rec_get_var_t(ident, namespace) {
+                Ok(t) => {
+                    return Ok(t);
+                }
+                Err(e) if e.core.kind == ErrorKind::NameError => {}
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         // TODO: dependent type widening
@@ -340,7 +352,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, ctx)?;
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, methods_ctx) in ctx.method_defs.iter() {
@@ -349,7 +361,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| methods_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, ctx)?;
+                        self.validate_visibility(method_name, vi, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -360,7 +372,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| singular_ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, singular_ctx)?;
+                    self.validate_visibility(method_name, vi, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, method_ctx) in singular_ctx.method_defs.iter() {
@@ -369,7 +381,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| method_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, singular_ctx)?;
+                        self.validate_visibility(method_name, vi, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -401,7 +413,7 @@ impl Context {
         &self,
         ident: &Identifier,
         vi: &VarInfo,
-        ctx: &Context,
+        namespace: &str,
     ) -> TyCheckResult<()> {
         if ident.vis() != vi.vis {
             Err(TyCheckError::visibility_error(
@@ -413,13 +425,9 @@ impl Context {
             ))
         // check if the private variable is loaded from the other scope
         } else if vi.vis.is_private()
-            && self
-                .outer
-                .as_ref()
-                // TODO: also split with `.`
-                .map(|outer| outer.name.split("::"))
-                .map(|mut names| names.all(|name| name != &ctx.name[..]))
-                .unwrap_or(true)
+            && &self.name[..] != "<builtins>"
+            && &self.name[..] != namespace
+            && !namespace.contains(&self.name[..])
         {
             Err(TyCheckError::visibility_error(
                 line!() as usize,
@@ -1345,8 +1353,7 @@ impl Context {
     pub(crate) fn get_self_t(&self) -> Type {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
-            let name = self.name.split("::").last().unwrap();
-            let name = name.split(".").last().unwrap();
+            let name = self.name.split(&[':', '.']).last().unwrap();
             let mono_t = mono(Str::rc(name));
             if let Some((t, _)) = self.rec_get_nominal_type_ctx(&mono_t) {
                 t.clone()

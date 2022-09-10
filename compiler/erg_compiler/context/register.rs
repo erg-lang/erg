@@ -55,32 +55,22 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         match &sig.pat {
             ast::VarPattern::Ident(ident) => {
-                if sig.t_spec.is_none() && opt_t.is_none() {
-                    Err(TyCheckError::no_type_spec_error(
+                if self.registered(ident.inspect(), ident.is_const()) {
+                    return Err(TyCheckError::duplicate_decl_error(
                         line!() as usize,
                         sig.loc(),
                         self.caused_by(),
                         ident.inspect(),
-                    ))
-                } else {
-                    if self.registered(ident.inspect(), ident.is_const()) {
-                        return Err(TyCheckError::duplicate_decl_error(
-                            line!() as usize,
-                            sig.loc(),
-                            self.caused_by(),
-                            ident.inspect(),
-                        ));
-                    }
-                    let vis = ident.vis();
-                    let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-                    let sig_t =
-                        self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
-                    self.decls.insert(
-                        ident.name.clone(),
-                        VarInfo::new(sig_t, muty, vis, kind, None),
-                    );
-                    Ok(())
+                    ));
                 }
+                let vis = ident.vis();
+                let kind = id.map_or(VarKind::Declared, VarKind::Defined);
+                let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
+                self.decls.insert(
+                    ident.name.clone(),
+                    VarInfo::new(sig_t, muty, vis, kind, None),
+                );
+                Ok(())
             }
             _ => todo!(),
         }
