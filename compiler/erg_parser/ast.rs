@@ -597,6 +597,10 @@ impl RecordAttrs {
         self.0.iter()
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
+        self.0.iter_mut()
+    }
+
     pub fn into_iter(self) -> impl IntoIterator<Item = Def> {
         self.0.into_iter()
     }
@@ -2041,6 +2045,13 @@ impl VarSignature {
 
     pub const fn vis(&self) -> Visibility {
         self.pat.vis()
+    }
+
+    pub fn ident(&self) -> Option<&Identifier> {
+        match &self.pat {
+            VarPattern::Ident(ident) => Some(ident),
+            _ => None,
+        }
     }
 }
 

@@ -603,16 +603,13 @@ impl ASTLowerer {
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut private_methods = hir::RecordAttrs::empty();
         let mut public_methods = hir::RecordAttrs::empty();
-        for methods in class_def.methods_list.into_iter() {
+        for mut methods in class_def.methods_list.into_iter() {
             let class = self
                 .ctx
                 .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
             self.ctx
                 .grow(&class.name(), ContextKind::MethodDefs, Private)?;
-            for def in methods.defs.iter() {
-                self.ctx.preregister_def(def)?;
-            }
-            for mut def in methods.defs.into_iter() {
+            for def in methods.defs.iter_mut() {
                 if methods.vis.is(TokenKind::Dot) {
                     def.sig.ident_mut().unwrap().dot = Some(Token::new(
                         TokenKind::Dot,
@@ -620,6 +617,11 @@ impl ASTLowerer {
                         def.sig.ln_begin().unwrap(),
                         def.sig.col_begin().unwrap(),
                     ));
+                }
+                self.ctx.preregister_def(def)?;
+            }
+            for def in methods.defs.into_iter() {
+                if methods.vis.is(TokenKind::Dot) {
                     let def = self.lower_def(def).map_err(|e| {
                         self.pop_append_errs();
                         e

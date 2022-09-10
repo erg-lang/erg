@@ -746,6 +746,26 @@ impl ValueObj {
             _ => None,
         }
     }
+
+    pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
+        match self {
+            Self::Type(typ) => match typ {
+                TypeObj::Builtin(builtin) => todo!("{builtin}{attr}"),
+                TypeObj::Generated(gen) => match &gen.t {
+                    Type::Record(rec) => {
+                        let t = rec.get(attr)?;
+                        Some(ValueObj::builtin_t(t.clone()))
+                    }
+                    _ => None,
+                },
+            },
+            Self::Record(rec) => {
+                let v = rec.get(attr)?;
+                Some(v.clone())
+            }
+            _ => None,
+        }
+    }
 }
 
 pub mod value_set {

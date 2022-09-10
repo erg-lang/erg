@@ -6,7 +6,7 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 use erg_type::free::HasLevel;
 
-use ast::{DefId, VarName};
+use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
 
 use erg_type::constructors::{enum_t, func, func1, proc, ref_, ref_mut};
@@ -469,7 +469,7 @@ impl Context {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
-                    self.register_gen_const(__name__.unwrap(), obj);
+                    self.register_gen_const(def.sig.ident().unwrap(), obj);
                 } else {
                     let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
@@ -491,7 +491,7 @@ impl Context {
                     let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
-                self.register_gen_const(__name__.unwrap(), obj);
+                self.register_gen_const(sig.ident().unwrap(), obj);
             }
             _ => {}
         }
@@ -553,9 +553,9 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_gen_const(&mut self, name: &Str, obj: ValueObj) {
-        if self.rec_get_const_obj(name).is_some() {
-            panic!("already registered: {name}");
+    pub(crate) fn register_gen_const(&mut self, ident: &Identifier, obj: ValueObj) {
+        if self.rec_get_const_obj(ident.inspect()).is_some() {
+            panic!("already registered: {ident}");
         } else {
             match obj {
                 ValueObj::Type(t) => {
@@ -564,16 +564,16 @@ impl Context {
                 }
                 // TODO: not all value objects are comparable
                 other => {
-                    let id = DefId(get_hash(name));
+                    let id = DefId(get_hash(ident));
                     let vi = VarInfo::new(
                         enum_t(set! {other.clone()}),
                         Const,
-                        Private,
+                        ident.vis(),
                         VarKind::Defined(id),
                         None,
                     );
-                    self.consts.insert(VarName::from_str(Str::rc(name)), other);
-                    self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                    self.consts.insert(ident.name.clone(), other);
+                    self.locals.insert(ident.name.clone(), vi);
                 }
             }
         }
