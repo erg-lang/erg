@@ -20,10 +20,10 @@ use crate::ast::{
 use crate::token::{Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum BufIndex<'s> {
+enum BufIndex<'i> {
     Array(usize),
     Tuple(usize),
-    Record(&'s str),
+    Record(&'i Identifier),
 }
 
 #[derive(Debug)]
@@ -229,7 +229,7 @@ impl Desugarer {
                                 &mut new,
                                 rhs,
                                 &buf_name,
-                                BufIndex::Record(lhs.inspect()),
+                                BufIndex::Record(lhs),
                             );
                         }
                     }
@@ -245,7 +245,7 @@ impl Desugarer {
                                 &mut new,
                                 rhs,
                                 &buf_name,
-                                BufIndex::Record(lhs.inspect()),
+                                BufIndex::Record(lhs),
                             );
                         }
                     }
@@ -278,14 +278,7 @@ impl Desugarer {
             BufIndex::Array(n) => {
                 Accessor::subscr(obj, Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())))
             }
-            BufIndex::Record(attr) => {
-                let ident = Identifier::new(
-                    Some(Token::from_str(TokenKind::Dot, ".")),
-                    VarName::new(Token::symbol_with_line(attr, sig.ln_begin().unwrap())),
-                );
-                // TODO: visibility
-                Accessor::attr(obj, ident)
-            }
+            BufIndex::Record(attr) => Accessor::attr(obj, attr.clone()),
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);
@@ -327,7 +320,7 @@ impl Desugarer {
                         new_module,
                         rhs,
                         &buf_name,
-                        BufIndex::Record(lhs.inspect()),
+                        BufIndex::Record(lhs),
                     );
                 }
             }
@@ -341,7 +334,7 @@ impl Desugarer {
                         new_module,
                         rhs,
                         &buf_name,
-                        BufIndex::Record(lhs.inspect()),
+                        BufIndex::Record(lhs),
                     );
                 }
             }
