@@ -39,7 +39,12 @@ impl Runnable for LexerRunner {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        todo!()
+        let lexer = Lexer::from_str(self.input().read());
+        let ts = lexer
+            .lex()
+            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+        println!("{ts}");
+        Ok(())
     }
 
     fn eval(&mut self, src: Str) -> Result<String, LexerRunnerErrors> {
