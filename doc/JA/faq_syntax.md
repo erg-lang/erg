@@ -10,8 +10,9 @@ Erg 自身の仮想マシン (Dyne) で所有権 + [Perceus](https://www.microso
 
 LLVM では、WASM バックエンドは所有権 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) メモリ管理モデルを使用します
 
+バックエンドに関係なく、メモリ管理の違いにより、コードを変更する必要はありません
+
 __知らせ__：Ergが所有権システムを導入した動機は、Rustのような「GCに頼らないメモリ管理」のためではないからです。
-そもそも、現在のところErgはPythonバイトコードに落とし込まれる言語のため、結局GCは使用されます。
 Ergが所有権システムを導入した狙いは「可変状態の局所化」です。Ergでは、可変オブジェクトに所有権の概念がついています。
 これは、共有可変状態がバグの温床になりやすく、さらに型安全性まで侵害すること(詳しくは[こちら](../syntax/type/advanced/shared.md#共有参照SharedReference)を参照)をみての判断です。
 

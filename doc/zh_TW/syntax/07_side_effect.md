@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-我們一直忽略了解釋“！”的含義，但現在它的含義終于要揭曉了。 這個 `!` 表示這個對象是一個帶有“副作用”的“過程”。 過程是具有副作用的函數。
+我們一直忽略了解釋"！"的含義，但現在它的含義終于要揭曉了。 這個 `!` 表示這個對象是一個帶有"副作用"的"過程"。 過程是具有副作用的函數。
 
 ```python
 f x = print! x # EffectError: 不能為函數分配有副作用的對象
@@ -82,11 +82,11 @@ D = Class {i = Int}
 assert C == D # 類型錯誤：無法比較類
 ```
 
-言歸正傳：Erg 中“副作用”的準確定義是
+言歸正傳：Erg 中"副作用"的準確定義是
 
 * 訪問可變的外部信息。
 
-“外部”一般是指外部范圍； Erg 無法觸及的計算機資源和執行前/執行后的信息不包含在“外部”中。 “訪問”包括閱讀和寫作。
+"外部"一般是指外部范圍； Erg 無法觸及的計算機資源和執行前/執行后的信息不包含在"外部"中。 "訪問"包括閱讀和寫作。
 
 例如，考慮 `print!` 過程。 乍一看，`print!` 似乎沒有重寫任何變量。 但如果它是一個函數，它可以重寫外部變量，例如，使用如下代碼：
 
@@ -103,7 +103,7 @@ image = cam.shot!()
 n = ocr.read_num(image) # n = 3.141592
 ```
 
-將“camera”模塊視為為特定相機產品提供 API 的外部庫，將“ocr”視為用于 OCR(光學字符識別)的庫。
+將"camera"模塊視為為特定相機產品提供 API 的外部庫，將"ocr"視為用于 OCR(光學字符識別)的庫。
 直接的副作用是由 `cam.shot!()` 引起的，但顯然這些信息是從 `f` 泄露的。 因此，`print!` 本質上不可能是一個函數。
 
 然而，在某些情況下，您可能希望臨時檢查函數中的值，而不想為此目的在相關函數中添加 `!`。 在這種情況下，可以使用 `log` 函數。
@@ -116,7 +116,7 @@ print! "this will be printed immediately"
 # 這將在執行后打印
 ```
 
-如果沒有反饋給程序，或者換句話說，如果沒有外部對象可以使用內部信息，那么信息的“泄漏”是可以允許的。 只需要不“傳播”信息。
+如果沒有反饋給程序，或者換句話說，如果沒有外部對象可以使用內部信息，那么信息的"泄漏"是可以允許的。 只需要不"傳播"信息。
 
 <p align='center'>
     <a href='./06_operator.md'>上一頁</a> | <a href='./08_procedure.md'>下一頁</a>

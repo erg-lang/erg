@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-我们一直忽略了解释“！”的含义，但现在它的含义终于要揭晓了。 这个 `!` 表示这个对象是一个带有“副作用”的“过程”。 过程是具有副作用的函数。
+我们一直忽略了解释"！"的含义，但现在它的含义终于要揭晓了。 这个 `!` 表示这个对象是一个带有"副作用"的"过程"。 过程是具有副作用的函数。
 
 ```python
 f x = print! x # EffectError: 不能为函数分配有副作用的对象
@@ -82,11 +82,11 @@ D = Class {i = Int}
 assert C == D # 类型错误：无法比较类
 ```
 
-言归正传：Erg 中“副作用”的准确定义是
+言归正传：Erg 中"副作用"的准确定义是
 
 * 访问可变的外部信息。
 
-“外部”一般是指外部范围； Erg 无法触及的计算机资源和执行前/执行后的信息不包含在“外部”中。 “访问”包括阅读和写作。
+"外部"一般是指外部范围； Erg 无法触及的计算机资源和执行前/执行后的信息不包含在"外部"中。 "访问"包括阅读和写作。
 
 例如，考虑 `print!` 过程。 乍一看，`print!` 似乎没有重写任何变量。 但如果它是一个函数，它可以重写外部变量，例如，使用如下代码：
 
@@ -103,7 +103,7 @@ image = cam.shot!()
 n = ocr.read_num(image) # n = 3.141592
 ```
 
-将“camera”模块视为为特定相机产品提供 API 的外部库，将“ocr”视为用于 OCR(光学字符识别)的库。
+将"camera"模块视为为特定相机产品提供 API 的外部库，将"ocr"视为用于 OCR(光学字符识别)的库。
 直接的副作用是由 `cam.shot!()` 引起的，但显然这些信息是从 `f` 泄露的。 因此，`print!` 本质上不可能是一个函数。
 
 然而，在某些情况下，您可能希望临时检查函数中的值，而不想为此目的在相关函数中添加 `!`。 在这种情况下，可以使用 `log` 函数。
@@ -116,7 +116,7 @@ print! "this will be printed immediately"
 # 这将在执行后打印
 ```
 
-如果没有反馈给程序，或者换句话说，如果没有外部对象可以使用内部信息，那么信息的“泄漏”是可以允许的。 只需要不“传播”信息。
+如果没有反馈给程序，或者换句话说，如果没有外部对象可以使用内部信息，那么信息的"泄漏"是可以允许的。 只需要不"传播"信息。
 
 <p align='center'>
     <a href='./06_operator.md'>上一页</a> | <a href='./08_procedure.md'>下一页</a>

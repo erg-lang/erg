@@ -1,6 +1,6 @@
 # Kind
 
-Everything is typed in Erg. Types themselves are no exception. __kind__ represents the “type of type”. For example, `Int` belongs to `Type`, just as `1` belongs to `Int`. `Type` is the simplest kind, the __atomic kind__. In type-theoretic notation, `Type` corresponds to `*`.
+Everything is typed in Erg. Types themselves are no exception. __kind__ represents the "type of type". For example, `Int` belongs to `Type`, just as `1` belongs to `Int`. `Type` is the simplest kind, the __atomic kind__. In type-theoretic notation, `Type` corresponds to `*`.
 
 In the concept of kind, what is practically important is one or more kinds (multinomial kind). One-term kind, for example `Option`, belongs to it. A unary kind is represented as `Type -> Type` [<sup id="f1">1</sup>](#1). A __container__ such as `Array` or `Option` is specifically a polynomial kind that takes a type as an argument.
 As the notation `Type -> Type` indicates, `Option` is actually a function that receives a type `T` and returns a type `Option T`. However, since this function is not a function in the usual sense, it is usually called the unary kind.

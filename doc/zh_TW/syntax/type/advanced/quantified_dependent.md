@@ -9,7 +9,7 @@ NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # 同 {S | N: Nat; S: StrWithLen N;
 NonEmptyArray = |N: Nat| [_; N | N > 0] # 同 {A | N: Nat; A: Array(_, N); N > 0}
 ```
 
-量化依賴類型的標準形式是“K(A, ... | Pred)”。 `K` 是類型構造函數，`A, B` 是類型參數，`Pred` 是條件表達式。
+量化依賴類型的標準形式是"K(A, ... | Pred)"。 `K` 是類型構造函數，`A, B` 是類型參數，`Pred` 是條件表達式。
 
 作為左值的量化依賴類型只能在與原始類型相同的模塊中定義方法。
 

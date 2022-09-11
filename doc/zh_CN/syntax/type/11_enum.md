@@ -65,7 +65,7 @@ ExtraStatus = Trait {"Ok", "Error", "Unknown"}
 
 方法也可以通过补丁添加。
 
-使用“或”运算符明确指示包含或向现有 Enum 类型添加选项。
+使用"或"运算符明确指示包含或向现有 Enum 类型添加选项。
 
 ```python
 ExtraStatus = Status or {"Unknown"}

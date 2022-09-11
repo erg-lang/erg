@@ -7,7 +7,7 @@
 ```python
 Particle!State: {"base", "excited"}! = Class(... Impl := Phantom State)
 Particle!
-    # 此方法将状态从“base”移动到“excited”
+    # 此方法将状态从"base"移动到"excited"
     apply_electric_field!(ref! self("base" ~> "excited"), field: Vector) = ...
 ```
 

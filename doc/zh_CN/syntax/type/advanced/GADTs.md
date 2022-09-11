@@ -17,7 +17,7 @@ List.
 {nil; cons; ...} = List
 
 print! cons(1, cons(2, nil())).head() # 1
-print! nil.head() # 运行时错误：“空list”
+print! nil.head() # 运行时错误："空list"
 ```
 
 我们说 `List.nil|T|() = ...` 而不是 `List(T).nil() = ...` 的原因是我们在使用它时不需要指定类型。

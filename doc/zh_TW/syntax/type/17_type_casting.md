@@ -62,7 +62,7 @@ assert 1.into<Ratio>() == 1.0
 
 ## 向下轉型
 
-由于向下轉換通常是不安全的并且轉換方法很重要，我們改為實現“TryFrom.try_from”
+由于向下轉換通常是不安全的并且轉換方法很重要，我們改為實現"TryFrom.try_from"
 
 ```python
 IntTryFromFloat = Patch Int

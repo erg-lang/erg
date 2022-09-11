@@ -47,11 +47,11 @@
 Traceback (most recent call last):
   File "<stdin>", line 1, in <module
   File "<stdin>", line 3, in g
-类型错误：只能将str(不是“int”)连接到str
+类型错误：只能将str(不是"int")连接到str
 ```
 
 Erg 静态检查与父类的一致性。
-重写时必须给出“Override”装饰器，并且重写函数的类型必须是被重写函数类型的子类型。
+重写时必须给出"Override"装饰器，并且重写函数的类型必须是被重写函数类型的子类型。
 
 ```python
 >>> C = Class()
@@ -61,7 +61,7 @@ Erg 静态检查与父类的一致性。
 >>> D = Inherit C
 ...   .f self = "a"
 ...
-错误[#XX]：文件“<stdin>”，第 5 行，在 D 中
+错误[#XX]：文件"<stdin>"，第 5 行，在 D 中
 要覆盖 f，必须添加 `Override` 装饰器，其类型必须是 `Self.() -> Nat` 或其子类型
 f(self) 已在 C 中定义。要覆盖 f，必须添加 `Override` 装饰器，其类型必须为 `Self. 要覆盖，必须给它一个 `Override` 装饰器，并且它的类型必须是 `Self.() -> Nat` 或 that.f(self) 的子类型。
 ```

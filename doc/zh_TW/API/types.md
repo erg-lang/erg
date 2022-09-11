@@ -38,7 +38,7 @@
 ## 對象系統
 
 Trait 類相當于 Python 中的 ABC(抽象基類，接口)
-實例屬于1、True、“aaa”等。
+實例屬于1、True、"aaa"等。
 類是 Int、Bool、Str 等。
 
 ### 類型

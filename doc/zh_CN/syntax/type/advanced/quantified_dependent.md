@@ -9,7 +9,7 @@ NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # 同 {S | N: Nat; S: StrWithLen N;
 NonEmptyArray = |N: Nat| [_; N | N > 0] # 同 {A | N: Nat; A: Array(_, N); N > 0}
 ```
 
-量化依赖类型的标准形式是“K(A, ... | Pred)”。 `K` 是类型构造函数，`A, B` 是类型参数，`Pred` 是条件表达式。
+量化依赖类型的标准形式是"K(A, ... | Pred)"。 `K` 是类型构造函数，`A, B` 是类型参数，`Pred` 是条件表达式。
 
 作为左值的量化依赖类型只能在与原始类型相同的模块中定义方法。
 

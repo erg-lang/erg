@@ -18,7 +18,7 @@ for! 0..9, i =>
 for!: |T: Type, I <: Iterable T| (I, T => None) => None
 ```
 
-第一个参数似乎接受“Iterable”类型的对象。
+第一个参数似乎接受"Iterable"类型的对象。
 
 `Iterable` 是一个具有`.Iterator` 属性的类型，`.iter` 方法在request 方法中。
 
@@ -43,7 +43,7 @@ log (1..3).iter() # <Range迭代器对象>
 
 `ArrayIterator` 和 `RangeIterator` 都是实现 `Iterator` 的类，它们的存在只是为了提供 `Array` 和 `Range` 迭代函数。
 这种设计模式称为伴生类 [<sup id="f1">1</sup>](#1)。
-而“IteratorImpl”补丁是迭代功能的核心。 `Iterator` 只需要一个`.next` 方法，`IteratorImpl` 确实提供了几十种方法。 `ArrayIterator`和`RangeIterator`只需实现`.next`方法就可以使用`IteratorImpl`的实现方法。 为了方便起见，标准库实现了许多迭代器。
+而"IteratorImpl"补丁是迭代功能的核心。 `Iterator` 只需要一个`.next` 方法，`IteratorImpl` 确实提供了几十种方法。 `ArrayIterator`和`RangeIterator`只需实现`.next`方法就可以使用`IteratorImpl`的实现方法。 为了方便起见，标准库实现了许多迭代器。
 
 ```mermaid
 classDiagram

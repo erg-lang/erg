@@ -23,7 +23,7 @@
 
 ## 3. 類型檢查和推斷，轉換 `AST` -> `HIR` (compiler/lower.rs)
 
-* `HIR` 有每個變量的類型信息。它是用于“高級中間表示”的。
+* `HIR` 有每個變量的類型信息。它是用于"高級中間表示"的。
 * `HIR` 只保存變量的類型，但這已經足夠了。在極端情況下，這是因為 Erg 只有轉換(或運算符)應用程序的參數對象。
 * `ASTLower` 可以用與`Parser` 和`Lexer` 相同的方式構造。
 * 如果沒有錯誤發生，`ASTLowerer::lower` 將輸出 `HIR` 和 `CompileWarnings` 的元組。

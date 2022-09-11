@@ -67,7 +67,7 @@ john: Named
 
 greet! n: Named =
     print! "Hello, I am {n.name}"
-john # “你好，我是约翰 print！
+john # "你好，我是约翰 print！
 
 Named.name # Str
 ```

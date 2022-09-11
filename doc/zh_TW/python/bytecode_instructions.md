@@ -35,7 +35,7 @@ stack.push(consts[namei])
 ```
 
 在常量表中加載常量。
-目前(Python 3.9)，在 CPython 中，每個 lambda 函數都是 MAKE_FUNCTION，名稱為“\<lambda\>”
+目前(Python 3.9)，在 CPython 中，每個 lambda 函數都是 MAKE_FUNCTION，名稱為"\<lambda\>"
 
 ```console
 >>> dis.dis("[1,2,3].map(lambda x: x+1)")

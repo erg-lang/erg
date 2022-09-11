@@ -95,9 +95,9 @@ Regarding the definition of rank, types that are not quantified, such as `Int`, 
 R0 = (Int or Str or Bool or ...) or (R0 -> R0) or K(R0)
 ```
 
-Next, types with first-order universal quantification, such as `|T| T -> T`, or types that include them in the return value type are “rank 1”.
-In addition, types with second-order universal quantification (types that have rank 1 types as arguments such as `(|T| T -> T) -> Int`) or types that include them in the return type are called "rank 2 ”.
-The above is repeated to define the “Rank N” type. Also, the rank-N types include all types with a rank of N or less. Therefore, a type with mixed ranks has the same rank as the highest among them.
+Next, types with first-order universal quantification, such as `|T| T -> T`, or types that include them in the return value type are "rank 1".
+In addition, types with second-order universal quantification (types that have rank 1 types as arguments such as `(|T| T -> T) -> Int`) or types that include them in the return type are called "rank 2 ".
+The above is repeated to define the "Rank N" type. Also, the rank-N types include all types with a rank of N or less. Therefore, a type with mixed ranks has the same rank as the highest among them.
 
 ```python
 R1 = (|...| R0) or (R0 -> R1) or K(R1) or R0

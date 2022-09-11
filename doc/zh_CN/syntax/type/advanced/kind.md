@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D14657486719a134f494e107774ac8f9d5a63f083)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=14657486719a134f494e107774ac8f9d5a63f083)
 
-一切都在 Erg 中输入。类型本身也不例外。 __kind__ 表示“类型的类型”。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。 `Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`。
+一切都在 Erg 中输入。类型本身也不例外。 __kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。 `Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`。
 
 在Kind的概念中，实际上重要的是一种或多种Kind(多项式Kind)。单项类型，例如`Option`，属于它。一元Kind表示为 `Type -> Type` [<sup id="f1">1</sup>](#1)。诸如 `Array` 或 `Option` 之类的 __container__ 特别是一种以类型作为参数的多项式类型。
 正如符号 `Type -> Type` 所表明的，`Option` 实际上是一个接收类型 `T` 并返回类型 `Option T` 的函数。但是，由于这个函数不是通常意义上的函数，所以通常称为一元类。
@@ -82,7 +82,7 @@ assert IntContainerOf in (Type -> Type) -> Type
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
-记录类型键入记录。 一个好的猜测者可能认为应该有一个“记录类型”来键入记录类型。 实际上它是存在的。
+记录类型键入记录。 一个好的猜测者可能认为应该有一个"记录类型"来键入记录类型。 实际上它是存在的。
 
 ```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}

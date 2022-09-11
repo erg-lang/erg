@@ -6,7 +6,7 @@
 
 ## `unsafe!`
 
-執行“不安全”過程。 就像 Rust 一樣，`Unsafe` API 不能直接調用，而是作為高階函數傳遞給這個過程。
+執行"不安全"過程。 就像 Rust 一樣，`Unsafe` API 不能直接調用，而是作為高階函數傳遞給這個過程。
 
 ```python
 unsound = import "unsound"

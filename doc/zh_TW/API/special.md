@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/special.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/special.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
 特殊形式是不能在 Erg 類型系統中表達的運算符、子程序(等等)。它被`包圍，但實際上無法捕獲。
-此外，為方便起見，還出現了“Pattern”、“Body”和“Conv”等類型，但不存在此類類型。它的含義也取決于上下文。
+此外，為方便起見，還出現了"Pattern"、"Body"和"Conv"等類型，但不存在此類類型。它的含義也取決于上下文。
 
 ## `=`(pat: Pattern, body: Body) -> NoneType
 
@@ -33,7 +33,7 @@ L = X: Int -> Class(...)
 print! L # <kind L>
 ```
 
-`=` 運算符的返回值為“未定義”。
+`=` 運算符的返回值為"未定義"。
 函數中的多個賦值和 `=` 會導致語法錯誤。
 
 ```python
@@ -103,7 +103,7 @@ match [1, 2, 3]:
 
 ## del(x: ...T) -> NoneType | T
 
-刪除變量“x”。但是，無法刪除內置對象。
+刪除變量"x"。但是，無法刪除內置對象。
 
 ```python
 a = 1

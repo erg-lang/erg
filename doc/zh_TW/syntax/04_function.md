@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-函數是一個塊，它接受一個“參數”，對其進行處理，并將其作為“返回值”返回。 定義如下。
+函數是一個塊，它接受一個"參數"，對其進行處理，并將其作為"返回值"返回。 定義如下。
 
 ```python
 add x, y = x + y
@@ -126,7 +126,7 @@ f x := 1, y := x = ... # NG
 輸出其參數的日志(記錄)的 `log` 函數可以采用任意數量的參數。
 
 ```python
-記錄“你好”、“世界”、“！” # 你好世界 ！
+記錄"你好"、"世界"、"！" # 你好世界 ！
 ```
 
 要定義這樣的函數，請將 `...` 添加到參數中。 這樣，函數將參數作為可變長度數組接收
@@ -158,7 +158,7 @@ fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)
 ```
 
-注意一個函數定義有多個模式不是所謂的重載(multiple definition)； 一個函數只有一個定義。 在上面的示例中，“n”必須與“0”或“1”屬于同一類型。 此外，與 `match` 一樣，模式匹配是從上到下完成的。
+注意一個函數定義有多個模式不是所謂的重載(multiple definition)； 一個函數只有一個定義。 在上面的示例中，"n"必須與"0"或"1"屬于同一類型。 此外，與 `match` 一樣，模式匹配是從上到下完成的。
 
 如果不同類的實例混合在一起，最后一個定義必須指定函數參數的類型為`Or`
 
@@ -190,7 +190,7 @@ fib 1 = 1
 
 遞歸函數是在其定義中包含自身的函數。
 
-作為一個簡單的例子，讓我們定義一個執行階乘計算的函數`factorial`。 階乘是“將所有小于或等于的正數相乘”的計算。
+作為一個簡單的例子，讓我們定義一個執行階乘計算的函數`factorial`。 階乘是"將所有小于或等于的正數相乘"的計算。
 5 的階乘是 `5*4*3*2*1 == 120`。
 
 ```python
@@ -214,7 +214,7 @@ factorial 1 = 1
 factorial n = n * factorial(n - 1)
 ```
 
-但是，即使您可以推理，您也應該明確指定遞歸函數的類型。 在上面的例子中，像“factorial(-1)”這樣的代碼可以工作，但是
+但是，即使您可以推理，您也應該明確指定遞歸函數的類型。 在上面的例子中，像"factorial(-1)"這樣的代碼可以工作，但是
 
 ```python
 factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...

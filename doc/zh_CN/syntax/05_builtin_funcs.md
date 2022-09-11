@@ -13,7 +13,7 @@ result: Option Int = if! Bool.sample!(), do:
 print! result # None (or 1)
 ```
 
-`.sample!()` 返回一组随机值。 如果返回值为真，`print! “真”`被执行。
+`.sample!()` 返回一组随机值。 如果返回值为真，`print! "真"`被执行。
 如果条件为假，您还可以指定要执行的操作； 第二个 do 块称为 else 块。
 
 ```python

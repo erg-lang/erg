@@ -9,7 +9,7 @@
 
 ## 你好，世界&excl;
 
-首先，讓我們做“Hello World”。
+首先，讓我們做"Hello World"。
 
 ```python
 print!("Hello, World!")
@@ -30,8 +30,8 @@ print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
 print! f x, y # NG, 可以理解為 `print!(f(x), y)` 或 `print!(f(x, y))` print!
-print!(f x, y) # NG, 可以表示“print！(f(x)，y)”或“print！(f(x，y))”
-print! f(x, g y, z) # NG, 可以表示“print！(x，g(y)，z)”或“print！(x，g(y，z))”
+print!(f x, y) # NG, 可以表示"print！(f(x)，y)"或"print！(f(x，y))"
+print! f(x, g y, z) # NG, 可以表示"print！(x，g(y)，z)"或"print！(x，g(y，z))"
 ```
 
 ## 腳本

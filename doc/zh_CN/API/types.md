@@ -38,7 +38,7 @@
 ## 对象系统
 
 Trait 类相当于 Python 中的 ABC(抽象基类，接口)
-实例属于1、True、“aaa”等。
+实例属于1、True、"aaa"等。
 类是 Int、Bool、Str 等。
 
 ### 类型

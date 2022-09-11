@@ -120,7 +120,7 @@ Foo.
 {Foo; ...} = import "foo"
 
 foo = Foo.new()
-foo.public() # 属性错误：“Foo”没有属性“public”(“public”在模块“bar”中定义)
+foo.public() # 属性错误："Foo"没有属性"public"("public"在模块"bar"中定义)
 ```
 
 此外，方法不能在要重新导出的类型中定义。

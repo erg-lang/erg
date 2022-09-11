@@ -47,21 +47,21 @@ assert mut_dict["Alice"] == 145
 キー・値の型は単一でなくてもよく、そのような辞書を __非等質な辞書(heterogenous dict)__ といいます。
 
 ```python
-d: {Str: Int, Int: Str} = {”a”: 1, 1: “a”}
-assert d[”a”] == 1
-assert d[1] == “a”
+d: {Str: Int, Int: Str} = {"a": 1, 1: "a"}
+assert d["a"] == 1
+assert d[1] == "a"
 ```
 
 しかし、違う型のキーに同じ型の値、または同じ型のキーに違う型の値をあてることはできません。
 このような場合は代わりにOr型(Union)を使います。
 
 ```python
-invalid1 = {1: “a”, “a”: “b”}
-invalid2 = {1: “a”, 2: 2}
+invalid1 = {1: "a", "a": "b"}
+invalid2 = {1: "a", 2: 2}
 
 # Ergの型推論はOr型を推論しないので、型指定が必要
-valid1: {Int or Str: Str} = {1: “a”, “a”: “b”}
-valid2: {Int: Int or Str} = {1: “a”, 2: 2}
+valid1: {Int or Str: Str} = {1: "a", "a": "b"}
+valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```
 
 <p align='center'>

@@ -120,7 +120,7 @@ Foo.
 {Foo; ...} = import "foo"
 
 foo = Foo.new()
-foo.public() # 屬性錯誤：“Foo”沒有屬性“public”(“public”在模塊“bar”中定義)
+foo.public() # 屬性錯誤："Foo"沒有屬性"public"("public"在模塊"bar"中定義)
 ```
 
 此外，方法不能在要重新導出的類型中定義。

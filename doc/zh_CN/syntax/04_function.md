@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-函数是一个块，它接受一个“参数”，对其进行处理，并将其作为“返回值”返回。 定义如下。
+函数是一个块，它接受一个"参数"，对其进行处理，并将其作为"返回值"返回。 定义如下。
 
 ```python
 add x, y = x + y
@@ -126,7 +126,7 @@ f x := 1, y := x = ... # NG
 输出其参数的日志(记录)的 `log` 函数可以采用任意数量的参数。
 
 ```python
-记录“你好”、“世界”、“！” # 你好世界 ！
+记录"你好"、"世界"、"！" # 你好世界 ！
 ```
 
 要定义这样的函数，请将 `...` 添加到参数中。 这样，函数将参数作为可变长度数组接收
@@ -158,7 +158,7 @@ fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)
 ```
 
-注意一个函数定义有多个模式不是所谓的重载(multiple definition)； 一个函数只有一个定义。 在上面的示例中，“n”必须与“0”或“1”属于同一类型。 此外，与 `match` 一样，模式匹配是从上到下完成的。
+注意一个函数定义有多个模式不是所谓的重载(multiple definition)； 一个函数只有一个定义。 在上面的示例中，"n"必须与"0"或"1"属于同一类型。 此外，与 `match` 一样，模式匹配是从上到下完成的。
 
 如果不同类的实例混合在一起，最后一个定义必须指定函数参数的类型为`Or`
 
@@ -190,7 +190,7 @@ fib 1 = 1
 
 递归函数是在其定义中包含自身的函数。
 
-作为一个简单的例子，让我们定义一个执行阶乘计算的函数`factorial`。 阶乘是“将所有小于或等于的正数相乘”的计算。
+作为一个简单的例子，让我们定义一个执行阶乘计算的函数`factorial`。 阶乘是"将所有小于或等于的正数相乘"的计算。
 5 的阶乘是 `5*4*3*2*1 == 120`。
 
 ```python
@@ -214,7 +214,7 @@ factorial 1 = 1
 factorial n = n * factorial(n - 1)
 ```
 
-但是，即使您可以推理，您也应该明确指定递归函数的类型。 在上面的例子中，像“factorial(-1)”这样的代码可以工作，但是
+但是，即使您可以推理，您也应该明确指定递归函数的类型。 在上面的例子中，像"factorial(-1)"这样的代码可以工作，但是
 
 ```python
 factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
