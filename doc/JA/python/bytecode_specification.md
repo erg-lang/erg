@@ -37,8 +37,8 @@
 
 ## PyStringObject
 
-* ascii以外の文字を使うとPyUnicodeになる？
-* "あ", "𠮷", "α"だとPyUnicodeになった(もう使われていない？)
+* ascii以外の文字を使うとPyUnicodeになる?
+* "あ", "𠮷", "α"だとPyUnicodeになった(もう使われていない?)
 
 * 0     byte: 0x73 (means 's')
 * 1~4   byte: length of string
@@ -53,7 +53,7 @@
 ## PyShortAsciiObject
 
 * shortと言っているが、100文字以上あってもこれになる
-* というかshortじゃないasciiはない(shortはデータ型？)
+* というかshortじゃないasciiはない(shortはデータ型?)
 
 * 0     byte: 0xFA (means 'z')
 * 1~4   byte: length of string

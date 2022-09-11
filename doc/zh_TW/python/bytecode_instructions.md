@@ -56,14 +56,14 @@ stack.push(consts[namei])
 fastlocals[namei] = stack.pop()
 可能對應于頂層的 STORE_NAME
 假定未引用(或單個)變量由此存儲
-全局空間有自己的指令是為了優化嗎？
+全局空間有自己的指令是為了優化嗎?
 
 ## LOAD_FAST(名稱索引)
 
 ```python
 stack.push(fastlocals[namei])
 ```
-fastlocals 是變量名嗎？
+fastlocals 是變量名嗎?
 
 ## LOAD_CLOSURE(名稱索引)
 

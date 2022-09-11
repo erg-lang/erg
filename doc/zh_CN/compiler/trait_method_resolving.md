@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/trait_method_resolving.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/trait_method_resolving.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
 `Nat` 是零个或多个`Int`，`Int` 的子类型。
-`Nat` 在 Python 类层次结构中不存在。 我想知道 Erg 是如何解决这个补丁方法的？
+`Nat` 在 Python 类层次结构中不存在。 我想知道 Erg 是如何解决这个补丁方法的?
 
 ```python
 1.times do:
@@ -19,7 +19,7 @@ Erg 在 `Int` 的 MRO 中有 `Int`、`Object`。它来自 Python(Python 中的`i
 
 整数显然应该在其超类型中包含实数、复数甚至整数，但这一事实并没有出现在 Python 兼容层中。
 然而，`1 in Complex` 和 `1 in Num` 在 Erg 中实际上是 `True`。
-至于`Complex`，即使是与`Int`没有继承关系的类，也被判断为类型兼容。这到底是怎么回事？
+至于`Complex`，即使是与`Int`没有继承关系的类，也被判断为类型兼容。这到底是怎么回事?
 
 ~
 
