@@ -56,7 +56,7 @@ stack.push(consts[namei])
 fastlocals[namei] = stack.pop()
 おそらくトップレベルにおけるSTORE_NAMEに対応する
 参照のない(もしくは単一)変数がこれによって格納されると思われる
-わざわざグローバル空間が独自の命令を持っているのは最適化のため？
+わざわざグローバル空間が独自の命令を持っているのは最適化のため?
 
 ## LOAD_FAST(namei)
 

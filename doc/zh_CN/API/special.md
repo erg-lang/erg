@@ -39,7 +39,7 @@ print! L # <kind L>
 ```python
 i = j = 1 # SyntaxError: 不允许多次赋值
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
-# 提示：您的意思是关键字参数(`x: 1`)吗？
+# 提示：您的意思是关键字参数(`x: 1`)吗?
 if True, do:
     i = 0 # SyntaxError: 块不能被赋值表达式终止
 ```

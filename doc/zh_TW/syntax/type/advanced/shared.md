@@ -16,7 +16,7 @@ normal_area.push(new NormalMember())
 console.log(vip_area) # [NormalMember]
 ```
 
-一個 NormalMember 已進入 vip_area。 這是一個明顯的錯誤，但是出了什么問題？
+一個 NormalMember 已進入 vip_area。 這是一個明顯的錯誤，但是出了什么問題?
 原因是共享引用 [denatured](./variance.md)。 `normal_area` 是通過復制 `vip_area` 來創建的，但是這樣做的時候類型已經改變了。
 但是 `VIPMember` 繼承自 `NormalMember`，所以 `VIPMember[] <: NormalMember[]`，這不是問題。
 關系 `VIPMember[] <: NormalMember[]` 適用于不可變對象。 但是，如果您執行上述破壞性操作，則會出現故障。

@@ -56,14 +56,14 @@ stack.push(consts[namei])
 fastlocals[namei] = stack.pop()
 可能对应于顶层的 STORE_NAME
 假定未引用(或单个)变量由此存储
-全局空间有自己的指令是为了优化吗？
+全局空间有自己的指令是为了优化吗?
 
 ## LOAD_FAST(名称索引)
 
 ```python
 stack.push(fastlocals[namei])
 ```
-fastlocals 是变量名吗？
+fastlocals 是变量名吗?
 
 ## LOAD_CLOSURE(名称索引)
 

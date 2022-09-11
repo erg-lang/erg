@@ -39,7 +39,7 @@ print! L # <kind L>
 ```python
 i = j = 1 # SyntaxError: 不允許多次賦值
 print!(x=1) # SyntaxError: cannot use `=` in function arguments
-# 提示：您的意思是關鍵字參數(`x: 1`)嗎？
+# 提示：您的意思是關鍵字參數(`x: 1`)嗎?
 if True, do:
     i = 0 # SyntaxError: 塊不能被賦值表達式終止
 ```
