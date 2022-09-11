@@ -201,6 +201,17 @@ fn is_python_global(name: &str) -> bool {
     )
 }
 
+fn is_fake_method(class: &str, name: &str) -> bool {
+    matches!(
+        (class, name),
+        (
+            "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
+            "abs"
+        ) | (_, "iter")
+            | (_, "map")
+    )
+}
+
 fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
     match (class, uniq_obj_name, &name[..]) {
         ("Array!", _, "push!") => Str::ever("append"),
@@ -1028,11 +1039,14 @@ impl CodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        if &method_name.inspect()[..] == "update!" {
-            return self.emit_call_update(obj, args);
-        }
         let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
+        log!("{class} {method_name}");
+        if &method_name.inspect()[..] == "update!" {
+            return self.emit_call_update(obj, args);
+        } else if is_fake_method(&class, method_name.inspect()) {
+            return self.emit_call_fake_method(obj, method_name, args);
+        }
         self.codegen_expr(obj);
         self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name)
             .unwrap_or_else(|err| {
@@ -1107,6 +1121,15 @@ impl CodeGenerator {
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
+    }
+
+    /// 1.abs() => abs(1)
+    fn emit_call_fake_method(&mut self, obj: Expr, mut method_name: Identifier, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        method_name.dot = None;
+        self.emit_load_name_instr(method_name).unwrap();
+        args.insert_pos(0, PosArg::new(obj));
+        self.emit_args(args, Name);
     }
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)

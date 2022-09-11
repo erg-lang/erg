@@ -280,6 +280,10 @@ impl Args {
             None
         }
     }
+
+    pub fn insert_pos(&mut self, idx: usize, pos: PosArg) {
+        self.pos_args.insert(idx, pos);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
