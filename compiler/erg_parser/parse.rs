@@ -914,6 +914,11 @@ impl Parser {
         ));
         loop {
             match self.peek() {
+                Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
+                    let args = self.try_reduce_args().map_err(|_| self.stack_dec())?;
+                    let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    stack.push(ExprOrOp::Expr(Expr::Call(Call::new(obj, None, args))));
+                }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
