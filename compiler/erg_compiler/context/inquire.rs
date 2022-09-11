@@ -1,7 +1,7 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::{ErrorCore, ErrorKind};
+use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::levenshtein::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
@@ -762,7 +762,29 @@ impl Context {
                 }
                 Ok(())
             }
-            other => todo!("{other}"),
+            other => {
+                if let Some(method_name) = method_name {
+                    Err(TyCheckError::type_mismatch_error(
+                        line!() as usize,
+                        Location::concat(obj, method_name),
+                        self.caused_by(),
+                        &(obj.to_string() + &method_name.to_string()),
+                        &mono("Callable"),
+                        other,
+                        None,
+                    ))
+                } else {
+                    Err(TyCheckError::type_mismatch_error(
+                        line!() as usize,
+                        obj.loc(),
+                        self.caused_by(),
+                        &obj.to_string(),
+                        &mono("Callable"),
+                        other,
+                        None,
+                    ))
+                }
+            }
         }
     }
 
