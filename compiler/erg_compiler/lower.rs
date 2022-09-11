@@ -577,6 +577,14 @@ impl ASTLowerer {
             } else {
                 "<lambda>"
             };
+            if self.ctx.registered(name, def.sig.is_const()) {
+                return Err(LowerError::reassign_error(
+                    line!() as usize,
+                    def.sig.loc(),
+                    self.ctx.caused_by(),
+                    name,
+                ));
+            }
             self.ctx.grow(name, ContextKind::Instant, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
