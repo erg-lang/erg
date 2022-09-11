@@ -367,7 +367,7 @@ fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
     col_begin: usize,
     col_end: usize,
 ) -> String {
-    let codes = if e.input() == &Input::REPL {
+    let codes = if e.input().is_repl() {
         vec![e.input().reread()]
     } else {
         e.input().reread_lines(ln_begin, ln_end)
@@ -524,7 +524,7 @@ pub trait ErrorDisplay {
                 col_end,
             } => format_code_and_pointer(self, ln_begin, ln_end, col_begin, col_end),
             Location::LineRange(ln_begin, ln_end) => {
-                let codes = if self.input() == &Input::REPL {
+                let codes = if self.input().is_repl() {
                     vec![self.input().reread()]
                 } else {
                     self.input().reread_lines(ln_begin, ln_end)
@@ -543,7 +543,7 @@ pub trait ErrorDisplay {
                 res + RESET
             }
             Location::Line(lineno) => {
-                let code = if self.input() == &Input::REPL {
+                let code = if self.input().is_repl() {
                     self.input().reread()
                 } else {
                     self.input().reread_lines(lineno, lineno).remove(0)
