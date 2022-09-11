@@ -215,8 +215,8 @@ fn is_fake_method(class: &str, name: &str) -> bool {
 fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
     match (class, uniq_obj_name, &name[..]) {
         ("Array!", _, "push!") => Str::ever("append"),
-        ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Real") => Str::ever("real"),
-        ("Complex" | "Real" | "Int" | "Nat" | "Float", _, "Imag") => Str::ever("imag"),
+        ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Real") => Str::ever("real"),
+        ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Imag") => Str::ever("imag"),
         (_, _, "__new__") => Str::ever("__call__"),
         ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
         ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
