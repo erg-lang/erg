@@ -4,7 +4,7 @@
 
 ## Erg メモリ管理モデル
 
-CPython バックエンド + Python メモリ管理モデルで所有権を使用します (ただし、Erg コードの循環参照は GC によって処理されません [詳細を参照](/syntax/18_ownership.md/#循環参照)
+CPython バックエンド + Python メモリ管理モデルで所有権を使用します (ただし、Erg コードの循環参照は GC によって処理されません [詳細を参照](syntax/18_ownership.md/#循環参照)
 
 Erg 自身の仮想マシン (Dyne) で所有権 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) メモリを使用する管理モデル、Erg コードが Python API を使用する場合、Erg コードはトラッキング ガベージ コレクション メモリ管理モデルを使用します
 
