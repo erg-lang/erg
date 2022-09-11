@@ -308,7 +308,8 @@ pub trait LimitedDisplay {
 
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
-    src.ends_with(&['=', ':']) || src.ends_with("->") || src.ends_with("=>")
+    let src = src.trim_end();
+    src.ends_with(&['.', '=', ':']) || src.ends_with("->") || src.ends_with("=>")
 }
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -363,8 +364,13 @@ pub trait Runnable: Sized {
                         log!(info_f output, "The REPL has finished successfully.\n");
                         process::exit(0);
                     }
-                    lines.push_str(&line);
-                    if expect_block(&line) || line.starts_with(' ') {
+                    let line = if let Some(comment_start) = line.find('#') {
+                        &line[..comment_start]
+                    } else {
+                        &line[..]
+                    };
+                    lines.push_str(line);
+                    if expect_block(line) || line.starts_with(' ') {
                         lines += "\n";
                         output.write_all(instance.ps2().as_bytes()).unwrap();
                         output.flush().unwrap();
