@@ -308,7 +308,8 @@ pub trait LimitedDisplay {
 
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
-    src.trim_end().ends_with(&['.', '=', ':']) || src.ends_with("->") || src.ends_with("=>")
+    let src = src.trim_end();
+    src.ends_with(&['.', '=', ':']) || src.ends_with("->") || src.ends_with("=>")
 }
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
