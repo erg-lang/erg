@@ -7,7 +7,7 @@
 A marker added to the end of an identifier to indicate that it is a procedure or variable type.
 Or the mutating operator.
 
-### [&#35;](../syntax/00_basic.md/# comment)
+### [&#35;](../syntax/00_basic.md/#comment)
 
 ### $
 
