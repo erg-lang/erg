@@ -8,6 +8,7 @@ use std::thread;
 use erg_common::config::ErgConfig;
 use erg_common::traits::Runnable;
 
+use erg_compiler::lower::ASTLowererRunner;
 use erg_compiler::Compiler;
 
 use erg_parser::lex::LexerRunner;
@@ -23,6 +24,9 @@ fn run() {
         }
         "parse" => {
             ParserRunner::run(cfg);
+        }
+        "lower" => {
+            ASTLowererRunner::run(cfg);
         }
         "compile" | "exec" => {
             Compiler::run(cfg);

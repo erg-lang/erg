@@ -82,7 +82,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    const fn new(ts: TokenStream) -> Self {
+    pub const fn new(ts: TokenStream) -> Self {
         Self {
             counter: DefId(0),
             level: 0,

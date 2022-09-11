@@ -1,15 +1,19 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
-use erg_common::error::Location;
-use erg_common::traits::{Locational, Stream};
+use erg_common::config::{ErgConfig, Input};
+use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
-
+use erg_parser::error::ParserRunnerErrors;
+use erg_parser::lex::Lexer;
 use erg_parser::token::{Token, TokenKind};
+use erg_parser::Parser;
+
 use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -17,9 +21,12 @@ use erg_type::value::{TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{Context, ContextKind, RegistrationMode};
-use crate::error::{LowerError, LowerErrors, LowerResult, LowerWarnings};
+use crate::error::{
+    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
+};
 use crate::hir;
 use crate::hir::HIR;
+use crate::link::Linker;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
@@ -51,12 +58,95 @@ macro_rules! check_inheritable {
     };
 }
 
+pub struct ASTLowererRunner {
+    cfg: ErgConfig,
+    lowerer: ASTLowerer,
+}
+
+impl Runnable for ASTLowererRunner {
+    type Err = CompileError;
+    type Errs = CompileErrors;
+    const NAME: &'static str = "Erg lowerer";
+
+    fn new(cfg: ErgConfig) -> Self {
+        Self {
+            cfg,
+            lowerer: ASTLowerer::new(),
+        }
+    }
+
+    #[inline]
+    fn input(&self) -> &Input {
+        &self.cfg.input
+    }
+
+    #[inline]
+    fn finish(&mut self) {}
+
+    fn clear(&mut self) {
+        self.lowerer.errs.clear();
+        self.lowerer.warns.clear();
+    }
+
+    fn exec(&mut self) -> Result<(), Self::Errs> {
+        let ts = Lexer::new(self.input().clone())
+            .lex()
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+        let ast = Parser::new(ts)
+            .parse(Str::ever(self.cfg.module))
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+        let linker = Linker::new();
+        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
+        let (hir, warns) = self
+            .lowerer
+            .lower(ast, "exec")
+            .map_err(|errs| self.convert(errs))?;
+        if self.cfg.verbose >= 2 {
+            let warns = self.convert(warns);
+            warns.fmt_all_stderr();
+        }
+        println!("{hir}");
+        Ok(())
+    }
+
+    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+        let ts = Lexer::new(Input::Str(src))
+            .lex()
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+        let ast = Parser::new(ts)
+            .parse(Str::ever(self.cfg.module))
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+        let linker = Linker::new();
+        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
+        let (hir, _) = self
+            .lowerer
+            .lower(ast, "eval")
+            .map_err(|errs| self.convert(errs))?;
+        Ok(format!("{hir}"))
+    }
+}
+
+impl ASTLowererRunner {
+    fn convert(&self, errs: LowerErrors) -> CompileErrors {
+        errs.into_iter()
+            .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
+            .collect::<Vec<_>>()
+            .into()
+    }
+}
+
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
     pub(crate) ctx: Context,
     errs: LowerErrors,
     warns: LowerWarnings,
+}
+
+impl Default for ASTLowerer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ASTLowerer {
@@ -804,11 +894,5 @@ impl ASTLowerer {
             log!(err "the AST lowering process has failed.");
             Err(LowerErrors::from(self.errs.take_all()))
         }
-    }
-}
-
-impl Default for ASTLowerer {
-    fn default() -> Self {
-        Self::new()
     }
 }
