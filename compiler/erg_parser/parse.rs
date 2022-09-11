@@ -914,6 +914,11 @@ impl Parser {
         ));
         loop {
             match self.peek() {
+                Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
+                    let args = self.try_reduce_args().map_err(|_| self.stack_dec())?;
+                    let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    stack.push(ExprOrOp::Expr(Expr::Call(Call::new(obj, None, args))));
+                }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
@@ -1051,8 +1056,12 @@ impl Parser {
                                 .map_err(|_| self.stack_dec())?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
-                                let call = Call::new(obj, Some(ident), args);
-                                stack.push(ExprOrOp::Expr(Expr::Call(call)));
+                                let mut call = Expr::Call(Call::new(obj, Some(ident), args));
+                                while let Some(res) = self.opt_reduce_args() {
+                                    let args = res.map_err(|_| self.stack_dec())?;
+                                    call = Expr::Call(Call::new(call, None, args));
+                                }
+                                stack.push(ExprOrOp::Expr(call));
                             } else {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
                                 let acc = Accessor::attr(obj, ident);
@@ -1399,9 +1408,14 @@ impl Parser {
                 Accessor::Ident(ident) => (Expr::Accessor(Accessor::Ident(ident)), None),
                 _ => todo!(),
             };
-            let call = Call::new(obj, method_name, args);
+            let mut call = Expr::Call(Call::new(obj, method_name, args));
+            // e.g. f(x) g(x) == f(x)(g(x))
+            while let Some(res) = self.opt_reduce_args() {
+                let args = res.map_err(|_| self.stack_dec())?;
+                call = Expr::Call(Call::new(call, None, args));
+            }
             self.level -= 1;
-            Ok(Expr::Call(call))
+            Ok(call)
         } else {
             self.level -= 1;
             Ok(Expr::Accessor(acc))
