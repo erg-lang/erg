@@ -25,24 +25,29 @@ use Visibility::*;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
-    pub(crate) fn registered(&self, name: &str, is_const: bool) -> bool {
-        if self.params.iter().any(|(maybe_name, _)| {
+    pub(crate) fn registered_info(
+        &self,
+        name: &str,
+        is_const: bool,
+    ) -> Option<(&VarName, &VarInfo)> {
+        if let Some((name, vi)) = self.params.iter().find(|(maybe_name, _)| {
             maybe_name
                 .as_ref()
                 .map(|n| &n.inspect()[..] == name)
                 .unwrap_or(false)
-        }) || self.locals.contains_key(name)
-        {
-            return true;
+        }) {
+            return Some((name.as_ref().unwrap(), vi));
+        } else if let Some((name, vi)) = self.locals.get_key_value(name) {
+            return Some((name, vi));
         }
         if is_const {
             if let Some(outer) = &self.outer {
-                outer.registered(name, is_const)
+                outer.registered_info(name, is_const)
             } else {
-                false
+                None
             }
         } else {
-            false
+            None
         }
     }
 
@@ -55,22 +60,23 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap()[..]);
         match &sig.pat {
             ast::VarPattern::Ident(ident) => {
-                if self.registered(ident.inspect(), ident.is_const()) {
-                    return Err(TyCheckError::duplicate_decl_error(
-                        line!() as usize,
-                        sig.loc(),
-                        self.caused_by(),
-                        ident.inspect(),
-                    ));
-                }
                 let vis = ident.vis();
                 let kind = id.map_or(VarKind::Declared, VarKind::Defined);
                 let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
-                self.decls.insert(
-                    ident.name.clone(),
-                    VarInfo::new(sig_t, muty, vis, kind, None),
-                );
-                Ok(())
+                if let Some(_decl) = self.decls.remove(&ident.name) {
+                    Err(TyCheckError::duplicate_decl_error(
+                        line!() as usize,
+                        sig.loc(),
+                        self.caused_by(),
+                        ident.name.inspect(),
+                    ))
+                } else {
+                    self.decls.insert(
+                        ident.name.clone(),
+                        VarInfo::new(sig_t, muty, vis, kind, None),
+                    );
+                    Ok(())
+                }
             }
             _ => todo!(),
         }
@@ -86,14 +92,6 @@ impl Context {
         let vis = sig.ident.vis();
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        if self.registered(name, sig.is_const()) {
-            return Err(TyCheckError::reassign_error(
-                line!() as usize,
-                sig.loc(),
-                self.caused_by(),
-                name,
-            ));
-        }
         let t = self.instantiate_sub_sig_t(sig, opt_ret_t, PreRegister)?;
         let comptime_decos = sig
             .decorators
@@ -107,16 +105,16 @@ impl Context {
             .collect();
         let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos));
         if let Some(_decl) = self.decls.remove(name) {
-            return Err(TyCheckError::duplicate_decl_error(
+            Err(TyCheckError::duplicate_decl_error(
                 line!() as usize,
                 sig.loc(),
                 self.caused_by(),
                 name,
-            ));
+            ))
         } else {
             self.decls.insert(sig.ident.name.clone(), vi);
+            Ok(())
         }
-        Ok(())
     }
 
     pub(crate) fn assign_var_sig(
@@ -157,7 +155,11 @@ impl Context {
             ast::ParamPattern::Lit(_) => Ok(()),
             ast::ParamPattern::Discard(_token) => Ok(()),
             ast::ParamPattern::VarName(name) => {
-                if self.registered(name.inspect(), name.is_const()) {
+                if self
+                    .registered_info(name.inspect(), name.is_const())
+                    .map(|(defined, _)| defined.loc() != name.loc())
+                    .unwrap_or(false)
+                {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
                         name.loc(),
@@ -197,7 +199,11 @@ impl Context {
                 }
             }
             ast::ParamPattern::Ref(name) => {
-                if self.registered(name.inspect(), name.is_const()) {
+                if self
+                    .registered_info(name.inspect(), name.is_const())
+                    .map(|(defined, _)| defined.loc() != name.loc())
+                    .unwrap_or(false)
+                {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
                         name.loc(),
@@ -238,7 +244,11 @@ impl Context {
                 }
             }
             ast::ParamPattern::RefMut(name) => {
-                if self.registered(name.inspect(), name.is_const()) {
+                if self
+                    .registered_info(name.inspect(), name.is_const())
+                    .map(|(defined, _)| defined.loc() != name.loc())
+                    .unwrap_or(false)
+                {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
                         name.loc(),
@@ -542,7 +552,7 @@ impl Context {
             match obj {
                 ValueObj::Type(t) => {
                     let gen = enum_unwrap!(t, TypeObj::Generated);
-                    self.register_gen_type(gen);
+                    self.register_gen_type(ident, gen);
                 }
                 // TODO: not all value objects are comparable
                 other => {
@@ -561,7 +571,7 @@ impl Context {
         }
     }
 
-    fn register_gen_type(&mut self, gen: GenTypeObj) {
+    fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
         match gen.kind {
             TypeKind::Class => {
                 if gen.t.is_monomorphic() {
@@ -574,7 +584,7 @@ impl Context {
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public);
                     ctx.methods_list.push((gen.t.clone(), methods));
-                    self.register_gen_mono_type(gen, ctx, Const);
+                    self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!()
                 }
@@ -609,7 +619,7 @@ impl Context {
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public);
                         ctx.methods_list.push((gen.t.clone(), methods));
-                        self.register_gen_mono_type(gen, ctx, Const);
+                        self.register_gen_mono_type(ident, gen, ctx, Const);
                     } else {
                         todo!("super class not found")
                     }
@@ -621,7 +631,13 @@ impl Context {
         }
     }
 
-    fn register_gen_mono_type(&mut self, gen: GenTypeObj, ctx: Self, muty: Mutability) {
+    fn register_gen_mono_type(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+        ctx: Self,
+        muty: Mutability,
+    ) {
         // FIXME: not panic but error
         // FIXME: recursive search
         if self.mono_types.contains_key(&gen.t.name()) {
@@ -631,7 +647,7 @@ impl Context {
         } else {
             let t = gen.t.clone();
             let meta_t = gen.meta_type();
-            let name = VarName::from_str(gen.t.name());
+            let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
             self.locals.insert(
                 name.clone(),
@@ -649,7 +665,7 @@ impl Context {
                     );
                 }
             }
-            self.mono_types.insert(name, (t, ctx));
+            self.mono_types.insert(name.clone(), (t, ctx));
         }
     }
 
