@@ -157,8 +157,7 @@ impl Context {
             ast::ParamPattern::VarName(name) => {
                 if self
                     .registered_info(name.inspect(), name.is_const())
-                    .map(|(defined, _)| defined.loc() != name.loc())
-                    .unwrap_or(false)
+                    .is_some()
                 {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
@@ -201,8 +200,7 @@ impl Context {
             ast::ParamPattern::Ref(name) => {
                 if self
                     .registered_info(name.inspect(), name.is_const())
-                    .map(|(defined, _)| defined.loc() != name.loc())
-                    .unwrap_or(false)
+                    .is_some()
                 {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
@@ -246,8 +244,7 @@ impl Context {
             ast::ParamPattern::RefMut(name) => {
                 if self
                     .registered_info(name.inspect(), name.is_const())
-                    .map(|(defined, _)| defined.loc() != name.loc())
-                    .unwrap_or(false)
+                    .is_some()
                 {
                     Err(TyCheckError::reassign_error(
                         line!() as usize,
@@ -461,7 +458,7 @@ impl Context {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
-                    self.register_gen_const(def.sig.ident().unwrap(), obj);
+                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
                 } else {
                     let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, PreRegister)?;
@@ -483,7 +480,7 @@ impl Context {
                     let spec_t = self.instantiate_typespec(spec, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
-                self.register_gen_const(sig.ident().unwrap(), obj);
+                self.register_gen_const(sig.ident().unwrap(), obj)?;
             }
             _ => {}
         }
@@ -545,9 +542,18 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_gen_const(&mut self, ident: &Identifier, obj: ValueObj) {
+    pub(crate) fn register_gen_const(
+        &mut self,
+        ident: &Identifier,
+        obj: ValueObj,
+    ) -> TyCheckResult<()> {
         if self.rec_get_const_obj(ident.inspect()).is_some() {
-            panic!("already registered: {ident}");
+            Err(TyCheckError::reassign_error(
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            ))
         } else {
             match obj {
                 ValueObj::Type(t) => {
@@ -565,9 +571,10 @@ impl Context {
                         None,
                     );
                     self.consts.insert(ident.name.clone(), other);
-                    self.locals.insert(ident.name.clone(), vi);
+                    self.decls.insert(ident.name.clone(), vi);
                 }
             }
+            Ok(())
         }
     }
 
@@ -649,7 +656,7 @@ impl Context {
             let meta_t = gen.meta_type();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.locals.insert(
+            self.decls.insert(
                 name.clone(),
                 VarInfo::new(meta_t, muty, Private, VarKind::Defined(id), None),
             );

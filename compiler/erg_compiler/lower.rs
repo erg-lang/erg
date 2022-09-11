@@ -577,12 +577,7 @@ impl ASTLowerer {
             } else {
                 "<lambda>"
             };
-            if self
-                .ctx
-                .registered_info(name, def.sig.is_const())
-                .map(|(defined, _)| defined.loc() != def.sig.ident().unwrap().loc())
-                .unwrap_or(false)
-            {
+            if self.ctx.registered_info(name, def.sig.is_const()).is_some() {
                 return Err(LowerError::reassign_error(
                     line!() as usize,
                     def.sig.loc(),
