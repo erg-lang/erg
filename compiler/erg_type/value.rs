@@ -314,6 +314,7 @@ impl TryFrom<&ValueObj> for f64 {
             ValueObj::Float(f) => Ok(*f),
             ValueObj::Inf => Ok(f64::INFINITY),
             ValueObj::NegInf => Ok(f64::NEG_INFINITY),
+            ValueObj::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
             ValueObj::Mut(v) => f64::try_from(&*v.borrow()).map_err(|_| ()),
             _ => Err(()),
         }
