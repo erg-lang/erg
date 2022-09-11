@@ -44,7 +44,7 @@
     * [ ] Keyword arguments
   * [ ] Method definition
   * [ ] Type definition
-    * [ ] Class definition
+    * [x] Class definition
     * [ ] Trait definition
     * [ ] Structural trait definition
   * [ ] Patch definition
@@ -104,6 +104,8 @@
   * [ ] Multiple error points indication
   * [ ] Support for languages other than English
     * [x] Japanese
+    * [x] Simplified Chinese
+    * [x] Traditional Chinese
 * [ ] Create a playground (uses [pyodide](https://github.com/pyodide/pyodide))
 * [ ] Develop the development environment
   * [ ] Implement LSP (Language Server Protocol)
@@ -113,7 +115,7 @@
   * [ ] Prepare an installer for each platform
   * [ ] Implement a compiling server
 * [ ] Maintain documentations
-  * [ ] I18n
+  * [x] I18n
   * [ ] Write educational materials to learn Erg while creating applications (e.g. CLI chess game -> GUI chess game, calculator -> toy language)
 * [ ] Develop Dyne (CPython compatible VM)
 * [ ] Develop Kayser (WebAssembly backend)
