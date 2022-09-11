@@ -25,11 +25,11 @@ use Visibility::*;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
-    fn registered(&self, name: &Str, is_const: bool) -> bool {
+    pub(crate) fn registered(&self, name: &str, is_const: bool) -> bool {
         if self.params.iter().any(|(maybe_name, _)| {
             maybe_name
                 .as_ref()
-                .map(|n| n.inspect() == name)
+                .map(|n| &n.inspect()[..] == name)
                 .unwrap_or(false)
         }) || self.locals.contains_key(name)
         {
@@ -87,7 +87,7 @@ impl Context {
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         if self.registered(name, sig.is_const()) {
-            return Err(TyCheckError::duplicate_decl_error(
+            return Err(TyCheckError::reassign_error(
                 line!() as usize,
                 sig.loc(),
                 self.caused_by(),
@@ -136,22 +136,13 @@ impl Context {
         self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
         let muty = Mutability::from(&ident.inspect()[..]);
         let generalized = self.generalize_t(body_t.clone());
-        if self.registered(ident.inspect(), ident.is_const()) {
-            Err(TyCheckError::reassign_error(
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-            ))
-        } else {
-            if self.decls.remove(ident.inspect()).is_some() {
-                // something to do?
-            }
-            let vis = ident.vis();
-            let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id), None);
-            self.locals.insert(ident.name.clone(), vi);
-            Ok(())
+        if self.decls.remove(ident.inspect()).is_some() {
+            // something to do?
         }
+        let vis = ident.vis();
+        let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id), None);
+        self.locals.insert(ident.name.clone(), vi);
+        Ok(())
     }
 
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す
@@ -370,71 +361,62 @@ impl Context {
                     )
                 })?;
         }
-        if self.registered(name.inspect(), name.is_const()) {
-            Err(TyCheckError::reassign_error(
-                line!() as usize,
-                name.loc(),
-                self.caused_by(),
-                name.inspect(),
-            ))
+        let sub_t = if sig.ident.is_procedural() {
+            proc(
+                non_default_params.clone(),
+                var_args.cloned(),
+                default_params.clone(),
+                body_t.clone(),
+            )
         } else {
-            let sub_t = if sig.ident.is_procedural() {
-                proc(
-                    non_default_params.clone(),
-                    var_args.cloned(),
-                    default_params.clone(),
-                    body_t.clone(),
-                )
-            } else {
-                func(
-                    non_default_params.clone(),
-                    var_args.cloned(),
-                    default_params.clone(),
-                    body_t.clone(),
-                )
-            };
-            sub_t.lift();
-            let found_t = self.generalize_t(sub_t);
-            if let Some(mut vi) = self.decls.remove(name) {
-                if vi.t.has_unbound_var() {
-                    vi.t.lift();
-                    vi.t = self.generalize_t(vi.t.clone());
-                }
-                self.decls.insert(name.clone(), vi);
+            func(
+                non_default_params.clone(),
+                var_args.cloned(),
+                default_params.clone(),
+                body_t.clone(),
+            )
+        };
+        sub_t.lift();
+        let found_t = self.generalize_t(sub_t);
+        if let Some(mut vi) = self.decls.remove(name) {
+            if vi.t.has_unbound_var() {
+                vi.t.lift();
+                vi.t = self.generalize_t(vi.t.clone());
             }
-            if let Some(vi) = self.decls.remove(name) {
-                if !self.rec_supertype_of(&vi.t, &found_t) {
-                    return Err(TyCheckError::violate_decl_error(
-                        line!() as usize,
-                        sig.loc(),
-                        self.caused_by(),
-                        name.inspect(),
-                        &vi.t,
-                        &found_t,
-                    ));
-                }
-            }
-            let comptime_decos = sig
-                .decorators
-                .iter()
-                .filter_map(|deco| match &deco.0 {
-                    ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
-                        Some(local.inspect().clone())
-                    }
-                    _ => None,
-                })
-                .collect();
-            let vi = VarInfo::new(
-                found_t,
-                muty,
-                sig.ident.vis(),
-                VarKind::Defined(id),
-                Some(comptime_decos),
-            );
-            log!(info "Registered {}::{name}: {}", self.name, &vi.t);
-            self.locals.insert(name.clone(), vi);
-            Ok(())
+            self.decls.insert(name.clone(), vi);
         }
+        if let Some(vi) = self.decls.remove(name) {
+            if !self.rec_supertype_of(&vi.t, &found_t) {
+                return Err(TyCheckError::violate_decl_error(
+                    line!() as usize,
+                    sig.loc(),
+                    self.caused_by(),
+                    name.inspect(),
+                    &vi.t,
+                    &found_t,
+                ));
+            }
+        }
+        let comptime_decos = sig
+            .decorators
+            .iter()
+            .filter_map(|deco| match &deco.0 {
+                ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
+                    Some(local.inspect().clone())
+                }
+                _ => None,
+            })
+            .collect();
+        let vi = VarInfo::new(
+            found_t,
+            muty,
+            sig.ident.vis(),
+            VarKind::Defined(id),
+            Some(comptime_decos),
+        );
+        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        self.locals.insert(name.clone(), vi);
+        Ok(())
     }
 
     // To allow forward references and recursive definitions
