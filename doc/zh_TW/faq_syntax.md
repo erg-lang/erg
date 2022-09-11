@@ -1,13 +1,19 @@
 # Erg 部分設計的原因
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-## 當我們有所有權系統時，為什麼要與 GC 共存？
+## Erg內存管理模型
 
-Erg 引入所有權系統的動機不是像 Rust 那樣“不依賴 GC 的內存管理”。
+在CPython後端中使用所有權 + Python內存管理模型（不過Erg代碼中的循環引用不會通過GC處理[詳見](../syntax/18_ownership.md/#循環引用)）
+
+在Erg自己的虛擬機(Dyne)中使用所有權 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf)內存管理模型，如果Erg代碼使用了Python API那麼這些Erg代碼使用跟踪垃圾回收內存管理模型
+
+在LLVM, WASM後端使用所有權 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf)內存管理模型
+
+__注意__: Erg 引入所有權系統的動機不是像 Rust 那樣“不依賴 GC 的內存管理”。
 首先，Erg 目前唯一可用前端編譯Erg為Python字節碼，因此使用了 GC。
 Erg 所有權系統的目標是“可變狀態的本地化”。 Erg 有一個附屬於可變對象的所有權概念。
-這是因為共享可變狀態容易出現錯誤，甚至違反類型安全（參見 [此處](../syntax/type/advanced/shared.md#SharedReference)）。這是一個判斷決定。
+這是因為共享可變狀態容易出現錯誤，甚至違反類型安全（參見 [此處](../syntax/type/advanced/shared.md#共享参考)）。這是一個判斷決定。
 
 ## 為什麼類型參數要大括號 || 而不是 <> 或 []？
 

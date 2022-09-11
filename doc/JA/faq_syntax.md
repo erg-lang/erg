@@ -1,10 +1,16 @@
 # Erg design's "Why" and Answers
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-## なぜ所有権システムがあるのにGCも共存させているのですか？
+## Erg メモリ管理モデル
 
-Ergが所有権システムを導入した動機は、Rustのような「GCに頼らないメモリ管理」のためではないからです。
+CPython バックエンド + Python メモリ管理モデルで所有権を使用します (ただし、Erg コードの循環参照は GC によって処理されません [詳細を参照](../syntax/18_ownership.md/#circular references))
+
+Erg 自身の仮想マシン (Dyne) で所有権 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) メモリを使用する管理モデル、Erg コードが Python API を使用する場合、Erg コードはトラッキング ガベージ コレクション メモリ管理モデルを使用します
+
+LLVM では、WASM バックエンドは所有権 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) メモリ管理モデルを使用します
+
+__知らせ__：Ergが所有権システムを導入した動機は、Rustのような「GCに頼らないメモリ管理」のためではないからです。
 そもそも、現在のところErgはPythonバイトコードに落とし込まれる言語のため、結局GCは使用されます。
 Ergが所有権システムを導入した狙いは「可変状態の局所化」です。Ergでは、可変オブジェクトに所有権の概念がついています。
 これは、共有可変状態がバグの温床になりやすく、さらに型安全性まで侵害すること(詳しくは[こちら](../syntax/type/advanced/shared.md#共有参照SharedReference)を参照)をみての判断です。
