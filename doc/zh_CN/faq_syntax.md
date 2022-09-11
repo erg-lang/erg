@@ -4,7 +4,7 @@
 
 ## Erg内存管理模型
 
-在CPython后端中使用所有权 + Python内存管理模型（不过Erg代码中的循环引用不会通过GC处理[详见](/syntax/18_ownership.md/#循环引用)）
+在CPython后端中使用所有权 + Python内存管理模型（不过Erg代码中的循环引用不会通过GC处理[详见](syntax/18_ownership.md/#循环引用)）
 
 在Erg自己的虚拟机(Dyne)中使用所有权 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf)内存管理模型，如果Erg代码使用了Python API那么这些Erg代码使用跟踪垃圾回收内存管理模型
 
