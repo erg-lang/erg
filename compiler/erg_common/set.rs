@@ -141,8 +141,8 @@ impl<T: Hash + Eq> Set<T> {
     }
 
     #[inline]
-    pub fn insert(&mut self, value: T) {
-        self.elems.insert(value);
+    pub fn insert(&mut self, value: T) -> bool {
+        self.elems.insert(value)
     }
 
     #[inline]

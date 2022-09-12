@@ -118,3 +118,8 @@ where
     }
     Ok(v)
 }
+
+pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
+    let mut uniques = Set::new();
+    v.retain(|e| uniques.insert(e.clone()));
+}
