@@ -231,7 +231,7 @@ impl ASTLowerer {
         let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            union = self.ctx.rec_union(&union, elem.ref_t());
+            union = self.ctx.union(&union, elem.ref_t());
             if matches!(union, Type::Or(_, _)) {
                 return Err(LowerError::syntax_error(
                     line!() as usize,
@@ -736,7 +736,7 @@ impl ASTLowerer {
             match self.ctx.pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
-                    if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
+                    if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
                         for (newly_defined_name, _vi) in methods.locals.iter() {
                             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                                 // TODO: 特殊化なら同じ名前でもOK
@@ -774,7 +774,7 @@ impl ASTLowerer {
         }
         let (_, ctx) = self
             .ctx
-            .rec_get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
+            .get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
@@ -804,7 +804,7 @@ impl ASTLowerer {
     }
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
-        if let Some(sups) = self.ctx.rec_get_nominal_super_type_ctxs(class) {
+        if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
             for (sup_t, sup) in sups.skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {

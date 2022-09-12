@@ -393,7 +393,7 @@ impl Context {
             self.decls.insert(name.clone(), vi);
         }
         if let Some(vi) = self.decls.remove(name) {
-            if !self.rec_supertype_of(&vi.t, &found_t) {
+            if !self.supertype_of(&vi.t, &found_t) {
                 return Err(TyCheckError::violate_decl_error(
                     line!() as usize,
                     sig.loc(),
@@ -592,8 +592,8 @@ impl Context {
         match gen.kind {
             TypeKind::Class => {
                 if gen.t.is_monomorphic() {
-                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_class(gen.t.name(), self.level);
                     let mut methods = Self::methods(gen.t.name(), self.level);
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
@@ -610,9 +610,12 @@ impl Context {
             TypeKind::Subclass => {
                 if gen.t.is_monomorphic() {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
-                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx =
-                        Self::mono_class(gen.t.name(), super_classes, super_traits, self.level);
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_class(gen.t.name(), self.level);
+                    for sup in super_classes.into_iter() {
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
+                        ctx.register_superclass(sup, sup_ctx);
+                    }
                     let mut methods = Self::methods(gen.t.name(), self.level);
                     if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
@@ -623,7 +626,7 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = &gen.additional {
-                            self.rec_intersection(param_t, additional.typ())
+                            self.intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
                         };
@@ -695,7 +698,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         match mod_name {
             hir::Expr::Lit(lit) => {
-                if self.rec_subtype_of(&lit.value.class(), &Str) {
+                if self.subtype_of(&lit.value.class(), &Str) {
                     let name = enum_unwrap!(lit.value.clone(), ValueObj::Str);
                     match &name[..] {
                         "importlib" => {

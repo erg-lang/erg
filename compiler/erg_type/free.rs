@@ -2,11 +2,12 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::mem;
 
+use erg_common::rccell::RcCell;
+use erg_common::traits::LimitedDisplay;
+
 use crate::typaram::TyParam;
 use crate::Str;
 use crate::Type;
-use erg_common::rccell::RcCell;
-use erg_common::traits::LimitedDisplay;
 
 pub type Level = usize;
 pub type Id = usize;
@@ -441,7 +442,7 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn update_level(&self, level: Level) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } if level < *lev => {
                 *lev = level;
             }
@@ -453,7 +454,7 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn lift(&self) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound {
                 lev, constraint, ..
             }
@@ -477,7 +478,7 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 *constraint = new_constraint;
             }
@@ -619,7 +620,7 @@ impl<T: Clone + HasLevel> Free<T> {
 
 impl Free<Type> {
     pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 constraint.update_cyclicity(new_cyclicity);
             }
@@ -635,7 +636,7 @@ impl Free<TyParam> {
     where
         F: Fn(TyParam) -> TyParam,
     {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }

@@ -105,7 +105,7 @@ impl TyVarContext {
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(name) {
             let (_, ctx) = ctx
-                .rec_get_nominal_type_ctx(&poly(name.clone(), params.clone()))
+                .get_nominal_type_ctx(&poly(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = ctx.params.len();
             let given_params_len = params.len();
@@ -607,7 +607,7 @@ impl Context {
                 let l = self.eval_tp(&l)?;
                 let r = self.instantiate_const_expr(rhs);
                 let r = self.eval_tp(&r)?;
-                if let Some(Greater) = self.rec_try_cmp(&l, &r) {
+                if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
                 Ok(int_interval(op, l, r))
