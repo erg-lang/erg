@@ -542,6 +542,16 @@ impl Context {
         }
     }
 
+    pub(crate) fn register_trait(&mut self, class: Type, trait_: Type, methods: Self) {
+        self.super_traits.push(trait_.clone());
+        self.methods_list
+            .push((ClassDefType::impl_trait(class, trait_), methods));
+    }
+
+    pub(crate) fn register_marker_trait(&mut self, trait_: Type) {
+        self.super_traits.push(trait_);
+    }
+
     pub(crate) fn register_gen_const(
         &mut self,
         ident: &Identifier,

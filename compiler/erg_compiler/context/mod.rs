@@ -82,6 +82,12 @@ impl std::fmt::Display for ClassDefType {
     }
 }
 
+impl ClassDefType {
+    pub const fn impl_trait(class: Type, impl_trait: Type) -> Self {
+        ClassDefType::ImplTrait { class, impl_trait }
+    }
+}
+
 /// ```
 /// # use erg_common::ty::{Type, TyParam};
 /// # use erg_compiler::context::TyParamIdx;

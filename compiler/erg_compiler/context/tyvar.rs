@@ -963,7 +963,7 @@ impl Context {
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
     /// sub_unify(Nat, ?T(:> Int)): (/* OK */)
-    /// sub_unify(Nat, Add(?R)): (?R => Nat, Nat.AddO => Nat)
+    /// sub_unify(Nat, Add(?R)): (?R => Nat, Nat.Output => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     pub(crate) fn sub_unify(
