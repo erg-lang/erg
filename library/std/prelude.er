@@ -1,51 +1,57 @@
 @Attach NeImpl
 Eq(R |= Self) = Trait {
-    .`==` = Self.(R) -> Bool
+    .`==` = (self: Self, R) -> Bool
 }
 
 NeImpl R = Patch Eq R
-NeImpl(R).`!=`(self, other: R): Bool = not(self == other)
+NeImpl(R).
+    `!=`(self, other: R): Bool = not(self == other)
 
 @Attach EqImpl, LeImpl, LtImpl, GeImpl, GtImpl
-PartialOrd(R |= Self) = Trait {
-    .cmp = Self.(R) -> Option Ordering
+PartialOrd(R := Self) = Trait {
+    .cmp = (self: Self, R) -> Option Ordering
 }
 Ord = Subsume PartialOrd()
 
-EqForOrd R = Patch Ord, Impl: Eq()
-EqForOrd(R).`==`(self, other: R): Bool = self.cmp(other) == Ordering.Equal
+EqForOrd R = Patch Ord, Impl := Eq()
+EqForOrd(R).
+    `==`(self, other: R): Bool = self.cmp(other) == Ordering.Equal
 
 LeForOrd = Patch Ord
-LeForOrd.`<=`(self, other: Self): Bool = self.cmp(other) == Ordering.Less or self == other
+LeForOrd.
+    `<=`(self, other: Self): Bool = self.cmp(other) == Ordering.Less or self == other
 LtForOrd = Patch Ord
-LtForOrd.`<`(self, other: Self): Bool = self.cmp(other) == Ordering.Less
+LtForOrd.
+    `<`(self, other: Self): Bool = self.cmp(other) == Ordering.Less
 GeForOrd = Patch Ord
-GeForOrd.`>=`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater or self == other
+GeForOrd.
+    `>=`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater or self == other
 GtForOrd = Patch Ord
-GtForOrd.`>`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater
+GtForOrd.
+    `>`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater
 
-Add(R |= Self) = Trait {
-    .AddO = Type
-    .`_+_` = Self.(R) -> Self.AddO
+Add(R := Self) = Trait {
+    .Output = Type
+    .`_+_` = (self: Self, R) -> Self.Output
 }
-Sub(R |= Self) = Trait {
-    .SubO = Type
-    .`_-_` = Self.(R) -> Self.SubO
+Sub(R := Self) = Trait {
+    .Output = Type
+    .`_-_` = (self: Self, R) -> Self.Output
 }
-Mul(R |= Self()) = Trait {
-    .MulO = Type
-    .`*` = Self.(R) -> Self.MulO
+Mul(R := Self()) = Trait {
+    .Output = Type
+    .`*` = (self: Self, R) -> Self.Output
 }
-Div(R |= Self) = Trait {
-    .DivO = Type
-    .`/` = Self.(R) -> Self.DivO or Panic
+Div(R := Self) = Trait {
+    .Output = Type
+    .`/` = (self: Self, R) -> Self.Output or Panic
 }
 Num: (R |= Type) -> Type
 Num = Add and Sub and Mul
 
 Seq T = Trait {
-    .__len__ = Ref(Self).() -> Nat
-    .get = Ref(Self).(Nat) -> T
+    .__len__ = (self: Ref(Self)) -> Nat
+    .get = (self: Ref(Self), Nat) -> T
 }
 
 `_+_`: |R: Type, A <: Add(R)| (A, R) -> A.AddO
@@ -53,22 +59,24 @@ Seq T = Trait {
 `*`: |R, O: Type, M <: Add(R)| (M, R) -> M.MulO
 `/`: |R, O: Type, D <: Add(R)| (D, R) -> D.DivO
 
-AddForInt = Patch Int, Impl: Add()
+AddForInt = Patch Int, Impl := Add()
 AddForInt.AddO = Int
-AddForInt.`_+_`: (self: Self).(other: Int) -> Int
+AddForInt.
+    `_+_`: (self: Self, other: Int) -> Int = magic("Add.`_+_`")
 
 # TODO: Mul and Div
 NumForInterval M, N, O, P: Int =
-    Patch M..N, Impl: Add(R: O..P) and Sub(R: O..P)
-NumForInterval(M, N, O, P).`_+_`: (self: Self, other: O..P) -> M+O..N+P
-NumForInterval(M, N, O, P).`_-_`: (self: Self, other: O..P) -> M-P..N-O
+    Patch M..N, Impl := Add(R := O..P) and Sub(R := O..P)
+NumForInterval(M, N, O, P).
+    `_+_`: (self: Self, other: O..P) -> M+O..N+P = magic("NumForInterval.`_+_`")
+    `_-_`: (self: Self, other: O..P) -> M-P..N-O = magic("NumForInterval.`_-_`")
 
 Read = Trait {
-    .read = Ref(Self).() -> Str
+    .read = (self: Ref(Self)) -> Str
 }
 Read! = Trait {
-    .read! = Ref!(Self).() => Str
+    .read! = (self: Ref!(Self)) => Str
 }
 Write! = Trait {
-    .write! = Ref!(Self).(Str) => ()
+    .write! = (self: Ref!(Self), Str) => ()
 }
