@@ -18,7 +18,7 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::Context;
+use crate::context::{ClassDefType, Context};
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
 #[inline]
@@ -532,18 +532,16 @@ impl Context {
             Type::MonoProj { lhs, rhs } => {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.
-                let lhs = match *lhs {
-                    Type::FreeVar(fv) if fv.is_linked() => {
-                        self.eval_t_params(mono_proj(fv.crack().clone(), rhs.clone()), level)?
-                    }
+                let (sub, opt_sup) = match *lhs.clone() {
+                    Type::FreeVar(fv) if fv.is_linked() => (fv.crack().clone(), None),
                     Type::FreeVar(fv) if fv.is_unbound() => {
-                        fv.lift();
-                        self.deref_tyvar(Type::FreeVar(fv))?
+                        let (sub, sup) = fv.get_bound_types().unwrap();
+                        (sub, Some(sup))
                     }
-                    other => other,
+                    other => (other, None),
                 };
                 for (_ty, ty_ctx) in self
-                    .rec_get_nominal_super_type_ctxs(&lhs)
+                    .rec_get_nominal_super_type_ctxs(&sub)
                     .ok_or_else(|| todo!("{lhs}"))?
                 {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
@@ -557,9 +555,35 @@ impl Context {
                             todo!()
                         }
                     }
+                    for (class, methods) in ty_ctx.methods_list.iter() {
+                        match (class, &opt_sup) {
+                            (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
+                                if !self.rec_supertype_of(impl_trait, sup) {
+                                    continue;
+                                }
+                            }
+                            (ClassDefType::ImplTrait { .. }, None) => todo!(),
+                            _ => {}
+                        }
+                        if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
+                            if let ValueObj::Type(quant_t) = obj {
+                                let subst_ctx = SubstContext::new(&lhs, ty_ctx);
+                                let t = subst_ctx.substitute(
+                                    quant_t.typ().clone(),
+                                    ty_ctx,
+                                    level,
+                                    self,
+                                )?;
+                                let t = self.eval_t_params(t, level)?;
+                                return Ok(t);
+                            } else {
+                                todo!()
+                            }
+                        }
+                    }
                 }
                 if let Some(outer) = self.outer.as_ref() {
-                    outer.eval_t_params(mono_proj(lhs, rhs), level)
+                    outer.eval_t_params(mono_proj(*lhs, rhs), level)
                 } else {
                     todo!(
                         "{lhs}.{rhs} not found in [{}]",
