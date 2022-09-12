@@ -98,6 +98,7 @@ impl AccessKind {
 pub struct Compiler {
     cfg: ErgConfig,
     lowerer: ASTLowerer,
+    ownership_checker: OwnershipChecker,
     code_generator: CodeGenerator,
 }
 
@@ -109,6 +110,7 @@ impl Runnable for Compiler {
     fn new(cfg: ErgConfig) -> Self {
         Self {
             code_generator: CodeGenerator::new(cfg.copy()),
+            ownership_checker: OwnershipChecker::new(),
             lowerer: ASTLowerer::new(),
             cfg,
         }
@@ -178,8 +180,8 @@ impl Compiler {
         let hir = effect_checker
             .check(hir)
             .map_err(|errs| self.convert(errs))?;
-        let ownership_checker = OwnershipChecker::new();
-        let hir = ownership_checker
+        let hir = self
+            .ownership_checker
             .check(hir)
             .map_err(|errs| self.convert(errs))?;
         let codeobj = self.code_generator.codegen(hir);
