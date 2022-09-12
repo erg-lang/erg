@@ -19,7 +19,7 @@ use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::{class_func, inherit_func, inheritable_func};
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
-use crate::context::{Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
+use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
 use Mutability::*;
@@ -114,7 +114,7 @@ impl Context {
         let t = Self::instantiate_t(t, &mut tv_ctx);
         // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
-            root_ctx.methods_list.push((t, ctx));
+            root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
             let name = VarName::from_str(t.name());
             self.locals.insert(
@@ -463,6 +463,8 @@ impl Context {
         float.register_builtin_const("SubO", ValueObj::builtin_t(Float));
         float.register_builtin_const("MulO", ValueObj::builtin_t(Float));
         float.register_builtin_const("DivO", ValueObj::builtin_t(Float));
+        // TODO: support multi platform
+        float.register_builtin_const("EPSILON", ValueObj::Float(2.220446049250313e-16));
         float.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Float!")));
         float.register_builtin_impl("Real", Float, Const, Public);
         float.register_builtin_impl("Imag", Float, Const, Public);

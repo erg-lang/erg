@@ -14,7 +14,7 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
-use crate::context::{Context, DefaultInfo, RegistrationMode, TraitInstance};
+use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
@@ -590,7 +590,8 @@ impl Context {
                     methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public);
-                    ctx.methods_list.push((gen.t.clone(), methods));
+                    ctx.methods_list
+                        .push((ClassDefType::Simple(gen.t.clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!()
@@ -625,7 +626,8 @@ impl Context {
                         );
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public);
-                        ctx.methods_list.push((gen.t.clone(), methods));
+                        ctx.methods_list
+                            .push((ClassDefType::Simple(gen.t.clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const);
                     } else {
                         todo!("super class not found")

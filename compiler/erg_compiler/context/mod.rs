@@ -65,6 +65,23 @@ impl TraitInstance {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ClassDefType {
+    Simple(Type),
+    ImplTrait { class: Type, impl_trait: Type },
+}
+
+impl std::fmt::Display for ClassDefType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClassDefType::Simple(ty) => write!(f, "{ty}"),
+            ClassDefType::ImplTrait { class, impl_trait } => {
+                write!(f, "{class}|<: {impl_trait}|")
+            }
+        }
+    }
+}
+
 /// ```
 /// # use erg_common::ty::{Type, TyParam};
 /// # use erg_compiler::context::TyParamIdx;
@@ -254,7 +271,7 @@ pub struct Context {
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
-    pub(crate) methods_list: Vec<(Type, Context)>,
+    pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち

@@ -20,7 +20,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::{TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
-use crate::context::{Context, ContextKind, RegistrationMode};
+use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
 };
@@ -760,7 +760,9 @@ impl ASTLowerer {
                                 }
                             }
                         }
-                        class_root.methods_list.push((class, methods));
+                        class_root
+                            .methods_list
+                            .push((ClassDefType::Simple(class), methods));
                     } else {
                         todo!()
                     }
