@@ -359,10 +359,21 @@ pub trait Runnable: Sized {
                 let mut lines = String::new();
                 loop {
                     let line = chomp(&instance.input().read());
-                    if &line[..] == ":quit" || &line[..] == ":exit" {
-                        instance.finish();
-                        log!(info_f output, "The REPL has finished successfully.\n");
-                        process::exit(0);
+                    match &line[..] {
+                        ":quit" | ":exit" => {
+                            instance.finish();
+                            log!(info_f output, "The REPL has finished successfully.\n");
+                            process::exit(0);
+                        }
+                        ":clear" => {
+                            output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
+                            output.flush().unwrap();
+                            output.write_all(instance.ps1().as_bytes()).unwrap();
+                            output.flush().unwrap();
+                            instance.clear();
+                            continue;
+                        }
+                        _ => {}
                     }
                     let line = if let Some(comment_start) = line.find('#') {
                         &line[..comment_start]
