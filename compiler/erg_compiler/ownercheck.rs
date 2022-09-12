@@ -1,3 +1,5 @@
+use std::mem;
+
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::log;
@@ -55,13 +57,15 @@ impl OwnershipChecker {
 
     // moveされた後の変数が使用されていないかチェックする
     // ProceduralでないメソッドでRefMutが使われているかはSideEffectCheckerでチェックする
-    pub fn check(mut self, hir: HIR) -> OwnershipResult<HIR> {
+    pub fn check(&mut self, hir: HIR) -> OwnershipResult<HIR> {
         log!(info "the ownership checking process has started.{RESET}");
-        self.path_stack.push((hir.name.clone(), Private));
-        self.dict
-            .insert(Str::from(self.full_path()), LocalVars::default());
+        if self.full_path() != ("::".to_string() + &hir.name[..]) {
+            self.path_stack.push((hir.name.clone(), Private));
+            self.dict
+                .insert(Str::from(self.full_path()), LocalVars::default());
+        }
         for chunk in hir.module.iter() {
-            self.check_expr(chunk, Ownership::Owned);
+            self.check_expr(chunk, Ownership::Owned, true);
         }
         log!(
             "{GREEN}[DEBUG] the ownership checking process has completed, found errors: {}{RESET}",
@@ -70,17 +74,17 @@ impl OwnershipChecker {
         if self.errs.is_empty() {
             Ok(hir)
         } else {
-            Err(self.errs)
+            Err(mem::take(&mut self.errs))
         }
     }
 
     fn check_block(&mut self, block: &Block) {
         for chunk in block.iter() {
-            self.check_expr(chunk, Ownership::Owned);
+            self.check_expr(chunk, Ownership::Owned, true);
         }
     }
 
-    fn check_expr(&mut self, expr: &Expr, ownership: Ownership) {
+    fn check_expr(&mut self, expr: &Expr, ownership: Ownership, chunk: bool) {
         match expr {
             Expr::Def(def) => {
                 log!(info "define: {}", def.sig);
@@ -95,7 +99,8 @@ impl OwnershipChecker {
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
             }
-            Expr::Accessor(acc) => self.check_acc(acc, ownership),
+            // Access in chunks does not drop variables (e.g., access in REPL)
+            Expr::Accessor(acc) => self.check_acc(acc, ownership, chunk),
             // TODO: referenced
             Expr::Call(call) => {
                 let args_owns = call.signature_t().unwrap().args_ownership();
@@ -108,16 +113,16 @@ impl OwnershipChecker {
                 for (nd_arg, ownership) in
                     non_default_args.iter().zip(args_owns.non_defaults.iter())
                 {
-                    self.check_expr(&nd_arg.expr, *ownership);
+                    self.check_expr(&nd_arg.expr, *ownership, false);
                 }
                 if let Some(ownership) = args_owns.var_params.as_ref() {
                     for var_arg in var_args.iter() {
-                        self.check_expr(&var_arg.expr, *ownership);
+                        self.check_expr(&var_arg.expr, *ownership, false);
                     }
                 } else {
                     let kw_args = var_args;
                     for (arg, (_, ownership)) in kw_args.iter().zip(args_owns.defaults.iter()) {
-                        self.check_expr(&arg.expr, *ownership);
+                        self.check_expr(&arg.expr, *ownership, false);
                     }
                 }
                 for kw_arg in call.args.kw_args.iter() {
@@ -126,7 +131,7 @@ impl OwnershipChecker {
                         .iter()
                         .find(|(k, _)| k == kw_arg.keyword.inspect())
                     {
-                        self.check_expr(&kw_arg.expr, *ownership);
+                        self.check_expr(&kw_arg.expr, *ownership, false);
                     } else {
                         todo!()
                     }
@@ -134,16 +139,16 @@ impl OwnershipChecker {
             }
             // TODO: referenced
             Expr::BinOp(binop) => {
-                self.check_expr(&binop.lhs, ownership);
-                self.check_expr(&binop.rhs, ownership);
+                self.check_expr(&binop.lhs, ownership, false);
+                self.check_expr(&binop.rhs, ownership, false);
             }
             Expr::UnaryOp(unary) => {
-                self.check_expr(&unary.expr, ownership);
+                self.check_expr(&unary.expr, ownership, false);
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
                     for a in arr.elems.pos_args.iter() {
-                        self.check_expr(&a.expr, ownership);
+                        self.check_expr(&a.expr, ownership, false);
                     }
                 }
                 _ => todo!(),
@@ -151,7 +156,7 @@ impl OwnershipChecker {
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(arr) => {
                     for a in arr.elems.pos_args.iter() {
-                        self.check_expr(&a.expr, ownership);
+                        self.check_expr(&a.expr, ownership, false);
                     }
                 }
             },
@@ -159,7 +164,7 @@ impl OwnershipChecker {
                 hir::Dict::Normal(dic) => {
                     for a in dic.attrs.kw_args.iter() {
                         // self.check_expr(&a.key);
-                        self.check_expr(&a.expr, ownership);
+                        self.check_expr(&a.expr, ownership, false);
                     }
                 }
                 _ => todo!(),
@@ -167,7 +172,7 @@ impl OwnershipChecker {
             Expr::Record(rec) => {
                 for def in rec.attrs.iter() {
                     for chunk in def.body.block.iter() {
-                        self.check_expr(chunk, ownership);
+                        self.check_expr(chunk, ownership, false);
                     }
                 }
             }
@@ -184,11 +189,14 @@ impl OwnershipChecker {
         }
     }
 
-    fn check_acc(&mut self, acc: &Accessor, ownership: Ownership) {
+    fn check_acc(&mut self, acc: &Accessor, ownership: Ownership, chunk: bool) {
         match acc {
             Accessor::Ident(ident) => {
-                self.check_if_dropped(ident.inspect(), ident.loc());
-                if acc.ref_t().is_mut() && ownership.is_owned() {
+                if let Err(e) = self.check_if_dropped(ident.inspect(), ident.loc()) {
+                    self.errs.push(e);
+                    return;
+                }
+                if acc.ref_t().is_mut() && ownership.is_owned() && !chunk {
                     log!(
                         "drop: {} (in {})",
                         ident.inspect(),
@@ -199,12 +207,12 @@ impl OwnershipChecker {
             }
             Accessor::Attr(attr) => {
                 // REVIEW: is ownership the same?
-                self.check_expr(&attr.obj, ownership)
+                self.check_expr(&attr.obj, ownership, false)
             }
-            Accessor::TupleAttr(t_attr) => self.check_expr(&t_attr.obj, ownership),
+            Accessor::TupleAttr(t_attr) => self.check_expr(&t_attr.obj, ownership, false),
             Accessor::Subscr(subscr) => {
-                self.check_expr(&subscr.obj, ownership);
-                self.check_expr(&subscr.index, ownership);
+                self.check_expr(&subscr.obj, ownership, false);
+                self.check_expr(&subscr.index, ownership, false);
             }
         }
     }
@@ -246,6 +254,10 @@ impl OwnershipChecker {
     }
 
     fn drop(&mut self, name: &Str, moved_loc: Location) {
+        if let Err(e) = self.check_if_dropped(name, moved_loc) {
+            self.errs.push(e);
+            return;
+        }
         for n in 0..self.path_stack.len() {
             if self.nth_outer_scope(n).alive_vars.remove(name) {
                 self.nth_outer_scope(n)
@@ -257,11 +269,11 @@ impl OwnershipChecker {
         panic!("variable not found: {name}");
     }
 
-    fn check_if_dropped(&mut self, name: &Str, loc: Location) {
+    fn check_if_dropped(&mut self, name: &Str, loc: Location) -> Result<(), OwnershipError> {
         for n in 0..self.path_stack.len() {
             if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(name) {
                 let moved_loc = *moved_loc;
-                self.errs.push(OwnershipError::move_error(
+                return Err(OwnershipError::move_error(
                     line!() as usize,
                     name,
                     loc,
@@ -270,6 +282,7 @@ impl OwnershipChecker {
                 ));
             }
         }
+        Ok(())
     }
 }
 
