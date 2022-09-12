@@ -1,5 +1,5 @@
 @Attach NeImpl
-Eq(R |= Self) = Trait {
+Eq(R := Self) = Trait {
     .`==` = (self: Self, R) -> Bool
 }
 
@@ -46,7 +46,7 @@ Div(R := Self) = Trait {
     .Output = Type
     .`/` = (self: Self, R) -> Self.Output or Panic
 }
-Num: (R |= Type) -> Type
+Num: (R := Type) -> Type
 Num = Add and Sub and Mul
 
 Seq T = Trait {
