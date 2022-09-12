@@ -290,6 +290,7 @@ pub struct Context {
     /// ```
     /// => params: vec![(None, [T; 2]), (Some("z"), U)]
     /// => locals: {"x": T, "y": T}
+    /// TODO: impl params desugaring and replace to `Dict`
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
@@ -303,7 +304,6 @@ pub struct Context {
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mods: Dict<VarName, Context>,
-    pub(crate) _nlocals: usize, // necessary for CodeObj.nlocals
     pub(crate) level: usize,
 }
 
@@ -410,7 +410,6 @@ impl Context {
             poly_types: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
-            _nlocals: 0,
             level,
         }
     }
