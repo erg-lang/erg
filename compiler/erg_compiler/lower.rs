@@ -180,17 +180,17 @@ impl ASTLowerer {
             })
     }
 
-    fn use_check(&self, expr: hir::Expr, mode: &str) -> LowerResult<hir::Expr> {
+    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),
                 self.ctx.name.clone(),
                 switch_lang!(
-                    "japanese" => "式の評価結果が使われていません",
-                    "simplified_chinese" => "表达式评估结果未使用",
-                    "traditional_chinese" => "表達式評估結果未使用",
-                    "english" => "the evaluation result of the expression is not used",
+                    "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
+                    "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
+                    "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
+                    "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
                 ),
                 Some(
                     switch_lang!(
@@ -203,7 +203,7 @@ impl ASTLowerer {
                 ),
             ))
         } else {
-            Ok(expr)
+            Ok(())
         }
     }
 
@@ -866,9 +866,9 @@ impl ASTLowerer {
     fn lower_block(&mut self, ast_block: ast::Block) -> LowerResult<hir::Block> {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
-        for expr in ast_block.into_iter() {
-            let expr = self.lower_expr(expr)?;
-            hir_block.push(expr);
+        for chunk in ast_block.into_iter() {
+            let chunk = self.lower_expr(chunk)?;
+            hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
     }
@@ -878,10 +878,10 @@ impl ASTLowerer {
         log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.block())?;
-        for expr in ast.module.into_iter() {
-            match self.lower_expr(expr).and_then(|e| self.use_check(e, mode)) {
-                Ok(expr) => {
-                    module.push(expr);
+        for chunk in ast.module.into_iter() {
+            match self.lower_expr(chunk) {
+                Ok(chunk) => {
+                    module.push(chunk);
                 }
                 Err(e) => {
                     self.errs.push(e);
@@ -896,6 +896,12 @@ impl ASTLowerer {
             self.errs.len()
         );
         let hir = self.ctx.deref_toplevel(hir)?;
+        // TODO: recursive check
+        for chunk in hir.module.iter() {
+            if let Err(e) = self.use_check(chunk, mode) {
+                self.errs.push(e);
+            }
+        }
         if self.errs.is_empty() {
             log!(info "HIR:\n{hir}");
             log!(info "the AST lowering process has completed.");
