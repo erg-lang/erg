@@ -763,7 +763,7 @@ impl Parser {
                         self.errs.push(err);
                         return Err(());
                     };
-                    let t_spec = if self.cur_is(Colon) {
+                    /*let t_spec = if self.cur_is(Colon) {
                         self.skip();
                         let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                         let t_spec = self
@@ -772,10 +772,10 @@ impl Parser {
                         Some(t_spec)
                     } else {
                         None
-                    };
+                    };*/
                     let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                     self.level -= 1;
-                    Ok(PosOrKwArg::Kw(KwArg::new(kw, t_spec, expr)))
+                    Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                     self.level -= 1;
@@ -808,7 +808,7 @@ impl Parser {
                             .push(ParseError::simple_syntax_error(0, acc.loc()));
                         return Err(());
                     };
-                    let t_spec = if self.cur_is(Colon) {
+                    /*let t_spec = if self.cur_is(Colon) {
                         self.skip();
                         let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                         let t_spec = self
@@ -817,10 +817,10 @@ impl Parser {
                         Some(t_spec)
                     } else {
                         None
-                    };
+                    };*/
                     let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
                     self.level -= 1;
-                    Ok(KwArg::new(keyword, t_spec, expr))
+                    Ok(KwArg::new(keyword, None, expr))
                 } else {
                     let loc = t.loc();
                     self.level -= 1;
