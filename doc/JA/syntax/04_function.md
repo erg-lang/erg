@@ -34,13 +34,7 @@ f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python
-f:
-    some_long_name_variable_1 + some_long_name_variable_2
-    some_long_name_variable_3 * some_long_name_variable_4
-```
-
-上の3つのコードはすべて同じ意味です。このスタイルは`if`関数などを使用するときにも便利です。
+上の2つのコードは同じ意味です。このスタイルは`if`関数などを使用するときにも便利です。
 
 ```python
 result = if Bool.sample!():
@@ -52,7 +46,15 @@ result = if Bool.sample!():
         0
 ```
 
-`:`の後はコメント以外のコードを書いてはならず、必ず改行しなくてはなりません。
+この場合、`:`の後はコメント以外のコードを書いてはならず、必ず改行しなくてはなりません。
+また、関数の直後に`:`を使うことはできません。これができるのは`do`と`do!`のみです。
+
+```python
+# NG
+f:
+    x
+    y
+```
 
 ## キーワード引数(Keyword Arguments)
 

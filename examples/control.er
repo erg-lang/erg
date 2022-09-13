@@ -4,15 +4,11 @@ s = if cond:
     do "else block"
 assert s == "then block"
 
-# else: binary operator
-x = cond.then 1 else 2
-assert x == 1
-
 if! cond:
     do!:
-        print! "then block"
+        print! "then block!"
     do!:
-        print! "else block"
+        print! "else block!"
 
 a = [1, 2, 3]
 sum = match a:
