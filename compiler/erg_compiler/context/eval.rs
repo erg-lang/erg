@@ -111,7 +111,7 @@ impl SubstContext {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ctx.unify_tp(param, v, None, false)?;
+                        ctx.sub_unify_tp(param, v, None, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
@@ -141,13 +141,13 @@ impl SubstContext {
         Ok(())
     }
 
-    fn substitute_t(&self, t: &Type, ctx: &Context) -> TyCheckResult<()> {
-        match t {
+    fn substitute_t(&self, param_t: &Type, ctx: &Context) -> TyCheckResult<()> {
+        match param_t {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
                         if let TyParam::Type(v) = v {
-                            ctx.unify(t, v, None, None)?;
+                            ctx.sub_unify(param_t, v, None, None, None)?;
                         } else {
                             panic!()
                         }
@@ -539,9 +539,12 @@ impl Context {
                     }
                     other => (other, None),
                 };
+                if sub == Type::Never {
+                    panic!("cannot determine {lhs}.{rhs}");
+                }
                 for (_ty, ty_ctx) in self
                     .get_nominal_super_type_ctxs(&sub)
-                    .ok_or_else(|| todo!("{lhs}"))?
+                    .ok_or_else(|| todo!("{sub}"))?
                 {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {

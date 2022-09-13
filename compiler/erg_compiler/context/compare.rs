@@ -270,6 +270,9 @@ impl Context {
     }
 
     fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
+        if !self.is_class(lhs) || !self.is_class(rhs) {
+            return (Maybe, false);
+        }
         if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
@@ -298,6 +301,9 @@ impl Context {
     // e.g. Eq(Nat) :> Nat
     // Nat.super_traits = [Add(Nat), Eq(Nat), Sub(Float), ...]
     fn traits_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
+        if !self.is_trait(lhs) {
+            return (Maybe, false);
+        }
         if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
@@ -388,8 +394,7 @@ impl Context {
                 && ls.var_params.as_ref().zip(rs.var_params.as_ref()).map(|(l, r)| {
                     self.subtype_of(l.typ(), r.typ())
                 }).unwrap_or(true)
-                && kw_check()
-                // contravariant
+                && kw_check() // contravariant
             }
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)

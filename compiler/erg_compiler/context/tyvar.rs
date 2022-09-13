@@ -9,7 +9,7 @@ use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, set};
 
 use erg_type::constructors::*;
-use erg_type::free::{Constraint, Cyclicity, FreeKind, HasLevel};
+use erg_type::free::{Constraint, Cyclicity, FreeKind};
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type};
@@ -41,6 +41,7 @@ impl Context {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, bounds, lazy_inits)),
             TyParam::FreeVar(v) if v.is_linked() => {
+                erg_common::log!(err "borrow mut");
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
                     *tp = self.generalize_tp(tp.clone(), bounds, lazy_inits);
                 } else {
@@ -95,6 +96,7 @@ impl Context {
     ) -> Type {
         match free_type {
             FreeVar(v) if v.is_linked() => {
+                erg_common::log!(err "borrow mut");
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
                     *t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
                 } else {
@@ -251,7 +253,7 @@ impl Context {
                 let constraint = fv.crack_constraint();
                 let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.same_type_of(sub_t, super_t) {
-                    self.unify(sub_t, super_t, None, None)?;
+                    self.sub_unify(sub_t, super_t, None, None, None)?;
                     let t = if sub_t == &Never {
                         super_t.clone()
                     } else {
@@ -488,7 +490,7 @@ impl Context {
     }
 
     /// allow_divergence = trueにすると、Num型変数と±Infの単一化を許す
-    pub(crate) fn unify_tp(
+    pub(crate) fn sub_unify_tp(
         &self,
         lhs: &TyParam,
         rhs: &TyParam,
@@ -499,7 +501,7 @@ impl Context {
             return Ok(());
         }
         match (lhs, rhs) {
-            (TyParam::Type(l), TyParam::Type(r)) => self.unify(l, r, None, None),
+            (TyParam::Type(l), TyParam::Type(r)) => self.sub_unify(l, r, None, None, None),
             (ltp @ TyParam::FreeVar(lfv), rtp @ TyParam::FreeVar(rfv))
                 if lfv.is_unbound() && rfv.is_unbound() =>
             {
@@ -513,7 +515,7 @@ impl Context {
             (TyParam::FreeVar(fv), tp) | (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify_tp(l, tp, lhs_variance, allow_divergence);
+                        return self.sub_unify_tp(l, tp, lhs_variance, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
@@ -554,7 +556,7 @@ impl Context {
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
             {
-                self.unify_tp(lval, rval, lhs_variance, allow_divergence)
+                self.sub_unify_tp(lval, rval, lhs_variance, allow_divergence)
             }
             (
                 TyParam::BinOp { op: lop, lhs, rhs },
@@ -564,8 +566,8 @@ impl Context {
                     rhs: rhs2,
                 },
             ) if lop == rop => {
-                self.unify_tp(lhs, lhs2, lhs_variance, allow_divergence)?;
-                self.unify_tp(rhs, rhs2, lhs_variance, allow_divergence)
+                self.sub_unify_tp(lhs, lhs2, lhs_variance, allow_divergence)?;
+                self.sub_unify_tp(rhs, rhs2, lhs_variance, allow_divergence)
             }
             (l, r) => panic!("type-parameter unification failed:\nl:{l}\nr: {r}"),
         }
@@ -604,19 +606,19 @@ impl Context {
     }
 
     /// predは正規化されているとする
-    fn unify_pred(&self, l_pred: &Predicate, r_pred: &Predicate) -> TyCheckResult<()> {
+    fn _sub_unify_pred(&self, l_pred: &Predicate, r_pred: &Predicate) -> TyCheckResult<()> {
         match (l_pred, r_pred) {
             (Pred::Value(_), Pred::Value(_)) | (Pred::Const(_), Pred::Const(_)) => Ok(()),
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::GreaterEqual { rhs, .. }, Pred::GreaterEqual { rhs: rhs2, .. })
             | (Pred::LessEqual { rhs, .. }, Pred::LessEqual { rhs: rhs2, .. })
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                self.unify_tp(rhs, rhs2, None, false)
+                self.sub_unify_tp(rhs, rhs2, None, false)
             }
             (Pred::And(l1, r1), Pred::And(l2, r2))
             | (Pred::Or(l1, r1), Pred::Or(l2, r2))
             | (Pred::Not(l1, r1), Pred::Not(l2, r2)) => {
-                match (self.unify_pred(l1, l2), self.unify_pred(r1, r2)) {
+                match (self._sub_unify_pred(l1, l2), self._sub_unify_pred(r1, r2)) {
                     (Ok(()), Ok(())) => Ok(()),
                     (Ok(()), Err(e)) | (Err(e), Ok(())) | (Err(e), Err(_)) => Err(e),
                 }
@@ -633,8 +635,8 @@ impl Context {
                         Pred::LessEqual { rhs: le_rhs, .. },
                         Pred::GreaterEqual { rhs: ge_rhs, .. },
                     ) => {
-                        self.unify_tp(rhs, ge_rhs, None, false)?;
-                        self.unify_tp(le_rhs, &TyParam::value(Inf), None, true)
+                        self.sub_unify_tp(rhs, ge_rhs, None, false)?;
+                        self.sub_unify_tp(le_rhs, &TyParam::value(Inf), None, true)
                     }
                     _ => Err(TyCheckError::pred_unification_error(
                         line!() as usize,
@@ -648,8 +650,8 @@ impl Context {
             | (Pred::And(l, r), Pred::LessEqual { rhs, .. }) => match (l.as_ref(), r.as_ref()) {
                 (Pred::GreaterEqual { rhs: ge_rhs, .. }, Pred::LessEqual { rhs: le_rhs, .. })
                 | (Pred::LessEqual { rhs: le_rhs, .. }, Pred::GreaterEqual { rhs: ge_rhs, .. }) => {
-                    self.unify_tp(rhs, le_rhs, None, false)?;
-                    self.unify_tp(ge_rhs, &TyParam::value(NegInf), None, true)
+                    self.sub_unify_tp(rhs, le_rhs, None, false)?;
+                    self.sub_unify_tp(ge_rhs, &TyParam::value(NegInf), None, true)
                 }
                 _ => Err(TyCheckError::pred_unification_error(
                     line!() as usize,
@@ -662,8 +664,8 @@ impl Context {
             | (Pred::And(l, r), Pred::Equal { rhs, .. }) => match (l.as_ref(), r.as_ref()) {
                 (Pred::GreaterEqual { rhs: ge_rhs, .. }, Pred::LessEqual { rhs: le_rhs, .. })
                 | (Pred::LessEqual { rhs: le_rhs, .. }, Pred::GreaterEqual { rhs: ge_rhs, .. }) => {
-                    self.unify_tp(rhs, le_rhs, None, false)?;
-                    self.unify_tp(rhs, ge_rhs, None, false)
+                    self.sub_unify_tp(rhs, le_rhs, None, false)?;
+                    self.sub_unify_tp(rhs, ge_rhs, None, false)
                 }
                 _ => Err(TyCheckError::pred_unification_error(
                     line!() as usize,
@@ -676,198 +678,6 @@ impl Context {
                 line!() as usize,
                 l_pred,
                 r_pred,
-                self.caused_by(),
-            )),
-        }
-    }
-
-    /// By default, all type variables are instances of Class ('T: Nominal)
-    /// So `unify(?T, Int); unify(?T, Bool)` will causes an error
-    /// To bypass the constraint, you need to specify `'T: Structural` in the type bounds
-    pub(crate) fn unify(
-        &self,
-        lhs_t: &Type,
-        rhs_t: &Type,
-        lhs_loc: Option<Location>,
-        rhs_loc: Option<Location>,
-    ) -> TyCheckResult<()> {
-        if lhs_t.has_no_unbound_var()
-            && rhs_t.has_no_unbound_var()
-            && self.supertype_of(lhs_t, rhs_t)
-        {
-            return Ok(());
-        }
-        match (lhs_t, rhs_t) {
-            // unify(?T[2], ?U[3]): ?U[3] => ?T[2]
-            // bind the higher level var to lower one
-            (lt @ Type::FreeVar(lfv), rt @ Type::FreeVar(rfv))
-                if lfv.is_unbound() && rfv.is_unbound() =>
-            {
-                if lfv.constraint_is_typeof() && !rfv.constraint_is_typeof() {
-                    lfv.update_constraint(rfv.crack_constraint().clone());
-                } else if rfv.constraint_is_typeof() && !lfv.constraint_is_typeof() {
-                    rfv.update_constraint(lfv.crack_constraint().clone());
-                }
-                if lfv.level().unwrap() > rfv.level().unwrap() {
-                    lfv.link(rt);
-                } else {
-                    rfv.link(lt);
-                }
-                Ok(())
-            }
-            // unify(?L(<: Add(?R, ?O)), Nat): (?R => Nat, ?O => Nat, ?L => Nat)
-            // unify(?A(<: Mutate), [?T; 0]): (?A => [?T; 0])
-            (Type::FreeVar(fv), t) | (t, Type::FreeVar(fv)) => {
-                match &mut *fv.borrow_mut() {
-                    FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.unify(l, t, lhs_loc, rhs_loc);
-                    }
-                    FreeKind::Unbound {
-                        lev, constraint, ..
-                    }
-                    | FreeKind::NamedUnbound {
-                        lev, constraint, ..
-                    } => {
-                        t.update_level(*lev);
-                        // TODO: constraint.type_of()
-                        if let Some(sup) = constraint.get_super_mut() {
-                            // 下のような場合は制約を弱化する
-                            // unify(?T(<: Nat), Int): (?T(<: Int))
-                            if self.subtype_of(sup, t) {
-                                *sup = t.clone();
-                            } else {
-                                self.sub_unify(t, sup, rhs_loc, lhs_loc, None)?;
-                            }
-                        }
-                    }
-                } // &fv is dropped
-                let new_constraint = Constraint::new_subtype_of(t.clone(), fv.cyclicity());
-                // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
-                // fv == ?T(: Type)の場合は?T(<: U)にする
-                if fv.level() < Some(self.level) {
-                    if self.is_sub_constraint_of(fv.borrow().constraint().unwrap(), &new_constraint)
-                        || fv.borrow().constraint().unwrap().get_type() == Some(&Type)
-                    {
-                        fv.update_constraint(new_constraint);
-                    }
-                } else {
-                    fv.link(t);
-                }
-                Ok(())
-            }
-            (Type::Refinement(l), Type::Refinement(r)) => {
-                if !self.structural_supertype_of(&l.t, &r.t)
-                    && !self.structural_supertype_of(&r.t, &l.t)
-                {
-                    return Err(TyCheckError::unification_error(
-                        line!() as usize,
-                        lhs_t,
-                        rhs_t,
-                        lhs_loc,
-                        rhs_loc,
-                        self.caused_by(),
-                    ));
-                }
-                // FIXME: 正規化する
-                for l_pred in l.preds.iter() {
-                    for r_pred in r.preds.iter() {
-                        self.unify_pred(l_pred, r_pred)?;
-                    }
-                }
-                Ok(())
-            }
-            (Type::Refinement(_), r) => {
-                let rhs_t = self.into_refinement(r.clone());
-                self.unify(lhs_t, &Type::Refinement(rhs_t), lhs_loc, rhs_loc)
-            }
-            (l, Type::Refinement(_)) => {
-                let lhs_t = self.into_refinement(l.clone());
-                self.unify(&Type::Refinement(lhs_t), rhs_t, lhs_loc, rhs_loc)
-            }
-            (Type::Subr(ls), Type::Subr(rs)) if ls.kind == rs.kind => {
-                for (l, r) in ls
-                    .non_default_params
-                    .iter()
-                    .zip(rs.non_default_params.iter())
-                {
-                    self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
-                }
-                if let Some((l, r)) = ls.var_params.as_ref().zip(rs.var_params.as_ref()) {
-                    self.unify(l.typ(), r.typ(), lhs_loc, rhs_loc)?;
-                }
-                for lpt in ls.default_params.iter() {
-                    if let Some(rpt) = rs
-                        .default_params
-                        .iter()
-                        .find(|rpt| rpt.name() == lpt.name())
-                    {
-                        self.unify(lpt.typ(), rpt.typ(), lhs_loc, rhs_loc)?;
-                    } else {
-                        todo!()
-                    }
-                }
-                self.unify(&ls.return_t, &rs.return_t, lhs_loc, rhs_loc)
-            }
-            (Type::Ref(l), Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
-            (
-                Type::RefMut {
-                    before: lbefore,
-                    after: lafter,
-                },
-                Type::RefMut {
-                    before: rbefore,
-                    after: rafter,
-                },
-            ) => {
-                self.unify(lbefore, rbefore, lhs_loc, rhs_loc)?;
-                match (lafter, rafter) {
-                    (Some(lafter), Some(rafter)) => {
-                        self.unify(lafter, rafter, lhs_loc, rhs_loc)?;
-                    }
-                    (None, None) => {}
-                    _ => todo!(),
-                }
-                Ok(())
-            }
-            (Type::Ref(l), r) => self.unify(l, r, lhs_loc, rhs_loc),
-            // REVIEW:
-            (Type::RefMut { before, .. }, r) => self.unify(before, r, lhs_loc, rhs_loc),
-            (l, Type::Ref(r)) => self.unify(l, r, lhs_loc, rhs_loc),
-            (l, Type::RefMut { before, .. }) => self.unify(l, before, lhs_loc, rhs_loc),
-            (
-                Type::Poly {
-                    name: ln,
-                    params: lps,
-                },
-                Type::Poly {
-                    name: rn,
-                    params: rps,
-                },
-            ) => {
-                if ln != rn {
-                    return Err(TyCheckError::unification_error(
-                        line!() as usize,
-                        lhs_t,
-                        rhs_t,
-                        lhs_loc,
-                        rhs_loc,
-                        self.caused_by(),
-                    ));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.unify_tp(l, r, None, false)?;
-                }
-                Ok(())
-            }
-            (Type::Poly { name: _, params: _ }, _r) => {
-                todo!()
-            }
-            (l, r) => Err(TyCheckError::unification_error(
-                line!() as usize,
-                l,
-                r,
-                lhs_loc,
-                rhs_loc,
                 self.caused_by(),
             )),
         }
@@ -1095,8 +905,7 @@ impl Context {
                 Ok(())
             }
             (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
-                let lfv_ref = &mut *lfv.borrow_mut();
-                match lfv_ref {
+                match &mut *lfv.borrow_mut() {
                     FreeKind::NamedUnbound { constraint, .. }
                     | FreeKind::Unbound { constraint, .. } => match constraint {
                         // sub !<: r => Error
@@ -1164,21 +973,49 @@ impl Context {
             (Type::Subr(lsub), Type::Subr(rsub)) => {
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
-                        self.unify(lpt.typ(), rpt.typ(), sub_loc, sup_loc)?;
+                        // contravariant
+                        self.sub_unify(rpt.typ(), lpt.typ(), sup_loc, sub_loc, param_name)?;
                     } else { todo!() }
                 }
                 lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(
-                    |(l, r)| self.unify(l.typ(), r.typ(), sub_loc, sup_loc),
+                    // contravariant
+                    |(l, r)| self.sub_unify(r.typ(), l.typ(), sup_loc, sub_loc, param_name),
                 )?;
-                self.unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc)?;
+                // covariant
+                self.sub_unify(&lsub.return_t, &rsub.return_t, sub_loc, sup_loc, param_name)?;
+                Ok(())
+            }
+            (
+                Type::Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Type::Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) => {
+                if ln != rn {
+                    return Err(TyCheckError::unification_error(
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        sub_loc,
+                        sup_loc,
+                        self.caused_by(),
+                    ));
+                }
+                for (l, r) in lps.iter().zip(rps.iter()) {
+                    self.sub_unify_tp(l, r, None, false)?;
+                }
                 Ok(())
             }
             (_, Type::Ref(t)) => {
-                self.unify(maybe_sub, t, sub_loc, sup_loc)?;
+                self.sub_unify(maybe_sub, t, sub_loc, sup_loc, param_name)?;
                 Ok(())
             }
             (_, Type::RefMut{ before, .. }) => {
-                self.unify(maybe_sub, before, sub_loc, sup_loc)?;
+                self.sub_unify(maybe_sub, before, sub_loc, sup_loc, param_name)?;
                 Ok(())
             }
             (Type::MonoProj { .. }, _) => todo!(),

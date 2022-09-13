@@ -1182,6 +1182,7 @@ impl Context {
         Some(vec![(t, ctx)].into_iter().chain(sups))
     }
 
+    // TODO: Never
     pub(crate) fn get_nominal_type_ctx<'a>(
         &'a self,
         typ: &Type,
@@ -1213,12 +1214,12 @@ impl Context {
                     return Some((t, ctx));
                 }
             }
-            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                // TODO: reference RecordType (inherits Type)
-                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
-                    return Some(res);
-                }
-            }*/
+            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+                return self.get_nominal_type_ctx(&mono("RecordType"));
+            }
+            Type::Record(_) => {
+                return self.get_nominal_type_ctx(&mono("Record"));
+            }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
                 if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
@@ -1237,6 +1238,7 @@ impl Context {
         None
     }
 
+    // TODO: Never
     pub(crate) fn get_mut_nominal_type_ctx<'a>(
         &'a mut self,
         typ: &Type,
@@ -1460,19 +1462,30 @@ impl Context {
         None
     }
 
-    pub(crate) fn _is_class(&self, typ: &Type) -> bool {
-        if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
-            ctx.kind.is_class()
-        } else {
-            todo!()
+    pub(crate) fn is_class(&self, typ: &Type) -> bool {
+        match typ {
+            Type::And(_l, _r) => false,
+            Type::Or(l, r) => self.is_class(l) && self.is_class(r),
+            _ => {
+                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                    ctx.kind.is_class()
+                } else {
+                    todo!()
+                }
+            }
         }
     }
 
     pub(crate) fn is_trait(&self, typ: &Type) -> bool {
-        if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
-            ctx.kind.is_trait()
-        } else {
-            todo!()
+        match typ {
+            Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
+            _ => {
+                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                    ctx.kind.is_trait()
+                } else {
+                    todo!()
+                }
+            }
         }
     }
 }

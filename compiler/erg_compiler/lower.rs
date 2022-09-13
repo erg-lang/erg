@@ -441,7 +441,7 @@ impl ASTLowerer {
     }
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(pre ".", call.method_name));
+        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
