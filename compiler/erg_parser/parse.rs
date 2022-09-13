@@ -926,7 +926,8 @@ impl Parser {
                     self.counter.inc();
                     let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
                     let body = DefBody::new(op, block, self.counter);
-                    stack.push(ExprOrOp::Expr(Expr::Def(Def::new(sig, body))));
+                    self.level -= 1;
+                    return Ok(Expr::Def(Def::new(sig, body)));
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
