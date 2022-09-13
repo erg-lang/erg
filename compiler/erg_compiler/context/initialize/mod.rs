@@ -638,7 +638,7 @@ impl Context {
         let m = mono_q_tp("M");
         let array_t = array(mono_q("T"), n.clone());
         let t = fn_met(
-            array_t,
+            array_t.clone(),
             vec![param_t("rhs", array(mono_q("T"), m.clone()))],
             None,
             vec![],
@@ -649,25 +649,6 @@ impl Context {
             set! {static_instance("N", Nat), static_instance("M", Nat)},
         );
         array_.register_builtin_impl("concat", t, Immutable, Public);
-        let n = mono_q_tp("N");
-        let array_inner = mono_q("T");
-        let array_t = array(array_inner.clone(), n);
-        let proj_t = mono_proj(array_inner, "ImmutType");
-        let t = fn_met(
-            array_t.clone(),
-            vec![param_t(
-                "f",
-                nd_func(vec![anon(proj_t.clone())], None, proj_t),
-            )],
-            None,
-            vec![],
-            NoneType,
-        );
-        let t = quant(
-            t,
-            set! {static_instance("N", Nat), static_instance("T", mono("Mutable"))},
-        );
-        array_.register_builtin_impl("map!", t, Immutable, Public);
         let mut_type = ValueObj::builtin_t(poly(
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
@@ -1145,6 +1126,12 @@ impl Context {
             ),
             tuple8_eq,
         );
+        let mut record = Self::mono_class("Record", Self::TOP_LEVEL);
+        record.register_superclass(Obj, &obj);
+        let mut record_type = Self::mono_class("RecordType", Self::TOP_LEVEL);
+        record_type.register_superclass(mono("Record"), &record);
+        record_type.register_superclass(mono("Type"), &type_);
+        record_type.register_superclass(Obj, &obj);
         let mut float_mut = Self::mono_class("Float!", Self::TOP_LEVEL);
         float_mut.register_superclass(Float, &float);
         float_mut.register_superclass(Obj, &obj);
@@ -1251,13 +1238,13 @@ impl Context {
         str_mut.register_trait(mono("Str!"), mono("Mutable"), str_mut_mutable);
         let array_t = poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
-        let mut array_mut = Self::poly_class(
+        let mut array_mut_ = Self::poly_class(
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
             Self::TOP_LEVEL,
         );
-        array_mut.register_superclass(array_t.clone(), &array_);
-        array_mut.register_superclass(Obj, &obj);
+        array_mut_.register_superclass(array_t.clone(), &array_);
+        array_mut_.register_superclass(Obj, &obj);
         let t = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1275,7 +1262,22 @@ impl Context {
             t,
             set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
         );
-        array_mut.register_builtin_impl("push!", t, Immutable, Public);
+        array_mut_.register_builtin_impl("push!", t, Immutable, Public);
+        let t = pr_met(
+            array_t.clone(),
+            vec![param_t(
+                "f",
+                nd_func(vec![anon(mono_q("T"))], None, mono_q("T")),
+            )],
+            None,
+            vec![],
+            NoneType,
+        );
+        let t = quant(
+            t,
+            set! {static_instance("N", Nat), static_instance("T", mono("Mutable"))},
+        );
+        array_mut_.register_builtin_impl("map!", t, Immutable, Public);
         let f_t = param_t(
             "f",
             func(
@@ -1294,7 +1296,7 @@ impl Context {
         );
         let mut array_mut_mutable = Self::methods("Mutable", Self::TOP_LEVEL);
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        array_mut.register_trait(array_mut_t.clone(), mono("Mutable"), array_mut_mutable);
+        array_mut_.register_trait(array_mut_t.clone(), mono("Mutable"), array_mut_mutable);
         let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::poly_class("Range", vec![PS::t_nd("T")], Self::TOP_LEVEL);
         range.register_superclass(Obj, &obj);
@@ -1392,13 +1394,15 @@ impl Context {
             tuple8,
             Const,
         );
+        self.register_builtin_type(mono("Record"), record, Const);
+        self.register_builtin_type(mono("RecordType"), record_type, Const);
         self.register_builtin_type(mono("Int!"), int_mut, Const);
         self.register_builtin_type(mono("Nat!"), nat_mut, Const);
         self.register_builtin_type(mono("Float!"), float_mut, Const);
         self.register_builtin_type(mono("Ratio!"), ratio_mut, Const);
         self.register_builtin_type(mono("Bool!"), bool_mut, Const);
         self.register_builtin_type(mono("Str!"), str_mut, Const);
-        self.register_builtin_type(array_mut_t, array_mut, Const);
+        self.register_builtin_type(array_mut_t, array_mut_, Const);
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(mono("Tuple"), tuple_, Const);
         self.register_builtin_type(mono("Function"), func, Const);
