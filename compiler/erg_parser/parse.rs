@@ -943,7 +943,7 @@ impl Parser {
                         self.counter,
                     ))));
                 }
-                Some(op) if op.is(Colon) => {
+                Some(op) if op.is(Colon) && !self.nth_is(1, Newline) => {
                     let _op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
@@ -1163,7 +1163,7 @@ impl Parser {
                         self.counter,
                     ))));
                 }
-                Some(op) if op.is(Colon) => {
+                Some(op) if op.is(Colon) && !self.nth_is(1, Newline) => {
                     let _op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
