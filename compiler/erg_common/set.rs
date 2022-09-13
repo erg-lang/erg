@@ -203,3 +203,10 @@ impl<T: Hash + Ord> Set<T> {
         self.iter().min_by(|x, y| x.cmp(y))
     }
 }
+
+impl<T: Hash + fmt::Display> Set<T> {
+    pub fn folded_display(&self) -> String {
+        self.iter()
+            .fold("".to_string(), |acc, x| acc + &x.to_string() + "\n")
+    }
+}

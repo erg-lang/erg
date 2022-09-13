@@ -18,7 +18,7 @@ use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinem
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, TyBound, Type};
+use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
 use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
@@ -49,6 +49,7 @@ impl Context {
                 ident.inspect(),
                 &spec_t,
                 body_t,
+                self.get_candidates(body_t),
                 self.get_type_mismatch_hint(&spec_t, body_t),
             ));
         }
@@ -131,6 +132,7 @@ impl Context {
                     "match",
                     &mono("LambdaFunc"),
                     t,
+                    self.get_candidates(t),
                     self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
                 ));
             }
@@ -776,6 +778,7 @@ impl Context {
                         &(obj.to_string() + &method_name.to_string()),
                         &mono("Callable"),
                         other,
+                        self.get_candidates(other),
                         None,
                     ))
                 } else {
@@ -786,6 +789,7 @@ impl Context {
                         &obj.to_string(),
                         &mono("Callable"),
                         other,
+                        self.get_candidates(other),
                         None,
                     ))
                 }
@@ -816,6 +820,7 @@ impl Context {
                     &name[..],
                     param_t,
                     arg_t,
+                    self.get_candidates(arg_t),
                     self.get_type_mismatch_hint(param_t, arg_t),
                 )
             })?;
@@ -857,6 +862,7 @@ impl Context {
                     &name[..],
                     param_t,
                     arg_t,
+                    self.get_candidates(arg_t),
                     self.get_type_mismatch_hint(param_t, arg_t),
                 )
             })
@@ -900,6 +906,7 @@ impl Context {
                         &name[..],
                         pt.typ(),
                         arg_t,
+                        self.get_candidates(arg_t),
                         self.get_type_mismatch_hint(pt.typ(), arg_t),
                     )
                 })?;
@@ -1209,6 +1216,18 @@ impl Context {
                     return Some(res);
                 }
             }
+            Type::Subr(_subr) => match _subr.kind {
+                SubrKind::Func => {
+                    if let Some(res) = self.get_nominal_type_ctx(&mono("Function")) {
+                        return Some(res);
+                    }
+                }
+                SubrKind::Proc => {
+                    if let Some(res) = self.get_nominal_type_ctx(&mono("Procedure")) {
+                        return Some(res);
+                    }
+                }
+            },
             Type::Poly { name, params: _ } => {
                 if let Some((t, ctx)) = self.rec_get_poly_type(name) {
                     return Some((t, ctx));
@@ -1462,15 +1481,68 @@ impl Context {
         None
     }
 
+    // TODO: params, polymorphic types
+    pub(crate) fn get_candidates(&self, t: &Type) -> Option<Set<Type>> {
+        match t {
+            Type::MonoProj { lhs, rhs } => Some(self.get_proj_candidates(lhs, rhs)),
+            Type::Subr(subr) => {
+                let candidates = self.get_candidates(&subr.return_t)?;
+                Some(
+                    candidates
+                        .into_iter()
+                        .map(|ret_t| {
+                            let subr = SubrType::new(
+                                subr.kind,
+                                subr.non_default_params.clone(),
+                                subr.var_params.as_ref().map(|p| *p.clone()),
+                                subr.default_params.clone(),
+                                ret_t,
+                            );
+                            Type::Subr(subr)
+                        })
+                        .collect(),
+                )
+            }
+            _ => None,
+        }
+    }
+
+    fn get_proj_candidates(&self, lhs: &Type, rhs: &Str) -> Set<Type> {
+        match lhs {
+            Type::FreeVar(fv) => {
+                if let Some(sup) = fv.get_sup() {
+                    let insts = self.rec_get_trait_impls(&sup.name());
+                    let candidates = insts.into_iter().filter_map(move |inst| {
+                        if self.supertype_of(&inst.sup_trait, &sup) {
+                            Some(
+                                self.eval_t_params(mono_proj(inst.sub_type, rhs), self.level)
+                                    .unwrap(),
+                            )
+                        } else {
+                            None
+                        }
+                    });
+                    return candidates.collect();
+                }
+            }
+            _ => todo!(),
+        }
+        todo!("{lhs}.{rhs}")
+    }
+
     pub(crate) fn is_class(&self, typ: &Type) -> bool {
         match typ {
             Type::And(_l, _r) => false,
             Type::Or(l, r) => self.is_class(l) && self.is_class(r),
+            Type::MonoProj { lhs, rhs } => self
+                .get_proj_candidates(lhs, rhs)
+                .iter()
+                .all(|t| self.is_class(t)),
             _ => {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
                 } else {
-                    todo!()
+                    todo!("is_class({typ})")
                 }
             }
         }
@@ -1479,11 +1551,15 @@ impl Context {
     pub(crate) fn is_trait(&self, typ: &Type) -> bool {
         match typ {
             Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
+            Type::MonoProj { lhs, rhs } => self
+                .get_proj_candidates(lhs, rhs)
+                .iter()
+                .all(|t| self.is_trait(t)),
             _ => {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()
                 } else {
-                    todo!()
+                    todo!("is_trait({typ})")
                 }
             }
         }

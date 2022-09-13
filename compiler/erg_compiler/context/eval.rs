@@ -267,6 +267,7 @@ impl Context {
                                 ident.inspect(),
                                 &mono("Subroutine"),
                                 &obj.t(),
+                                self.get_candidates(&obj.t()),
                                 None,
                             )
                         })?

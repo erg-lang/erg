@@ -156,6 +156,45 @@ macro_rules! fmt_option {
 }
 
 #[macro_export]
+macro_rules! fmt_option_map {
+    ($ex: expr, $f: expr $(,)*) => {
+        if let Some(x) = &$ex {
+            format!("{}", $f(x))
+        } else {
+            "".to_string()
+        }
+    };
+    ($ex: expr $(,)*, else $els: expr, $f: expr $(,)*) => {
+        if let Some(x) = &$ex {
+            format!("{}", $f(x))
+        } else {
+            $els.to_string()
+        }
+    };
+    (pre $prefix: expr, $ex: expr, $f: expr $(,)*) => {
+        if let Some(x) = &$ex {
+            format!("{}{}", $prefix, $f(x))
+        } else {
+            "".to_string()
+        }
+    };
+    ($ex: expr, post $postfix: expr, $f: expr $(,)*) => {
+        if let Some(x) = &$ex {
+            format!("{}{}", $f(x), $postfix)
+        } else {
+            "".to_string()
+        }
+    };
+    ($prefix: expr, $ex: expr, $postfix: expr, $f: expr $(,)*) => {
+        if let Some(x) = &$ex {
+            format!("{}{}{}", $prefix, $f(x), $postfix)
+        } else {
+            "".to_string()
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! switch_unreachable {
     () => {{
         if cfg!(debug_assertions) {

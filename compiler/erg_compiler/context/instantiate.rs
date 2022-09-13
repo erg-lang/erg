@@ -328,7 +328,7 @@ impl TyVarContext {
                 if let TyParam::Type(t) = t {
                     t.as_ref()
                 } else {
-                    todo!()
+                    todo!("{t}")
                 }
             })
         })

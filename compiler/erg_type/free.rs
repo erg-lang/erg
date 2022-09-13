@@ -600,22 +600,6 @@ impl<T: Clone + HasLevel> Free<T> {
         )
     }
 
-    pub fn constraint_is_supertypeof(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub().is_some()
-        )
-    }
-
-    pub fn constraint_is_subtypeof(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super().is_some()
-        )
-    }
-
     pub fn constraint_is_sandwiched(&self) -> bool {
         matches!(
             &*self.borrow(),

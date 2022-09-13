@@ -4,9 +4,10 @@ use std::ops::Add;
 use erg_common::color::{GREEN, RED, RESET, YELLOW};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{fmt_iter, fmt_vec, impl_stream_for_wrapper, switch_lang, Str};
+use erg_common::{fmt_iter, fmt_option_map, fmt_vec, impl_stream_for_wrapper, switch_lang, Str};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -534,6 +535,7 @@ impl TyCheckError {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn type_mismatch_error(
         errno: usize,
         loc: Location,
@@ -541,6 +543,7 @@ impl TyCheckError {
         name: &str,
         expect: &Type,
         found: &Type,
+        candidates: Option<Set<Type>>,
         hint: Option<Str>,
     ) -> Self {
         Self::new(
@@ -549,10 +552,10 @@ impl TyCheckError {
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "english" => format!("the type of {YELLOW}{name}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                    "japanese" => format!("{YELLOW}{name}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "与えられた型の単一化候補:\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "english" => format!("the type of {YELLOW}{name}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "unification candidates of a given type:\n", candidates, |x: &Set<Type>| x.folded_display())),
                 ),
                 hint,
             ),

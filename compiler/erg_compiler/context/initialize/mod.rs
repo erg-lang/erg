@@ -1264,7 +1264,7 @@ impl Context {
         );
         array_mut_.register_builtin_impl("push!", t, Immutable, Public);
         let t = pr_met(
-            array_t.clone(),
+            array_mut_t.clone(),
             vec![param_t(
                 "f",
                 nd_func(vec![anon(mono_q("T"))], None, mono_q("T")),
@@ -1275,9 +1275,9 @@ impl Context {
         );
         let t = quant(
             t,
-            set! {static_instance("N", Nat), static_instance("T", mono("Mutable"))},
+            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
         );
-        array_mut_.register_builtin_impl("map!", t, Immutable, Public);
+        array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = param_t(
             "f",
             func(
@@ -1313,7 +1313,12 @@ impl Context {
             poly("Eq", vec![ty_tp(range_t.clone())]),
             range_eq,
         );
+        let mut proc = Self::mono_class("Procedure", Self::TOP_LEVEL);
+        proc.register_superclass(Obj, &obj);
+        // TODO: lambda
+        proc.register_marker_trait(mono("Named"));
         let mut func = Self::mono_class("Function", Self::TOP_LEVEL);
+        func.register_superclass(mono("Procedure"), &proc);
         func.register_superclass(Obj, &obj);
         // TODO: lambda
         func.register_marker_trait(mono("Named"));
@@ -1405,6 +1410,7 @@ impl Context {
         self.register_builtin_type(array_mut_t, array_mut_, Const);
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(mono("Tuple"), tuple_, Const);
+        self.register_builtin_type(mono("Procedure"), proc, Const);
         self.register_builtin_type(mono("Function"), func, Const);
         self.register_builtin_type(mono("QuantifiedFunction"), qfunc, Const);
     }
