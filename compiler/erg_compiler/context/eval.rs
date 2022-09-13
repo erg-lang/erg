@@ -526,6 +526,7 @@ impl Context {
                 Ok(refinement(refine.var, *refine.t, preds))
             }
             // [?T; 0].MutType! == [?T; !0]
+            // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
             Type::MonoProj { lhs, rhs } => {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.
@@ -539,8 +540,9 @@ impl Context {
                     }
                     other => (other, None),
                 };
+                // cannot determine at this point
                 if sub == Type::Never {
-                    panic!("cannot determine {lhs}.{rhs}");
+                    return Ok(mono_proj(*lhs, rhs));
                 }
                 for (_ty, ty_ctx) in self
                     .get_nominal_super_type_ctxs(&sub)
@@ -582,18 +584,14 @@ impl Context {
                         }
                     }
                 }
-                if let Some(outer) = self.outer.as_ref() {
-                    outer.eval_t_params(mono_proj(*lhs, rhs), level)
-                } else {
-                    todo!(
-                        "{lhs}.{rhs} not found in [{}]",
-                        erg_common::fmt_iter(
-                            self.get_nominal_super_type_ctxs(&lhs)
-                                .unwrap()
-                                .map(|(_, ctx)| &ctx.name)
-                        )
+                todo!(
+                    "{lhs}.{rhs} not found in [{}]",
+                    erg_common::fmt_iter(
+                        self.get_nominal_super_type_ctxs(&lhs)
+                            .unwrap()
+                            .map(|(_, ctx)| &ctx.name)
                     )
-                }
+                )
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
             Type::RefMut { before, after } => {
