@@ -312,6 +312,12 @@ fn expect_block(src: &str) -> bool {
     src.ends_with(&['.', '=', ':']) || src.ends_with("->") || src.ends_with("=>")
 }
 
+// In the REPL, it is invalid for these symbols to be at the beginning of a line
+fn expect_invalid_block(src: &str) -> bool {
+    let src = src.trim_start();
+    src.starts_with(&['.', '=', ':']) || src.starts_with("->")
+}
+
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
 pub trait Runnable: Sized {
@@ -381,7 +387,9 @@ pub trait Runnable: Sized {
                         &line[..]
                     };
                     lines.push_str(line);
-                    if expect_block(line) || line.starts_with(' ') {
+                    if expect_block(line) && !expect_invalid_block(line)
+                        || line.starts_with(' ') && lines.contains('\n')
+                    {
                         lines += "\n";
                         output.write_all(instance.ps2().as_bytes()).unwrap();
                         output.flush().unwrap();
