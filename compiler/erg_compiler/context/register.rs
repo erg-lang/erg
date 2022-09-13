@@ -14,7 +14,7 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
-use crate::context::{Context, DefaultInfo, RegistrationMode, TraitInstance};
+use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
@@ -393,7 +393,7 @@ impl Context {
             self.decls.insert(name.clone(), vi);
         }
         if let Some(vi) = self.decls.remove(name) {
-            if !self.rec_supertype_of(&vi.t, &found_t) {
+            if !self.supertype_of(&vi.t, &found_t) {
                 return Err(TyCheckError::violate_decl_error(
                     line!() as usize,
                     sig.loc(),
@@ -542,6 +542,16 @@ impl Context {
         }
     }
 
+    pub(crate) fn register_trait(&mut self, class: Type, trait_: Type, methods: Self) {
+        self.super_traits.push(trait_.clone());
+        self.methods_list
+            .push((ClassDefType::impl_trait(class, trait_), methods));
+    }
+
+    pub(crate) fn register_marker_trait(&mut self, trait_: Type) {
+        self.super_traits.push(trait_);
+    }
+
     pub(crate) fn register_gen_const(
         &mut self,
         ident: &Identifier,
@@ -582,15 +592,16 @@ impl Context {
         match gen.kind {
             TypeKind::Class => {
                 if gen.t.is_monomorphic() {
-                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx = Self::mono_class(gen.t.name(), vec![], super_traits, self.level);
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_class(gen.t.name(), self.level);
                     let mut methods = Self::methods(gen.t.name(), self.level);
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
                     methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public);
-                    ctx.methods_list.push((gen.t.clone(), methods));
+                    ctx.methods_list
+                        .push((ClassDefType::Simple(gen.t.clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!()
@@ -599,9 +610,12 @@ impl Context {
             TypeKind::Subclass => {
                 if gen.t.is_monomorphic() {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
-                    let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx =
-                        Self::mono_class(gen.t.name(), super_classes, super_traits, self.level);
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_class(gen.t.name(), self.level);
+                    for sup in super_classes.into_iter() {
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
+                        ctx.register_superclass(sup, sup_ctx);
+                    }
                     let mut methods = Self::methods(gen.t.name(), self.level);
                     if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
@@ -612,7 +626,7 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = &gen.additional {
-                            self.rec_intersection(param_t, additional.typ())
+                            self.intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
                         };
@@ -625,7 +639,8 @@ impl Context {
                         );
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public);
-                        ctx.methods_list.push((gen.t.clone(), methods));
+                        ctx.methods_list
+                            .push((ClassDefType::Simple(gen.t.clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const);
                     } else {
                         todo!("super class not found")
@@ -683,7 +698,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         match mod_name {
             hir::Expr::Lit(lit) => {
-                if self.rec_subtype_of(&lit.value.class(), &Str) {
+                if self.subtype_of(&lit.value.class(), &Str) {
                     let name = enum_unwrap!(lit.value.clone(), ValueObj::Str);
                     match &name[..] {
                         "importlib" => {
@@ -720,6 +735,7 @@ impl Context {
                         "import::name",
                         &Str,
                         mod_name.ref_t(),
+                        self.get_candidates(mod_name.ref_t()),
                         self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
                     ));
                 }

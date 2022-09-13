@@ -20,7 +20,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::{TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
-use crate::context::{Context, ContextKind, RegistrationMode};
+use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
 };
@@ -175,22 +175,23 @@ impl ASTLowerer {
                     name,
                     expect,
                     found,
+                    self.ctx.get_candidates(found),
                     self.ctx.get_type_mismatch_hint(expect, found),
                 )
             })
     }
 
-    fn use_check(&self, expr: hir::Expr, mode: &str) -> LowerResult<hir::Expr> {
+    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),
                 self.ctx.name.clone(),
                 switch_lang!(
-                    "japanese" => "式の評価結果が使われていません",
-                    "simplified_chinese" => "表达式评估结果未使用",
-                    "traditional_chinese" => "表達式評估結果未使用",
-                    "english" => "the evaluation result of the expression is not used",
+                    "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
+                    "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
+                    "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
+                    "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
                 ),
                 Some(
                     switch_lang!(
@@ -203,7 +204,7 @@ impl ASTLowerer {
                 ),
             ))
         } else {
-            Ok(expr)
+            Ok(())
         }
     }
 
@@ -231,7 +232,7 @@ impl ASTLowerer {
         let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            union = self.ctx.rec_union(&union, elem.ref_t());
+            union = self.ctx.union(&union, elem.ref_t());
             if matches!(union, Type::Or(_, _)) {
                 return Err(LowerError::syntax_error(
                     line!() as usize,
@@ -441,7 +442,7 @@ impl ASTLowerer {
     }
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(pre ".", call.method_name));
+        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
@@ -736,7 +737,7 @@ impl ASTLowerer {
             match self.ctx.pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
-                    if let Some((_, class_root)) = self.ctx.rec_get_mut_nominal_type_ctx(&class) {
+                    if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
                         for (newly_defined_name, _vi) in methods.locals.iter() {
                             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                                 // TODO: 特殊化なら同じ名前でもOK
@@ -760,7 +761,9 @@ impl ASTLowerer {
                                 }
                             }
                         }
-                        class_root.methods_list.push((class, methods));
+                        class_root
+                            .methods_list
+                            .push((ClassDefType::Simple(class), methods));
                     } else {
                         todo!()
                     }
@@ -772,7 +775,7 @@ impl ASTLowerer {
         }
         let (_, ctx) = self
             .ctx
-            .rec_get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
+            .get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
@@ -802,7 +805,7 @@ impl ASTLowerer {
     }
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
-        if let Some(sups) = self.ctx.rec_get_nominal_super_type_ctxs(class) {
+        if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
             for (sup_t, sup) in sups.skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
@@ -864,9 +867,9 @@ impl ASTLowerer {
     fn lower_block(&mut self, ast_block: ast::Block) -> LowerResult<hir::Block> {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
-        for expr in ast_block.into_iter() {
-            let expr = self.lower_expr(expr)?;
-            hir_block.push(expr);
+        for chunk in ast_block.into_iter() {
+            let chunk = self.lower_expr(chunk)?;
+            hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
     }
@@ -876,10 +879,10 @@ impl ASTLowerer {
         log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.block())?;
-        for expr in ast.module.into_iter() {
-            match self.lower_expr(expr).and_then(|e| self.use_check(e, mode)) {
-                Ok(expr) => {
-                    module.push(expr);
+        for chunk in ast.module.into_iter() {
+            match self.lower_expr(chunk) {
+                Ok(chunk) => {
+                    module.push(chunk);
                 }
                 Err(e) => {
                     self.errs.push(e);
@@ -894,6 +897,12 @@ impl ASTLowerer {
             self.errs.len()
         );
         let hir = self.ctx.deref_toplevel(hir)?;
+        // TODO: recursive check
+        for chunk in hir.module.iter() {
+            if let Err(e) = self.use_check(chunk, mode) {
+                self.errs.push(e);
+            }
+        }
         if self.errs.is_empty() {
             log!(info "HIR:\n{hir}");
             log!(info "the AST lowering process has completed.");

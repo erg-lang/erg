@@ -13,7 +13,9 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_socket_mod() -> Self {
         let mut socket = Context::module("socket".into(), 15);
-        let mut sock = Context::mono_class(Str::ever("Socket!"), vec![Obj], vec![], 0);
+        let mut sock = Context::mono_class(Str::ever("Socket!"), 0);
+        // FIXME: include Obj (pass main_ctx as a param)
+        // sock.register_superclass(Obj, obj);
         sock.register_builtin_impl(
             "new",
             func(

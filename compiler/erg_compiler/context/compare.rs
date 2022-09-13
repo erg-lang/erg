@@ -15,6 +15,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
+use crate::context::eval::SubstContext;
 use crate::context::instantiate::TyVarContext;
 use crate::context::{Context, TraitInstance, Variance};
 
@@ -112,31 +113,6 @@ impl Context {
         self.shallow_eq_tp(lhs, rhs)
     }
 
-    /// e.g.
-    /// Named :> Module
-    /// => Module.super_types == [Named]
-    /// Seq(T) :> Range(T)
-    /// => Range(T).super_types == [Eq, Mutate, Seq('T), Output('T)]
-    pub(crate) fn rec_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        if self.supertype_of(lhs, rhs) {
-            return true;
-        }
-        if let Some(outer) = &self.outer {
-            if outer.rec_supertype_of(lhs, rhs) {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub(crate) fn rec_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.rec_supertype_of(rhs, lhs)
-    }
-
-    pub(crate) fn rec_same_type_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        self.rec_supertype_of(lhs, rhs) && self.rec_subtype_of(lhs, rhs)
-    }
-
     pub(crate) fn related(&self, lhs: &Type, rhs: &Type) -> bool {
         self.supertype_of(lhs, rhs) || self.subtype_of(lhs, rhs)
     }
@@ -152,6 +128,11 @@ impl Context {
         }
     }
 
+    /// e.g.
+    /// Named :> Module
+    /// => Module.super_types == [Named]
+    /// Seq(T) :> Range(T)
+    /// => Range(T).super_types == [Eq, Mutate, Seq('T), Output('T)]
     pub(crate) fn subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         match self.cheap_subtype_of(lhs, rhs) {
             (Absolutely, judge) => judge,
@@ -171,8 +152,8 @@ impl Context {
         }
         match (lhs, rhs) {
             (Obj, _) | (_, Never) => (Absolutely, true),
-            // (_, Obj) if !lhs.is_unbound_var() => (Absolutely, false),
-            // (Never, _) if !rhs.is_unbound_var() => (Absolutely, false),
+            (_, Obj) if !lhs.is_unbound_var() => (Absolutely, false),
+            (Never, _) if !rhs.is_unbound_var() => (Absolutely, false),
             (Float | Ratio | Int | Nat | Bool, Bool)
             | (Float | Ratio | Int | Nat, Nat)
             | (Float | Ratio | Int, Int)
@@ -261,6 +242,7 @@ impl Context {
             self.register_cache(rhs, lhs, judge);
             return judge;
         }
+        // FIXME: rec_get_patch
         for patch in self.patches.values() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
@@ -288,14 +270,24 @@ impl Context {
     }
 
     fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        if let Some(sup_classes) = self.rec_get_nominal_super_class_ctxs(rhs) {
-            for (rhs_sup, _) in sup_classes {
-                match self.cheap_supertype_of(lhs, rhs_sup) {
+        if !self.is_class(lhs) || !self.is_class(rhs) {
+            return (Maybe, false);
+        }
+        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+            for rhs_sup in ty_ctx.super_classes.iter() {
+                let rhs_sup = if rhs_sup.has_qvar() {
+                    let subst_ctx = SubstContext::new(rhs, ty_ctx);
+                    subst_ctx.substitute(rhs_sup.clone(), self).unwrap()
+                } else {
+                    rhs_sup.clone()
+                };
+                // Not `supertype_of` (only structures are compared)
+                match self.cheap_supertype_of(lhs, &rhs_sup) {
                     (Absolutely, true) => {
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
-                        if self.structural_supertype_of(lhs, rhs_sup) {
+                        if self.structural_supertype_of(lhs, &rhs_sup) {
                             return (Absolutely, true);
                         }
                     }
@@ -307,17 +299,26 @@ impl Context {
     }
 
     // e.g. Eq(Nat) :> Nat
-    // Nat.super_traits = [Add(Nat), Eq(Nat), ...]
+    // Nat.super_traits = [Add(Nat), Eq(Nat), Sub(Float), ...]
     fn traits_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        if let Some(sup_traits) = self.rec_get_nominal_super_trait_ctxs(rhs) {
-            for (rhs_sup, _) in sup_traits {
-                match self.cheap_supertype_of(lhs, rhs_sup) {
+        if !self.is_trait(lhs) {
+            return (Maybe, false);
+        }
+        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+            for rhs_sup in ty_ctx.super_traits.iter() {
+                let rhs_sup = if rhs_sup.has_qvar() {
+                    let subst_ctx = SubstContext::new(rhs, ty_ctx);
+                    subst_ctx.substitute(rhs_sup.clone(), self).unwrap()
+                } else {
+                    rhs_sup.clone()
+                };
+                // Not `supertype_of` (only structures are compared)
+                match self.cheap_supertype_of(lhs, &rhs_sup) {
                     (Absolutely, true) => {
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
-                        // nominal type同士の比較なので、nominal_supertype_ofは使わない
-                        if self.structural_supertype_of(lhs, rhs_sup) {
+                        if self.structural_supertype_of(lhs, &rhs_sup) {
                             return (Absolutely, true);
                         }
                     }
@@ -393,8 +394,7 @@ impl Context {
                 && ls.var_params.as_ref().zip(rs.var_params.as_ref()).map(|(l, r)| {
                     self.subtype_of(l.typ(), r.typ())
                 }).unwrap_or(true)
-                && kw_check()
-                // contravariant
+                && kw_check() // contravariant
             }
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
@@ -456,14 +456,12 @@ impl Context {
                         // `Str :> (?T <: Int)` is false
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
+                        //  Eq(Int) :> ?M(:> Int, <: Mul(?M) and Add(?M))
                         Constraint::Sandwiched {
                             sub,
                             sup: _,
-                            cyclicity,
-                        } => match cyclicity {
-                            Cyclicity::Not => self.supertype_of(lhs, sub),
-                            _ => todo!(),
-                        },
+                            cyclicity: _,
+                        } => self.supertype_of(lhs, sub),
                         Constraint::TypeOf(t) => {
                             if self.supertype_of(&Type, t) {
                                 true
@@ -509,7 +507,7 @@ impl Context {
                     for r_pred in r.preds.iter() {
                         if l_pred.subject().unwrap_or("") == &l.var[..]
                             && r_pred.subject().unwrap_or("") == &r.var[..]
-                            && self.rec_is_super_pred_of(l_pred, r_pred)
+                            && self.is_super_pred_of(l_pred, r_pred)
                         {
                             r_preds_clone.remove(r_pred);
                         }
@@ -604,15 +602,15 @@ impl Context {
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let (defined_rhs, _) = self.rec_get_nominal_type_ctx(rhs).unwrap();
-        if let Some(super_traits) = self.rec_get_nominal_super_trait_ctxs(rhs) {
+        let (defined_rhs, _) = self.get_nominal_type_ctx(rhs).unwrap();
+        if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
             for (sup_trait, _) in super_traits {
                 if self.sup_conforms(lhs, defined_rhs, sup_trait) {
                     return true;
                 }
             }
         }
-        if let Some(sup_classes) = self.rec_get_nominal_super_class_ctxs(rhs) {
+        if let Some(sup_classes) = self.get_nominal_super_class_ctxs(rhs) {
             for (sup_class, _) in sup_classes {
                 if self.cyclic_supertype_of(lhs, sup_class) {
                     return true;
@@ -629,7 +627,7 @@ impl Context {
         rparams: &[TyParam],
     ) -> bool {
         let (_, ctx) = self
-            .rec_get_nominal_type_ctx(typ)
+            .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
         debug_assert_eq!(lparams.len(), variances.len());
@@ -659,21 +657,21 @@ impl Context {
         self.structural_supertype_of(lhs, rhs) && self.structural_subtype_of(lhs, rhs)
     }
 
-    pub(crate) fn rec_try_cmp(&self, l: &TyParam, r: &TyParam) -> Option<TyParamOrdering> {
+    pub(crate) fn try_cmp(&self, l: &TyParam, r: &TyParam) -> Option<TyParamOrdering> {
         match (l, r) {
             (TyParam::Value(l), TyParam::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
                 if let Ok(l) = self.eval_bin_tp(*op, lhs, rhs) {
-                    self.rec_try_cmp(&l, r)
+                    self.try_cmp(&l, r)
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.rec_try_cmp(&*fv.crack(), p)
+                self.try_cmp(&*fv.crack(), p)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.rec_try_cmp(p, &*fv.crack())
+                self.try_cmp(p, &*fv.crack())
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
@@ -681,7 +679,7 @@ impl Context {
             ) /* if v.is_unbound() */ => {
                 let l_t = self.get_tp_t(l).unwrap();
                 let r_t = self.get_tp_t(r).unwrap();
-                if self.rec_supertype_of(&l_t, &r_t) || self.rec_subtype_of(&l_t, &r_t) {
+                if self.supertype_of(&l_t, &r_t) || self.subtype_of(&l_t, &r_t) {
                     Some(Any)
                 } else { Some(NotEqual) }
             },
@@ -692,14 +690,14 @@ impl Context {
             // try_cmp((n: -1.._), 1) -> Some(Any)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
                 let t = self.get_tp_t(l).unwrap();
-                let inf = self.rec_inf(&t);
-                let sup = self.rec_sup(&t);
+                let inf = self.inf(&t);
+                let sup = self.sup(&t);
                 if let (Some(inf), Some(sup)) = (inf, sup) {
                     // (n: Int, 1) -> (-inf..inf, 1) -> (cmp(-inf, 1), cmp(inf, 1)) -> (Less, Greater) -> Any
                     // (n: 5..10, 2) -> (cmp(5..10, 2), cmp(5..10, 2)) -> (Greater, Greater) -> Greater
                     match (
-                        self.rec_try_cmp(&inf, p).unwrap(),
-                        self.rec_try_cmp(&sup, p).unwrap()
+                        self.try_cmp(&inf, p).unwrap(),
+                        self.try_cmp(&sup, p).unwrap()
                     ) {
                         (Less, Less) => Some(Less),
                         (Less, Equal) => Some(LessEqual),
@@ -735,7 +733,7 @@ impl Context {
                 } else { None }
             }
             (l, r @ (TyParam::Erased(_) | TyParam::MonoQVar(_) | TyParam::FreeVar(_))) =>
-                self.rec_try_cmp(r, l).map(|ord| ord.reverse()),
+                self.try_cmp(r, l).map(|ord| ord.reverse()),
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);
                 None
@@ -763,11 +761,8 @@ impl Context {
     }
 
     /// returns union of two types (A or B)
-    pub(crate) fn rec_union(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (
-            self.rec_supertype_of(lhs, rhs),
-            self.rec_subtype_of(lhs, rhs),
-        ) {
+    pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
+        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) => return lhs.clone(),  // lhs = rhs
             (true, false) => return lhs.clone(), // lhs :> rhs
             (false, true) => return rhs.clone(),
@@ -785,7 +780,7 @@ impl Context {
     }
 
     fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
-        if let Some(max) = self.rec_max(&lhs.t, &rhs.t) {
+        if let Some(max) = self.max(&lhs.t, &rhs.t) {
             let name = lhs.var.clone();
             let rhs_preds = rhs
                 .preds
@@ -805,11 +800,8 @@ impl Context {
     }
 
     /// returns intersection of two types (A and B)
-    pub(crate) fn rec_intersection(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (
-            self.rec_supertype_of(lhs, rhs),
-            self.rec_subtype_of(lhs, rhs),
-        ) {
+    pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
+        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) => return lhs.clone(),  // lhs = rhs
             (true, false) => return rhs.clone(), // lhs :> rhs
             (false, true) => return lhs.clone(),
@@ -832,7 +824,7 @@ impl Context {
     /// assert is_super_pred({T >= 0}, {I == 0})
     /// assert !is_super_pred({I < 0}, {I == 0})
     /// ```
-    fn rec_is_super_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
+    fn is_super_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
         match (lhs, rhs) {
             (Pred::LessEqual { rhs, .. }, _) if !rhs.has_upper_bound() => true,
             (Pred::GreaterEqual { rhs, .. }, _) if !rhs.has_lower_bound() => true,
@@ -845,28 +837,26 @@ impl Context {
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                self.rec_try_cmp(rhs, rhs2).unwrap().is_eq()
+                self.try_cmp(rhs, rhs2).unwrap().is_eq()
             }
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },
                 Pred::GreaterEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.rec_try_cmp(rhs, rhs2).unwrap().is_le(),
+            ) => self.try_cmp(rhs, rhs2).unwrap().is_le(),
             (
                 Pred::LessEqual { rhs, .. },
                 Pred::LessEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.rec_try_cmp(rhs, rhs2).unwrap().is_ge(),
+            ) => self.try_cmp(rhs, rhs2).unwrap().is_ge(),
             (lhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. }), Pred::And(l, r)) => {
-                self.rec_is_super_pred_of(lhs, l) || self.rec_is_super_pred_of(lhs, r)
+                self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
-            (lhs, Pred::Or(l, r)) => {
-                self.rec_is_super_pred_of(lhs, l) && self.rec_is_super_pred_of(lhs, r)
-            }
+            (lhs, Pred::Or(l, r)) => self.is_super_pred_of(lhs, l) && self.is_super_pred_of(lhs, r),
             (Pred::Or(l, r), rhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. })) => {
-                self.rec_is_super_pred_of(l, rhs) || self.rec_is_super_pred_of(r, rhs)
+                self.is_super_pred_of(l, rhs) || self.is_super_pred_of(r, rhs)
             }
             (Pred::And(l, r), rhs) => {
-                self.rec_is_super_pred_of(l, rhs) && self.rec_is_super_pred_of(r, rhs)
+                self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
             (lhs, rhs) => todo!("{lhs}/{rhs}"),
         }
@@ -875,7 +865,7 @@ impl Context {
     pub(crate) fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {
         match (l, r) {
             // (?I: Nat) <: (?I: Int)
-            (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => self.rec_subtype_of(lhs, rhs),
+            (Constraint::TypeOf(lhs), Constraint::TypeOf(rhs)) => self.subtype_of(lhs, rhs),
             // (?T <: Int) <: (?T: Type)
             (Constraint::Sandwiched { sub: Never, .. }, Constraint::TypeOf(Type)) => true,
             // (Int <: ?T) <: (Nat <: ?U)
@@ -893,7 +883,7 @@ impl Context {
                     sup: rsup,
                     ..
                 },
-            ) => self.rec_supertype_of(lsub, rsub) && self.rec_subtype_of(lsup, rsup),
+            ) => self.supertype_of(lsub, rsub) && self.subtype_of(lsup, rsup),
             _ => false,
         }
     }
@@ -904,7 +894,7 @@ impl Context {
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
-    fn rec_sup(&self, t: &Type) -> Option<TyParam> {
+    fn sup(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Nat | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
@@ -915,7 +905,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(max) = &maybe_max {
-                                if self.rec_try_cmp(rhs, max).unwrap() == Greater {
+                                if self.try_cmp(rhs, max).unwrap() == Greater {
                                     maybe_max = Some(rhs.clone());
                                 }
                             } else {
@@ -931,7 +921,7 @@ impl Context {
         }
     }
 
-    fn rec_inf(&self, t: &Type) -> Option<TyParam> {
+    fn inf(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Float => Some(TyParam::value(-Inf)),
             Nat => Some(TyParam::value(0usize)),
@@ -943,7 +933,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(min) = &maybe_min {
-                                if self.rec_try_cmp(rhs, min).unwrap() == Less {
+                                if self.try_cmp(rhs, min).unwrap() == Less {
                                     maybe_min = Some(rhs.clone());
                                 }
                             } else {
@@ -961,38 +951,6 @@ impl Context {
 
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
-    pub(crate) fn rec_min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
-        match (
-            self.rec_supertype_of(lhs, rhs),
-            self.rec_subtype_of(lhs, rhs),
-        ) {
-            (true, true) | (true, false) => Some(rhs),
-            (false, true) => Some(lhs),
-            (false, false) => None,
-        }
-    }
-
-    pub(crate) fn rec_max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
-        match (
-            self.rec_supertype_of(lhs, rhs),
-            self.rec_subtype_of(lhs, rhs),
-        ) {
-            (true, true) | (true, false) => Some(lhs),
-            (false, true) => Some(rhs),
-            (false, false) => None,
-        }
-    }
-
-    fn _rec_cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> TyParamOrdering {
-        match self.rec_min(lhs, rhs) {
-            Some(l) if l == lhs => TyParamOrdering::Less,
-            Some(_) => TyParamOrdering::Greater,
-            None => TyParamOrdering::NoRelation,
-        }
-    }
-
     pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
@@ -1002,7 +960,7 @@ impl Context {
         }
     }
 
-    fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),

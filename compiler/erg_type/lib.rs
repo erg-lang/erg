@@ -1780,7 +1780,7 @@ impl Type {
     }
 
     pub fn is_unbound_var(&self) -> bool {
-        matches!(self, Self::FreeVar(fv) if fv.is_unbound())
+        matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }
 
     pub fn has_qvar(&self) -> bool {

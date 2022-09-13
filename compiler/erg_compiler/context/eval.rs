@@ -18,7 +18,7 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::Context;
+use crate::context::{ClassDefType, Context};
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
 #[inline]
@@ -71,72 +71,69 @@ pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     ValueObj::from_str(t, lit.token.content.clone())
 }
 
-/// SubstContext::new([?T; 0], Context(Array(T, N))) => SubstContext{ params: { T: ?T; N: 0 } }
-/// SubstContext::substitute([T; !N], Context(Array(T, N))): [?T; !0]
+/// SubstContext::new([?T; 0], Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
+/// ctx.substitute(['T; !'N]): [?T; !0]
 #[derive(Debug)]
-struct SubstContext {
+pub struct SubstContext {
+    bounds: Set<TyBound>,
     params: Dict<Str, TyParam>,
 }
 
 impl SubstContext {
     pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
+        let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
             opt_name
                 .as_ref()
                 .map_or_else(|| Str::ever("_"), |n| n.inspect().clone())
         });
+        assert_eq!(param_names.len(), substituted.typarams().len());
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
         SubstContext {
+            bounds,
             params: param_names
                 .zip(substituted.typarams().into_iter())
                 .collect(),
         }
     }
 
-    fn substitute(
-        &self,
-        quant_t: Type,
-        ty_ctx: &Context,
-        level: usize,
-        ctx: &Context,
-    ) -> TyCheckResult<Type> {
-        let bounds = ty_ctx.type_params_bounds();
-        let mut tv_ctx = TyVarContext::new(level, bounds, ctx);
+    pub fn substitute(&self, quant_t: Type, ctx: &Context) -> TyCheckResult<Type> {
+        let mut tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
         let inst = Context::instantiate_t(quant_t, &mut tv_ctx);
         for param in inst.typarams() {
-            self.substitute_tp(&param, ty_ctx)?;
+            self.substitute_tp(&param, ctx)?;
         }
         Ok(inst)
     }
 
-    fn substitute_tp(&self, param: &TyParam, ty_ctx: &Context) -> TyCheckResult<()> {
+    fn substitute_tp(&self, param: &TyParam, ctx: &Context) -> TyCheckResult<()> {
         match param {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
-                        ty_ctx.unify_tp(param, v, None, false)?;
+                        ctx.sub_unify_tp(param, v, None, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
                 }
             }
             TyParam::BinOp { lhs, rhs, .. } => {
-                self.substitute_tp(lhs, ty_ctx)?;
-                self.substitute_tp(rhs, ty_ctx)?;
+                self.substitute_tp(lhs, ctx)?;
+                self.substitute_tp(rhs, ctx)?;
             }
             TyParam::UnaryOp { val, .. } => {
-                self.substitute_tp(val, ty_ctx)?;
+                self.substitute_tp(val, ctx)?;
             }
             TyParam::Array(args)
             | TyParam::Tuple(args)
             | TyParam::App { args, .. }
             | TyParam::PolyQVar { args, .. } => {
                 for arg in args.iter() {
-                    self.substitute_tp(arg, ty_ctx)?;
+                    self.substitute_tp(arg, ctx)?;
                 }
             }
             TyParam::Type(t) => {
-                self.substitute_t(t, ty_ctx)?;
+                self.substitute_t(t, ctx)?;
             }
             TyParam::MonoProj { obj, attr } => todo!("{obj}.{attr}"),
             _ => {}
@@ -144,13 +141,13 @@ impl SubstContext {
         Ok(())
     }
 
-    fn substitute_t(&self, t: &Type, ty_ctx: &Context) -> TyCheckResult<()> {
-        match t {
+    fn substitute_t(&self, param_t: &Type, ctx: &Context) -> TyCheckResult<()> {
+        match param_t {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(v) = self.params.get(&name) {
                         if let TyParam::Type(v) = v {
-                            ty_ctx.unify(t, v, None, None)?;
+                            ctx.sub_unify(param_t, v, None, None, None)?;
                         } else {
                             panic!()
                         }
@@ -198,7 +195,7 @@ impl Context {
             return Ok(val);
         }
         if let ValueObj::Type(t) = &obj {
-            if let Some(sups) = self.rec_get_nominal_super_type_ctxs(t.typ()) {
+            if let Some(sups) = self.get_nominal_super_type_ctxs(t.typ()) {
                 for (_, ctx) in sups {
                     if let Some(val) = ctx.consts.get(ident.inspect()) {
                         return Ok(val.clone());
@@ -270,6 +267,7 @@ impl Context {
                                 ident.inspect(),
                                 &mono("Subroutine"),
                                 &obj.t(),
+                                self.get_candidates(&obj.t()),
                                 None,
                             )
                         })?
@@ -529,47 +527,72 @@ impl Context {
                 Ok(refinement(refine.var, *refine.t, preds))
             }
             // [?T; 0].MutType! == [?T; !0]
+            // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
             Type::MonoProj { lhs, rhs } => {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.
-                let lhs = match *lhs {
+                let (sub, opt_sup) = match *lhs.clone() {
                     Type::FreeVar(fv) if fv.is_linked() => {
-                        self.eval_t_params(mono_proj(fv.crack().clone(), rhs.clone()), level)?
+                        return self.eval_t_params(mono_proj(fv.crack().clone(), rhs), level)
                     }
                     Type::FreeVar(fv) if fv.is_unbound() => {
-                        fv.lift();
-                        self.deref_tyvar(Type::FreeVar(fv))?
+                        let (sub, sup) = fv.get_bound_types().unwrap();
+                        (sub, Some(sup))
                     }
-                    other => other,
+                    other => (other, None),
                 };
+                // cannot determine at this point
+                if sub == Type::Never {
+                    return Ok(mono_proj(*lhs, rhs));
+                }
                 for (_ty, ty_ctx) in self
-                    .rec_get_nominal_super_type_ctxs(&lhs)
-                    .ok_or_else(|| todo!("{lhs}"))?
+                    .get_nominal_super_type_ctxs(&sub)
+                    .ok_or_else(|| todo!("{sub}"))?
                 {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
-                            let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                            let t =
-                                subst_ctx.substitute(quant_t.typ().clone(), ty_ctx, level, self)?;
+                            let subst_ctx = SubstContext::new(&sub, ty_ctx);
+                            let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
                             let t = self.eval_t_params(t, level)?;
                             return Ok(t);
                         } else {
                             todo!()
                         }
                     }
+                    for (class, methods) in ty_ctx.methods_list.iter() {
+                        match (class, &opt_sup) {
+                            (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
+                                if !self.supertype_of(impl_trait, sup) {
+                                    continue;
+                                }
+                            }
+                            (ClassDefType::ImplTrait { impl_trait, .. }, None) => {
+                                if !self.supertype_of(impl_trait, &sub) {
+                                    continue;
+                                }
+                            }
+                            _ => {}
+                        }
+                        if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
+                            if let ValueObj::Type(quant_t) = obj {
+                                let subst_ctx = SubstContext::new(&lhs, ty_ctx);
+                                let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
+                                let t = self.eval_t_params(t, level)?;
+                                return Ok(t);
+                            } else {
+                                todo!()
+                            }
+                        }
+                    }
                 }
-                if let Some(outer) = self.outer.as_ref() {
-                    outer.eval_t_params(mono_proj(lhs, rhs), level)
-                } else {
-                    todo!(
-                        "{lhs}.{rhs} not found in [{}]",
-                        erg_common::fmt_iter(
-                            self.rec_get_nominal_super_type_ctxs(&lhs)
-                                .unwrap()
-                                .map(|(_, ctx)| &ctx.name)
-                        )
+                todo!(
+                    "{lhs}.{rhs} not found in [{}]",
+                    erg_common::fmt_iter(
+                        self.get_nominal_super_type_ctxs(&lhs)
+                            .unwrap()
+                            .map(|(_, ctx)| &ctx.name)
                     )
-                }
+                )
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
             Type::RefMut { before, after } => {

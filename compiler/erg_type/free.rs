@@ -2,11 +2,13 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::mem;
 
+use erg_common::addr_eq;
+use erg_common::rccell::RcCell;
+use erg_common::traits::LimitedDisplay;
+
 use crate::typaram::TyParam;
 use crate::Str;
 use crate::Type;
-use erg_common::rccell::RcCell;
-use erg_common::traits::LimitedDisplay;
 
 pub type Level = usize;
 pub type Id = usize;
@@ -364,6 +366,10 @@ impl<T> Free<T> {
         self.0.as_ptr()
     }
     pub fn force_replace(&self, new: FreeKind<T>) {
+        // prevent linking to self
+        if addr_eq!(*self.borrow(), new) {
+            return;
+        }
         unsafe {
             *self.0.as_ptr() = new;
         }
@@ -409,10 +415,17 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn link(&self, to: &T) {
+        // prevent linking to self
+        if self.is_linked() && addr_eq!(*self.crack(), *to) {
+            return;
+        }
         *self.borrow_mut() = FreeKind::Linked(to.clone());
     }
 
     pub fn undoable_link(&self, to: &T) {
+        if self.is_linked() && addr_eq!(*self.crack(), *to) {
+            panic!("link to self");
+        }
         let prev = self.clone_inner();
         let new = FreeKind::UndoableLinked {
             t: to.clone(),
@@ -422,6 +435,9 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn forced_undoable_link(&self, to: &T) {
+        if self.is_linked() && addr_eq!(*self.crack(), *to) {
+            panic!("link to self");
+        }
         let prev = self.clone_inner();
         let new = FreeKind::UndoableLinked {
             t: to.clone(),
@@ -441,8 +457,11 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn update_level(&self, level: Level) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } if level < *lev => {
+                if addr_eq!(*lev, level) {
+                    return;
+                }
                 *lev = level;
             }
             FreeKind::Linked(t) => {
@@ -453,7 +472,7 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn lift(&self) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound {
                 lev, constraint, ..
             }
@@ -477,8 +496,11 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                if addr_eq!(*constraint, new_constraint) {
+                    return;
+                }
                 *constraint = new_constraint;
             }
             _ => {}
@@ -578,22 +600,6 @@ impl<T: Clone + HasLevel> Free<T> {
         )
     }
 
-    pub fn constraint_is_supertypeof(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub().is_some()
-        )
-    }
-
-    pub fn constraint_is_subtypeof(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_super().is_some()
-        )
-    }
-
     pub fn constraint_is_sandwiched(&self) -> bool {
         matches!(
             &*self.borrow(),
@@ -619,7 +625,7 @@ impl<T: Clone + HasLevel> Free<T> {
 
 impl Free<Type> {
     pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 constraint.update_cyclicity(new_cyclicity);
             }
@@ -635,7 +641,7 @@ impl Free<TyParam> {
     where
         F: Fn(TyParam) -> TyParam,
     {
-        match &mut *self.borrow_mut() {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }

@@ -20,7 +20,7 @@ impl Context {
             Type::Int,
             set! { Predicate::eq(var, TyParam::value(1)) },
         );
-        if self.rec_supertype_of(&lhs, &rhs) {
+        if self.supertype_of(&lhs, &rhs) {
             Ok(())
         } else {
             Err(())
@@ -49,8 +49,8 @@ impl Context {
         let maybe_trait = poly(name.clone(), params);
         let mut min = Type::Obj;
         for pair in self.rec_get_trait_impls(&name) {
-            if self.rec_supertype_of(&pair.sup_trait, &maybe_trait) {
-                min = self.rec_min(&min, &pair.sub_type).unwrap_or(&min).clone();
+            if self.supertype_of(&pair.sup_trait, &maybe_trait) {
+                min = self.min(&min, &pair.sub_type).unwrap_or(&min).clone();
             }
         }
         if min == Nat {

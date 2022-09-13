@@ -65,6 +65,29 @@ impl TraitInstance {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ClassDefType {
+    Simple(Type),
+    ImplTrait { class: Type, impl_trait: Type },
+}
+
+impl std::fmt::Display for ClassDefType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClassDefType::Simple(ty) => write!(f, "{ty}"),
+            ClassDefType::ImplTrait { class, impl_trait } => {
+                write!(f, "{class}|<: {impl_trait}|")
+            }
+        }
+    }
+}
+
+impl ClassDefType {
+    pub const fn impl_trait(class: Type, impl_trait: Type) -> Self {
+        ClassDefType::ImplTrait { class, impl_trait }
+    }
+}
+
 /// ```
 /// # use erg_common::ty::{Type, TyParam};
 /// # use erg_compiler::context::TyParamIdx;
@@ -254,7 +277,7 @@ pub struct Context {
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
-    pub(crate) methods_list: Vec<(Type, Context)>,
+    pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -273,6 +296,7 @@ pub struct Context {
     /// ```
     /// => params: vec![(None, [T; 2]), (Some("z"), U)]
     /// => locals: {"x": T, "y": T}
+    /// TODO: impl params desugaring and replace to `Dict`
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
@@ -286,7 +310,6 @@ pub struct Context {
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mods: Dict<VarName, Context>,
-    pub(crate) _nlocals: usize, // necessary for CodeObj.nlocals
     pub(crate) level: usize,
 }
 
@@ -298,8 +321,6 @@ impl Default for Context {
             ContextKind::Dummy,
             vec![],
             None,
-            vec![],
-            vec![],
             Self::TOP_LEVEL,
         )
     }
@@ -330,20 +351,9 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        super_classes: Vec<Type>,
-        super_traits: Vec<Type>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(
-            name,
-            kind,
-            params,
-            outer,
-            super_classes,
-            super_traits,
-            0,
-            level,
-        )
+        Self::with_capacity(name, kind, params, outer, 0, level)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -352,8 +362,6 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        super_classes: Vec<Type>,
-        super_traits: Vec<Type>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -379,8 +387,8 @@ impl Context {
             bounds: vec![],
             preds: vec![],
             outer: outer.map(Box::new),
-            super_classes,
-            super_traits,
+            super_classes: vec![],
+            super_traits: vec![],
             methods_list: vec![],
             const_param_defaults: Dict::default(),
             method_impl_patches: Dict::default(),
@@ -393,30 +401,13 @@ impl Context {
             poly_types: Dict::default(),
             mods: Dict::default(),
             patches: Dict::default(),
-            _nlocals: 0,
             level,
         }
     }
 
     #[inline]
-    pub fn mono(
-        name: Str,
-        kind: ContextKind,
-        outer: Option<Context>,
-        super_classes: Vec<Type>,
-        super_traits: Vec<Type>,
-        level: usize,
-    ) -> Self {
-        Self::with_capacity(
-            name,
-            kind,
-            vec![],
-            outer,
-            super_classes,
-            super_traits,
-            0,
-            level,
-        )
+    pub fn mono(name: Str, kind: ContextKind, outer: Option<Context>, level: usize) -> Self {
+        Self::with_capacity(name, kind, vec![], outer, 0, level)
     }
 
     #[inline]
@@ -425,105 +416,39 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        super_classes: Vec<Type>,
-        super_traits: Vec<Type>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(
-            name,
-            kind,
-            params,
-            outer,
-            super_classes,
-            super_traits,
-            0,
-            level,
-        )
+        Self::with_capacity(name, kind, params, outer, 0, level)
     }
 
-    pub fn poly_trait<S: Into<Str>>(
-        name: S,
-        params: Vec<ParamSpec>,
-        supers: Vec<Type>,
-        level: usize,
-    ) -> Self {
+    pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
         let name = name.into();
-        Self::poly(
-            name,
-            ContextKind::Trait,
-            params,
-            None,
-            vec![],
-            supers,
-            level,
-        )
+        Self::poly(name, ContextKind::Trait, params, None, level)
     }
 
-    pub fn poly_class<S: Into<Str>>(
-        name: S,
-        params: Vec<ParamSpec>,
-        super_classes: Vec<Type>,
-        impl_traits: Vec<Type>,
-        level: usize,
-    ) -> Self {
+    pub fn poly_class<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
         let name = name.into();
-        Self::poly(
-            name,
-            ContextKind::Class,
-            params,
-            None,
-            super_classes,
-            impl_traits,
-            level,
-        )
+        Self::poly(name, ContextKind::Class, params, None, level)
     }
 
     #[inline]
-    pub fn mono_trait<S: Into<Str>>(name: S, supers: Vec<Type>, level: usize) -> Self {
-        Self::poly_trait(name, vec![], supers, level)
+    pub fn mono_trait<S: Into<Str>>(name: S, level: usize) -> Self {
+        Self::poly_trait(name, vec![], level)
     }
 
     #[inline]
-    pub fn mono_class<S: Into<Str>>(
-        name: S,
-        super_classes: Vec<Type>,
-        super_traits: Vec<Type>,
-        level: usize,
-    ) -> Self {
-        Self::poly_class(name, vec![], super_classes, super_traits, level)
+    pub fn mono_class<S: Into<Str>>(name: S, level: usize) -> Self {
+        Self::poly_class(name, vec![], level)
     }
 
     #[inline]
     pub fn methods<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::with_capacity(
-            name.into(),
-            ContextKind::MethodDefs,
-            vec![],
-            None,
-            vec![],
-            vec![],
-            2,
-            level,
-        )
+        Self::with_capacity(name.into(), ContextKind::MethodDefs, vec![], None, 2, level)
     }
 
     #[inline]
-    pub fn poly_patch<S: Into<Str>>(
-        name: S,
-        params: Vec<ParamSpec>,
-        patch_classes: Vec<Type>,
-        impl_traits: Vec<Type>,
-        level: usize,
-    ) -> Self {
-        Self::poly(
-            name.into(),
-            ContextKind::Trait,
-            params,
-            None,
-            patch_classes,
-            impl_traits,
-            level,
-        )
+    pub fn poly_patch<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
+        Self::poly(name.into(), ContextKind::Trait, params, None, level)
     }
 
     #[inline]
@@ -533,8 +458,6 @@ impl Context {
             ContextKind::Module,
             vec![],
             None,
-            vec![],
-            vec![],
             capacity,
             Self::TOP_LEVEL,
         )
@@ -547,8 +470,6 @@ impl Context {
             ContextKind::Instant,
             vec![],
             Some(outer),
-            vec![],
-            vec![],
             capacity,
             Self::TOP_LEVEL,
         )

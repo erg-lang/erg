@@ -141,8 +141,8 @@ impl<T: Hash + Eq> Set<T> {
     }
 
     #[inline]
-    pub fn insert(&mut self, value: T) {
-        self.elems.insert(value);
+    pub fn insert(&mut self, value: T) -> bool {
+        self.elems.insert(value)
     }
 
     #[inline]
@@ -201,5 +201,12 @@ impl<T: Hash + Ord> Set<T> {
 
     pub fn min(&self) -> Option<&T> {
         self.iter().min_by(|x, y| x.cmp(y))
+    }
+}
+
+impl<T: Hash + fmt::Display> Set<T> {
+    pub fn folded_display(&self) -> String {
+        self.iter()
+            .fold("".to_string(), |acc, x| acc + &x.to_string() + "\n")
     }
 }
