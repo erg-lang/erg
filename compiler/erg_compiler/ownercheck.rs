@@ -79,6 +79,9 @@ impl OwnershipChecker {
     }
 
     fn check_block(&mut self, block: &Block) {
+        if block.len() == 1 {
+            self.check_expr(block.first().unwrap(), Ownership::Owned, false);
+        }
         for chunk in block.iter() {
             self.check_expr(chunk, Ownership::Owned, true);
         }
