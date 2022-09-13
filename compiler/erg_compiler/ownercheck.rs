@@ -12,7 +12,7 @@ use Visibility::*;
 use erg_type::{HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
-use crate::hir::{self, Accessor, Array, Block, Def, Expr, Signature, Tuple, HIR};
+use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WrapperKind {
@@ -80,7 +80,7 @@ impl OwnershipChecker {
 
     fn check_block(&mut self, block: &Block) {
         if block.len() == 1 {
-            self.check_expr(block.first().unwrap(), Ownership::Owned, false);
+            return self.check_expr(block.first().unwrap(), Ownership::Owned, false);
         }
         for chunk in block.iter() {
             self.check_expr(chunk, Ownership::Owned, true);
@@ -90,7 +90,6 @@ impl OwnershipChecker {
     fn check_expr(&mut self, expr: &Expr, ownership: Ownership, chunk: bool) {
         match expr {
             Expr::Def(def) => {
-                log!(info "define: {}", def.sig);
                 self.define(def);
                 let name = match &def.sig {
                     Signature::Var(var) => var.inspect().clone(),
@@ -200,12 +199,7 @@ impl OwnershipChecker {
                     return;
                 }
                 if acc.ref_t().is_mut() && ownership.is_owned() && !chunk {
-                    log!(
-                        "drop: {} (in {})",
-                        ident.inspect(),
-                        ident.ln_begin().unwrap_or(0)
-                    );
-                    self.drop(ident.inspect(), acc.loc());
+                    self.drop(ident);
                 }
             }
             Accessor::Attr(attr) => {
@@ -242,6 +236,7 @@ impl OwnershipChecker {
     }
 
     fn define(&mut self, def: &Def) {
+        log!(info "define: {}", def.sig);
         match &def.sig {
             Signature::Var(sig) => {
                 self.current_scope()
@@ -256,20 +251,17 @@ impl OwnershipChecker {
         }
     }
 
-    fn drop(&mut self, name: &Str, moved_loc: Location) {
-        if let Err(e) = self.check_if_dropped(name, moved_loc) {
-            self.errs.push(e);
-            return;
-        }
+    fn drop(&mut self, ident: &Identifier) {
+        log!("drop: {ident} (in {})", ident.ln_begin().unwrap_or(0));
         for n in 0..self.path_stack.len() {
-            if self.nth_outer_scope(n).alive_vars.remove(name) {
+            if self.nth_outer_scope(n).alive_vars.remove(ident.inspect()) {
                 self.nth_outer_scope(n)
                     .dropped_vars
-                    .insert(name.clone(), moved_loc);
+                    .insert(ident.inspect().clone(), ident.loc());
                 return;
             }
         }
-        panic!("variable not found: {name}");
+        panic!("variable not found: {ident}");
     }
 
     fn check_if_dropped(&mut self, name: &Str, loc: Location) -> Result<(), OwnershipError> {
