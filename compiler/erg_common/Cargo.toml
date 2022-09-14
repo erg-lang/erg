@@ -1,8 +1,8 @@
 [package]
 name = "erg_common"
-version = "0.4.1"
+version = "0.4.2"
 description = "A common components library of Erg"
-authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
+authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 repository = "https://github.com/erg-lang/erg/tree/main/src/erg_common"
