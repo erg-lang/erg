@@ -1594,7 +1594,7 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtypeof(l, poly("Mul", params))
+                subtypeof(l, poly("Div", params))
             },
         );
         self.register_builtin_impl("__div__", op_t, Const, Private);

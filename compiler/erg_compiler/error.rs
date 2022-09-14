@@ -1145,6 +1145,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         proj: &Type,
         loc: Location,
         caused_by: AtomicStr,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1157,7 +1158,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                     "traditional_chinese" => format!("{proj}沒有候選項"),
                     "english" => format!("no candidate for {proj}"),
                 ),
-                None,
+                hint,
             ),
             caused_by,
         )

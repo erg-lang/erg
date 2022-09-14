@@ -593,11 +593,13 @@ impl Context {
                         }
                     }
                 }
+                let proj = mono_proj(*lhs, rhs);
                 Err(EvalError::no_candidate_error(
                     line!() as usize,
-                    &mono_proj(*lhs, rhs),
+                    &proj,
                     t_loc,
                     self.caused_by(),
+                    self.get_no_candidate_hint(&proj),
                 ))
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
