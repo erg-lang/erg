@@ -7,7 +7,6 @@ use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
-use erg_common::Str;
 use erg_type::codeobj::CodeObj;
 
 use erg_parser::ParserRunner;
@@ -134,7 +133,7 @@ impl Runnable for Compiler {
         self.compile_and_dump_as_pyc(src, path, "exec")
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let codeobj = self.compile(src, "eval")?;
         Ok(codeobj.code_info())
     }
@@ -150,7 +149,7 @@ impl Compiler {
 
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
-        src: Str,
+        src: String,
         path: P,
         mode: &str,
     ) -> Result<(), CompileErrors> {
@@ -160,7 +159,7 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn compile(&mut self, src: Str, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
         let mut cfg = self.cfg.copy();
         cfg.input = Input::Str(src);
