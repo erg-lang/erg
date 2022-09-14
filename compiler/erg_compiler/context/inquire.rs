@@ -956,7 +956,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval_t_params(instance, self.level)?;
+        let res = self.eval_t_params(instance, self.level, obj.loc())?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -1520,8 +1520,12 @@ impl Context {
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
                             Some(
-                                self.eval_t_params(mono_proj(inst.sub_type, rhs), self.level)
-                                    .unwrap(),
+                                self.eval_t_params(
+                                    mono_proj(inst.sub_type, rhs),
+                                    self.level,
+                                    Location::Unknown,
+                                )
+                                .unwrap(),
                             )
                         } else {
                             None

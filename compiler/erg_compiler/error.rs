@@ -1139,6 +1139,29 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn no_candidate_error(
+        errno: usize,
+        proj: &Type,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{proj}の候補がありません"),
+                    "simplified_chinese" => format!("{proj}没有候选项"),
+                    "traditional_chinese" => format!("{proj}沒有候選項"),
+                    "english" => format!("no candidate for {proj}"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]

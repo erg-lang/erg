@@ -1,6 +1,7 @@
 use std::mem;
 
 use erg_common::dict::Dict;
+use erg_common::error::Location;
 use erg_common::rccell::RcCell;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -496,21 +497,28 @@ impl Context {
         }
     }
 
-    pub(crate) fn eval_t_params(&self, substituted: Type, level: usize) -> EvalResult<Type> {
+    pub(crate) fn eval_t_params(
+        &self,
+        substituted: Type,
+        level: usize,
+        t_loc: Location,
+    ) -> EvalResult<Type> {
         match substituted {
-            Type::FreeVar(fv) if fv.is_linked() => self.eval_t_params(fv.crack().clone(), level),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.eval_t_params(fv.crack().clone(), level, t_loc)
+            }
             Type::Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level)?;
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)?;
                 }
                 if let Some(var_args) = subr.var_params.as_mut() {
                     *var_args.typ_mut() =
-                        self.eval_t_params(mem::take(var_args.typ_mut()), level)?;
+                        self.eval_t_params(mem::take(var_args.typ_mut()), level, t_loc)?;
                 }
                 for pt in subr.default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level)?;
+                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)?;
                 }
-                let return_t = self.eval_t_params(*subr.return_t, level)?;
+                let return_t = self.eval_t_params(*subr.return_t, level, t_loc)?;
                 Ok(subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -533,7 +541,7 @@ impl Context {
                 // All type variables will be dereferenced or fail.
                 let (sub, opt_sup) = match *lhs.clone() {
                     Type::FreeVar(fv) if fv.is_linked() => {
-                        return self.eval_t_params(mono_proj(fv.crack().clone(), rhs), level)
+                        return self.eval_t_params(mono_proj(fv.crack().clone(), rhs), level, t_loc)
                     }
                     Type::FreeVar(fv) if fv.is_unbound() => {
                         let (sub, sup) = fv.get_bound_types().unwrap();
@@ -553,7 +561,7 @@ impl Context {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&sub, ty_ctx);
                             let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
-                            let t = self.eval_t_params(t, level)?;
+                            let t = self.eval_t_params(t, level, t_loc)?;
                             return Ok(t);
                         } else {
                             todo!()
@@ -577,7 +585,7 @@ impl Context {
                             if let ValueObj::Type(quant_t) = obj {
                                 let subst_ctx = SubstContext::new(&lhs, ty_ctx);
                                 let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
-                                let t = self.eval_t_params(t, level)?;
+                                let t = self.eval_t_params(t, level, t_loc)?;
                                 return Ok(t);
                             } else {
                                 todo!()
@@ -585,20 +593,18 @@ impl Context {
                         }
                     }
                 }
-                todo!(
-                    "{lhs}.{rhs} not found in [{}]",
-                    erg_common::fmt_iter(
-                        self.get_nominal_super_type_ctxs(&lhs)
-                            .unwrap()
-                            .map(|(_, ctx)| &ctx.name)
-                    )
-                )
+                Err(EvalError::no_candidate_error(
+                    line!() as usize,
+                    &mono_proj(*lhs, rhs),
+                    t_loc,
+                    self.caused_by(),
+                ))
             }
-            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level)?)),
+            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
-                let before = self.eval_t_params(*before, level)?;
+                let before = self.eval_t_params(*before, level, t_loc)?;
                 let after = if let Some(after) = after {
-                    Some(self.eval_t_params(*after, level)?)
+                    Some(self.eval_t_params(*after, level, t_loc)?)
                 } else {
                     None
                 };
@@ -615,17 +621,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn _eval_bound(&self, bound: TyBound, level: usize) -> EvalResult<TyBound> {
+    pub(crate) fn _eval_bound(
+        &self,
+        bound: TyBound,
+        level: usize,
+        t_loc: Location,
+    ) -> EvalResult<TyBound> {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
-                let sub = self.eval_t_params(sub, level)?;
-                let mid = self.eval_t_params(mid, level)?;
-                let sup = self.eval_t_params(sup, level)?;
+                let sub = self.eval_t_params(sub, level, t_loc)?;
+                let mid = self.eval_t_params(mid, level, t_loc)?;
+                let sup = self.eval_t_params(sup, level, t_loc)?;
                 Ok(TyBound::sandwiched(sub, mid, sup))
             }
-            TyBound::Instance { name: inst, t } => {
-                Ok(TyBound::instance(inst, self.eval_t_params(t, level)?))
-            }
+            TyBound::Instance { name: inst, t } => Ok(TyBound::instance(
+                inst,
+                self.eval_t_params(t, level, t_loc)?,
+            )),
         }
     }
 
