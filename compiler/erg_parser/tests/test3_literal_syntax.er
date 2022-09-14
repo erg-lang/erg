@@ -23,5 +23,8 @@ None
 # Infinite Literal
 Inf, -Inf
 
+# Not Implemeted Literal
+NotImplemented
+
 # Exponetial Literal
 # 1e-34, 0.4e-10, 2.455+e5
