@@ -51,7 +51,9 @@ impl Runnable for DummyVM {
                         break Some(stream);
                     }
                     Err(_) => {
-                        println!("Retrying to connect to the REPL server...");
+                        if !cfg.quiet_startup {
+                            println!("Retrying to connect to the REPL server...");
+                        }
                         sleep(Duration::from_millis(500));
                         continue;
                     }
