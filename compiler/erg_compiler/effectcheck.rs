@@ -106,6 +106,37 @@ impl SideEffectChecker {
                     self.check_expr(&unary.expr);
                 }
                 Expr::Accessor(_) | Expr::Lit(_) => {}
+                Expr::Array(array) => match array {
+                    Array::Normal(arr) => {
+                        for elem in arr.elems.pos_args.iter() {
+                            self.check_expr(&elem.expr);
+                        }
+                    }
+                    Array::WithLength(arr) => {
+                        self.check_expr(&arr.elem);
+                        self.check_expr(&arr.len);
+                    }
+                    Array::Comprehension(arr) => {
+                        self.check_expr(&arr.elem);
+                        self.check_expr(&arr.guard);
+                    }
+                },
+                Expr::Tuple(tuple) => match tuple {
+                    Tuple::Normal(tuple) => {
+                        for elem in tuple.elems.pos_args.iter() {
+                            self.check_expr(&elem.expr);
+                        }
+                    }
+                },
+                Expr::Record(rec) => {
+                    self.path_stack.push((Str::ever("<record>"), Private));
+                    self.block_stack.push(Instant);
+                    for attr in rec.attrs.iter() {
+                        self.check_def(attr);
+                    }
+                    self.path_stack.pop();
+                    self.block_stack.pop();
+                }
                 other => todo!("{other}"),
             }
         }
@@ -187,11 +218,18 @@ impl SideEffectChecker {
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    for arg in arr.elems.pos_args.iter() {
-                        self.check_expr(&arg.expr);
+                    for elem in arr.elems.pos_args.iter() {
+                        self.check_expr(&elem.expr);
                     }
                 }
-                other => todo!("{other}"),
+                Array::WithLength(arr) => {
+                    self.check_expr(&arr.elem);
+                    self.check_expr(&arr.len);
+                }
+                Array::Comprehension(arr) => {
+                    self.check_expr(&arr.elem);
+                    self.check_expr(&arr.guard);
+                }
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
@@ -201,9 +239,13 @@ impl SideEffectChecker {
                 }
             },
             Expr::Record(record) => {
+                self.path_stack.push((Str::ever("<record>"), Private));
+                self.block_stack.push(Instant);
                 for attr in record.attrs.iter() {
                     self.check_def(attr);
                 }
+                self.path_stack.pop();
+                self.block_stack.pop();
             }
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {

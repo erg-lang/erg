@@ -644,7 +644,12 @@ impl Context {
                 let new_r = self.resolve_trait(*r)?;
                 Ok(self.intersection(&new_l, &new_r))
             }
-            Type::Or(_, _) | Type::Not(_, _) => todo!(),
+            Type::Or(l, r) => {
+                let new_l = self.resolve_trait(*l)?;
+                let new_r = self.resolve_trait(*r)?;
+                Ok(self.union(&new_l, &new_r))
+            }
+            Type::Not(_, _) => todo!(),
             other => Ok(other),
         }
     }
