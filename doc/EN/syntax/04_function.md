@@ -32,13 +32,7 @@ f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python
-f:
-    some_long_name_variable_1 + some_long_name_variable_2
-    some_long_name_variable_3 * some_long_name_variable_4
-```
-
-All three codes above mean the same thing. This style is also useful when using `if` functions, for example.
+Codes above mean the same thing. This style is also useful when using `if` functions, for example.
 
 ```python
 result = if Bool.sample!():
@@ -51,6 +45,14 @@ result = if Bool.sample!():
 ```
 
 After `:`, no code other than comments may be written, and must always be on a new line.
+Also, you cannot use `:` immediately after a function. Only `do` and `do!` can do this.
+
+```python
+# NG
+f:
+    x
+    y
+```
 
 ## Keyword Arguments
 

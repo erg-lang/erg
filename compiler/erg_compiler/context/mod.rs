@@ -17,6 +17,7 @@ use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
@@ -476,8 +477,8 @@ impl Context {
     }
 
     #[inline]
-    pub fn caused_by(&self) -> Str {
-        self.name.clone()
+    pub fn caused_by(&self) -> AtomicStr {
+        AtomicStr::arc(&self.name[..])
     }
 
     pub(crate) fn grow(

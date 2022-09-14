@@ -500,6 +500,10 @@ impl Predicate {
         Self::Not(Box::new(lhs), Box::new(rhs))
     }
 
+    pub fn is_equal(&self) -> bool {
+        matches!(self, Self::Equal { .. })
+    }
+
     pub fn subject(&self) -> Option<&str> {
         match self {
             Self::Equal { lhs, .. }
@@ -878,9 +882,23 @@ impl LimitedDisplay for RefinementType {
         if limit == 0 {
             return write!(f, "...");
         }
-        write!(f, "{{{}: ", self.var)?;
-        self.t.limited_fmt(f, limit - 1)?;
-        write!(f, " | {}}}", fmt_set_split_with(&self.preds, "; "))
+        let first_subj = self.preds.iter().next().and_then(|p| p.subject());
+        if self
+            .preds
+            .iter()
+            .all(|p| p.is_equal() && p.subject() == first_subj)
+        {
+            write!(f, "{{")?;
+            for pred in self.preds.iter() {
+                let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
+                write!(f, "{}, ", rhs)?;
+            }
+            write!(f, "}}")
+        } else {
+            write!(f, "{{{}: ", self.var)?;
+            self.t.limited_fmt(f, limit - 1)?;
+            write!(f, " | {}}}", fmt_set_split_with(&self.preds, "; "))
+        }
     }
 }
 

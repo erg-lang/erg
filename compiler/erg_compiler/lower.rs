@@ -1,6 +1,7 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
+use erg_common::astr::AtomicStr;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::traits::{Locational, Runnable, Stream};
@@ -17,7 +18,7 @@ use erg_parser::Parser;
 use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::{TypeObj, ValueObj};
+use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
@@ -29,34 +30,6 @@ use crate::hir::HIR;
 use crate::link::Linker;
 use crate::varinfo::VarKind;
 use Visibility::*;
-
-/// HACK: Cannot be methodized this because a reference has been taken immediately before.
-macro_rules! check_inheritable {
-    ($self: ident, $type_obj: expr, $sup_class: expr, $sub_sig: expr) => {
-        match $type_obj.require_or_sup.as_ref() {
-            TypeObj::Generated(gen) => {
-                if let Some(impls) = gen.impls.as_ref() {
-                    if !impls.contains_intersec(&mono("InheritableType")) {
-                        $self.errs.push(LowerError::inheritance_error(
-                            line!() as usize,
-                            $sup_class.to_string(),
-                            $sup_class.loc(),
-                            $sub_sig.ident().inspect().clone(),
-                        ));
-                    }
-                } else {
-                    $self.errs.push(LowerError::inheritance_error(
-                        line!() as usize,
-                        $sup_class.to_string(),
-                        $sup_class.loc(),
-                        $sub_sig.ident().inspect().clone(),
-                    ));
-                }
-            }
-            _ => {}
-        }
-    };
-}
 
 pub struct ASTLowererRunner {
     cfg: ErgConfig,
@@ -109,7 +82,7 @@ impl Runnable for ASTLowererRunner {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
@@ -186,7 +159,7 @@ impl ASTLowerer {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),
-                self.ctx.name.clone(),
+                AtomicStr::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
                     "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
@@ -237,7 +210,7 @@ impl ASTLowerer {
                 return Err(LowerError::syntax_error(
                     line!() as usize,
                     elem.loc(),
-                    self.ctx.name.clone(),
+                    AtomicStr::arc(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "配列の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "数组元素必须全部是相同类型",
@@ -750,7 +723,7 @@ impl ASTLowerer {
                                         self.errs.push(LowerError::duplicate_definition_error(
                                             line!() as usize,
                                             newly_defined_name.loc(),
-                                            methods.name.clone(),
+                                            methods.name.clone().into(),
                                             newly_defined_name.inspect(),
                                         ));
                                     } else {
@@ -782,7 +755,7 @@ impl ASTLowerer {
             .args
             .get_left_or_key("Super")
             .unwrap();
-        check_inheritable!(self, type_obj, sup_type, &hir_def.sig);
+        Self::check_inheritable(&mut self.errs, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
             ctx.get_current_scope_var("__new__"),
@@ -802,6 +775,34 @@ impl ASTLowerer {
             private_methods,
             public_methods,
         ))
+    }
+
+    /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
+    fn check_inheritable(
+        errs: &mut LowerErrors,
+        type_obj: &GenTypeObj,
+        sup_class: &hir::Expr,
+        sub_sig: &hir::Signature,
+    ) {
+        if let TypeObj::Generated(gen) = type_obj.require_or_sup.as_ref() {
+            if let Some(impls) = gen.impls.as_ref() {
+                if !impls.contains_intersec(&mono("InheritableType")) {
+                    errs.push(LowerError::inheritance_error(
+                        line!() as usize,
+                        sup_class.to_string(),
+                        sup_class.loc(),
+                        sub_sig.ident().inspect().into(),
+                    ));
+                }
+            } else {
+                errs.push(LowerError::inheritance_error(
+                    line!() as usize,
+                    sup_class.to_string(),
+                    sup_class.loc(),
+                    sub_sig.ident().inspect().into(),
+                ));
+            }
+        }
     }
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {

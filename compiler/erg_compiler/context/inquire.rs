@@ -100,7 +100,7 @@ impl Context {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,
                             obj.loc(),
-                            namespace.clone(),
+                            namespace.into(),
                             ident.inspect(),
                             self.get_similar_name(ident.inspect()),
                         ))
@@ -213,7 +213,7 @@ impl Context {
             Err(TyCheckError::no_var_error(
                 line!() as usize,
                 ident.loc(),
-                namespace.clone(),
+                namespace.into(),
                 ident.inspect(),
                 self.get_similar_name(ident.inspect()),
             ))
@@ -269,7 +269,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 &self_t,
                 name.inspect(),
                 self.get_similar_attr(&self_t, name.inspect()),
@@ -308,7 +308,7 @@ impl Context {
                     Err(TyCheckError::no_attr_error(
                         line!() as usize,
                         ident.loc(),
-                        namespace.clone(),
+                        namespace.into(),
                         &t,
                         ident.inspect(),
                         self.get_similar_attr(&t, ident.inspect()),
@@ -393,7 +393,7 @@ impl Context {
                 return Err(TyCheckError::singular_no_attr_error(
                     line!() as usize,
                     method_name.loc(),
-                    namespace.clone(),
+                    namespace.into(),
                     obj.__name__().unwrap_or("?"),
                     obj.ref_t(),
                     method_name.inspect(),
@@ -404,7 +404,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 method_name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 obj.ref_t(),
                 method_name.inspect(),
                 self.get_similar_attr(obj.ref_t(), method_name.inspect()),
@@ -644,7 +644,12 @@ impl Context {
                 let new_r = self.resolve_trait(*r)?;
                 Ok(self.intersection(&new_l, &new_r))
             }
-            Type::Or(_, _) | Type::Not(_, _) => todo!(),
+            Type::Or(l, r) => {
+                let new_l = self.resolve_trait(*l)?;
+                let new_r = self.resolve_trait(*r)?;
+                Ok(self.union(&new_l, &new_r))
+            }
+            Type::Not(_, _) => todo!(),
             other => Ok(other),
         }
     }
@@ -951,7 +956,7 @@ impl Context {
         );
         self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval_t_params(instance, self.level)?;
+        let res = self.eval_t_params(instance, self.level, obj.loc())?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -970,7 +975,7 @@ impl Context {
             Err(TyCheckError::no_var_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 name.inspect(),
                 self.get_similar_name(name.inspect()),
             ))
@@ -999,7 +1004,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 self_t,
                 name.inspect(),
                 self.get_similar_attr(self_t, name.inspect()),
@@ -1515,8 +1520,12 @@ impl Context {
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
                             Some(
-                                self.eval_t_params(mono_proj(inst.sub_type, rhs), self.level)
-                                    .unwrap(),
+                                self.eval_t_params(
+                                    mono_proj(inst.sub_type, rhs),
+                                    self.level,
+                                    Location::Unknown,
+                                )
+                                .unwrap(),
                             )
                         } else {
                             None

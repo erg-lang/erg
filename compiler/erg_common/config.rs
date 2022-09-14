@@ -7,7 +7,6 @@ use std::io::{stdin, BufRead, BufReader, Read};
 use std::process;
 
 use crate::stdin::GLOBAL_STDIN;
-use crate::Str;
 use crate::{power_assert, read_file};
 
 pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
@@ -19,12 +18,12 @@ pub const BUILD_DATE: &str = env!("BUILD_DATE");
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
     /// filename
-    File(Str),
+    File(String),
     REPL,
     /// same content as cfg.command
-    Pipe(Str),
+    Pipe(String),
     /// from command option | eval
-    Str(Str),
+    Str(String),
     Dummy,
 }
 
@@ -52,7 +51,7 @@ impl Input {
         }
     }
 
-    pub fn read(&self) -> Str {
+    pub fn read(&self) -> String {
         match self {
             Self::File(filename) => {
                 let file = match File::open(&filename[..]) {
@@ -63,15 +62,14 @@ impl Input {
                         process::exit(code);
                     }
                 };
-                let src = match read_file(file) {
+                match read_file(file) {
                     Ok(s) => s,
                     Err(e) => {
                         let code = e.raw_os_error().unwrap_or(1);
                         println!("cannot read '{filename}': [Errno {code}] {e}");
                         process::exit(code);
                     }
-                };
-                Str::from(src)
+                }
             }
             Self::Pipe(s) | Self::Str(s) => s.clone(),
             Self::REPL => GLOBAL_STDIN.read(),
@@ -79,7 +77,7 @@ impl Input {
         }
     }
 
-    pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<Str> {
+    pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         power_assert!(ln_begin, >=, 1);
         match self {
             Self::File(filename) => match File::open(&filename[..]) {
@@ -87,7 +85,7 @@ impl Input {
                     let mut codes = vec![];
                     let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
                     for _ in ln_begin..=ln_end {
-                        codes.push(Str::from(lines.next().unwrap().unwrap()));
+                        codes.push(lines.next().unwrap().unwrap());
                     }
                     codes
                 }
@@ -96,18 +94,18 @@ impl Input {
             Self::Pipe(s) | Self::Str(s) => s.split('\n').collect::<Vec<_>>()
                 [ln_begin - 1..=ln_end - 1]
                 .iter()
-                .map(|s| Str::rc(*s))
+                .map(|s| s.to_string())
                 .collect(),
             Self::REPL => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
     }
 
-    pub fn reread(&self) -> Str {
+    pub fn reread(&self) -> String {
         match self {
             Self::File(_filename) => todo!(),
             Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => Str::from(GLOBAL_STDIN.reread().trim_end().to_owned()),
+            Self::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }
@@ -126,6 +124,7 @@ pub struct ErgConfig {
     pub dump_as_pyc: bool,
     pub python_ver: Option<u32>,
     pub py_server_timeout: u64,
+    pub quiet_startup: bool,
     pub input: Input,
     pub module: &'static str,
     /// verbosity level for system messages.
@@ -142,7 +141,7 @@ impl Default for ErgConfig {
         let input = if is_stdin_piped {
             let mut buffer = String::new();
             stdin().read_to_string(&mut buffer).unwrap();
-            Input::Pipe(Str::from(buffer))
+            Input::Pipe(buffer)
         } else {
             Input::REPL
         };
@@ -152,6 +151,7 @@ impl Default for ErgConfig {
             dump_as_pyc: false,
             python_ver: None,
             py_server_timeout: 10,
+            quiet_startup: false,
             input,
             module: "<module>",
             verbose: 2,
@@ -174,7 +174,7 @@ impl ErgConfig {
         while let Some(arg) = args.next() {
             match &arg[..] {
                 "-c" => {
-                    cfg.input = Input::Str(Str::from(args.next().unwrap()));
+                    cfg.input = Input::Str(args.next().unwrap());
                 }
                 "--dump-as-pyc" => {
                     cfg.dump_as_pyc = true;
@@ -212,6 +212,9 @@ impl ErgConfig {
                 "--py-server-timeout" => {
                     cfg.py_server_timeout = args.next().unwrap().parse::<u64>().unwrap();
                 }
+                "--quiet-startup" => {
+                    cfg.quiet_startup = true;
+                }
                 "--verbose" => {
                     cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();
                 }
@@ -223,7 +226,7 @@ impl ErgConfig {
                     panic!("invalid option: {other}");
                 }
                 _ => {
-                    cfg.input = Input::File(Str::from(arg));
+                    cfg.input = Input::File(arg);
                     break;
                 }
             }

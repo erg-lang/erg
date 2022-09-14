@@ -6,11 +6,13 @@ use std::time::Duration;
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::python_util::{exec_py, exec_pyc};
-use erg_common::str::Str;
 use erg_common::traits::Runnable;
 
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
+
+pub type EvalError = CompileError;
+pub type EvalErrors = CompileErrors;
 
 /// Open the Python interpreter as a server and act as an Erg interpreter by mediating communication
 ///
@@ -23,19 +25,23 @@ pub struct DummyVM {
 }
 
 impl Runnable for DummyVM {
-    type Err = CompileError;
-    type Errs = CompileErrors;
+    type Err = EvalError;
+    type Errs = EvalErrors;
     const NAME: &'static str = "Erg interpreter";
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
-            println!("Starting the REPL server...");
+            if !cfg.quiet_startup {
+                println!("Starting the REPL server...");
+            }
             let port = find_available_port();
             let code = include_str!("scripts/repl_server.py")
                 .replace("__PORT__", port.to_string().as_str());
             exec_py(&code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-            println!("Connecting to the REPL server...");
+            if !cfg.quiet_startup {
+                println!("Connecting to the REPL server...");
+            }
             loop {
                 match TcpStream::connect(&addr) {
                     Ok(stream) => {
@@ -45,7 +51,9 @@ impl Runnable for DummyVM {
                         break Some(stream);
                     }
                     Err(_) => {
-                        println!("Retrying to connect to the REPL server...");
+                        if !cfg.quiet_startup {
+                            println!("Retrying to connect to the REPL server...");
+                        }
                         sleep(Duration::from_millis(500));
                         continue;
                     }
@@ -97,7 +105,7 @@ impl Runnable for DummyVM {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         self.compiler
             .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
@@ -107,7 +115,7 @@ impl Runnable for DummyVM {
                     Result::Ok(n) => {
                         let s = std::str::from_utf8(&buf[..n]).unwrap();
                         if s == "[Exception] SystemExit" {
-                            return Err(CompileErrors::from(CompileError::system_exit()));
+                            return Err(EvalErrors::from(EvalError::system_exit()));
                         }
                         s.to_string()
                     }

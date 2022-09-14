@@ -4,6 +4,7 @@
 use std::fmt;
 use std::process;
 
+use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -1220,7 +1221,7 @@ impl CodeGenerator {
                             self.cfg.input.clone(),
                             unary.op.loc(),
                             "",
-                            unary.op.content.clone(),
+                            AtomicStr::from(unary.op.content),
                         ));
                         NOT_IMPLEMENTED
                     }
@@ -1267,7 +1268,7 @@ impl CodeGenerator {
                             self.cfg.input.clone(),
                             bin.op.loc(),
                             "",
-                            bin.op.content.clone(),
+                            AtomicStr::from(bin.op.content),
                         ));
                         NOT_IMPLEMENTED
                     }

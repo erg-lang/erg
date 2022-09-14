@@ -780,23 +780,16 @@ impl Context {
     }
 
     fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
-        if let Some(max) = self.max(&lhs.t, &rhs.t) {
-            let name = lhs.var.clone();
-            let rhs_preds = rhs
-                .preds
-                .iter()
-                .map(|p| p.clone().change_subject_name(name.clone()))
-                .collect();
-            // FIXME: predの包含関係も考慮する
-            RefinementType::new(
-                lhs.var.clone(),
-                max.clone(),
-                lhs.preds.clone().concat(rhs_preds),
-            )
-        } else {
-            log!(info "{lhs}\n{rhs}");
-            todo!()
-        }
+        // TODO: warn if lhs.t !:> rhs.t && rhs.t !:> lhs.t
+        let union = self.union(&lhs.t, &rhs.t);
+        let name = lhs.var.clone();
+        let rhs_preds = rhs
+            .preds
+            .iter()
+            .map(|p| p.clone().change_subject_name(name.clone()))
+            .collect();
+        // FIXME: predの包含関係も考慮する
+        RefinementType::new(lhs.var.clone(), union, lhs.preds.clone().concat(rhs_preds))
     }
 
     /// returns intersection of two types (A and B)

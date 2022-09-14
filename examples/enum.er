@@ -1,26 +1,25 @@
 LitExpr = Class {.i = Int}, Impl := Show
 LitExpr.
     new i = Self::__new__ {.i;}
-    show &self = "{self.i}"
+    show self = "{self.i}"
 AddExpr = Class {.lhs = Expr, .rhs = Expr}, Impl := Show
 AddExpr.
     new lhs, rhs = Self::__new__ {.lhs; .rhs}
-    show &self = "{self.lhs} + {self.rhs}"
+    show self = "{self.lhs} + {self.rhs}"
 SubExpr = Class {.lhs = Expr, .rhs = Expr}, Impl := Show
 SubExpr.
     new lhs, rhs = Self::__new__ {.lhs; .rhs}
-    show &self = "{self.lhs} - {self.rhs}"
+    show self = "{self.lhs} - {self.rhs}"
 PosExpr = Class {.expr = Expr}, Impl := Show
 PosExpr.
     new expr = Self::__new__ {.expr;}
-    show &self = "+{self.expr}"
+    show self = "+{self.expr}"
 NegExpr = Class {.expr = Expr}, Impl := Show
 NegExpr.
     new expr = Self::__new__ {.expr;}
-    show &self = "-{self.expr}"
+    show self = "-{self.expr}"
 
-Expr = Enum:
-    LitExpr
+Expr = Enum LitExpr:
     AddExpr
     SubExpr
     NegExpr
@@ -29,11 +28,11 @@ Expr.
     add = Self.cons(AddExpr)
     eval self =
         match self:
-            l: Expr.LitExpr -> l.i
-            a: Expr.AddExpr -> a.lhs + a.rhs
-            s: Expr.SubExpr -> s.lhs - s.rhs
-            p: Expr.PosExpr -> p.expr
-            n: Expr.NegExpr -> -n.expr
+            (l: Expr.LitExpr) -> l.i
+            (a: Expr.AddExpr) -> a.lhs + a.rhs
+            (s: Expr.SubExpr) -> s.lhs - s.rhs
+            (p: Expr.PosExpr) -> p.expr
+            (n: Expr.NegExpr) -> -n.expr
 
 expr = Expr.add Expr.lit(1), Expr.lit(2)
 print! expr # 1 + 2
