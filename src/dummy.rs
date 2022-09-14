@@ -12,6 +12,9 @@ use erg_common::traits::Runnable;
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
 
+pub type EvalError = CompileError;
+pub type EvalErrors = CompileErrors;
+
 /// Open the Python interpreter as a server and act as an Erg interpreter by mediating communication
 ///
 /// Pythonインタープリタをサーバーとして開き、通信を仲介することでErgインタープリタとして振る舞う
@@ -23,8 +26,8 @@ pub struct DummyVM {
 }
 
 impl Runnable for DummyVM {
-    type Err = CompileError;
-    type Errs = CompileErrors;
+    type Err = EvalError;
+    type Errs = EvalErrors;
     const NAME: &'static str = "Erg interpreter";
 
     fn new(cfg: ErgConfig) -> Self {
@@ -97,7 +100,7 @@ impl Runnable for DummyVM {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: Str) -> Result<String, EvalErrors> {
         self.compiler
             .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
@@ -107,7 +110,7 @@ impl Runnable for DummyVM {
                     Result::Ok(n) => {
                         let s = std::str::from_utf8(&buf[..n]).unwrap();
                         if s == "[Exception] SystemExit" {
-                            return Err(CompileErrors::from(CompileError::system_exit()));
+                            return Err(EvalErrors::from(EvalError::system_exit()));
                         }
                         s.to_string()
                     }
