@@ -194,7 +194,7 @@ impl Runnable for ParserRunner {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, ParserRunnerErrors> {
+    fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
         let ast = self.parse_with_input(src)?;
         Ok(format!("{ast}"))
     }
@@ -224,7 +224,7 @@ impl ParserRunner {
         self_.parse()
     }
 
-    fn parse_with_input(&mut self, src: Str) -> Result<AST, ParserRunnerErrors> {
+    fn parse_with_input(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;

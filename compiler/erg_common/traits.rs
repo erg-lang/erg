@@ -10,7 +10,6 @@ use std::vec::IntoIter;
 
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
-use crate::Str;
 use crate::{addr_eq, chomp, log, switch_unreachable};
 
 pub trait Stream<T>: Sized {
@@ -334,7 +333,7 @@ pub trait Runnable: Sized {
     }
     fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
-    fn eval(&mut self, src: Str) -> Result<String, Self::Errs>;
+    fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
     fn exec(&mut self) -> Result<(), Self::Errs>;
 
     fn ps1(&self) -> String {
@@ -395,7 +394,7 @@ pub trait Runnable: Sized {
                         output.flush().unwrap();
                         continue;
                     }
-                    match instance.eval(mem::take(&mut lines).into()) {
+                    match instance.eval(mem::take(&mut lines)) {
                         Ok(out) => {
                             output.write_all((out + "\n").as_bytes()).unwrap();
                             output.flush().unwrap();

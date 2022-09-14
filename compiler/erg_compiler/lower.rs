@@ -82,7 +82,7 @@ impl Runnable for ASTLowererRunner {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;

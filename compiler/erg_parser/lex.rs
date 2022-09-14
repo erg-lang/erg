@@ -5,7 +5,6 @@ use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::Str;
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
 use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunnerErrors};
@@ -47,7 +46,7 @@ impl Runnable for LexerRunner {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, LexerRunnerErrors> {
+    fn eval(&mut self, src: String) -> Result<String, LexerRunnerErrors> {
         let lexer = Lexer::from_str(src);
         if cfg!(feature = "debug") {
             let ts = lexer
@@ -97,7 +96,7 @@ impl Lexer /*<'a>*/ {
     }
 
     #[allow(clippy::should_implement_trait)]
-    pub fn from_str(src: Str) -> Self {
+    pub fn from_str(src: String) -> Self {
         let escaped = normalize_newline(&src);
         Lexer {
             str_cache: CacheSet::new(),
