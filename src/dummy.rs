@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::python_util::{exec_py, exec_pyc};
-use erg_common::str::Str;
 use erg_common::traits::Runnable;
 
 use erg_compiler::error::{CompileError, CompileErrors};
@@ -100,7 +99,7 @@ impl Runnable for DummyVM {
         Ok(())
     }
 
-    fn eval(&mut self, src: Str) -> Result<String, EvalErrors> {
+    fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         self.compiler
             .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
