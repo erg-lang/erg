@@ -423,27 +423,31 @@ pub trait ErrorDisplay {
     fn ref_inner(&self) -> Option<&Self>;
 
     fn write_to_stderr(&self) {
-        let mut writer = BufWriter::new(stderr());
-        writer
-            .write_all(
-                format!(
-                    "{}{}{}: {}{}\n",
-                    self.format_header(),
-                    self.format_code_and_pointer(),
-                    self.core().kind,
-                    self.core().desc,
-                    fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), self.core().hint),
-                )
-                .as_bytes(),
-            )
-            .unwrap();
+        let mut stderr = stderr();
+        self.write_to(&mut stderr)
+    }
+
+    fn write_to<W: std::io::Write>(&self, w: &mut W) {
+        let mut writer = BufWriter::new(w);
+        writer.write_all(self.show().as_bytes()).unwrap();
         writer.flush().unwrap();
         if let Some(inner) = self.ref_inner() {
             inner.write_to_stderr()
         }
     }
 
-    /// fmt::Display実装用
+    fn show(&self) -> String {
+        format!(
+            "{}{}{}: {}{}\n",
+            self.format_header(),
+            self.format_code_and_pointer(),
+            self.core().kind,
+            self.core().desc,
+            fmt_option!(pre format!("\n{GREEN}hint{RESET}: "), self.core().hint)
+        )
+    }
+
+    /// for fmt::Display
     fn format(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
