@@ -2139,9 +2139,54 @@ impl ParamTuplePattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ParamRecordAttr {
+    pub lhs: Identifier,
+    pub rhs: ParamSignature,
+}
+
+impl NestedDisplay for ParamRecordAttr {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} = {}", self.lhs, self.rhs)
+    }
+}
+
+impl_display_from_nested!(ParamRecordAttr);
+impl_locational!(ParamRecordAttr, lhs, rhs);
+
+impl ParamRecordAttr {
+    pub const fn new(lhs: Identifier, rhs: ParamSignature) -> Self {
+        Self { lhs, rhs }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ParamRecordAttrs {
+    pub(crate) elems: Vec<ParamRecordAttr>,
+}
+
+impl NestedDisplay for ParamRecordAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec_split_with(&self.elems, "; "))
+    }
+}
+
+impl_display_from_nested!(ParamRecordAttrs);
+impl_stream!(ParamRecordAttrs, ParamRecordAttr, elems);
+
+impl ParamRecordAttrs {
+    pub const fn new(elems: Vec<ParamRecordAttr>) -> Self {
+        Self { elems }
+    }
+
+    pub const fn empty() -> Self {
+        Self::new(vec![])
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     l_brace: Token,
-    pub(crate) elems: Params,
+    pub(crate) elems: ParamRecordAttrs,
     r_brace: Token,
 }
 
@@ -2155,7 +2200,7 @@ impl_display_from_nested!(ParamRecordPattern);
 impl_locational!(ParamRecordPattern, l_brace, r_brace);
 
 impl ParamRecordPattern {
-    pub const fn new(l_brace: Token, elems: Params, r_brace: Token) -> Self {
+    pub const fn new(l_brace: Token, elems: ParamRecordAttrs, r_brace: Token) -> Self {
         Self {
             l_brace,
             elems,
