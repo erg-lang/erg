@@ -49,6 +49,7 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
         dump_as_pyc: false,
         python_ver: None,
         py_server_timeout: 100,
+        quiet_startup: false,
         input: input.clone(),
         module: "<module>",
         verbose: 2,

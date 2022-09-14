@@ -349,16 +349,19 @@ pub trait Runnable: Sized {
     }
 
     fn run(cfg: ErgConfig) {
+        let quiet_startup = cfg.quiet_startup;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
             Input::REPL => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
-                log!(info_f output, "The REPL has started.\n");
-                output
-                    .write_all(instance.start_message().as_bytes())
-                    .unwrap();
+                if !quiet_startup {
+                    log!(info_f output, "The REPL has started.\n");
+                    output
+                        .write_all(instance.start_message().as_bytes())
+                        .unwrap();
+                }
                 output.write_all(instance.ps1().as_bytes()).unwrap();
                 output.flush().unwrap();
                 let mut lines = String::new();

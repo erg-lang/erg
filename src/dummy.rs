@@ -31,13 +31,17 @@ impl Runnable for DummyVM {
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
-            println!("Starting the REPL server...");
+            if !cfg.quiet_startup {
+                println!("Starting the REPL server...");
+            }
             let port = find_available_port();
             let code = include_str!("scripts/repl_server.py")
                 .replace("__PORT__", port.to_string().as_str());
             exec_py(&code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-            println!("Connecting to the REPL server...");
+            if !cfg.quiet_startup {
+                println!("Connecting to the REPL server...");
+            }
             loop {
                 match TcpStream::connect(&addr) {
                     Ok(stream) => {

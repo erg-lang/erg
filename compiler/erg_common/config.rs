@@ -124,6 +124,7 @@ pub struct ErgConfig {
     pub dump_as_pyc: bool,
     pub python_ver: Option<u32>,
     pub py_server_timeout: u64,
+    pub quiet_startup: bool,
     pub input: Input,
     pub module: &'static str,
     /// verbosity level for system messages.
@@ -150,6 +151,7 @@ impl Default for ErgConfig {
             dump_as_pyc: false,
             python_ver: None,
             py_server_timeout: 10,
+            quiet_startup: false,
             input,
             module: "<module>",
             verbose: 2,
@@ -209,6 +211,9 @@ impl ErgConfig {
                 }
                 "--py-server-timeout" => {
                     cfg.py_server_timeout = args.next().unwrap().parse::<u64>().unwrap();
+                }
+                "--quiet-startup" => {
+                    cfg.quiet_startup = true;
                 }
                 "--verbose" => {
                     cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();
