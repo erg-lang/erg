@@ -6,10 +6,10 @@ use std::fmt;
 use std::fmt::Write as _;
 use std::io::{stderr, BufWriter, Write as _};
 
+use crate::astr::AtomicStr;
 use crate::color::*;
 use crate::config::Input;
 use crate::traits::{Locational, Stream};
-use crate::Str;
 use crate::{fmt_option, impl_display_from_debug, switch_lang};
 
 /// ErrorKindと言っているが、ErrorだけでなくWarning, Exceptionも含まれる
@@ -306,17 +306,17 @@ pub struct ErrorCore {
     pub errno: usize,
     pub kind: ErrorKind,
     pub loc: Location,
-    pub desc: Str,
-    pub hint: Option<Str>,
+    pub desc: AtomicStr,
+    pub hint: Option<AtomicStr>,
 }
 
 impl ErrorCore {
-    pub fn new<S: Into<Str>>(
+    pub fn new<S: Into<AtomicStr>>(
         errno: usize,
         kind: ErrorKind,
         loc: Location,
         desc: S,
-        hint: Option<Str>,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self {
             errno,

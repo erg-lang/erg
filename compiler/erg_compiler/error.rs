@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::ops::Add;
 
+use erg_common::astr::AtomicStr;
 use erg_common::color::{GREEN, RED, RESET, YELLOW};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
@@ -96,7 +97,7 @@ pub fn readable_name(name: &str) -> &str {
 pub struct CompileError {
     pub core: ErrorCore,
     pub input: Input,
-    pub caused_by: Str,
+    pub caused_by: AtomicStr,
 }
 
 impl From<ParserRunnerError> for CompileError {
@@ -125,7 +126,7 @@ impl ErrorDisplay for CompileError {
 }
 
 impl CompileError {
-    pub const fn new(core: ErrorCore, input: Input, caused_by: Str) -> Self {
+    pub const fn new(core: ErrorCore, input: Input, caused_by: AtomicStr) -> Self {
         Self {
             core,
             input,
@@ -191,7 +192,7 @@ impl CompileError {
         )
     }
 
-    pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: Str) -> Self {
+    pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
         Self::new(
             ErrorCore::new(
                 0,
@@ -233,7 +234,7 @@ impl CompileError {
 #[derive(Debug)]
 pub struct TyCheckError {
     pub core: ErrorCore,
-    pub caused_by: Str,
+    pub caused_by: AtomicStr,
 }
 
 impl ErrorDisplay for TyCheckError {
@@ -252,7 +253,7 @@ impl ErrorDisplay for TyCheckError {
 }
 
 impl TyCheckError {
-    pub const fn new(core: ErrorCore, caused_by: Str) -> Self {
+    pub const fn new(core: ErrorCore, caused_by: AtomicStr) -> Self {
         Self { core, caused_by }
     }
 
@@ -282,7 +283,7 @@ impl TyCheckError {
         )
     }
 
-    pub fn feature_error(errno: usize, loc: Location, name: &str, caused_by: Str) -> Self {
+    pub fn feature_error(errno: usize, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -300,12 +301,12 @@ impl TyCheckError {
         )
     }
 
-    pub fn syntax_error<S: Into<Str>>(
+    pub fn syntax_error<S: Into<AtomicStr>>(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         desc: S,
-        hint: Option<Str>,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(
             ErrorCore::new(errno, SyntaxError, loc, desc, hint),
@@ -313,7 +314,12 @@ impl TyCheckError {
         )
     }
 
-    pub fn duplicate_decl_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn duplicate_decl_error(
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -326,7 +332,7 @@ impl TyCheckError {
                     "traditional_chinese" => format!("{name}已聲明"),
                     "english" => format!("{name} is already declared"),
                 ),
-                Option::<Str>::None,
+                Option::<AtomicStr>::None,
             ),
             caused_by,
         )
@@ -335,7 +341,7 @@ impl TyCheckError {
     pub fn duplicate_definition_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -350,7 +356,7 @@ impl TyCheckError {
                     "traditional_chinese" => format!("{name}已定義"),
                     "english" => format!("{name} is already defined"),
                 ),
-                Option::<Str>::None,
+                Option::<AtomicStr>::None,
             ),
             caused_by,
         )
@@ -359,7 +365,7 @@ impl TyCheckError {
     pub fn violate_decl_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         spec_t: &Type,
         found_t: &Type,
@@ -376,13 +382,18 @@ impl TyCheckError {
                     "traditional_chinese" => format!("{name}被聲明為{GREEN}{spec_t}{RESET}，但分配了一個{RED}{found_t}{RESET}對象"),
                     "english" => format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
                 ),
-                Option::<Str>::None,
+                Option::<AtomicStr>::None,
             ),
             caused_by,
         )
     }
 
-    pub fn no_type_spec_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn no_type_spec_error(
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -404,7 +415,7 @@ impl TyCheckError {
     pub fn no_var_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         similar_name: Option<&Str>,
     ) -> Self {
@@ -439,7 +450,7 @@ impl TyCheckError {
     pub fn no_attr_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         obj_t: &Type,
         name: &str,
         similar_name: Option<&Str>,
@@ -474,7 +485,7 @@ impl TyCheckError {
     pub fn singular_no_attr_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         obj_name: &str,
         obj_t: &Type,
         name: &str,
@@ -511,7 +522,7 @@ impl TyCheckError {
         errno: usize,
         callee: &C,
         param_ts: impl Iterator<Item = &'a Type>,
-        caused_by: Str,
+        caused_by: AtomicStr,
     ) -> Self {
         let param_ts = fmt_iter(param_ts);
         Self::new(
@@ -539,12 +550,12 @@ impl TyCheckError {
     pub fn type_mismatch_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         expect: &Type,
         found: &Type,
         candidates: Option<Set<Type>>,
-        hint: Option<Str>,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -566,7 +577,7 @@ impl TyCheckError {
     pub fn return_type_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         expect: &Type,
         found: &Type,
@@ -591,7 +602,7 @@ impl TyCheckError {
     pub fn uninitialized_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         t: &Type,
     ) -> Self {
@@ -615,7 +626,7 @@ impl TyCheckError {
     pub fn argument_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         expect: usize,
         found: usize,
     ) -> Self {
@@ -636,7 +647,7 @@ impl TyCheckError {
         )
     }
 
-    pub fn match_error(errno: usize, loc: Location, caused_by: Str, expr_t: &Type) -> Self {
+    pub fn match_error(errno: usize, loc: Location, caused_by: AtomicStr, expr_t: &Type) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -654,7 +665,7 @@ impl TyCheckError {
         )
     }
 
-    pub fn infer_error(errno: usize, loc: Location, caused_by: Str, expr: &str) -> Self {
+    pub fn infer_error(errno: usize, loc: Location, caused_by: AtomicStr, expr: &str) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -680,7 +691,7 @@ impl TyCheckError {
         Self::new(ErrorCore::unreachable(fn_name, line), "".into())
     }
 
-    pub fn reassign_error(errno: usize, loc: Location, caused_by: Str, name: &str) -> Self {
+    pub fn reassign_error(errno: usize, loc: Location, caused_by: AtomicStr, name: &str) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -703,7 +714,7 @@ impl TyCheckError {
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: Str,
+        caused_by: AtomicStr,
         params_len: usize,
         pos_args_len: usize,
         kw_args_len: usize,
@@ -750,7 +761,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: Str,
+        caused_by: AtomicStr,
         missing_len: usize,
         missing_params: Vec<Str>,
     ) -> Self {
@@ -776,7 +787,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: Str,
+        caused_by: AtomicStr,
         arg_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
@@ -801,7 +812,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: Str,
+        caused_by: AtomicStr,
         param_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
@@ -822,7 +833,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn unused_warning(errno: usize, loc: Location, name: &str, caused_by: Str) -> Self {
+    pub fn unused_warning(errno: usize, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -847,7 +858,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         rhs_t: &Type,
         lhs_loc: Option<Location>,
         rhs_loc: Option<Location>,
-        caused_by: Str,
+        caused_by: AtomicStr,
     ) -> Self {
         let loc = match (lhs_loc, rhs_loc) {
             (Some(l), Some(r)) => Location::pair(l, r),
@@ -878,7 +889,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         rhs_t: &Type,
         lhs_loc: Option<Location>,
         rhs_loc: Option<Location>,
-        caused_by: Str,
+        caused_by: AtomicStr,
     ) -> Self {
         let loc = match (lhs_loc, rhs_loc) {
             (Some(l), Some(r)) => Location::pair(l, r),
@@ -909,7 +920,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         sup_t: &Type,
         sub_loc: Option<Location>,
         sup_loc: Option<Location>,
-        caused_by: Str,
+        caused_by: AtomicStr,
     ) -> Self {
         let loc = match (sub_loc, sup_loc) {
             (Some(l), Some(r)) => Location::pair(l, r),
@@ -938,7 +949,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         lhs: &Predicate,
         rhs: &Predicate,
-        caused_by: Str,
+        caused_by: AtomicStr,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -957,7 +968,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn has_effect<S: Into<Str>>(errno: usize, expr: &Expr, caused_by: S) -> Self {
+    pub fn has_effect<S: Into<AtomicStr>>(errno: usize, expr: &Expr, caused_by: S) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -975,7 +986,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn move_error<S: Into<Str>>(
+    pub fn move_error<S: Into<AtomicStr>>(
         errno: usize,
         name: &str,
         name_loc: Location,
@@ -1014,7 +1025,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
     pub fn visibility_error(
         errno: usize,
         loc: Location,
-        caused_by: Str,
+        caused_by: AtomicStr,
         name: &str,
         vis: Visibility,
     ) -> Self {
@@ -1051,7 +1062,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn not_const_expr(errno: usize, loc: Location, caused_by: Str) -> Self {
+    pub fn not_const_expr(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1069,7 +1080,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn override_error<S: Into<Str>>(
+    pub fn override_error<S: Into<AtomicStr>>(
         errno: usize,
         name: &str,
         name_loc: Location,
@@ -1106,7 +1117,12 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn inheritance_error(errno: usize, class: String, loc: Location, caused_by: Str) -> Self {
+    pub fn inheritance_error(
+        errno: usize,
+        class: String,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,

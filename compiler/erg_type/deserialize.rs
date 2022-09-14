@@ -2,6 +2,7 @@
 use std::process;
 use std::string::FromUtf8Error;
 
+use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
@@ -18,8 +19,8 @@ use crate::{HasType, Type};
 #[derive(Debug)]
 pub struct DeserializeError {
     pub errno: usize,
-    pub caused_by: Str,
-    pub desc: Str,
+    pub caused_by: AtomicStr,
+    pub desc: AtomicStr,
 }
 
 impl From<std::io::Error> for DeserializeError {
@@ -41,13 +42,17 @@ impl From<DeserializeError> for ErrorCore {
             ErrorKind::ImportError,
             Location::Unknown,
             err.desc,
-            Option::<Str>::None,
+            Option::<AtomicStr>::None,
         )
     }
 }
 
 impl DeserializeError {
-    pub fn new<S: Into<Str>, T: Into<Str>>(errno: usize, caused_by: S, desc: T) -> Self {
+    pub fn new<S: Into<AtomicStr>, T: Into<AtomicStr>>(
+        errno: usize,
+        caused_by: S,
+        desc: T,
+    ) -> Self {
         Self {
             errno,
             caused_by: caused_by.into(),

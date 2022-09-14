@@ -100,7 +100,7 @@ impl Context {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,
                             obj.loc(),
-                            namespace.clone(),
+                            namespace.into(),
                             ident.inspect(),
                             self.get_similar_name(ident.inspect()),
                         ))
@@ -213,7 +213,7 @@ impl Context {
             Err(TyCheckError::no_var_error(
                 line!() as usize,
                 ident.loc(),
-                namespace.clone(),
+                namespace.into(),
                 ident.inspect(),
                 self.get_similar_name(ident.inspect()),
             ))
@@ -269,7 +269,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 &self_t,
                 name.inspect(),
                 self.get_similar_attr(&self_t, name.inspect()),
@@ -308,7 +308,7 @@ impl Context {
                     Err(TyCheckError::no_attr_error(
                         line!() as usize,
                         ident.loc(),
-                        namespace.clone(),
+                        namespace.into(),
                         &t,
                         ident.inspect(),
                         self.get_similar_attr(&t, ident.inspect()),
@@ -393,7 +393,7 @@ impl Context {
                 return Err(TyCheckError::singular_no_attr_error(
                     line!() as usize,
                     method_name.loc(),
-                    namespace.clone(),
+                    namespace.into(),
                     obj.__name__().unwrap_or("?"),
                     obj.ref_t(),
                     method_name.inspect(),
@@ -404,7 +404,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 method_name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 obj.ref_t(),
                 method_name.inspect(),
                 self.get_similar_attr(obj.ref_t(), method_name.inspect()),
@@ -970,7 +970,7 @@ impl Context {
             Err(TyCheckError::no_var_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 name.inspect(),
                 self.get_similar_name(name.inspect()),
             ))
@@ -999,7 +999,7 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 line!() as usize,
                 name.loc(),
-                namespace.clone(),
+                namespace.into(),
                 self_t,
                 name.inspect(),
                 self.get_similar_attr(self_t, name.inspect()),

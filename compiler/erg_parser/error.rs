@@ -1,10 +1,10 @@
 //! defines `ParseError` and others.
 //!
 //! パーサーが出すエラーを定義
+use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::Stream;
-use erg_common::Str;
 use erg_common::{impl_stream_for_wrapper, switch_lang};
 
 #[derive(Debug)]
@@ -65,20 +65,20 @@ impl LexError {
         ))
     }
 
-    pub fn syntax_error<S: Into<Str>>(
+    pub fn syntax_error<S: Into<AtomicStr>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<Str>,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(ErrorCore::new(errno, SyntaxError, loc, desc, hint))
     }
 
-    pub fn syntax_warning<S: Into<Str>>(
+    pub fn syntax_warning<S: Into<AtomicStr>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<Str>,
+        hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(ErrorCore::new(errno, SyntaxWarning, loc, desc, hint))
     }
