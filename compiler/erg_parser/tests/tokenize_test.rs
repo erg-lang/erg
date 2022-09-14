@@ -11,6 +11,7 @@ use TokenKind::*;
 
 const FILE1: &str = "tests/test1_basic_syntax.er";
 const FILE2: &str = "tests/test2_advanced_syntax.er";
+const FILE3: &str = "tests/test3_literal_syntax.er";
 
 #[test]
 fn test_lexer_for_basic() -> ParseResult<()> {
@@ -272,6 +273,85 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
         (StrLit, "\"math\""),
         (Newline, newline),
         (EOF, ""),
+    ];
+
+    let mut tok: Token;
+    for (id, i) in token_array.into_iter().enumerate() {
+        print!("{id:>03}: ");
+        tok = lexer.next().unwrap().unwrap();
+        assert_eq!(tok, Token::from_str(i.0, i.1));
+        println!("{tok}");
+    }
+    Ok(())
+}
+
+#[test]
+fn test_lexer_for_literals() -> ParseResult<()> {
+    let mut lexer = Lexer::new(Input::File(FILE3.into()));
+    let newline = "\n";
+    let /*mut*/ token_array = vec![
+        (Newline, newline),
+        (Newline, newline),
+        (NatLit, "0"),
+        (Comma, ","),
+        (NatLit, "1"),
+        (Comma, ","),
+        (NatLit, "2"),
+        (Comma, ","),
+        (NatLit, "100_000"),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (IntLit, "-1"),
+        (Comma, ","),
+        (IntLit, "-10"),
+        (Comma, ","),
+        (IntLit, "-100_000"),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (RatioLit, "0.00"),
+        (Comma, ","),
+        (RatioLit, "-0.0"),
+        (Comma, ","),
+        (RatioLit, ".1"),
+        (Comma, ","),
+        (RatioLit, "400."),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (StrLit, "\"\""),
+        (Comma, ","),
+        (StrLit, "\"a\""),
+        (Comma, ","),
+        (StrLit, "\"こんにちは\""),
+        (Comma, ","),
+        (StrLit, "\"\\\" \\\\ \""),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (BoolLit, "True"),
+        (Comma, ","),
+        (BoolLit, "False"),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (NoneLit, "None"),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (EllipsisLit, "..."),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        (InfLit, "Inf"),
+        (Comma, ","),
+        (PreMinus, "-"),
+        (InfLit, "Inf"),
+        (Newline, newline),
+        (Newline, newline),
+        (Newline, newline),
+        // (EOF, ""),
     ];
 
     let mut tok: Token;
