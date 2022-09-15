@@ -1599,12 +1599,12 @@ impl Context {
         );
         self.register_builtin_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
-        let op_t = bin_op(m.clone(), m.clone(), m.clone());
+        let op_t = bin_op(m.clone(), m.clone(), mono_proj(m.clone(), "Output"));
         let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
         // TODO: add bound: M == M.Output
         self.register_builtin_impl("__pow__", op_t, Const, Private);
         let d = mono_q("D");
-        let op_t = bin_op(d.clone(), d.clone(), d.clone());
+        let op_t = bin_op(d.clone(), d.clone(), mono_proj(d.clone(), "Output"));
         let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
         self.register_builtin_impl("__mod__", op_t, Const, Private);
         let e = mono_q("E");
