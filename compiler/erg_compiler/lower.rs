@@ -679,6 +679,25 @@ impl ASTLowerer {
             let class = self
                 .ctx
                 .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
+            if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
+                if !class_root.kind.is_class() {
+                    return Err(LowerError::method_definition_error(
+                        line!() as usize,
+                        methods.loc(),
+                        self.ctx.caused_by(),
+                        &class.name(),
+                        None,
+                    ));
+                }
+            } else {
+                return Err(LowerError::no_var_error(
+                    line!() as usize,
+                    methods.class.loc(),
+                    self.ctx.caused_by(),
+                    &class.name(),
+                    self.ctx.get_similar_name(&class.name()),
+                ));
+            }
             self.ctx
                 .grow(&class.name(), ContextKind::MethodDefs, Private)?;
             for def in methods.defs.iter_mut() {
@@ -710,36 +729,32 @@ impl ASTLowerer {
             match self.ctx.pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
-                    if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
-                        for (newly_defined_name, _vi) in methods.locals.iter() {
-                            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
-                                // TODO: 特殊化なら同じ名前でもOK
-                                // TODO: 定義のメソッドもエラー表示
-                                if let Some((_already_defined_name, already_defined_vi)) =
+                    let (_, class_root) = self.ctx.get_mut_nominal_type_ctx(&class).unwrap();
+                    for (newly_defined_name, _vi) in methods.locals.iter() {
+                        for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
+                            // TODO: 特殊化なら同じ名前でもOK
+                            // TODO: 定義のメソッドもエラー表示
+                            if let Some((_already_defined_name, already_defined_vi)) =
+                                already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                            {
+                                if already_defined_vi.kind != VarKind::Auto {
+                                    self.errs.push(LowerError::duplicate_definition_error(
+                                        line!() as usize,
+                                        newly_defined_name.loc(),
+                                        methods.name.clone().into(),
+                                        newly_defined_name.inspect(),
+                                    ));
+                                } else {
                                     already_defined_methods
-                                        .get_local_kv(newly_defined_name.inspect())
-                                {
-                                    if already_defined_vi.kind != VarKind::Auto {
-                                        self.errs.push(LowerError::duplicate_definition_error(
-                                            line!() as usize,
-                                            newly_defined_name.loc(),
-                                            methods.name.clone().into(),
-                                            newly_defined_name.inspect(),
-                                        ));
-                                    } else {
-                                        already_defined_methods
-                                            .locals
-                                            .remove(&newly_defined_name.inspect()[..]);
-                                    }
+                                        .locals
+                                        .remove(&newly_defined_name.inspect()[..]);
                                 }
                             }
                         }
-                        class_root
-                            .methods_list
-                            .push((ClassDefType::Simple(class), methods));
-                    } else {
-                        todo!()
                     }
+                    class_root
+                        .methods_list
+                        .push((ClassDefType::Simple(class), methods));
                 }
                 Err(mut errs) => {
                     self.errs.append(&mut errs);

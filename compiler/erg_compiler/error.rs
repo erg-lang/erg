@@ -1163,6 +1163,38 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn method_definition_error(
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                MethodError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}にメソッドを定義することはできません",
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}不可定义方法",
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}不可定義方法",
+                    ),
+                    "english" => format!(
+                        "cannot define methods for {RED}{name}{RESET}",
+                    ),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]
