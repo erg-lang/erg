@@ -1589,12 +1589,12 @@ impl Context {
             },
         );
         self.register_builtin_impl("__mul__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r, mono_proj(mono_q("L"), "Output"));
+        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "Output"));
         let op_t = quant(
             op_t,
             set! {
                 static_instance("R", Type),
-                subtypeof(l, poly("Div", params))
+                subtypeof(l.clone(), poly("Div", params.clone()))
             },
         );
         self.register_builtin_impl("__div__", op_t, Const, Private);
@@ -1612,9 +1612,14 @@ impl Context {
         let op_t = quant(op_t, set! {subtypeof(e, poly("Eq", vec![]))});
         self.register_builtin_impl("__eq__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__ne__", op_t, Const, Private);
-        let o = mono_q("O");
-        let op_t = bin_op(o.clone(), o.clone(), Bool);
-        let op_t = quant(op_t, set! {subtypeof(o, mono("Ord"))});
+        let op_t = bin_op(l.clone(), r, Bool);
+        let op_t = quant(
+            op_t,
+            set! {
+                static_instance("R", Type),
+                subtypeof(l, poly("PartialOrd", params))
+            },
+        );
         self.register_builtin_impl("__lt__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__le__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__gt__", op_t.clone(), Const, Private);
