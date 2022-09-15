@@ -17,4 +17,12 @@ print! if False:
 
 print!(if(True, () -> "a", () -> "b"))
 
-# TODO: do/do!
+if! True:
+    do! print! "hello"
+    do! print! "world"
+
+if! False:
+    do!:
+        print! "a"
+    do!:
+        print! "b"

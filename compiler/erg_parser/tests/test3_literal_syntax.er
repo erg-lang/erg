@@ -1,0 +1,30 @@
+## Basic Literals ##
+# Nat Literal
+0, 1, 2, 100_000
+
+# Int Literal: Positive numbers cannot be determined during tokenization
+-1, -10, -100_000
+
+# Ratio Literal
+0.00, -0.0, .1, 400.
+
+# Str Literal
+"", "a", "こんにちは", "\" \\ "
+
+# Boolean Litteral
+True, False
+
+# None Literal
+None
+
+# Ellipsis Literal
+...
+
+# Infinite Literal
+Inf, -Inf
+
+# Not Implemeted Literal
+NotImplemented
+
+# Exponetial Literal
+# 1e-34, 0.4e-10, 2.455+e5
