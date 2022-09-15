@@ -287,7 +287,7 @@ impl Context {
 
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
-            let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
+            let __name__ = def.sig.ident().unwrap().inspect();
             let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
             self.register_gen_const(def.sig.ident().unwrap(), obj)?;
             Ok(ValueObj::None)
