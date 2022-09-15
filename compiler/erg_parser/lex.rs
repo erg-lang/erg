@@ -549,17 +549,28 @@ impl Lexer /*<'a>*/ {
     fn lex_str(&mut self) -> LexResult<Token> {
         let mut s = "\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if c == '\"' && !s.ends_with('\\') {
+            if c == '\"' {
                 s.push(self.consume().unwrap());
                 let token = self.emit_token(StrLit, &s);
                 return Ok(token);
             } else {
                 let c = self.consume().unwrap();
+                if c == '\\' {
+                    let next_c = self.consume().unwrap();
+                    match next_c {
+                        'n' => s.push('\n'),
+                        '\'' => s.push('\''),
+                        't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                        _ => {
+                            s.push(next_c);
                             if Self::is_bidi(next_c) {
                                 return Err(self._invalid_unicode_character(&s));
                             }
-                s.push(c);
-                if Self::is_bidi(c) {
+                        }
+                    }
+                } else {
+                    s.push(c);
+                    if Self::is_bidi(c) {
                         return Err(self._invalid_unicode_character(&s));
                     }
                 }
