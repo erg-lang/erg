@@ -256,13 +256,14 @@ impl Context {
                 let constraint = fv.crack_constraint();
                 let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.level <= fv.level().unwrap() {
+                    // REVIEW: Even if type constraints can be satisfied, implementation may not exist
                     if self.subtype_of(sub_t, super_t) {
                         Ok(sub_t.clone())
                     } else {
                         Err(TyCheckError::subtyping_error(
                             line!() as usize,
-                            sub_t,
-                            super_t,
+                            &self.resolve_tyvar(sub_t.clone(), loc)?,
+                            &self.resolve_tyvar(super_t.clone(), loc)?,
                             None,
                             Some(loc),
                             self.caused_by(),
