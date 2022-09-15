@@ -555,20 +555,13 @@ impl Lexer /*<'a>*/ {
                 return Ok(token);
             } else {
                 let c = self.consume().unwrap();
+                            if Self::is_bidi(next_c) {
+                                return Err(self._invalid_unicode_character(&s));
+                            }
                 s.push(c);
                 if Self::is_bidi(c) {
-                    let token = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(
-                        0,
-                        token.loc(),
-                        switch_lang!(
-                            "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
-                            "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
-                            "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
-                            "english" => "invalid unicode character (bi-directional override) in string literal",
-                        ),
-                        None,
-                    ));
+                        return Err(self._invalid_unicode_character(&s));
+                    }
                 }
             }
         }
@@ -584,6 +577,22 @@ impl Lexer /*<'a>*/ {
             ),
             None,
         ))
+    }
+
+    // for single strings and multi strings
+    fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
+        let token = self.emit_token(Illegal, s);
+        LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
+                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                "english" => "invalid unicode character (bi-directional override) in string literal",
+            ),
+            None,
+        )
     }
 }
 
