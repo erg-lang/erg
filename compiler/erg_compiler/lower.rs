@@ -679,7 +679,7 @@ impl ASTLowerer {
             let class = self
                 .ctx
                 .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
-            if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
+            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerError::method_definition_error(
                         line!() as usize,
