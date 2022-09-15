@@ -891,13 +891,8 @@ impl ASTLowerer {
             }
         }
         let hir = HIR::new(ast.name, module);
-        log!(info "HIR (not derefed):\n{hir}");
-        log!(
-            c GREEN,
-            "the type-checking process has completed, found errors: {}",
-            self.errs.len()
-        );
-        let hir = self.ctx.deref_toplevel(hir)?;
+        log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
+        let hir = self.ctx.resolve(hir)?;
         // TODO: recursive check
         for chunk in hir.module.iter() {
             if let Err(e) = self.use_check(chunk, mode) {

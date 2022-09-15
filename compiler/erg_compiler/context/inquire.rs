@@ -14,9 +14,7 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{func, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
-use erg_type::free::Constraint;
-use erg_type::typaram::TyParam;
+use erg_type::constructors::{func, mono, mono_proj};
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
@@ -525,135 +523,6 @@ impl Context {
         Ok(())
     }
 
-    /// Replace monomorphised trait with concrete type
-    /// Just return input if the type is already concrete (or there is still a type variable that cannot be resolved)
-    /// 単相化されたトレイトを具体的な型に置換する
-    /// 既に具体的な型である(か、まだ型変数があり解決できない)場合はそのまま返す
-    /// ```python
-    /// instantiate_trait(Add(Int)) => Ok(Int)
-    /// instantiate_trait(Array(Add(Int), 2)) => Ok(Array(Int, 2))
-    /// instantiate_trait(Array(Int, 2)) => Ok(Array(Int, 2))
-    /// instantiate_trait(Int) => Ok(Int)
-    /// ```
-    pub(crate) fn resolve_trait(&self, maybe_trait: Type) -> TyCheckResult<Type> {
-        match maybe_trait {
-            Type::FreeVar(fv) if fv.is_linked() => {
-                let inner = fv.crack().clone();
-                let t = self.resolve_trait(inner)?;
-                fv.link(&t);
-                Ok(Type::FreeVar(fv))
-            }
-            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub, sup, cyclic) = enum_unwrap!(
-                    fv.crack_constraint().clone(),
-                    Constraint::Sandwiched {
-                        sub,
-                        sup,
-                        cyclicity
-                    }
-                );
-                let (new_sub, new_sup) = (self.resolve_trait(sub)?, self.resolve_trait(sup)?);
-                let new_constraint = Constraint::new_sandwiched(new_sub, new_sup, cyclic);
-                fv.update_constraint(new_constraint);
-                Ok(Type::FreeVar(fv))
-            }
-            Type::Poly { name, params } if params.iter().all(|tp| tp.has_no_unbound_var()) => {
-                let t_name = name.clone();
-                let t_params = params.clone();
-                let maybe_trait = Type::Poly { name, params };
-                let mut min = Type::Obj;
-                for pair in self.rec_get_trait_impls(&t_name) {
-                    if self.supertype_of(&pair.sup_trait, &maybe_trait) {
-                        let new_min = self.min(&min, &pair.sub_type).unwrap_or(&min).clone();
-                        min = new_min;
-                    }
-                }
-                if min == Type::Obj {
-                    // may be `Array(Add(Int), 2)`, etc.
-                    let mut new_params = Vec::with_capacity(t_params.len());
-                    for param in t_params.into_iter() {
-                        match param {
-                            TyParam::Type(t) => {
-                                let new_t = self.resolve_trait(*t)?;
-                                new_params.push(TyParam::t(new_t));
-                            }
-                            other => {
-                                new_params.push(other);
-                            }
-                        }
-                    }
-                    Ok(poly(t_name, new_params))
-                } else {
-                    Ok(min)
-                }
-            }
-            Type::Subr(subr) => {
-                let mut new_non_default_params = Vec::with_capacity(subr.non_default_params.len());
-                for param in subr.non_default_params.into_iter() {
-                    let (name, ty) = param.deconstruct();
-                    let ty = self.resolve_trait(ty)?;
-                    new_non_default_params.push(ParamTy::pos(name, ty));
-                }
-                let var_args = if let Some(va) = subr.var_params {
-                    let (name, ty) = va.deconstruct();
-                    let ty = self.resolve_trait(ty)?;
-                    Some(ParamTy::pos(name, ty))
-                } else {
-                    None
-                };
-                let mut new_default_params = Vec::with_capacity(subr.default_params.len());
-                for param in subr.default_params.into_iter() {
-                    let (name, ty) = param.deconstruct();
-                    let ty = self.resolve_trait(ty)?;
-                    new_default_params.push(ParamTy::kw(name.unwrap(), ty));
-                }
-                let new_return_t = self.resolve_trait(*subr.return_t)?;
-                let t = subr_t(
-                    subr.kind, // TODO: resolve self
-                    new_non_default_params,
-                    var_args,
-                    new_default_params,
-                    new_return_t,
-                );
-                Ok(t)
-            }
-            Type::MonoProj { lhs, rhs } => {
-                let new_lhs = self.resolve_trait(*lhs)?;
-                Ok(mono_proj(new_lhs, rhs))
-            }
-            Type::Refinement(refine) => {
-                let new_t = self.resolve_trait(*refine.t)?;
-                Ok(refinement(refine.var, new_t, refine.preds))
-            }
-            Type::Ref(t) => {
-                let new_t = self.resolve_trait(*t)?;
-                Ok(ref_(new_t))
-            }
-            Type::RefMut { before, after } => {
-                let new_before = self.resolve_trait(*before)?;
-                let new_after = if let Some(after) = after {
-                    Some(self.resolve_trait(*after)?)
-                } else {
-                    None
-                };
-                Ok(ref_mut(new_before, new_after))
-            }
-            Type::Callable { .. } => todo!(),
-            Type::And(l, r) => {
-                let new_l = self.resolve_trait(*l)?;
-                let new_r = self.resolve_trait(*r)?;
-                Ok(self.intersection(&new_l, &new_r))
-            }
-            Type::Or(l, r) => {
-                let new_l = self.resolve_trait(*l)?;
-                let new_r = self.resolve_trait(*r)?;
-                Ok(self.union(&new_l, &new_r))
-            }
-            Type::Not(_, _) => todo!(),
-            other => Ok(other),
-        }
-    }
-
     /// e.g.
     /// ```python
     /// substitute_call(instance: ((?T, ?U) -> ?T), [Int, Str], []) => instance: (Int, Str) -> Int
@@ -960,8 +829,6 @@ impl Context {
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
-        let res = self.resolve_trait(res)?;
-        log!(info "Trait resolved:\nres: {res}\n");
         Ok(res)
     }
 
@@ -1542,11 +1409,16 @@ impl Context {
     pub(crate) fn is_class(&self, typ: &Type) -> bool {
         match typ {
             Type::And(_l, _r) => false,
+            Type::Never => true,
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
+            Type::FreeVar(_) => false,
             Type::Or(l, r) => self.is_class(l) && self.is_class(r),
             Type::MonoProj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_class(t)),
+            Type::Refinement(refine) => self.is_class(&refine.t),
+            Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_class(t),
             _ => {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
@@ -1559,11 +1431,16 @@ impl Context {
 
     pub(crate) fn is_trait(&self, typ: &Type) -> bool {
         match typ {
+            Type::Never => false,
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
+            Type::FreeVar(_) => false,
             Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
             Type::MonoProj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_trait(t)),
+            Type::Refinement(refine) => self.is_trait(&refine.t),
+            Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_trait(t),
             _ => {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()

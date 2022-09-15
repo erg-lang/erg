@@ -4,7 +4,7 @@ use std::option::Option;
 
 use erg_common::error::Location;
 use erg_common::set::Set;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, set};
 
@@ -187,19 +187,19 @@ impl Context {
         }
     }
 
-    fn deref_tp(&self, tp: TyParam) -> TyCheckResult<TyParam> {
+    fn deref_tp(&self, tp: TyParam, loc: Location) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let inner = fv.unwrap_linked();
-                self.deref_tp(inner)
+                self.deref_tp(inner, loc)
             }
             TyParam::FreeVar(_fv) if self.level == 0 => {
                 Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
             }
-            TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
+            TyParam::Type(t) => Ok(TyParam::t(self.resolve_tyvar(*t, loc)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
-                    *param = self.deref_tp(mem::take(param))?;
+                    *param = self.deref_tp(mem::take(param), loc)?;
                 }
                 Ok(TyParam::App { name, args })
             }
@@ -218,7 +218,7 @@ impl Context {
         }
     }
 
-    fn deref_constraint(&self, constraint: Constraint) -> TyCheckResult<Constraint> {
+    fn deref_constraint(&self, constraint: Constraint, loc: Location) -> TyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched {
                 sub,
@@ -229,49 +229,47 @@ impl Context {
                     return Err(TyCheckError::dummy_infer_error(fn_name!(), line!()));
                 }
                 Ok(Constraint::new_sandwiched(
-                    self.deref_tyvar(sub)?,
-                    self.deref_tyvar(sup)?,
+                    self.resolve_tyvar(sub, loc)?,
+                    self.resolve_tyvar(sup, loc)?,
                     cyclic,
                 ))
             }
-            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t)?)),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.resolve_tyvar(t, loc)?)),
             _ => unreachable!(),
         }
     }
 
     /// e.g.
     /// ```python
-    /// deref_tyvar(?T(:> Never, <: Int)[n]): ?T => Int (if self.level <= n)
-    /// deref_tyvar((Int)): (Int) => Int
-    /// ```
-    pub(crate) fn deref_tyvar(&self, t: Type) -> TyCheckResult<Type> {
+    // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
+    // ?T(:> Nat, <: Sub(?U(:> {1}))) ==> Nat
+    // ?T(:> Nat, <: Sub(Str)) ==> Error!
+    // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
+    // ```
+    pub(crate) fn resolve_tyvar(&self, t: Type, loc: Location) -> TyCheckResult<Type> {
         match t {
-            // ?T(:> Nat, <: Int)[n] => Nat (self.level <= n)
-            // ?T(:> Nat, <: Sub ?U(:> {1}))[n] => Nat
-            // ?T(:> Never, <: Nat)[n] => Nat
+            // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
+            // ?T(:> Nat, <: Sub ?U(:> {1}))[n] ==> Nat
+            // ?T(:> Nat, <: Sub(Str)) ==> Error!
+            // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let constraint = fv.crack_constraint();
                 let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
-                if self.same_type_of(sub_t, super_t) {
-                    self.sub_unify(sub_t, super_t, None, None, None)?;
-                    let t = if sub_t == &Never {
-                        super_t.clone()
+                if self.level <= fv.level().unwrap() {
+                    if self.subtype_of(sub_t, super_t) {
+                        Ok(sub_t.clone())
                     } else {
-                        sub_t.clone()
-                    };
-                    drop(constraint);
-                    fv.link(&t);
-                    self.deref_tyvar(Type::FreeVar(fv))
-                } else if self.level <= fv.level().unwrap() {
-                    let new_t = if sub_t == &Never {
-                        super_t.clone()
-                    } else {
-                        sub_t.clone()
-                    };
-                    drop(constraint);
-                    fv.link(&new_t);
-                    self.deref_tyvar(Type::FreeVar(fv))
+                        Err(TyCheckError::subtyping_error(
+                            line!() as usize,
+                            sub_t,
+                            super_t,
+                            None,
+                            Some(loc),
+                            self.caused_by(),
+                        ))
+                    }
                 } else {
+                    // no dereference at this point
                     drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
@@ -286,43 +284,42 @@ impl Context {
                     }
                 } else {
                     let new_constraint = fv.crack_constraint().clone();
-                    let new_constraint = self.deref_constraint(new_constraint)?;
+                    let new_constraint = self.deref_constraint(new_constraint, loc)?;
                     fv.update_constraint(new_constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
-                self.deref_tyvar(t)
+                self.resolve_tyvar(t, loc)
             }
             Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
-                    *param = self.deref_tp(mem::take(param))?;
+                    *param = self.deref_tp(mem::take(param), loc)?;
                 }
-                let t = Type::Poly { name, params };
-                self.resolve_trait(t)
+                Ok(Type::Poly { name, params })
             }
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
-                    *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
+                    *param.typ_mut() = self.resolve_tyvar(mem::take(param.typ_mut()), loc)?;
                 }
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+                    *var_args.typ_mut() = self.resolve_tyvar(mem::take(var_args.typ_mut()), loc)?;
                 }
                 for d_param in subr.default_params.iter_mut() {
-                    *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+                    *d_param.typ_mut() = self.resolve_tyvar(mem::take(d_param.typ_mut()), loc)?;
                 }
-                subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
+                subr.return_t = Box::new(self.resolve_tyvar(mem::take(&mut subr.return_t), loc)?);
                 Ok(Type::Subr(subr))
             }
             Type::Ref(t) => {
-                let t = self.deref_tyvar(*t)?;
+                let t = self.resolve_tyvar(*t, loc)?;
                 Ok(ref_(t))
             }
             Type::RefMut { before, after } => {
-                let before = self.deref_tyvar(*before)?;
+                let before = self.resolve_tyvar(*before, loc)?;
                 let after = if let Some(after) = after {
-                    Some(self.deref_tyvar(*after)?)
+                    Some(self.resolve_tyvar(*after, loc)?)
                 } else {
                     None
                 };
@@ -331,12 +328,12 @@ impl Context {
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
-                    *field = self.deref_tyvar(mem::take(field))?;
+                    *field = self.resolve_tyvar(mem::take(field), loc)?;
                 }
                 Ok(Type::Record(rec))
             }
             Type::Refinement(refine) => {
-                let t = self.deref_tyvar(*refine.t)?;
+                let t = self.resolve_tyvar(*refine.t, loc)?;
                 // TODO: deref_predicate
                 Ok(refinement(refine.var, t, refine.preds))
             }
@@ -344,30 +341,33 @@ impl Context {
         }
     }
 
-    pub(crate) fn deref_toplevel(&mut self, mut hir: hir::HIR) -> TyCheckResult<hir::HIR> {
+    /// Check if all types are resolvable (if traits, check if an implementation exists)
+    /// And replace them if resolvable
+    pub(crate) fn resolve(&mut self, mut hir: hir::HIR) -> TyCheckResult<hir::HIR> {
         self.level = 0;
         for chunk in hir.module.iter_mut() {
-            self.deref_expr_t(chunk)?;
+            self.resolve_expr_t(chunk)?;
         }
         Ok(hir)
     }
 
-    fn deref_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
+    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Lit(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
+                let loc = acc.loc();
                 let t = acc.ref_mut_t();
-                *t = self.deref_tyvar(mem::take(t))?;
+                *t = self.resolve_tyvar(mem::take(t), loc)?;
                 match acc {
                     hir::Accessor::Attr(attr) => {
-                        self.deref_expr_t(&mut attr.obj)?;
+                        self.resolve_expr_t(&mut attr.obj)?;
                     }
                     hir::Accessor::TupleAttr(attr) => {
-                        self.deref_expr_t(&mut attr.obj)?;
+                        self.resolve_expr_t(&mut attr.obj)?;
                     }
                     hir::Accessor::Subscr(subscr) => {
-                        self.deref_expr_t(&mut subscr.obj)?;
-                        self.deref_expr_t(&mut subscr.index)?;
+                        self.resolve_expr_t(&mut subscr.obj)?;
+                        self.resolve_expr_t(&mut subscr.index)?;
                     }
                     hir::Accessor::Ident(_) => {}
                 }
@@ -375,9 +375,10 @@ impl Context {
             }
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t))?;
+                    let loc = arr.loc();
+                    arr.t = self.resolve_tyvar(mem::take(&mut arr.t), loc)?;
                     for elem in arr.elems.pos_args.iter_mut() {
-                        self.deref_expr_t(&mut elem.expr)?;
+                        self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
@@ -386,7 +387,7 @@ impl Context {
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
                     for elem in tup.elems.pos_args.iter_mut() {
-                        self.deref_expr_t(&mut elem.expr)?;
+                        self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
@@ -398,64 +399,67 @@ impl Context {
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
                         hir::Signature::Var(var) => {
-                            var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                            var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                            subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
                         }
                     }
                     for chunk in attr.body.block.iter_mut() {
-                        self.deref_expr_t(chunk)?;
+                        self.resolve_expr_t(chunk)?;
                     }
                 }
                 Ok(())
             }
             hir::Expr::BinOp(binop) => {
+                let loc = binop.loc();
                 let t = binop.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t))?;
-                self.deref_expr_t(&mut binop.lhs)?;
-                self.deref_expr_t(&mut binop.rhs)?;
+                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                self.resolve_expr_t(&mut binop.lhs)?;
+                self.resolve_expr_t(&mut binop.rhs)?;
                 Ok(())
             }
             hir::Expr::UnaryOp(unaryop) => {
+                let loc = unaryop.loc();
                 let t = unaryop.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t))?;
-                self.deref_expr_t(&mut unaryop.expr)?;
+                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                self.resolve_expr_t(&mut unaryop.expr)?;
                 Ok(())
             }
             hir::Expr::Call(call) => {
+                let loc = call.loc();
                 let t = call.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t))?;
+                *t = self.resolve_tyvar(mem::take(t), loc)?;
                 for arg in call.args.pos_args.iter_mut() {
-                    self.deref_expr_t(&mut arg.expr)?;
+                    self.resolve_expr_t(&mut arg.expr)?;
                 }
                 for arg in call.args.kw_args.iter_mut() {
-                    self.deref_expr_t(&mut arg.expr)?;
+                    self.resolve_expr_t(&mut arg.expr)?;
                 }
                 Ok(())
             }
             hir::Expr::Decl(decl) => {
-                decl.t = self.deref_tyvar(mem::take(&mut decl.t))?;
+                decl.t = self.resolve_tyvar(mem::take(&mut decl.t), decl.loc())?;
                 Ok(())
             }
             hir::Expr::Def(def) => {
                 match &mut def.sig {
                     hir::Signature::Var(var) => {
-                        var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                        var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
                     }
                     hir::Signature::Subr(subr) => {
-                        subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                        subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
                     }
                 }
                 for chunk in def.body.block.iter_mut() {
-                    self.deref_expr_t(chunk)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
             hir::Expr::Lambda(lambda) => {
-                lambda.t = self.deref_tyvar(mem::take(&mut lambda.t))?;
+                lambda.t = self.resolve_tyvar(mem::take(&mut lambda.t), lambda.loc())?;
                 for chunk in lambda.body.iter_mut() {
-                    self.deref_expr_t(chunk)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
@@ -463,14 +467,14 @@ impl Context {
                 for def in type_def.public_methods.iter_mut() {
                     match &mut def.sig {
                         hir::Signature::Var(var) => {
-                            var.t = self.deref_tyvar(mem::take(&mut var.t))?;
+                            var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t = self.deref_tyvar(mem::take(&mut subr.t))?;
+                            subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
                         }
                     }
                     for chunk in def.body.block.iter_mut() {
-                        self.deref_expr_t(chunk)?;
+                        self.resolve_expr_t(chunk)?;
                     }
                 }
                 Ok(())
@@ -478,7 +482,7 @@ impl Context {
             hir::Expr::AttrDef(attr_def) => {
                 // REVIEW: attr_def.attr is not dereferenced
                 for chunk in attr_def.block.iter_mut() {
-                    self.deref_expr_t(chunk)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }

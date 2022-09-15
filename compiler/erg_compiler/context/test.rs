@@ -1,5 +1,6 @@
 //! test module for `Context`
 use erg_common::Str;
+// use erg_common::error::Location;
 use erg_common::{enum_unwrap, set};
 
 use erg_type::constructors::{func1, mono_q, poly, quant, refinement};
@@ -24,22 +25,6 @@ impl Context {
             Ok(())
         } else {
             Err(())
-        }
-    }
-
-    pub fn test_resolve_trait(&self) -> Result<(), ()> {
-        let t = poly("Add", vec![TyParam::t(Nat)]);
-        match self.resolve_trait(t) {
-            Ok(Nat) => Ok(()),
-            Ok(other) => {
-                print!("other: {other}");
-                Err(())
-            }
-            Err(err) => {
-                use erg_common::error::ErrorDisplay;
-                err.write_to_stderr();
-                Err(())
-            }
         }
     }
 
