@@ -324,23 +324,26 @@ pub trait Runnable: Sized {
     type Errs: MultiErrorDisplay<Self::Err>;
     const NAME: &'static str;
     fn new(cfg: ErgConfig) -> Self;
-    fn input(&self) -> &Input;
+    fn cfg(&self) -> &ErgConfig;
+    fn finish(&mut self); // called when the :exit command is received.
+    fn clear(&mut self);
+    fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
+    fn exec(&mut self) -> Result<(), Self::Errs>;
+
+    fn input(&self) -> &Input {
+        &self.cfg().input
+    }
     fn start_message(&self) -> String {
         format!(
             "{} {SEMVER} (tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
             Self::NAME
         )
     }
-    fn finish(&mut self); // called when the :exit command is received.
-    fn clear(&mut self);
-    fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
-    fn exec(&mut self) -> Result<(), Self::Errs>;
-
     fn ps1(&self) -> String {
-        ">>> ".to_string()
-    } // TODO: &str (VMのせいで参照をとれない)
+        self.cfg().ps1.to_string()
+    }
     fn ps2(&self) -> String {
-        "... ".to_string()
+        self.cfg().ps2.to_string()
     }
 
     #[inline]

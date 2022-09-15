@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time::Duration;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::python_util::{exec_py, exec_pyc};
 use erg_common::traits::Runnable;
 
@@ -28,6 +28,11 @@ impl Runnable for DummyVM {
     type Err = EvalError;
     type Errs = EvalErrors;
     const NAME: &'static str = "Erg interpreter";
+
+    #[inline]
+    fn cfg(&self) -> &ErgConfig {
+        &self.cfg
+    }
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
@@ -67,11 +72,6 @@ impl Runnable for DummyVM {
             cfg,
             stream,
         }
-    }
-
-    #[inline]
-    fn input(&self) -> &Input {
-        &self.cfg.input
     }
 
     fn finish(&mut self) {

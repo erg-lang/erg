@@ -27,8 +27,8 @@ impl Runnable for LexerRunner {
     }
 
     #[inline]
-    fn input(&self) -> &Input {
-        &self.cfg.input
+    fn cfg(&self) -> &ErgConfig {
+        &self.cfg
     }
 
     #[inline]

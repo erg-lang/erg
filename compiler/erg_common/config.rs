@@ -132,6 +132,9 @@ pub struct ErgConfig {
     /// * 1: display errors and warns
     /// * 2 (default): display errors, warnings and hints
     pub verbose: u8,
+    /// needed for `jupyter-erg`
+    pub ps1: &'static str,
+    pub ps2: &'static str,
 }
 
 impl Default for ErgConfig {
@@ -155,6 +158,8 @@ impl Default for ErgConfig {
             input,
             module: "<module>",
             verbose: 2,
+            ps1: ">>> ",
+            ps2: "... ",
         }
     }
 }
@@ -202,6 +207,12 @@ impl ErgConfig {
                 }
                 "--mode" => {
                     cfg.mode = Box::leak(args.next().unwrap().into_boxed_str());
+                }
+                "--ps1" => {
+                    cfg.ps1 = Box::leak(args.next().unwrap().into_boxed_str());
+                }
+                "--ps2" => {
+                    cfg.ps2 = Box::leak(args.next().unwrap().into_boxed_str());
                 }
                 "-o" | "--opt-level" | "--optimization-level" => {
                     cfg.opt_level = args.next().unwrap().parse::<u8>().unwrap();

@@ -53,6 +53,8 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
         input: input.clone(),
         module: "<module>",
         verbose: 2,
+        ps1: ">>> ",
+        ps2: "... ",
     };
     let lexer = Lexer::new(input.clone());
     let mut parser = ParserRunner::new(cfg);

@@ -41,16 +41,16 @@ impl Runnable for ASTLowererRunner {
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg lowerer";
 
+    #[inline]
+    fn cfg(&self) -> &ErgConfig {
+        &self.cfg
+    }
+
     fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
             lowerer: ASTLowerer::new(),
         }
-    }
-
-    #[inline]
-    fn input(&self) -> &Input {
-        &self.cfg.input
     }
 
     #[inline]
