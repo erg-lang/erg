@@ -9,6 +9,7 @@ use std::ops::Neg;
 use std::rc::Rc;
 
 use erg_common::dict::Dict;
+use erg_common::error::ErrorCore;
 use erg_common::rccell::RcCell;
 use erg_common::serialize::*;
 use erg_common::set;
@@ -21,6 +22,9 @@ use crate::constructors::{array, mono, poly, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
+
+pub type EvalValueError = ErrorCore;
+pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TypeKind {

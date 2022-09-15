@@ -17,7 +17,7 @@ use Type::*;
 
 use erg_parser::ast::VarName;
 
-use crate::context::initialize::const_func::{class_func, inherit_func, inheritable_func};
+use crate::context::initialize::const_func::*;
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
 use crate::varinfo::{Mutability, VarInfo, VarKind};
@@ -1496,6 +1496,22 @@ impl Context {
         );
         let inherit = ConstSubr::Builtin(BuiltinConstSubr::new("Inherit", inherit_func, inherit_t));
         self.register_builtin_const("Inherit", ValueObj::Subr(inherit));
+        let trait_t = func(
+            vec![param_t("Requirement", Type)],
+            None,
+            vec![param_t("Impl", Type)],
+            Trait,
+        );
+        let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t));
+        self.register_builtin_const("Trait", ValueObj::Subr(trait_));
+        let subsume_t = func(
+            vec![param_t("Super", Trait)],
+            None,
+            vec![param_t("Impl", Type), param_t("Additional", Type)],
+            Trait,
+        );
+        let subsume = ConstSubr::Builtin(BuiltinConstSubr::new("Subsume", subsume_func, subsume_t));
+        self.register_builtin_const("Subsume", ValueObj::Subr(subsume));
         // decorators
         let inheritable_t = func1(Class, Class);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(

@@ -26,8 +26,8 @@ use crate::free::{
 };
 use crate::typaram::{IntervalOp, TyParam};
 use crate::value::value_set::*;
-use crate::value::ValueObj;
 use crate::value::ValueObj::{Inf, NegInf};
+use crate::value::{EvalValueResult, ValueObj};
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -157,7 +157,7 @@ impl ValueArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, Option<Str>) -> ValueObj,
+    subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
     t: Type,
 }
 
@@ -170,7 +170,7 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, Option<Str>) -> ValueObj,
+        subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
         t: Type,
     ) -> Self {
         Self { name, subr, t }
@@ -195,7 +195,7 @@ impl fmt::Display for ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> ValueObj {
+    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
         match self {
             ConstSubr::User(_user) => todo!(),
             ConstSubr::Builtin(builtin) => (builtin.subr)(args, __name__),

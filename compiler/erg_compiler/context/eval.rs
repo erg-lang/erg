@@ -274,7 +274,10 @@ impl Context {
                         })?
                         .clone();
                     let args = self.eval_args(&call.args, __name__)?;
-                    Ok(subr.call(args, __name__.cloned()))
+                    subr.call(args, __name__.cloned()).map_err(|mut e| {
+                        e.loc = call.loc();
+                        EvalError::new(e, self.caused_by())
+                    })
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
