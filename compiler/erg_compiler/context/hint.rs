@@ -58,6 +58,8 @@ impl Context {
                         "Sub" => Some(("subtract", "from", Sequence::Backward)),
                         "Mul" => Some(("multiply", "and", Sequence::Forward)),
                         "Div" => Some(("divide", "by", Sequence::Forward)),
+                        "Eq" => Some(("compare", "and", Sequence::Forward)),
+                        "Ord" => Some(("compare", "and", Sequence::Forward)),
                         _ => None,
                     }?;
                     let sup = enum_unwrap!(sup.typarams().remove(0), TyParam::Type);

@@ -4,8 +4,12 @@
   * [x] Control flow
     * [x] if/if!
     * [x] match/match!
-    * [x] for!
-    * [x] while!
+    * [ ] for!
+      * [x] code generation
+      * [ ] type checking
+    * [ ] while!
+      * [x] code generation
+      * [ ] type checking
   * [ ] operator
     * [x] + (binary/unary)
     * [x] - (binary/unary)
@@ -21,8 +25,8 @@
     * [x] Literal Pattern
     * [x] Array Pattern
     * [x] Tuple Pattern
-    * [ ] Record Pattern
-    * [ ] Data Type Pattern
+    * [x] Record Pattern
+    * [x] Data Type Pattern
     * [ ] Refinement Pattern
   * [x] Function call
     * [x] Positional arguments
@@ -30,7 +34,7 @@
     * [x] Variable length arguments
   * [x] Array literal
   * [x] Record literal
-  * [x] Set literal
+  * [ ] Set literal
   * [ ] Dict literal
   * [x] Tuple literal
   * [x] Variable visibility
@@ -41,12 +45,18 @@
   * [ ] Function/Procedure definition
     * [x] Positional arguments
     * [ ] Variable length arguments
-    * [ ] Keyword arguments
+    * [x] Keyword arguments
+  * [ ] Constant definition
+    * [x] Simple constant definition
+    * [ ] Cyclicity check
   * [ ] Method definition
+    * [x] Simple method definition
+    * [ ] Trait implementation
   * [ ] Type definition
     * [x] Class definition
-    * [ ] Trait definition
+    * [x] Trait definition
     * [ ] Structural trait definition
+    * [ ] Polymorphic type definition
   * [ ] Patch definition
     * [ ] Glue Patch definition
   * [ ] Range object
@@ -71,12 +81,18 @@
   * [x] Projection type
     * [ ] Polymorphic projection-type
   * [x] Subtyping
-    * [x] Refinement subtyping
+    * [ ] Structural subtyping
+      * [x] Refinement subtyping
     * [x] Nominal subtyping
   * [ ] Module system
     * [ ] Load Builtin Module
       * [x] `math` (partially)
       * [x] `random` (partially)
+      * [x] `importlib` (partially)
+      * [x] `io` (partially)
+      * [x] `socket` (partially)
+      * [x] `sys` (partially)
+      * [x] `time` (partially)
     * [ ] Load User Module
     * [ ] Recursive module
     * [x] Visibility check
@@ -91,14 +107,14 @@
   * [x] Implement a borrow checker
   * [ ] Implement a cycle-reference detector
 * [ ] Implement a compile-time evaluator
-  * [x] Builtin (Compile-time) perators
+  * [x] Builtin (Compile-time) operators
   * [ ] Compile-time operator
   * [ ] Compile-time function
 * [ ] Maintain unit tests
 * [ ] Implement a Python parser
 * [ ] Make code readable
-  * [ ] Add docs comments to every functions
-  * [ ] Replace Parser (to more elegant one)
+  * [ ] Add docs comments to every functions/methods
+  * [ ] Replace `Parser` (to more elegant & efficient one)
 * [ ] Make error messages more readable
   * [ ] Add hints (include a URL with detailed information)
   * [ ] Multiple error points indication

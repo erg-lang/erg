@@ -41,16 +41,16 @@ impl Runnable for ASTLowererRunner {
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg lowerer";
 
+    #[inline]
+    fn cfg(&self) -> &ErgConfig {
+        &self.cfg
+    }
+
     fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
             lowerer: ASTLowerer::new(),
         }
-    }
-
-    #[inline]
-    fn input(&self) -> &Input {
-        &self.cfg.input
     }
 
     #[inline]
@@ -906,13 +906,8 @@ impl ASTLowerer {
             }
         }
         let hir = HIR::new(ast.name, module);
-        log!(info "HIR (not derefed):\n{hir}");
-        log!(
-            c GREEN,
-            "the type-checking process has completed, found errors: {}",
-            self.errs.len()
-        );
-        let hir = self.ctx.deref_toplevel(hir)?;
+        log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
+        let hir = self.ctx.resolve(hir)?;
         // TODO: recursive check
         for chunk in hir.module.iter() {
             if let Err(e) = self.use_check(chunk, mode) {

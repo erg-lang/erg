@@ -539,6 +539,7 @@ impl Context {
             }
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
+            // ?T(:> Int, <: Add(?R(:> Int))).Output == Int
             Type::MonoProj { lhs, rhs } => {
                 // Currently Erg does not allow projection-types to be evaluated with type variables included.
                 // All type variables will be dereferenced or fail.

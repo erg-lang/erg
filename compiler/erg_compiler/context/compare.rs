@@ -30,14 +30,14 @@ use Credibility::*;
 use super::ContextKind;
 
 impl Context {
-    fn register_cache(&self, sub: &Type, sup: &Type, result: bool) {
+    fn register_cache(&self, sup: &Type, sub: &Type, result: bool) {
         if sub.is_cachable() && sup.is_cachable() {
             GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
         }
     }
 
     // TODO: is it impossible to avoid .clone()?
-    fn inquire_cache(&self, sub: &Type, sup: &Type) -> Option<bool> {
+    fn inquire_cache(&self, sup: &Type, sub: &Type) -> Option<bool> {
         if sub.is_cachable() && sup.is_cachable() {
             let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
             if res.is_some() {
@@ -118,14 +118,16 @@ impl Context {
     }
 
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        match self.cheap_supertype_of(lhs, rhs) {
+        let res = match self.cheap_supertype_of(lhs, rhs) {
             (Absolutely, judge) => judge,
             (Maybe, judge) => {
                 judge
                     || self.structural_supertype_of(lhs, rhs)
                     || self.nominal_supertype_of(lhs, rhs)
             }
-        }
+        };
+        log!("answer: {lhs} {RED}:>{RESET} {rhs} == {res}");
+        res
     }
 
     /// e.g.
@@ -230,16 +232,15 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!(info "nominal_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
-        if let Some(res) = self.inquire_cache(rhs, lhs) {
+        if let Some(res) = self.inquire_cache(lhs, rhs) {
             return res;
         }
         if let (Absolutely, judge) = self.classes_supertype_of(lhs, rhs) {
-            self.register_cache(rhs, lhs, judge);
+            self.register_cache(lhs, rhs, judge);
             return judge;
         }
         if let (Absolutely, judge) = self.traits_supertype_of(lhs, rhs) {
-            self.register_cache(rhs, lhs, judge);
+            self.register_cache(lhs, rhs, judge);
             return judge;
         }
         // FIXME: rec_get_patch
@@ -255,13 +256,13 @@ impl Context {
                     if self.supertype_of(&tr_inst.sub_type, rhs)
                         && self.subtype_of(&tr_inst.sup_trait, lhs)
                     {
-                        self.register_cache(rhs, lhs, true);
+                        self.register_cache(lhs, rhs, true);
                         return true;
                     }
                 }
             }
         }
-        self.register_cache(rhs, lhs, false);
+        self.register_cache(lhs, rhs, false);
         false
     }
 
@@ -304,10 +305,10 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
-            for rhs_sup in ty_ctx.super_traits.iter() {
+        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
+            for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
-                    let subst_ctx = SubstContext::new(rhs, ty_ctx);
+                    let subst_ctx = SubstContext::new(rhs, rhs_ctx);
                     subst_ctx.substitute(rhs_sup.clone(), self).unwrap()
                 } else {
                     rhs_sup.clone()
@@ -364,7 +365,6 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        log!(info "structural_supertype_of:\nlhs: {lhs}\nrhs: {rhs}");
         match (lhs, rhs) {
             (Subr(ls), Subr(rs)) if ls.kind == rs.kind => {
                 let kw_check = || {

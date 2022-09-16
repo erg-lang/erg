@@ -8,37 +8,37 @@ use erg_parser::ParserRunner;
 
 #[test]
 fn parse_dependent() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/dependent.er")
+    expect_success("tests/dependent.er")
 }
 
 #[test]
 fn parse_fib() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/fib.er")
+    expect_success("tests/fib.er")
 }
 
 #[test]
 fn parse_hello_world() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/hello_world.er")
+    expect_success("tests/hello_world.er")
 }
 
 #[test]
 fn parse_simple_if() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/simple_if.er")
+    expect_success("tests/simple_if.er")
 }
 
 #[test]
 fn parse_stack() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/stack.er")
+    expect_failure("tests/stack.er")
 }
 
 #[test]
 fn parse_test1_basic_syntax() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/test1_basic_syntax.er")
+    expect_success("tests/test1_basic_syntax.er")
 }
 
 #[test]
 fn parse_test2_advanced_syntax() -> Result<(), ParserRunnerErrors> {
-    parse_test_from_code("tests/test2_advanced_syntax.er")
+    expect_success("tests/test2_advanced_syntax.er")
 }
 
 fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
@@ -53,6 +53,8 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
         input: input.clone(),
         module: "<module>",
         verbose: 2,
+        ps1: ">>> ",
+        ps2: "... ",
     };
     let lexer = Lexer::new(input.clone());
     let mut parser = ParserRunner::new(cfg);
@@ -69,5 +71,22 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
             e.fmt_all_stderr();
             Err(e)
         }
+    }
+}
+
+fn expect_success(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+    match parse_test_from_code(file_path) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            e.fmt_all_stderr();
+            Err(e)
+        }
+    }
+}
+
+fn expect_failure(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+    match parse_test_from_code(file_path) {
+        Ok(_) => Err(ParserRunnerErrors::empty()),
+        Err(_) => Ok(()),
     }
 }
