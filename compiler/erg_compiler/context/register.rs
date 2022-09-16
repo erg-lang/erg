@@ -649,6 +649,28 @@ impl Context {
                     todo!()
                 }
             }
+            TypeKind::Trait => {
+                if gen.t.is_monomorphic() {
+                    let ctx = Self::mono_trait(gen.t.name(), self.level);
+                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                } else {
+                    todo!()
+                }
+            }
+            TypeKind::Subtrait => {
+                if gen.t.is_monomorphic() {
+                    let super_classes = vec![gen.require_or_sup.typ().clone()];
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx = Self::mono_trait(gen.t.name(), self.level);
+                    for sup in super_classes.into_iter() {
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
+                        ctx.register_superclass(sup, sup_ctx);
+                    }
+                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                } else {
+                    todo!()
+                }
+            }
             other => todo!("{other:?}"),
         }
     }

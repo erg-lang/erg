@@ -1486,7 +1486,7 @@ impl Context {
             vec![param_t("Impl", Type)],
             Class,
         );
-        let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t));
+        let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));
         self.register_builtin_const("Class", ValueObj::Subr(class));
         let inherit_t = func(
             vec![param_t("Super", Class)],
@@ -1494,7 +1494,12 @@ impl Context {
             vec![param_t("Impl", Type), param_t("Additional", Type)],
             Class,
         );
-        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new("Inherit", inherit_func, inherit_t));
+        let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(
+            "Inherit",
+            inherit_func,
+            inherit_t,
+            None,
+        ));
         self.register_builtin_const("Inherit", ValueObj::Subr(inherit));
         let trait_t = func(
             vec![param_t("Requirement", Type)],
@@ -1502,7 +1507,7 @@ impl Context {
             vec![param_t("Impl", Type)],
             Trait,
         );
-        let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t));
+        let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t, None));
         self.register_builtin_const("Trait", ValueObj::Subr(trait_));
         let subsume_t = func(
             vec![param_t("Super", Trait)],
@@ -1510,7 +1515,12 @@ impl Context {
             vec![param_t("Impl", Type), param_t("Additional", Type)],
             Trait,
         );
-        let subsume = ConstSubr::Builtin(BuiltinConstSubr::new("Subsume", subsume_func, subsume_t));
+        let subsume = ConstSubr::Builtin(BuiltinConstSubr::new(
+            "Subsume",
+            subsume_func,
+            subsume_t,
+            None,
+        ));
         self.register_builtin_const("Subsume", ValueObj::Subr(subsume));
         // decorators
         let inheritable_t = func1(Class, Class);
@@ -1518,6 +1528,7 @@ impl Context {
             "Inheritable",
             inheritable_func,
             inheritable_t,
+            None,
         ));
         self.register_builtin_const("Inheritable", ValueObj::Subr(inheritable));
     }

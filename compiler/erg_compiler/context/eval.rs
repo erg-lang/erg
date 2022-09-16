@@ -16,10 +16,12 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{ConstSubr, HasType, Predicate, TyBound, Type, UserConstSubr, ValueArgs};
+use erg_type::{
+    ConstSubr, HasType, ParamTy, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs,
+};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context};
+use crate::context::{ClassDefType, Context, RegistrationMode};
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
 #[inline]
@@ -343,7 +345,7 @@ impl Context {
     fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
         let mut attrs = vec![];
         // HACK: should avoid cloning
-        let mut record_ctx = Context::instant(Str::ever("<unnamed record>"), 2, self.clone());
+        let mut record_ctx = Context::instant(Str::ever("<unnamed record>"), 0, self.clone());
         for attr in record.attrs.iter() {
             let name = attr.sig.ident().map(|i| i.inspect());
             let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
@@ -360,11 +362,63 @@ impl Context {
     }
 
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
+        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
+        for sig in lambda.sig.params.non_defaults.iter() {
+            let t = self.instantiate_param_sig_t(sig, None, RegistrationMode::Normal)?;
+            let pt = if let Some(name) = sig.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            non_default_params.push(pt);
+        }
+        let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
+            let t = self.instantiate_param_sig_t(p, None, RegistrationMode::Normal)?;
+            let pt = if let Some(name) = p.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            Some(pt)
+        } else {
+            None
+        };
+        let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
+        for sig in lambda.sig.params.defaults.iter() {
+            let t = self.instantiate_param_sig_t(sig, None, RegistrationMode::Normal)?;
+            let pt = if let Some(name) = sig.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            default_params.push(pt);
+        }
+        // HACK: should avoid cloning
+        let mut lambda_ctx = Context::instant(Str::ever("<lambda>"), 0, self.clone());
+        let return_t = lambda_ctx.eval_const_block(&lambda.body, None)?;
+        // FIXME: lambda: i: Int -> Int
+        // => sig_t: (i: Type) -> Type
+        // => as_type: (i: Int) -> Int
+        let sig_t = subr_t(
+            SubrKind::from(lambda.op.kind),
+            non_default_params.clone(),
+            var_params.clone(),
+            default_params.clone(),
+            enum_t(set![return_t.clone()]),
+        );
+        let as_type = subr_t(
+            SubrKind::from(lambda.op.kind),
+            non_default_params,
+            var_params,
+            default_params,
+            return_t.as_type().ok_or_else(|| todo!())?.into_typ(),
+        );
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
             lambda.sig.params.clone(),
             lambda.body.clone(),
-            Type::Uninited,
+            sig_t,
+            Some(as_type),
         ));
         Ok(ValueObj::Subr(subr))
     }

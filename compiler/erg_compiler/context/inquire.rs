@@ -1259,6 +1259,7 @@ impl Context {
         }
     }
 
+    /// FIXME: if trait, returns a freevar
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type

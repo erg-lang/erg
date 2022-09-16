@@ -225,6 +225,20 @@ impl Args {
     pub fn push_kw(&mut self, arg: KwArg) {
         self.kw_args.push(arg);
     }
+
+    pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
+        if !self.pos_args.is_empty() {
+            self.pos_args.get(0).map(|a| &a.expr)
+        } else {
+            self.kw_args.iter().find_map(|a| {
+                if &a.keyword.content[..] == key {
+                    Some(&a.expr)
+                } else {
+                    None
+                }
+            })
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -2861,6 +2875,34 @@ impl Def {
 
     pub const fn is_subr(&self) -> bool {
         matches!(&self.sig, Signature::Subr(_))
+    }
+
+    pub fn is_class_def(&self) -> bool {
+        match self.body.block.first().unwrap() {
+            Expr::Call(call)
+                if call.obj.get_name().map(|n| &n[..]) == Some("Class")
+                    || call.obj.get_name().map(|n| &n[..]) == Some("Inherit") =>
+            {
+                true
+            }
+            Expr::Call(call) if call.obj.get_name().map(|n| &n[..]) == Some("Inheritable") => {
+                if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                    inner.obj.get_name().map(|n| &n[..]) == Some("Class")
+                        || inner.obj.get_name().map(|n| &n[..]) == Some("Inherit")
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_trait_def(&self) -> bool {
+        matches!(
+            self.body.block.first().unwrap(),
+            Expr::Call(call) if call.obj.get_name().map(|n| &n[..]) == Some("Trait")
+            || call.obj.get_name().map(|n| &n[..]) == Some("Subsume")
+        )
     }
 }
 

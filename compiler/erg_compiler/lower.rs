@@ -562,7 +562,14 @@ impl ASTLowerer {
                     name,
                 ));
             }
-            self.ctx.grow(name, ContextKind::Instant, def.sig.vis())?;
+            let kind = if def.is_class_def() {
+                ContextKind::Class
+            } else if def.is_trait_def() {
+                ContextKind::Trait
+            } else {
+                ContextKind::Instant
+            };
+            self.ctx.grow(name, kind, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
                 ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),

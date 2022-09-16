@@ -7,23 +7,7 @@ use erg_common::color::{RED, RESET};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_type::constructors::{and, mono};
 use erg_type::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
-use erg_type::Type;
 use erg_type::ValueArgs;
-
-fn value_obj_to_t(value: ValueObj) -> TypeObj {
-    match value {
-        ValueObj::Type(t) => t,
-        ValueObj::Record(rec) => TypeObj::Builtin(Type::Record(
-            rec.into_iter()
-                .map(|(k, v)| (k, value_obj_to_t(v).typ().clone()))
-                .collect(),
-        )),
-        ValueObj::Subr(subr) => {
-            todo!("{subr}")
-        }
-        other => todo!("{other}"),
-    }
-}
 
 /// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
@@ -36,9 +20,9 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult
             None,
         )
     })?;
-    let require = value_obj_to_t(require);
+    let require = require.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(value_obj_to_t);
+    let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
 }
@@ -54,11 +38,11 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResu
             None,
         )
     })?;
-    let sup = value_obj_to_t(sup);
+    let sup = sup.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(value_obj_to_t);
+    let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(value_obj_to_t);
+    let additional = additional.map(|v| v.as_type().unwrap());
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subclass,
@@ -112,9 +96,9 @@ pub fn trait_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult
             None,
         )
     })?;
-    let require = value_obj_to_t(require);
+    let require = require.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(value_obj_to_t);
+    let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
 }
@@ -130,11 +114,11 @@ pub fn subsume_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResu
             None,
         )
     })?;
-    let sup = value_obj_to_t(sup);
+    let sup = sup.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(value_obj_to_t);
+    let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(value_obj_to_t);
+    let additional = additional.map(|v| v.as_type().unwrap());
     let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subtrait,

@@ -20,6 +20,7 @@ use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
 use erg_parser::ast::{Block, Params};
+use erg_parser::token::TokenKind;
 
 use crate::constructors::{int_interval, mono, mono_q};
 use crate::free::{
@@ -135,16 +136,24 @@ pub struct UserConstSubr {
     name: Str,
     params: Params,
     block: Block,
-    t: Type,
+    sig_t: Type,
+    as_type: Option<Type>,
 }
 
 impl UserConstSubr {
-    pub const fn new(name: Str, params: Params, block: Block, t: Type) -> Self {
+    pub const fn new(
+        name: Str,
+        params: Params,
+        block: Block,
+        sig_t: Type,
+        as_type: Option<Type>,
+    ) -> Self {
         Self {
             name,
             params,
             block,
-            t,
+            sig_t,
+            as_type,
         }
     }
 }
@@ -173,7 +182,8 @@ impl ValueArgs {
 pub struct BuiltinConstSubr {
     name: &'static str,
     subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
-    t: Type,
+    sig_t: Type,
+    as_type: Option<Type>,
 }
 
 impl fmt::Display for BuiltinConstSubr {
@@ -186,9 +196,15 @@ impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
         subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
-        t: Type,
+        sig_t: Type,
+        as_type: Option<Type>,
     ) -> Self {
-        Self { name, subr, t }
+        Self {
+            name,
+            subr,
+            sig_t,
+            as_type,
+        }
     }
 
     pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
@@ -214,10 +230,17 @@ impl fmt::Display for ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn class(&self) -> Type {
+    pub fn sig_t(&self) -> &Type {
         match self {
-            ConstSubr::User(user) => user.t.clone(),
-            ConstSubr::Builtin(builtin) => builtin.t.clone(),
+            ConstSubr::User(user) => &user.sig_t,
+            ConstSubr::Builtin(builtin) => &builtin.sig_t,
+        }
+    }
+
+    pub fn as_type(&self) -> Option<&Type> {
+        match self {
+            ConstSubr::User(user) => user.as_type.as_ref(),
+            ConstSubr::Builtin(builtin) => builtin.as_type.as_ref(),
         }
     }
 }
@@ -974,6 +997,16 @@ impl QuantifiedType {
 pub enum SubrKind {
     Func,
     Proc,
+}
+
+impl From<TokenKind> for SubrKind {
+    fn from(op_kind: TokenKind) -> Self {
+        match op_kind {
+            TokenKind::FuncArrow => Self::Func,
+            TokenKind::ProcArrow => Self::Proc,
+            _ => panic!("invalid token kind for subr kind"),
+        }
+    }
 }
 
 impl SubrKind {

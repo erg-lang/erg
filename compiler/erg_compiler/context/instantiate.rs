@@ -628,11 +628,7 @@ impl Context {
                 .collect();
                 let return_t = self.instantiate_typespec(&subr.return_t, mode)?;
                 Ok(subr_t(
-                    if subr.arrow.is(TokenKind::FuncArrow) {
-                        SubrKind::Func
-                    } else {
-                        SubrKind::Proc
-                    },
+                    SubrKind::from(subr.arrow.kind),
                     non_defaults,
                     var_args,
                     defaults,

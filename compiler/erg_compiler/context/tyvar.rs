@@ -1027,6 +1027,9 @@ impl Context {
             (Type::MonoProj { .. }, _) => todo!(),
             (_, Type::MonoProj { .. }) => todo!(),
             (Refinement(_), Refinement(_)) => todo!(),
+            (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
+            // TODO Tuple2, ...
+            (Type::Poly{ name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
             _ => todo!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify (or existential types are not supported)"),
         }
     }
