@@ -253,7 +253,7 @@ impl Parser {
                 .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
             return Err(mem::take(&mut self.errs));
         }
-        log!(info "the parsing process has completed.");
+        log!(info "the parsing process has completed (errs: {}).", self.errs.len());
         log!(info "AST:\n{module}");
         log!(info "the desugaring process has started.");
         let mut desugarer = Desugarer::new();
@@ -366,7 +366,9 @@ impl Parser {
         debug_call_info!(self);
         if self.cur_is(TokenKind::AtSign) {
             self.lpop();
-            let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+            let expr = self
+                .try_reduce_expr(false, false)
+                .map_err(|_| self.stack_dec())?;
             self.level -= 1;
             Ok(Some(Decorator::new(expr)))
         } else {
@@ -391,7 +393,18 @@ impl Parser {
         Ok(decs)
     }
 
-    fn try_reduce_acc(&mut self) -> ParseResult<Accessor> {
+    fn try_reduce_type_app_args(&mut self) -> ParseResult<TypeAppArgs> {
+        debug_call_info!(self);
+        assert!(self.cur_is(VBar));
+        let l_vbar = self.lpop();
+        let args = self.try_reduce_args(true).map_err(|_| self.stack_dec())?;
+        assert!(self.cur_is(VBar));
+        let r_vbar = self.lpop();
+        self.level -= 1;
+        Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
+    }
+
+    fn try_reduce_acc(&mut self, in_type_args: bool) -> ParseResult<Accessor> {
         debug_call_info!(self);
         let mut acc = match self.peek() {
             Some(t) if t.is(Symbol) || t.is(UBar) => Accessor::local(self.lpop()),
@@ -473,7 +486,9 @@ impl Parser {
                 }
                 Some(t) if t.is(LSqBr) => {
                     self.skip();
-                    let index = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let index = self
+                        .try_reduce_expr(false, false)
+                        .map_err(|_| self.stack_dec())?;
                     if self.cur_is(RSqBr) {
                         self.skip();
                     } else {
@@ -492,6 +507,12 @@ impl Parser {
                         self.errs.push(err);
                         return Err(());
                     }
+                }
+                Some(t) if t.is(VBar) && !in_type_args => {
+                    let type_args = self
+                        .try_reduce_type_app_args()
+                        .map_err(|_| self.stack_dec())?;
+                    acc = Accessor::TypeApp(TypeApp::new(Expr::Accessor(acc), type_args));
                 }
                 _ => {
                     break;
@@ -540,7 +561,9 @@ impl Parser {
         match self.peek() {
             Some(semi) if semi.is(Semi) => {
                 self.lpop();
-                let len = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                let len = self
+                    .try_reduce_expr(false, false)
+                    .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
@@ -595,7 +618,9 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(_) => {
-                let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                let expr = self
+                    .try_reduce_expr(false, false)
+                    .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosArg::new(expr))
             }
@@ -603,7 +628,7 @@ impl Parser {
         }
     }
 
-    fn opt_reduce_args(&mut self) -> Option<ParseResult<Args>> {
+    fn opt_reduce_args(&mut self, in_type_args: bool) -> Option<ParseResult<Args>> {
         // debug_call_info!(self);
         match self.peek() {
             Some(t)
@@ -615,14 +640,14 @@ impl Parser {
                     || t.is(LBrace)
                     || t.is(UBar) =>
             {
-                Some(self.try_reduce_args())
+                Some(self.try_reduce_args(in_type_args))
             }
             Some(t)
                 if (t.is(Dot) || t.is(DblColon))
                     && !self.nth_is(1, Newline)
                     && !self.nth_is(1, LBrace) =>
             {
-                Some(self.try_reduce_args())
+                Some(self.try_reduce_args(in_type_args))
             }
             _ => None,
         }
@@ -637,7 +662,7 @@ impl Parser {
     ///     1
     ///     2
     /// ```
-    fn try_reduce_args(&mut self) -> ParseResult<Args> {
+    fn try_reduce_args(&mut self, in_type_args: bool) -> ParseResult<Args> {
         debug_call_info!(self);
         let mut lp = None;
         let rp;
@@ -652,7 +677,10 @@ impl Parser {
             self.level -= 1;
             return Ok(Args::new(vec![], vec![], None));
         }
-        let mut args = match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+        let mut args = match self
+            .try_reduce_arg(in_type_args)
+            .map_err(|_| self.stack_dec())?
+        {
             PosOrKwArg::Pos(arg) => Args::new(vec![arg], vec![], None),
             PosOrKwArg::Kw(arg) => Args::new(vec![], vec![arg], None),
         };
@@ -684,9 +712,15 @@ impl Parser {
                         return Err(());
                     }
                     if !args.kw_is_empty() {
-                        args.push_kw(self.try_reduce_kw_arg().map_err(|_| self.stack_dec())?);
+                        args.push_kw(
+                            self.try_reduce_kw_arg(in_type_args)
+                                .map_err(|_| self.stack_dec())?,
+                        );
                     } else {
-                        match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+                        match self
+                            .try_reduce_arg(in_type_args)
+                            .map_err(|_| self.stack_dec())?
+                        {
                             PosOrKwArg::Pos(arg) => {
                                 args.push_pos(arg);
                             }
@@ -697,9 +731,15 @@ impl Parser {
                     }
                 }
                 Some(t) if t.is(RParen) => {
-                    rp = Some(self.lpop());
-                    let (pos_args, kw_args, _) = args.deconstruct();
-                    args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp.unwrap())));
+                    if let Some(lp) = lp {
+                        let rp = self.lpop();
+                        let (pos_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, kw_args, Some((lp, rp)));
+                    } else {
+                        // e.g. f(g 1)
+                        let (pos_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, kw_args, None);
+                    }
                     break;
                 }
                 Some(t) if t.is(Newline) => {
@@ -715,9 +755,15 @@ impl Parser {
                 }
                 Some(_) if colon_style => {
                     if !args.kw_is_empty() {
-                        args.push_kw(self.try_reduce_kw_arg().map_err(|_| self.stack_dec())?);
+                        args.push_kw(
+                            self.try_reduce_kw_arg(in_type_args)
+                                .map_err(|_| self.stack_dec())?,
+                        );
                     } else {
-                        match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+                        match self
+                            .try_reduce_arg(in_type_args)
+                            .map_err(|_| self.stack_dec())?
+                        {
                             PosOrKwArg::Pos(arg) => {
                                 args.push_pos(arg);
                             }
@@ -736,7 +782,7 @@ impl Parser {
         Ok(args)
     }
 
-    fn try_reduce_arg(&mut self) -> ParseResult<PosOrKwArg> {
+    fn try_reduce_arg(&mut self, in_type_args: bool) -> ParseResult<PosOrKwArg> {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
@@ -746,7 +792,9 @@ impl Parser {
                     return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
                 }
                 if self.nth_is(1, Walrus) {
-                    let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+                    let acc = self
+                        .try_reduce_acc(in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
@@ -759,27 +807,23 @@ impl Parser {
                         self.errs.push(err);
                         return Err(());
                     };
-                    /*let t_spec = if self.cur_is(Colon) {
-                        self.skip();
-                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
-                        let t_spec = self
-                            .convert_rhs_to_type_spec(expr)
-                            .map_err(|_| self.stack_dec())?;
-                        Some(t_spec)
-                    } else {
-                        None
-                    };*/
-                    let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let expr = self
+                        .try_reduce_expr(false, in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
                 } else {
-                    let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let expr = self
+                        .try_reduce_expr(false, in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(PosOrKwArg::Pos(PosArg::new(expr)))
                 }
             }
             Some(_) => {
-                let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                let expr = self
+                    .try_reduce_expr(false, in_type_args)
+                    .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosOrKwArg::Pos(PosArg::new(expr)))
             }
@@ -787,12 +831,14 @@ impl Parser {
         }
     }
 
-    fn try_reduce_kw_arg(&mut self) -> ParseResult<KwArg> {
+    fn try_reduce_kw_arg(&mut self, in_type_args: bool) -> ParseResult<KwArg> {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
                 if self.nth_is(1, Walrus) {
-                    let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+                    let acc = self
+                        .try_reduce_acc(in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let keyword = if let Accessor::Ident(n) = acc {
@@ -814,7 +860,9 @@ impl Parser {
                     } else {
                         None
                     };*/
-                    let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let expr = self
+                        .try_reduce_expr(false, in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(KwArg::new(keyword, None, expr))
                 } else {
@@ -897,7 +945,9 @@ impl Parser {
             self.level -= 1;
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
-            let expr = self.try_reduce_expr(true).map_err(|_| self.stack_dec())?;
+            let expr = self
+                .try_reduce_expr(true, false)
+                .map_err(|_| self.stack_dec())?;
             let block = Block::new(vec![expr]);
             self.level -= 1;
             Ok(Lambda::new(sig, op, block, self.counter))
@@ -909,12 +959,13 @@ impl Parser {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
-            self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+            self.try_reduce_bin_lhs(false)
+                .map_err(|_| self.stack_dec())?,
         ));
         loop {
             match self.peek() {
                 Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
-                    let args = self.try_reduce_args().map_err(|_| self.stack_dec())?;
+                    let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
                     let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     stack.push(ExprOrOp::Expr(Expr::Call(Call::new(obj, None, args))));
                 }
@@ -943,14 +994,19 @@ impl Parser {
                         self.counter,
                     ))));
                 }
-                Some(op) if op.is(Colon) && !self.nth_is(1, Newline) => {
-                    let _op = self.lpop();
+                Some(op)
+                    if (op.is(Colon) && !self.nth_is(1, Newline))
+                        || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
+                {
+                    let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let t_spec = self
+                        .try_reduce_expr(false, false)
+                        .map_err(|_| self.stack_dec())?;
                     let t_spec = self
                         .convert_rhs_to_type_spec(t_spec)
                         .map_err(|_| self.stack_dec())?;
-                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, t_spec));
+                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -975,7 +1031,8 @@ impl Parser {
                     }
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
-                        self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+                        self.try_reduce_bin_lhs(false)
+                            .map_err(|_| self.stack_dec())?,
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
@@ -991,7 +1048,7 @@ impl Parser {
                                 return Err(());
                             };
                             if let Some(args) = self
-                                .opt_reduce_args()
+                                .opt_reduce_args(false)
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
@@ -1051,13 +1108,13 @@ impl Parser {
                                 return Err(());
                             };
                             if let Some(args) = self
-                                .opt_reduce_args()
+                                .opt_reduce_args(false)
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
                                 let mut call = Expr::Call(Call::new(obj, Some(ident), args));
-                                while let Some(res) = self.opt_reduce_args() {
+                                while let Some(res) = self.opt_reduce_args(false) {
                                     let args = res.map_err(|_| self.stack_dec())?;
                                     call = Expr::Call(Call::new(call, None, args));
                                 }
@@ -1141,11 +1198,12 @@ impl Parser {
 
     /// chunk = expr + def
     /// winding: true => parse paren-less tuple
-    fn try_reduce_expr(&mut self, winding: bool) -> ParseResult<Expr> {
+    fn try_reduce_expr(&mut self, winding: bool, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
-            self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+            self.try_reduce_bin_lhs(in_type_args)
+                .map_err(|_| self.stack_dec())?,
         ));
         loop {
             match self.peek() {
@@ -1164,14 +1222,19 @@ impl Parser {
                         self.counter,
                     ))));
                 }
-                Some(op) if op.is(Colon) && !self.nth_is(1, Newline) => {
-                    let _op = self.lpop();
+                Some(op)
+                    if (op.is(Colon) && !self.nth_is(1, Newline))
+                        || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
+                {
+                    let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    let t_spec = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+                    let t_spec = self
+                        .try_reduce_expr(false, in_type_args)
+                        .map_err(|_| self.stack_dec())?;
                     let t_spec = self
                         .convert_rhs_to_type_spec(t_spec)
                         .map_err(|_| self.stack_dec())?;
-                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, t_spec));
+                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -1196,7 +1259,8 @@ impl Parser {
                     }
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
-                        self.try_reduce_bin_lhs().map_err(|_| self.stack_dec())?,
+                        self.try_reduce_bin_lhs(in_type_args)
+                            .map_err(|_| self.stack_dec())?,
                     ));
                 }
                 Some(t) if t.is(Dot) => {
@@ -1212,7 +1276,7 @@ impl Parser {
                                 return Err(());
                             };
                             if let Some(args) = self
-                                .opt_reduce_args()
+                                .opt_reduce_args(in_type_args)
                                 .transpose()
                                 .map_err(|_| self.stack_dec())?
                             {
@@ -1292,7 +1356,7 @@ impl Parser {
 
     /// "LHS" is the smallest unit that can be the left-hand side of an BinOp.
     /// e.g. Call, Name, UnaryOp, Lambda
-    fn try_reduce_bin_lhs(&mut self) -> ParseResult<Expr> {
+    fn try_reduce_bin_lhs(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => {
@@ -1328,7 +1392,7 @@ impl Parser {
             }
             Some(t) if t.is(Symbol) || t.is(Dot) || t.is(UBar) => {
                 let call_or_acc = self
-                    .try_reduce_call_or_acc()
+                    .try_reduce_call_or_acc(in_type_args)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(call_or_acc)
@@ -1347,7 +1411,9 @@ impl Parser {
                     self.level -= 1;
                     return Ok(Expr::Tuple(unit));
                 }
-                let mut expr = self.try_reduce_expr(true).map_err(|_| self.stack_dec())?;
+                let mut expr = self
+                    .try_reduce_expr(true, false)
+                    .map_err(|_| self.stack_dec())?;
                 let rparen = self.lpop();
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
@@ -1399,19 +1465,20 @@ impl Parser {
     }
 
     #[inline]
-    fn try_reduce_call_or_acc(&mut self) -> ParseResult<Expr> {
+    fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
-        let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
-        if let Some(res) = self.opt_reduce_args() {
+        let acc = self
+            .try_reduce_acc(in_type_args)
+            .map_err(|_| self.stack_dec())?;
+        if let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec())?;
             let (obj, method_name) = match acc {
                 Accessor::Attr(attr) => (*attr.obj, Some(attr.ident)),
-                Accessor::Ident(ident) => (Expr::Accessor(Accessor::Ident(ident)), None),
-                _ => todo!(),
+                other => (Expr::Accessor(other), None),
             };
             let mut call = Expr::Call(Call::new(obj, method_name, args));
             // e.g. f(x) g(x) == f(x)(g(x))
-            while let Some(res) = self.opt_reduce_args() {
+            while let Some(res) = self.opt_reduce_args(in_type_args) {
                 let args = res.map_err(|_| self.stack_dec())?;
                 call = Expr::Call(Call::new(call, None, args));
             }
@@ -1427,7 +1494,9 @@ impl Parser {
     fn try_reduce_unary(&mut self) -> ParseResult<UnaryOp> {
         debug_call_info!(self);
         let op = self.lpop();
-        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
+        let expr = self
+            .try_reduce_expr(false, false)
+            .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(UnaryOp::new(op, expr))
     }
@@ -1582,7 +1651,7 @@ impl Parser {
                     return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                 }
                 Some(_) => {
-                    let acc = self.try_reduce_acc().map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc(false).map_err(|_| self.stack_dec())?;
                     let acc = match acc {
                         Accessor::Ident(ident) => ident,
                         other => todo!("{other}"), // syntax error
@@ -1615,7 +1684,7 @@ impl Parser {
                         self.errs.push(err);
                         return Err(());
                     }
-                    match self.try_reduce_arg().map_err(|_| self.stack_dec())? {
+                    match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
                         PosOrKwArg::Pos(arg) => match arg.expr {
                             Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
                                 args.extend_pos(tup.elems.into_iters().0);
@@ -2121,7 +2190,8 @@ impl Parser {
         let param = self
             .convert_rhs_to_param(*tasc.expr, allow_self)
             .map_err(|_| self.stack_dec())?;
-        let param = ParamSignature::new(param.pat, Some(tasc.t_spec), None);
+        let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
+        let param = ParamSignature::new(param.pat, Some(t_spec), None);
         self.level -= 1;
         Ok(param)
     }
@@ -2243,11 +2313,11 @@ impl Parser {
         debug_call_info!(self);
         match rhs {
             Expr::Accessor(acc) => {
-                let predecl = self
-                    .convert_accessor_to_predecl_type_spec(acc)
+                let t_spec = self
+                    .convert_accessor_to_type_spec(acc)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(TypeSpec::PreDeclTy(predecl))
+                Ok(t_spec)
             }
             Expr::Call(call) => {
                 let predecl = self
@@ -2274,14 +2344,19 @@ impl Parser {
         }
     }
 
-    fn convert_accessor_to_predecl_type_spec(
-        &mut self,
-        accessor: Accessor,
-    ) -> ParseResult<PreDeclTypeSpec> {
+    fn convert_accessor_to_type_spec(&mut self, accessor: Accessor) -> ParseResult<TypeSpec> {
         debug_call_info!(self);
         let t_spec = match accessor {
             Accessor::Ident(ident) => {
-                PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident.name, ConstArgs::empty()))
+                let predecl =
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident.name, ConstArgs::empty()));
+                TypeSpec::PreDeclTy(predecl)
+            }
+            Accessor::TypeApp(tapp) => {
+                let spec = self
+                    .convert_rhs_to_type_spec(*tapp.obj)
+                    .map_err(|_| self.stack_dec())?;
+                TypeSpec::type_app(spec, tapp.type_args)
             }
             other => todo!("{other}"),
         };

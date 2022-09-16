@@ -470,7 +470,7 @@ impl Desugarer {
             }
             Expr::TypeAsc(tasc) => {
                 let expr = self.rec_desugar_shortened_record(*tasc.expr);
-                Expr::TypeAsc(TypeAscription::new(expr, tasc.t_spec))
+                Expr::TypeAsc(TypeAscription::new(expr, tasc.op, tasc.t_spec))
             }
             Expr::Methods(method_defs) => {
                 let mut new_defs = vec![];

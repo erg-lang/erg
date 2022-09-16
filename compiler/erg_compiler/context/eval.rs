@@ -282,6 +282,7 @@ impl Context {
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
+                Accessor::TypeApp(_type_app) => todo!(),
             }
         } else {
             todo!()

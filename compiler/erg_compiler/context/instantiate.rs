@@ -449,8 +449,8 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
-        let spec_t = if let Some(spec) = &sig.t_spec {
-            self.instantiate_typespec(spec, mode)?
+        let spec_t = if let Some(spec_with_op) = &sig.t_spec {
+            self.instantiate_typespec(&spec_with_op.t_spec, mode)?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => enum_t(set![eval_lit(lit)]),
@@ -639,6 +639,9 @@ impl Context {
                     return_t,
                 ))
             }
+            TypeSpec::TypeApp { spec: _, args: _ } => {
+                todo!()
+            }
         }
     }
 
@@ -650,14 +653,22 @@ impl Context {
         // REVIEW: 型境界の左辺に来れるのは型変数だけか?
         // TODO: 高階型変数
         match bound {
-            TypeBoundSpec::Subtype { sub, sup } => Ok(TyBound::subtype_of(
-                mono_q(sub.inspect().clone()),
-                self.instantiate_typespec(sup, mode)?,
-            )),
-            TypeBoundSpec::Instance { name, ty } => Ok(TyBound::instance(
-                name.inspect().clone(),
-                self.instantiate_typespec(ty, mode)?,
-            )),
+            TypeBoundSpec::NonDefault { lhs, spec } => {
+                let bound = match spec.op.kind {
+                    TokenKind::SubtypeOf => TyBound::subtype_of(
+                        mono_q(lhs.inspect().clone()),
+                        self.instantiate_typespec(&spec.t_spec, mode)?,
+                    ),
+                    TokenKind::SupertypeOf => todo!(),
+                    TokenKind::Colon => TyBound::instance(
+                        lhs.inspect().clone(),
+                        self.instantiate_typespec(&spec.t_spec, mode)?,
+                    ),
+                    _ => unreachable!(),
+                };
+                Ok(bound)
+            }
+            TypeBoundSpec::WithDefault { .. } => todo!(),
         }
     }
 

@@ -372,6 +372,9 @@ impl ASTLowerer {
                 let acc = hir::Accessor::Subscr(hir::Subscript::new(obj, index, *t));
                 Ok(acc)
             }
+            ast::Accessor::TypeApp(_t_app) => {
+                todo!()
+            }
         }
     }
 

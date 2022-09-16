@@ -94,19 +94,19 @@ impl PosArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KwArg {
     pub keyword: Token,
-    pub t_spec: Option<TypeSpec>,
+    pub t_spec: Option<TypeSpecWithOp>,
     pub expr: Expr,
 }
 
 impl NestedDisplay for KwArg {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(
             f,
-            "{}{} := ",
+            "{}{} := {}",
             self.keyword.content,
-            fmt_option!(pre ": ", self.t_spec)
-        )?;
-        self.expr.fmt_nest(f, level + 1)
+            fmt_option!(self.t_spec),
+            self.expr,
+        )
     }
 }
 
@@ -114,7 +114,7 @@ impl_display_from_nested!(KwArg);
 impl_locational!(KwArg, keyword, expr);
 
 impl KwArg {
-    pub const fn new(keyword: Token, t_spec: Option<TypeSpec>, expr: Expr) -> Self {
+    pub const fn new(keyword: Token, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             keyword,
             t_spec,
@@ -235,7 +235,11 @@ pub struct Attribute {
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}){}", self.obj, self.ident)
+        if self.obj.need_to_be_closed() {
+            write!(f, "({}).{}", self.obj, self.ident)
+        } else {
+            write!(f, "{}.{}", self.obj, self.ident)
+        }
     }
 }
 
@@ -260,7 +264,11 @@ pub struct TupleAttribute {
 
 impl NestedDisplay for TupleAttribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}).{}", self.obj, self.index)
+        if self.obj.need_to_be_closed() {
+            write!(f, "({}).{}", self.obj, self.index)
+        } else {
+            write!(f, "{}.{}", self.obj, self.index)
+        }
     }
 }
 
@@ -284,7 +292,11 @@ pub struct Subscript {
 
 impl NestedDisplay for Subscript {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({})[{}]", self.obj, self.index)
+        if self.obj.need_to_be_closed() {
+            write!(f, "({})[{}]", self.obj, self.index)
+        } else {
+            write!(f, "{}[{}]", self.obj, self.index)
+        }
     }
 }
 
@@ -301,16 +313,72 @@ impl Subscript {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TypeAppArgs {
+    l_vbar: Token,
+    args: Args,
+    r_vbar: Token,
+}
+
+impl NestedDisplay for TypeAppArgs {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "|{}|", self.args)
+    }
+}
+
+impl_display_from_nested!(TypeAppArgs);
+impl_locational!(TypeAppArgs, l_vbar, r_vbar);
+
+impl TypeAppArgs {
+    pub fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
+        Self {
+            l_vbar,
+            args,
+            r_vbar,
+        }
+    }
+}
+
+/// f|T := Int|
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TypeApp {
+    pub obj: Box<Expr>,
+    pub type_args: TypeAppArgs,
+}
+
+impl NestedDisplay for TypeApp {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        if self.obj.need_to_be_closed() {
+            write!(f, "({}){}", self.obj, self.type_args)
+        } else {
+            write!(f, "{}{}", self.obj, self.type_args)
+        }
+    }
+}
+
+impl_display_from_nested!(TypeApp);
+impl_locational!(TypeApp, obj, type_args);
+
+impl TypeApp {
+    pub fn new(obj: Expr, type_args: TypeAppArgs) -> Self {
+        Self {
+            obj: Box::new(obj),
+            type_args,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Accessor {
     Ident(Identifier),
     Attr(Attribute),
     TupleAttr(TupleAttribute),
     Subscr(Subscript),
+    TypeApp(TypeApp),
 }
 
-impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Ident Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
@@ -346,6 +414,7 @@ impl Accessor {
             Self::Subscr(subscr) => subscr.obj.is_const_acc(),
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
             Self::Attr(attr) => attr.obj.is_const_acc() && attr.ident.is_const(),
+            Self::TypeApp(app) => app.obj.is_const_acc(),
         }
     }
 }
@@ -787,7 +856,11 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        write!(f, "({})", self.obj)?;
+        if self.obj.need_to_be_closed() {
+            write!(f, "({})", self.obj)?;
+        } else {
+            write!(f, "{}", self.obj)?;
+        }
         if let Some(method_name) = self.method_name.as_ref() {
             write!(f, "{}", method_name)?;
         }
@@ -909,7 +982,11 @@ pub struct ConstAttribute {
 
 impl NestedDisplay for ConstAttribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({}).{}", self.obj, self.name)
+        if self.obj.need_to_be_closed() {
+            write!(f, "({}).{}", self.obj, self.name)
+        } else {
+            write!(f, "{}.{}", self.obj, self.name)
+        }
     }
 }
 
@@ -933,7 +1010,11 @@ pub struct ConstTupleAttribute {
 
 impl NestedDisplay for ConstTupleAttribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}.{}", self.tup, self.index)
+        if self.tup.need_to_be_closed() {
+            write!(f, "({}).{}", self.tup, self.index)
+        } else {
+            write!(f, "{}.{}", self.tup, self.index)
+        }
     }
 }
 
@@ -957,7 +1038,11 @@ pub struct ConstSubscript {
 
 impl NestedDisplay for ConstSubscript {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({})[{}]", self.obj, self.index)
+        if self.obj.need_to_be_closed() {
+            write!(f, "({})[{}]", self.obj, self.index)
+        } else {
+            write!(f, "{}[{}]", self.obj, self.index)
+        }
     }
 }
 
@@ -1162,6 +1247,12 @@ pub enum ConstExpr {
 impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
 impl_display_from_nested!(ConstExpr);
 impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+
+impl ConstExpr {
+    pub fn need_to_be_closed(&self) -> bool {
+        matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstPosArg {
@@ -1501,6 +1592,10 @@ pub enum TypeSpec {
     },
     // Record(),
     Subr(SubrTypeSpec),
+    TypeApp {
+        spec: Box<TypeSpec>,
+        args: TypeAppArgs,
+    },
 }
 
 impl fmt::Display for TypeSpec {
@@ -1515,6 +1610,7 @@ impl fmt::Display for TypeSpec {
             Self::Enum(elems) => write!(f, "{{{elems}}}"),
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
+            Self::TypeApp { spec, args } => write!(f, "{spec}{args}"),
         }
     }
 }
@@ -1532,6 +1628,7 @@ impl Locational for TypeSpec {
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
+            Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args),
         }
     }
 }
@@ -1552,19 +1649,56 @@ impl TypeSpec {
     pub const fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
         Self::Interval { op, lhs, rhs }
     }
+
+    pub fn type_app(spec: TypeSpec, args: TypeAppArgs) -> Self {
+        Self::TypeApp {
+            spec: Box::new(spec),
+            args,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeSpecWithOp {
+    pub op: Token,
+    pub t_spec: TypeSpec,
+}
+
+impl NestedDisplay for TypeSpecWithOp {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} {}", self.op.content, self.t_spec)
+    }
+}
+
+impl_display_from_nested!(TypeSpecWithOp);
+impl_locational!(TypeSpecWithOp, op, t_spec);
+
+impl TypeSpecWithOp {
+    pub fn new(op: Token, t_spec: TypeSpec) -> Self {
+        Self { op, t_spec }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeBoundSpec {
-    Subtype { sub: VarName, sup: TypeSpec },  // e.g. S <: Show
-    Instance { name: VarName, ty: TypeSpec }, // e.g. N: Nat
+    NonDefault {
+        lhs: Token,
+        spec: TypeSpecWithOp,
+    },
+    WithDefault {
+        lhs: Token,
+        spec: Box<TypeSpecWithOp>,
+        default: ConstExpr,
+    }, // e.g. S: Show := Str
 }
 
 impl NestedDisplay for TypeBoundSpec {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
-            Self::Subtype { sub, sup } => write!(f, "{} <: {}", sub, sup),
-            Self::Instance { name, ty } => write!(f, "{} : {}", name, ty),
+            Self::NonDefault { lhs, spec } => write!(f, "{}{spec}", lhs.content),
+            Self::WithDefault { lhs, spec, default } => {
+                write!(f, "{}{} := {}", lhs.content, spec, default)
+            }
         }
     }
 }
@@ -1574,9 +1708,8 @@ impl_display_from_nested!(TypeBoundSpec);
 impl Locational for TypeBoundSpec {
     fn loc(&self) -> Location {
         match self {
-            Self::Subtype { sub: l, sup: r } | Self::Instance { name: l, ty: r } => {
-                Location::concat(l, r)
-            }
+            Self::NonDefault { lhs, spec } => Location::concat(lhs, spec),
+            Self::WithDefault { lhs, default, .. } => Location::concat(lhs, default),
         }
     }
 }
@@ -2275,7 +2408,7 @@ impl ParamPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamSignature {
     pub pat: ParamPattern,
-    pub t_spec: Option<TypeSpec>,
+    pub t_spec: Option<TypeSpecWithOp>,
     pub opt_default_val: Option<ConstExpr>,
 }
 
@@ -2286,11 +2419,11 @@ impl NestedDisplay for ParamSignature {
                 f,
                 "{}{} := {}",
                 self.pat,
-                fmt_option!(pre ": ", self.t_spec),
-                default_val
+                fmt_option!(self.t_spec),
+                default_val,
             )
         } else {
-            write!(f, "{}{}", self.pat, fmt_option!(pre ": ", self.t_spec),)
+            write!(f, "{}{}", self.pat, fmt_option!(self.t_spec),)
         }
     }
 }
@@ -2312,7 +2445,7 @@ impl Locational for ParamSignature {
 impl ParamSignature {
     pub const fn new(
         pat: ParamPattern,
-        t_spec: Option<TypeSpec>,
+        t_spec: Option<TypeSpecWithOp>,
         opt_default_val: Option<ConstExpr>,
     ) -> Self {
         Self {
@@ -2378,6 +2511,7 @@ type RawParams = (
     Vec<ParamSignature>,
     Option<(Token, Token)>,
 );
+
 impl Params {
     pub fn new(
         non_defaults: Vec<ParamSignature>,
@@ -2649,15 +2783,18 @@ impl Signature {
 }
 
 /// type_ascription ::= expr ':' type
+///                   | expr '<:' type
+///                   | expr ':>' type
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
+    pub op: Token,
     pub t_spec: TypeSpec,
 }
 
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        writeln!(f, "{}: {}", self.expr, self.t_spec)
+        writeln!(f, "{}{} {}", self.expr, self.op.content, self.t_spec)
     }
 }
 
@@ -2665,9 +2802,10 @@ impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
 
 impl TypeAscription {
-    pub fn new(expr: Expr, t_spec: TypeSpec) -> Self {
+    pub fn new(expr: Expr, op: Token, t_spec: TypeSpec) -> Self {
         Self {
             expr: Box::new(expr),
+            op,
             t_spec,
         }
     }
@@ -2811,6 +2949,13 @@ impl Expr {
 
     pub fn is_const_acc(&self) -> bool {
         matches!(self, Expr::Accessor(acc) if acc.is_const())
+    }
+
+    pub fn need_to_be_closed(&self) -> bool {
+        matches!(
+            self,
+            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAsc(_)
+        )
     }
 
     pub fn get_name(&self) -> Option<&Str> {
