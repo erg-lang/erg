@@ -32,7 +32,7 @@ while True:
         except e:
             __res = str(e)
         __already_loaded = True
-        __out = __sys.stdout.getvalue().strip()
+        __out = __sys.stdout.getvalue()[:-1]
         __res = __out + '\n' + __res
         __client_socket.send(__res.encode())
     else:

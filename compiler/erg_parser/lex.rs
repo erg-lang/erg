@@ -549,26 +549,41 @@ impl Lexer /*<'a>*/ {
     fn lex_str(&mut self) -> LexResult<Token> {
         let mut s = "\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if c == '\"' && !s.ends_with('\\') {
+            if c == '\"' {
                 s.push(self.consume().unwrap());
                 let token = self.emit_token(StrLit, &s);
                 return Ok(token);
             } else {
                 let c = self.consume().unwrap();
-                s.push(c);
-                if Self::is_bidi(c) {
-                    let token = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(
-                        0,
-                        token.loc(),
-                        switch_lang!(
-                            "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
-                            "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
-                            "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
-                            "english" => "invalid unicode character (bi-directional override) in string literal",
-                        ),
-                        None,
-                    ));
+                if c == '\\' {
+                    let next_c = self.consume().unwrap();
+                    match next_c {
+                        '0' => s.push('\0'),
+                        'r' => s.push('\r'),
+                        'n' => s.push('\n'),
+                        '\'' => s.push('\''),
+                        't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                        '\\' => s.push('\\'),
+                        _ => {
+                            let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                            return Err(LexError::syntax_error(
+                                0,
+                                token.loc(),
+                                switch_lang!(
+                                    "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
+                                    "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
+                                    "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
+                                    "english" => format!("illegal escape sequence: \\{}", next_c),
+                                ),
+                                None,
+                            ));
+                        }
+                    }
+                } else {
+                    s.push(c);
+                    if Self::is_bidi(c) {
+                        return Err(self._invalid_unicode_character(&s));
+                    }
                 }
             }
         }
@@ -584,6 +599,22 @@ impl Lexer /*<'a>*/ {
             ),
             None,
         ))
+    }
+
+    // for single strings and multi strings
+    fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
+        let token = self.emit_token(Illegal, s);
+        LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
+                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                "english" => "invalid unicode character (bi-directional override) in string literal",
+            ),
+            None,
+        )
     }
 }
 
