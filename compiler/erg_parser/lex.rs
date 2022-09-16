@@ -558,14 +558,25 @@ impl Lexer /*<'a>*/ {
                 if c == '\\' {
                     let next_c = self.consume().unwrap();
                     match next_c {
+                        '0' => s.push('\0'),
+                        'r' => s.push('\r'),
                         'n' => s.push('\n'),
                         '\'' => s.push('\''),
                         't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                        '\\' => s.push('\\'),
                         _ => {
-                            s.push(next_c);
-                            if Self::is_bidi(next_c) {
-                                return Err(self._invalid_unicode_character(&s));
-                            }
+                            let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                            return Err(LexError::syntax_error(
+                                0,
+                                token.loc(),
+                                switch_lang!(
+                                    "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
+                                    "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
+                                    "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
+                                    "english" => format!("illegal escape sequence: \\{}", next_c),
+                                ),
+                                None,
+                            ));
                         }
                     }
                 } else {
