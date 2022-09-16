@@ -16,7 +16,7 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
+use erg_type::{ConstSubr, HasType, Predicate, TyBound, Type, UserConstSubr, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context};
@@ -274,10 +274,7 @@ impl Context {
                         })?
                         .clone();
                     let args = self.eval_args(&call.args, __name__)?;
-                    subr.call(args, __name__.cloned()).map_err(|mut e| {
-                        e.loc = call.loc();
-                        EvalError::new(e, self.caused_by())
-                    })
+                    self.call(subr, args, __name__.cloned(), call.loc())
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
@@ -286,6 +283,22 @@ impl Context {
             }
         } else {
             todo!()
+        }
+    }
+
+    fn call(
+        &self,
+        subr: ConstSubr,
+        args: ValueArgs,
+        __name__: Option<Str>,
+        loc: Location,
+    ) -> EvalResult<ValueObj> {
+        match subr {
+            ConstSubr::User(_user) => todo!(),
+            ConstSubr::Builtin(builtin) => builtin.call(args, __name__).map_err(|mut e| {
+                e.loc = loc;
+                EvalError::new(e, self.caused_by())
+            }),
         }
     }
 
@@ -346,6 +359,16 @@ impl Context {
         Ok(ValueObj::Record(attrs.into_iter().collect()))
     }
 
+    fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
+        let subr = ConstSubr::User(UserConstSubr::new(
+            Str::ever("<lambda>"),
+            lambda.sig.params.clone(),
+            lambda.body.clone(),
+            Type::Uninited,
+        ));
+        Ok(ValueObj::Subr(subr))
+    }
+
     pub(crate) fn eval_const_expr(
         &self,
         expr: &Expr,
@@ -359,7 +382,7 @@ impl Context {
             Expr::Call(call) => self.eval_const_call(call, __name__),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
-            Expr::Lambda(lambda) => todo!("{lambda}"),
+            Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             other => todo!("{other}"),
         }
     }
@@ -380,7 +403,7 @@ impl Context {
             Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
-            Expr::Lambda(lambda) => todo!("{lambda}"),
+            Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             other => todo!("{other}"),
         }
     }

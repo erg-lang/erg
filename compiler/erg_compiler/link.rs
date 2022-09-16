@@ -3,7 +3,7 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ClassDef, Expr, Module, PreDeclTypeSpec, TypeSpec, AST};
+use erg_parser::ast::{ClassDef, Expr, Methods, Module, PreDeclTypeSpec, TypeSpec, AST};
 
 use crate::error::{TyCheckError, TyCheckErrors};
 
@@ -53,26 +53,14 @@ impl Linker {
                 }
                 Expr::Methods(methods) => match &methods.class {
                     TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => {
-                        if let Some(pos) = self.def_root_pos_map.get(simple.name.inspect()) {
-                            let mut class_def = match new.remove(*pos) {
-                                Expr::ClassDef(class_def) => class_def,
-                                _ => unreachable!(),
-                            };
-                            class_def.methods_list.push(methods);
-                            new.insert(*pos, Expr::ClassDef(class_def));
+                        self.link_methods(simple.name.inspect().clone(), &mut new, methods)
+                    }
+                    TypeSpec::TypeApp { spec, .. } => {
+                        if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) = spec.as_ref()
+                        {
+                            self.link_methods(simple.name.inspect().clone(), &mut new, methods)
                         } else {
-                            let similar_name = Str::from(
-                                self.def_root_pos_map
-                                    .keys()
-                                    .fold("".to_string(), |acc, key| acc + &key[..] + ","),
-                            );
-                            self.errs.push(TyCheckError::no_var_error(
-                                line!() as usize,
-                                methods.class.loc(),
-                                "".into(),
-                                simple.name.inspect(),
-                                Some(&similar_name),
-                            ));
+                            todo!("{spec}")
                         }
                     }
                     other => todo!("{other}"),
@@ -88,6 +76,30 @@ impl Linker {
             Ok(ast)
         } else {
             Err(self.errs)
+        }
+    }
+
+    fn link_methods(&mut self, name: Str, new: &mut Vec<Expr>, methods: Methods) {
+        if let Some(pos) = self.def_root_pos_map.get(&name) {
+            let mut class_def = match new.remove(*pos) {
+                Expr::ClassDef(class_def) => class_def,
+                _ => unreachable!(),
+            };
+            class_def.methods_list.push(methods);
+            new.insert(*pos, Expr::ClassDef(class_def));
+        } else {
+            let similar_name = Str::from(
+                self.def_root_pos_map
+                    .keys()
+                    .fold("".to_string(), |acc, key| acc + &key[..] + ","),
+            );
+            self.errs.push(TyCheckError::no_var_error(
+                line!() as usize,
+                methods.class.loc(),
+                "".into(),
+                &name,
+                Some(&similar_name),
+            ));
         }
     }
 }

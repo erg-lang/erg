@@ -315,7 +315,7 @@ impl Subscript {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
     l_vbar: Token,
-    args: Args,
+    pub args: Args,
     r_vbar: Token,
 }
 
@@ -1573,6 +1573,7 @@ impl_locational!(ArrayTypeSpec, ty, len);
 /// * Range: 1..12, 0.0<..1.0, etc.
 /// * Record: {.into_s: Self.() -> Str }, etc.
 /// * Subr: Int -> Int, Int => None, T.(X) -> Int, etc.
+/// * TypeApp: F|...|
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
     PreDeclTy(PreDeclTypeSpec),
@@ -1711,6 +1712,12 @@ impl Locational for TypeBoundSpec {
             Self::NonDefault { lhs, spec } => Location::concat(lhs, spec),
             Self::WithDefault { lhs, default, .. } => Location::concat(lhs, default),
         }
+    }
+}
+
+impl TypeBoundSpec {
+    pub fn non_default(lhs: Token, spec: TypeSpecWithOp) -> Self {
+        Self::NonDefault { lhs, spec }
     }
 }
 
@@ -2547,9 +2554,9 @@ impl Params {
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
     pub ident: Identifier,
+    pub bounds: TypeBoundSpecs,
     pub params: Params,
     pub return_t_spec: Option<TypeSpec>,
-    pub bounds: TypeBoundSpecs,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -2593,16 +2600,16 @@ impl SubrSignature {
     pub const fn new(
         decorators: HashSet<Decorator>,
         ident: Identifier,
+        bounds: TypeBoundSpecs,
         params: Params,
         return_t: Option<TypeSpec>,
-        bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
             decorators,
             ident,
+            bounds,
             params,
             return_t_spec: return_t,
-            bounds,
         }
     }
 

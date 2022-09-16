@@ -51,6 +51,7 @@ name = "erg_type"
 version = "0.4.7"
 dependencies = [
  "erg_common",
+ "erg_parser",
 ]
 
 [[package]]

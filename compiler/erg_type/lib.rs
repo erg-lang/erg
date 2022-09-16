@@ -19,7 +19,8 @@ use erg_common::traits::LimitedDisplay;
 use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
-use crate::codeobj::CodeObj;
+use erg_parser::ast::{Block, Params};
+
 use crate::constructors::{int_interval, mono, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
@@ -131,7 +132,21 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserConstSubr {
-    code: CodeObj, // may be this should be HIR or AST block
+    name: Str,
+    params: Params,
+    block: Block,
+    t: Type,
+}
+
+impl UserConstSubr {
+    pub const fn new(name: Str, params: Params, block: Block, t: Type) -> Self {
+        Self {
+            name,
+            params,
+            block,
+            t,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -175,6 +190,10 @@ impl BuiltinConstSubr {
     ) -> Self {
         Self { name, subr, t }
     }
+
+    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, __name__)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -187,7 +206,7 @@ impl fmt::Display for ConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstSubr::User(subr) => {
-                write!(f, "<user-defined const subroutine '{}'>", subr.code.name)
+                write!(f, "<user-defined const subroutine '{}'>", subr.name)
             }
             ConstSubr::Builtin(subr) => write!(f, "{subr}"),
         }
@@ -195,16 +214,9 @@ impl fmt::Display for ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
-        match self {
-            ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => (builtin.subr)(args, __name__),
-        }
-    }
-
     pub fn class(&self) -> Type {
         match self {
-            ConstSubr::User(_user) => todo!(),
+            ConstSubr::User(user) => user.t.clone(),
             ConstSubr::Builtin(builtin) => builtin.t.clone(),
         }
     }

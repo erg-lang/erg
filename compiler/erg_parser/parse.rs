@@ -1924,9 +1924,9 @@ impl Parser {
                 let subr = SubrSignature::new(
                     subr.decorators,
                     subr.ident,
+                    subr.bounds,
                     subr.params,
                     Some(tasc.t_spec),
-                    subr.bounds,
                 );
                 Signature::Subr(subr)
             }
@@ -1937,7 +1937,7 @@ impl Parser {
 
     fn convert_call_to_subr_sig(&mut self, call: Call) -> ParseResult<SubrSignature> {
         debug_call_info!(self);
-        let ident = match *call.obj {
+        let (ident, bounds) = match *call.obj {
             Expr::Accessor(acc) => self
                 .convert_accessor_to_ident(acc)
                 .map_err(|_| self.stack_dec())?,
@@ -1951,15 +1951,31 @@ impl Parser {
         let params = self
             .convert_args_to_params(call.args)
             .map_err(|_| self.stack_dec())?;
-        let sig = SubrSignature::new(set! {}, ident, params, None, TypeBoundSpecs::empty());
+        let sig = SubrSignature::new(set! {}, ident, bounds, params, None);
         self.level -= 1;
         Ok(sig)
     }
 
-    fn convert_accessor_to_ident(&mut self, _accessor: Accessor) -> ParseResult<Identifier> {
+    fn convert_accessor_to_ident(
+        &mut self,
+        accessor: Accessor,
+    ) -> ParseResult<(Identifier, TypeBoundSpecs)> {
         debug_call_info!(self);
-        let ident = match _accessor {
-            Accessor::Ident(ident) => ident,
+        let (ident, bounds) = match accessor {
+            Accessor::Ident(ident) => (ident, TypeBoundSpecs::empty()),
+            Accessor::TypeApp(t_app) => {
+                let sig = self
+                    .convert_rhs_to_sig(*t_app.obj)
+                    .map_err(|_| self.stack_dec())?;
+                let pat = option_enum_unwrap!(sig, Signature::Var)
+                    .unwrap_or_else(|| todo!())
+                    .pat;
+                let ident = option_enum_unwrap!(pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+                let bounds = self
+                    .convert_type_args_to_bounds(t_app.type_args)
+                    .map_err(|_| self.stack_dec())?;
+                (ident, bounds)
+            }
             other => {
                 self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
@@ -1968,7 +1984,43 @@ impl Parser {
             }
         };
         self.level -= 1;
-        Ok(ident)
+        Ok((ident, bounds))
+    }
+
+    fn convert_type_args_to_bounds(
+        &mut self,
+        type_args: TypeAppArgs,
+    ) -> ParseResult<TypeBoundSpecs> {
+        debug_call_info!(self);
+        let mut bounds = vec![];
+        let (pos_args, _kw_args, _paren) = type_args.args.deconstruct();
+        for arg in pos_args.into_iter() {
+            let bound = self
+                .convert_type_arg_to_bound(arg)
+                .map_err(|_| self.stack_dec())?;
+            bounds.push(bound);
+        }
+        let bounds = TypeBoundSpecs::new(bounds);
+        self.level -= 1;
+        Ok(bounds)
+    }
+
+    fn convert_type_arg_to_bound(&mut self, _arg: PosArg) -> ParseResult<TypeBoundSpec> {
+        match _arg.expr {
+            Expr::TypeAsc(tasc) => {
+                let lhs = self
+                    .convert_rhs_to_sig(*tasc.expr)
+                    .map_err(|_| self.stack_dec())?;
+                let lhs = option_enum_unwrap!(lhs, Signature::Var)
+                    .unwrap_or_else(|| todo!())
+                    .pat;
+                let lhs = option_enum_unwrap!(lhs, VarPattern::Ident).unwrap_or_else(|| todo!());
+                let spec_with_op = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
+                let bound = TypeBoundSpec::non_default(lhs.name.into_token(), spec_with_op);
+                Ok(bound)
+            }
+            other => todo!("{other}"),
+        }
     }
 
     fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {

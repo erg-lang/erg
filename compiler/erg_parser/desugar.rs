@@ -94,9 +94,9 @@ impl Desugarer {
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},
                                 name,
+                                TypeBoundSpecs::empty(),
                                 params,
                                 return_t_spec,
-                                TypeBoundSpecs::empty(),
                             ));
                             let body = DefBody::new(op, Block::new(vec![Expr::Call(call)]), id);
                             let def = Def::new(sig, body);

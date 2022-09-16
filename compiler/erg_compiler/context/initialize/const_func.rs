@@ -18,6 +18,9 @@ fn value_obj_to_t(value: ValueObj) -> TypeObj {
                 .map(|(k, v)| (k, value_obj_to_t(v).typ().clone()))
                 .collect(),
         )),
+        ValueObj::Subr(subr) => {
+            todo!("{subr}")
+        }
         other => todo!("{other}"),
     }
 }
