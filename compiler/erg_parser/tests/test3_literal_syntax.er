@@ -9,7 +9,7 @@
 0.00, -0.0, .1, 400.
 
 # Str Literal
-"", "a", "こんにちは", "\" \\ "
+"", "a", "こんにちは", "\"\\", "\"\'\\\0\r\n\t"
 
 # Boolean Litteral
 True, False

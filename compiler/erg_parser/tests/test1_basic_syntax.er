@@ -6,7 +6,7 @@ a, _, ...b = five_elem_tuple
 f x, y =
     x + y
 if! True, do!:
-    print! "\\hello, world\""
+    print! "\"\\hello, world\\\""
     10.times! do!:
         if! x.y.z, do!:
             print! ""

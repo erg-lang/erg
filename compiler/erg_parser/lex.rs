@@ -562,6 +562,7 @@ impl Lexer /*<'a>*/ {
                         'r' => s.push('\r'),
                         'n' => s.push('\n'),
                         '\'' => s.push('\''),
+                        '"' => s.push('"'),
                         't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
                         '\\' => s.push('\\'),
                         _ => {
