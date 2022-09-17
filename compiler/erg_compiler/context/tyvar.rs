@@ -6,7 +6,7 @@ use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name, set};
+use erg_common::{assume_unreachable, fn_name, log, set};
 
 use erg_type::constructors::*;
 use erg_type::free::{Constraint, Cyclicity, FreeKind};
@@ -41,7 +41,6 @@ impl Context {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, bounds, lazy_inits)),
             TyParam::FreeVar(v) if v.is_linked() => {
-                erg_common::log!(err "borrow mut");
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
                     *tp = self.generalize_tp(tp.clone(), bounds, lazy_inits);
                 } else {
@@ -96,7 +95,6 @@ impl Context {
     ) -> Type {
         match free_type {
             FreeVar(v) if v.is_linked() => {
-                erg_common::log!(err "borrow mut");
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
                     *t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
                 } else {
@@ -789,7 +787,7 @@ impl Context {
         sup_loc: Option<Location>,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        erg_common::log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {

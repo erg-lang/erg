@@ -423,6 +423,7 @@ impl Context {
             default_params.clone(),
             enum_t(set![return_t.clone()]),
         );
+        let sig_t = self.generalize_t(sig_t);
         let as_type = subr_t(
             SubrKind::from(lambda.op.kind),
             non_default_params,
@@ -430,6 +431,7 @@ impl Context {
             default_params,
             return_t.as_type().ok_or_else(|| todo!())?.into_typ(),
         );
+        let as_type = self.generalize_t(as_type);
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
             lambda.sig.params.clone(),

@@ -390,7 +390,6 @@ impl Context {
     ) -> TyCheckResult<Type> {
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
         let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-        erg_common::log!(err "{sig}, {tv_ctx}");
         let non_defaults = sig
             .params
             .non_defaults

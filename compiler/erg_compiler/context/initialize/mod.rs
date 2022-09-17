@@ -81,6 +81,12 @@ impl Context {
         unique_in_place(&mut self.super_traits);
     }
 
+    pub(crate) fn register_supertrait(&mut self, sup: Type, sup_ctx: &Context) {
+        self.super_traits.push(sup);
+        self.super_traits.extend(sup_ctx.super_traits.clone());
+        unique_in_place(&mut self.super_traits);
+    }
+
     fn register_builtin_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         if t.typarams_len().is_none() {
             self.register_mono_type(t, ctx, muty);

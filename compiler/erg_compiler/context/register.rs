@@ -670,7 +670,7 @@ impl Context {
                     let mut ctx = Self::mono_trait(gen.t.name(), self.level);
                     for sup in super_classes.into_iter() {
                         let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
-                        ctx.register_superclass(sup, sup_ctx);
+                        ctx.register_supertrait(sup, sup_ctx);
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {

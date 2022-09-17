@@ -863,6 +863,15 @@ impl ASTLowerer {
         methods: &Context,
     ) -> LowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
+            // assume the class has implemented the trait, regardless of whether the implementation is correct
+            let trait_ctx = self
+                .ctx
+                .get_nominal_type_ctx(&impl_trait)
+                .unwrap()
+                .1
+                .clone();
+            let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
+            class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
@@ -872,9 +881,8 @@ impl ASTLowerer {
                                     methods.locals.keys().collect::<Set<_>>();
                                 for (field, typ) in attrs.iter() {
                                     if let Some((name, vi)) = methods.get_local_kv(&field.symbol) {
-                                        if self.ctx.supertype_of(typ, &vi.t) {
-                                            unverified_names.remove(name);
-                                        } else {
+                                        unverified_names.remove(name);
+                                        if !self.ctx.supertype_of(typ, &vi.t) {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 line!() as usize,
                                                 name.loc(),
