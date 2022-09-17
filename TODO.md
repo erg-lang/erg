@@ -135,4 +135,4 @@
   * [ ] Write educational materials to learn Erg while creating applications (e.g. CLI chess game -> GUI chess game, calculator -> toy language)
 * [ ] Develop Dyne (CPython compatible VM)
 * [ ] Develop Kayser (WebAssembly backend)
-* [ ] Develop Barye (LLVM backend)
+* [ ] Develop Gal (LLVM backend)
