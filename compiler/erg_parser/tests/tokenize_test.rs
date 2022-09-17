@@ -20,7 +20,6 @@ fn test_lexer_for_basic() -> ParseResult<()> {
     let /*mut*/ token_array = vec![
         (Newline, newline),
         (Newline, newline),
-        (Newline, newline),
         (Symbol, "_a"),
         (Equal, "="),
         (NatLit, "1_234"),
@@ -63,6 +62,7 @@ fn test_lexer_for_basic() -> ParseResult<()> {
         (Indent, "    "),
         (Symbol, "print!"),
         (StrLit, "\"\"\\hello, world\\\"\""),
+        (Newline, newline),
         (Newline, newline),
         (NatLit, "10"),
         (Dot, "."),
