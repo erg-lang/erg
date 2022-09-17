@@ -30,11 +30,10 @@ use erg_type::{HasType, Type, TypeCode, TypePair};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::eval_lit;
 use crate::error::{CompileError, CompileErrors, CompileResult};
-use crate::hir::AttrDef;
-use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Identifier, Literal, PosArg,
-    Signature, SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, DefBody, Expr,
+    Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -831,6 +830,105 @@ impl CodeGenerator {
         self.emit_store_instr(sig.ident, Name);
     }
 
+    fn emit_lambda(&mut self, lambda: Lambda) {
+        log!(info "entered {} ({lambda})", fn_name!());
+        let params = self.gen_param_names(&lambda.params);
+        self.codegen_block(lambda.body, Some("<lambda>".into()), params);
+        self.emit_load_const("<lambda>");
+        self.write_instr(MAKE_FUNCTION);
+        self.write_arg(0u8);
+        // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
+        self.stack_dec();
+    }
+
+    fn emit_unaryop(&mut self, unary: UnaryOp) {
+        log!(info "entered {} ({unary})", fn_name!());
+        let tycode = TypeCode::from(unary.lhs_t());
+        self.codegen_expr(*unary.expr);
+        let instr = match &unary.op.kind {
+            // TODO:
+            TokenKind::PrePlus => UNARY_POSITIVE,
+            TokenKind::PreMinus => UNARY_NEGATIVE,
+            TokenKind::Mutate => NOP, // ERG_MUTATE,
+            _ => {
+                self.errs.push(CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    unary.op.loc(),
+                    "",
+                    AtomicStr::from(unary.op.content),
+                ));
+                NOT_IMPLEMENTED
+            }
+        };
+        self.write_instr(instr);
+        self.write_arg(tycode as u8);
+    }
+
+    fn emit_binop(&mut self, bin: BinOp) {
+        log!(info "entered {} ({bin})", fn_name!());
+        // TODO: and/orのプリミティブ命令の実装
+        // Range operators are not operators in Python
+        match &bin.op.kind {
+            // l..<r == range(l, r)
+            TokenKind::RightOpen => {
+                self.emit_load_name_instr(Identifier::public("range"))
+                    .unwrap();
+            }
+            TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
+            _ => {}
+        }
+        let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
+        self.codegen_expr(*bin.lhs);
+        self.codegen_expr(*bin.rhs);
+        let instr = match &bin.op.kind {
+            TokenKind::Plus => BINARY_ADD,
+            TokenKind::Minus => BINARY_SUBTRACT,
+            TokenKind::Star => BINARY_MULTIPLY,
+            TokenKind::Slash => BINARY_TRUE_DIVIDE,
+            TokenKind::Pow => BINARY_POWER,
+            TokenKind::Mod => BINARY_MODULO,
+            TokenKind::AndOp => BINARY_AND,
+            TokenKind::OrOp => BINARY_OR,
+            TokenKind::Less
+            | TokenKind::LessEq
+            | TokenKind::DblEq
+            | TokenKind::NotEq
+            | TokenKind::Gre
+            | TokenKind::GreEq => COMPARE_OP,
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => {
+                CALL_FUNCTION
+            } // ERG_BINARY_RANGE,
+            _ => {
+                self.errs.push(CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    bin.op.loc(),
+                    "",
+                    AtomicStr::from(bin.op.content),
+                ));
+                NOT_IMPLEMENTED
+            }
+        };
+        let arg = match &bin.op.kind {
+            TokenKind::Less => 0,
+            TokenKind::LessEq => 1,
+            TokenKind::DblEq => 2,
+            TokenKind::NotEq => 3,
+            TokenKind::Gre => 4,
+            TokenKind::GreEq => 5,
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => 2,
+            _ => type_pair as u8,
+        };
+        self.write_instr(instr);
+        self.write_arg(arg);
+        self.stack_dec();
+        match &bin.op.kind {
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Open | TokenKind::Closed => {
+                self.stack_dec();
+            }
+            _ => {}
+        }
+    }
+
     fn emit_discard_instr(&mut self, mut args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
@@ -1155,6 +1253,43 @@ impl CodeGenerator {
         Ok(())
     }
 
+    #[allow(clippy::identity_op)]
+    fn emit_record(&mut self, rec: Record) {
+        log!(info "entered {} ({rec})", fn_name!());
+        let attrs_len = rec.attrs.len();
+        // making record type
+        let ident = Identifier::private(Str::ever("#NamedTuple"));
+        self.emit_load_name_instr(ident).unwrap();
+        // record name, let it be anonymous
+        self.emit_load_const("Record");
+        for field in rec.attrs.iter() {
+            self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
+        }
+        self.write_instr(BUILD_LIST);
+        self.write_arg(attrs_len as u8);
+        if attrs_len == 0 {
+            self.stack_inc();
+        } else {
+            self.stack_dec_n(attrs_len - 1);
+        }
+        self.write_instr(CALL_FUNCTION);
+        self.write_arg(2);
+        // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+        self.stack_dec_n((1 + 2 + 0) - 1);
+        let ident = Identifier::private(Str::ever("#rec"));
+        self.emit_store_instr(ident, Name);
+        // making record instance
+        let ident = Identifier::private(Str::ever("#rec"));
+        self.emit_load_name_instr(ident).unwrap();
+        for field in rec.attrs.into_iter() {
+            self.codegen_frameless_block(field.body.block, vec![]);
+        }
+        self.write_instr(CALL_FUNCTION);
+        self.write_arg(attrs_len as u8);
+        // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+        self.stack_dec_n((1 + attrs_len + 0) - 1);
+    }
+
     fn codegen_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
@@ -1198,107 +1333,9 @@ impl CodeGenerator {
             },
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::AttrDef(attr) => self.emit_attr_def(attr),
-            // TODO:
-            Expr::Lambda(lambda) => {
-                let params = self.gen_param_names(&lambda.params);
-                self.codegen_block(lambda.body, Some("<lambda>".into()), params);
-                self.emit_load_const("<lambda>");
-                self.write_instr(MAKE_FUNCTION);
-                self.write_arg(0u8);
-                // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
-                self.stack_dec();
-            }
-            Expr::UnaryOp(unary) => {
-                let tycode = TypeCode::from(unary.lhs_t());
-                self.codegen_expr(*unary.expr);
-                let instr = match &unary.op.kind {
-                    // TODO:
-                    TokenKind::PrePlus => UNARY_POSITIVE,
-                    TokenKind::PreMinus => UNARY_NEGATIVE,
-                    TokenKind::Mutate => NOP, // ERG_MUTATE,
-                    _ => {
-                        self.errs.push(CompileError::feature_error(
-                            self.cfg.input.clone(),
-                            unary.op.loc(),
-                            "",
-                            AtomicStr::from(unary.op.content),
-                        ));
-                        NOT_IMPLEMENTED
-                    }
-                };
-                self.write_instr(instr);
-                self.write_arg(tycode as u8);
-            }
-            Expr::BinOp(bin) => {
-                // TODO: and/orのプリミティブ命令の実装
-                // Range operators are not operators in Python
-                match &bin.op.kind {
-                    // l..<r == range(l, r)
-                    TokenKind::RightOpen => {
-                        self.emit_load_name_instr(Identifier::public("range"))
-                            .unwrap();
-                    }
-                    TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
-                    _ => {}
-                }
-                let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
-                self.codegen_expr(*bin.lhs);
-                self.codegen_expr(*bin.rhs);
-                let instr = match &bin.op.kind {
-                    TokenKind::Plus => BINARY_ADD,
-                    TokenKind::Minus => BINARY_SUBTRACT,
-                    TokenKind::Star => BINARY_MULTIPLY,
-                    TokenKind::Slash => BINARY_TRUE_DIVIDE,
-                    TokenKind::Pow => BINARY_POWER,
-                    TokenKind::Mod => BINARY_MODULO,
-                    TokenKind::AndOp => BINARY_AND,
-                    TokenKind::OrOp => BINARY_OR,
-                    TokenKind::Less
-                    | TokenKind::LessEq
-                    | TokenKind::DblEq
-                    | TokenKind::NotEq
-                    | TokenKind::Gre
-                    | TokenKind::GreEq => COMPARE_OP,
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Closed
-                    | TokenKind::Open => CALL_FUNCTION, // ERG_BINARY_RANGE,
-                    _ => {
-                        self.errs.push(CompileError::feature_error(
-                            self.cfg.input.clone(),
-                            bin.op.loc(),
-                            "",
-                            AtomicStr::from(bin.op.content),
-                        ));
-                        NOT_IMPLEMENTED
-                    }
-                };
-                let arg = match &bin.op.kind {
-                    TokenKind::Less => 0,
-                    TokenKind::LessEq => 1,
-                    TokenKind::DblEq => 2,
-                    TokenKind::NotEq => 3,
-                    TokenKind::Gre => 4,
-                    TokenKind::GreEq => 5,
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Closed
-                    | TokenKind::Open => 2,
-                    _ => type_pair as u8,
-                };
-                self.write_instr(instr);
-                self.write_arg(arg);
-                self.stack_dec();
-                match &bin.op.kind {
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Open
-                    | TokenKind::Closed => {
-                        self.stack_dec();
-                    }
-                    _ => {}
-                }
-            }
+            Expr::Lambda(lambda) => self.emit_lambda(lambda),
+            Expr::UnaryOp(unary) => self.emit_unaryop(unary),
+            Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
             // TODO: list comprehension
             Expr::Array(arr) => match arr {
@@ -1334,42 +1371,7 @@ impl CodeGenerator {
                     }
                 }
             },
-            Expr::Record(rec) => {
-                let attrs_len = rec.attrs.len();
-                // making record type
-                let ident = Identifier::private(Str::ever("#NamedTuple"));
-                self.emit_load_name_instr(ident).unwrap();
-                // record name, let it be anonymous
-                self.emit_load_const("Record");
-                for field in rec.attrs.iter() {
-                    self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
-                }
-                self.write_instr(BUILD_LIST);
-                self.write_arg(attrs_len as u8);
-                if attrs_len == 0 {
-                    self.stack_inc();
-                } else {
-                    self.stack_dec_n(attrs_len - 1);
-                }
-                self.write_instr(CALL_FUNCTION);
-                self.write_arg(2);
-                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
-                #[allow(clippy::identity_op)]
-                self.stack_dec_n((1 + 2 + 0) - 1);
-                let ident = Identifier::private(Str::ever("#rec"));
-                self.emit_store_instr(ident, Name);
-                // making record instance
-                let ident = Identifier::private(Str::ever("#rec"));
-                self.emit_load_name_instr(ident).unwrap();
-                for field in rec.attrs.into_iter() {
-                    self.codegen_frameless_block(field.body.block, vec![]);
-                }
-                self.write_instr(CALL_FUNCTION);
-                self.write_arg(attrs_len as u8);
-                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
-                #[allow(clippy::identity_op)]
-                self.stack_dec_n((1 + attrs_len + 0) - 1);
-            }
+            Expr::Record(rec) => self.emit_record(rec),
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),
