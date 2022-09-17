@@ -696,6 +696,7 @@ impl ASTLowerer {
                         ast::Expr::TypeAsc(tasc) => (
                             self.ctx.instantiate_typespec(
                                 &tasc.t_spec,
+                                None,
                                 &mut None,
                                 RegistrationMode::Normal,
                             )?,
@@ -704,14 +705,22 @@ impl ASTLowerer {
                         _ => unreachable!(),
                     };
                     (
-                        self.ctx
-                            .instantiate_typespec(spec, &mut None, RegistrationMode::Normal)?,
+                        self.ctx.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut None,
+                            RegistrationMode::Normal,
+                        )?,
                         Some((impl_trait, loc)),
                     )
                 }
                 other => (
-                    self.ctx
-                        .instantiate_typespec(other, &mut None, RegistrationMode::Normal)?,
+                    self.ctx.instantiate_typespec(
+                        other,
+                        None,
+                        &mut None,
+                        RegistrationMode::Normal,
+                    )?,
                     None,
                 ),
             };

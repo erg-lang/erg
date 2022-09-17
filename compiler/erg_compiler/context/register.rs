@@ -466,8 +466,12 @@ impl Context {
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t =
-                            self.instantiate_typespec(spec, &mut Some(&mut tv_ctx), PreRegister)?;
+                        let spec_t = self.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut Some(&mut tv_ctx),
+                            PreRegister,
+                        )?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -483,7 +487,7 @@ impl Context {
                     }
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
-                    let spec_t = self.instantiate_typespec(spec, &mut None, PreRegister)?;
+                    let spec_t = self.instantiate_typespec(spec, None, &mut None, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
                 self.register_gen_const(sig.ident().unwrap(), obj)?;
