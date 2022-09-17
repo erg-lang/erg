@@ -833,7 +833,8 @@ impl CodeGenerator {
     fn emit_lambda(&mut self, lambda: Lambda) {
         log!(info "entered {} ({lambda})", fn_name!());
         let params = self.gen_param_names(&lambda.params);
-        self.codegen_block(lambda.body, Some("<lambda>".into()), params);
+        let code = self.codegen_block(lambda.body, Some("<lambda>".into()), params);
+        self.emit_load_const(code);
         self.emit_load_const("<lambda>");
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0u8);
