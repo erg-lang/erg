@@ -1,6 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::error::Location;
 use erg_type::constructors::{and, or};
 use erg_type::free::fresh_varname;
 use erg_type::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
@@ -278,7 +279,9 @@ impl Context {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let subst_ctx = SubstContext::new(rhs, ty_ctx);
-                    subst_ctx.substitute(rhs_sup.clone(), self).unwrap()
+                    subst_ctx
+                        .substitute(rhs_sup.clone(), self, Location::Unknown)
+                        .unwrap()
                 } else {
                     rhs_sup.clone()
                 };
@@ -309,7 +312,9 @@ impl Context {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let subst_ctx = SubstContext::new(rhs, rhs_ctx);
-                    subst_ctx.substitute(rhs_sup.clone(), self).unwrap()
+                    subst_ctx
+                        .substitute(rhs_sup.clone(), self, Location::Unknown)
+                        .unwrap()
                 } else {
                     rhs_sup.clone()
                 };
@@ -544,17 +549,29 @@ impl Context {
                 // REVIEW: maybe this should be `unreachable`
                 let mut l_tv_ctx = TyVarContext::new(self.level, l.bounds.clone(), self);
                 let mut r_tv_ctx = TyVarContext::new(self.level, r.bounds.clone(), self);
-                let l_callable =
-                    Self::instantiate_t(l.unbound_callable.as_ref().clone(), &mut l_tv_ctx);
-                let r_callable =
-                    Self::instantiate_t(r.unbound_callable.as_ref().clone(), &mut r_tv_ctx);
+                let l_callable = Self::instantiate_t(
+                    l.unbound_callable.as_ref().clone(),
+                    &mut l_tv_ctx,
+                    Location::Unknown,
+                )
+                .unwrap();
+                let r_callable = Self::instantiate_t(
+                    r.unbound_callable.as_ref().clone(),
+                    &mut r_tv_ctx,
+                    Location::Unknown,
+                )
+                .unwrap();
                 self.structural_supertype_of(&l_callable, &r_callable)
             }
             (Quantified(q), r) => {
                 // REVIEW: maybe this should be `unreachable`
                 let mut tv_ctx = TyVarContext::new(self.level, q.bounds.clone(), self);
-                let q_callable =
-                    Self::instantiate_t(q.unbound_callable.as_ref().clone(), &mut tv_ctx);
+                let q_callable = Self::instantiate_t(
+                    q.unbound_callable.as_ref().clone(),
+                    &mut tv_ctx,
+                    Location::Unknown,
+                )
+                .unwrap();
                 self.structural_supertype_of(&q_callable, r)
             }
             (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),

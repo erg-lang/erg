@@ -158,7 +158,12 @@ impl Context {
                         .unwrap_or(0),
                 ));
             }
-            let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
+            let rhs = self.instantiate_param_sig_t(
+                &lambda.params.non_defaults[0],
+                None,
+                &mut None,
+                Normal,
+            )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -348,7 +353,7 @@ impl Context {
         if let Some(method_name) = method_name.as_ref() {
             for (_, ctx) in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| todo!())?
+                .ok_or_else(|| todo!("{obj}"))?
             {
                 if let Some(vi) = ctx
                     .locals

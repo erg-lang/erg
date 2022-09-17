@@ -4,6 +4,7 @@
 pub mod const_func;
 pub mod py_mods;
 
+use erg_common::error::Location;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
@@ -119,7 +120,7 @@ impl Context {
     // FIXME: MethodDefsと再代入は違う
     fn register_poly_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
         let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
-        let t = Self::instantiate_t(t, &mut tv_ctx);
+        let t = Self::instantiate_t(t, &mut tv_ctx, Location::Unknown).unwrap();
         // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
@@ -394,10 +395,12 @@ impl Context {
         let mut float_mul = Self::methods("Mul", Self::TOP_LEVEL);
         float_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         float_mul.register_builtin_const("Output", ValueObj::builtin_t(Float));
+        float_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Mul", vec![ty_tp(Float)]), float_mul);
         let mut float_div = Self::methods("Div", Self::TOP_LEVEL);
         float_div.register_builtin_impl("__div__", op_t, Const, Public);
         float_div.register_builtin_const("Output", ValueObj::builtin_t(Float));
+        float_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Div", vec![ty_tp(Float)]), float_div);
         let mut float_mutizable = Self::methods("Mutizable", Self::TOP_LEVEL);
         float_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Float!")));
@@ -436,10 +439,12 @@ impl Context {
         let mut ratio_mul = Self::methods("Mul", Self::TOP_LEVEL);
         ratio_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         ratio_mul.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
+        ratio_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Mul", vec![ty_tp(Ratio)]), ratio_mul);
         let mut ratio_div = Self::methods("Div", Self::TOP_LEVEL);
         ratio_div.register_builtin_impl("__div__", op_t, Const, Public);
         ratio_div.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
+        ratio_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Div", vec![ty_tp(Ratio)]), ratio_div);
         let mut ratio_mutizable = Self::methods("Mutizable", Self::TOP_LEVEL);
         ratio_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Ratio!")));
@@ -477,7 +482,9 @@ impl Context {
         let mut int_mul = Self::methods("Mul", Self::TOP_LEVEL);
         int_mul.register_builtin_impl("__mul__", op_t, Const, Public);
         int_mul.register_builtin_const("Output", ValueObj::builtin_t(Int));
+        int_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Nat));
         int.register_trait(Int, poly("Mul", vec![ty_tp(Int)]), int_mul);
+        // TODO: Int.ModOutput == Int
         let mut int_mutizable = Self::methods("Mutizable", Self::TOP_LEVEL);
         int_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Int!")));
         int.register_trait(Int, mono("Mutizable"), int_mutizable);
@@ -558,7 +565,7 @@ impl Context {
         bool_.register_trait(Bool, poly("Eq", vec![ty_tp(Bool)]), bool_eq);
         let mut bool_add = Self::methods("Add", Self::TOP_LEVEL);
         bool_add.register_builtin_impl("__add__", fn1_met(Bool, Bool, Int), Const, Public);
-        bool_add.register_builtin_const("Output", ValueObj::builtin_t(Int));
+        bool_add.register_builtin_const("Output", ValueObj::builtin_t(Nat));
         bool_.register_trait(Bool, poly("Add", vec![ty_tp(Bool)]), bool_add);
         let mut bool_mutizable = Self::methods("Mutizable", Self::TOP_LEVEL);
         bool_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(mono("Bool!")));
@@ -1626,12 +1633,12 @@ impl Context {
         );
         self.register_builtin_impl("__div__", op_t, Const, Private);
         let m = mono_q("M");
-        let op_t = bin_op(m.clone(), m.clone(), mono_proj(m.clone(), "Output"));
+        let op_t = bin_op(m.clone(), m.clone(), mono_proj(m.clone(), "PowOutput"));
         let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
         // TODO: add bound: M == M.Output
         self.register_builtin_impl("__pow__", op_t, Const, Private);
         let d = mono_q("D");
-        let op_t = bin_op(d.clone(), d.clone(), mono_proj(d.clone(), "Output"));
+        let op_t = bin_op(d.clone(), d.clone(), mono_proj(d.clone(), "ModOutput"));
         let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
         self.register_builtin_impl("__mod__", op_t, Const, Private);
         let e = mono_q("E");

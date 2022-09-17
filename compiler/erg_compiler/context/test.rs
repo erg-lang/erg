@@ -1,4 +1,5 @@
 //! test module for `Context`
+use erg_common::error::Location;
 use erg_common::Str;
 // use erg_common::error::Location;
 use erg_common::{enum_unwrap, set};
@@ -55,14 +56,16 @@ impl Context {
         println!("quantified      : {quantified}");
         let mut tv_ctx = TyVarContext::new(self.level + 1, bounds, self);
         println!("tv_ctx: {tv_ctx}");
-        let inst = Self::instantiate_t(unbound_t, &mut tv_ctx);
+        let inst =
+            Self::instantiate_t(unbound_t, &mut tv_ctx, Location::Unknown).map_err(|_| ())?;
         println!("inst: {inst}");
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
         assert_eq!(quantified, quantified_again);
         let unbound_t = *enum_unwrap!(quantified_again, Type::Quantified).unbound_callable;
         // 同じtv_ctxで2回instantiateしないこと
-        let inst = Self::instantiate_t(unbound_t, &mut tv_ctx); // (?T(<: Eq('T))[2]) -> ?T(<: Eq('T))[2]
+        let inst =
+            Self::instantiate_t(unbound_t, &mut tv_ctx, Location::Unknown).map_err(|_| ())?; // (?T(<: Eq('T))[2]) -> ?T(<: Eq('T))[2]
         println!("inst: {inst}");
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
