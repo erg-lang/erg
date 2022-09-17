@@ -661,7 +661,18 @@ impl Context {
             }
             TypeKind::Trait => {
                 if gen.t.is_monomorphic() {
-                    let ctx = Self::mono_trait(gen.t.name(), self.level);
+                    let mut ctx = Self::mono_trait(gen.t.name(), self.level);
+                    let require = enum_unwrap!(gen.require_or_sup.as_ref(), TypeObj::Builtin:(Type::Record:(_)));
+                    for (field, t) in require.iter() {
+                        let muty = if field.is_const() {
+                            Mutability::Const
+                        } else {
+                            Mutability::Immutable
+                        };
+                        let vi = VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                        ctx.decls
+                            .insert(VarName::from_str(field.symbol.clone()), vi);
+                    }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!()
@@ -672,6 +683,20 @@ impl Context {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(gen.t.name(), self.level);
+                    let additional = gen.additional.as_ref().map(|additional| enum_unwrap!(additional.as_ref(), TypeObj::Builtin:(Type::Record:(_))));
+                    if let Some(additional) = additional {
+                        for (field, t) in additional.iter() {
+                            let muty = if field.is_const() {
+                                Mutability::Const
+                            } else {
+                                Mutability::Immutable
+                            };
+                            let vi =
+                                VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                            ctx.decls
+                                .insert(VarName::from_str(field.symbol.clone()), vi);
+                        }
+                    }
                     for sup in super_classes.into_iter() {
                         let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
                         ctx.register_supertrait(sup, sup_ctx);

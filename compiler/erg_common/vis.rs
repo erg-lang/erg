@@ -54,4 +54,8 @@ impl Field {
     pub const fn new(vis: Visibility, symbol: Str) -> Self {
         Field { vis, symbol }
     }
+
+    pub fn is_const(&self) -> bool {
+        self.symbol.starts_with(char::is_uppercase)
+    }
 }
