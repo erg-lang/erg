@@ -287,20 +287,24 @@ impl Lexer /*<'a>*/ {
 
     fn lex_multi_line_comment(&mut self) -> LexResult<()> {
         let mut s = "".to_string();
-        let mut inner_cnt = 0;
+        let mut nest_level = 0;
         loop {
             match self.peek_cur_ch() {
                 Some(c) => {
                     if let Some(next_c) = self.peek_next_ch() {
                         match (c, next_c) {
-                            ('#', '[') => inner_cnt += 1,
+                            ('#', '[') => nest_level += 1,
                             (']', '#') => {
-                                inner_cnt -= 1;
-                                if inner_cnt == 0 {
+                                nest_level -= 1;
+                                if nest_level == 0 {
                                     return Ok(());
                                 }
                             }
                             _ => {}
+                        }
+                        if c == '\n' {
+                            self.lineno_token_starts += 1;
+                            self.col_token_starts = 0;
                         }
                         s.push(self.consume().unwrap());
                     }
