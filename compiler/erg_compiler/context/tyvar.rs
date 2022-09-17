@@ -15,6 +15,7 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type};
 
 use crate::context::{Context, Variance};
+// use crate::context::instantiate::TyVarContext;
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
 
@@ -72,11 +73,24 @@ impl Context {
         let mut bounds = set! {};
         let mut lazy_inits = set! {};
         let maybe_unbound_t = self.generalize_t_inner(free_type, &mut bounds, &mut lazy_inits);
-        // NOTE: ?T(<: TraitX) -> Intなどは単なるTraitX -> Intとなる
         if bounds.is_empty() {
             maybe_unbound_t
         } else {
+            // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
+            // However, the current Erg cannot handle existential types, so it quantifies anyway
+            /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
+                let mut tv_ctx = TyVarContext::new(self.level, bounds.clone(), self);
+                let inst = Self::instantiate_t(
+                    maybe_unbound_t,
+                    &mut tv_ctx,
+                    Location::Unknown,
+                )
+                .unwrap();
+                inst.lift();
+                self.deref_tyvar(inst, Location::Unknown).unwrap()
+            } else { */
             quant(maybe_unbound_t, bounds)
+            // }
         }
     }
 
@@ -194,7 +208,7 @@ impl Context {
             TyParam::FreeVar(_fv) if self.level == 0 => {
                 Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
             }
-            TyParam::Type(t) => Ok(TyParam::t(self.resolve_tyvar(*t, loc)?)),
+            TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t, loc)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
                     *param = self.deref_tp(mem::take(param), loc)?;
@@ -227,12 +241,12 @@ impl Context {
                     return Err(TyCheckError::dummy_infer_error(fn_name!(), line!()));
                 }
                 Ok(Constraint::new_sandwiched(
-                    self.resolve_tyvar(sub, loc)?,
-                    self.resolve_tyvar(sup, loc)?,
+                    self.deref_tyvar(sub, loc)?,
+                    self.deref_tyvar(sup, loc)?,
                     cyclic,
                 ))
             }
-            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.resolve_tyvar(t, loc)?)),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t, loc)?)),
             _ => unreachable!(),
         }
     }
@@ -244,7 +258,7 @@ impl Context {
     // ?T(:> Nat, <: Sub(Str)) ==> Error!
     // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
     // ```
-    pub(crate) fn resolve_tyvar(&self, t: Type, loc: Location) -> TyCheckResult<Type> {
+    pub(crate) fn deref_tyvar(&self, t: Type, loc: Location) -> TyCheckResult<Type> {
         match t {
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
             // ?T(:> Nat, <: Sub ?U(:> {1}))[n] ==> Nat
@@ -260,8 +274,8 @@ impl Context {
                     } else {
                         Err(TyCheckError::subtyping_error(
                             line!() as usize,
-                            &self.resolve_tyvar(sub_t.clone(), loc)?,
-                            &self.resolve_tyvar(super_t.clone(), loc)?,
+                            &self.deref_tyvar(sub_t.clone(), loc)?,
+                            &self.deref_tyvar(super_t.clone(), loc)?,
                             None,
                             Some(loc),
                             self.caused_by(),
@@ -290,7 +304,7 @@ impl Context {
             }
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
-                self.resolve_tyvar(t, loc)
+                self.deref_tyvar(t, loc)
             }
             Type::Poly { name, mut params } => {
                 for param in params.iter_mut() {
@@ -300,25 +314,25 @@ impl Context {
             }
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
-                    *param.typ_mut() = self.resolve_tyvar(mem::take(param.typ_mut()), loc)?;
+                    *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()), loc)?;
                 }
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() = self.resolve_tyvar(mem::take(var_args.typ_mut()), loc)?;
+                    *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()), loc)?;
                 }
                 for d_param in subr.default_params.iter_mut() {
-                    *d_param.typ_mut() = self.resolve_tyvar(mem::take(d_param.typ_mut()), loc)?;
+                    *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()), loc)?;
                 }
-                subr.return_t = Box::new(self.resolve_tyvar(mem::take(&mut subr.return_t), loc)?);
+                subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t), loc)?);
                 Ok(Type::Subr(subr))
             }
             Type::Ref(t) => {
-                let t = self.resolve_tyvar(*t, loc)?;
+                let t = self.deref_tyvar(*t, loc)?;
                 Ok(ref_(t))
             }
             Type::RefMut { before, after } => {
-                let before = self.resolve_tyvar(*before, loc)?;
+                let before = self.deref_tyvar(*before, loc)?;
                 let after = if let Some(after) = after {
-                    Some(self.resolve_tyvar(*after, loc)?)
+                    Some(self.deref_tyvar(*after, loc)?)
                 } else {
                     None
                 };
@@ -327,12 +341,12 @@ impl Context {
             Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
-                    *field = self.resolve_tyvar(mem::take(field), loc)?;
+                    *field = self.deref_tyvar(mem::take(field), loc)?;
                 }
                 Ok(Type::Record(rec))
             }
             Type::Refinement(refine) => {
-                let t = self.resolve_tyvar(*refine.t, loc)?;
+                let t = self.deref_tyvar(*refine.t, loc)?;
                 // TODO: deref_predicate
                 Ok(refinement(refine.var, t, refine.preds))
             }
@@ -356,7 +370,7 @@ impl Context {
             hir::Expr::Accessor(acc) => {
                 let loc = acc.loc();
                 let t = acc.ref_mut_t();
-                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                *t = self.deref_tyvar(mem::take(t), loc)?;
                 match acc {
                     hir::Accessor::Attr(attr) => {
                         self.resolve_expr_t(&mut attr.obj)?;
@@ -375,7 +389,7 @@ impl Context {
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
                     let loc = arr.loc();
-                    arr.t = self.resolve_tyvar(mem::take(&mut arr.t), loc)?;
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), loc)?;
                     for elem in arr.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
@@ -398,10 +412,10 @@ impl Context {
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
                         hir::Signature::Var(var) => {
-                            var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
+                            var.t = self.deref_tyvar(mem::take(&mut var.t), var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
+                            subr.t = self.deref_tyvar(mem::take(&mut subr.t), subr.loc())?;
                         }
                     }
                     for chunk in attr.body.block.iter_mut() {
@@ -413,7 +427,7 @@ impl Context {
             hir::Expr::BinOp(binop) => {
                 let loc = binop.loc();
                 let t = binop.signature_mut_t().unwrap();
-                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                *t = self.deref_tyvar(mem::take(t), loc)?;
                 self.resolve_expr_t(&mut binop.lhs)?;
                 self.resolve_expr_t(&mut binop.rhs)?;
                 Ok(())
@@ -421,14 +435,14 @@ impl Context {
             hir::Expr::UnaryOp(unaryop) => {
                 let loc = unaryop.loc();
                 let t = unaryop.signature_mut_t().unwrap();
-                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                *t = self.deref_tyvar(mem::take(t), loc)?;
                 self.resolve_expr_t(&mut unaryop.expr)?;
                 Ok(())
             }
             hir::Expr::Call(call) => {
                 let loc = call.loc();
                 let t = call.signature_mut_t().unwrap();
-                *t = self.resolve_tyvar(mem::take(t), loc)?;
+                *t = self.deref_tyvar(mem::take(t), loc)?;
                 for arg in call.args.pos_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr)?;
                 }
@@ -438,16 +452,16 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Decl(decl) => {
-                decl.t = self.resolve_tyvar(mem::take(&mut decl.t), decl.loc())?;
+                decl.t = self.deref_tyvar(mem::take(&mut decl.t), decl.loc())?;
                 Ok(())
             }
             hir::Expr::Def(def) => {
                 match &mut def.sig {
                     hir::Signature::Var(var) => {
-                        var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
+                        var.t = self.deref_tyvar(mem::take(&mut var.t), var.loc())?;
                     }
                     hir::Signature::Subr(subr) => {
-                        subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
+                        subr.t = self.deref_tyvar(mem::take(&mut subr.t), subr.loc())?;
                     }
                 }
                 for chunk in def.body.block.iter_mut() {
@@ -456,7 +470,7 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Lambda(lambda) => {
-                lambda.t = self.resolve_tyvar(mem::take(&mut lambda.t), lambda.loc())?;
+                lambda.t = self.deref_tyvar(mem::take(&mut lambda.t), lambda.loc())?;
                 for chunk in lambda.body.iter_mut() {
                     self.resolve_expr_t(chunk)?;
                 }
@@ -466,10 +480,10 @@ impl Context {
                 for def in type_def.public_methods.iter_mut() {
                     match &mut def.sig {
                         hir::Signature::Var(var) => {
-                            var.t = self.resolve_tyvar(mem::take(&mut var.t), var.loc())?;
+                            var.t = self.deref_tyvar(mem::take(&mut var.t), var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t = self.resolve_tyvar(mem::take(&mut subr.t), subr.loc())?;
+                            subr.t = self.deref_tyvar(mem::take(&mut subr.t), subr.loc())?;
                         }
                     }
                     for chunk in def.body.block.iter_mut() {
