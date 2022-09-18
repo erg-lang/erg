@@ -1185,7 +1185,7 @@ impl Signature {
         }
     }
 
-    pub fn ident(&self) -> &Identifier {
+    pub const fn ident(&self) -> &Identifier {
         match self {
             Self::Var(v) => &v.ident,
             Self::Subr(s) => &s.ident,
@@ -1196,6 +1196,13 @@ impl Signature {
         match self {
             Self::Var(v) => &mut v.ident,
             Self::Subr(s) => &mut s.ident,
+        }
+    }
+
+    pub fn into_ident(self) -> Identifier {
+        match self {
+            Self::Var(v) => v.ident,
+            Self::Subr(s) => s.ident,
         }
     }
 }
