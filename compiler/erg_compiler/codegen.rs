@@ -249,9 +249,10 @@ fn convert_to_python_name(name: Str) -> Str {
         // assert is implemented in bytecode
         "classof" => Str::ever("type"),
         "compile" => Str::ever("compile"),
+        "dir!" => Str::ever("dir"),
         // discard is implemented in bytecode
         // for is implemented in bytecode
-        "id" => Str::ever("id"),
+        "id!" => Str::ever("id"),
         // if is implemented in bytecode
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
@@ -851,7 +852,7 @@ impl CodeGenerator {
         let subclasses_len = 1;
         self.write_instr(Opcode::CALL_FUNCTION_KW);
         self.write_arg(2 + subclasses_len as u8);
-        self.stack_dec_n((1 + 2 + subclasses_len) - 1);
+        self.stack_dec_n((1 + 2 + 1 + subclasses_len) - 1);
         self.emit_store_instr(def.sig.into_ident(), Name);
         self.stack_dec();
     }
