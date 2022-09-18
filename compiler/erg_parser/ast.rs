@@ -2832,6 +2832,22 @@ impl TypeAscription {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DefKind {
+    Class,
+    Inherit,
+    Trait,
+    Subsume,
+    StructuralTrait,
+    Other,
+}
+
+impl DefKind {
+    pub const fn is_trait(&self) -> bool {
+        matches!(self, Self::Trait | Self::Subsume | Self::StructuralTrait)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
@@ -2877,32 +2893,28 @@ impl Def {
         matches!(&self.sig, Signature::Subr(_))
     }
 
-    pub fn is_class_def(&self) -> bool {
+    pub fn def_kind(&self) -> DefKind {
         match self.body.block.first().unwrap() {
-            Expr::Call(call)
-                if call.obj.get_name().map(|n| &n[..]) == Some("Class")
-                    || call.obj.get_name().map(|n| &n[..]) == Some("Inherit") =>
-            {
-                true
-            }
-            Expr::Call(call) if call.obj.get_name().map(|n| &n[..]) == Some("Inheritable") => {
-                if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
-                    inner.obj.get_name().map(|n| &n[..]) == Some("Class")
-                        || inner.obj.get_name().map(|n| &n[..]) == Some("Inherit")
-                } else {
-                    false
+            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
+                Some("Class") => DefKind::Class,
+                Some("Inherit") => DefKind::Inherit,
+                Some("Trait") => DefKind::Trait,
+                Some("Subsume") => DefKind::Subsume,
+                Some("Inheritable") => {
+                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                        match inner.obj.get_name().map(|n| &n[..]) {
+                            Some("Class") => DefKind::Class,
+                            Some("Inherit") => DefKind::Inherit,
+                            _ => DefKind::Other,
+                        }
+                    } else {
+                        DefKind::Other
+                    }
                 }
-            }
-            _ => false,
+                _ => DefKind::Other,
+            },
+            _ => DefKind::Other,
         }
-    }
-
-    pub fn is_trait_def(&self) -> bool {
-        matches!(
-            self.body.block.first().unwrap(),
-            Expr::Call(call) if call.obj.get_name().map(|n| &n[..]) == Some("Trait")
-            || call.obj.get_name().map(|n| &n[..]) == Some("Subsume")
-        )
     }
 }
 

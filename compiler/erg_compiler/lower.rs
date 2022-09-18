@@ -564,13 +564,7 @@ impl ASTLowerer {
                     name,
                 ));
             }
-            let kind = if def.is_class_def() {
-                ContextKind::Class
-            } else if def.is_trait_def() {
-                ContextKind::Trait
-            } else {
-                ContextKind::Instant
-            };
+            let kind = ContextKind::from(def.def_kind());
             self.ctx.grow(name, kind, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),

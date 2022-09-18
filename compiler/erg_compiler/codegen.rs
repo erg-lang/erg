@@ -17,6 +17,7 @@ use erg_common::{
     switch_unreachable,
 };
 use erg_parser::ast::DefId;
+use erg_parser::ast::DefKind;
 use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
@@ -32,7 +33,7 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::eval_lit;
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, DefBody, Expr,
+    Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
     Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
@@ -771,8 +772,73 @@ impl CodeGenerator {
             .collect()
     }
 
+    fn emit_acc(&mut self, acc: Accessor) {
+        log!(info "entered {} ({acc})", fn_name!());
+        match acc {
+            Accessor::Ident(ident) => {
+                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
+                    self.errs.push(err);
+                });
+            }
+            Accessor::Attr(a) => {
+                let class = a.obj.ref_t().name();
+                let uniq_obj_name = a.obj.__name__().map(Str::rc);
+                // C = Class ...
+                // C.
+                //     a = C.x
+                // ↓
+                // class C:
+                //     a = x
+                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
+                    self.codegen_expr(*a.obj);
+                    self.emit_load_attr_instr(
+                        &class,
+                        uniq_obj_name.as_ref().map(|s| &s[..]),
+                        a.ident,
+                    )
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                } else {
+                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                }
+            }
+            Accessor::TupleAttr(t_attr) => {
+                self.codegen_expr(*t_attr.obj);
+                self.emit_load_const(t_attr.index.value);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            Accessor::Subscr(subscr) => {
+                self.codegen_expr(*subscr.obj);
+                self.codegen_expr(*subscr.index);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+        }
+    }
+
+    fn emit_def(&mut self, def: Def) {
+        log!(info "entered {} ({})", fn_name!(), def.sig);
+        if def.def_kind().is_trait() {
+            return self.emit_trait_def(def);
+        }
+        match def.sig {
+            Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
+            Signature::Var(sig) => self.emit_var_def(sig, def.body),
+        }
+    }
+
+    fn emit_trait_def(&mut self, def: Def) {
+        todo!()
+    }
+
     fn emit_class_def(&mut self, class_def: ClassDef) {
-        log!(info "entered {} ({class_def})", fn_name!());
+        log!(info "entered {} ({})", fn_name!(), class_def.sig);
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
@@ -792,10 +858,6 @@ impl CodeGenerator {
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
-    }
-
-    fn _emit_trait_def() {
-        todo!()
     }
 
     // NOTE: use `TypeVar`, `Generic` in `typing` module
@@ -1243,7 +1305,7 @@ impl CodeGenerator {
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
         self.codegen_expr(func);
-        self.codegen_acc(acc.clone());
+        self.emit_acc(acc.clone());
         self.write_instr(CALL_FUNCTION);
         self.write_arg(1);
         // (1 (subroutine) + argc) input objects -> 1 return object
@@ -1352,14 +1414,9 @@ impl CodeGenerator {
             }
         }
         match expr {
-            Expr::Lit(lit) => {
-                self.emit_load_const(lit.value);
-            }
-            Expr::Accessor(acc) => self.codegen_acc(acc),
-            Expr::Def(def) => match def.sig {
-                Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
-                Signature::Var(sig) => self.emit_var_def(sig, def.body),
-            },
+            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Accessor(acc) => self.emit_acc(acc),
+            Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::AttrDef(attr) => self.emit_attr_def(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
@@ -1409,56 +1466,6 @@ impl CodeGenerator {
                     "".into(),
                 ));
                 self.crash("cannot compile this expression at this time");
-            }
-        }
-    }
-
-    fn codegen_acc(&mut self, acc: Accessor) {
-        log!(info "entered {} ({acc})", fn_name!());
-        match acc {
-            Accessor::Ident(ident) => {
-                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
-            }
-            Accessor::Attr(a) => {
-                let class = a.obj.ref_t().name();
-                let uniq_obj_name = a.obj.__name__().map(Str::rc);
-                // C = Class ...
-                // C.
-                //     a = C.x
-                // ↓
-                // class C:
-                //     a = x
-                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
-                    self.codegen_expr(*a.obj);
-                    self.emit_load_attr_instr(
-                        &class,
-                        uniq_obj_name.as_ref().map(|s| &s[..]),
-                        a.ident,
-                    )
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-                } else {
-                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-                }
-            }
-            Accessor::TupleAttr(t_attr) => {
-                self.codegen_expr(*t_attr.obj);
-                self.emit_load_const(t_attr.index.value);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
-            }
-            Accessor::Subscr(subscr) => {
-                self.codegen_expr(*subscr.obj);
-                self.codegen_expr(*subscr.index);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
             }
         }
     }
