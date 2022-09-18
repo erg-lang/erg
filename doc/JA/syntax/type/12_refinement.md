@@ -1,4 +1,4 @@
-# 篩型(Refinement Type)
+# 篩型
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/12_refinement.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/12_refinement.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -31,7 +31,7 @@ Array3OrMore == {A: Array _, N | N >= 3}
 あなたが二次方程式の解法を知っているならば、上の篩型は`{2, 3}`と同等になるだろうと予想できるはずです。
 しかしErgコンパイラは代数学の知識をほとんど持ち合わせていないので、右の述語式を解決できないのです。
 
-## Smart Cast
+## スマートキャスト
 
 `Odd`を定義したのはいいですが、このままではリテラル以外ではあまり使えないようにみえます。通常の`Int`オブジェクトの中の奇数を`Odd`に昇格させる、つまり`Int`を`Odd`にダウンキャストするためには、`Odd`のコンストラクタを通す必要があります。
 篩型の場合、通常のコンストラクタ`.new`はパニックする可能性があり、`.try_new`という`Result`型を返す補助的なコンストラクタもあります。

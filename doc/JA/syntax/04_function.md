@@ -1,6 +1,6 @@
 # 関数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D00c05ab6686062ea6707a326c840d910a55e6dc4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=00c05ab6686062ea6707a326c840d910a55e6dc4)
 
 関数は「引数」を受け取ってそれを加工し、「戻り値」として返すブロックです。以下のように定義します。
 
@@ -23,7 +23,7 @@ add(1, 2)
 
 ## コロン適用スタイル
 
-関数は`f x, y, ...`のように呼び出しますが、実引数が多く一行では長くなりすぎる場合は`:`(コロン)を使った適用も可能です。
+関数は`f x, y, ...`のように呼び出しますが、**実引数**が多く一行では長くなりすぎる場合は`:`(コロン)を使った適用も可能です。
 
 ```python
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
@@ -56,7 +56,7 @@ f:
     y
 ```
 
-## キーワード引数(Keyword Arguments)
+## キーワード引数
 
 引数の数が多い関数を定義されていると、引数を渡す順番を間違える危険性があります。
 そのような場合はキーワード引数を使用して呼び出すと安全です。
@@ -84,7 +84,7 @@ f x:
     y
 ```
 
-## デフォルト引数(Default parameters)
+## デフォルト引数
 
 ある引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
 
@@ -252,7 +252,7 @@ Option T: Type = T or NoneType
 Option: Type -> Type
 ```
 
-## Appendix: 関数の比較
+## 付録1: 関数の比較
 
 Ergでは、関数に`==`が定義されていません。それは関数の構造的な同値性判定アルゴリズムが一般には存在しないためです。
 
@@ -267,21 +267,21 @@ assert f == g # TypeError: cannot compare functions
 そのため、Ergは関数の比較をまるごと諦めており、`(x -> x) == (x -> x)`もコンパイルエラーになります。これはPythonとは違った仕様なので注意する必要があります。
 
 ```python
-# Python, weird example
+# Pythonの奇妙な例
 f = lambda x: x
-assert f == f
-assert (lambda x: x) != (lambda x: x)
+assert f == f # True
+assert (lambda x: x) != (lambda x: x) # Passed
 ```
 
-## Appendix2: ()の補完
+## 付録2: ()の補完
 
 ```python
 f x: Object = ...
-# will be completed to
+# これは以下のようにコンパイルされます
 f(x: Object) = ...
 
 f a
-# will be completed to
+# これは以下のように変換されます
 f(a)
 
 f a, b # TypeError: f() takes 1 positional argument but 2 were given

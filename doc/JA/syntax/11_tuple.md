@@ -31,7 +31,7 @@ i, b, s = t
 
 ```python
 t: ({1}, {2}, {3}) = (1, 2, 3)
-(1, 2, 3).iter().map(x -> x + 1) # TypeError: type ({1}, {2}, {3}) has no method `.iter()`
+(1, 2, 3).iter().map(x -> x + 1) # TypeError: 型({1}, {2}, {3})は`.iter()を持っていません`
 # すべて同じ型の場合配列と同じように`(T; n)`で表せるが、これでもイテレーションは出来ない
 t: (Int; 3) = (1, 2, 3)
 assert (Int; 3) == (Int, Int, Int)
@@ -45,9 +45,9 @@ assert (Int; 3) == (Int, Int, Int)
 ```
 
 ```python
-t: (Int, Bool, Str) = (1, True, "a") # non-homogenous
-a: [Int or Bool or Str; 3] = [1, True, "a"] # homogenous
-_a: [Show; 3] = [1, True, "a"] # homogenous
+t: (Int, Bool, Str) = (1, True, "a") # 非等質
+a: [Int or Bool or Str; 3] = [1, True, "a"] # 等質
+_a: [Show; 3] = [1, True, "a"] # 等質
 _a.iter().map(x -> log x) # OK
 t.try_into([Show; 3])?.iter().map(x -> log x) # OK
 ```
@@ -89,7 +89,7 @@ Ergでの使い分けとしては、プロシージャなどではじめから�
 # f x = ...は暗黙にf(x) = ...とみなされる
 f x = x
 assert f(1) == 1
-f(1, 2, 3) # ArgumentError: f takes 1 positional argument but 3 were given
+f(1, 2, 3) # ArgumentError: fは1つの位置引数を取りますが、3与えられています
 # 可変個の引数を受け取る
 g x: Int, ...y: Int = y
 assert (2, 3) == g 1, 2, 3

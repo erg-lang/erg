@@ -57,13 +57,13 @@ f4: |T: Type|(Int -> (T -> T)) # 上と同じ意味(こちらが推奨)
 ```python
 # id: |T: Type| T -> T
 id x = x
-# same type as `f1`
+# `f1`と同型
 take_univq_f_and_return_i(_: (|T: Type| T -> T), i: Int): Int = i
-# same type as `f2`
+# `f2`と同型
 take_arbit_f_and_return_i|T: Type|(_: T -> T, i: Int): Int = i
-# same type as `f3`
+# `f3`と同型
 take_i_and_return_univq_f(_: Int): (|T: Type| T -> T) = id
-# same type as `f4`
+# `f4`と同型
 take_i_and_return_arbit_f|T: Type|(_: Int): (T -> T) = id
 ```
 
@@ -136,7 +136,7 @@ Ergでは、ランク2までの型を扱うことができる(ランクN型はN�
 例えば、多相関数を多相関数のまま扱う関数はすべて他の引数の型指定が必要である。また、このような関数は構成できない。
 
 ```python
-# this is a rank-3 type function
+# これはrank-3関数です
 # |X, Y: Type|((|T: Type| T -> T), (X, Y)) -> (X, Y)
 generic_tuple_map|X, Y: Type| f: (|T: Type| T -> T), tup: (X, Y) = (f(tup.0), f(tup.1))
 ```

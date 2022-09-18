@@ -1,22 +1,22 @@
-# Subroutine signatures
+# サブルーチンシグネチャ
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/22_subroutine.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/22_subroutine.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/22_subroutine.md%26commit_hash%3Dddcbe9859e56d63bb3dd001be216cd4343e1771e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/22_subroutine.md&commit_hash=ddcbe9859e56d63bb3dd001be216cd4343e1771e)
 
-## Func
+## 関数
 
 ```python
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
-## Proc
+## プロシージャ
 
 ```python
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
 
-## Func Method
+## 関数メソッド
 
 メソッド型は、外部からは`Self`で指定できません。
 
@@ -26,7 +26,7 @@ some_proc!: (T, U) => V
 .some_method: (Ref Self, T, U) => ()
 ```
 
-## Proc Method (dependent)
+## プロシージャメソッド(依存)
 
 以下で、型`T!`は`N: Nat`という型引数を取るとします。外部から指定する場合は型変数を使用します。
 
@@ -47,7 +47,7 @@ T!(N).some_method!: (self: Ref!(T! N ~> N+X), X: Nat) => ()
 .some_method!|N, X: Nat|(self: T!(N), X: Nat) => T!(N+X)
 ```
 
-## Operator
+## 演算子
 
 ``で囲むことで通常の関数と同じように定義できます。
 `and`や`or`などの中置アルファベット演算子は囲むことで中置演算子として定義できます。

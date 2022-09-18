@@ -140,15 +140,15 @@ fn: Int -> Int = x -> x + 1
 ### リテラルパターン
 
 ```python
-# if `i` cannot be determined to be 1 at compile time, TypeError occurs.
-# short hand of `_: {1} = i`
+# もし`i`がコンパイル時に1であることが確定していないならば、TypeErrorが発生する。
+# `_: {1} = i`の省略形
 1 = i
-# simple pattern matching
+# 簡単なパターンマッチング
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
-# fibonacci function
+# フィボナッチ関数
 fib 0 = 0
 fib 1 = 1
 fib n: Nat = fib n-1 + fib n-2
@@ -205,7 +205,7 @@ length [_, ...rest] = 1 + length rest
 
 ```python
 {sin; cos; tan; ...} = import "math"
-{*} = import "math" # import all
+{*} = import "math" # 全てインポートする
 
 person = {name = "John Smith"; age = 20}
 age = match person:

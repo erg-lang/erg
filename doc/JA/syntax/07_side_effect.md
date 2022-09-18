@@ -5,8 +5,9 @@
 これまで`print!`の`!`の意味を説明せずにいましたが、いよいよその意味が明かされます。この!は、ズバリこのオブジェクトが「副作用」のある「プロシージャ」であることを示しています。プロシージャは関数に「副作用」という効果を与えたものです。
 
 ```python
-f x = print! x # EffectError: functions cannot be assigned objects with side effects
+f x = print! x # EffectError: 関数は副作用のあるオブジェクトに代入することはできません
 # hint: change the name to 'f!'
+# hint: 名前を`f!`に変更する
 ```
 
 上のコードはコンパイルエラーになります。関数中でプロシージャを使用しているからです。このような場合は、プロシージャとして定義しなくてはなりません。
@@ -26,7 +27,7 @@ p! x = print! x
 ```python
 C.
     method ref self =
-        x = self # OwnershipError: cannot move out 'self'
+        x = self # OwnershipError: `self`は移動できません
         x
 ```
 
@@ -34,8 +35,8 @@ C.
 
 ```python
 n = 1
-s = n.into(Str) # '1'
-n # ValueError: n was moved by .into (line 2)
+s = n.into(Str) # 所有権がnから移動し、s = '1'になります
+n # ValueError: .into()によりnは移動しました(2行目)
 ```
 
 可変参照を持てるのは常に1つのプロシージャルメソッドのみです。さらに可変参照が取られている間は元のオブジェクトから参照を取れなくなります。その意味で`ref!`は`self`に副作用を引き起こします。
@@ -43,9 +44,9 @@ n # ValueError: n was moved by .into (line 2)
 ただし、可変参照から(不変/可変)参照の生成はできることに注意してください。これによって、プロシージャルメソッド中で再帰したり`self`を`print!`できたりします。
 
 ```python
-T -> T # OK (move)
+T -> T # OK (移動)
 T -> Ref T # OK
-T => Ref! T # OK (only once)
+T => Ref! T # OK (一回だけ)
 Ref T -> T # NG
 Ref T -> Ref T # OK
 Ref T => Ref! T # NG
@@ -79,7 +80,7 @@ assert T == U
 
 C = Class {i = Int}
 D = Class {i = Int}
-assert C == D # TypeError: cannot compare classes
+assert C == D # TypeError: クラスを比較できません
 ```
 
 本題に戻ります。Ergにおける「副作用」の正確な定義は、

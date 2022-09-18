@@ -9,7 +9,7 @@ Ergでは以下のように`:`の後に変数の型を指定します。代入�
 ```python
 i: Int # これから使う変数iはInt型であると宣言する
 i: Int = 1
-j = 1 # type specification can be omitted
+j = 1 # 型指定は省略可能
 ```
 
 通常の式に対しても型指定することができます。
@@ -115,7 +115,7 @@ C.pub1 = ...
 C.pub2 = ...
 C::priv1 = ...
 C::priv2 = ...
-# is equivalent to
+# これは以下と等価です
 C = Class()
 C.
     pub1 = ...

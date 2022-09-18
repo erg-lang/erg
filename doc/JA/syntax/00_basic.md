@@ -23,15 +23,15 @@ Pythonや同系統の言語とほぼ同じです。目を引くのは`print`の�
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
-print! # OK, but this does not mean to call, simply to get `print!` as a callable object
+print! # OKですがこれは呼び出し問う意味ではなく、単に`print!`を呼び出し可能なオブジェクトとして取得するという意味です
 
-print! f x # OK, interpreted as `print!(f(x))`
+print! f x # OK、これは`print!(f(x))`として解釈されます
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
-print!(f x, y) # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
-print! f(x, g y, z) # NG, can be taken to mean either `print!(x, g(y), z)` or `print!(x, g(y, z))`
+print! f x, y # NG, `print!(f(x), y)`または`print!(f(x, y))`の二通りの解釈ができてしまいます
+print!(f x, y) # NG, `print!(f(x), y)`または`print!(f(x, y))`の二通りの解釈ができてしまいます
+print! f(x, g y, z) # NG, `print!(x, g(y), z)`または`print!(x, g(y, z))`の二通りの解釈が取れます
 ```
 
 ## スクリプト
@@ -77,7 +77,7 @@ assert i == 2
 これはセミコロン(`;`)では実現できません。
 
 ```python
-i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
+i = (x = 1; x + 1) # SyntaxError: 丸括弧内で`;`を使うことはできません
 ```
 
 ## インデント
@@ -104,12 +104,12 @@ ans = match x:
 また1行が長くなりすぎる場合、`\`を使って途中で改行させることができます。
 
 ```python
-# this does not means `x + y + z` but means `x; +y; +z`
+# これは`x + y + z`と解釈されず`x; +y; +z`と解釈されます
 x
 + y
 + z
 
-# this means `x + y + z`
+# これは`x + y + z`と解釈されます
 x \
 + y \
 + z

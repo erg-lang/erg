@@ -5,8 +5,8 @@
 Ergには量化型、依存型が存在します。すると当然、その二つを組み合わせた型を作ることができます。それが量化依存型です。
 
 ```python
-NonNullStr = |N: Nat| StrWithLen N | N != 0 # same as {S | N: Nat; S: StrWithLen N; N != 0}
-NonEmptyArray = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: Array(_, N); N > 0}
+NonNullStr = |N: Nat| StrWithLen N | N != 0 # N: Nat; S: StrWithLen N; N != 0}と同じ
+NonEmptyArray = |N: Nat| [_; N | N > 0] # N: Nat; A: Array(_, N); N > 0}と同じ
 ```
 
 量化依存型の標準形は`K(A, ... | Pred)`です。`K`は型構築子、`A, B`は型引数、`Pred`は条件式です。

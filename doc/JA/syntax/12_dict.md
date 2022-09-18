@@ -30,7 +30,7 @@ DictリテラルからDictを生成する場合、キーの重複がないかチ
 重複がある場合コンパイルエラーとなります。
 
 ```python
-{"Alice": 145, "Alice": 1} # KeyError: Duplicate key "Alice"
+{"Alice": 145, "Alice": 1} # KeyError: "Alice"のキーが重複しています
 ```
 
 空のDictは`{:}`で生成します。`{}`は空の配列を表すことに注意してください。

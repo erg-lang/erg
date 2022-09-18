@@ -7,24 +7,24 @@
 ### 変数パターン
 
 ```python
-# basic assignment
+# 基本的な代入
 i = 1
 # with type
 i: Int = 1
-# with anonymous type
+# 無名型の注釈付き
 i: {1, 2, 3} = 2
 
 # function
 fn x = x + 1
 # equals
 fn x: Add(Int) = x + 1
-# (anonymous) function
+# (無名)関数
 fn = x -> x + 1
 fn: Int -> Int = x -> x + 1
 
-# higher-order type
+# 上位型
 a: [Int; 4] = [0, 1, 2, 3]
-# or
+# もしくは
 a: Array Int, 4 = [0, 1, 2, 3]
 ```
 

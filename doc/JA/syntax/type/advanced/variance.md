@@ -1,4 +1,4 @@
-# 変性(variance)
+# 変性
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -124,7 +124,7 @@ List(T).
 `U <: T`という制約と`U :> T`という変性指定の両方を充足するのは`U == T`のときだけです。なので、この指定にはほとんど意味がありません。
 実際は「`U == T`であるようなアップキャスト」=「`U`の箇所については変えないアップキャスト」のみが許可されています。
 
-## Appendix: ユーザー定義型の変性
+## 付録: ユーザー定義型の変性
 
 ユーザー定義型の変性は、デフォルトでは非変である。しかし、`Inputs/Outputs`というマーカートレイトで変性を指定することもできる。
 `Inputs(T)`と指定すると、その型は`T`に関して反変となる。
