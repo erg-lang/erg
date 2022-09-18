@@ -23,7 +23,7 @@ Pythonや同系統の言語とほぼ同じです。目を引くのは`print`の�
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
-print! # OKですがこれは呼び出し問う意味ではなく、単に`print!`を呼び出し可能なオブジェクトとして取得するという意味です
+print! # OKですがこれは呼び出しという意味ではなく、単に`print!`を呼び出し可能なオブジェクトとして取得するという意味です
 
 print! f x # OK、これは`print!(f(x))`として解釈されます
 print!(f(x, y)) # OK
@@ -31,7 +31,7 @@ print! f(x, y) # OK
 print! f(x, g y) # OK
 print! f x, y # NG, `print!(f(x), y)`または`print!(f(x, y))`の二通りの解釈ができてしまいます
 print!(f x, y) # NG, `print!(f(x), y)`または`print!(f(x, y))`の二通りの解釈ができてしまいます
-print! f(x, g y, z) # NG, `print!(x, g(y), z)`または`print!(x, g(y, z))`の二通りの解釈が取れます
+print! f(x, g y, z) # NG, `print!(x, g(y), z)`または`print!(x, g(y, z))`の二通りの解釈ができてしまいます
 ```
 
 ## スクリプト
@@ -77,7 +77,7 @@ assert i == 2
 これはセミコロン(`;`)では実現できません。
 
 ```python
-i = (x = 1; x + 1) # SyntaxError: 丸括弧内で`;`を使うことはできません
+i = (x = 1; x + 1) # SyntaxError:  cannot use `;` in parentheses
 ```
 
 ## インデント

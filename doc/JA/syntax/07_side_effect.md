@@ -5,9 +5,8 @@
 これまで`print!`の`!`の意味を説明せずにいましたが、いよいよその意味が明かされます。この!は、ズバリこのオブジェクトが「副作用」のある「プロシージャ」であることを示しています。プロシージャは関数に「副作用」という効果を与えたものです。
 
 ```python
-f x = print! x # EffectError: 関数は副作用のあるオブジェクトに代入することはできません
+f x = print! x # EffectError: functions cannot be assigned objects with side effects
 # hint: change the name to 'f!'
-# hint: 名前を`f!`に変更する
 ```
 
 上のコードはコンパイルエラーになります。関数中でプロシージャを使用しているからです。このような場合は、プロシージャとして定義しなくてはなりません。
@@ -27,7 +26,7 @@ p! x = print! x
 ```python
 C.
     method ref self =
-        x = self # OwnershipError: `self`は移動できません
+        x = self # OwnershipError: cannot move out 'self'
         x
 ```
 
@@ -36,7 +35,7 @@ C.
 ```python
 n = 1
 s = n.into(Str) # 所有権がnから移動し、s = '1'になります
-n # ValueError: .into()によりnは移動しました(2行目)
+n # ValueError: n was moved by .into (line 2)
 ```
 
 可変参照を持てるのは常に1つのプロシージャルメソッドのみです。さらに可変参照が取られている間は元のオブジェクトから参照を取れなくなります。その意味で`ref!`は`self`に副作用を引き起こします。
@@ -55,7 +54,7 @@ Ref! T -> Ref T # OK
 Ref! T => Ref! T # OK
 ```
 
-## Appendix: 副作用の厳密な定義
+## 付録: 副作用の厳密な定義
 
 コードに副作用があるかないかのルールはすぐに理解できるものではありません。
 理解できるようになるまでは、とりあえず関数として定義してエラーが出ればプロシージャとするコンパイラ任せのスタイルを推奨します。
@@ -111,10 +110,10 @@ n = ocr.read_num(image) # n = 3.141592
 `log`はコード全体の実行後に値を表示します。これにより、副作用は伝搬されません。
 
 ```python
-log "this will be printed after execution"
-print! "this will be printed immediately"
-# this will be printed immediately
-# this will be printed after execution
+log "これは実行後にプリントされます"
+print! "これはすぐにプリントされます"
+# これはすぐにプリントされます
+# これは実行後にプリントされます
 ```
 
 つまり、プログラムへのフィードバックがない、言い換えればいかなる外部オブジェクトもその情報を使うことが出来ないならば、情報の「漏洩」自体は許される場合があります。「伝搬」されなければよいのです。

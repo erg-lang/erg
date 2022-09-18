@@ -9,9 +9,9 @@
 ```python
 # 基本的な代入
 i = 1
-# with type
+# 型つき
 i: Int = 1
-# 無名型の注釈付き
+# 無名型つき
 i: {1, 2, 3} = 2
 
 # function
@@ -35,13 +35,13 @@ a: Array Int, 4 = [0, 1, 2, 3]
 # `_: {1} = i`を省略したもの
 1 = i
 
-# simple pattern matching
+# 簡易的なパターンマッチ
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
 
-# fibonacci function
+# フィボナッチ関数
 fib 0 = 0
 fib 1 = 1
 fib n: Nat = fib n-1 + fib n-2
@@ -120,10 +120,10 @@ length [_, ...rest] = 1 + length rest
 
 ```python
 record = {i = 1; j = 2; k = 3}
-{j; ...} = record # i, k will be freed
+{j; ...} = record # i, kが解放される
 
 {sin; cos; tan; ...} = import "math"
-{*} = import "math" # import all
+{*} = import "math" # 全てインポートする
 
 person = {name = "John Smith"; age = 20}
 age = match person:

@@ -52,6 +52,7 @@ stack.push(consts[namei])
 ```
 
 ## STORE_FAST(namei)
+
 ```python
 fastlocals[namei] = stack.pop()
 ```
