@@ -3,6 +3,7 @@
 //! ASTからPythonバイトコード(コードオブジェクト)を生成する
 use std::fmt;
 use std::process;
+use std::rc::Rc;
 
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
@@ -605,6 +606,29 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// item: (name, renamed)
+    fn emit_import_items(
+        &mut self,
+        module: Identifier,
+        items: Vec<(Identifier, Option<Identifier>)>,
+    ) {
+        self.emit_load_const(0);
+        let items_names = items
+            .iter()
+            .map(|ident| ValueObj::Str(ident.0.inspect().clone()));
+        self.emit_load_const(ValueObj::Tuple(Rc::from(items_names.collect::<Vec<_>>())));
+        self.emit_import_name_instr(module).unwrap();
+        for (item, renamed) in items.into_iter() {
+            if let Some(renamed) = renamed {
+                self.emit_import_from_instr(item).unwrap();
+                self.emit_store_instr(renamed, Name);
+            } else {
+                self.emit_import_from_instr(item.clone()).unwrap();
+                self.emit_store_instr(item, Name);
+            }
+        }
+    }
+
     fn emit_load_attr_instr(
         &mut self,
         class: &str,
@@ -768,6 +792,10 @@ impl CodeGenerator {
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
+    }
+
+    fn _emit_trait_def() {
+        todo!()
     }
 
     // NOTE: use `TypeVar`, `Generic` in `typing` module
@@ -1692,16 +1720,13 @@ impl CodeGenerator {
 
     fn init_record(&mut self) {
         // importing namedtuple
-        self.emit_load_const(0);
-        self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
-            Str::ever("namedtuple"),
-        )])));
-        let ident = Identifier::public("collections");
-        self.emit_import_name_instr(ident).unwrap();
-        let ident = Identifier::public("namedtuple");
-        self.emit_import_from_instr(ident).unwrap();
-        let ident = Identifier::private(Str::ever("#NamedTuple"));
-        self.emit_store_instr(ident, Name);
+        self.emit_import_items(
+            Identifier::public("collections"),
+            vec![(
+                Identifier::public("namedtuple"),
+                Some(Identifier::private(Str::ever("#NamedTuple"))),
+            )],
+        );
         // self.namedtuple_loaded = true;
     }
 
