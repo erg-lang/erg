@@ -277,11 +277,11 @@ assert (lambda x: x) != (lambda x: x) # Passed
 
 ```python
 f x: Object = ...
-# これは以下のように補完されます
+# これは以下のように補完される
 f(x: Object) = ...
 
 f a
-# これは以下のように補完されます
+# これは以下のように補完される
 f(a)
 
 f a, b # TypeError: f() takes 1 positional argument but 2 were given

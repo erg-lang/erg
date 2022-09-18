@@ -33,7 +33,7 @@ x = 1
 f x =
     print! f::x, module::x
 
-# Phantom型は型引数と同じ値になるPhantomという属性を持っている
+# Phantom型は型引数と同じ値になるPhantomという属性を持つ
 T X: Int = Class Impl := Phantom X
 T(X).
     x self = self::Phantom
@@ -45,7 +45,7 @@ T(1).x() # 1
 遷移指定は`~>`で行います。
 
 ```python
-# `Id`は不変型なので遷移させることはできないことに注意
+# `Id`は不変型なので遷移させることはできないことに注意する
 VM!(State: {"stopped", "running"}! := _, Id: Nat := _) = Class(..., Impl := Phantom! State)
 VM!().
     # 変わらない変数は`_`を渡せば省略可能, デフォルト引数にしておけば書く必要すらない

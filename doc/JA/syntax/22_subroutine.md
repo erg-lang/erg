@@ -42,7 +42,7 @@ T!(N).some_method!: (self: Ref!(T! N ~> N+X), X: Nat) => ()
 所有権が奪われる場合は以下のようになります。
 
 ```python
-# Nを使わないなら_で省略可
+# Nを使用しないならば_で省略できる
 # .some_method!: |N, X: Nat| (T!(N+X), {X}) => T!(N+X)
 .some_method!|N, X: Nat|(self: T!(N), X: Nat) => T!(N+X)
 ```

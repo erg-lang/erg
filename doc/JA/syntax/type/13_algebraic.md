@@ -19,7 +19,7 @@ assert dict.get("some key") in (Int or NoneType)
 Option T = T or NoneType
 ```
 
-## 交叉
+## 交差
 
 Intersection型は型同士を`and`演算で結合して得られます。
 

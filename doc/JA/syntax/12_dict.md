@@ -59,7 +59,7 @@ assert d[1] == "a"
 invalid1 = {1: "a", "a": "b"}
 invalid2 = {1: "a", 2: 2}
 
-# Ergの型推論はOr型を推論しないので、型指定が必要
+# Ergの型推論はOr型を推論しないため、型指定が必要となる
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```

@@ -65,6 +65,7 @@ assert sum == 45
 ```python
 # Python
 sum = 0
+# 手続き型スタイル
 for i in range(1, 10):
     sum += i
 assert sum == 45
@@ -74,7 +75,7 @@ assert sum == 45
 サブルーチンと可変オブジェクトを使って状態を持ち回す代わりに、関数を使用する状態を局所化するスタイルを使います。これは関数型プログラミングと呼ばれます。
 
 ```python
-# Functional style
+# 関数型スタイル
 sum = (1..10).sum()
 assert sum == 45
 ```
@@ -86,7 +87,7 @@ assert sum == 45
 結果を蓄積するカウンタの初期値は`init`で指定し、`acc`に蓄積されていきます。
 
 ```python
-# start with 0, result will
+# 初期値として0から始まり、結果として45が返る
 sum = (1..10).fold(init: 0, f: (acc, i) -> acc + i)
 assert sum == 45
 ```

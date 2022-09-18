@@ -7,7 +7,7 @@ Ergにおけるクラスは、大まかには自身の要素(インスタンス)
 
 ```python
 Person = Class {.name = Str; .age = Nat}
-# .newが定義されなかった場合、自動で`Person.new = Person::__new__`となります
+# .newが定義されなかった場合、自動で`Person.new = Person::__new__`となる
 Person.
     new name, age = Self::__new__ {.name = name; .age = age}
 

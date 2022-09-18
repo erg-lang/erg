@@ -43,7 +43,7 @@ assert id(True) == True
 
 ```python
 id|T: Type| x: T = x
-# pseudo code
+# 疑似コード
 # ==
 id x: Int = x
 id x: Str = x

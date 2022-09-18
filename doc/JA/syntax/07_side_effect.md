@@ -34,7 +34,7 @@ C.
 
 ```python
 n = 1
-s = n.into(Str) # 所有権がnから移動し、s = '1'になります
+s = n.into(Str) # 所有権がnから移動し、s = '1'になる
 n # ValueError: n was moved by .into (line 2)
 ```
 
@@ -45,7 +45,7 @@ n # ValueError: n was moved by .into (line 2)
 ```python
 T -> T # OK (移動)
 T -> Ref T # OK
-T => Ref! T # OK (一回だけ)
+T => Ref! T # OK (一度のみ)
 Ref T -> T # NG
 Ref T -> Ref T # OK
 Ref T => Ref! T # NG
@@ -79,7 +79,7 @@ assert T == U
 
 C = Class {i = Int}
 D = Class {i = Int}
-assert C == D # TypeError: クラスを比較できません
+assert C == D # TypeError: cannot compare classes
 ```
 
 本題に戻ります。Ergにおける「副作用」の正確な定義は、
@@ -96,9 +96,9 @@ ocr = import "some_ocr_module"
 
 n = 0
 _ =
-    f x = print x # 仮にprintを関数として使えたとします
+    f x = print x # 仮にprintを関数として使えたとする
     f(3.141592)
-cam = camera.new() # カメラはPCのディスプレイを向いています
+cam = camera.new() # カメラはPCのディスプレイの方向を向く
 image = cam.shot!()
 n = ocr.read_num(image) # n = 3.141592
 ```

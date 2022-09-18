@@ -93,7 +93,7 @@ steal_str ref(s: Str!) =
 
 ```python
 steal_str ref(s: Str!) =
-    # これもダメ(=は右辺を消費する)
+    # これもエラー(=は右辺を消費する)
     x = s # OwnershipError: cannot consume a borrowed value
     x
 ```

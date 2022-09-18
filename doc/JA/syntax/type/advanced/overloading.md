@@ -57,7 +57,7 @@ id x: Int = x
 id x: Ratio = x
 ...
 id "str" # TypeError: id is not implemented for Str
-# しかし...このエラーはどこから来たのでしょうか？
+# しかし、このエラーはどこから来たのだろうか?
 ```
 
 次に、デフォルト引数との相性が悪い。デフォルト引数のある関数がオーバーロードされているとき、どれが優先されるかという問題がある。
@@ -66,7 +66,7 @@ id "str" # TypeError: id is not implemented for Str
 f x: Int = ...
 f(x: Int, y := 0) = ...
 
-f(1) # どちらが選択されるでしょうか
+f(1) # どちらが選択されるだろうか?
 ```
 
 さらに、宣言との相性が悪い。

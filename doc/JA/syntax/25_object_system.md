@@ -30,7 +30,7 @@ assert obj2.x == 1 and obj2.y == 2
 オブジェクトと関連付けられたオブジェクトです。特に自身(`self`)を暗黙の第一引数にとるサブルーチン属性はメソッド(method)と呼ばれます。
 
 ```python
-# private_attrには`.`がないことに注意
+# private_attrには`.`がないことに注意が必要になる
 record = {.public_attr = j; private_attr = 2; .method = self -> self.i + 1}
 record.public_attr == 2
 record.private_attr # AttributeError: private_attr is private

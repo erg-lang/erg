@@ -31,7 +31,7 @@ assert not 12 in MonthsClass
 assert MonthsClass.new(12) in MonthsClass
 # クラスでラップしても構造型は使える
 assert MonthsClass.new(12) in Months
-# 両方ある場合クラスメソッドが優先
+# 両方ある場合クラスメソッドが優先される
 assert MonthsClass.new(2).name() == "february"
 ```
 
