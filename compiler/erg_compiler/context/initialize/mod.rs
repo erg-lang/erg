@@ -1449,7 +1449,6 @@ impl Context {
         );
         let t_cond = quant(t_cond, set! {static_instance("T", Type)});
         let t_discard = nd_func(vec![param_t("old", Obj)], None, NoneType);
-        let t_id = nd_func(vec![param_t("old", Obj)], None, Nat);
         // FIXME: quantify
         let t_if = func(
             vec![
@@ -1475,21 +1474,20 @@ impl Context {
         );
         let t_pyimport = nd_func(vec![param_t("path", Str)], None, Module);
         let t_quit = func(vec![], None, vec![param_t("code", Int)], NoneType);
-        self.register_builtin_impl("abs", t_abs, Const, Private);
-        self.register_builtin_impl("assert", t_assert, Const, Private);
-        self.register_builtin_impl("classof", t_classof, Const, Private);
-        self.register_builtin_impl("compile", t_compile, Const, Private);
-        self.register_builtin_impl("cond", t_cond, Const, Private);
-        self.register_builtin_impl("discard", t_discard, Const, Private);
-        self.register_builtin_impl("id", t_id, Const, Private);
-        self.register_builtin_impl("if", t_if, Const, Private);
-        self.register_builtin_impl("log", t_log, Const, Private);
-        self.register_builtin_impl("import", t_import, Const, Private);
+        self.register_builtin_impl("abs", t_abs, Immutable, Private);
+        self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        self.register_builtin_impl("classof", t_classof, Immutable, Private);
+        self.register_builtin_impl("compile", t_compile, Immutable, Private);
+        self.register_builtin_impl("cond", t_cond, Immutable, Private);
+        self.register_builtin_impl("discard", t_discard, Immutable, Private);
+        self.register_builtin_impl("if", t_if, Immutable, Private);
+        self.register_builtin_impl("log", t_log, Immutable, Private);
+        self.register_builtin_impl("import", t_import, Immutable, Private);
         if cfg!(feature = "debug") {
-            self.register_builtin_impl("py", t_pyimport.clone(), Const, Private);
+            self.register_builtin_impl("py", t_pyimport.clone(), Immutable, Private);
         }
-        self.register_builtin_impl("pyimport", t_pyimport, Const, Private);
-        self.register_builtin_impl("quit", t_quit, Const, Private);
+        self.register_builtin_impl("pyimport", t_pyimport, Immutable, Private);
+        self.register_builtin_impl("quit", t_quit, Immutable, Private);
     }
 
     fn init_builtin_const_funcs(&mut self) {
@@ -1547,6 +1545,12 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
+        let t_dir = proc(
+            vec![param_t("obj", ref_(Obj))],
+            None,
+            vec![],
+            array(Str, TyParam::erased(Nat)),
+        );
         let t_print = proc(
             vec![],
             Some(param_t("objects", ref_(Obj))),
@@ -1558,6 +1562,7 @@ impl Context {
             ],
             NoneType,
         );
+        let t_id = nd_func(vec![param_t("old", Obj)], None, Nat);
         let t_input = proc(vec![], None, vec![param_t("msg", Str)], Str);
         let t_if = proc(
             vec![
@@ -1586,11 +1591,13 @@ impl Context {
             None,
             NoneType,
         );
-        self.register_builtin_impl("print!", t_print, Const, Private);
-        self.register_builtin_impl("input!", t_input, Const, Private);
-        self.register_builtin_impl("if!", t_if, Const, Private);
-        self.register_builtin_impl("for!", t_for, Const, Private);
-        self.register_builtin_impl("while!", t_while, Const, Private);
+        self.register_builtin_impl("dir!", t_dir, Immutable, Private);
+        self.register_builtin_impl("print!", t_print, Immutable, Private);
+        self.register_builtin_impl("id!", t_id, Immutable, Private);
+        self.register_builtin_impl("input!", t_input, Immutable, Private);
+        self.register_builtin_impl("if!", t_if, Immutable, Private);
+        self.register_builtin_impl("for!", t_for, Immutable, Private);
+        self.register_builtin_impl("while!", t_while, Immutable, Private);
     }
 
     fn init_builtin_operators(&mut self) {
