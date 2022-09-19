@@ -9,16 +9,18 @@ use crate::error::{TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
-pub struct Linker {
+pub struct Reorderer {
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
+    pub deps: Dict<Str, Vec<Str>>,
     pub errs: TyCheckErrors,
 }
 
-impl Linker {
+impl Reorderer {
     pub fn new() -> Self {
         Self {
             def_root_pos_map: Dict::new(),
+            deps: Dict::new(),
             errs: TyCheckErrors::empty(),
         }
     }

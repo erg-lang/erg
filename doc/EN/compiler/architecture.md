@@ -14,10 +14,14 @@
 * `Parser`, like `Lexer`, has two constructors, `Parser::new` and `Parser::from_str`, and `Parser::parse` will give the `AST`.
 * `AST` is the wrapper type of `Vec<Expr>`. It is for "Abstract Syntax Tree".
 
-### 2.5 Desugaring `AST`
+### 2.1 Desugaring `AST`
 
 * expand nested vars (`Desugarer::desugar_nest_vars_pattern`)
 * desugar multiple pattern definition syntax (`Desugarer::desugar_multiple_pattern_def`)
+
+### 2.2 Reordering & Linking `AST`
+
+* Sort variables according to dependencies and link class methods to class definitions (`Linker::link`)
 
 ## 3. Type checking & inference, Convert `AST` -> `HIR` (compiler/lower.rs)
 

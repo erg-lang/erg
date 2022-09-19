@@ -27,7 +27,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::link::Linker;
+use crate::reorder::Reorderer;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
@@ -68,7 +68,7 @@ impl Runnable for ASTLowererRunner {
         let ast = Parser::new(ts)
             .parse(Str::ever(self.cfg.module))
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let linker = Linker::new();
+        let linker = Reorderer::new();
         let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
         let (hir, warns) = self
             .lowerer
@@ -89,7 +89,7 @@ impl Runnable for ASTLowererRunner {
         let ast = Parser::new(ts)
             .parse(Str::ever(self.cfg.module))
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let linker = Linker::new();
+        let linker = Reorderer::new();
         let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
         let (hir, _) = self
             .lowerer

@@ -14,9 +14,9 @@ use erg_parser::ParserRunner;
 use crate::codegen::CodeGenerator;
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, TyCheckErrors};
-use crate::link::Linker;
 use crate::lower::ASTLowerer;
 use crate::ownercheck::OwnershipChecker;
+use crate::reorder::Reorderer;
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global
@@ -165,7 +165,7 @@ impl Compiler {
         cfg.input = Input::Str(src);
         let mut parser = ParserRunner::new(cfg);
         let ast = parser.parse()?;
-        let linker = Linker::new();
+        let linker = Reorderer::new();
         let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
         let (hir, warns) = self
             .lowerer
