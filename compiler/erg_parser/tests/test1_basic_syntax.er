@@ -1,12 +1,24 @@
-# 基本的な構文をパーサーがパスできるかチェックする
-# Check that a parser can pass the basic syntax
+#[
+基本的な構文をパーサーがパスできるかチェックする
+Check that a parser can pass the basic syntax
+    #[
+        `#[`から`]#`までが複数行コメントとして扱われる
+        コメント内部で入れ子で複数行コメントを付けれるが、閉じ忘れに注意
+        The comment from `#[` to `]#` is treated as a multi-line comment.
+        Nested multi-line comments can be added inside comments, but be careful not to forget to close them.
+    ]#
+]#
 
 _a = 1_234 + 1113.* 3_000.2e-4 ** 0003 * .4
 a, _, ...b = five_elem_tuple
 f x, y =
     x + y
 if! True, do!:
-    print! "\\hello, world\""
+    print! "\"\\hello, world\\\""
+    #[
+        indented comment
+dedented comment
+    ]#
     10.times! do!:
         if! x.y.z, do!:
             print! ""

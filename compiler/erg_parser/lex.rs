@@ -285,6 +285,62 @@ impl Lexer /*<'a>*/ {
         Ok(())
     }
 
+    fn lex_multi_line_comment(&mut self) -> LexResult<()> {
+        let mut s = "".to_string();
+        let mut nest_level = 0;
+        loop {
+            match self.peek_cur_ch() {
+                Some(c) => {
+                    if let Some(next_c) = self.peek_next_ch() {
+                        match (c, next_c) {
+                            ('#', '[') => nest_level += 1,
+                            (']', '#') => {
+                                nest_level -= 1;
+                                if nest_level == 0 {
+                                    return Ok(());
+                                }
+                            }
+                            _ => {}
+                        }
+                        if c == '\n' {
+                            self.lineno_token_starts += 1;
+                            self.col_token_starts = 0;
+                        }
+                        s.push(self.consume().unwrap());
+                    }
+                    if Self::is_bidi(self.peek_cur_ch().unwrap()) {
+                        let comment = self.emit_token(Illegal, &s);
+                        return Err(LexError::syntax_error(
+                            0,
+                            comment.loc(),
+                            switch_lang!(
+                                "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
+                                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                                "english" => "invalid unicode character (bi-directional override) in comments",
+                            ),
+                            None,
+                        ));
+                    }
+                }
+                None => {
+                    let comment = self.emit_token(Illegal, &s);
+                    return Err(LexError::syntax_error(
+                        0,
+                        comment.loc(),
+                        switch_lang!(
+                        "japanese" => "複数行コメントが]#で閉じられていません",
+                        "simplified_chinese" => "未用]#号结束的多处评论",
+                        "traditional_chinese" => "多條評論未用]#關閉",
+                        "english" => "Multi-comment is not closed with ]#",
+                        ),
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
         let is_toplevel = self.cursor > 0
             && !self.indent_stack.is_empty()
@@ -349,6 +405,11 @@ impl Lexer /*<'a>*/ {
         }
         // ignore indents if the current line is a comment
         if let Some('#') = self.peek_cur_ch() {
+            if let Some('[') = self.peek_next_ch() {
+                if let Err(e) = self.lex_multi_line_comment() {
+                    return Some(Err(e));
+                }
+            }
             if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
@@ -562,6 +623,7 @@ impl Lexer /*<'a>*/ {
                         'r' => s.push('\r'),
                         'n' => s.push('\n'),
                         '\'' => s.push('\''),
+                        '"' => s.push('"'),
                         't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
                         '\\' => s.push('\\'),
                         _ => {
@@ -630,6 +692,11 @@ impl Iterator for Lexer /*<'a>*/ {
             return indent_dedent;
         }
         if let Some('#') = self.peek_cur_ch() {
+            if let Some('[') = self.peek_next_ch() {
+                if let Err(e) = self.lex_multi_line_comment() {
+                    return Some(Err(e));
+                }
+            }
             if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
