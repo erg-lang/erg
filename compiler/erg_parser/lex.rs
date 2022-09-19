@@ -610,41 +610,66 @@ impl Lexer /*<'a>*/ {
     fn lex_str(&mut self) -> LexResult<Token> {
         let mut s = "\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if c == '\"' {
-                s.push(self.consume().unwrap());
-                let token = self.emit_token(StrLit, &s);
-                return Ok(token);
-            } else {
-                let c = self.consume().unwrap();
-                if c == '\\' {
-                    let next_c = self.consume().unwrap();
-                    match next_c {
-                        '0' => s.push('\0'),
-                        'r' => s.push('\r'),
-                        'n' => s.push('\n'),
-                        '\'' => s.push('\''),
-                        '"' => s.push('"'),
-                        't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
-                        '\\' => s.push('\\'),
-                        _ => {
-                            let token = self.emit_token(Illegal, &format!("\\{next_c}"));
-                            return Err(LexError::syntax_error(
-                                0,
-                                token.loc(),
-                                switch_lang!(
-                                    "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
-                                    "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
-                                    "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
-                                    "english" => format!("illegal escape sequence: \\{}", next_c),
-                                ),
-                                None,
-                            ));
+            match c {
+                '\n' => {
+                    let token = self.emit_token(Illegal, &s);
+                    return Err(LexError::syntax_error(
+                        0,
+                        token.loc(),
+                        switch_lang!(
+                            "japanese" => "文字列内で改行をすることはできません",
+                            "simplified_chinese" => "在一个字符串中不允许有换行符",
+                            "traditional_chinese" => "在一個字符串中不允許有換行符",
+                            "english" => "Line breaks are not allowed within a string",
+                        ),
+                        Some(
+                            switch_lang!(
+                                "japanese" => "\"\"内で改行を使いたい場合は'\\n'を利用してください",
+                                "simplified_chinese" => "如果你想在\"\"中使用换行符,请使用'\\n'",
+                                "traditional_chinese" => "如果你想在\"\"中使用換行符,請使用'\\n'",
+                                "english" => "If you want to use line breaks within \"\", use '\\n'",
+                            )
+                            .into(),
+                        ),
+                    ));
+                }
+                '"' => {
+                    s.push(self.consume().unwrap());
+                    let token = self.emit_token(StrLit, &s);
+                    return Ok(token);
+                }
+                _ => {
+                    let c = self.consume().unwrap();
+                    if c == '\\' {
+                        let next_c = self.consume().unwrap();
+                        match next_c {
+                            '0' => s.push('\0'),
+                            'r' => s.push('\r'),
+                            'n' => s.push('\n'),
+                            '\'' => s.push('\''),
+                            '"' => s.push('"'),
+                            't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                            '\\' => s.push('\\'),
+                            _ => {
+                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                return Err(LexError::syntax_error(
+                                    0,
+                                    token.loc(),
+                                    switch_lang!(
+                                        "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
+                                        "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
+                                        "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
+                                        "english" => format!("illegal escape sequence: \\{}", next_c),
+                                    ),
+                                    None,
+                                ));
+                            }
                         }
-                    }
-                } else {
-                    s.push(c);
-                    if Self::is_bidi(c) {
-                        return Err(self._invalid_unicode_character(&s));
+                    } else {
+                        s.push(c);
+                        if Self::is_bidi(c) {
+                            return Err(self._invalid_unicode_character(&s));
+                        }
                     }
                 }
             }
