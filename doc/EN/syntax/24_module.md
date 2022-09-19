@@ -37,6 +37,45 @@ Since module types are also record types, deconstruction assignment is possible.
      └─ qux.er
 ```
 
+## circular dependencies
+
+Erg allows you to define circular dependencies between modules.
+
+```python
+# foo.er
+bar = import "bar"
+
+print! bar.g 1
+.f x = x
+```
+
+```python
+# bar.er
+foo = import "foo"
+
+print! foo.f 1
+.g x = x
+```
+
+However, variables created by procedure calls cannot be defined in circular reference modules.
+This is because Erg rearranges the order of definitions according to dependencies.
+
+```python
+# foo.er
+bar = import "bar"
+
+print! bar.x
+.x = g!(1) # ModuleError: variables created by procedure calls cannot be defined in circular reference modules
+```
+
+```python
+# bar.er
+foo = import "foo"
+
+print! foo.x
+.x = 0
+```
+
 <p align='center'>
      <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
 </p>
