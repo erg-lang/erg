@@ -7,6 +7,11 @@ use erg_parser::lex::Lexer;
 use erg_parser::ParserRunner;
 
 #[test]
+fn parse_str_literal() -> Result<(), ParserRunnerErrors> {
+    expect_failure("tests/failed_str_lit.er")
+}
+
+#[test]
 fn parse_dependent() -> Result<(), ParserRunnerErrors> {
     expect_success("tests/dependent.er")
 }
