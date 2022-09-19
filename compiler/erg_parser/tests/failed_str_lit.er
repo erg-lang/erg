@@ -1,0 +1,4 @@
+# compile error
+a = "
+    hello, world
+"
