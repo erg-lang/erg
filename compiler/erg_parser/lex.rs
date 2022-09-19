@@ -1052,8 +1052,45 @@ impl Iterator for Lexer /*<'a>*/ {
             }
             // TODO:
             Some('\\') => self.deny_feature("\\", "ignoring line break"),
-            // StrLit
-            Some('\"') => Some(self.lex_str()),
+            // Single StrLit and Multi-line StrLit
+            Some('\"') => {
+                let c = self.peek_cur_ch();
+                let next_c = self.peek_next_ch();
+                match (c, next_c) {
+                    (None, _) => {
+                        let token = self.emit_token(Illegal, "\"");
+                        Some(Err(LexError::syntax_error(
+                            0,
+                            token.loc(),
+                            switch_lang!(
+                                "japanese" => "文字列が\"によって閉じられていません",
+                                "simplified_chinese" => "字符串没有被\"关闭",
+                                "traditional_chinese" => "字符串没有被\"关闭",
+                                "english" => "the string is not closed by \"",
+                            ),
+                            None,
+                        )))
+                    }
+                    (Some(c), None) => {
+                        if c == '"' {
+                            self.consume(); // consume second '"'
+                            let token = self.emit_token(StrLit, "\"\"");
+                            Some(Ok(token))
+                        } else {
+                            Some(self.lex_str())
+                        }
+                    }
+                    (Some(c), Some(next_c)) => {
+                        if c == '"' && next_c == '"' {
+                            self.consume(); // consume second '"'
+                            self.consume(); // consume third '"'
+                            Some(self.lex_multi_line_str())
+                        } else {
+                            Some(self.lex_str())
+                        }
+                    }
+                }
+            }
             // TODO:
             Some('\'') => self.deny_feature("'", "raw identifier"),
             // Symbolized operators (シンボル化された演算子)
