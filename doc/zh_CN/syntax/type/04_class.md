@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D1ae76335017dda8c599203146232956aa8b5b73e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=1ae76335017dda8c599203146232956aa8b5b73e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D157f51ae0e8cf3ceb45632b537ebe3560a5500b7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=157f51ae0e8cf3ceb45632b537ebe3560a5500b7)
 
 Erg 中的类大致是一种可以创建自己的元素(实例)的类型。
 这是一个简单类的示例。
@@ -259,13 +259,14 @@ Y = Class()
 XorY = Enum X, Y
 ```
 
-每种类型都可以通过`XorY.X`、`XorY.Y`来访问，构造函数可以通过`XorY.cons(X)`获得。
-`.cons` 是一个接受类并返回其构造函数的方法。
+每种类型都可以通过`XorY.X`、`XorY.Y`来访问，构造函数可以通过`X.new |> XorY.new`获得。
 
 ```python
 x1 = XorY.new X.new()
-x2 = XorY.cons(X)()
+x2 = (X.new |> XorY.new)()
+x3 = (Y.new |> XorY.new)()
 assert x1 == x2
+assert x1 != x3
 ```
 
 ## 类关系

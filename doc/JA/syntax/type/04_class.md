@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D1ae76335017dda8c599203146232956aa8b5b73e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=1ae76335017dda8c599203146232956aa8b5b73e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D157f51ae0e8cf3ceb45632b537ebe3560a5500b7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=157f51ae0e8cf3ceb45632b537ebe3560a5500b7)
 
 Ergにおけるクラスは、大まかには自身の要素(インスタンス)を生成できる型と言えます。
 以下は単純なクラスの例です。
@@ -263,13 +263,14 @@ Y = Class()
 XorY = Enum X, Y
 ```
 
-それぞれの型には`XorY.X`, `XorY.Y`のようにしてアクセスでき、コンストラクタは`XorY.cons(X)`のようにして取得できます。
-`.cons`はクラスを受け取ってそのコンストラクタを返すメソッドです。
+それぞれの型には`XorY.X`, `XorY.Y`のようにしてアクセスでき、コンストラクタは`X.new |> XorY.new`のようにして取得できます。
 
 ```python
 x1 = XorY.new X.new()
-x2 = XorY.cons(X)()
+x2 = (X.new |> XorY.new)()
+x3 = (Y.new |> XorY.new)()
 assert x1 == x2
+assert x1 != x3
 ```
 
 ## 包含関係
