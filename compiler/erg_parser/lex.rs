@@ -688,6 +688,96 @@ impl Lexer /*<'a>*/ {
         ))
     }
 
+    fn lex_multi_line_str(&mut self) -> LexResult<Token> {
+        let mut s = "\"\"\"".to_string();
+        while let Some(c) = self.peek_cur_ch() {
+            match c {
+                '"' => {
+                    s.push(self.consume().unwrap());
+                    let next_c = self.peek_cur_ch();
+                    let aft_next_c = self.peek_next_ch();
+                    if next_c.is_none() || aft_next_c.is_none() {
+                        let token = self.emit_token(Illegal, &s);
+                        return Err(LexError::syntax_error(
+                            0,
+                            token.loc(),
+                            switch_lang!(
+                                "japanese" => "文字列が\"\"\"によって閉じられていません",
+                                "simplified_chinese" => "字符串没有被\"\"\"关闭",
+                                "traditional_chinese" => "字符串没有被\"\"\"关闭",
+                                "english" => "the string is not closed by \"\"\"",
+                            ),
+                            None,
+                        ));
+                    }
+                    let next_c = self.consume().unwrap();
+                    let aft_next_c = self.consume().unwrap();
+                    if next_c == '"' && aft_next_c == '"' {
+                        let token = self.emit_token(StrLit, &s);
+                        return Ok(token);
+                    }
+                }
+                _ => {
+                    let c = self.consume().unwrap();
+                    if c == '\\' {
+                        let next_c = self.consume().unwrap();
+                        match next_c {
+                            '0' => s.push('\0'),
+                            'r' => s.push('\r'),
+                            '\'' => {
+                                s.push('\'');
+                                if self.peek_next_ch().is_some()
+                                    && self.peek_next_ch().unwrap() == '\n'
+                                {
+                                    continue; // Escaping a line break if only '\' comes at the end
+                                }
+                            }
+                            '"' => s.push('"'),
+                            't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                            '\\' => s.push('\\'),
+                            'n' => s.push('\n'),
+                            '\n' => {
+                                self.lineno_token_starts += 1;
+                                self.col_token_starts = 0;
+                            }
+                            _ => {
+                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                return Err(LexError::syntax_error(
+                                    0,
+                                    token.loc(),
+                                    switch_lang!(
+                                        "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
+                                        "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
+                                        "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
+                                        "english" => format!("illegal escape sequence: \\{}", next_c),
+                                    ),
+                                    None,
+                                ));
+                            }
+                        }
+                    } else {
+                        s.push(c);
+                        if Self::is_bidi(c) {
+                            return Err(self._invalid_unicode_character(&s));
+                        }
+                    }
+                }
+            }
+        }
+        let token = self.emit_token(Illegal, &s);
+        Err(LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "文字列が\"\"\"によって閉じられていません",
+                "simplified_chinese" => "字符串没有被\"\"\"关闭",
+                "traditional_chinese" => "字符串没有被\"\"\"关闭",
+                "english" => "the string is not closed by \"\"\"",
+            ),
+            None,
+        ))
+    }
+
     // for single strings and multi strings
     fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
         let token = self.emit_token(Illegal, s);
