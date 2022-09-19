@@ -83,7 +83,7 @@ Read attributes of obj.
 
 Execute `c(obj)`. `x + y |>.foo()` is the same as `(x + y).foo()`.
 
-### (x: Option T)`?` -> T | T
+### |T: Type|(x: Option T)`?` -> T
 
 Postfix operator. Call `x.unwrap()` and `return` immediately in case of error.
 
@@ -99,7 +99,7 @@ match[1, 2, 3]:
 # (one two three)
 ```
 
-## del(x: ...T) -> NoneType | T
+## del|T: Type|(x: ...T) -> NoneType
 
 Delete the variable `x`. However, built-in objects cannot be deleted.
 
@@ -166,10 +166,10 @@ assert {x; ...yz} == {x = 1; y = 2; z = 3}
 
 Operators that cannot be used directly by the user.
 
-### ref(x: T) -> Ref T | T
+### ref|T: Type|(x: T) -> Ref T
 
 Returns an immutable reference to the object.
 
-### ref!(x: T!) -> Ref! T! | T!
+### ref!|T!: MutType|(x: T!) -> Ref! T!
 
 Returns a mutable reference to a mutable object.
