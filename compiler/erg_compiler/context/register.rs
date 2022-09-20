@@ -1,5 +1,7 @@
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::config::{ErgConfig, Input};
+use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -14,11 +16,12 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
+use crate::builder::HIRBuilder;
 use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
 use crate::hir;
-use crate::mod_cache::ModuleEntry;
+use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use RegistrationMode::*;
@@ -763,56 +766,55 @@ impl Context {
         match mod_name {
             hir::Expr::Lit(lit) => {
                 if self.subtype_of(&lit.value.class(), &Str) {
-                    let name = enum_unwrap!(lit.value.clone(), ValueObj::Str);
-                    if let Some(mod_cache) = self.mod_cache.as_mut() {
-                        match &name[..] {
+                    let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+                    if let Some(mod_cache) = self.mod_cache.as_ref() {
+                        match &__name__[..] {
                             "importlib" => {
                                 mod_cache.register(
                                     var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_importlib_mod()),
+                                    None,
+                                    Self::init_py_importlib_mod(),
                                 );
                             }
                             "io" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_io_mod()),
-                                );
+                                mod_cache.register(var_name.clone(), None, Self::init_py_io_mod());
                             }
                             "math" => {
                                 mod_cache.register(
                                     var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_math_mod()),
+                                    None,
+                                    Self::init_py_math_mod(),
                                 );
                             }
                             "random" => {
                                 mod_cache.register(
                                     var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_random_mod()),
+                                    None,
+                                    Self::init_py_random_mod(),
                                 );
                             }
                             "socket" => {
                                 mod_cache.register(
                                     var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_socket_mod()),
+                                    None,
+                                    Self::init_py_socket_mod(),
                                 );
                             }
                             "sys" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_sys_mod()),
-                                );
+                                mod_cache.register(var_name.clone(), None, Self::init_py_sys_mod());
                             }
                             "time" => {
                                 mod_cache.register(
                                     var_name.clone(),
-                                    ModuleEntry::builtin(Self::init_py_time_mod()),
+                                    None,
+                                    Self::init_py_time_mod(),
                                 );
                             }
-                            other => todo!("importing {other}"),
+                            _ => self.import_user_module(var_name, __name__, mod_cache),
                         }
                     } else {
                         // maybe unreachable
-                        todo!("importing {name} in the builtin module")
+                        todo!("importing {__name__} in the builtin module")
                     }
                 } else {
                     return Err(TyCheckError::type_mismatch_error(
@@ -837,6 +839,17 @@ impl Context {
             }
         }
         Ok(())
+    }
+
+    fn import_user_module(&self, var_name: &VarName, __name__: Str, mod_cache: &SharedModuleCache) {
+        let cfg = ErgConfig {
+            input: Input::File(format!("{__name__}.er")),
+            ..ErgConfig::default()
+        };
+        let mut hir_builder = HIRBuilder::new(cfg, mod_cache.clone());
+        if let Err(errs) = hir_builder.build_and_cache(var_name.clone()) {
+            errs.fmt_all_stderr();
+        }
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {

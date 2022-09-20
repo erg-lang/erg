@@ -2839,12 +2839,17 @@ pub enum DefKind {
     Trait,
     Subsume,
     StructuralTrait,
+    Module,
     Other,
 }
 
 impl DefKind {
     pub const fn is_trait(&self) -> bool {
         matches!(self, Self::Trait | Self::Subsume | Self::StructuralTrait)
+    }
+
+    pub fn is_module(&self) -> bool {
+        matches!(self, Self::Module)
     }
 }
 

@@ -126,6 +126,7 @@ pub struct ErgConfig {
     pub py_server_timeout: u64,
     pub quiet_startup: bool,
     pub input: Input,
+    /// module name to be executed
     pub module: &'static str,
     /// verbosity level for system messages.
     /// * 0: display errors

@@ -6,9 +6,8 @@ use crate::ast::AST;
 use crate::desugar::Desugarer;
 use crate::error::ParserRunnerErrors;
 use crate::parse::ParserRunner;
-use crate::reorder::Reorderer;
 
-/// Summarize parsing, desugaring, and reordering
+/// Summarize parsing and desugaring
 pub struct ASTBuilder {
     runner: ParserRunner,
 }
@@ -27,24 +26,16 @@ impl ASTBuilder {
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
         let ast = AST::new(Str::ever(self.runner.cfg().module), module);
-        let reorderer = Reorderer::new();
-        let ast = reorderer
-            .reorder(ast)
-            .map_err(|errs| ParserRunnerErrors::convert(self.runner.input(), errs))?;
         Ok(ast)
     }
 
-    pub fn build_with_input(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
-        let module = self.runner.parse_with_input(src)?;
+    pub fn build_with_str(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
+        let module = self.runner.parse_with_str(src)?;
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
         let ast = AST::new(Str::ever(self.runner.cfg().module), module);
-        let reorderer = Reorderer::new();
-        let ast = reorderer
-            .reorder(ast)
-            .map_err(|errs| ParserRunnerErrors::convert(self.runner.input(), errs))?;
         Ok(ast)
     }
 }

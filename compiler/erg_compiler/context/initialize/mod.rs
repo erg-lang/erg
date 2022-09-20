@@ -1783,13 +1783,13 @@ impl Context {
         ctx
     }
 
-    pub fn new_main_module() -> Self {
+    pub fn new_main_module(mod_cache: SharedModuleCache) -> Self {
         Context::new(
             "<module>".into(),
             ContextKind::Module,
             vec![],
             Some(Context::init_builtins()),
-            Some(SharedModuleCache::new()),
+            Some(mod_cache),
             Context::TOP_LEVEL,
         )
     }

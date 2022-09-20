@@ -193,7 +193,7 @@ impl Runnable for ParserRunner {
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
-        let ast = self.parse_with_input(src)?;
+        let ast = self.parse_with_str(src)?;
         Ok(format!("{ast}"))
     }
 }
@@ -212,7 +212,6 @@ impl ParserRunner {
         self.parse_token_stream(ts)
     }
 
-    /// Parses with default configuration
     pub fn parse_with_default_config(input: Input) -> Result<Module, ParserRunnerErrors> {
         let cfg = ErgConfig {
             input,
@@ -222,7 +221,7 @@ impl ParserRunner {
         self_.parse()
     }
 
-    pub fn parse_with_input(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
+    pub fn parse_with_str(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;

@@ -9,7 +9,6 @@ pub mod desugar;
 pub mod error;
 pub mod lex;
 pub mod parse;
-pub mod reorder;
 pub mod token;
 
 pub use parse::{Parser, ParserRunner};

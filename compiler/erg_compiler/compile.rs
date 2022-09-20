@@ -3,16 +3,16 @@
 //! コンパイラーを定義する
 use std::path::Path;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_type::codeobj::CodeObj;
 
-use erg_parser::builder::ASTBuilder;
-
-use crate::checker::Checker;
+use crate::builder::HIRBuilder;
 use crate::codegen::CodeGenerator;
-use crate::error::{CompileError, CompileErrors, TyCheckErrors};
+use crate::error::{CompileError, CompileErrors};
+use crate::link::Linker;
+use crate::mod_cache::SharedModuleCache;
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global
@@ -91,7 +91,7 @@ impl AccessKind {
 #[derive(Debug)]
 pub struct Compiler {
     cfg: ErgConfig,
-    checker: Checker,
+    mod_cache: SharedModuleCache,
     code_generator: CodeGenerator,
 }
 
@@ -101,9 +101,10 @@ impl Runnable for Compiler {
     const NAME: &'static str = "Erg compiler";
 
     fn new(cfg: ErgConfig) -> Self {
+        let mod_cache = SharedModuleCache::new();
         Self {
-            checker: Checker::new(cfg.copy()),
             code_generator: CodeGenerator::new(cfg.copy()),
+            mod_cache,
             cfg,
         }
     }
@@ -133,13 +134,6 @@ impl Runnable for Compiler {
 }
 
 impl Compiler {
-    fn convert(&self, errs: TyCheckErrors) -> CompileErrors {
-        errs.into_iter()
-            .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
-            .collect::<Vec<_>>()
-            .into()
-    }
-
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
         src: String,
@@ -154,14 +148,9 @@ impl Compiler {
 
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let mut cfg = self.cfg.copy();
-        cfg.input = Input::Str(src);
-        let mut ast_builder = ASTBuilder::new(cfg);
-        let ast = ast_builder.build()?;
-        let hir = self
-            .checker
-            .check(ast, mode)
-            .map_err(|errs| self.convert(errs))?;
+        let mut hir_builder = HIRBuilder::new(self.cfg.copy(), self.mod_cache.clone());
+        hir_builder.build_and_cache_main(src, mode)?;
+        let hir = Linker::link(self.mod_cache.clone());
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(

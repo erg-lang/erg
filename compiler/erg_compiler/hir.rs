@@ -1332,6 +1332,7 @@ impl Def {
                         DefKind::Other
                     }
                 }
+                Some("import") => DefKind::Module,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,

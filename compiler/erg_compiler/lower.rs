@@ -27,6 +27,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
+use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
@@ -48,7 +49,7 @@ impl Runnable for ASTLowererRunner {
     fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            lowerer: ASTLowerer::new(),
+            lowerer: ASTLowerer::new(SharedModuleCache::new()),
         }
     }
 
@@ -63,7 +64,7 @@ impl Runnable for ASTLowererRunner {
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build()?;
-        let (hir, warns) = self
+        let (hir, _, warns) = self
             .lowerer
             .lower(ast, "exec")
             .map_err(|errs| self.convert(errs))?;
@@ -77,8 +78,8 @@ impl Runnable for ASTLowererRunner {
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build_with_input(src)?;
-        let (hir, _) = self
+        let ast = ast_builder.build_with_str(src)?;
+        let (hir, ..) = self
             .lowerer
             .lower(ast, "eval")
             .map_err(|errs| self.convert(errs))?;
@@ -105,14 +106,14 @@ pub struct ASTLowerer {
 
 impl Default for ASTLowerer {
     fn default() -> Self {
-        Self::new()
+        Self::new(SharedModuleCache::new())
     }
 }
 
 impl ASTLowerer {
-    pub fn new() -> Self {
+    pub fn new(mod_cache: SharedModuleCache) -> Self {
         Self {
-            ctx: Context::new_main_module(),
+            ctx: Context::new_main_module(mod_cache),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
@@ -1008,7 +1009,11 @@ impl ASTLowerer {
         Ok(hir::Block::new(hir_block))
     }
 
-    pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
+    pub fn lower(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<(HIR, Context, LowerWarnings), LowerErrors> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
@@ -1035,7 +1040,11 @@ impl ASTLowerer {
         if self.errs.is_empty() {
             log!(info "HIR:\n{hir}");
             log!(info "the AST lowering process has completed.");
-            Ok((hir, LowerWarnings::from(self.warns.take_all())))
+            Ok((
+                hir,
+                self.ctx.pop()?,
+                LowerWarnings::from(self.warns.take_all()),
+            ))
         } else {
             log!(err "the AST lowering process has failed.");
             Err(LowerErrors::from(self.errs.take_all()))

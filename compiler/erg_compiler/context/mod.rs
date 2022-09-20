@@ -238,6 +238,7 @@ impl From<DefKind> for ContextKind {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
+            DefKind::Module => Self::Module,
             DefKind::Other => Self::Instant,
         }
     }
