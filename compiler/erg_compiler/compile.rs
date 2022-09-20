@@ -155,7 +155,7 @@ impl Compiler {
     ) -> Result<(), CompileErrors> {
         let code = self.compile(src, mode)?;
         code.dump_as_pyc(path, self.cfg.python_ver)
-            .expect("failed to dump a .pyc file");
+            .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
 
