@@ -1,0 +1,4 @@
+a11y = import "a11y"
+
+print! a11y.public
+# print! a11y.private # error: private variable

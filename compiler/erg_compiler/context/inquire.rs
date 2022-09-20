@@ -1084,13 +1084,13 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                if let Some(res) = self.get_nominal_type_ctx(&mono("QuantifiedFunc")) {
                     return Some(res);
                 }
             }
             Type::Subr(_subr) => match _subr.kind {
                 SubrKind::Func => {
-                    if let Some(res) = self.get_nominal_type_ctx(&mono("Function")) {
+                    if let Some(res) = self.get_nominal_type_ctx(&mono("Func")) {
                         return Some(res);
                     }
                 }
@@ -1152,7 +1152,7 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&mono("QuantifiedFunction")) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(&mono("QuantifiedFunc")) {
                     return Some(res);
                 }
             }

@@ -1317,13 +1317,13 @@ impl Context {
         proc.register_superclass(Obj, &obj);
         // TODO: lambda
         proc.register_marker_trait(mono("Named"));
-        let mut func = Self::mono_class("Function", Self::TOP_LEVEL);
-        func.register_superclass(mono("Procedure"), &proc);
+        let mut func = Self::mono_class("Func", Self::TOP_LEVEL);
+        func.register_superclass(mono("Proc"), &proc);
         func.register_superclass(Obj, &obj);
         // TODO: lambda
         func.register_marker_trait(mono("Named"));
-        let mut qfunc = Self::mono_class("QuantifiedFunction", Self::TOP_LEVEL);
-        qfunc.register_superclass(mono("Function"), &func);
+        let mut qfunc = Self::mono_class("QuantifiedFunc", Self::TOP_LEVEL);
+        qfunc.register_superclass(mono("Func"), &func);
         qfunc.register_superclass(Obj, &obj);
         self.register_builtin_type(Obj, obj, Const);
         // self.register_type(mono("Record"), vec![], record, Const);
@@ -1410,9 +1410,9 @@ impl Context {
         self.register_builtin_type(array_mut_t, array_mut_, Const);
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(mono("Tuple"), tuple_, Const);
-        self.register_builtin_type(mono("Procedure"), proc, Const);
-        self.register_builtin_type(mono("Function"), func, Const);
-        self.register_builtin_type(mono("QuantifiedFunction"), qfunc, Const);
+        self.register_builtin_type(mono("Proc"), proc, Const);
+        self.register_builtin_type(mono("Func"), func, Const);
+        self.register_builtin_type(mono("QuantifiedFunc"), qfunc, Const);
     }
 
     fn init_builtin_funcs(&mut self) {

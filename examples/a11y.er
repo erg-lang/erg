@@ -1,0 +1,2 @@
+private = "this is a private variable"
+.public = "this is a public variable"

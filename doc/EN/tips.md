@@ -48,7 +48,7 @@ Ok = Class Impl := Singleton
 Err = Class Impl := Singleton
 ErrWithInfo = Inherit {info = Str}
 Status = Enum Ok, Err, ErrWithInfo
-stat: Status = Status.cons(ErrWithInfo) {info = "error caused by ..."}
+stat: Status = Status.new ErrWithInfo.new {info = "error caused by ..."}
 match! stat:
     Status.Ok -> ...
     Status.Err -> ...
