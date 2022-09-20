@@ -67,13 +67,13 @@ read_file!() =
     f = open!("foo.txt")? # 失敗したらエラーをすぐさま返すので、fはFile型
     f.read_all!()
 
-# tryプロシージャで例外のような捕捉処理も可能
+# tryプロシージャで例外のような捕捉処理も可能である
 try!:
     do!
         s = read_file!()?
         print! s
     e =>
-        # エラー発生時に実行するブロック
+        # エラー発生時に実行されるブロック
         print! e
         exit 1
 ```
@@ -94,10 +94,10 @@ Pythonのライブラリには継承されることを前提に設計されて�
 デフォルトで構造的トレイトを指すと、型指定が複雑になり、プログラマの意図しない挙動を混入させる恐れがあるためです。
 
 ```python
-# If T is a subtype of a structural trait...
+# Tが構造的トレイトの部分型である場合...
 # f: |T <: Structural Trait {.`_+_` = Self.(Self) -> Self; .`_-_` = Self.(Self) -> Self}| (T, T) -> T
 f|T| x, y: T = x + y - x
-# T is a subtype of a nominal trait
+# Tは記名的トレイトの部分型である
 # g: |T <: Add() and Sub()| (T, T) -> T
 g|T| x, y: T = x + y - x
 ```

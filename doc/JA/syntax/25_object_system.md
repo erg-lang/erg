@@ -1,4 +1,4 @@
-# Object(対象体)
+# 対象体
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/25_object_system.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/25_object_system.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -12,7 +12,7 @@
 * `.clone`: オブジェクトのクローン(メモリ上に独立な実体を持つ)を生成して返します
 * `.copy`: オブジェクトのコピー(メモリ上で同じものをさす)を返します
 
-## Record(レコード)
+## レコード
 
 レコードリテラル(`{attr = value; ...}`)で生成されるオブジェクトです。
 このオブジェクトは`.clone`や`.__sizeof__`などの基本的なメソッドを持ちます。
@@ -25,7 +25,7 @@ obj2 = {...x; .y = 2}
 assert obj2.x == 1 and obj2.y == 2
 ```
 
-## Attribute(属性)
+## 属性
 
 オブジェクトと関連付けられたオブジェクトです。特に自身(`self`)を暗黙の第一引数にとるサブルーチン属性はメソッド(method)と呼ばれます。
 
@@ -37,44 +37,44 @@ record.private_attr # AttributeError: private_attr is private
 assert record.method() == 3
 ```
 
-## Element(要素)
+## 要素
 
 特定の型に属するオブジェクト(e.g. `1`は`Int`型の要素)です。全てのオブジェクトは、少なくとも`{=}`型の要素です。
 クラスの要素の場合特にインスタンス(Instance)と呼ぶこともあります。
 
-## Subroutine(サブルーチン)
+## サブルーチン
 
 関数またはプロシージャのインスタンスであるオブジェクトを示す(メソッドも含む)。サブルーチンを表すクラスは`Subroutine`です。
 より一般に`.__call__`を実装するオブジェクトは`Callable`(呼び出し可能オブジェクト)と呼ばれます。
 
-## Callable(呼び出し可能オブジェクト)
+## 呼び出し可能オブジェクト
 
 `.__call__`を実装するオブジェクトです。`Subroutine`のスーパークラスでもあります。
 
-## Type(型)
+## 型
 
 要求属性を定義し、オブジェクトを共通化するオブジェクトです。
 大きく分けて多相型(Polymorphic Type)と単相型(Monomorphic Type)の2つがあります。典型的な単相型は`Int`, `Str`などで、多相型には`Option Int`, `[Int; 3]`などがあります。
 さらにオブジェクトの状態変更をするメソッドを定義した型は可変型(Mutable type)と呼ばれ、可変な属性に`!`をつける必要があります(e.g. 動的配列: `[T; !_]`)。
 
-## Class(クラス)
+## クラス
 
 `.__new__`, `.__init__`メソッドなどを持つ型です。クラスベースのオブジェクト指向を実現します。
 
-## Function(関数、写像)
+## 関数
 
 外部変数(静的変数除く)のread権限はありますが、外部変数のread/write権限がないサブルーチンです。つまり、外部に副作用を及ぼせません。
 Ergの関数(Function)は副作用を許さないので、Pythonのそれとは定義が異なります。
 
-## Procedure(手続き)
+## 手続き
 
 外部変数のread権限および`self`、静的変数のread/write権限があり、全てのサブルーチンの使用が許可されています。外部に副作用を及ぼせます。
 
-## Method(メソッド)
+## メソッド
 
 第一引数に`self`を暗黙的にとるサブルーチンです。単なる関数/プロシージャとは別の型となっています。
 
-## Entity(エンティティ)
+## エンティティ
 
 サブルーチンおよび型ではないオブジェクトです。
 単相型エンティティ(`1`, `"a"`など)は値オブジェクト、多相型エンティティ(`[1, 2, 3], {"a": 1}`)はコンテナオブジェクトとも呼ばれます。

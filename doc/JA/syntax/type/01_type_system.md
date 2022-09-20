@@ -173,7 +173,7 @@ f x, y = x + y
 Binary = Patch {0, 1}
 Binary.
     # selfにはインスタンスが格納される。この例では0か1のどちらか。
-    # selfを書き換えたい場合、型名、メソッド名に!を付けなければならない。
+    # selfを書き換えたい場合、型名、メソッド名に`!`を付けなければならない。
     is_zero(self) = match self:
         0 -> True
         1 -> False # _ -> Falseとしてもよい

@@ -18,7 +18,7 @@ match i:
 # Callable == Func or Proc
 c: Callable = print!
 match c:
-    p! -> log "proc" # 自明なので`: Proc`を省略可
+    p! -> log "proc" # 自明なので`: Proc`を省略できる
     f -> log "func"
 ```
 
@@ -28,7 +28,7 @@ match c:
 o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
 ```
 
-## リテラル識別子(Literal Identifiers)
+## リテラル識別子
 
 以上の規則は、文字列をシングルクォート('')で囲むと回避できます。すなわち、プロシージャルオブジェクトも`!`をつけずに代入することができます。ただしこの場合、値が定数式でも定数とはみなされません。
 このようにシングルクォートで囲まれた文字列による識別子をリテラル識別子といいます。

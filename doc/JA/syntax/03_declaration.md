@@ -8,7 +8,7 @@
 
 ```python
 i: Int
-# i: Int = 2のように代入と同時に宣言可能
+# i: Int = 2のように代入と同時に宣言できる
 i = 2
 i: Num
 i: Nat

@@ -195,12 +195,12 @@ Inherited!.
     add2_pub! ref! self =
         self.inc_pub!()
         self.inc_pub!()
-    # NG, `Child` cannot touch `self.pub` and `self::pri`
+    # NG, `Child`は`self.pub`と`self::pri`に触れられない
     add2_pub! ref! self =
         self.pub.update! p -> p + 2
 ```
 
-畢竟、Ergの継承ができることは新規属性の追加と基底クラスメソッドのオーバーライドのみといえるでしょう。
+畢竟(ひっきょう)、Ergの継承ができることは新規属性の追加と基底クラスメソッドのオーバーライドのみといえるでしょう。
 
 ## 継承の使い所
 
@@ -215,14 +215,14 @@ Ergはサブタイプ判定の一部を型システムが自動で判定して�
 ValidMailAddressStr = Inherit Str
 ValidMailAddressStr.
     init s: Str =
-        validate s # mail-address validation
+        validate s # メールアドレスの有効性
         Self.new s
 
 s1 = "invalid mail address"
 s2 = "foo@gmail.com"
 _ = ValidMailAddressStr.init s1 # panic: invalid mail address
 valid = ValidMailAddressStr.init s2
-valid: ValidMailAddressStr # assurance that it is in the correct email address format
+valid: ValidMailAddressStr # 正しいメールアドレス形式であることの確認
 ```
 
 もう一つの指標は、「記名的な多相=多態を実現したい」場合です。

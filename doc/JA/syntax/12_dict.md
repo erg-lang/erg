@@ -42,7 +42,7 @@ mut_dict.insert! "Bob", 214
 assert mut_dict["Alice"] == 145
 ```
 
-## Heterogeneous Dict
+## 非等質な辞書
 
 キー・値の型は単一でなくてもよく、そのような辞書を __非等質な辞書(heterogenous dict)__ といいます。
 

@@ -20,7 +20,7 @@ mut_record = {.height = !height; ...rest}
 Ergで同一スコープ内でのシャドーイングはできません。しかし、スコープが変われば定義しなおせるので、インスタントブロックを使うといいでしょう。
 
 ```python
-# T!型オブジェクトを取得し、最終的にT型として変数へ代入
+# T!型オブジェクトを取得し、最終的にT型として変数へ代入する
 x: T =
     x: T! = foo()
     x.bar!()
@@ -59,7 +59,7 @@ match! stat:
 
 ```python
 Status = Enum Ok, Err, ErrWithInfo
-# is equivalent to
+# 以下のと同じ
 Status = Class Ok or Err or ErrWithInfo
 Status.
     Ok = Ok

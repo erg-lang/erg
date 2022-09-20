@@ -23,7 +23,7 @@ add(1, 2)
 
 ## コロン適用スタイル
 
-関数は`f x, y, ...`のように呼び出しますが、**実引数**が多く一行では長くなりすぎる場合は`:`(コロン)を使った適用も可能です。
+関数は`f x, y, ...`のように呼び出しますが、__実引数__ が多く一行では長くなりすぎる場合は`:`(コロン)を使った適用も可能です。
 
 ```python
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4

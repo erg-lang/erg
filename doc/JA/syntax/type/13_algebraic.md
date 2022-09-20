@@ -6,7 +6,7 @@
 代数演算型が扱う演算は、Union, Intersection, Diff, Complementなどがあります。
 通常のクラスはUnionのみが行えて、他の演算は型エラーになります。
 
-## 合併
+## 合併型
 
 Union型では型について複数の可能性を与える事ができる。名前の通り、`or`演算子で生成されます。
 代表的なUnionは`Option`型です。`Option`型は`T or NoneType`のpatch typeで、主に失敗するかもしれない値を表現します。
@@ -19,7 +19,7 @@ assert dict.get("some key") in (Int or NoneType)
 Option T = T or NoneType
 ```
 
-## 交差
+## 交差型
 
 Intersection型は型同士を`and`演算で結合して得られます。
 
@@ -29,7 +29,7 @@ Num = Add and Sub and Mul and Eq
 
 先述したように通常のクラス同士では`and`演算で結合できません。インスタンスは唯一つのクラスに属するからです。
 
-## 差
+## 除外型
 
 Diff型は`not`演算で得られます。
 英文に近い表記としては`and not`とした方が良いですが、`and`, `or`と並べて収まりが良いので`not`だけで使うのが推奨されます。
@@ -42,9 +42,9 @@ True = Bool not {False}
 OneTwoThree = {1, 2, 3, 4, 5, 6} - {4, 5, 6, 7, 8, 9, 10}
 ```
 
-## 補完
+## 否定型
 
-Complementは`not`演算で得られますが、これは単項演算です。`not T`型は`{=} not T`の短縮記法です。
+Complement型は`not`演算で得られますが、これは単項演算です。`not T`型は`{=} not T`の短縮記法です。
 `not T`型によるIntersectionはDiffと同等で、`not T`型によるDiffはIntersectionと同等です。
 しかしこのような書き方は推奨されません。
 

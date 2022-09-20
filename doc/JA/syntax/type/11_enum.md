@@ -41,11 +41,11 @@ Status = {"Ok", "Error"}
 Rustとの相違点は、構造的部分型(SST)を採用しているというところにあります。
 
 ```rust
-// StatusとExtraStatusの間にはなんの関係もない
+// StatusとExtraStatusの間には何も関係がない
 enum Status { Ok, Error }
 enum ExtraStatus { Ok, Error, Unknown }
 
-// メソッドを実装可能
+// メソッドを実装できる
 impl Status {
     // ...
 }
