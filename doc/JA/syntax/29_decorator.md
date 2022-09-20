@@ -91,7 +91,7 @@ AddForOdd.AddO = Even
 こうすると、他のモジュールからトレイトをインポートした際に、アタッチメントパッチが自動で適用されます。
 
 ```python
-# 本来IntIsBinAdd, OddIsBinAddも同時にインポートする必要があるが、アタッチメントパッチなら省略可
+# 本来IntIsBinAdd, OddIsBinAddも同時にインポートする必要があるが、アタッチメントパッチなら省略できる
 {BinAdd; ...} = import "foo"
 
 assert Int.AddO == Int

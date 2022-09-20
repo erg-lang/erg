@@ -1,4 +1,4 @@
-# 型変数(Type Variable)、量化型
+# 型変数、量化型
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D14657486719a134f494e107774ac8f9d5a63f083)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=14657486719a134f494e107774ac8f9d5a63f083)
 
@@ -43,7 +43,7 @@ assert id(True) == True
 
 ```python
 id|T: Type| x: T = x
-# pseudo code
+# 疑似コード
 # ==
 id x: Int = x
 id x: Str = x
@@ -189,7 +189,7 @@ L(M).
 ```python
 K(I: Int) = ...
 K.
-    # Kは真の型(原子カインド)ではないので、メソッドを定義できない
+    # Kは真の型(原始カインド)ではないので、メソッドを定義できない
     # これはメソッドではない(スタティックメソッドに近い)
     foo(x) = ...
 K(0).

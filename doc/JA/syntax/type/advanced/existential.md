@@ -33,7 +33,7 @@ show_map f: (|T| T -> T), arr: [Show; _] =
 逆に、引数として受け取るだけで戻り値に関係のない型は存在型で記述して構いません。
 
 ```python
-# id(1): Intになって欲しい
+# id(1): Intが期待される
 id|T|(x: T): T = x
 # |S <: Show|(s: S) -> ()は冗長
 show(s: Show): () = log s

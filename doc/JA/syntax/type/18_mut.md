@@ -1,4 +1,4 @@
-# 可変型(Mutable Type)
+# 可変型
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -61,11 +61,11 @@ K! T: Type = Class ...
 [T; N]     # 可変操作は実行できない
 ## 可変型(mutable types)
 [T!; N]    # 中身を1つずつ変更できる
-[T; !N]    # 可変長、中身は変更不能だが要素の追加・削除で実質変更可能
-[!T; N]    # 中身は不変オブジェクトだが、型を変えたものに差し替え可能(型を変えないという操作で実質差し替え可能)
-[!T; !N]   # 型、長さを変更可能
-[T!; !N]   # 中身、長さを変更可能
-[!T!; N]   # 中身、型を変更可能
+[T; !N]    # 可変長、中身は変更不能だが要素の追加・削除で実質変更できる
+[!T; N]    # 中身は不変オブジェクトだが、型を変えたものに差し替え可能できる(型を変えないという操作で実質差し替えできる)
+[!T; !N]   # 型、長さを変更できる
+[T!; !N]   # 中身、長さを変更でき
+[!T!; N]   # 中身、型を変更できる
 [!T!; !N]  # ありとあらゆる可変操作を実行できる
 ```
 
@@ -101,7 +101,7 @@ a: [!Str; 3]
 (T, U) # 要素数不変、中身を変更できない
 ## 可変型(mutable types)
 (T!, U) # 要素数不変、最初の要素は変更できる
-(T, U)! # 要素数不変、中身を差し替えられる
+(T, U)! # 要素数不変、中身を変更できる
 ...
 ```
 
@@ -111,7 +111,7 @@ a: [!Str; 3]
 {T; N}        # 不変要素数、中身を変更できない
 ## 可変型(mutable types)
 {T!; N}       # 不変要素数、中身を(1つずつ)変更できる
-{T; N}!       # 可変要素数、中身は変更不能だが、要素の追加削除で実質可能、中の型を変更可能
+{T; N}!       # 可変要素数、中身は変更できないが、要素の追加削除で実質的に中の型を変更できる
 {T!; N}!      # 可変要素数、中身も変更できる
 ...
 ```
@@ -122,7 +122,7 @@ a: [!Str; 3]
 {K: V}          # 不変長、中身を変更できない
 ## 可変型(mutable types)
 {K: V!}         # 不変長、値を(1つずつ)変更できる
-{K: V}!         # 可変長、中身を変更できないが、要素の追加削除で実質可能、中の型も変更可能
+{K: V}!         # 可変長、中身を変更できないが、要素の追加削除で実質的に中の型も変更できる
 ...
 ```
 

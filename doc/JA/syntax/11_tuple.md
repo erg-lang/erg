@@ -45,14 +45,14 @@ assert (Int; 3) == (Int, Int, Int)
 ```
 
 ```python
-t: (Int, Bool, Str) = (1, True, "a") # non-homogenous
-a: [Int or Bool or Str; 3] = [1, True, "a"] # homogenous
-_a: [Show; 3] = [1, True, "a"] # homogenous
+t: (Int, Bool, Str) = (1, True, "a") # 非等質
+a: [Int or Bool or Str; 3] = [1, True, "a"] # 等質
+_a: [Show; 3] = [1, True, "a"] # 等質
 _a.iter().map(x -> log x) # OK
 t.try_into([Show; 3])?.iter().map(x -> log x) # OK
 ```
 
-## ユニット(Unit)
+## ユニット
 
 要素が0個のタプルはユニットと言います。ユニットは値ですが、自身の型そのものも指します。
 

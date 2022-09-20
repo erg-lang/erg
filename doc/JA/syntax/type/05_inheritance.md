@@ -1,4 +1,4 @@
-# 継承(Inheritance)
+# 継承
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -195,12 +195,12 @@ Inherited!.
     add2_pub! ref! self =
         self.inc_pub!()
         self.inc_pub!()
-    # NG, `Child` cannot touch `self.pub` and `self::pri`
+    # NG, `Child`は`self.pub`と`self::pri`に触れられない
     add2_pub! ref! self =
         self.pub.update! p -> p + 2
 ```
 
-畢竟、Ergの継承ができることは新規属性の追加と基底クラスメソッドのオーバーライドのみといえるでしょう。
+畢竟(ひっきょう)、Ergの継承ができることは新規属性の追加と基底クラスメソッドのオーバーライドのみといえるでしょう。
 
 ## 継承の使い所
 
@@ -215,14 +215,14 @@ Ergはサブタイプ判定の一部を型システムが自動で判定して�
 ValidMailAddressStr = Inherit Str
 ValidMailAddressStr.
     init s: Str =
-        validate s # mail-address validation
+        validate s # メールアドレスの有効性
         Self.new s
 
 s1 = "invalid mail address"
 s2 = "foo@gmail.com"
 _ = ValidMailAddressStr.init s1 # panic: invalid mail address
 valid = ValidMailAddressStr.init s2
-valid: ValidMailAddressStr # assurance that it is in the correct email address format
+valid: ValidMailAddressStr # 正しいメールアドレス形式であることの確認
 ```
 
 もう一つの指標は、「記名的な多相=多態を実現したい」場合です。

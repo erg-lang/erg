@@ -25,7 +25,7 @@ JavaScriptのオブジェクトリテラルとの相違点は、文字列でア�
 ```python
 a = {x = 1; .y = x + 1}
 a.x # AttributeError: x is private
-# Hint: declare as `.x`
+# Hint: declare as `.x`.
 assert a.y == 2
 ```
 

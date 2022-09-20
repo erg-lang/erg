@@ -1,4 +1,4 @@
-# Literal
+# リテラル
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -9,6 +9,10 @@
 ```python
 0, -0, 1, -1, 2, -2, 3, -3, ...
 ```
+0未満の数値は`Int`リテラルとして型が解釈されます。
+
+> __Note__: また、`Int`リテラルの部分型として`Nat`リテラルが存在します。
+> 0以上の数値は`Nat`リテラルとして型が解釈されます。
 
 ### 有理数リテラル(Ratio Literal)
 
@@ -24,7 +28,7 @@ assert 0.5 == .5
 ```
 
 > __Note__: この`assert`という関数は、`1.0`と`1.`が等しいことを示すために使用しました。
-以降のドキュメントでは、結果が等しいことを示すために`assert`を使用する場合があります。
+> 以降のドキュメントでは、結果が等しいことを示すために`assert`を使用する場合があります。
 
 ### 文字列リテラル(Str Literal)
 
@@ -143,7 +147,7 @@ Ergでは、解釈に紛れがない限り乗算を表す`*`を省略できま�
 ただし、演算子の結合強度は`*`よりも強く設定されています。
 
 ```python
-# same as `assert (1*m) / (1*s) == 1*(m/s)`
+# `assert (1*m) / (1*s) == 1*(m/s)`と同じ
 assert 1m / 1s == 1 (m/s)
 ```
 

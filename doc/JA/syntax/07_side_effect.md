@@ -34,7 +34,7 @@ C.
 
 ```python
 n = 1
-s = n.into(Str) # '1'
+s = n.into(Str) # 所有権がnから移動し、s = '1'になる
 n # ValueError: n was moved by .into (line 2)
 ```
 
@@ -43,9 +43,9 @@ n # ValueError: n was moved by .into (line 2)
 ただし、可変参照から(不変/可変)参照の生成はできることに注意してください。これによって、プロシージャルメソッド中で再帰したり`self`を`print!`できたりします。
 
 ```python
-T -> T # OK (move)
+T -> T # OK (移動)
 T -> Ref T # OK
-T => Ref! T # OK (only once)
+T => Ref! T # OK (一度のみ)
 Ref T -> T # NG
 Ref T -> Ref T # OK
 Ref T => Ref! T # NG
@@ -54,7 +54,7 @@ Ref! T -> Ref T # OK
 Ref! T => Ref! T # OK
 ```
 
-## Appendix: 副作用の厳密な定義
+## 付録: 副作用の厳密な定義
 
 コードに副作用があるかないかのルールはすぐに理解できるものではありません。
 理解できるようになるまでは、とりあえず関数として定義してエラーが出ればプロシージャとするコンパイラ任せのスタイルを推奨します。
@@ -96,9 +96,9 @@ ocr = import "some_ocr_module"
 
 n = 0
 _ =
-    f x = print x # 仮にprintを関数として使えたとします
+    f x = print x # 仮にprintを関数として使えたとする
     f(3.141592)
-cam = camera.new() # カメラはPCのディスプレイを向いています
+cam = camera.new() # カメラはPCのディスプレイの方向を向く
 image = cam.shot!()
 n = ocr.read_num(image) # n = 3.141592
 ```
@@ -110,10 +110,10 @@ n = ocr.read_num(image) # n = 3.141592
 `log`はコード全体の実行後に値を表示します。これにより、副作用は伝搬されません。
 
 ```python
-log "this will be printed after execution"
-print! "this will be printed immediately"
-# this will be printed immediately
-# this will be printed after execution
+log "これは実行後にプリントされます"
+print! "これはすぐにプリントされます"
+# これはすぐにプリントされる
+# これは実行後にプリントされる
 ```
 
 つまり、プログラムへのフィードバックがない、言い換えればいかなる外部オブジェクトもその情報を使うことが出来ないならば、情報の「漏洩」自体は許される場合があります。「伝搬」されなければよいのです。

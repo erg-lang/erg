@@ -1,4 +1,4 @@
-# Enumerative Type(列挙型)
+#列挙型
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/11_enum.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/11_enum.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -41,11 +41,11 @@ Status = {"Ok", "Error"}
 Rustとの相違点は、構造的部分型(SST)を採用しているというところにあります。
 
 ```rust
-// StatusとExtraStatusの間にはなんの関係もない
+// StatusとExtraStatusの間には何も関係がない
 enum Status { Ok, Error }
 enum ExtraStatus { Ok, Error, Unknown }
 
-// メソッドを実装可能
+// メソッドを実装できる
 impl Status {
     // ...
 }

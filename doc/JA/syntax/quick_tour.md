@@ -1,4 +1,4 @@
-# Quick Tour
+# クイックツアー
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -128,11 +128,11 @@ foo.y # VisibilityError
 ### 変数パターン
 
 ```python
-# basic assignment
+# 基本的な代入
 i = 1
-# with type
+# 型注釈付き
 i: Int = 1
-# function
+# 関数の場合
 fn x = x + 1
 fn: Int -> Int = x -> x + 1
 ```
@@ -140,15 +140,15 @@ fn: Int -> Int = x -> x + 1
 ### リテラルパターン
 
 ```python
-# if `i` cannot be determined to be 1 at compile time, TypeError occurs.
-# short hand of `_: {1} = i`
+# もし`i`がコンパイル時に1であることが確定していないならば、TypeErrorが発生する。
+# `_: {1} = i`の省略形
 1 = i
-# simple pattern matching
+# 簡単なパターンマッチング
 match x:
     1 -> "1"
     2 -> "2"
     _ -> "other"
-# fibonacci function
+# フィボナッチ関数
 fib 0 = 0
 fib 1 = 1
 fib n: Nat = fib n-1 + fib n-2
@@ -205,7 +205,7 @@ length [_, ...rest] = 1 + length rest
 
 ```python
 {sin; cos; tan; ...} = import "math"
-{*} = import "math" # import all
+{*} = import "math" # 全てインポートする
 
 person = {name = "John Smith"; age = 20}
 age = match person:

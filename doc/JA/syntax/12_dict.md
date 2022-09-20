@@ -1,4 +1,4 @@
-# Dict
+# 辞書
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/12_dict.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/12_dict.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
@@ -42,7 +42,7 @@ mut_dict.insert! "Bob", 214
 assert mut_dict["Alice"] == 145
 ```
 
-## Heterogeneous Dict
+## 非等質な辞書
 
 キー・値の型は単一でなくてもよく、そのような辞書を __非等質な辞書(heterogenous dict)__ といいます。
 
@@ -59,7 +59,7 @@ assert d[1] == "a"
 invalid1 = {1: "a", "a": "b"}
 invalid2 = {1: "a", 2: 2}
 
-# Ergの型推論はOr型を推論しないので、型指定が必要
+# Ergの型推論はOr型を推論しないため、型指定が必要となる
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```

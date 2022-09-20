@@ -71,7 +71,7 @@ line 3. Call{obj: print!, args: [v]}
 ```rust
 pub enum Type {
     ...
-    Var(RcCell<Option<Type>>), // a reference to the type of other expression, see docs/compiler/inference.md
+    Var(RcCell<Option<Type>>), // 他の式の型への参照, docs/compiler/inference.md を参照
     ...
 }
 ```

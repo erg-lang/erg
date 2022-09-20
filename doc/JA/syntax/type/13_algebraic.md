@@ -1,4 +1,4 @@
-# Algebraic type (代数演算型)
+# 代数演算型
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
 
@@ -6,7 +6,7 @@
 代数演算型が扱う演算は、Union, Intersection, Diff, Complementなどがあります。
 通常のクラスはUnionのみが行えて、他の演算は型エラーになります。
 
-## Union
+## 合併型
 
 Union型では型について複数の可能性を与える事ができる。名前の通り、`or`演算子で生成されます。
 代表的なUnionは`Option`型です。`Option`型は`T or NoneType`のpatch typeで、主に失敗するかもしれない値を表現します。
@@ -19,7 +19,7 @@ assert dict.get("some key") in (Int or NoneType)
 Option T = T or NoneType
 ```
 
-## Intersection
+## 交差型
 
 Intersection型は型同士を`and`演算で結合して得られます。
 
@@ -29,7 +29,7 @@ Num = Add and Sub and Mul and Eq
 
 先述したように通常のクラス同士では`and`演算で結合できません。インスタンスは唯一つのクラスに属するからです。
 
-## Diff
+## 除外型
 
 Diff型は`not`演算で得られます。
 英文に近い表記としては`and not`とした方が良いですが、`and`, `or`と並べて収まりが良いので`not`だけで使うのが推奨されます。
@@ -42,16 +42,16 @@ True = Bool not {False}
 OneTwoThree = {1, 2, 3, 4, 5, 6} - {4, 5, 6, 7, 8, 9, 10}
 ```
 
-## Complement
+## 否定型
 
-Complementは`not`演算で得られますが、これは単項演算です。`not T`型は`{=} not T`の短縮記法です。
+Complement型は`not`演算で得られますが、これは単項演算です。`not T`型は`{=} not T`の短縮記法です。
 `not T`型によるIntersectionはDiffと同等で、`not T`型によるDiffはIntersectionと同等です。
 しかしこのような書き方は推奨されません。
 
 ```python
-# the simplest definition of the non-zero number type
+# 最も単純な非ゼロ数型の定義
 NonZero = Not {0}
-# deprecated styles
+# 非推奨のスタイル
 {True} == Bool and not {False} # 1 == 2 + - 1
 Bool == {True} not not {False} # 2 == 1 - -1
 ```

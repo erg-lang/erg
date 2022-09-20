@@ -1,4 +1,4 @@
-# カインド(Kind)
+# カインド
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Da9ea4eca75fe849e31f83570159f84b611892d7a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=a9ea4eca75fe849e31f83570159f84b611892d7a)
 
@@ -20,7 +20,7 @@ assert Option in Type -> Type
 Ergではメソッドを定義できるのは原子カインドのみで、メソッドの第一引数以外の場所で`self`という名前を使えない。
 
 ```python
-# K is an unary kind
+# Kは単項の一種です
 K: Type -> Type
 K T = Class ...
 K.
@@ -72,7 +72,7 @@ assert IntContainerOf in (Type -> Type) -> Type
 型理論において、レコードという概念がある。これはErgのレコードとほぼ同じものである[<sup id="f2">2</sup>](#2)。
 
 ```python
-# This is a record, and it corresponds to what is called a record in type theory
+# これは`レコード`であり、型理論でいうところの`レコード`に相当するものである
 {x = 1; y = 2}
 ```
 
@@ -130,7 +130,7 @@ Fn2 T, U: Type = Patch T -> U
 Fn2(T, U).
     f self = ...
 
-(Int -> Int).f() # どれが選択される?
+(Int -> Int).f() # どちらが選択されるだろうか?
 ```
 
 上の例で、メソッド`f`はどのパッチが選ばれるのだろうか。

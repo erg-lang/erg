@@ -163,7 +163,7 @@ Mul R = Trait {
 
 ```python
 P = Class {.x = Int; .y = Int}
-# P|Self <: Add(P)|はP|<: Add(P)|に省略可能
+# P|Self <: Add(P)|はP|<: Add(P)|に省略できる
 P|Self <: Add(P)|.
     Output = P
     `_+_` self, other = P.new {.x = self.x + other.x; .y = self.y + other.y}

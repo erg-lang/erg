@@ -1,4 +1,4 @@
-# Spread assignment (展開代入)
+# 展開代入
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/28_spread_syntax.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/28_spread_syntax.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -13,7 +13,7 @@ assert x == 1
 assert y == (2, 3)
 ```
 
-## Extract assignment (抽出代入)
+## 抽出代入
 
 `...`のあとに何も書かない場合、残りの要素は無視して代入されます。このタイプの展開代入を特に抽出代入と呼びます。
 抽出代入は、モジュールやレコード内にある特定の属性をローカルに持ってくる際に便利な構文です。

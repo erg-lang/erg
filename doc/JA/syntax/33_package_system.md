@@ -32,7 +32,7 @@ libパッケージのエントリポイントは`src/lib.er`です。パッケ�
 foo = import "foo"
 bar = import "bar"
 baz = bar.baz
-# or `baz = import "bar/baz"`
+# または`baz = import "bar/baz"`
 
 main args =
     ...

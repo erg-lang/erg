@@ -10,7 +10,7 @@
 result: Option Int = if! Bool.sample!(), do:
     log "True was chosen"
     1
-print! result # None (or 1)
+print! result # None (または1)
 ```
 
 `.sample!()`は集合の値をランダムに返します。もし戻り値が真ならば、`print! "True"`が実行されます。
@@ -24,7 +24,7 @@ result: Nat = if Bool.sample!():
     do:
         log "False was chosen"
         0
-print! result # 1 (or 0)
+print! result # 1 (または0)
 ```
 
 処理が1行ならば、インデントを省略できます。

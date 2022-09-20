@@ -1,4 +1,4 @@
-# The Grammar of Erg (ver 0.1.0, provisional)
+# Ergの文法一覧 (ver 0.1.0, provisional)
 ```
 special_op ::= '=' | '->' | '=>' | '.' | ',' | ':' | '::' | '|>' | '&'
 separator ::= ';' | '\n'

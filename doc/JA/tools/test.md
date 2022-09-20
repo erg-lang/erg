@@ -32,7 +32,7 @@ VM = ...
     #[[
     execute commands.
     ```python
-    # VM in standard configuration
+    # 標準構成のVM
     {vm1; ...} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None

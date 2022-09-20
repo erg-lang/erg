@@ -9,7 +9,7 @@ Ergでは以下のように`:`の後に変数の型を指定します。代入�
 ```python
 i: Int # これから使う変数iはInt型であると宣言する
 i: Int = 1
-j = 1 # type specification can be omitted
+j = 1 # 型指定は省略できる
 ```
 
 通常の式に対しても型指定することができます。
@@ -69,7 +69,7 @@ Iterable T = Trait {
 また、クラス定義時に部分型指定を行うと、クラスが指定した型のサブタイプか静的に検査できます。
 
 ```python
-# クラスCはShowのサブタイプ
+# クラスCはShowの部分型
 C = Class Object, Impl=Show
 C.show self = ... # Showの要求属性
 ```
@@ -91,7 +91,7 @@ K(Int).
 
 ```python
 C = Class Object
-C.shoe self = ... # TypoのせいでShowが実装できていない(単なる固有のメソッドとみなされる)
+C.shoe self = ... # TypoのせいでShowが実装できない(単なる固有のメソッドとみなされる)
 ```
 
 ## 属性定義
@@ -115,7 +115,7 @@ C.pub1 = ...
 C.pub2 = ...
 C::priv1 = ...
 C::priv2 = ...
-# is equivalent to
+# これは以下と同じ
 C = Class()
 C.
     pub1 = ...

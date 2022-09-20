@@ -25,7 +25,7 @@ n: Nat = 1
 
 ```python
 # NG
-l1 = l2 = [1, 2, 3] # SyntaxError: 多重代入はできません
+l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
@@ -46,7 +46,7 @@ i = i + 1 # AssignError: cannot assign twice
 x = 0
 # x = 1 # AssignError: cannot assign twice
 if x.is_zero(), do:
-    x = 1 # 外側のxとは同名の別物
+    x = 1 # 外側のxとは同名の別物になる
     assert x == 1
 assert x == 0
 ```
@@ -113,7 +113,7 @@ Z = 3
 f a = x + a
 
 assert f(2) == 3
-Del x
+Del x # xを直接参照しているためfも削除される
 Del y, Z
 
 f(2) # NameError: f is not defined (deleted in line 6)
@@ -126,7 +126,7 @@ Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
 
-## Appendix: 代入と同値性
+## 付録: 代入と同値性
 
 注意として、`x = a`であるとき、`x == a`とは限らない。例としては`Float.NaN`がある。これはIEEE 754により定められた正式な浮動小数点数の仕様である。
 
