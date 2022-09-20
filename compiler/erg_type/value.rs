@@ -9,11 +9,12 @@ use std::ops::Neg;
 use std::rc::Rc;
 
 use erg_common::dict::Dict;
+use erg_common::error::ErrorCore;
 use erg_common::serialize::*;
 use erg_common::set;
 use erg_common::shared::Shared;
 use erg_common::vis::Field;
-use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
+use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
@@ -21,6 +22,9 @@ use crate::constructors::{array, mono, poly, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
+
+pub type EvalValueError = ErrorCore;
+pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TypeKind {
@@ -92,6 +96,13 @@ impl TypeObj {
         match self {
             TypeObj::Builtin(t) => t,
             TypeObj::Generated(t) => &t.t,
+        }
+    }
+
+    pub fn into_typ(self) -> Type {
+        match self {
+            TypeObj::Builtin(t) => t,
+            TypeObj::Generated(t) => t.t,
         }
     }
 
@@ -478,7 +489,7 @@ impl ValueObj {
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
-            Self::Subr(subr) => subr.class(),
+            Self::Subr(subr) => subr.sig_t().clone(),
             Self::Type(t_obj) => match t_obj {
                 // TODO: builtin
                 TypeObj::Builtin(_t) => Type::Type,
@@ -765,6 +776,22 @@ impl ValueObj {
                 Some(v.clone())
             }
             _ => None,
+        }
+    }
+
+    pub fn as_type(&self) -> Option<TypeObj> {
+        match self {
+            Self::Type(t) => Some(t.clone()),
+            Self::Record(rec) => {
+                let mut attr_ts = dict! {};
+                for (k, v) in rec.iter() {
+                    attr_ts.insert(k.clone(), v.as_type()?.typ().clone());
+                }
+                Some(TypeObj::Builtin(Type::Record(attr_ts)))
+            }
+            Self::Subr(subr) => Some(TypeObj::Builtin(subr.as_type().unwrap().clone())),
+            Self::Array(_) | Self::Tuple(_) | Self::Dict(_) => todo!(),
+            _other => None,
         }
     }
 }

@@ -11,7 +11,7 @@ use erg_common::{
     impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Params, TypeSpec, VarName};
+use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
@@ -1185,7 +1185,7 @@ impl Signature {
         }
     }
 
-    pub fn ident(&self) -> &Identifier {
+    pub const fn ident(&self) -> &Identifier {
         match self {
             Self::Var(v) => &v.ident,
             Self::Subr(s) => &s.ident,
@@ -1196,6 +1196,13 @@ impl Signature {
         match self {
             Self::Var(v) => &mut v.ident,
             Self::Subr(s) => &mut s.ident,
+        }
+    }
+
+    pub fn into_ident(self) -> Identifier {
+        match self {
+            Self::Var(v) => v.ident,
+            Self::Subr(s) => s.ident,
         }
     }
 }
@@ -1305,6 +1312,30 @@ impl HasType for Def {
 impl Def {
     pub const fn new(sig: Signature, body: DefBody) -> Self {
         Self { sig, body }
+    }
+
+    pub fn def_kind(&self) -> DefKind {
+        match self.body.block.first().unwrap() {
+            Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
+                Some("Class") => DefKind::Class,
+                Some("Inherit") => DefKind::Inherit,
+                Some("Trait") => DefKind::Trait,
+                Some("Subsume") => DefKind::Subsume,
+                Some("Inheritable") => {
+                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                        match inner.obj.show_acc().as_ref().map(|n| &n[..]) {
+                            Some("Class") => DefKind::Class,
+                            Some("Inherit") => DefKind::Inherit,
+                            _ => DefKind::Other,
+                        }
+                    } else {
+                        DefKind::Other
+                    }
+                }
+                _ => DefKind::Other,
+            },
+            _ => DefKind::Other,
+        }
     }
 }
 

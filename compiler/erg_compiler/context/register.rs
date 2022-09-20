@@ -24,6 +24,8 @@ use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
 
+use super::instantiate::TyVarContext;
+
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
     pub(crate) fn registered_info(
@@ -86,14 +88,13 @@ impl Context {
     pub(crate) fn declare_sub(
         &mut self,
         sig: &ast::SubrSignature,
-        opt_ret_t: Option<Type>,
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
         let name = sig.ident.inspect();
         let vis = sig.ident.vis();
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        let t = self.instantiate_sub_sig_t(sig, opt_ret_t, PreRegister)?;
+        let t = self.instantiate_sub_sig_t(sig, PreRegister)?;
         let comptime_decos = sig
             .decorators
             .iter()
@@ -168,7 +169,8 @@ impl Context {
                     ))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -211,7 +213,8 @@ impl Context {
                     ))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -255,7 +258,8 @@ impl Context {
                     ))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -299,6 +303,11 @@ impl Context {
         opt_decl_subr_t: Option<SubrType>,
     ) -> TyCheckResult<()> {
         if let Some(decl_subr_t) = opt_decl_subr_t {
+            assert_eq!(
+                params.non_defaults.len(),
+                decl_subr_t.non_default_params.len()
+            );
+            assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
             for (nth, (sig, pt)) in params
                 .non_defaults
                 .iter()
@@ -449,6 +458,8 @@ impl Context {
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
+                    let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
+                    let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
                         Ok(obj) => (obj.clone(), enum_t(set! {obj})),
                         Err(e) => {
@@ -456,18 +467,17 @@ impl Context {
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                        let spec_t = self.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut Some(&mut tv_ctx),
+                            PreRegister,
+                        )?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
                 } else {
-                    let opt_ret_t = if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t = self.instantiate_typespec(spec, PreRegister)?;
-                        Some(spec_t)
-                    } else {
-                        None
-                    };
-                    self.declare_sub(sig, opt_ret_t, id)?;
+                    self.declare_sub(sig, id)?;
                 }
             }
             ast::Signature::Var(sig) if sig.is_const() => {
@@ -478,7 +488,7 @@ impl Context {
                     }
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
-                    let spec_t = self.instantiate_typespec(spec, PreRegister)?;
+                    let spec_t = self.instantiate_typespec(spec, None, &mut None, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
                 self.register_gen_const(sig.ident().unwrap(), obj)?;
@@ -650,6 +660,55 @@ impl Context {
                     } else {
                         todo!("super class not found")
                     }
+                } else {
+                    todo!()
+                }
+            }
+            TypeKind::Trait => {
+                if gen.t.is_monomorphic() {
+                    let mut ctx =
+                        Self::mono_trait(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let require = enum_unwrap!(gen.require_or_sup.as_ref(), TypeObj::Builtin:(Type::Record:(_)));
+                    for (field, t) in require.iter() {
+                        let muty = if field.is_const() {
+                            Mutability::Const
+                        } else {
+                            Mutability::Immutable
+                        };
+                        let vi = VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                        ctx.decls
+                            .insert(VarName::from_str(field.symbol.clone()), vi);
+                    }
+                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                } else {
+                    todo!()
+                }
+            }
+            TypeKind::Subtrait => {
+                if gen.t.is_monomorphic() {
+                    let super_classes = vec![gen.require_or_sup.typ().clone()];
+                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                    let mut ctx =
+                        Self::mono_trait(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let additional = gen.additional.as_ref().map(|additional| enum_unwrap!(additional.as_ref(), TypeObj::Builtin:(Type::Record:(_))));
+                    if let Some(additional) = additional {
+                        for (field, t) in additional.iter() {
+                            let muty = if field.is_const() {
+                                Mutability::Const
+                            } else {
+                                Mutability::Immutable
+                            };
+                            let vi =
+                                VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                            ctx.decls
+                                .insert(VarName::from_str(field.symbol.clone()), vi);
+                        }
+                    }
+                    for sup in super_classes.into_iter() {
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
+                        ctx.register_supertrait(sup, sup_ctx);
+                    }
+                    self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!()
                 }

@@ -1,9 +1,11 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
+
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
@@ -357,6 +359,9 @@ impl ASTLowerer {
                 let acc = hir::Accessor::Subscr(hir::Subscript::new(obj, index, *t));
                 Ok(acc)
             }
+            ast::Accessor::TypeApp(_t_app) => {
+                todo!()
+            }
         }
     }
 
@@ -544,7 +549,8 @@ impl ASTLowerer {
                     name,
                 ));
             }
-            self.ctx.grow(name, ContextKind::Instant, def.sig.vis())?;
+            let kind = ContextKind::from(def.def_kind());
+            self.ctx.grow(name, kind, def.sig.vis())?;
             let res = match def.sig {
                 ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
                 ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
@@ -631,11 +637,12 @@ impl ASTLowerer {
             .unwrap()
             .t
             .clone();
-        self.ctx.assign_params(&sig.params, None)?;
+        let t = enum_unwrap!(t, Type::Subr);
+        self.ctx.assign_params(&sig.params, Some(t.clone()))?;
         self.ctx.preregister(&body.block)?;
         let block = self.lower_block(body.block)?;
         let found_body_t = block.ref_t();
-        let expect_body_t = t.return_t().unwrap();
+        let expect_body_t = t.return_t.as_ref();
         if !sig.is_const() {
             if let Err(e) =
                 self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
@@ -650,7 +657,7 @@ impl ASTLowerer {
             .unwrap()
             .assign_subr(&sig, id, found_body_t)?;
         let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-        let sig = hir::SubrSignature::new(ident, sig.params, t);
+        let sig = hir::SubrSignature::new(ident, sig.params, Type::Subr(t));
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }
@@ -661,9 +668,60 @@ impl ASTLowerer {
         let mut private_methods = hir::RecordAttrs::empty();
         let mut public_methods = hir::RecordAttrs::empty();
         for mut methods in class_def.methods_list.into_iter() {
-            let class = self
-                .ctx
-                .instantiate_typespec(&methods.class, RegistrationMode::Normal)?;
+            let (class, impl_trait) = match &methods.class {
+                ast::TypeSpec::TypeApp { spec, args } => {
+                    let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
+                        // TODO: check `tasc.op`
+                        ast::Expr::TypeAsc(tasc) => (
+                            self.ctx.instantiate_typespec(
+                                &tasc.t_spec,
+                                None,
+                                &mut None,
+                                RegistrationMode::Normal,
+                            )?,
+                            tasc.t_spec.loc(),
+                        ),
+                        _ => unreachable!(),
+                    };
+                    (
+                        self.ctx.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut None,
+                            RegistrationMode::Normal,
+                        )?,
+                        Some((impl_trait, loc)),
+                    )
+                }
+                other => (
+                    self.ctx.instantiate_typespec(
+                        other,
+                        None,
+                        &mut None,
+                        RegistrationMode::Normal,
+                    )?,
+                    None,
+                ),
+            };
+            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
+                if !class_root.kind.is_class() {
+                    return Err(LowerError::method_definition_error(
+                        line!() as usize,
+                        methods.loc(),
+                        self.ctx.caused_by(),
+                        &class.name(),
+                        None,
+                    ));
+                }
+            } else {
+                return Err(LowerError::no_var_error(
+                    line!() as usize,
+                    methods.class.loc(),
+                    self.ctx.caused_by(),
+                    &class.name(),
+                    self.ctx.get_similar_name(&class.name()),
+                ));
+            }
             self.ctx
                 .grow(&class.name(), ContextKind::MethodDefs, Private)?;
             for def in methods.defs.iter_mut() {
@@ -695,36 +753,8 @@ impl ASTLowerer {
             match self.ctx.pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
-                    if let Some((_, class_root)) = self.ctx.get_mut_nominal_type_ctx(&class) {
-                        for (newly_defined_name, _vi) in methods.locals.iter() {
-                            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
-                                // TODO: 特殊化なら同じ名前でもOK
-                                // TODO: 定義のメソッドもエラー表示
-                                if let Some((_already_defined_name, already_defined_vi)) =
-                                    already_defined_methods
-                                        .get_local_kv(newly_defined_name.inspect())
-                                {
-                                    if already_defined_vi.kind != VarKind::Auto {
-                                        self.errs.push(LowerError::duplicate_definition_error(
-                                            line!() as usize,
-                                            newly_defined_name.loc(),
-                                            methods.name.clone().into(),
-                                            newly_defined_name.inspect(),
-                                        ));
-                                    } else {
-                                        already_defined_methods
-                                            .locals
-                                            .remove(&newly_defined_name.inspect()[..]);
-                                    }
-                                }
-                            }
-                        }
-                        class_root
-                            .methods_list
-                            .push((ClassDefType::Simple(class), methods));
-                    } else {
-                        todo!()
-                    }
+                    self.check_trait_impl(impl_trait, &class, &methods)?;
+                    self.push_methods(class, methods);
                 }
                 Err(mut errs) => {
                     self.errs.append(&mut errs);
@@ -812,6 +842,124 @@ impl ASTLowerer {
                 }
             }
         }
+    }
+
+    fn check_trait_impl(
+        &mut self,
+        impl_trait: Option<(Type, Location)>,
+        class: &Type,
+        methods: &Context,
+    ) -> LowerResult<()> {
+        if let Some((impl_trait, loc)) = impl_trait {
+            // assume the class has implemented the trait, regardless of whether the implementation is correct
+            let trait_ctx = self
+                .ctx
+                .get_nominal_type_ctx(&impl_trait)
+                .unwrap()
+                .1
+                .clone();
+            let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
+            class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
+            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {
+                if let ValueObj::Type(typ) = trait_obj {
+                    match typ {
+                        TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
+                            Type::Record(attrs) => {
+                                let mut unverified_names =
+                                    methods.locals.keys().collect::<Set<_>>();
+                                for (field, typ) in attrs.iter() {
+                                    if let Some((name, vi)) = methods.get_local_kv(&field.symbol) {
+                                        unverified_names.remove(name);
+                                        if !self.ctx.supertype_of(typ, &vi.t) {
+                                            self.errs.push(LowerError::trait_member_type_error(
+                                                line!() as usize,
+                                                name.loc(),
+                                                self.ctx.caused_by(),
+                                                name.inspect(),
+                                                &impl_trait,
+                                                typ,
+                                                &vi.t,
+                                                None,
+                                            ));
+                                        }
+                                    } else {
+                                        self.errs.push(LowerError::trait_member_not_defined_error(
+                                            line!() as usize,
+                                            self.ctx.caused_by(),
+                                            &field.symbol,
+                                            &impl_trait,
+                                            class,
+                                            None,
+                                        ));
+                                    }
+                                }
+                                for unverified in unverified_names {
+                                    self.errs.push(LowerError::trait_member_not_defined_error(
+                                        line!() as usize,
+                                        self.ctx.caused_by(),
+                                        unverified.inspect(),
+                                        &impl_trait,
+                                        class,
+                                        None,
+                                    ));
+                                }
+                            }
+                            other => todo!("{other}"),
+                        },
+                        TypeObj::Builtin(_builtin) => todo!(),
+                    }
+                } else {
+                    return Err(LowerError::type_mismatch_error(
+                        line!() as usize,
+                        loc,
+                        self.ctx.caused_by(),
+                        &impl_trait.name(),
+                        &Type::Trait,
+                        &trait_obj.t(),
+                        None,
+                        None,
+                    ));
+                }
+            } else {
+                return Err(LowerError::no_var_error(
+                    line!() as usize,
+                    loc,
+                    self.ctx.caused_by(),
+                    &impl_trait.name(),
+                    self.ctx.get_similar_name(&impl_trait.name()),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn push_methods(&mut self, class: Type, methods: Context) {
+        let (_, class_root) = self.ctx.get_mut_nominal_type_ctx(&class).unwrap();
+        for (newly_defined_name, _vi) in methods.locals.iter() {
+            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
+                // TODO: 特殊化なら同じ名前でもOK
+                // TODO: 定義のメソッドもエラー表示
+                if let Some((_already_defined_name, already_defined_vi)) =
+                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                {
+                    if already_defined_vi.kind != VarKind::Auto {
+                        self.errs.push(LowerError::duplicate_definition_error(
+                            line!() as usize,
+                            newly_defined_name.loc(),
+                            methods.name.clone().into(),
+                            newly_defined_name.inspect(),
+                        ));
+                    } else {
+                        already_defined_methods
+                            .locals
+                            .remove(&newly_defined_name.inspect()[..]);
+                    }
+                }
+            }
+        }
+        class_root
+            .methods_list
+            .push((ClassDefType::Simple(class), methods));
     }
 
     fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {

@@ -158,7 +158,12 @@ impl Context {
                         .unwrap_or(0),
                 ));
             }
-            let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
+            let rhs = self.instantiate_param_sig_t(
+                &lambda.params.non_defaults[0],
+                None,
+                &mut None,
+                Normal,
+            )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -1281,6 +1286,7 @@ impl Context {
         }
     }
 
+    /// FIXME: if trait, returns a freevar
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type

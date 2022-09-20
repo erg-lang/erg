@@ -16,10 +16,12 @@ use erg_parser::token::{Token, TokenKind};
 use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, TyBound, Type, ValueArgs};
+use erg_type::{
+    ConstSubr, HasType, ParamTy, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs,
+};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context};
+use crate::context::{ClassDefType, Context, RegistrationMode};
 use crate::error::{EvalError, EvalResult, TyCheckResult};
 
 #[inline]
@@ -98,9 +100,9 @@ impl SubstContext {
         }
     }
 
-    pub fn substitute(&self, quant_t: Type, ctx: &Context) -> TyCheckResult<Type> {
+    pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {
         let mut tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
-        let inst = Context::instantiate_t(quant_t, &mut tv_ctx);
+        let inst = Context::instantiate_t(quant_t, &mut tv_ctx, loc)?;
         for param in inst.typarams() {
             self.substitute_tp(&param, ctx)?;
         }
@@ -274,20 +276,37 @@ impl Context {
                         })?
                         .clone();
                     let args = self.eval_args(&call.args, __name__)?;
-                    Ok(subr.call(args, __name__.cloned()))
+                    self.call(subr, args, __name__.cloned(), call.loc())
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
                 Accessor::Subscr(_subscr) => todo!(),
+                Accessor::TypeApp(_type_app) => todo!(),
             }
         } else {
             todo!()
         }
     }
 
+    fn call(
+        &self,
+        subr: ConstSubr,
+        args: ValueArgs,
+        __name__: Option<Str>,
+        loc: Location,
+    ) -> EvalResult<ValueObj> {
+        match subr {
+            ConstSubr::User(_user) => todo!(),
+            ConstSubr::Builtin(builtin) => builtin.call(args, __name__).map_err(|mut e| {
+                e.loc = loc;
+                EvalError::new(e, self.caused_by())
+            }),
+        }
+    }
+
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
-            let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap();
+            let __name__ = def.sig.ident().unwrap().inspect();
             let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
             self.register_gen_const(def.sig.ident().unwrap(), obj)?;
             Ok(ValueObj::None)
@@ -347,6 +366,93 @@ impl Context {
         Ok(ValueObj::Record(attrs.into_iter().collect()))
     }
 
+    fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
+        let bounds = self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+        let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
+        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
+        for sig in lambda.sig.params.non_defaults.iter() {
+            let t = self.instantiate_param_sig_t(
+                sig,
+                None,
+                &mut Some(&mut tv_ctx),
+                RegistrationMode::Normal,
+            )?;
+            let pt = if let Some(name) = sig.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            non_default_params.push(pt);
+        }
+        let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
+            let t = self.instantiate_param_sig_t(
+                p,
+                None,
+                &mut Some(&mut tv_ctx),
+                RegistrationMode::Normal,
+            )?;
+            let pt = if let Some(name) = p.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            Some(pt)
+        } else {
+            None
+        };
+        let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
+        for sig in lambda.sig.params.defaults.iter() {
+            let t = self.instantiate_param_sig_t(
+                sig,
+                None,
+                &mut Some(&mut tv_ctx),
+                RegistrationMode::Normal,
+            )?;
+            let pt = if let Some(name) = sig.inspect() {
+                ParamTy::kw(name.clone(), t)
+            } else {
+                ParamTy::anonymous(t)
+            };
+            default_params.push(pt);
+        }
+        // HACK: should avoid cloning
+        let mut lambda_ctx = Context::instant(
+            Str::ever("<lambda>"),
+            0,
+            self.mod_cache.clone(),
+            self.clone(),
+        );
+        let return_t = lambda_ctx.eval_const_block(&lambda.body, None)?;
+        // FIXME: lambda: i: Int -> Int
+        // => sig_t: (i: Type) -> Type
+        // => as_type: (i: Int) -> Int
+        let sig_t = subr_t(
+            SubrKind::from(lambda.op.kind),
+            non_default_params.clone(),
+            var_params.clone(),
+            default_params.clone(),
+            enum_t(set![return_t.clone()]),
+        );
+        let sig_t = self.generalize_t(sig_t);
+        let as_type = subr_t(
+            SubrKind::from(lambda.op.kind),
+            non_default_params,
+            var_params,
+            default_params,
+            // TODO: unwrap
+            return_t.as_type().unwrap().into_typ(),
+        );
+        let as_type = self.generalize_t(as_type);
+        let subr = ConstSubr::User(UserConstSubr::new(
+            Str::ever("<lambda>"),
+            lambda.sig.params.clone(),
+            lambda.body.clone(),
+            sig_t,
+            Some(as_type),
+        ));
+        Ok(ValueObj::Subr(subr))
+    }
+
     pub(crate) fn eval_const_expr(
         &self,
         expr: &Expr,
@@ -360,7 +466,7 @@ impl Context {
             Expr::Call(call) => self.eval_const_call(call, __name__),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
-            Expr::Lambda(lambda) => todo!("{lambda}"),
+            Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             other => todo!("{other}"),
         }
     }
@@ -381,7 +487,7 @@ impl Context {
             Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
-            Expr::Lambda(lambda) => todo!("{lambda}"),
+            Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             other => todo!("{other}"),
         }
     }
@@ -571,7 +677,7 @@ impl Context {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&sub, ty_ctx);
-                            let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
+                            let t = subst_ctx.substitute(quant_t.typ().clone(), self, t_loc)?;
                             let t = self.eval_t_params(t, level, t_loc)?;
                             return Ok(t);
                         } else {
@@ -595,7 +701,7 @@ impl Context {
                         if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
                             if let ValueObj::Type(quant_t) = obj {
                                 let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                                let t = subst_ctx.substitute(quant_t.typ().clone(), self)?;
+                                let t = subst_ctx.substitute(quant_t.typ().clone(), self, t_loc)?;
                                 let t = self.eval_t_params(t, level, t_loc)?;
                                 return Ok(t);
                             } else {

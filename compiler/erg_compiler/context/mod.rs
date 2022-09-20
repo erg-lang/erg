@@ -26,6 +26,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
+use erg_parser::ast::DefKind;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{Predicate, TyBound, Type};
@@ -229,6 +230,17 @@ pub enum ContextKind {
     Module,
     Instant,
     Dummy,
+}
+
+impl From<DefKind> for ContextKind {
+    fn from(kind: DefKind) -> Self {
+        match kind {
+            DefKind::Class | DefKind::Inherit => Self::Class,
+            DefKind::Trait | DefKind::Subsume => Self::Trait,
+            DefKind::StructuralTrait => Self::StructuralTrait,
+            DefKind::Other => Self::Instant,
+        }
+    }
 }
 
 impl ContextKind {

@@ -162,7 +162,7 @@ impl Compiler {
             .checker
             .check(ast, mode)
             .map_err(|errs| self.convert(errs))?;
-        let codeobj = self.code_generator.codegen(hir);
+        let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(
             info "the compiling process has completed, found errors: {}",

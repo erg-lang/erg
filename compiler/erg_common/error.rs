@@ -39,6 +39,7 @@ pub enum ErrorKind {
     NotConstExpr,
     InheritanceError,
     VisibilityError,
+    MethodError,
     DummyError,
     /* compile warnings */
     AttributeWarning = 60,

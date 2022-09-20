@@ -768,6 +768,10 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.consume();
                     self.accept(Shl, "<<")
                 }
+                Some(':') => {
+                    self.consume();
+                    self.accept(SubtypeOf, "<:")
+                }
                 _ => self.accept(Less, "<"),
             },
             Some('>') => match self.peek_cur_ch() {

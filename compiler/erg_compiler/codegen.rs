@@ -16,6 +16,7 @@ use erg_common::{
     switch_unreachable,
 };
 use erg_parser::ast::DefId;
+use erg_parser::ast::DefKind;
 use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
@@ -30,11 +31,10 @@ use erg_type::{HasType, Type, TypeCode, TypePair};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::eval_lit;
 use crate::error::{CompileError, CompileErrors, CompileResult};
-use crate::hir::AttrDef;
-use crate::hir::Attribute;
 use crate::hir::{
-    Accessor, Args, Array, Block, Call, ClassDef, DefBody, Expr, Identifier, Literal, PosArg,
-    Signature, SubrSignature, Tuple, VarSignature, HIR,
+    Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
+    Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    VarSignature, HIR,
 };
 use AccessKind::*;
 
@@ -249,9 +249,10 @@ fn convert_to_python_name(name: Str) -> Str {
         // assert is implemented in bytecode
         "classof" => Str::ever("type"),
         "compile" => Str::ever("compile"),
+        "dir!" => Str::ever("dir"),
         // discard is implemented in bytecode
         // for is implemented in bytecode
-        "id" => Str::ever("id"),
+        "id!" => Str::ever("id"),
         // if is implemented in bytecode
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
@@ -582,7 +583,7 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn emit_import_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+    fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         let escaped = escape_name(ident);
         let name = self
@@ -591,6 +592,7 @@ impl CodeGenerator {
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx as u8);
         self.stack_dec(); // (level + from_list) -> module object
+        self.stack_inc_n(items_len - 1);
         Ok(())
     }
 
@@ -604,6 +606,31 @@ impl CodeGenerator {
         self.write_arg(name.idx as u8);
         // self.stack_inc(); (module object) -> attribute
         Ok(())
+    }
+
+    /// item: (name, renamed)
+    fn emit_import_items(
+        &mut self,
+        module: Identifier,
+        items: Vec<(Identifier, Option<Identifier>)>,
+    ) {
+        self.emit_load_const(0);
+        let item_names = items
+            .iter()
+            .map(|ident| ValueObj::Str(ident.0.inspect().clone()))
+            .collect::<Vec<_>>();
+        let items_len = item_names.len();
+        self.emit_load_const(item_names);
+        self.emit_import_name_instr(module, items_len).unwrap();
+        for (item, renamed) in items.into_iter() {
+            if let Some(renamed) = renamed {
+                self.emit_import_from_instr(item).unwrap();
+                self.emit_store_instr(renamed, Name);
+            } else {
+                self.emit_import_from_instr(item.clone()).unwrap();
+                self.emit_store_instr(item, Name);
+            }
+        }
     }
 
     fn emit_load_attr_instr(
@@ -693,7 +720,7 @@ impl CodeGenerator {
                 self.emit_store_instr(ident, Name);
             }
             Accessor::Attr(attr) => {
-                self.codegen_expr(*attr.obj);
+                self.emit_expr(*attr.obj);
                 self.emit_store_instr(attr.ident, Attr);
             }
             acc => todo!("store: {acc}"),
@@ -748,15 +775,228 @@ impl CodeGenerator {
             .collect()
     }
 
+    fn emit_acc(&mut self, acc: Accessor) {
+        log!(info "entered {} ({acc})", fn_name!());
+        match acc {
+            Accessor::Ident(ident) => {
+                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
+                    self.errs.push(err);
+                });
+            }
+            Accessor::Attr(a) => {
+                let class = a.obj.ref_t().name();
+                let uniq_obj_name = a.obj.__name__().map(Str::rc);
+                // C = Class ...
+                // C.
+                //     a = C.x
+                // ↓
+                // class C:
+                //     a = x
+                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
+                    self.emit_expr(*a.obj);
+                    self.emit_load_attr_instr(
+                        &class,
+                        uniq_obj_name.as_ref().map(|s| &s[..]),
+                        a.ident,
+                    )
+                    .unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                } else {
+                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                }
+            }
+            Accessor::TupleAttr(t_attr) => {
+                self.emit_expr(*t_attr.obj);
+                self.emit_load_const(t_attr.index.value);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            Accessor::Subscr(subscr) => {
+                self.emit_expr(*subscr.obj);
+                self.emit_expr(*subscr.index);
+                self.write_instr(BINARY_SUBSCR);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+        }
+    }
+
+    fn emit_def(&mut self, def: Def) {
+        log!(info "entered {} ({})", fn_name!(), def.sig);
+        if def.def_kind().is_trait() {
+            return self.emit_trait_def(def);
+        }
+        match def.sig {
+            Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
+            Signature::Var(sig) => self.emit_var_def(sig, def.body),
+        }
+    }
+
+    fn emit_trait_def(&mut self, def: Def) {
+        self.write_instr(Opcode::LOAD_BUILD_CLASS);
+        self.write_arg(0);
+        self.stack_inc();
+        let code = self.emit_trait_block(def.def_kind(), &def.sig, def.body.block);
+        self.emit_load_const(code);
+        self.emit_load_const(def.sig.ident().inspect().clone());
+        self.write_instr(Opcode::MAKE_FUNCTION);
+        self.write_arg(0);
+        self.emit_load_const(def.sig.ident().inspect().clone());
+        self.emit_load_name_instr(Identifier::private(Str::ever("#ABCMeta")))
+            .unwrap();
+        self.emit_load_const(vec![ValueObj::from("metaclass")]);
+        let subclasses_len = 1;
+        self.write_instr(Opcode::CALL_FUNCTION_KW);
+        self.write_arg(2 + subclasses_len as u8);
+        self.stack_dec_n((1 + 2 + 1 + subclasses_len) - 1);
+        self.emit_store_instr(def.sig.into_ident(), Name);
+        self.stack_dec();
+    }
+
+    // trait variables will be removed
+    // T = Trait {
+    //     x = Int
+    //     f = (self: Self) -> Int
+    // }
+    // ↓
+    // class T(metaclass=ABCMeta):
+    //    def f(): pass
+    fn emit_trait_block(&mut self, kind: DefKind, sig: &Signature, mut block: Block) -> CodeObj {
+        let name = sig.ident().inspect().clone();
+        let mut trait_call = enum_unwrap!(block.remove(0), Expr::Call);
+        let req = if kind == DefKind::Trait {
+            enum_unwrap!(
+                trait_call.args.remove_left_or_key("Requirement").unwrap(),
+                Expr::Record
+            )
+        } else {
+            todo!()
+        };
+        self.unit_size += 1;
+        let firstlineno = block
+            .get(0)
+            .and_then(|def| def.ln_begin())
+            .unwrap_or_else(|| sig.ln_begin().unwrap());
+        self.units.push(CodeGenUnit::new(
+            self.unit_size,
+            vec![],
+            Str::rc(self.cfg.input.enclosed_name()),
+            &name,
+            firstlineno,
+        ));
+        let mod_name = self.toplevel_block_codeobj().name.clone();
+        self.emit_load_const(mod_name);
+        self.emit_store_instr(Identifier::public("__module__"), Name);
+        self.emit_load_const(name);
+        self.emit_store_instr(Identifier::public("__qualname__"), Name);
+        for def in req.attrs.into_iter() {
+            self.emit_empty_func(
+                Some(sig.ident().inspect()),
+                def.sig.into_ident(),
+                Some(Identifier::private(Str::ever("#abstractmethod"))),
+            );
+        }
+        self.emit_load_const(ValueObj::None);
+        self.write_instr(RETURN_VALUE);
+        self.write_arg(0u8);
+        if self.cur_block().stack_len > 1 {
+            let block_id = self.cur_block().id;
+            let stack_len = self.cur_block().stack_len;
+            self.errs.push(CompileError::stack_bug(
+                self.input().clone(),
+                Location::Unknown,
+                stack_len,
+                block_id,
+                fn_name_full!(),
+            ));
+            self.crash("error in emit_trait_block: invalid stack size");
+        }
+        // flagging
+        if !self.cur_block_codeobj().varnames.is_empty() {
+            self.mut_cur_block_codeobj().flags += CodeObjFlags::NewLocals as u32;
+        }
+        // end of flagging
+        let unit = self.units.pop().unwrap();
+        if !self.units.is_empty() {
+            let ld = unit.prev_lineno - self.cur_block().prev_lineno;
+            if ld != 0 {
+                if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
+                    *l += ld as u8;
+                }
+                self.mut_cur_block().prev_lineno += ld;
+            }
+        }
+        unit.codeobj
+    }
+
+    fn emit_empty_func(
+        &mut self,
+        class_name: Option<&str>,
+        ident: Identifier,
+        deco: Option<Identifier>,
+    ) {
+        log!(info "entered {} ({ident})", fn_name!());
+        let deco_is_some = deco.is_some();
+        if let Some(deco) = deco {
+            self.emit_load_name_instr(deco).unwrap();
+        }
+        let code = {
+            self.unit_size += 1;
+            self.units.push(CodeGenUnit::new(
+                self.unit_size,
+                vec![],
+                Str::rc(self.cfg.input.enclosed_name()),
+                ident.inspect(),
+                ident.ln_begin().unwrap(),
+            ));
+            self.emit_load_const(ValueObj::None);
+            self.write_instr(RETURN_VALUE);
+            self.write_arg(0u8);
+            let unit = self.units.pop().unwrap();
+            if !self.units.is_empty() {
+                let ld = unit
+                    .prev_lineno
+                    .saturating_sub(self.cur_block().prev_lineno);
+                if ld != 0 {
+                    if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
+                        *l += ld as u8;
+                    }
+                    self.mut_cur_block().prev_lineno += ld;
+                }
+            }
+            unit.codeobj
+        };
+        self.emit_load_const(code);
+        if let Some(class) = class_name {
+            self.emit_load_const(Str::from(format!("{class}.{}", ident.name.inspect())));
+        } else {
+            self.emit_load_const(ident.name.inspect().clone());
+        }
+        self.write_instr(MAKE_FUNCTION);
+        self.write_arg(0);
+        if deco_is_some {
+            self.write_instr(CALL_FUNCTION);
+            self.write_arg(1);
+            self.stack_dec();
+        }
+        // stack_dec: (<abstractmethod>) + <code obj> + <name> -> <function>
+        self.stack_dec();
+        self.emit_store_instr(ident, Name);
+    }
+
     fn emit_class_def(&mut self, class_def: ClassDef) {
-        log!(info "entered {} ({class_def})", fn_name!());
+        log!(info "entered {} ({})", fn_name!(), class_def.sig);
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let code = self.codegen_typedef_block(class_def);
+        let code = self.emit_typedef_block(class_def);
         self.emit_load_const(code);
         self.emit_load_const(ident.inspect().clone());
         self.write_instr(Opcode::MAKE_FUNCTION);
@@ -779,7 +1019,7 @@ impl CodeGenerator {
         match kind {
             TypeKind::Class => 0,
             TypeKind::Subclass => {
-                self.codegen_expr(require_or_sup);
+                self.emit_expr(require_or_sup);
                 1 // TODO: not always 1
             }
             _ => todo!(),
@@ -788,16 +1028,16 @@ impl CodeGenerator {
 
     fn emit_attr_def(&mut self, attr_def: AttrDef) {
         log!(info "entered {} ({attr_def})", fn_name!());
-        self.codegen_frameless_block(attr_def.block, vec![]);
+        self.emit_frameless_block(attr_def.block, vec![]);
         self.store_acc(attr_def.attr);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
         log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         if body.block.len() == 1 {
-            self.codegen_expr(body.block.remove(0));
+            self.emit_expr(body.block.remove(0));
         } else {
-            self.codegen_frameless_block(body.block, vec![]);
+            self.emit_frameless_block(body.block, vec![]);
         }
         self.emit_store_instr(sig.ident, Name);
     }
@@ -807,7 +1047,7 @@ impl CodeGenerator {
         let name = sig.ident.inspect().clone();
         let mut opcode_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
-        let code = self.codegen_block(body.block, Some(name.clone()), params);
+        let code = self.emit_block(body.block, Some(name.clone()), params);
         self.emit_load_const(code);
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
@@ -831,10 +1071,110 @@ impl CodeGenerator {
         self.emit_store_instr(sig.ident, Name);
     }
 
+    fn emit_lambda(&mut self, lambda: Lambda) {
+        log!(info "entered {} ({lambda})", fn_name!());
+        let params = self.gen_param_names(&lambda.params);
+        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
+        self.emit_load_const(code);
+        self.emit_load_const("<lambda>");
+        self.write_instr(MAKE_FUNCTION);
+        self.write_arg(0u8);
+        // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
+        self.stack_dec();
+    }
+
+    fn emit_unaryop(&mut self, unary: UnaryOp) {
+        log!(info "entered {} ({unary})", fn_name!());
+        let tycode = TypeCode::from(unary.lhs_t());
+        self.emit_expr(*unary.expr);
+        let instr = match &unary.op.kind {
+            // TODO:
+            TokenKind::PrePlus => UNARY_POSITIVE,
+            TokenKind::PreMinus => UNARY_NEGATIVE,
+            TokenKind::Mutate => NOP, // ERG_MUTATE,
+            _ => {
+                self.errs.push(CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    unary.op.loc(),
+                    "",
+                    AtomicStr::from(unary.op.content),
+                ));
+                NOT_IMPLEMENTED
+            }
+        };
+        self.write_instr(instr);
+        self.write_arg(tycode as u8);
+    }
+
+    fn emit_binop(&mut self, bin: BinOp) {
+        log!(info "entered {} ({bin})", fn_name!());
+        // TODO: and/orのプリミティブ命令の実装
+        // Range operators are not operators in Python
+        match &bin.op.kind {
+            // l..<r == range(l, r)
+            TokenKind::RightOpen => {
+                self.emit_load_name_instr(Identifier::public("range"))
+                    .unwrap();
+            }
+            TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
+            _ => {}
+        }
+        let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
+        self.emit_expr(*bin.lhs);
+        self.emit_expr(*bin.rhs);
+        let instr = match &bin.op.kind {
+            TokenKind::Plus => BINARY_ADD,
+            TokenKind::Minus => BINARY_SUBTRACT,
+            TokenKind::Star => BINARY_MULTIPLY,
+            TokenKind::Slash => BINARY_TRUE_DIVIDE,
+            TokenKind::Pow => BINARY_POWER,
+            TokenKind::Mod => BINARY_MODULO,
+            TokenKind::AndOp => BINARY_AND,
+            TokenKind::OrOp => BINARY_OR,
+            TokenKind::Less
+            | TokenKind::LessEq
+            | TokenKind::DblEq
+            | TokenKind::NotEq
+            | TokenKind::Gre
+            | TokenKind::GreEq => COMPARE_OP,
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => {
+                CALL_FUNCTION
+            } // ERG_BINARY_RANGE,
+            _ => {
+                self.errs.push(CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    bin.op.loc(),
+                    "",
+                    AtomicStr::from(bin.op.content),
+                ));
+                NOT_IMPLEMENTED
+            }
+        };
+        let arg = match &bin.op.kind {
+            TokenKind::Less => 0,
+            TokenKind::LessEq => 1,
+            TokenKind::DblEq => 2,
+            TokenKind::NotEq => 3,
+            TokenKind::Gre => 4,
+            TokenKind::GreEq => 5,
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => 2,
+            _ => type_pair as u8,
+        };
+        self.write_instr(instr);
+        self.write_arg(arg);
+        self.stack_dec();
+        match &bin.op.kind {
+            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Open | TokenKind::Closed => {
+                self.stack_dec();
+            }
+            _ => {}
+        }
+    }
+
     fn emit_discard_instr(&mut self, mut args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
-            self.codegen_expr(arg);
+            self.emit_expr(arg);
             self.emit_pop_top();
         }
         Ok(())
@@ -843,7 +1183,7 @@ impl CodeGenerator {
     fn emit_if_instr(&mut self, mut args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         let cond = args.remove(0);
-        self.codegen_expr(cond);
+        self.emit_expr(cond);
         let idx_pop_jump_if_false = self.cur_block().lasti;
         self.write_instr(POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
@@ -852,10 +1192,10 @@ impl CodeGenerator {
             // then block
             Expr::Lambda(lambda) => {
                 let params = self.gen_param_names(&lambda.params);
-                self.codegen_frameless_block(lambda.body, params);
+                self.emit_frameless_block(lambda.body, params);
             }
             other => {
-                self.codegen_expr(other);
+                self.emit_expr(other);
             }
         }
         if args.get(0).is_some() {
@@ -867,10 +1207,10 @@ impl CodeGenerator {
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     let params = self.gen_param_names(&lambda.params);
-                    self.codegen_frameless_block(lambda.body, params);
+                    self.emit_frameless_block(lambda.body, params);
                 }
                 other => {
-                    self.codegen_expr(other);
+                    self.emit_expr(other);
                 }
             }
             let idx_jump_forward = idx_else_begin - 2;
@@ -892,7 +1232,7 @@ impl CodeGenerator {
     fn emit_for_instr(&mut self, mut args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         let iterable = args.remove(0);
-        self.codegen_expr(iterable);
+        self.emit_expr(iterable);
         self.write_instr(GET_ITER);
         self.write_arg(0);
         let idx_for_iter = self.cur_block().lasti;
@@ -903,7 +1243,7 @@ impl CodeGenerator {
         self.write_arg(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
-        self.codegen_frameless_block(lambda.body, params); // ここでPOPされる
+        self.emit_frameless_block(lambda.body, params); // ここでPOPされる
         self.write_instr(JUMP_ABSOLUTE);
         self.write_arg((idx_for_iter / 2) as u8);
         let idx_end = self.cur_block().lasti;
@@ -915,7 +1255,7 @@ impl CodeGenerator {
     fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
         let expr = args.remove(0);
-        self.codegen_expr(expr);
+        self.emit_expr(expr);
         let len = args.len();
         let mut absolute_jump_points = vec![];
         while let Some(expr) = args.try_remove(0) {
@@ -933,7 +1273,7 @@ impl CodeGenerator {
             }
             let pat = lambda.params.non_defaults.remove(0).pat;
             let pop_jump_points = self.emit_match_pattern(pat)?;
-            self.codegen_frameless_block(lambda.body, Vec::new());
+            self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = self.cur_block().lasti + 2;
                 self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
@@ -1013,7 +1353,7 @@ impl CodeGenerator {
                     self.emit_call_local(ident, call.args).unwrap()
                 }
                 other => {
-                    self.codegen_expr(other);
+                    self.emit_expr(other);
                     self.emit_args(call.args, Name);
                 }
             }
@@ -1048,7 +1388,7 @@ impl CodeGenerator {
         } else if is_fake_method(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, method_name, args);
         }
-        self.codegen_expr(obj);
+        self.emit_expr(obj);
         self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name)
             .unwrap_or_else(|err| {
                 self.errs.push(err);
@@ -1061,14 +1401,14 @@ impl CodeGenerator {
         let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
         while let Some(arg) = args.try_remove_pos(0) {
-            self.codegen_expr(arg.expr);
+            self.emit_expr(arg.expr);
         }
         if let Some(var_args) = &args.var_args {
             if pos_len > 0 {
                 self.write_instr(Opcode::BUILD_LIST);
                 self.write_arg(pos_len as u8);
             }
-            self.codegen_expr(var_args.expr.clone());
+            self.emit_expr(var_args.expr.clone());
             if pos_len > 0 {
                 self.write_instr(Opcode::LIST_EXTEND);
                 self.write_arg(1);
@@ -1078,7 +1418,7 @@ impl CodeGenerator {
         }
         while let Some(arg) = args.try_remove_kw(0) {
             kws.push(ValueObj::Str(arg.keyword.content.clone()));
-            self.codegen_expr(arg.expr);
+            self.emit_expr(arg.expr);
         }
         let kwsc = if !kws.is_empty() {
             let kws_tuple = ValueObj::from(kws);
@@ -1115,8 +1455,8 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
-        self.codegen_expr(func);
-        self.codegen_acc(acc.clone());
+        self.emit_expr(func);
+        self.emit_acc(acc.clone());
         self.write_instr(CALL_FUNCTION);
         self.write_arg(1);
         // (1 (subroutine) + argc) input objects -> 1 return object
@@ -1136,7 +1476,7 @@ impl CodeGenerator {
     // assert takes 1 or 2 arguments (0: cond, 1: message)
     fn emit_assert_instr(&mut self, mut args: Args) -> CompileResult<()> {
         log!(info "entered {}", fn_name!());
-        self.codegen_expr(args.remove(0));
+        self.emit_expr(args.remove(0));
         let pop_jump_point = self.cur_block().lasti;
         self.write_instr(Opcode::POP_JUMP_IF_TRUE);
         self.write_arg(0);
@@ -1144,7 +1484,7 @@ impl CodeGenerator {
         self.write_instr(Opcode::LOAD_ASSERTION_ERROR);
         self.write_arg(0);
         if let Some(expr) = args.try_remove(0) {
-            self.codegen_expr(expr);
+            self.emit_expr(expr);
             self.write_instr(Opcode::CALL_FUNCTION);
             self.write_arg(1);
         }
@@ -1155,7 +1495,44 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn codegen_expr(&mut self, expr: Expr) {
+    #[allow(clippy::identity_op)]
+    fn emit_record(&mut self, rec: Record) {
+        log!(info "entered {} ({rec})", fn_name!());
+        let attrs_len = rec.attrs.len();
+        // making record type
+        let ident = Identifier::private(Str::ever("#NamedTuple"));
+        self.emit_load_name_instr(ident).unwrap();
+        // record name, let it be anonymous
+        self.emit_load_const("Record");
+        for field in rec.attrs.iter() {
+            self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
+        }
+        self.write_instr(BUILD_LIST);
+        self.write_arg(attrs_len as u8);
+        if attrs_len == 0 {
+            self.stack_inc();
+        } else {
+            self.stack_dec_n(attrs_len - 1);
+        }
+        self.write_instr(CALL_FUNCTION);
+        self.write_arg(2);
+        // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+        self.stack_dec_n((1 + 2 + 0) - 1);
+        let ident = Identifier::private(Str::ever("#rec"));
+        self.emit_store_instr(ident, Name);
+        // making record instance
+        let ident = Identifier::private(Str::ever("#rec"));
+        self.emit_load_name_instr(ident).unwrap();
+        for field in rec.attrs.into_iter() {
+            self.emit_frameless_block(field.body.block, vec![]);
+        }
+        self.write_instr(CALL_FUNCTION);
+        self.write_arg(attrs_len as u8);
+        // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
+        self.stack_dec_n((1 + attrs_len + 0) - 1);
+    }
+
+    fn emit_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.cur_block().lasti - self.cur_block().prev_lasti;
@@ -1188,124 +1565,21 @@ impl CodeGenerator {
             }
         }
         match expr {
-            Expr::Lit(lit) => {
-                self.emit_load_const(lit.value);
-            }
-            Expr::Accessor(acc) => self.codegen_acc(acc),
-            Expr::Def(def) => match def.sig {
-                Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
-                Signature::Var(sig) => self.emit_var_def(sig, def.body),
-            },
+            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Accessor(acc) => self.emit_acc(acc),
+            Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::AttrDef(attr) => self.emit_attr_def(attr),
-            // TODO:
-            Expr::Lambda(lambda) => {
-                let params = self.gen_param_names(&lambda.params);
-                self.codegen_block(lambda.body, Some("<lambda>".into()), params);
-                self.emit_load_const("<lambda>");
-                self.write_instr(MAKE_FUNCTION);
-                self.write_arg(0u8);
-                // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
-                self.stack_dec();
-            }
-            Expr::UnaryOp(unary) => {
-                let tycode = TypeCode::from(unary.lhs_t());
-                self.codegen_expr(*unary.expr);
-                let instr = match &unary.op.kind {
-                    // TODO:
-                    TokenKind::PrePlus => UNARY_POSITIVE,
-                    TokenKind::PreMinus => UNARY_NEGATIVE,
-                    TokenKind::Mutate => NOP, // ERG_MUTATE,
-                    _ => {
-                        self.errs.push(CompileError::feature_error(
-                            self.cfg.input.clone(),
-                            unary.op.loc(),
-                            "",
-                            AtomicStr::from(unary.op.content),
-                        ));
-                        NOT_IMPLEMENTED
-                    }
-                };
-                self.write_instr(instr);
-                self.write_arg(tycode as u8);
-            }
-            Expr::BinOp(bin) => {
-                // TODO: and/orのプリミティブ命令の実装
-                // Range operators are not operators in Python
-                match &bin.op.kind {
-                    // l..<r == range(l, r)
-                    TokenKind::RightOpen => {
-                        self.emit_load_name_instr(Identifier::public("range"))
-                            .unwrap();
-                    }
-                    TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
-                    _ => {}
-                }
-                let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
-                self.codegen_expr(*bin.lhs);
-                self.codegen_expr(*bin.rhs);
-                let instr = match &bin.op.kind {
-                    TokenKind::Plus => BINARY_ADD,
-                    TokenKind::Minus => BINARY_SUBTRACT,
-                    TokenKind::Star => BINARY_MULTIPLY,
-                    TokenKind::Slash => BINARY_TRUE_DIVIDE,
-                    TokenKind::Pow => BINARY_POWER,
-                    TokenKind::Mod => BINARY_MODULO,
-                    TokenKind::AndOp => BINARY_AND,
-                    TokenKind::OrOp => BINARY_OR,
-                    TokenKind::Less
-                    | TokenKind::LessEq
-                    | TokenKind::DblEq
-                    | TokenKind::NotEq
-                    | TokenKind::Gre
-                    | TokenKind::GreEq => COMPARE_OP,
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Closed
-                    | TokenKind::Open => CALL_FUNCTION, // ERG_BINARY_RANGE,
-                    _ => {
-                        self.errs.push(CompileError::feature_error(
-                            self.cfg.input.clone(),
-                            bin.op.loc(),
-                            "",
-                            AtomicStr::from(bin.op.content),
-                        ));
-                        NOT_IMPLEMENTED
-                    }
-                };
-                let arg = match &bin.op.kind {
-                    TokenKind::Less => 0,
-                    TokenKind::LessEq => 1,
-                    TokenKind::DblEq => 2,
-                    TokenKind::NotEq => 3,
-                    TokenKind::Gre => 4,
-                    TokenKind::GreEq => 5,
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Closed
-                    | TokenKind::Open => 2,
-                    _ => type_pair as u8,
-                };
-                self.write_instr(instr);
-                self.write_arg(arg);
-                self.stack_dec();
-                match &bin.op.kind {
-                    TokenKind::LeftOpen
-                    | TokenKind::RightOpen
-                    | TokenKind::Open
-                    | TokenKind::Closed => {
-                        self.stack_dec();
-                    }
-                    _ => {}
-                }
-            }
+            Expr::Lambda(lambda) => self.emit_lambda(lambda),
+            Expr::UnaryOp(unary) => self.emit_unaryop(unary),
+            Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
             // TODO: list comprehension
             Expr::Array(arr) => match arr {
                 Array::Normal(mut arr) => {
                     let len = arr.elems.len();
                     while let Some(arg) = arr.elems.try_remove_pos(0) {
-                        self.codegen_expr(arg.expr);
+                        self.emit_expr(arg.expr);
                     }
                     self.write_instr(BUILD_LIST);
                     self.write_arg(len as u8);
@@ -1323,7 +1597,7 @@ impl CodeGenerator {
                 Tuple::Normal(mut tup) => {
                     let len = tup.elems.len();
                     while let Some(arg) = tup.elems.try_remove_pos(0) {
-                        self.codegen_expr(arg.expr);
+                        self.emit_expr(arg.expr);
                     }
                     self.write_instr(BUILD_TUPLE);
                     self.write_arg(len as u8);
@@ -1334,42 +1608,7 @@ impl CodeGenerator {
                     }
                 }
             },
-            Expr::Record(rec) => {
-                let attrs_len = rec.attrs.len();
-                // making record type
-                let ident = Identifier::private(Str::ever("#NamedTuple"));
-                self.emit_load_name_instr(ident).unwrap();
-                // record name, let it be anonymous
-                self.emit_load_const("Record");
-                for field in rec.attrs.iter() {
-                    self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
-                }
-                self.write_instr(BUILD_LIST);
-                self.write_arg(attrs_len as u8);
-                if attrs_len == 0 {
-                    self.stack_inc();
-                } else {
-                    self.stack_dec_n(attrs_len - 1);
-                }
-                self.write_instr(CALL_FUNCTION);
-                self.write_arg(2);
-                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
-                #[allow(clippy::identity_op)]
-                self.stack_dec_n((1 + 2 + 0) - 1);
-                let ident = Identifier::private(Str::ever("#rec"));
-                self.emit_store_instr(ident, Name);
-                // making record instance
-                let ident = Identifier::private(Str::ever("#rec"));
-                self.emit_load_name_instr(ident).unwrap();
-                for field in rec.attrs.into_iter() {
-                    self.codegen_frameless_block(field.body.block, vec![]);
-                }
-                self.write_instr(CALL_FUNCTION);
-                self.write_arg(attrs_len as u8);
-                // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
-                #[allow(clippy::identity_op)]
-                self.stack_dec_n((1 + attrs_len + 0) - 1);
-            }
+            Expr::Record(rec) => self.emit_record(rec),
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1382,64 +1621,14 @@ impl CodeGenerator {
         }
     }
 
-    fn codegen_acc(&mut self, acc: Accessor) {
-        log!(info "entered {} ({acc})", fn_name!());
-        match acc {
-            Accessor::Ident(ident) => {
-                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
-            }
-            Accessor::Attr(a) => {
-                let class = a.obj.ref_t().name();
-                let uniq_obj_name = a.obj.__name__().map(Str::rc);
-                // C = Class ...
-                // C.
-                //     a = C.x
-                // ↓
-                // class C:
-                //     a = x
-                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
-                    self.codegen_expr(*a.obj);
-                    self.emit_load_attr_instr(
-                        &class,
-                        uniq_obj_name.as_ref().map(|s| &s[..]),
-                        a.ident,
-                    )
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-                } else {
-                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-                }
-            }
-            Accessor::TupleAttr(t_attr) => {
-                self.codegen_expr(*t_attr.obj);
-                self.emit_load_const(t_attr.index.value);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
-            }
-            Accessor::Subscr(subscr) => {
-                self.codegen_expr(*subscr.obj);
-                self.codegen_expr(*subscr.index);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
-            }
-        }
-    }
-
     /// forブロックなどで使う
-    fn codegen_frameless_block(&mut self, block: Block, params: Vec<Str>) {
+    fn emit_frameless_block(&mut self, block: Block, params: Vec<Str>) {
         log!(info "entered {}", fn_name!());
         for param in params {
             self.emit_store_instr(Identifier::private(param), Name);
         }
         for expr in block.into_iter() {
-            self.codegen_expr(expr);
+            self.emit_expr(expr);
             // TODO: discard
             // 最終的に帳尻を合わせる(コード生成の順番的にスタックの整合性が一時的に崩れる場合がある)
             if self.cur_block().stack_len == 1 {
@@ -1449,7 +1638,7 @@ impl CodeGenerator {
         self.cancel_pop_top();
     }
 
-    fn codegen_typedef_block(&mut self, class: ClassDef) -> CodeObj {
+    fn emit_typedef_block(&mut self, class: ClassDef) -> CodeObj {
         log!(info "entered {}", fn_name!());
         let name = class.sig.ident().inspect().clone();
         self.unit_size += 1;
@@ -1621,7 +1810,7 @@ impl CodeGenerator {
         self.emit_subr_def(Some(&class_name[..]), sig, body);
     }
 
-    fn codegen_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
+    fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
         log!(info "entered {}", fn_name!());
         self.unit_size += 1;
         let name = if let Some(name) = opt_name {
@@ -1629,7 +1818,10 @@ impl CodeGenerator {
         } else {
             "<block>".into()
         };
-        let firstlineno = block.first().unwrap().ln_begin().unwrap();
+        let firstlineno = block
+            .first()
+            .and_then(|first| first.ln_begin())
+            .unwrap_or(0);
         self.units.push(CodeGenUnit::new(
             self.unit_size,
             params,
@@ -1638,7 +1830,7 @@ impl CodeGenerator {
             firstlineno,
         ));
         for expr in block.into_iter() {
-            self.codegen_expr(expr);
+            self.emit_expr(expr);
             // NOTE: 各行のトップレベルでは0個または1個のオブジェクトが残っている
             // Pythonの場合使わなかったオブジェクトはそのまま捨てられるが、Ergではdiscardを使う必要がある
             // TODO: discard
@@ -1685,24 +1877,38 @@ impl CodeGenerator {
 
     fn load_prelude(&mut self) {
         self.init_record();
+        self.load_abc();
     }
 
     fn init_record(&mut self) {
         // importing namedtuple
-        self.emit_load_const(0);
-        self.emit_load_const(ValueObj::Tuple(std::rc::Rc::from([ValueObj::Str(
-            Str::ever("namedtuple"),
-        )])));
-        let ident = Identifier::public("collections");
-        self.emit_import_name_instr(ident).unwrap();
-        let ident = Identifier::public("namedtuple");
-        self.emit_import_from_instr(ident).unwrap();
-        let ident = Identifier::private(Str::ever("#NamedTuple"));
-        self.emit_store_instr(ident, Name);
+        self.emit_import_items(
+            Identifier::public("collections"),
+            vec![(
+                Identifier::public("namedtuple"),
+                Some(Identifier::private(Str::ever("#NamedTuple"))),
+            )],
+        );
         // self.namedtuple_loaded = true;
     }
 
-    pub fn codegen(&mut self, hir: HIR) -> CodeObj {
+    fn load_abc(&mut self) {
+        self.emit_import_items(
+            Identifier::public("abc"),
+            vec![
+                (
+                    Identifier::public("ABCMeta"),
+                    Some(Identifier::private(Str::ever("#ABCMeta"))),
+                ),
+                (
+                    Identifier::public("abstractmethod"),
+                    Some(Identifier::private(Str::ever("#abstractmethod"))),
+                ),
+            ],
+        );
+    }
+
+    pub fn emit(&mut self, hir: HIR) -> CodeObj {
         log!(info "the code-generating process has started.{RESET}");
         self.unit_size += 1;
         self.units.push(CodeGenUnit::new(
@@ -1726,7 +1932,7 @@ impl CodeGenerator {
             self.stack_dec();
         }
         for expr in hir.module.into_iter() {
-            self.codegen_expr(expr);
+            self.emit_expr(expr);
             // TODO: discard
             if self.cur_block().stack_len == 1 {
                 self.emit_pop_top();

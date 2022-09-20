@@ -19,15 +19,17 @@ use erg_common::traits::LimitedDisplay;
 use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
-use crate::codeobj::CodeObj;
+use erg_parser::ast::{Block, Params};
+use erg_parser::token::TokenKind;
+
 use crate::constructors::{int_interval, mono, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
 use crate::typaram::{IntervalOp, TyParam};
 use crate::value::value_set::*;
-use crate::value::ValueObj;
 use crate::value::ValueObj::{Inf, NegInf};
+use crate::value::{EvalValueResult, ValueObj};
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -131,7 +133,29 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserConstSubr {
-    code: CodeObj, // may be this should be HIR or AST block
+    name: Str,
+    params: Params,
+    block: Block,
+    sig_t: Type,
+    as_type: Option<Type>,
+}
+
+impl UserConstSubr {
+    pub const fn new(
+        name: Str,
+        params: Params,
+        block: Block,
+        sig_t: Type,
+        as_type: Option<Type>,
+    ) -> Self {
+        Self {
+            name,
+            params,
+            block,
+            sig_t,
+            as_type,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -157,8 +181,9 @@ impl ValueArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, Option<Str>) -> ValueObj,
-    t: Type,
+    subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
+    sig_t: Type,
+    as_type: Option<Type>,
 }
 
 impl fmt::Display for BuiltinConstSubr {
@@ -170,10 +195,20 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, Option<Str>) -> ValueObj,
-        t: Type,
+        subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
+        sig_t: Type,
+        as_type: Option<Type>,
     ) -> Self {
-        Self { name, subr, t }
+        Self {
+            name,
+            subr,
+            sig_t,
+            as_type,
+        }
+    }
+
+    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, __name__)
     }
 }
 
@@ -187,7 +222,7 @@ impl fmt::Display for ConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstSubr::User(subr) => {
-                write!(f, "<user-defined const subroutine '{}'>", subr.code.name)
+                write!(f, "<user-defined const subroutine '{}'>", subr.name)
             }
             ConstSubr::Builtin(subr) => write!(f, "{subr}"),
         }
@@ -195,17 +230,17 @@ impl fmt::Display for ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> ValueObj {
+    pub fn sig_t(&self) -> &Type {
         match self {
-            ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => (builtin.subr)(args, __name__),
+            ConstSubr::User(user) => &user.sig_t,
+            ConstSubr::Builtin(builtin) => &builtin.sig_t,
         }
     }
 
-    pub fn class(&self) -> Type {
+    pub fn as_type(&self) -> Option<&Type> {
         match self {
-            ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => builtin.t.clone(),
+            ConstSubr::User(user) => user.as_type.as_ref(),
+            ConstSubr::Builtin(builtin) => builtin.as_type.as_ref(),
         }
     }
 }
@@ -962,6 +997,16 @@ impl QuantifiedType {
 pub enum SubrKind {
     Func,
     Proc,
+}
+
+impl From<TokenKind> for SubrKind {
+    fn from(op_kind: TokenKind) -> Self {
+        match op_kind {
+            TokenKind::FuncArrow => Self::Func,
+            TokenKind::ProcArrow => Self::Proc,
+            _ => panic!("invalid token kind for subr kind"),
+        }
+    }
 }
 
 impl SubrKind {

@@ -120,6 +120,19 @@ where
     Ok(v)
 }
 
+pub fn try_map_mut<T, U, E, F, I>(i: I, mut f: F) -> Result<Vec<U>, E>
+where
+    F: FnMut(T) -> Result<U, E>,
+    I: Iterator<Item = T>,
+{
+    let mut v = vec![];
+    for x in i {
+        let y = f(x)?;
+        v.push(y);
+    }
+    Ok(v)
+}
+
 pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = Set::new();
     v.retain(|e| uniques.insert(e.clone()));
