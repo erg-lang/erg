@@ -690,20 +690,6 @@ impl Lexer /*<'a>*/ {
 
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
         let mut s = "\"\"\"".to_string();
-        let unclosed_error = |t: Token| -> LexResult<Token> {
-            Err(LexError::syntax_error(
-                0,
-                t.loc(),
-                switch_lang!(
-                    "japanese" => "文字列が\"\"\"によって閉じられていません",
-                    "simplified_chinese" => "字符串没有被\"\"\"关闭",
-                    "traditional_chinese" => "字符串没有被\"\"\"关闭",
-                    "english" => "the string is not closed by \"\"\"",
-                ),
-                None,
-            ))
-        };
-
         while let Some(c) = self.peek_cur_ch() {
             match c {
                 '"' => {
@@ -711,17 +697,11 @@ impl Lexer /*<'a>*/ {
                     let next_c = self.peek_cur_ch();
                     let aft_next_c = self.peek_next_ch();
                     if next_c.is_none() {
-                        let col_end = s.rfind('\n').unwrap_or_default();
-                        let error_s = &s[col_end..s.len()];
-                        let token = self.emit_token(Illegal, error_s);
-                        return unclosed_error(token);
+                        return self._unclosed_multi_string(&s);
                     }
                     if aft_next_c.is_none() {
                         s.push(self.consume().unwrap());
-                        let col_end = s.rfind('\n').unwrap_or_default();
-                        let error_s = &s[col_end..s.len()];
-                        let token = self.emit_token(Illegal, error_s);
-                        return unclosed_error(token);
+                        return self._unclosed_multi_string(&s);
                     }
                     let next_c = self.consume().unwrap();
                     let aft_next_c = self.consume().unwrap();
@@ -781,13 +761,28 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let col_end = s.rfind('\n').unwrap_or_default();
-        let error_s = &s[col_end..s.len()];
-        let token = self.emit_token(Illegal, error_s);
-        unclosed_error(token)
+        self._unclosed_multi_string(&s)
     }
 
-    // for single strings and multi strings
+    // for multi-line strings unclosed error
+    fn _unclosed_multi_string(&mut self, s: &str) -> LexResult<Token> {
+        let col_end = s.rfind('\n').unwrap_or_default();
+        let error_s = &s[col_end..s.len() - 1];
+        let token = self.emit_token(Illegal, error_s);
+        Err(LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "文字列が\"\"\"によって閉じられていません",
+                "simplified_chinese" => "字符串没有被\"\"\"关闭",
+                "traditional_chinese" => "字符串没有被\"\"\"关闭",
+                "english" => "the string is not closed by \"\"\"",
+            ),
+            None,
+        ))
+    }
+
+    // for single strings and multi-line strings
     fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
         let token = self.emit_token(Illegal, s);
         LexError::syntax_error(
