@@ -8,7 +8,7 @@
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, set};
+use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
@@ -48,10 +48,12 @@ impl Desugarer {
 
     #[allow(clippy::let_and_return)]
     pub fn desugar(&mut self, module: Module) -> Module {
+        log!(info "the desugaring process has started.");
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);
         let module = self.desugar_shortened_record(module);
-        // let module = self.desugar_self(module);
+        log!(info "AST (desugared):\n{module}");
+        log!(info "the desugaring process has completed.");
         module
     }
 

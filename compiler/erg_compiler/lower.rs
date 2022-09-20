@@ -2,7 +2,7 @@
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use erg_common::astr::AtomicStr;
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::vis::Visibility;
@@ -10,10 +10,8 @@ use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, S
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
-use erg_parser::error::ParserRunnerErrors;
-use erg_parser::lex::Lexer;
+use erg_parser::builder::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
-use erg_parser::Parser;
 
 use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
 use erg_type::free::Constraint;
@@ -27,7 +25,6 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::reorder::Reorderer;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
@@ -62,14 +59,8 @@ impl Runnable for ASTLowererRunner {
     }
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        let ts = Lexer::new(self.input().clone())
-            .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let ast = Parser::new(ts)
-            .parse(Str::ever(self.cfg.module))
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let linker = Reorderer::new();
-        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let ast = ast_builder.build()?;
         let (hir, warns) = self
             .lowerer
             .lower(ast, "exec")
@@ -83,14 +74,8 @@ impl Runnable for ASTLowererRunner {
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let ts = Lexer::new(Input::Str(src))
-            .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let ast = Parser::new(ts)
-            .parse(Str::ever(self.cfg.module))
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        let linker = Reorderer::new();
-        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let ast = ast_builder.build_with_input(src)?;
         let (hir, _) = self
             .lowerer
             .lower(ast, "eval")

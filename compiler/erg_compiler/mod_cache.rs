@@ -27,24 +27,24 @@ impl ModId {
 
 #[derive(Debug)]
 pub struct ModuleEntry {
-    id: ModId, // builtin == 0, __main__ == 1
-    hir: Option<HIR>,
+    _id: ModId, // builtin == 0, __main__ == 1
+    _hir: Option<HIR>,
     ctx: Rc<Context>,
 }
 
 impl ModuleEntry {
     pub fn new(id: ModId, hir: Option<HIR>, ctx: Context) -> Self {
         Self {
-            id,
-            hir,
+            _id: id,
+            _hir: hir,
             ctx: Rc::new(ctx),
         }
     }
 
     pub fn builtin(ctx: Context) -> Self {
         Self {
-            id: ModId::builtin(),
-            hir: None,
+            _id: ModId::builtin(),
+            _hir: None,
             ctx: Rc::new(ctx),
         }
     }

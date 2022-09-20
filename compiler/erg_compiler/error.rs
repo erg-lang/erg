@@ -237,6 +237,15 @@ pub struct TyCheckError {
     pub caused_by: AtomicStr,
 }
 
+impl From<ParserRunnerError> for TyCheckError {
+    fn from(err: ParserRunnerError) -> Self {
+        Self {
+            core: err.core,
+            caused_by: "".into(),
+        }
+    }
+}
+
 impl ErrorDisplay for TyCheckError {
     fn core(&self) -> &ErrorCore {
         &self.core
@@ -1169,6 +1178,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
 pub struct TyCheckErrors(Vec<TyCheckError>);
 
 impl_stream_for_wrapper!(TyCheckErrors, TyCheckError);
+impl MultiErrorDisplay<TyCheckError> for TyCheckErrors {}
 
 impl From<Vec<TyCheckError>> for TyCheckErrors {
     fn from(errs: Vec<TyCheckError>) -> Self {
@@ -1186,6 +1196,12 @@ impl Add for TyCheckErrors {
 impl From<TyCheckError> for TyCheckErrors {
     fn from(err: TyCheckError) -> Self {
         Self(vec![err])
+    }
+}
+
+impl From<ParserRunnerErrors> for TyCheckErrors {
+    fn from(err: ParserRunnerErrors) -> Self {
+        Self(err.into_iter().map(TyCheckError::from).collect())
     }
 }
 

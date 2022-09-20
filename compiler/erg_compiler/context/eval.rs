@@ -559,10 +559,15 @@ impl Context {
                 if sub == Type::Never {
                     return Ok(mono_proj(*lhs, rhs));
                 }
-                for (_ty, ty_ctx) in self
-                    .get_nominal_super_type_ctxs(&sub)
-                    .ok_or_else(|| todo!("{sub}"))?
-                {
+                for (_ty, ty_ctx) in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
+                    EvalError::no_var_error(
+                        line!() as usize,
+                        t_loc,
+                        self.caused_by(),
+                        &rhs,
+                        None, // TODO:
+                    )
+                })? {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
                             let subst_ctx = SubstContext::new(&sub, ty_ctx);

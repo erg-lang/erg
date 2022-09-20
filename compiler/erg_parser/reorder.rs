@@ -3,9 +3,9 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ClassDef, Expr, Module, PreDeclTypeSpec, TypeSpec, AST};
+use crate::ast::{ClassDef, Expr, Module, PreDeclTypeSpec, TypeSpec, AST};
 
-use crate::error::{TyCheckError, TyCheckErrors};
+use crate::error::{ParseError, ParseErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
@@ -13,7 +13,7 @@ pub struct Reorderer {
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
     pub deps: Dict<Str, Vec<Str>>,
-    pub errs: TyCheckErrors,
+    pub errs: ParseErrors,
 }
 
 impl Reorderer {
@@ -21,12 +21,12 @@ impl Reorderer {
         Self {
             def_root_pos_map: Dict::new(),
             deps: Dict::new(),
-            errs: TyCheckErrors::empty(),
+            errs: ParseErrors::empty(),
         }
     }
 
-    pub fn link(mut self, mut ast: AST) -> Result<AST, TyCheckErrors> {
-        log!(info "the linking process has started.");
+    pub fn reorder(mut self, mut ast: AST) -> Result<AST, ParseErrors> {
+        log!(info "the reordering process has started.");
         let mut new = vec![];
         while let Some(chunk) = ast.module.lpop() {
             match chunk {
@@ -63,17 +63,15 @@ impl Reorderer {
                             class_def.methods_list.push(methods);
                             new.insert(*pos, Expr::ClassDef(class_def));
                         } else {
-                            let similar_name = Str::from(
-                                self.def_root_pos_map
-                                    .keys()
-                                    .fold("".to_string(), |acc, key| acc + &key[..] + ","),
-                            );
-                            self.errs.push(TyCheckError::no_var_error(
+                            let similar_name = self
+                                .def_root_pos_map
+                                .keys()
+                                .fold("".to_string(), |acc, key| acc + &key[..] + ",");
+                            self.errs.push(ParseError::no_var_error(
                                 line!() as usize,
                                 methods.class.loc(),
-                                "".into(),
                                 simple.name.inspect(),
-                                Some(&similar_name),
+                                Some(similar_name),
                             ));
                         }
                     }
@@ -85,7 +83,7 @@ impl Reorderer {
             }
         }
         let ast = AST::new(ast.name, Module::new(new));
-        log!(info "the linking process has completed:\n{}", ast);
+        log!(info "the reordering process has completed:\n{}", ast);
         if self.errs.is_empty() {
             Ok(ast)
         } else {

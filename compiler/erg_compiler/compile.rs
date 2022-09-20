@@ -4,19 +4,15 @@
 use std::path::Path;
 
 use erg_common::config::{ErgConfig, Input};
-use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_type::codeobj::CodeObj;
 
-use erg_parser::ParserRunner;
+use erg_parser::builder::ASTBuilder;
 
+use crate::checker::Checker;
 use crate::codegen::CodeGenerator;
-use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, TyCheckErrors};
-use crate::lower::ASTLowerer;
-use crate::ownercheck::OwnershipChecker;
-use crate::reorder::Reorderer;
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global
@@ -91,13 +87,11 @@ impl AccessKind {
     }
 }
 
-/// Generates a `CodeObj` from an `AST`.
-/// The input AST is not typed, so it's typed by `ASTLowerer` according to the cfg.opt_level.
+/// Generates a `CodeObj` from an String or other File inputs.
 #[derive(Debug)]
 pub struct Compiler {
     cfg: ErgConfig,
-    lowerer: ASTLowerer,
-    ownership_checker: OwnershipChecker,
+    checker: Checker,
     code_generator: CodeGenerator,
 }
 
@@ -108,9 +102,8 @@ impl Runnable for Compiler {
 
     fn new(cfg: ErgConfig) -> Self {
         Self {
+            checker: Checker::new(cfg.copy()),
             code_generator: CodeGenerator::new(cfg.copy()),
-            ownership_checker: OwnershipChecker::new(),
-            lowerer: ASTLowerer::new(),
             cfg,
         }
     }
@@ -163,25 +156,11 @@ impl Compiler {
         log!(info "the compiling process has started.");
         let mut cfg = self.cfg.copy();
         cfg.input = Input::Str(src);
-        let mut parser = ParserRunner::new(cfg);
-        let ast = parser.parse()?;
-        let linker = Reorderer::new();
-        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
-        let (hir, warns) = self
-            .lowerer
-            .lower(ast, mode)
-            .map_err(|errs| self.convert(errs))?;
-        if self.cfg.verbose >= 2 {
-            let warns = self.convert(warns);
-            warns.fmt_all_stderr();
-        }
-        let effect_checker = SideEffectChecker::new();
-        let hir = effect_checker
-            .check(hir)
-            .map_err(|errs| self.convert(errs))?;
+        let mut ast_builder = ASTBuilder::new(cfg);
+        let ast = ast_builder.build()?;
         let hir = self
-            .ownership_checker
-            .check(hir)
+            .checker
+            .check(ast, mode)
             .map_err(|errs| self.convert(errs))?;
         let codeobj = self.code_generator.codegen(hir);
         log!(info "code object:\n{}", codeobj.code_info());

@@ -3,6 +3,7 @@
 extern crate erg_common;
 pub extern crate erg_parser;
 
+mod checker;
 mod compile;
 pub use compile::*;
 mod codegen;
@@ -14,5 +15,4 @@ pub mod lower;
 pub mod mod_cache;
 pub mod optimize;
 pub mod ownercheck;
-pub mod reorder;
 pub mod varinfo;

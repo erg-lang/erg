@@ -246,10 +246,15 @@ impl Context {
                 }
             }
         }
-        for (_, ctx) in self
-            .get_nominal_super_type_ctxs(&self_t)
-            .ok_or_else(|| todo!())?
-        {
+        for (_, ctx) in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
+            TyCheckError::no_var_error(
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &self_t.to_string(),
+                None, // TODO:
+            )
+        })? {
             match ctx.rec_get_var_t(ident, namespace) {
                 Ok(t) => {
                     return Ok(t);
@@ -348,7 +353,15 @@ impl Context {
         if let Some(method_name) = method_name.as_ref() {
             for (_, ctx) in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| todo!())?
+                .ok_or_else(|| {
+                    TyCheckError::no_var_error(
+                        line!() as usize,
+                        obj.loc(),
+                        self.caused_by(),
+                        &obj.to_string(),
+                        None, // TODO:
+                    )
+                })?
             {
                 if let Some(vi) = ctx
                     .locals
@@ -856,10 +869,15 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for (_, ctx) in self
-            .get_nominal_super_type_ctxs(self_t)
-            .ok_or_else(|| todo!())?
-        {
+        for (_, ctx) in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
+            TyCheckError::no_var_error(
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &self_t.to_string(),
+                None, // TODO:
+            )
+        })? {
             if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }

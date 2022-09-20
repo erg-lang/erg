@@ -12,13 +12,11 @@ use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
 use erg_common::{
     caused_by, debug_power_assert, enum_unwrap, fn_name, log, set, switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
-use crate::desugar::Desugarer;
 use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
 use crate::lex::Lexer;
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
@@ -201,13 +199,13 @@ impl Runnable for ParserRunner {
 }
 
 impl ParserRunner {
-    pub fn parse_token_stream(&mut self, ts: TokenStream) -> Result<AST, ParserRunnerErrors> {
+    pub fn parse_token_stream(&mut self, ts: TokenStream) -> Result<Module, ParserRunnerErrors> {
         Parser::new(ts)
-            .parse(Str::ever(self.cfg.module))
+            .parse()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 
-    pub fn parse(&mut self) -> Result<AST, ParserRunnerErrors> {
+    pub fn parse(&mut self) -> Result<Module, ParserRunnerErrors> {
         let ts = Lexer::new(self.input().clone())
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
@@ -215,7 +213,7 @@ impl ParserRunner {
     }
 
     /// Parses with default configuration
-    pub fn parse_with_default_config(input: Input) -> Result<AST, ParserRunnerErrors> {
+    pub fn parse_with_default_config(input: Input) -> Result<Module, ParserRunnerErrors> {
         let cfg = ErgConfig {
             input,
             ..Default::default()
@@ -224,20 +222,20 @@ impl ParserRunner {
         self_.parse()
     }
 
-    fn parse_with_input(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
+    pub fn parse_with_input(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
-            .parse(Str::ever(self.cfg.module))
+            .parse()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 }
 
 impl Parser {
-    pub fn parse(&mut self, mod_name: Str) -> Result<AST, ParseErrors> {
+    pub fn parse(&mut self) -> Result<Module, ParseErrors> {
         if self.tokens.is_empty() {
-            return Ok(AST::new(mod_name, Module::empty()));
+            return Ok(Module::empty());
         }
         log!(info "the parsing process has started.");
         log!(info "token stream: {}", self.tokens);
@@ -255,13 +253,8 @@ impl Parser {
         }
         log!(info "the parsing process has completed.");
         log!(info "AST:\n{module}");
-        log!(info "the desugaring process has started.");
-        let mut desugarer = Desugarer::new();
-        let module = desugarer.desugar(module);
-        log!(info "AST (desugared):\n{module}");
-        log!(info "the desugaring process has completed.{RESET}");
         if self.errs.is_empty() {
-            Ok(AST::new(mod_name, module))
+            Ok(module)
         } else {
             Err(mem::take(&mut self.errs))
         }

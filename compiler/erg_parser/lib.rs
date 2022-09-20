@@ -4,10 +4,12 @@
 extern crate erg_common;
 
 pub mod ast;
+pub mod builder;
 pub mod desugar;
 pub mod error;
 pub mod lex;
 pub mod parse;
+pub mod reorder;
 pub mod token;
 
 pub use parse::{Parser, ParserRunner};
