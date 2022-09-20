@@ -3,7 +3,7 @@
     Str Literal
 ]#
 
-single_a = "line break\naaa\nbbbb\nccc\nline break"
+single_a = "line break\naaa\nbbb\nccc\nline break"
 print! single_a
 
 multi_line_a = """line break
@@ -13,12 +13,12 @@ ccc
 line break"""
 print! multi_line_a
 
-single_b = "ignore line break    hello,\n    worldignored line break"
+single_b = "ignore line break    Hello,\n    Worldignored line break"
 print! single_b
 
 multi_line_b = """ignore line break\
 \tHello,
-\tworld\
+\tWorld\
 ignored line break"""
 print! multi_line_b
 

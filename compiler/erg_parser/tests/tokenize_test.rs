@@ -12,12 +12,13 @@ use TokenKind::*;
 const FILE1: &str = "tests/test1_basic_syntax.er";
 const FILE2: &str = "tests/test2_advanced_syntax.er";
 const FILE3: &str = "tests/test3_literal_syntax.er";
+const FILE4: &str = "tests/multi_line_str_literal.er";
 
 #[test]
 fn test_lexer_for_basic() -> ParseResult<()> {
     let mut lexer = Lexer::new(Input::File(FILE1.into()));
     let newline = "\n";
-    let /*mut*/ token_array = vec![
+    let token_array = vec![
         (Newline, newline),
         (Newline, newline),
         (Symbol, "_a"),
@@ -120,9 +121,9 @@ fn test_lexer_for_basic() -> ParseResult<()> {
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
+        print!("{id:>03}: ");
         tok = lexer.next().unwrap().unwrap();
         assert_eq!(tok, Token::from_str(i.0, i.1));
-        print!("{id:>03}: ");
         println!("{tok}");
     }
     Ok(())
@@ -132,7 +133,7 @@ fn test_lexer_for_basic() -> ParseResult<()> {
 fn test_lexer_for_advanced() -> ParseResult<()> {
     let mut lexer = Lexer::new(Input::File(FILE2.into()));
     let newline = "\n";
-    let /*mut*/ token_array = vec![
+    let token_array = vec![
         (Newline, newline),
         (Newline, newline),
         (Newline, newline),
@@ -212,7 +213,6 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
         (Newline, newline),
         (EOF, ""),
     ];
-
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
         print!("{id:>03}: ");
@@ -227,7 +227,7 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
 fn test_lexer_for_literals() -> ParseResult<()> {
     let mut lexer = Lexer::new(Input::File(FILE3.into()));
     let newline = "\n";
-    let /*mut*/ token_array = vec![
+    let token_array = vec![
         (Newline, newline),
         (Newline, newline),
         (NatLit, "0"),
@@ -295,9 +295,80 @@ fn test_lexer_for_literals() -> ParseResult<()> {
         (Newline, newline),
         (Newline, newline),
         (Newline, newline),
-        // (EOF, ""),
+        (Newline, newline),
+        (EOF, ""),
     ];
+    let mut tok: Token;
+    for (id, i) in token_array.into_iter().enumerate() {
+        print!("{id:>03}: ");
+        tok = lexer.next().unwrap().unwrap();
+        assert_eq!(tok, Token::from_str(i.0, i.1));
+        println!("{tok}");
+    }
+    Ok(())
+}
 
+#[test]
+fn test_lexer_for_multi_line_str_literal() -> ParseResult<()> {
+    let mut lexer = Lexer::new(Input::File(FILE4.into()));
+    let newline = "\n";
+    let token_array = vec![
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "single_a"),
+        (Equal, "="),
+        (StrLit, "\"line break\naaa\nbbb\nccc\nline break\""),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "single_a"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "multi_line_a"),
+        (Equal, "="),
+        (
+            StrLit,
+            "\"\"\"line break
+aaa
+bbb
+ccc
+line break\"\"\"",
+        ),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "multi_line_a"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "single_b"),
+        (Equal, "="),
+        (
+            StrLit,
+            "\"ignore line break    Hello,\n    Worldignored line break\"",
+        ),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "single_b"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "multi_line_b"),
+        (Equal, "="),
+        (
+            StrLit,
+            "\"\"\"ignore line break    Hello,
+    Worldignored line break\"\"\"",
+        ),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "multi_line_b"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "complex_string"),
+        (Equal, "="),
+        (StrLit, "\"\"\"\\    \0\r\n\\\"\"\""),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "complex_string"),
+        (EOF, ""),
+    ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
         print!("{id:>03}: ");
