@@ -3,7 +3,7 @@ use std::fmt;
 use std::mem;
 
 use erg_common::addr_eq;
-use erg_common::rccell::RcCell;
+use erg_common::shared::Shared;
 use erg_common::traits::LimitedDisplay;
 
 use crate::typaram::TyParam;
@@ -14,8 +14,8 @@ pub type Level = usize;
 pub type Id = usize;
 
 thread_local! {
-    static UNBOUND_ID: RcCell<usize> = RcCell::new(0);
-    static REFINEMENT_VAR_ID: RcCell<usize> = RcCell::new(0);
+    static UNBOUND_ID: Shared<usize> = Shared::new(0);
+    static REFINEMENT_VAR_ID: Shared<usize> = Shared::new(0);
 }
 
 pub fn fresh_varname() -> String {
@@ -340,7 +340,7 @@ impl<T> FreeKind<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Free<T>(RcCell<FreeKind<T>>);
+pub struct Free<T>(Shared<FreeKind<T>>);
 
 impl<T: LimitedDisplay> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -390,13 +390,13 @@ impl<T: Clone> Free<T> {
 
 impl<T: Clone + HasLevel> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
-        Self(RcCell::new(f))
+        Self(Shared::new(f))
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
         UNBOUND_ID.with(|id| {
             *id.borrow_mut() += 1;
-            Self(RcCell::new(FreeKind::unbound(
+            Self(Shared::new(FreeKind::unbound(
                 *id.borrow(),
                 level,
                 constraint,
@@ -405,13 +405,13 @@ impl<T: Clone + HasLevel> Free<T> {
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
-        Self(RcCell::new(FreeKind::named_unbound(
+        Self(Shared::new(FreeKind::named_unbound(
             name, level, constraint,
         )))
     }
 
     pub fn new_linked(t: T) -> Self {
-        Self(RcCell::new(FreeKind::Linked(t)))
+        Self(Shared::new(FreeKind::Linked(t)))
     }
 
     pub fn link(&self, to: &T) {

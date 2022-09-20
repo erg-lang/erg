@@ -2,8 +2,8 @@ use std::mem;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::rccell::RcCell;
 use erg_common::set::Set;
+use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Field;
 use erg_common::{dict, fn_name, option_enum_unwrap, set};
@@ -326,7 +326,12 @@ impl Context {
     fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
         let mut attrs = vec![];
         // HACK: should avoid cloning
-        let mut record_ctx = Context::instant(Str::ever("<unnamed record>"), 2, self.clone());
+        let mut record_ctx = Context::instant(
+            Str::ever("<unnamed record>"),
+            2,
+            self.mod_cache.clone(),
+            self.clone(),
+        );
         for attr in record.attrs.iter() {
             let name = attr.sig.ident().map(|i| i.inspect());
             let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
@@ -431,7 +436,7 @@ impl Context {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
                 .eval_bin(op, lhs.borrow().clone(), rhs.clone())
-                .map(|v| TyParam::Value(ValueObj::Mut(RcCell::new(v)))),
+                .map(|v| TyParam::Value(ValueObj::Mut(Shared::new(v)))),
             (TyParam::Value(lhs), TyParam::Value(rhs)) => self
                 .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
@@ -459,7 +464,7 @@ impl Context {
             Pos => todo!(),
             Neg => todo!(),
             Invert => todo!(),
-            Mutate => Ok(ValueObj::Mut(RcCell::new(val))),
+            Mutate => Ok(ValueObj::Mut(Shared::new(val))),
             other => todo!("{other}"),
         }
     }

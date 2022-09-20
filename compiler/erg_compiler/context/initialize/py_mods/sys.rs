@@ -12,7 +12,7 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_sys_mod() -> Self {
-        let mut sys = Context::module("sys".into(), 15);
+        let mut sys = Context::module("sys".into(), None, 15);
         sys.register_builtin_impl("argv", array(Str, TyParam::erased(Nat)), Immutable, Public);
         sys.register_builtin_impl("byteorder", Str, Immutable, Public);
         sys.register_builtin_impl(

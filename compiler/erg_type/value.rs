@@ -9,9 +9,9 @@ use std::ops::Neg;
 use std::rc::Rc;
 
 use erg_common::dict::Dict;
-use erg_common::rccell::RcCell;
 use erg_common::serialize::*;
 use erg_common::set;
+use erg_common::shared::Shared;
 use erg_common::vis::Field;
 use erg_common::{fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
@@ -124,7 +124,7 @@ pub enum ValueObj {
     NotImplemented,
     NegInf,
     Inf,
-    Mut(RcCell<ValueObj>),
+    Mut(Shared<ValueObj>),
     #[default]
     Illegal, // to avoid conversions with TryFrom
 }

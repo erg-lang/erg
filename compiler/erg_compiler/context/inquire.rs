@@ -1223,7 +1223,11 @@ impl Context {
     }
 
     fn rec_get_mod(&self, name: &str) -> Option<&Context> {
-        if let Some(mod_) = self.mods.get(name) {
+        if let Some(mod_) = self
+            .mod_cache
+            .as_ref()
+            .and_then(|cache| cache.ref_ctx(name))
+        {
             Some(mod_)
         } else if let Some(outer) = &self.outer {
             outer.rec_get_mod(name)

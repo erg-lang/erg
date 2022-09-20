@@ -37,6 +37,7 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use Visibility::*;
@@ -310,7 +311,7 @@ pub struct Context {
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
-    pub(crate) mods: Dict<VarName, Context>,
+    pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) level: usize,
 }
 
@@ -321,6 +322,7 @@ impl Default for Context {
             "<dummy>".into(),
             ContextKind::Dummy,
             vec![],
+            None,
             None,
             Self::TOP_LEVEL,
         )
@@ -340,7 +342,7 @@ impl fmt::Display for Context {
             .field("mono_types", &self.mono_types)
             .field("poly_types", &self.poly_types)
             .field("patches", &self.patches)
-            .field("mods", &self.mods)
+            // .field("mod_cache", &self.mod_cache)
             .finish()
     }
 }
@@ -352,9 +354,10 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -364,6 +367,7 @@ impl Context {
         params: Vec<ParamSpec>,
         outer: Option<Context>,
         capacity: usize,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
@@ -400,15 +404,21 @@ impl Context {
             consts: Dict::default(),
             mono_types: Dict::default(),
             poly_types: Dict::default(),
-            mods: Dict::default(),
+            mod_cache,
             patches: Dict::default(),
             level,
         }
     }
 
     #[inline]
-    pub fn mono(name: Str, kind: ContextKind, outer: Option<Context>, level: usize) -> Self {
-        Self::with_capacity(name, kind, vec![], outer, 0, level)
+    pub fn mono(
+        name: Str,
+        kind: ContextKind,
+        outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::with_capacity(name, kind, vec![], outer, 0, mod_cache, level)
     }
 
     #[inline]
@@ -417,61 +427,111 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
     }
 
-    pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
+    pub fn poly_trait<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Trait, params, None, level)
+        Self::poly(name, ContextKind::Trait, params, None, mod_cache, level)
     }
 
-    pub fn poly_class<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
+    pub fn poly_class<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Class, params, None, level)
+        Self::poly(name, ContextKind::Class, params, None, mod_cache, level)
     }
 
     #[inline]
-    pub fn mono_trait<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::poly_trait(name, vec![], level)
+    pub fn mono_trait<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly_trait(name, vec![], mod_cache, level)
     }
 
     #[inline]
-    pub fn mono_class<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::poly_class(name, vec![], level)
+    pub fn mono_class<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly_class(name, vec![], mod_cache, level)
     }
 
     #[inline]
-    pub fn methods<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::with_capacity(name.into(), ContextKind::MethodDefs, vec![], None, 2, level)
+    pub fn methods<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::with_capacity(
+            name.into(),
+            ContextKind::MethodDefs,
+            vec![],
+            None,
+            2,
+            mod_cache,
+            level,
+        )
     }
 
     #[inline]
-    pub fn poly_patch<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
-        Self::poly(name.into(), ContextKind::Trait, params, None, level)
+    pub fn poly_patch<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly(
+            name.into(),
+            ContextKind::Trait,
+            params,
+            None,
+            mod_cache,
+            level,
+        )
     }
 
     #[inline]
-    pub fn module(name: Str, capacity: usize) -> Self {
+    pub fn module(name: Str, mod_cache: Option<SharedModuleCache>, capacity: usize) -> Self {
         Self::with_capacity(
             name,
             ContextKind::Module,
             vec![],
             None,
             capacity,
+            mod_cache,
             Self::TOP_LEVEL,
         )
     }
 
     #[inline]
-    pub fn instant(name: Str, capacity: usize, outer: Context) -> Self {
+    pub fn instant(
+        name: Str,
+        capacity: usize,
+        mod_cache: Option<SharedModuleCache>,
+        outer: Context,
+    ) -> Self {
         Self::with_capacity(
             name,
             ContextKind::Instant,
             vec![],
             Some(outer),
             capacity,
+            mod_cache,
             Self::TOP_LEVEL,
         )
     }

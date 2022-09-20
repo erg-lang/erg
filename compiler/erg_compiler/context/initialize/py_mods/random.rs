@@ -14,7 +14,7 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_random_mod() -> Self {
-        let mut random = Context::module("random".into(), 10);
+        let mut random = Context::module("random".into(), None, 10);
         random.register_builtin_impl(
             "seed!",
             proc(
