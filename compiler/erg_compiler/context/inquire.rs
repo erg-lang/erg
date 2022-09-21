@@ -19,7 +19,7 @@ use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
+use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
 use crate::error::readable_name;
 use crate::error::{binop_to_dname, unaryop_to_dname, TyCheckError, TyCheckResult};
 use crate::hir;
@@ -83,29 +83,27 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    fn get_context(
-        &self,
-        obj: &hir::Expr,
-        kind: Option<ContextKind>,
-        namespace: &Str,
-    ) -> TyCheckResult<&Context> {
+    fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> TyCheckResult<&Context> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                if kind == Some(ContextKind::Module) {
-                    if let Some(ctx) = self.rec_get_mod(ident.inspect()) {
-                        Ok(ctx)
-                    } else {
-                        Err(TyCheckError::no_var_error(
+                log!(err "{ident}: {}", self.get_mod(ident.inspect()).is_some());
+                self.get_mod(ident.inspect())
+                    .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+                    .ok_or_else(|| {
+                        TyCheckError::no_var_error(
                             line!() as usize,
                             obj.loc(),
                             namespace.into(),
                             ident.inspect(),
                             self.get_similar_name(ident.inspect()),
-                        ))
-                    }
-                } else {
-                    todo!()
-                }
+                        )
+                    })
+            }
+            hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
+                // REVIEW: 両方singularとは限らない?
+                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
+                let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
+                ctx.get_singular_ctx(&attr, namespace)
             }
             _ => todo!(),
         }
@@ -194,9 +192,9 @@ impl Context {
         Ok(t)
     }
 
-    pub(crate) fn get_local_uniq_obj_name(&self, name: &Token) -> Option<Str> {
+    pub(crate) fn get_local_uniq_obj_name(&self, name: &VarName) -> Option<Str> {
         // TODO: types, functions, patches
-        if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+        if let Some(ctx) = self.get_mod(name.inspect()) {
             return Some(ctx.name.clone());
         }
         if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
@@ -240,7 +238,7 @@ impl Context {
                 return Err(e);
             }
         }
-        if let Some(singular_ctx) = self.get_singular_ctx(obj) {
+        if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
             match singular_ctx.rec_get_var_t(ident, namespace) {
                 Ok(t) => {
                     return Ok(t);
@@ -324,7 +322,7 @@ impl Context {
                 }
             }
             Module => {
-                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
+                let mod_ctx = self.get_singular_ctx(obj, namespace)?;
                 let t = mod_ctx.rec_get_var_t(ident, namespace)?;
                 Ok(t)
             }
@@ -387,7 +385,7 @@ impl Context {
                     }
                 }
             }
-            if let Some(singular_ctx) = self.get_singular_ctx(obj) {
+            if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
                 if let Some(vi) = singular_ctx
                     .locals
                     .get(method_name.inspect())
@@ -929,7 +927,7 @@ impl Context {
         obj: &hir::Expr,
         name: &str,
     ) -> Option<&'a Str> {
-        if let Some(ctx) = self.get_singular_ctx(obj) {
+        if let Ok(ctx) = self.get_singular_ctx(obj, &self.name) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -1208,20 +1206,6 @@ impl Context {
         None
     }
 
-    fn get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
-        match obj.ref_t() {
-            // TODO: attr
-            Type::Module => self.rec_get_mod(&obj.show_acc()?),
-            Type::Type | Type::Class => {
-                let typ = Type::Mono(Str::from(obj.show_acc().unwrap()));
-                self.get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
-            }
-            Type::Trait => todo!(),
-            Type::Refinement(refine) => self.get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx),
-            _ => None,
-        }
-    }
-
     pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstance> {
         let current = if let Some(impls) = self.trait_impls.get(name) {
             impls.clone()
@@ -1245,18 +1229,11 @@ impl Context {
         }
     }
 
-    fn rec_get_mod(&self, name: &str) -> Option<&Context> {
-        if let Some(mod_) = self
-            .mod_cache
+    // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
+    fn get_mod(&self, name: &Str) -> Option<&Context> {
+        self.mod_cache
             .as_ref()
             .and_then(|cache| cache.ref_ctx(name))
-        {
-            Some(mod_)
-        } else if let Some(outer) = &self.outer {
-            outer.rec_get_mod(name)
-        } else {
-            None
-        }
     }
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない

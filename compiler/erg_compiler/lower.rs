@@ -360,7 +360,7 @@ impl ASTLowerer {
         } else {
             (
                 self.ctx.rec_get_var_t(&ident, &self.ctx.name)?,
-                self.ctx.get_local_uniq_obj_name(ident.name.token()),
+                self.ctx.get_local_uniq_obj_name(&ident.name),
             )
         };
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, t);

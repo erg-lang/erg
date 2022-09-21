@@ -40,7 +40,6 @@ use crate::context::instantiate::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
-use Mutability::*;
 use Visibility::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -389,13 +388,14 @@ impl Context {
             if let Some(name) = param.name {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                // TODO: is_const { Const } else { Immutable }
-                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
+                let muty = Mutability::from(name);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
+                let muty = Mutability::Immutable;
+                let vi = VarInfo::new(param.t, muty, Private, kind, None);
                 params_.push((None, vi));
             }
         }

@@ -197,9 +197,10 @@ impl Context {
                     };
                     let kind =
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None),
+                        VarInfo::new(spec_t, muty, Private, kind, None),
                     ));
                     Ok(())
                 }
@@ -743,7 +744,7 @@ impl Context {
             let id = DefId(get_hash(&(&self.name, &name)));
             self.decls.insert(
                 name.clone(),
-                VarInfo::new(meta_t, muty, Private, VarKind::Defined(id), None),
+                VarInfo::new(meta_t, muty, ident.vis(), VarKind::Defined(id), None),
             );
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
@@ -852,12 +853,19 @@ impl Context {
 
     fn import_user_module(
         &self,
-        _current_input: Input,
+        current_input: Input,
         var_name: &VarName,
         __name__: Str,
         mod_cache: &SharedModuleCache,
     ) {
-        let path = PathBuf::from(format!("{__name__}.er"));
+        let mut dir = if let Input::File(mut path) = current_input {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        dir.push(format!("{__name__}.er"));
+        let path = dir;
         let cfg = ErgConfig {
             input: Input::File(path),
             ..ErgConfig::default()

@@ -250,9 +250,9 @@ pub struct Attribute {
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         if self.obj.need_to_be_closed() {
-            write!(f, "({}).{}", self.obj, self.ident)
+            write!(f, "({}){}", self.obj, self.ident)
         } else {
-            write!(f, "{}.{}", self.obj, self.ident)
+            write!(f, "{}{}", self.obj, self.ident)
         }
     }
 }
@@ -1842,6 +1842,8 @@ impl VarName {
         self.0
     }
 
+    /// Q: Why this does not return `&str`?
+    /// A: `const`
     pub const fn inspect(&self) -> &Str {
         &self.0.content
     }

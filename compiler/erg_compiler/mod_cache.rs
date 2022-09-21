@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -32,6 +33,16 @@ pub struct ModuleEntry {
     ctx: Rc<Context>,
 }
 
+impl fmt::Display for ModuleEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ModuleEntry(id = {}, name = {})",
+            self.id.0, self.ctx.name
+        )
+    }
+}
+
 impl ModuleEntry {
     pub fn new(id: ModId, hir: Option<HIR>, ctx: Context) -> Self {
         Self {
@@ -54,6 +65,12 @@ impl ModuleEntry {
 pub struct ModuleCache {
     cache: Dict<VarName, ModuleEntry>,
     last_id: usize,
+}
+
+impl fmt::Display for ModuleCache {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ModuleCache {}", self.cache)
+    }
 }
 
 impl ModuleCache {
@@ -102,6 +119,12 @@ impl ModuleCache {
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedModuleCache(Shared<ModuleCache>);
+
+impl fmt::Display for SharedModuleCache {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Shared{}", self.0)
+    }
+}
 
 impl SharedModuleCache {
     pub fn new() -> Self {

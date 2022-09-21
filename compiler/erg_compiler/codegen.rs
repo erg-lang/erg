@@ -792,7 +792,13 @@ impl CodeGenerator {
                 // ↓
                 // class C:
                 //     a = x
-                if Some(&self.cur_block_codeobj().name[..]) != a.obj.__name__() {
+                if Some(&self.cur_block_codeobj().name[..]) == a.obj.__name__()
+                    && &self.cur_block_codeobj().name[..] != "<module>"
+                {
+                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
+                        self.errs.push(err);
+                    });
+                } else {
                     self.emit_expr(*a.obj);
                     self.emit_load_attr_instr(
                         &class,
@@ -800,10 +806,6 @@ impl CodeGenerator {
                         a.ident,
                     )
                     .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
-                } else {
-                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
                         self.errs.push(err);
                     });
                 }
@@ -1677,7 +1679,7 @@ impl CodeGenerator {
                 block_id,
                 fn_name_full!(),
             ));
-            self.crash("error in codegen_typedef_block: invalid stack size");
+            self.crash("error in emit_class_block: invalid stack size");
         }
         // flagging
         if !self.cur_block_codeobj().varnames.is_empty() {
@@ -1699,6 +1701,10 @@ impl CodeGenerator {
 
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
+        // fake class (module)
+        if __new__ == Type::Uninited {
+            return;
+        }
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
@@ -1828,7 +1834,7 @@ impl CodeGenerator {
                 block_id,
                 fn_name_full!(),
             ));
-            self.crash("error in codegen_block: invalid stack size");
+            self.crash("error in emit_block: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
         self.write_arg(0u8);

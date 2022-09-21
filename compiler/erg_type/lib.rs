@@ -1689,6 +1689,15 @@ impl Type {
         }
     }
 
+    pub fn is_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
+            Self::Type | Self::Class | Self::Trait => true,
+            Self::Refinement(refine) => refine.t.is_type(),
+            _ => false,
+        }
+    }
+
     pub fn contains_tvar(&self, name: &str) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(name),

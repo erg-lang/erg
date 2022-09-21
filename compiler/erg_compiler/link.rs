@@ -4,7 +4,7 @@ use erg_common::traits::Stream;
 use erg_parser::token::Token;
 
 use erg_type::value::TypeKind;
-use erg_type::{SubrKind, SubrType, Type};
+use erg_type::Type;
 
 use crate::hir::{Block, ClassDef, Expr, Record, RecordAttrs, HIR};
 use crate::mod_cache::{ModuleEntry, SharedModuleCache};
@@ -25,7 +25,7 @@ impl Linker {
                     // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
                     //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
                     if let Some(ModuleEntry { hir: Some(hir), .. }) =
-                        mod_cache.remove(def.sig.ident().inspect())
+                        mod_cache.remove(&def.sig.ident().inspect()[..])
                     {
                         let block = Block::new(Vec::from(hir.module));
                         let def = ClassDef::new(
@@ -37,13 +37,7 @@ impl Linker {
                                 RecordAttrs::empty(),
                             )),
                             false,
-                            Type::Subr(SubrType::new(
-                                SubrKind::Func,
-                                vec![],
-                                None,
-                                vec![],
-                                Type::Failure,
-                            )),
+                            Type::Uninited,
                             block,
                         );
                         *chunk = Expr::ClassDef(def);

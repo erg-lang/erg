@@ -2,3 +2,6 @@ a11y = import "a11y"
 
 print! a11y.public
 # print! a11y.private # error: private variable
+print! a11y.C.x
+c = a11y.C.new({x = 0})
+print! c.x

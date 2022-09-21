@@ -36,8 +36,8 @@ impl Add<&str> for AtomicStr {
 impl Hash for AtomicStr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            AtomicStr::Arc(s) => (s[..]).hash(state),
-            AtomicStr::Static(s) => s.hash(state),
+            AtomicStr::Arc(s) => (&s[..]).hash(state),
+            AtomicStr::Static(s) => (*s).hash(state),
         }
     }
 }
