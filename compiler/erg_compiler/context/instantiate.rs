@@ -57,7 +57,6 @@ impl TyVarContext {
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
         };
-        // TODO: this is valid but cause a crash: T <: Ord T
         for bound in bounds.into_iter() {
             self_.instantiate_bound(bound, ctx);
         }
