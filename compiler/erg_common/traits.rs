@@ -308,13 +308,32 @@ pub trait LimitedDisplay {
 // for Runnable::run
 fn expect_block(src: &str) -> bool {
     let src = src.trim_end();
-    src.ends_with(&['.', '=', ':']) || src.ends_with("->") || src.ends_with("=>")
+    src.ends_with(&['.', '=', ':'])
+        || src.ends_with("->")
+        || src.ends_with("=>")
+        // when `"""` are on the same line
+        // e.g. """something"""
+        || src.contains("\"\"\"") && src.find("\"\"\"") == src.rfind("\"\"\"")
 }
 
 // In the REPL, it is invalid for these symbols to be at the beginning of a line
 fn expect_invalid_block(src: &str) -> bool {
     let src = src.trim_start();
-    src.starts_with(&['.', '=', ':']) || src.starts_with("->")
+    src.starts_with(&['.', '=', ':']) || src.starts_with("->") || src.starts_with("=>")
+}
+
+fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool {
+    if lines.contains("\"\"\"") {
+        if src.ends_with("\"\"\"") {
+            *in_block = false;
+            false
+        } else {
+            true
+        }
+    } else {
+        *in_block = false;
+        !expect_invalid_block(src) || src.starts_with(' ') && lines.contains('\n')
+    }
 }
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -367,6 +386,7 @@ pub trait Runnable: Sized {
                 }
                 output.write_all(instance.ps1().as_bytes()).unwrap();
                 output.flush().unwrap();
+                let mut in_block = false;
                 let mut lines = String::new();
                 loop {
                     let line = chomp(&instance.input().read());
@@ -392,14 +412,31 @@ pub trait Runnable: Sized {
                         &line[..]
                     };
                     lines.push_str(line);
-                    if expect_block(line) && !expect_invalid_block(line)
-                        || line.starts_with(' ') && lines.contains('\n')
-                    {
+
+                    if in_block {
+                        if is_in_the_expected_block(line, &lines, &mut in_block) {
+                            lines += "\n";
+                            output.write_all(instance.ps2().as_bytes()).unwrap();
+                            output.flush().unwrap();
+                            continue;
+                        }
+                    } else if expect_block(line) {
+                        in_block = true;
                         lines += "\n";
                         output.write_all(instance.ps2().as_bytes()).unwrap();
                         output.flush().unwrap();
                         continue;
                     }
+
+                    // if (expect_block(line) && !in_block)
+                    //     || (is_in_the_expected_block(line, &lines, &mut in_block) && in_block)
+                    // {
+                    //     lines += "\n";
+                    //     output.write_all(instance.ps2().as_bytes()).unwrap();
+                    //     output.flush().unwrap();
+                    //     continue;
+                    // }
+
                     match instance.eval(mem::take(&mut lines)) {
                         Ok(out) => {
                             output.write_all((out + "\n").as_bytes()).unwrap();

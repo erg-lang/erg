@@ -1,0 +1,40 @@
+#[
+    Multi-line Str Literal
+    Str Literal
+]#
+
+single_a = "line break\naaa\nbbb\nccc\nline break"
+print! single_a
+
+multi_line_a = """line break
+aaa
+bbb
+ccc
+line break"""
+print! multi_line_a
+
+single_b = "ignore line break    Hello,\n    Worldignored line break"
+print! single_b
+
+multi_line_b = """ignore line break\
+\tHello,
+\tWorld\
+ignored line break"""
+print! multi_line_b
+
+complex_string = """\\\
+\t\0\
+\r\n\
+\\"""
+print! complex_string
+
+quotation_mark = """\"\"\""""
+print! quotation_mark
+
+quotation_marks = """"
+""
+""\"
+\"\"\"""
+\"\""
+\"\"\""""
+print! quotation_marks
