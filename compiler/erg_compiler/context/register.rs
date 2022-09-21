@@ -1,4 +1,5 @@
-use std::option::Option; // conflicting to Type::Option
+use std::option::Option;
+use std::path::PathBuf; // conflicting to Type::Option
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
@@ -762,6 +763,7 @@ impl Context {
 
     pub(crate) fn import_mod(
         &mut self,
+        current_input: Input,
         var_name: &VarName,
         mod_name: &hir::Expr,
     ) -> TyCheckResult<()> {
@@ -812,7 +814,12 @@ impl Context {
                                     Self::init_py_time_mod(),
                                 );
                             }
-                            _ => self.import_user_module(var_name, __name__, mod_cache),
+                            _ => self.import_user_module(
+                                current_input,
+                                var_name,
+                                __name__,
+                                mod_cache,
+                            ),
                         }
                     } else {
                         // maybe unreachable
@@ -843,9 +850,16 @@ impl Context {
         Ok(())
     }
 
-    fn import_user_module(&self, var_name: &VarName, __name__: Str, mod_cache: &SharedModuleCache) {
+    fn import_user_module(
+        &self,
+        _current_input: Input,
+        var_name: &VarName,
+        __name__: Str,
+        mod_cache: &SharedModuleCache,
+    ) {
+        let path = PathBuf::from(format!("{__name__}.er"));
         let cfg = ErgConfig {
-            input: Input::File(format!("{__name__}.er")),
+            input: Input::File(path),
             ..ErgConfig::default()
         };
         let mut hir_builder = HIRBuilder::new(cfg, mod_cache.clone());

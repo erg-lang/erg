@@ -16,50 +16,22 @@ use crate::ownercheck::OwnershipChecker;
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug)]
 pub struct Checker {
-    pub cfg: ErgConfig,
     lowerer: ASTLowerer,
     ownership_checker: OwnershipChecker,
 }
 
-impl Checker {
-    pub fn new(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
-        Self {
-            cfg,
-            lowerer: ASTLowerer::new(mod_cache),
-            ownership_checker: OwnershipChecker::new(),
-        }
-    }
-
-    pub fn check(&mut self, ast: AST, mode: &str) -> Result<(HIR, Context), TyCheckErrors> {
-        let (hir, ctx, warns) = self.lowerer.lower(ast, mode)?;
-        if self.cfg.verbose >= 2 {
-            warns.fmt_all_stderr();
-        }
-        let effect_checker = SideEffectChecker::new();
-        let hir = effect_checker.check(hir)?;
-        let hir = self.ownership_checker.check(hir)?;
-        Ok((hir, ctx))
-    }
-}
-
-pub struct CheckerRunner {
-    checker: Checker,
-}
-
-impl Runnable for CheckerRunner {
+impl Runnable for Checker {
     type Err = TyCheckError;
     type Errs = TyCheckErrors;
     const NAME: &'static str = "Erg type-checker";
 
     fn new(cfg: ErgConfig) -> Self {
-        Self {
-            checker: Checker::new(cfg, SharedModuleCache::new()),
-        }
+        Checker::new_with_cache(cfg, SharedModuleCache::new())
     }
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
-        &self.checker.cfg
+        self.lowerer.cfg()
     }
 
     #[inline]
@@ -70,7 +42,7 @@ impl Runnable for CheckerRunner {
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build()?;
-        let (hir, _) = self.checker.check(ast, "exec")?;
+        let (hir, _) = self.check(ast, "exec")?;
         println!("{hir}");
         Ok(())
     }
@@ -78,7 +50,27 @@ impl Runnable for CheckerRunner {
     fn eval(&mut self, src: String) -> Result<String, TyCheckErrors> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build_with_str(src)?;
-        let (hir, _) = self.checker.check(ast, "eval")?;
+        let (hir, _) = self.check(ast, "eval")?;
         Ok(hir.to_string())
+    }
+}
+
+impl Checker {
+    pub fn new_with_cache(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
+        Self {
+            lowerer: ASTLowerer::new_with_cache(cfg, mod_cache),
+            ownership_checker: OwnershipChecker::new(),
+        }
+    }
+
+    pub fn check(&mut self, ast: AST, mode: &str) -> Result<(HIR, Context), TyCheckErrors> {
+        let (hir, ctx, warns) = self.lowerer.lower(ast, mode)?;
+        if self.cfg().verbose >= 2 {
+            warns.fmt_all_stderr();
+        }
+        let effect_checker = SideEffectChecker::new();
+        let hir = effect_checker.check(hir)?;
+        let hir = self.ownership_checker.check(hir)?;
+        Ok((hir, ctx))
     }
 }

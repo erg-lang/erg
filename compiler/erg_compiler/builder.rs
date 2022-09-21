@@ -1,5 +1,5 @@
 use erg_common::config::{ErgConfig, Input};
-use erg_common::traits::Stream;
+use erg_common::traits::{Runnable, Stream};
 
 use erg_parser::ast::VarName;
 use erg_parser::builder::ASTBuilder;
@@ -19,20 +19,20 @@ pub struct HIRBuilder {
 impl HIRBuilder {
     fn convert(&self, errs: TyCheckErrors) -> CompileErrors {
         errs.into_iter()
-            .map(|e| CompileError::new(e.core, self.checker.cfg.input.clone(), e.caused_by))
+            .map(|e| CompileError::new(e.core, self.checker.input().clone(), e.caused_by))
             .collect::<Vec<_>>()
             .into()
     }
 
     pub fn new(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
         Self {
-            checker: Checker::new(cfg, mod_cache.clone()),
+            checker: Checker::new_with_cache(cfg, mod_cache.clone()),
             mod_cache,
         }
     }
 
     pub fn build_and_cache(&mut self, var_name: VarName) -> Result<(), CompileErrors> {
-        let mut ast_builder = ASTBuilder::new(self.checker.cfg.copy());
+        let mut ast_builder = ASTBuilder::new(self.checker.cfg().copy());
         let ast = ast_builder.build()?;
         let ast = Reorderer::new()
             .reorder(ast)
@@ -46,7 +46,7 @@ impl HIRBuilder {
     }
 
     pub fn build_and_cache_main(&mut self, src: String, mode: &str) -> Result<(), CompileErrors> {
-        let mut cfg = self.checker.cfg.copy();
+        let mut cfg = self.checker.cfg().copy();
         cfg.input = Input::Str(src);
         let mut ast_builder = ASTBuilder::new(cfg);
         let ast = ast_builder.build()?;

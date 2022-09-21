@@ -996,7 +996,7 @@ impl CodeGenerator {
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let code = self.emit_typedef_block(class_def);
+        let code = self.emit_class_block(class_def);
         self.emit_load_const(code);
         self.emit_load_const(ident.inspect().clone());
         self.write_instr(Opcode::MAKE_FUNCTION);
@@ -1014,6 +1014,7 @@ impl CodeGenerator {
     // NOTE: use `TypeVar`, `Generic` in `typing` module
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
+    /// Y = Inherit X => class Y(X): ...
     fn emit_require_type(&mut self, kind: TypeKind, require_or_sup: Expr) -> usize {
         log!(info "entered {} ({kind:?}, {require_or_sup})", fn_name!());
         match kind {
@@ -1638,17 +1639,13 @@ impl CodeGenerator {
         self.cancel_pop_top();
     }
 
-    fn emit_typedef_block(&mut self, class: ClassDef) -> CodeObj {
+    fn emit_class_block(&mut self, class: ClassDef) -> CodeObj {
         log!(info "entered {}", fn_name!());
         let name = class.sig.ident().inspect().clone();
         self.unit_size += 1;
-        let firstlineno = match (
-            class.private_methods.get(0).and_then(|def| def.ln_begin()),
-            class.public_methods.get(0).and_then(|def| def.ln_begin()),
-        ) {
-            (Some(l), Some(r)) => l.min(r),
-            (Some(line), None) | (None, Some(line)) => line,
-            (None, None) => class.sig.ln_begin().unwrap(),
+        let firstlineno = match class.methods.get(0).and_then(|def| def.ln_begin()) {
+            Some(l) => l,
+            None => class.sig.ln_begin().unwrap(),
         };
         self.units.push(CodeGenUnit::new(
             self.unit_size,
@@ -1660,33 +1657,13 @@ impl CodeGenerator {
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
         self.emit_store_instr(Identifier::public("__module__"), Name);
-        self.emit_load_const(name.clone());
+        self.emit_load_const(name);
         self.emit_store_instr(Identifier::public("__qualname__"), Name);
         self.emit_init_method(&class.sig, class.__new__.clone());
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
         }
-        for def in class.private_methods.into_iter() {
-            match def.sig {
-                Signature::Subr(sig) => self.emit_subr_def(Some(&name[..]), sig, def.body),
-                Signature::Var(sig) => self.emit_var_def(sig, def.body),
-            }
-            // TODO: discard
-            if self.cur_block().stack_len == 1 {
-                self.emit_pop_top();
-            }
-        }
-        for mut def in class.public_methods.into_iter() {
-            def.sig.ident_mut().dot = Some(Token::dummy());
-            match def.sig {
-                Signature::Subr(sig) => self.emit_subr_def(Some(&name[..]), sig, def.body),
-                Signature::Var(sig) => self.emit_var_def(sig, def.body),
-            }
-            // TODO: discard
-            if self.cur_block().stack_len == 1 {
-                self.emit_pop_top();
-            }
-        }
+        self.emit_frameless_block(class.methods, vec![]);
         self.emit_load_const(ValueObj::None);
         self.write_instr(RETURN_VALUE);
         self.write_arg(0u8);

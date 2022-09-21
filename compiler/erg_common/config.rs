@@ -4,7 +4,9 @@
 use std::env;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read};
+use std::path::PathBuf;
 use std::process;
+use std::str::FromStr;
 
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
@@ -17,8 +19,7 @@ pub const BUILD_DATE: &str = env!("BUILD_DATE");
 /// Inputで操作を一本化する
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
-    /// filename
-    File(String),
+    File(PathBuf),
     REPL,
     /// same content as cfg.command
     Pipe(String),
@@ -34,7 +35,7 @@ impl Input {
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename) => &filename[..],
+            Self::File(filename) => filename.as_os_str().to_str().unwrap_or("???"),
             Self::REPL | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -44,7 +45,7 @@ impl Input {
     /// ファイルに書き出すとき使う
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename) => &filename[..],
+            Self::File(filename) => filename.as_os_str().to_str().unwrap_or("???"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -54,11 +55,14 @@ impl Input {
     pub fn read(&self) -> String {
         match self {
             Self::File(filename) => {
-                let file = match File::open(&filename[..]) {
+                let file = match File::open(filename) {
                     Ok(f) => f,
                     Err(e) => {
                         let code = e.raw_os_error().unwrap_or(1);
-                        println!("cannot open '{filename}': [Errno {code}] {e}");
+                        println!(
+                            "cannot open '{}': [Errno {code}] {e}",
+                            filename.to_string_lossy()
+                        );
                         process::exit(code);
                     }
                 };
@@ -66,7 +70,10 @@ impl Input {
                     Ok(s) => s,
                     Err(e) => {
                         let code = e.raw_os_error().unwrap_or(1);
-                        println!("cannot read '{filename}': [Errno {code}] {e}");
+                        println!(
+                            "cannot read '{}': [Errno {code}] {e}",
+                            filename.to_string_lossy()
+                        );
                         process::exit(code);
                     }
                 }
@@ -80,7 +87,7 @@ impl Input {
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         power_assert!(ln_begin, >=, 1);
         match self {
-            Self::File(filename) => match File::open(&filename[..]) {
+            Self::File(filename) => match File::open(filename) {
                 Ok(file) => {
                     let mut codes = vec![];
                     let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
@@ -238,7 +245,10 @@ impl ErgConfig {
                     panic!("invalid option: {other}");
                 }
                 _ => {
-                    cfg.input = Input::File(arg);
+                    cfg.input = Input::File(
+                        PathBuf::from_str(&arg[..])
+                            .unwrap_or_else(|_| panic!("invalid file path: {}", arg)),
+                    );
                     break;
                 }
             }

@@ -31,12 +31,22 @@ use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
-pub struct ASTLowererRunner {
+/// Singleton that checks types of an AST, and convert (lower) it into a HIR
+#[derive(Debug)]
+pub struct ASTLowerer {
     cfg: ErgConfig,
-    lowerer: ASTLowerer,
+    pub(crate) ctx: Context,
+    errs: LowerErrors,
+    warns: LowerWarnings,
 }
 
-impl Runnable for ASTLowererRunner {
+impl Default for ASTLowerer {
+    fn default() -> Self {
+        Self::new_with_cache(ErgConfig::default(), SharedModuleCache::new())
+    }
+}
+
+impl Runnable for ASTLowerer {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg lowerer";
@@ -47,27 +57,21 @@ impl Runnable for ASTLowererRunner {
     }
 
     fn new(cfg: ErgConfig) -> Self {
-        Self {
-            cfg,
-            lowerer: ASTLowerer::new(SharedModuleCache::new()),
-        }
+        Self::new_with_cache(cfg, SharedModuleCache::new())
     }
 
     #[inline]
     fn finish(&mut self) {}
 
     fn clear(&mut self) {
-        self.lowerer.errs.clear();
-        self.lowerer.warns.clear();
+        self.errs.clear();
+        self.warns.clear();
     }
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build()?;
-        let (hir, _, warns) = self
-            .lowerer
-            .lower(ast, "exec")
-            .map_err(|errs| self.convert(errs))?;
+        let (hir, _, warns) = self.lower(ast, "exec").map_err(|errs| self.convert(errs))?;
         if self.cfg.verbose >= 2 {
             let warns = self.convert(warns);
             warns.fmt_all_stderr();
@@ -79,44 +83,26 @@ impl Runnable for ASTLowererRunner {
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build_with_str(src)?;
-        let (hir, ..) = self
-            .lowerer
-            .lower(ast, "eval")
-            .map_err(|errs| self.convert(errs))?;
+        let (hir, ..) = self.lower(ast, "eval").map_err(|errs| self.convert(errs))?;
         Ok(format!("{hir}"))
     }
 }
 
-impl ASTLowererRunner {
+impl ASTLowerer {
+    pub fn new_with_cache(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
+        Self {
+            cfg,
+            ctx: Context::new_main_module(mod_cache),
+            errs: LowerErrors::empty(),
+            warns: LowerWarnings::empty(),
+        }
+    }
+
     fn convert(&self, errs: LowerErrors) -> CompileErrors {
         errs.into_iter()
             .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
             .collect::<Vec<_>>()
             .into()
-    }
-}
-
-/// Singleton that checks types of an AST, and convert (lower) it into a HIR
-#[derive(Debug)]
-pub struct ASTLowerer {
-    pub(crate) ctx: Context,
-    errs: LowerErrors,
-    warns: LowerWarnings,
-}
-
-impl Default for ASTLowerer {
-    fn default() -> Self {
-        Self::new(SharedModuleCache::new())
-    }
-}
-
-impl ASTLowerer {
-    pub fn new(mod_cache: SharedModuleCache) -> Self {
-        Self {
-            ctx: Context::new_main_module(mod_cache),
-            errs: LowerErrors::empty(),
-            warns: LowerWarnings::empty(),
-        }
     }
 
     fn return_t_check(
@@ -601,11 +587,12 @@ impl ASTLowerer {
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
                 if call.is_import_call() {
-                    self.ctx
-                        .outer
-                        .as_mut()
-                        .unwrap()
-                        .import_mod(&ident.name, &call.args.pos_args.first().unwrap().expr)?;
+                    let current_input = self.input().clone();
+                    self.ctx.outer.as_mut().unwrap().import_mod(
+                        current_input,
+                        &ident.name,
+                        &call.args.pos_args.first().unwrap().expr,
+                    )?;
                 }
             }
             _other => {}
@@ -660,8 +647,7 @@ impl ASTLowerer {
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
-        let mut private_methods = hir::RecordAttrs::empty();
-        let mut public_methods = hir::RecordAttrs::empty();
+        let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
@@ -731,19 +717,11 @@ impl ASTLowerer {
                 self.ctx.preregister_def(def)?;
             }
             for def in methods.defs.into_iter() {
-                if methods.vis.is(TokenKind::Dot) {
-                    let def = self.lower_def(def).map_err(|e| {
-                        self.pop_append_errs();
-                        e
-                    })?;
-                    public_methods.push(def);
-                } else {
-                    let def = self.lower_def(def).map_err(|e| {
-                        self.pop_append_errs();
-                        e
-                    })?;
-                    private_methods.push(def);
-                }
+                let def = self.lower_def(def).map_err(|e| {
+                    self.pop_append_errs();
+                    e
+                })?;
+                hir_methods.push(hir::Expr::Def(def));
             }
             match self.ctx.pop() {
                 Ok(methods) => {
@@ -782,8 +760,7 @@ impl ASTLowerer {
             require_or_sup,
             need_to_gen_new,
             __new__,
-            private_methods,
-            public_methods,
+            hir_methods,
         ))
     }
 

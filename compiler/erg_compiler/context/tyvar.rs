@@ -476,19 +476,9 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::ClassDef(type_def) => {
-                for def in type_def.public_methods.iter_mut() {
-                    match &mut def.sig {
-                        hir::Signature::Var(var) => {
-                            var.t = self.deref_tyvar(mem::take(&mut var.t), var.loc())?;
-                        }
-                        hir::Signature::Subr(subr) => {
-                            subr.t = self.deref_tyvar(mem::take(&mut subr.t), subr.loc())?;
-                        }
-                    }
-                    for chunk in def.body.block.iter_mut() {
-                        self.resolve_expr_t(chunk)?;
-                    }
+            hir::Expr::ClassDef(class_def) => {
+                for def in class_def.methods.iter_mut() {
+                    self.resolve_expr_t(def)?;
                 }
                 Ok(())
             }

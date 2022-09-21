@@ -1390,16 +1390,14 @@ pub struct ClassDef {
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
-    pub private_methods: RecordAttrs,
-    pub public_methods: RecordAttrs,
+    pub methods: Block,
 }
 
 impl NestedDisplay for ClassDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.sig.fmt_nest(f, level)?;
         writeln!(f, ":")?;
-        self.private_methods.fmt_nest(f, level + 1)?;
-        self.public_methods.fmt_nest(f, level + 1)
+        self.methods.fmt_nest(f, level + 1)
     }
 }
 
@@ -1432,8 +1430,7 @@ impl ClassDef {
         require_or_sup: Expr,
         need_to_gen_new: bool,
         __new__: Type,
-        private_methods: RecordAttrs,
-        public_methods: RecordAttrs,
+        methods: Block,
     ) -> Self {
         Self {
             kind,
@@ -1441,8 +1438,7 @@ impl ClassDef {
             require_or_sup: Box::new(require_or_sup),
             need_to_gen_new,
             __new__,
-            private_methods,
-            public_methods,
+            methods,
         }
     }
 }
