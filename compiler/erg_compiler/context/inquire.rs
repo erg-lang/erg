@@ -85,20 +85,18 @@ impl Context {
 
     fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> TyCheckResult<&Context> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                log!(err "{ident}: {}", self.get_mod(ident.inspect()).is_some());
-                self.get_mod(ident.inspect())
-                    .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
-                    .ok_or_else(|| {
-                        TyCheckError::no_var_error(
-                            line!() as usize,
-                            obj.loc(),
-                            namespace.into(),
-                            ident.inspect(),
-                            self.get_similar_name(ident.inspect()),
-                        )
-                    })
-            }
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => self
+                .get_mod(ident.inspect())
+                .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+                .ok_or_else(|| {
+                    TyCheckError::no_var_error(
+                        line!() as usize,
+                        obj.loc(),
+                        namespace.into(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    )
+                }),
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
                 let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
@@ -532,7 +530,6 @@ impl Context {
                     None
                 }
             }) {
-                log!(info "{}, {}", callee.ref_t(), after);
                 self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
             }
         }
