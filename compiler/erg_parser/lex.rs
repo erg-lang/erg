@@ -691,71 +691,68 @@ impl Lexer /*<'a>*/ {
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
         let mut s = "\"\"\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
-            match c {
-                '"' => {
-                    s.push(self.consume().unwrap());
-                    let next_c = self.peek_cur_ch();
-                    let aft_next_c = self.peek_next_ch();
-                    if next_c.is_none() {
-                        return self._unclosed_multi_string(&s);
-                    }
-                    if aft_next_c.is_none() {
-                        s.push(self.consume().unwrap());
-                        return self._unclosed_multi_string(&s);
-                    }
-                    let next_c = self.consume().unwrap();
-                    let aft_next_c = self.consume().unwrap();
-                    if next_c == '"' && aft_next_c == '"' {
-                        s.push_str("\"\"");
-                        let token = self.emit_token(StrLit, &s);
-                        return Ok(token);
-                    }
-                    s.push(self.consume().unwrap());
+            if c == '"' {
+                let c = self.consume().unwrap();
+                let next_c = self.peek_cur_ch();
+                let aft_next_c = self.peek_next_ch();
+                if next_c.is_none() {
+                    return self._unclosed_multi_string(&s);
                 }
-                _ => {
-                    let c = self.consume().unwrap();
-                    match c {
-                        '\\' => {
-                            let next_c = self.consume().unwrap();
-                            match next_c {
-                                '0' => s.push('\0'),
-                                'r' => s.push('\r'),
-                                '\'' => s.push('\''),
-                                '"' => s.push('"'),
-                                't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
-                                '\\' => s.push('\\'),
-                                'n' => s.push('\n'),
-                                '\n' => {
-                                    self.lineno_token_starts += 1;
-                                    self.col_token_starts = 0;
-                                    continue;
-                                }
-                                _ => {
-                                    let token = self.emit_token(Illegal, &format!("\\{next_c}"));
-                                    return Err(LexError::syntax_error(
-                                        0,
-                                        token.loc(),
-                                        switch_lang!(
-                                            "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
-                                            "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
-                                            "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
-                                            "english" => format!("illegal escape sequence: \\{}", next_c),
-                                        ),
-                                        None,
-                                    ));
-                                }
+                if aft_next_c.is_none() {
+                    s.push(self.consume().unwrap());
+                    return self._unclosed_multi_string(&s);
+                }
+                if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
+                    self.consume().unwrap();
+                    self.consume().unwrap();
+                    s.push_str("\"\"\"");
+                    let token = self.emit_token(StrLit, &s);
+                    return Ok(token);
+                }
+                s.push(c);
+            } else {
+                let c = self.consume().unwrap();
+                match c {
+                    '\\' => {
+                        let next_c = self.consume().unwrap();
+                        match next_c {
+                            '0' => s.push('\0'),
+                            'r' => s.push('\r'),
+                            '\'' => s.push('\''),
+                            '\"' => s.push('\"'),
+                            't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                            '\\' => s.push('\\'),
+                            'n' => s.push('\n'),
+                            '\n' => {
+                                self.lineno_token_starts += 1;
+                                self.col_token_starts = 0;
+                                continue;
+                            }
+                            _ => {
+                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                return Err(LexError::syntax_error(
+                                    0,
+                                    token.loc(),
+                                    switch_lang!(
+                                        "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
+                                        "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
+                                        "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
+                                        "english" => format!("illegal escape sequence: \\{}", next_c),
+                                    ),
+                                    None,
+                                ));
                             }
                         }
-                        '\n' => {
-                            self.lineno_token_starts += 1;
-                            self.col_token_starts = 0;
-                            s.push('\n')
-                        }
-                        _ => {
-                            s.push(c);
-                            if Self::is_bidi(c) {
-                                return Err(self._invalid_unicode_character(&s));
-                            }
+                    }
+                    '\n' => {
+                        self.lineno_token_starts += 1;
+                        self.col_token_starts = 0;
+                        s.push('\n')
+                    }
+                    _ => {
+                        s.push(c);
+                        if Self::is_bidi(c) {
+                            return Err(self._invalid_unicode_character(&s));
                         }
                     }
                 }
