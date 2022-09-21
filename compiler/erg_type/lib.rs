@@ -1388,37 +1388,6 @@ impl From<RangeInclusive<&TyParam>> for Type {
     }
 }
 
-impl From<&str> for Type {
-    fn from(item: &str) -> Self {
-        match item {
-            "Obj" => Self::Obj,
-            "Int" => Self::Int,
-            "Nat" => Self::Nat,
-            "Ratio" => Self::Ratio,
-            "Float" => Self::Float,
-            "Bool" => Self::Bool,
-            "Str" => Self::Str,
-            "NoneType" => Self::NoneType,
-            "Type" => Self::Type,
-            "Class" => Self::Class,
-            "Trait" => Self::Trait,
-            "Patch" => Self::Patch,
-            "Code" => Self::Code,
-            "Module" => Self::Module,
-            "Frame" => Self::Frame,
-            "Error" => Self::Error,
-            // "Array" => Self::Array(Box::new(Type::Illegal)),
-            "Ellipsis" => Self::Ellipsis,
-            "NotImplemented" => Self::NotImplemented,
-            "Never" => Self::Never,
-            "Inf" => Self::Inf,
-            "NegInf" => Self::NegInf,
-            "_" => Self::Obj,
-            other => Self::Mono(Str::rc(other)),
-        }
-    }
-}
-
 fn get_t_from_tp(tp: &TyParam) -> Option<Type> {
     match tp {
         TyParam::FreeVar(fv) if fv.is_linked() => get_t_from_tp(&fv.crack()),
