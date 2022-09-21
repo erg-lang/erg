@@ -311,7 +311,9 @@ fn expect_block(src: &str) -> bool {
     src.ends_with(&['.', '=', ':'])
         || src.ends_with("->")
         || src.ends_with("=>")
-        || src.contains("\"\"\"")
+        // when `"""` are on the same line
+        // e.g. """something"""
+        || src.contains("\"\"\"") && src.find("\"\"\"") == src.rfind("\"\"\"")
 }
 
 // In the REPL, it is invalid for these symbols to be at the beginning of a line
@@ -411,8 +413,6 @@ pub trait Runnable: Sized {
                     };
                     lines.push_str(line);
 
-                    // ブロック内ならブロック内の関数を使ってcontinueするかしないかを判断
-                    // ブロック外ならexpect_blockかどうかを判断j
                     if in_block {
                         if is_in_the_expected_block(line, &lines, &mut in_block) {
                             lines += "\n";
