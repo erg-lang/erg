@@ -567,6 +567,7 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
+        self.mod_cache = self.outer.as_ref().unwrap().mod_cache.clone();
         self.name = name.into();
         self.kind = kind;
         Ok(())
