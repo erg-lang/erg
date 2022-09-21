@@ -3,8 +3,9 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
-use crate::ast::{ClassDef, Expr, Methods, Module, PreDeclTypeSpec, TypeSpec, AST};
-use crate::error::{ParseError, ParseErrors};
+use erg_parser::ast::{ClassDef, Expr, Methods, Module, PreDeclTypeSpec, TypeSpec, AST};
+
+use crate::error::{TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
@@ -12,7 +13,7 @@ pub struct Reorderer {
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
     pub deps: Dict<Str, Vec<Str>>,
-    pub errs: ParseErrors,
+    pub errs: TyCheckErrors,
 }
 
 impl Reorderer {
@@ -20,11 +21,11 @@ impl Reorderer {
         Self {
             def_root_pos_map: Dict::new(),
             deps: Dict::new(),
-            errs: ParseErrors::empty(),
+            errs: TyCheckErrors::empty(),
         }
     }
 
-    pub fn reorder(mut self, mut ast: AST) -> Result<AST, ParseErrors> {
+    pub fn reorder(mut self, mut ast: AST) -> Result<AST, TyCheckErrors> {
         log!(info "the reordering process has started.");
         let mut new = vec![];
         while let Some(chunk) = ast.module.lpop() {
@@ -65,11 +66,12 @@ impl Reorderer {
                                 .def_root_pos_map
                                 .keys()
                                 .fold("".to_string(), |acc, key| acc + &key[..] + ",");
-                            self.errs.push(ParseError::no_var_error(
+                            self.errs.push(TyCheckError::no_var_error(
                                 line!() as usize,
                                 methods.class.loc(),
+                                "".into(),
                                 &methods.class.to_string(),
-                                Some(similar_name),
+                                Some(&Str::from(similar_name)),
                             ));
                         }
                     }
@@ -102,11 +104,12 @@ impl Reorderer {
                 .def_root_pos_map
                 .keys()
                 .fold("".to_string(), |acc, key| acc + &key[..] + ",");
-            self.errs.push(ParseError::no_var_error(
+            self.errs.push(TyCheckError::no_var_error(
                 line!() as usize,
                 methods.class.loc(),
+                "".into(),
                 &name,
-                Some(similar_name),
+                Some(&Str::from(similar_name)),
             ));
         }
     }

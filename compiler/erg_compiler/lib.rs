@@ -18,4 +18,5 @@ pub mod mod_cache;
 // pub mod name_resolve;
 pub mod optimize;
 pub mod ownercheck;
+pub mod reorder;
 pub mod varinfo;

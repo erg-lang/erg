@@ -128,20 +128,20 @@ impl Context {
         body_t: &Type,
         id: DefId,
     ) -> TyCheckResult<()> {
-        // already defined as const
-        if sig.is_const() {
-            return Ok(());
-        }
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
             _ => todo!(),
         };
+        // already defined as const
+        if sig.is_const() {
+            let vi = self.decls.remove(ident.inspect()).unwrap();
+            self.locals.insert(ident.name.clone(), vi);
+            return Ok(());
+        }
         self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
         let muty = Mutability::from(&ident.inspect()[..]);
         let generalized = self.generalize_t(body_t.clone());
-        if self.decls.remove(ident.inspect()).is_some() {
-            // something to do?
-        }
+        self.decls.remove(ident.inspect());
         let vis = ident.vis();
         let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id), None);
         self.locals.insert(ident.name.clone(), vi);
@@ -352,6 +352,8 @@ impl Context {
     ) -> TyCheckResult<()> {
         // already defined as const
         if sig.is_const() {
+            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
+            self.locals.insert(sig.ident.name.clone(), vi);
             return Ok(());
         }
         let muty = if sig.ident.is_const() {

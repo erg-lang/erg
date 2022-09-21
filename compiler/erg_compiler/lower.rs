@@ -536,34 +536,28 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
-        if def.body.block.len() >= 1 {
-            let name = if let Some(name) = def.sig.name_as_str() {
-                name
-            } else {
-                "<lambda>"
-            };
-            if self.ctx.registered_info(name, def.sig.is_const()).is_some() {
-                return Err(LowerError::reassign_error(
-                    line!() as usize,
-                    def.sig.loc(),
-                    self.ctx.caused_by(),
-                    name,
-                ));
-            }
-            let kind = ContextKind::from(def.def_kind());
-            self.ctx.grow(name, kind, def.sig.vis())?;
-            let res = match def.sig {
-                ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
-                ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
-            };
-            // TODO: Context上の関数に型境界情報を追加
-            self.pop_append_errs();
-            return res;
+        let name = if let Some(name) = def.sig.name_as_str() {
+            name
+        } else {
+            "<lambda>"
+        };
+        if self.ctx.registered_info(name, def.sig.is_const()).is_some() {
+            return Err(LowerError::reassign_error(
+                line!() as usize,
+                def.sig.loc(),
+                self.ctx.caused_by(),
+                name,
+            ));
         }
-        match def.sig {
+        let kind = ContextKind::from(def.def_kind());
+        self.ctx.grow(name, kind, def.sig.vis())?;
+        let res = match def.sig {
             ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
             ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
-        }
+        };
+        // TODO: Context上の関数に型境界情報を追加
+        self.pop_append_errs();
+        res
     }
 
     fn lower_var_def(

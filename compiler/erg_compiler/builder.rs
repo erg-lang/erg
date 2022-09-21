@@ -8,6 +8,7 @@ use crate::error::{CompileError, CompileErrors, TyCheckErrors};
 // use crate::hir::HIR;
 use crate::check::Checker;
 use crate::mod_cache::SharedModuleCache;
+use crate::reorder::Reorderer;
 
 #[derive(Debug)]
 pub struct HIRBuilder {
@@ -33,6 +34,9 @@ impl HIRBuilder {
     pub fn build_and_cache(&mut self, var_name: VarName) -> Result<(), CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.checker.cfg.copy());
         let ast = ast_builder.build()?;
+        let ast = Reorderer::new()
+            .reorder(ast)
+            .map_err(|errs| self.convert(errs))?;
         let (hir, ctx) = self
             .checker
             .check(ast, "exec")
@@ -46,6 +50,9 @@ impl HIRBuilder {
         cfg.input = Input::Str(src);
         let mut ast_builder = ASTBuilder::new(cfg);
         let ast = ast_builder.build()?;
+        let ast = Reorderer::new()
+            .reorder(ast)
+            .map_err(|errs| self.convert(errs))?;
         let (hir, ctx) = self
             .checker
             .check(ast, mode)
