@@ -367,6 +367,30 @@ line break\"\"\"",
         (Newline, newline),
         (Symbol, "print!"),
         (Symbol, "complex_string"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "quotation_mark"),
+        (Equal, "="),
+        (StrLit, "\"\"\"\"\"\"\"\"\""),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "quotation_mark"),
+        (Newline, newline),
+        (Newline, newline),
+        (Symbol, "quotation_marks"),
+        (Equal, "="),
+        (
+            StrLit,
+            "\"\"\"\"
+\"\"
+\"\"\"
+\"\"\"\"\"
+\"\"\"
+\"\"\"\"\"\"",
+        ),
+        (Newline, newline),
+        (Symbol, "print!"),
+        (Symbol, "quotation_marks"),
         (EOF, ""),
     ];
     let mut tok: Token;

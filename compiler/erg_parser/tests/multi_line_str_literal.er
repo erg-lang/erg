@@ -27,3 +27,14 @@ complex_string = """\\\
 \r\n\
 \\"""
 print! complex_string
+
+quotation_mark = """\"\"\""""
+print! quotation_mark
+
+quotation_marks = """"
+""
+""\"
+\"\"\"""
+\"\""
+\"\"\""""
+print! quotation_marks
