@@ -4,7 +4,7 @@
 extern crate erg_common;
 
 pub mod ast;
-pub mod builder;
+pub mod build_ast;
 pub mod desugar;
 pub mod error;
 pub mod lex;

@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time::Duration;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::python_util::{exec_py, exec_pyc};
 use erg_common::traits::Runnable;
 
@@ -95,15 +95,16 @@ impl Runnable for DummyVM {
     }
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        self.compiler.compile_and_dump_as_pyc("o.pyc", "exec")?;
+        self.compiler
+            .compile_and_dump_as_pyc("o.pyc", self.input().read(), "exec")?;
         exec_pyc("o.pyc");
         remove_file("o.pyc").unwrap();
         Ok(())
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        self.compiler.cfg.input = Input::Str(src);
-        self.compiler.compile_and_dump_as_pyc("o.pyc", "eval")?;
+        self.compiler
+            .compile_and_dump_as_pyc("o.pyc", src, "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
             Result::Ok(_) => {
                 let mut buf = [0; 1024];

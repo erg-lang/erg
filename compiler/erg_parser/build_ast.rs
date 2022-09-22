@@ -19,8 +19,8 @@ impl ASTBuilder {
         }
     }
 
-    pub fn build(&mut self) -> Result<AST, ParserRunnerErrors> {
-        let module = self.runner.parse()?;
+    pub fn build(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
+        let module = self.runner.parse(src)?;
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
         let mut desugarer = Desugarer::new();

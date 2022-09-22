@@ -1,10 +1,10 @@
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::AST;
-use erg_parser::builder::ASTBuilder;
+use erg_parser::build_ast::ASTBuilder;
 
 use crate::context::Context;
 use crate::effectcheck::SideEffectChecker;
@@ -13,21 +13,22 @@ use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
+use crate::reorder::Reorderer;
 
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug)]
-pub struct Checker {
+pub struct HIRBuilder {
     lowerer: ASTLowerer,
     ownership_checker: OwnershipChecker,
 }
 
-impl Runnable for Checker {
+impl Runnable for HIRBuilder {
     type Err = CompileError;
     type Errs = CompileErrors;
-    const NAME: &'static str = "Erg type-checker";
+    const NAME: &'static str = "Erg HIR builder";
 
     fn new(cfg: ErgConfig) -> Self {
-        Checker::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
+        HIRBuilder::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
     }
 
     #[inline]
@@ -42,25 +43,21 @@ impl Runnable for Checker {
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
-        let ast = builder.build()?;
-        let (hir, _) = self.check(ast, "exec")?;
+        let ast = builder.build(self.input().read())?;
+        let hir = self.check(ast, "exec")?;
         println!("{hir}");
         Ok(())
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
-        let cfg = ErgConfig {
-            input: Input::Str(src),
-            ..self.cfg().copy()
-        };
-        let mut builder = ASTBuilder::new(cfg);
-        let ast = builder.build()?;
-        let (hir, _) = self.check(ast, "eval")?;
+        let mut builder = ASTBuilder::new(self.cfg().copy());
+        let ast = builder.build(src)?;
+        let hir = self.check(ast, "eval")?;
         Ok(hir.to_string())
     }
 }
 
-impl Checker {
+impl HIRBuilder {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
@@ -79,8 +76,8 @@ impl Checker {
             .into()
     }
 
-    pub fn check(&mut self, ast: AST, mode: &str) -> Result<(HIR, Context), CompileErrors> {
-        let (hir, ctx, warns) = self
+    pub fn check(&mut self, ast: AST, mode: &str) -> Result<HIR, CompileErrors> {
+        let (hir, warns) = self
             .lowerer
             .lower(ast, mode)
             .map_err(|errs| self.convert(errs))?;
@@ -96,6 +93,20 @@ impl Checker {
             .ownership_checker
             .check(hir)
             .map_err(|errs| self.convert(errs))?;
-        Ok((hir, ctx))
+        Ok(hir)
+    }
+
+    pub fn build(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
+        let mut ast_builder = ASTBuilder::new(self.cfg().copy());
+        let ast = ast_builder.build(src)?;
+        let ast = Reorderer::new()
+            .reorder(ast)
+            .map_err(|errs| self.convert(errs))?;
+        let hir = self.check(ast, mode)?;
+        Ok(hir)
+    }
+
+    pub fn pop_ctx(&mut self) -> Context {
+        self.lowerer.ctx.pop()
     }
 }

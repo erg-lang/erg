@@ -88,6 +88,13 @@ impl ModuleCache {
         self.cache.get(name)
     }
 
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&mut self, name: &Q) -> Option<&mut ModuleEntry>
+    where
+        VarName: Borrow<Q>,
+    {
+        self.cache.get_mut(name)
+    }
+
     pub fn register(&mut self, name: VarName, hir: Option<HIR>, ctx: Context) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
@@ -131,6 +138,22 @@ impl SharedModuleCache {
         let self_ = Self(Shared::new(ModuleCache::new()));
         Context::init_builtins(&self_);
         self_
+    }
+
+    pub fn get<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&ModuleEntry>
+    where
+        VarName: Borrow<Q>,
+    {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.get(name)
+    }
+
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&mut ModuleEntry>
+    where
+        VarName: Borrow<Q>,
+    {
+        let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
+        ref_.get_mut(name)
     }
 
     pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<Rc<Context>>

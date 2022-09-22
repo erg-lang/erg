@@ -18,7 +18,7 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
-use crate::builder::HIRBuilder;
+use crate::build_hir::HIRBuilder;
 use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
@@ -878,9 +878,15 @@ impl Context {
             input: Input::File(path),
             ..ErgConfig::default()
         };
-        let mut hir_builder = HIRBuilder::new(cfg, var_name.inspect(), mod_cache.clone());
-        if let Err(errs) = hir_builder.build_and_cache(var_name.clone(), "exec") {
-            errs.fmt_all_stderr();
+        let src = cfg.input.read();
+        let mut builder = HIRBuilder::new_with_cache(cfg, var_name.inspect(), mod_cache.clone());
+        match builder.build(src, "exec") {
+            Ok(hir) => {
+                mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+            }
+            Err(errs) => {
+                errs.fmt_all_stderr();
+            }
         }
     }
 
