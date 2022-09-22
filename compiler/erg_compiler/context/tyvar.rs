@@ -489,6 +489,12 @@ impl Context {
                 }
                 Ok(())
             }
+            hir::Expr::Code(chunks) | hir::Expr::Compound(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    self.resolve_expr_t(chunk)?;
+                }
+                Ok(())
+            }
         }
     }
 

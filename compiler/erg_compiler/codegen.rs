@@ -1612,6 +1612,14 @@ impl CodeGenerator {
                 }
             },
             Expr::Record(rec) => self.emit_record(rec),
+            Expr::Code(code) => {
+                let code = self.emit_block(code, None, vec![]);
+                self.emit_load_const(code);
+            }
+            Expr::Compound(chunks) => {
+                self.emit_frameless_block(chunks, vec![]);
+            }
+            // Dict, Decl
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1703,10 +1711,6 @@ impl CodeGenerator {
 
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
-        // fake class (module)
-        if __new__ == Type::Uninited {
-            return;
-        }
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
@@ -1767,7 +1771,7 @@ impl CodeGenerator {
     /// ```
     fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
-        let class_t = __new__.return_t().unwrap().clone();
+        let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
         let param_name = fresh_varname();
@@ -1778,17 +1782,7 @@ impl CodeGenerator {
             Str::from(param_name),
             line,
         )));
-        let class = match &class_t {
-            Type::Mono { path, name } if &path[..] == "<module>" => {
-                Expr::Accessor(Accessor::private_with_line(name.clone(), line))
-            }
-            Type::Mono { path, name } => {
-                let module = Expr::Accessor(Accessor::private_with_line(path.clone(), line));
-                let ident = Identifier::public_with_line(Token::dummy(), name.clone(), line);
-                Expr::Accessor(Accessor::attr(module, ident, Type::Uninited))
-            }
-            _ => todo!(),
-        };
+        let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
         let class_new = Expr::Accessor(Accessor::attr(
             class,
             Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line)),
@@ -1802,8 +1796,7 @@ impl CodeGenerator {
         ));
         let block = Block::new(vec![call]);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
-        // TODO: class_t.name() -> class_t.qual_name()
-        self.emit_subr_def(Some(&class_t.name()), sig, body);
+        self.emit_subr_def(Some(class_ident.inspect()), sig, body);
     }
 
     fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
@@ -1874,6 +1867,7 @@ impl CodeGenerator {
     fn load_prelude(&mut self) {
         self.init_record();
         self.load_abc();
+        self.load_module_type();
     }
 
     fn init_record(&mut self) {
@@ -1901,6 +1895,16 @@ impl CodeGenerator {
                     Some(Identifier::private(Str::ever("#abstractmethod"))),
                 ),
             ],
+        );
+    }
+
+    fn load_module_type(&mut self) {
+        self.emit_import_items(
+            Identifier::public("types"),
+            vec![(
+                Identifier::public("ModuleType"),
+                Some(Identifier::private(Str::ever("#ModuleType"))),
+            )],
         );
     }
 

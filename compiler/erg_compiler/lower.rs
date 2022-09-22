@@ -401,6 +401,7 @@ impl ASTLowerer {
         Ok(hir::UnaryOp::new(unary.op, expr, t))
     }
 
+    // TODO: single `import`
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
         let (pos_args, kw_args, paren) = call.args.deconstruct();
