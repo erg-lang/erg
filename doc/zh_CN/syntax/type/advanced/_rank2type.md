@@ -33,7 +33,7 @@ tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 ```
 
-`{(type) | 形式的类型 (类型变量列表)}` 被称为通用类型(详见[通用类型](./../quantified.md))。
+`{(type) | 形式的类型 (类型变量列表)}` 被称为通用类型(详见[通用类型](../15_quantified.md))。
 目前我们看到的`id`函数是一个典型的通用函数=多相关函数。
 
 ```python

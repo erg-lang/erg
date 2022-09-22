@@ -49,7 +49,7 @@ log s2, s1 # !"HELLO hello"
 We take advantage of the fact that immutable objects can be referenced from multiple places and convert mutable objects to immutable objects.
 This is called freezing. Freezing is used, for example, when creating an iterator from a mutable array.
 Since you can't create an iterator directly from a mutable array, convert it to an immutable array.
-If you don't want to destroy the array, use the [`.freeze_map` method](./type/mut.md).
+If you don't want to destroy the array, use the [`.freeze_map` method](./type/18_mut.md).
 
 ```python
 # Compute the sum of the values ​​produced by the iterator

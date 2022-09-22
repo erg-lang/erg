@@ -38,4 +38,4 @@ Erg のバグだと思われる動作を見つけた場合は、[報告](https:/
 
 Ergチームや言語で標準とされるスタイルのコードを書いてください。
 
-## [行動規範](./CODE_OF_CONDUCT.md)
+## [行動規範](./../CODE_OF_CONDUCT/CODE_OF_CONDUCT_JA.md)

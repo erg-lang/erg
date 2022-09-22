@@ -63,7 +63,7 @@ line 3. Call {obj: print!, args: [v]}
 
 ## Implementation of type variables
 
-Type variables were originally expressed as follows in `Type` of [ty.rs](../../src/common/ty.rs). It's now implemented in a different way, but it's essentially the same idea, so I'll consider this implementation in a more naive way.
+Type variables were originally expressed as follows in `Type` of [ty.rs]. It's now implemented in a different way, but it's essentially the same idea, so I'll consider this implementation in a more naive way.
 `RcCell<T>` is a wrapper type for `Rc<RefCell<T>>`.
 
 ```rust
@@ -112,7 +112,7 @@ After that, give the type of the argument to get the target type. This operation
 In addition, the operation that obtains the return type if the expression is a call is denoted as `subst_call_ret`. The first argument is a list of argument types, the second argument is the type to assign to.
 
 The type substitution rule `{?T --> X}` means to rewrite `?T` and `X` to be of the same type. This operation is called __Unification__. `X` can also be a type variable.
-A detailed unification algorithm is described in [separate section](./unification.md). We will denote the unify operation as `unify`.
+A detailed unification algorithm is described in [separate section]. We will denote the unify operation as `unify`.
 
 ```python
 unify(?T, Int) == Ok(()) # ?T == (Int)

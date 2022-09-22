@@ -33,7 +33,7 @@ tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 ```
 
-`{(type) | 形式的類型 (類型變量列表)}` 被稱為通用類型(詳見[通用類型](./../quantified.md))。
+`{(type) | 形式的類型 (類型變量列表)}` 被稱為通用類型(詳見[通用類型](../15_quantified.md))。
 目前我們看到的`id`函數是一個典型的通用函數=多相關函數。
 
 ```python

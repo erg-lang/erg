@@ -71,16 +71,16 @@ assert 1e-10 == 0.0000000001
 [], [1], [1, 2, 3], ["1", "2",], [1, "1", True, [1]], ...
 ```
 
-### [辞書リテラル(Dict Literal)](./11_dict.md)
-
-```python
-{:}, {"one": 1}, {"one": 1, "two": 2}, {"1": 1, "2": 2}, {1: "1", 2: True, "three": [1]}, ...
-```
-
-### [組リテラル(Tuple Literal)](./12_tuple.md)
+### [組リテラル(Tuple Literal)](./11_tuple.md)
 
 ```python
 (), (1, 2, 3), (1, "hello", True), ...
+```
+
+### [辞書リテラル(Dict Literal)](./12_dict.md)
+
+```python
+{:}, {"one": 1}, {"one": 1, "two": 2}, {"1": 1, "2": 2}, {1: "1", 2: True, "three": [1]}, ...
 ```
 
 ### [レコードリテラル(Record Literal)](./13_record.md)

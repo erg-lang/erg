@@ -3,7 +3,7 @@
 Refinement type is a type constrained by a predicate expression. Enumeration types and interval types are syntax sugar of refinement types.
 
 The standard form of a refinement type is `{Elem: Type | (Pred)*}`. This means that the type is a type whose elements are `Elem` satisfying `Pred`.
-The type that can be used for the sifting type is [Const type](./advanced/const.md) only.
+The type that can be used for the sifting type is [Const type] only.
 
 ```python
 Nat = 0.. _

@@ -4,7 +4,7 @@
 
 此常见问题解答适用于一般 Erg 初学者。
 对于个别(常见)技术问题，请参阅 [此处](./faq_technical.md) 了解个别(常见)技术问题，以及
-[这里](./dev_guide/faq_syntax.md) 了解更多信息。
+[这里](./faq_syntax.md) 了解更多信息。
 
 ## Erg 是 Python 兼容语言是什么意思?
 

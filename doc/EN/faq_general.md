@@ -2,7 +2,7 @@
 
 This FAQ is intended for the general Erg beginner.
 For individual (common) technical issues, please refer to [here](./faq_technical.md) for individual (common) technical issues, and
-[Here](./dev_guide/faq_syntax.md) for more information.
+[here](./faq_syntax.md) for more information.
 
 ## What does it mean that Erg is a Python compatible language?
 

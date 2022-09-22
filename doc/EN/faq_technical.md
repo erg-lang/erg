@@ -2,11 +2,11 @@
 
 This section answers technical questions about using the Erg language. In other words, it contains questions that begin with What or Which, and questions that can be answered with Yes/No.
 
-For more information on how the grammar was determined, see [here](./dev_guide/faq_syntax.md) for the underlying syntax decisions, and [here](./dev_guide/../faq_general.md).
+For more information on how the grammar was determined, see [here](./faq_syntax.md) for the underlying syntax decisions, and [here](./faq_general.md).
 
 ## Is there an exception mechanism in Erg?
 
-A: No. Erg uses the `Result` type instead. See [here](./dev_guide/faq_syntax.md) for why Erg does not have an exception mechanism.
+A: No. Erg uses the `Result` type instead. See [here](./faq_syntax.md) for why Erg does not have an exception mechanism.
 
 ## Does Erg have a type equivalent to TypeScript's `Any`?
 

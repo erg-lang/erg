@@ -9,7 +9,7 @@
 >
 > [The Erg Book traditional Chinese edition](https://erg-lang.github.io/the-erg-book/zh_TW/)
 
-This document describes the basic syntax of Erg. The [Standard API](./API/index.md) and [internal documents for Erg contributors](./dev_guide/index.md) are located in another directory.
+This document describes the basic syntax of Erg. The [Standard API](../API/index.md) and [internal documents for Erg contributors](../dev_guide/index.md) are located in another directory.
 
 ## Hello, World&excl;
 

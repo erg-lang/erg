@@ -5,7 +5,7 @@
 Refinement type(篩型、ふるいがた)は、述語式によって制約付けられた型です。列挙型や区間型は篩型の一種です。
 
 篩型の標準形は`{Elem: Type | (Pred)*}`です。これは、`Pred`を満たす`Elem`を要素とする型である、という意味です。
-篩型に使えるのは[Const型](./advanced/const.md)のみです。
+篩型に使えるのは[Const型]のみです。
 
 ```python
 Nat = 0.._

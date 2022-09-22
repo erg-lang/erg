@@ -4,11 +4,11 @@
 
 本节回答有关使用 Erg 语言的技术问题。换句话说，它包含以 What 或 Which 开头的问题，以及可以用 Yes/No 回答的问题。
 
-有关如何确定语法的更多信息，请参阅 [此处](./dev_guide/faq_syntax.md) 了解基础语法决策，以及 [此处](./dev_guide/../faq_general.md)。
+有关如何确定语法的更多信息，请参阅 [此处](./faq_syntax.md) 了解基础语法决策，以及 [此处](./faq_general.md)。
 
 ## Erg 中有异常机制吗?
 
-答：不会。Erg 使用 `Result` 类型代替。请参阅 [此处](./dev_guide/faq_syntax.md) 了解 Erg 没有异常机制的原因。
+答：不会。Erg 使用 `Result` 类型代替。请参阅 [此处](./faq_syntax.md) 了解 Erg 没有异常机制的原因。
 
 ## Erg 是否有与 TypeScript 的 `Any` 等价的类型?
 
