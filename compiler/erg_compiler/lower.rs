@@ -3,7 +3,7 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 
 use erg_common::astr::AtomicStr;
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Runnable, Stream};
@@ -81,8 +81,12 @@ impl Runnable for ASTLowerer {
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build_with_str(src)?;
+        let cfg = ErgConfig {
+            input: Input::Str(src),
+            ..self.cfg.copy()
+        };
+        let mut ast_builder = ASTBuilder::new(cfg);
+        let ast = ast_builder.build()?;
         let (hir, ..) = self.lower(ast, "eval").map_err(|errs| self.convert(errs))?;
         Ok(format!("{hir}"))
     }
@@ -92,7 +96,7 @@ impl ASTLowerer {
     pub fn new_with_cache(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
         Self {
             cfg,
-            ctx: Context::new_main_module(mod_cache),
+            ctx: Context::new_module(mod_cache),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }

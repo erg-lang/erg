@@ -1,4 +1,4 @@
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::traits::{Runnable, Stream};
 
 use erg_parser::ast::VarName;
@@ -31,24 +31,8 @@ impl HIRBuilder {
         }
     }
 
-    pub fn build_and_cache(&mut self, var_name: VarName) -> Result<(), CompileErrors> {
+    pub fn build_and_cache(&mut self, var_name: VarName, mode: &str) -> Result<(), CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.checker.cfg().copy());
-        let ast = ast_builder.build()?;
-        let ast = Reorderer::new()
-            .reorder(ast)
-            .map_err(|errs| self.convert(errs))?;
-        let (hir, ctx) = self
-            .checker
-            .check(ast, "exec")
-            .map_err(|errs| self.convert(errs))?;
-        self.mod_cache.register(var_name, Some(hir), ctx);
-        Ok(())
-    }
-
-    pub fn build_and_cache_main(&mut self, src: String, mode: &str) -> Result<(), CompileErrors> {
-        let mut cfg = self.checker.cfg().copy();
-        cfg.input = Input::Str(src);
-        let mut ast_builder = ASTBuilder::new(cfg);
         let ast = ast_builder.build()?;
         let ast = Reorderer::new()
             .reorder(ast)
@@ -57,8 +41,7 @@ impl HIRBuilder {
             .checker
             .check(ast, mode)
             .map_err(|errs| self.convert(errs))?;
-        let name = VarName::from_static("<module>");
-        self.mod_cache.register(name, Some(hir), ctx);
+        self.mod_cache.register(var_name, Some(hir), ctx);
         Ok(())
     }
 }

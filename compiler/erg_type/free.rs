@@ -337,6 +337,20 @@ impl<T> FreeKind<T> {
             _ => None,
         }
     }
+
+    pub const fn linked(&self) -> Option<&T> {
+        match self {
+            Self::Linked(typ) => Some(typ),
+            _ => None,
+        }
+    }
+
+    pub fn linked_mut(&mut self) -> Option<&mut T> {
+        match self {
+            Self::Linked(typ) => Some(typ),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -25,17 +25,7 @@ impl ASTBuilder {
         let module = desugarer.desugar(module);
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
-        let ast = AST::new(Str::ever(self.runner.cfg().module), module);
-        Ok(ast)
-    }
-
-    pub fn build_with_str(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
-        let module = self.runner.parse_with_str(src)?;
-        let mut desugarer = Desugarer::new();
-        let module = desugarer.desugar(module);
-        let mut desugarer = Desugarer::new();
-        let module = desugarer.desugar(module);
-        let ast = AST::new(Str::ever(self.runner.cfg().module), module);
+        let ast = AST::new(Str::rc(self.runner.cfg().input.filename()), module);
         Ok(ast)
     }
 }

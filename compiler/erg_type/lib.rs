@@ -1104,6 +1104,10 @@ pub enum Type {
     Ellipsis, // これはクラスのほうで型推論用のマーカーではない
     Never,    // {}
     Mono(Str),
+    ForeignMono {
+        path: Str,
+        name: Str,
+    },
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut {
@@ -1174,6 +1178,10 @@ impl PartialEq for Type {
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
             (Self::Mono(l), Self::Mono(r)) => l == r,
+            (
+                Self::ForeignMono { path: lp, name: ln },
+                Self::ForeignMono { path: rp, name: rn },
+            ) => lp == rp && ln == rn,
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
@@ -1269,6 +1277,7 @@ impl LimitedDisplay for Type {
         }
         match self {
             Self::Mono(name) => write!(f, "{name}"),
+            Self::ForeignMono { path, name } => write!(f, "{name}(of {path})"),
             Self::Ref(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1758,7 +1767,9 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
+            Self::Mono(name) | Self::MonoQVar(name) | Self::ForeignMono { name, .. } => {
+                name.clone()
+            }
             Self::And(_, _) => Str::ever("And"),
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
@@ -1991,16 +2002,22 @@ impl Type {
 
     pub fn self_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => todo!("linked: {fv}"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.self_t()),
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
             _ => None,
         }
     }
 
-    pub const fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
+    pub fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.non_default_params()),
             Self::Refinement(refine) => refine.t.non_default_params(),
             Self::Subr(SubrType {
                 non_default_params, ..
@@ -2012,7 +2029,10 @@ impl Type {
 
     pub fn var_args(&self) -> Option<&ParamTy> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.var_args()),
             Self::Refinement(refine) => refine.t.var_args(),
             Self::Subr(SubrType {
                 var_params: var_args,
@@ -2023,18 +2043,24 @@ impl Type {
         }
     }
 
-    pub const fn default_params(&self) -> Option<&Vec<ParamTy>> {
+    pub fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.default_params()),
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             _ => None,
         }
     }
 
-    pub const fn return_t(&self) -> Option<&Type> {
+    pub fn return_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.return_t()),
             Self::Refinement(refine) => refine.t.return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2045,7 +2071,10 @@ impl Type {
 
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_mut() }
+                .unwrap()
+                .linked_mut()
+                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)

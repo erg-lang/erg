@@ -1,4 +1,4 @@
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::Runnable;
 
@@ -48,8 +48,12 @@ impl Runnable for Checker {
     }
 
     fn eval(&mut self, src: String) -> Result<String, TyCheckErrors> {
-        let mut builder = ASTBuilder::new(self.cfg().copy());
-        let ast = builder.build_with_str(src)?;
+        let cfg = ErgConfig {
+            input: Input::Str(src),
+            ..self.cfg().copy()
+        };
+        let mut builder = ASTBuilder::new(cfg);
+        let ast = builder.build()?;
         let (hir, _) = self.check(ast, "eval")?;
         Ok(hir.to_string())
     }

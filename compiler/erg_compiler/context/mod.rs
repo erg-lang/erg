@@ -19,7 +19,6 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
-use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
@@ -554,6 +553,23 @@ impl Context {
         AtomicStr::arc(&self.name[..])
     }
 
+    pub(crate) fn get_outer(&self) -> Option<&Context> {
+        self.outer.as_ref().map(|x| x.as_ref())
+    }
+
+    /// Returns None if self is `<builtins>`.
+    /// This avoids infinite loops.
+    pub(crate) fn get_builtins(&self) -> Option<&Context> {
+        // builtins中で定義した型等はmod_cacheがNoneになっている
+        if &self.name[..] != "<builtins>" {
+            self.mod_cache
+                .as_ref()
+                .map(|cache| cache.ref_ctx("<builtins>").unwrap())
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn grow(
         &mut self,
         name: &str,
@@ -567,7 +583,7 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
-        self.mod_cache = self.outer.as_ref().unwrap().mod_cache.clone();
+        self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
         self.name = name.into();
         self.kind = kind;
         Ok(())
@@ -584,7 +600,7 @@ impl Context {
                 &vi.t,
             ));
         }
-        if let Some(parent) = &mut self.outer {
+        if let Some(parent) = self.outer.as_mut() {
             let parent = mem::take(parent);
             let ctx = mem::take(self);
             *self = *parent;
@@ -595,12 +611,14 @@ impl Context {
                 Ok(ctx)
             }
         } else {
-            Err(TyCheckErrors::from(TyCheckError::checker_bug(
-                0,
-                Location::Unknown,
-                fn_name!(),
-                line!(),
-            )))
+            // toplevel
+            let ctx = mem::take(self);
+            log!(info "{}: current namespace: {}", fn_name!(), self.name);
+            if !uninited_errs.is_empty() {
+                Err(uninited_errs)
+            } else {
+                Ok(ctx)
+            }
         }
     }
 }

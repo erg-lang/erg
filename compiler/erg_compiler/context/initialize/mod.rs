@@ -1770,7 +1770,7 @@ impl Context {
         // ord.register_impl("__ge__", op_t,         Const, Public);
     }
 
-    pub(crate) fn init_builtins() -> Self {
+    pub(crate) fn init_builtins(mod_cache: &SharedModuleCache) {
         // TODO: capacityを正確に把握する
         let mut ctx = Context::module("<builtins>".into(), None, 40);
         ctx.init_builtin_funcs();
@@ -1780,15 +1780,15 @@ impl Context {
         ctx.init_builtin_traits();
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();
-        ctx
+        mod_cache.register(VarName::from_static("<builtins>"), None, ctx);
     }
 
-    pub fn new_main_module(mod_cache: SharedModuleCache) -> Self {
+    pub fn new_module(mod_cache: SharedModuleCache) -> Self {
         Context::new(
-            "<module>".into(),
+            "<module>".into(), // TODO:
             ContextKind::Module,
             vec![],
-            Some(Context::init_builtins()),
+            None,
             Some(mod_cache),
             Context::TOP_LEVEL,
         )

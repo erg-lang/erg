@@ -128,7 +128,9 @@ impl fmt::Display for SharedModuleCache {
 
 impl SharedModuleCache {
     pub fn new() -> Self {
-        Self(Shared::new(ModuleCache::new()))
+        let self_ = Self(Shared::new(ModuleCache::new()));
+        Context::init_builtins(&self_);
+        self_
     }
 
     pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<Rc<Context>>

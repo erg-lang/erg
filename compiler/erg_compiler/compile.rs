@@ -3,9 +3,10 @@
 //! コンパイラーを定義する
 use std::path::Path;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
+use erg_parser::ast::VarName;
 use erg_type::codeobj::CodeObj;
 
 use crate::builder::HIRBuilder;
@@ -148,8 +149,12 @@ impl Compiler {
 
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let mut hir_builder = HIRBuilder::new(self.cfg.copy(), self.mod_cache.clone());
-        hir_builder.build_and_cache_main(src, mode)?;
+        let cfg = ErgConfig {
+            input: Input::Str(src),
+            ..self.cfg.copy()
+        };
+        let mut hir_builder = HIRBuilder::new(cfg, self.mod_cache.clone());
+        hir_builder.build_and_cache(VarName::from_static("<module>"), mode)?;
         let hir = Linker::link(self.mod_cache.clone());
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());

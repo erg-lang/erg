@@ -48,7 +48,7 @@ impl Context {
             return Some((name, vi));
         }
         if is_const {
-            if let Some(outer) = &self.outer {
+            if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
                 outer.registered_info(name, is_const)
             } else {
                 None
@@ -871,7 +871,7 @@ impl Context {
             ..ErgConfig::default()
         };
         let mut hir_builder = HIRBuilder::new(cfg, mod_cache.clone());
-        if let Err(errs) = hir_builder.build_and_cache(var_name.clone()) {
+        if let Err(errs) = hir_builder.build_and_cache(var_name.clone(), "exec") {
             errs.fmt_all_stderr();
         }
     }

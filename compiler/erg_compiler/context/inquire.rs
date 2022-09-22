@@ -206,7 +206,7 @@ impl Context {
             self.validate_visibility(ident, vi, namespace)?;
             Ok(vi.t())
         } else {
-            if let Some(parent) = self.outer.as_ref() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.rec_get_var_t(ident, namespace);
             }
             Err(TyCheckError::no_var_error(
@@ -267,7 +267,7 @@ impl Context {
             }
         }
         // TODO: dependent type widening
-        if let Some(parent) = self.outer.as_ref() {
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
             parent.rec_get_attr_t(obj, ident, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
@@ -849,7 +849,7 @@ impl Context {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
-            if let Some(parent) = self.outer.as_ref() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.get_const_local(name, namespace);
             }
             Err(TyCheckError::no_var_error(
@@ -883,7 +883,7 @@ impl Context {
             }
         }
         // TODO: dependent type widening
-        if let Some(parent) = self.outer.as_ref() {
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
             parent._get_const_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
@@ -912,7 +912,7 @@ impl Context {
             .inspect();
         let len = most_similar_name.len();
         if levenshtein(most_similar_name, name) >= len / 2 {
-            let outer = self.outer.as_ref()?;
+            let outer = self.get_outer().or_else(|| self.get_builtins())?;
             outer.get_similar_name(name)
         } else {
             Some(most_similar_name)
@@ -1209,7 +1209,7 @@ impl Context {
         } else {
             vec![]
         };
-        if let Some(outer) = &self.outer {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             [current, outer.rec_get_trait_impls(name)].concat()
         } else {
             current
@@ -1219,7 +1219,7 @@ impl Context {
     pub(crate) fn _rec_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
             Some(patch)
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer._rec_get_patch(name)
         } else {
             None
@@ -1243,7 +1243,7 @@ impl Context {
                 return Some(val);
             }
         }
-        if let Some(outer) = &self.outer {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -1253,7 +1253,7 @@ impl Context {
     pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
             Some(impls)
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_const_param_defaults(name)
         } else {
             None
@@ -1271,7 +1271,7 @@ impl Context {
             } else {
                 None
             }
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_self_t()
         } else {
             None
@@ -1281,7 +1281,7 @@ impl Context {
     fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_mono_type(name)
         } else {
             None
@@ -1291,7 +1291,7 @@ impl Context {
     fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_poly_type(name)
         } else {
             None
@@ -1302,6 +1302,7 @@ impl Context {
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {
+            // builtins cannot be got as mutable
             outer.rec_get_mut_mono_type(name)
         } else {
             None
@@ -1323,7 +1324,7 @@ impl Context {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_type(name)
         } else {
             None
