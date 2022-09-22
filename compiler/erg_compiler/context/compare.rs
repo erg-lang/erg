@@ -184,30 +184,30 @@ impl Context {
                     && self.supertype_of(&Type, &subr.return_t),
             ),
             (
-                Type::Mono(n),
+                Type::BuiltinMono(n),
                 Subr(SubrType {
                     kind: SubrKind::Func,
                     ..
                 }),
             ) if &n[..] == "GenericFunc" => (Absolutely, true),
             (
-                Type::Mono(n),
+                Type::BuiltinMono(n),
                 Subr(SubrType {
                     kind: SubrKind::Proc,
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
-            (Type::Mono(l), Type::Poly { name: r, .. })
+            (Type::BuiltinMono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericArray" && &r[..] == "Array" =>
             {
                 (Absolutely, true)
             }
-            (Type::Mono(l), Type::Poly { name: r, .. })
+            (Type::BuiltinMono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericDict" && &r[..] == "Dict" =>
             {
                 (Absolutely, true)
             }
-            (Type::Mono(l), Type::Mono(r))
+            (Type::BuiltinMono(l), Type::BuiltinMono(r))
                 if &l[..] == "GenericCallable"
                     && (&r[..] == "GenericFunc"
                         || &r[..] == "GenericProc"
@@ -220,7 +220,7 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Type::BuiltinMono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
             (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
             _ => (Maybe, false),
         }

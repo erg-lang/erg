@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 use erg_common::Str;
 
-use erg_type::constructors::{func, mono, option, param_t};
+use erg_type::constructors::{builtin_mono, func, option, param_t};
 use erg_type::Type;
 use Type::*;
 
@@ -27,12 +27,12 @@ impl Context {
                     param_t("proto", Int),
                     param_t("fileno", option(Int)),
                 ],
-                mono("Socket!"),
+                builtin_mono("Socket!"),
             ),
             Immutable,
             Public,
         );
-        socket.register_builtin_type(mono("Socket!"), sock, Const);
+        socket.register_builtin_type(builtin_mono("Socket!"), sock, Const);
         socket
     }
 }

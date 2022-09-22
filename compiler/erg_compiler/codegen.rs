@@ -1666,7 +1666,9 @@ impl CodeGenerator {
             self.emit_new_func(&class.sig, class.__new__);
         }
         self.emit_frameless_block(class.methods, vec![]);
-        self.emit_load_const(ValueObj::None);
+        if self.cur_block().stack_len == 0 {
+            self.emit_load_const(ValueObj::None);
+        }
         self.write_instr(RETURN_VALUE);
         self.write_arg(0u8);
         if self.cur_block().stack_len > 1 {
@@ -1765,7 +1767,7 @@ impl CodeGenerator {
     /// ```
     fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
-        let class_name = sig.ident().inspect();
+        let class_t = __new__.return_t().unwrap().clone();
         let line = sig.ln_begin().unwrap();
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
         let param_name = fresh_varname();
@@ -1776,7 +1778,17 @@ impl CodeGenerator {
             Str::from(param_name),
             line,
         )));
-        let class = Expr::Accessor(Accessor::private_with_line(class_name.clone(), line));
+        let class = match &class_t {
+            Type::Mono { path, name } if &path[..] == "<module>" => {
+                Expr::Accessor(Accessor::private_with_line(name.clone(), line))
+            }
+            Type::Mono { path, name } => {
+                let module = Expr::Accessor(Accessor::private_with_line(path.clone(), line));
+                let ident = Identifier::public_with_line(Token::dummy(), name.clone(), line);
+                Expr::Accessor(Accessor::attr(module, ident, Type::Uninited))
+            }
+            _ => todo!(),
+        };
         let class_new = Expr::Accessor(Accessor::attr(
             class,
             Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line)),
@@ -1790,7 +1802,8 @@ impl CodeGenerator {
         ));
         let block = Block::new(vec![call]);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
-        self.emit_subr_def(Some(&class_name[..]), sig, body);
+        // TODO: class_t.name() -> class_t.qual_name()
+        self.emit_subr_def(Some(&class_t.name()), sig, body);
     }
 
     fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {

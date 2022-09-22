@@ -1,6 +1,6 @@
 private = "this is a private variable"
 .public = "this is a public variable"
 
-.C = Class {x = Int}
+.C = Class {.x = Int}
 .C.
     x = 1

@@ -552,7 +552,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.subtype_of(&fv_t, &mono("Num"))
+                    && self.subtype_of(&fv_t, &builtin_mono("Num"))
                 {
                     fv.link(tp);
                     Ok(())

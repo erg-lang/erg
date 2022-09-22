@@ -295,13 +295,21 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn mono<S: Into<Str>>(name: S) -> Type {
-    Type::Mono(name.into())
+pub fn builtin_mono<S: Into<Str>>(name: S) -> Type {
+    Type::BuiltinMono(name.into())
 }
 
 #[inline]
 pub fn mono_q<S: Into<Str>>(name: S) -> Type {
     Type::MonoQVar(name.into())
+}
+
+#[inline]
+pub fn mono<S: Into<Str>, T: Into<Str>>(path: S, name: T) -> Type {
+    Type::Mono {
+        path: path.into(),
+        name: name.into(),
+    }
 }
 
 #[inline]

@@ -1,5 +1,6 @@
 use erg_common::config::ErgConfig;
 use erg_common::traits::{Runnable, Stream};
+use erg_common::Str;
 
 use erg_parser::ast::VarName;
 use erg_parser::builder::ASTBuilder;
@@ -24,9 +25,9 @@ impl HIRBuilder {
             .into()
     }
 
-    pub fn new(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
+    pub fn new<S: Into<Str>>(cfg: ErgConfig, mod_name: S, mod_cache: SharedModuleCache) -> Self {
         Self {
-            checker: Checker::new_with_cache(cfg, mod_cache.clone()),
+            checker: Checker::new_with_cache(cfg, mod_name, mod_cache.clone()),
             mod_cache,
         }
     }

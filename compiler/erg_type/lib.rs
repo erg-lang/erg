@@ -22,7 +22,7 @@ use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 use erg_parser::ast::{Block, Params};
 use erg_parser::token::TokenKind;
 
-use crate::constructors::{int_interval, mono, mono_q};
+use crate::constructors::{builtin_mono, int_interval, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
@@ -181,7 +181,7 @@ impl ValueArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
+    subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
     sig_t: Type,
     as_type: Option<Type>,
 }
@@ -195,7 +195,7 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, Option<Str>) -> EvalValueResult<ValueObj>,
+        subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
@@ -207,8 +207,13 @@ impl BuiltinConstSubr {
         }
     }
 
-    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
-        (self.subr)(args, __name__)
+    pub fn call(
+        &self,
+        args: ValueArgs,
+        mod_name: Str,
+        __name__: Option<Str>,
+    ) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, mod_name, __name__)
     }
 }
 
@@ -1103,8 +1108,8 @@ pub enum Type {
     NotImplemented,
     Ellipsis, // これはクラスのほうで型推論用のマーカーではない
     Never,    // {}
-    Mono(Str),
-    ForeignMono {
+    BuiltinMono(Str),
+    Mono {
         path: Str,
         name: Str,
     },
@@ -1177,11 +1182,10 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::Mono(l), Self::Mono(r)) => l == r,
-            (
-                Self::ForeignMono { path: lp, name: ln },
-                Self::ForeignMono { path: rp, name: rn },
-            ) => lp == rp && ln == rn,
+            (Self::BuiltinMono(l), Self::BuiltinMono(r)) => l == r,
+            (Self::Mono { path: lp, name: ln }, Self::Mono { path: rp, name: rn }) => {
+                lp == rp && ln == rn
+            }
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
@@ -1276,8 +1280,8 @@ impl LimitedDisplay for Type {
             return write!(f, "...");
         }
         match self {
-            Self::Mono(name) => write!(f, "{name}"),
-            Self::ForeignMono { path, name } => write!(f, "{name}(of {path})"),
+            Self::BuiltinMono(name) => write!(f, "{name}"),
+            Self::Mono { path, name } => write!(f, "{name}(of {path})"),
             Self::Ref(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1596,12 +1600,12 @@ impl Type {
                 fv.link(&t.mutate());
                 Self::FreeVar(fv)
             }
-            Self::Int => mono("Int!"),
-            Self::Nat => mono("Nat!"),
-            Self::Ratio => mono("Ratio!"),
-            Self::Float => mono("Float!"),
-            Self::Bool => mono("Bool!"),
-            Self::Str => mono("Str!"),
+            Self::Int => builtin_mono("Int!"),
+            Self::Nat => builtin_mono("Nat!"),
+            Self::Ratio => builtin_mono("Ratio!"),
+            Self::Float => builtin_mono("Float!"),
+            Self::Bool => builtin_mono("Bool!"),
+            Self::Str => builtin_mono("Str!"),
             _ => todo!(),
         }
     }
@@ -1643,7 +1647,7 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::Mono(name)
+            Self::BuiltinMono(name)
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
             | Self::PolyQVar { name, .. }
@@ -1767,7 +1771,7 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::Mono(name) | Self::MonoQVar(name) | Self::ForeignMono { name, .. } => {
+            Self::BuiltinMono(name) | Self::MonoQVar(name) | Self::Mono { name, .. } => {
                 name.clone()
             }
             Self::And(_, _) => Str::ever("And"),
@@ -2129,7 +2133,7 @@ impl From<&Type> for TypeCode {
             Type::Float => Self::Float64,
             Type::Bool => Self::Bool,
             Type::Str => Self::Str,
-            Type::Mono(name) => match &name[..] {
+            Type::BuiltinMono(name) => match &name[..] {
                 "Int!" => Self::Int32,
                 "Nat!" => Self::Nat64,
                 "Float!" => Self::Float64,

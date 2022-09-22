@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::thread::sleep;
 use std::time::Duration;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::python_util::{exec_py, exec_pyc};
 use erg_common::traits::Runnable;
 
@@ -19,7 +19,6 @@ pub type EvalErrors = CompileErrors;
 /// Pythonインタープリタをサーバーとして開き、通信を仲介することでErgインタープリタとして振る舞う
 #[derive(Debug)]
 pub struct DummyVM {
-    cfg: ErgConfig,
     compiler: Compiler,
     stream: Option<TcpStream>,
 }
@@ -31,7 +30,7 @@ impl Runnable for DummyVM {
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
-        &self.cfg
+        &self.compiler.cfg
     }
 
     fn new(cfg: ErgConfig) -> Self {
@@ -68,8 +67,7 @@ impl Runnable for DummyVM {
             None
         };
         Self {
-            compiler: Compiler::new(cfg.copy()),
-            cfg,
+            compiler: Compiler::new(cfg),
             stream,
         }
     }
@@ -97,17 +95,15 @@ impl Runnable for DummyVM {
     }
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        let src = self.input().read();
-        self.compiler
-            .compile_and_dump_as_pyc(src, "o.pyc", "exec")?;
+        self.compiler.compile_and_dump_as_pyc("o.pyc", "exec")?;
         exec_pyc("o.pyc");
         remove_file("o.pyc").unwrap();
         Ok(())
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        self.compiler
-            .compile_and_dump_as_pyc(src, "o.pyc", "eval")?;
+        self.compiler.cfg.input = Input::Str(src);
+        self.compiler.compile_and_dump_as_pyc("o.pyc", "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
             Result::Ok(_) => {
                 let mut buf = [0; 1024];

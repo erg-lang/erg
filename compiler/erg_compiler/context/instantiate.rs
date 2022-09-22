@@ -534,7 +534,7 @@ impl Context {
                     let len = self.instantiate_const_expr(&len.expr);
                     Ok(array(t, len))
                 } else {
-                    Ok(mono("GenericArray"))
+                    Ok(builtin_mono("GenericArray"))
                 }
             }
             other if simple.args.is_empty() => {
@@ -543,7 +543,7 @@ impl Context {
                 } else if let Some(decl_t) = opt_decl_t {
                     Ok(decl_t.typ().clone())
                 } else {
-                    let typ = mono(Str::rc(other));
+                    let typ = mono(self.mod_name(), Str::rc(other));
                     if self.get_nominal_type_ctx(&typ).is_some() {
                         Ok(typ)
                     } else {
@@ -586,7 +586,9 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> TyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
+                Ok(mono(self.mod_name(), name.inspect()))
+            }
             _ => todo!(),
         }
     }

@@ -91,7 +91,7 @@ impl AccessKind {
 /// Generates a `CodeObj` from an String or other File inputs.
 #[derive(Debug)]
 pub struct Compiler {
-    cfg: ErgConfig,
+    pub cfg: ErgConfig,
     mod_cache: SharedModuleCache,
     code_generator: CodeGenerator,
 }
@@ -124,12 +124,12 @@ impl Runnable for Compiler {
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        let src = self.input().read();
-        self.compile_and_dump_as_pyc(src, path, "exec")
+        self.compile_and_dump_as_pyc(path, "exec")
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let codeobj = self.compile(src, "eval")?;
+        self.cfg.input = Input::Str(src);
+        let codeobj = self.compile("eval")?;
         Ok(codeobj.code_info())
     }
 }
@@ -137,23 +137,18 @@ impl Runnable for Compiler {
 impl Compiler {
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
-        src: String,
         path: P,
         mode: &str,
     ) -> Result<(), CompileErrors> {
-        let code = self.compile(src, mode)?;
+        let code = self.compile(mode)?;
         code.dump_as_pyc(path, self.cfg.python_ver)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
 
-    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(&mut self, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let cfg = ErgConfig {
-            input: Input::Str(src),
-            ..self.cfg.copy()
-        };
-        let mut hir_builder = HIRBuilder::new(cfg, self.mod_cache.clone());
+        let mut hir_builder = HIRBuilder::new(self.cfg.copy(), "<module>", self.mod_cache.clone());
         hir_builder.build_and_cache(VarName::from_static("<module>"), mode)?;
         let hir = Linker::link(self.mod_cache.clone());
         let codeobj = self.code_generator.emit(hir);

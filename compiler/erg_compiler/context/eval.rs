@@ -13,7 +13,9 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{enum_t, mono, mono_proj, poly, ref_, ref_mut, refinement, subr_t};
+use erg_type::constructors::{
+    builtin_mono, enum_t, mono_proj, poly, ref_, ref_mut, refinement, subr_t,
+};
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
 use erg_type::{
@@ -268,7 +270,7 @@ impl Context {
                                 ident.loc(),
                                 self.caused_by(),
                                 ident.inspect(),
-                                &mono("Subroutine"),
+                                &builtin_mono("Subroutine"),
                                 &obj.t(),
                                 self.get_candidates(&obj.t()),
                                 None,
@@ -297,10 +299,12 @@ impl Context {
     ) -> EvalResult<ValueObj> {
         match subr {
             ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => builtin.call(args, __name__).map_err(|mut e| {
-                e.loc = loc;
-                EvalError::new(e, self.caused_by())
-            }),
+            ConstSubr::Builtin(builtin) => builtin
+                .call(args, self.mod_name().clone(), __name__)
+                .map_err(|mut e| {
+                    e.loc = loc;
+                    EvalError::new(e, self.caused_by())
+                }),
         }
     }
 

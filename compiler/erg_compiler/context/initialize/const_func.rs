@@ -5,12 +5,16 @@ use erg_common::Str;
 use erg_common::astr::AtomicStr;
 use erg_common::color::{RED, RESET};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
-use erg_type::constructors::{and, mono};
+use erg_type::constructors::{and, builtin_mono, mono};
 use erg_type::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
 use erg_type::ValueArgs;
 
 /// Requirement: Type, Impl := Type -> ClassType
-pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+pub fn class_func(
+    mut args: ValueArgs,
+    mod_name: Str,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -23,12 +27,16 @@ pub fn class_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult
     let require = require.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
 }
 
 /// Super: Type, Impl := Type, Additional := Type -> ClassType
-pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+pub fn inherit_func(
+    mut args: ValueArgs,
+    mod_name: Str,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -43,7 +51,7 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResu
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subclass,
         t,
@@ -55,7 +63,11 @@ pub fn inherit_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResu
 
 /// Class: ClassType -> ClassType (with `InheritableType`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
-pub fn inheritable_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+pub fn inheritable_func(
+    mut args: ValueArgs,
+    _mod_name: Str,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
     let class = args.remove_left_or_key("Class").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -70,14 +82,14 @@ pub fn inheritable_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValue
             if let Some(typ) = &mut gen.impls {
                 match typ.as_mut() {
                     TypeObj::Generated(gen) => {
-                        gen.t = and(mem::take(&mut gen.t), mono("InheritableType"));
+                        gen.t = and(mem::take(&mut gen.t), builtin_mono("InheritableType"));
                     }
                     TypeObj::Builtin(t) => {
-                        *t = and(mem::take(t), mono("InheritableType"));
+                        *t = and(mem::take(t), builtin_mono("InheritableType"));
                     }
                 }
             } else {
-                gen.impls = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
+                gen.impls = Some(Box::new(TypeObj::Builtin(builtin_mono("InheritableType"))));
             }
             Ok(ValueObj::Type(TypeObj::Generated(gen)))
         }
@@ -86,7 +98,11 @@ pub fn inheritable_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValue
 }
 
 /// Requirement: Type, Impl := Type -> ClassType
-pub fn trait_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+pub fn trait_func(
+    mut args: ValueArgs,
+    mod_name: Str,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -99,12 +115,16 @@ pub fn trait_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult
     let require = require.as_type().unwrap();
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
 }
 
 /// Super: Type, Impl := Type, Additional := Type -> ClassType
-pub fn subsume_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResult<ValueObj> {
+pub fn subsume_func(
+    mut args: ValueArgs,
+    mod_name: Str,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -119,7 +139,7 @@ pub fn subsume_func(mut args: ValueArgs, __name__: Option<Str>) -> EvalValueResu
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(__name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subtrait,
         t,

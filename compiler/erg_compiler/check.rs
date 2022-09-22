@@ -1,6 +1,7 @@
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::Runnable;
+use erg_common::Str;
 
 use erg_parser::ast::AST;
 use erg_parser::builder::ASTBuilder;
@@ -26,7 +27,7 @@ impl Runnable for Checker {
     const NAME: &'static str = "Erg type-checker";
 
     fn new(cfg: ErgConfig) -> Self {
-        Checker::new_with_cache(cfg, SharedModuleCache::new())
+        Checker::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
     }
 
     #[inline]
@@ -60,9 +61,13 @@ impl Runnable for Checker {
 }
 
 impl Checker {
-    pub fn new_with_cache(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
+    pub fn new_with_cache<S: Into<Str>>(
+        cfg: ErgConfig,
+        mod_name: S,
+        mod_cache: SharedModuleCache,
+    ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg, mod_cache),
+            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache),
             ownership_checker: OwnershipChecker::new(),
         }
     }

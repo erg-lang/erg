@@ -15,7 +15,9 @@ use erg_parser::ast::AST;
 use erg_parser::builder::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{array, array_mut, free_var, func, mono, poly, proc, quant};
+use erg_type::constructors::{
+    array, array_mut, builtin_mono, free_var, func, mono, poly, proc, quant,
+};
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
@@ -42,7 +44,11 @@ pub struct ASTLowerer {
 
 impl Default for ASTLowerer {
     fn default() -> Self {
-        Self::new_with_cache(ErgConfig::default(), SharedModuleCache::new())
+        Self::new_with_cache(
+            ErgConfig::default(),
+            Str::ever("<module>"),
+            SharedModuleCache::new(),
+        )
     }
 }
 
@@ -57,7 +63,7 @@ impl Runnable for ASTLowerer {
     }
 
     fn new(cfg: ErgConfig) -> Self {
-        Self::new_with_cache(cfg, SharedModuleCache::new())
+        Self::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
     }
 
     #[inline]
@@ -93,10 +99,14 @@ impl Runnable for ASTLowerer {
 }
 
 impl ASTLowerer {
-    pub fn new_with_cache(cfg: ErgConfig, mod_cache: SharedModuleCache) -> Self {
+    pub fn new_with_cache<S: Into<Str>>(
+        cfg: ErgConfig,
+        mod_name: S,
+        mod_cache: SharedModuleCache,
+    ) -> Self {
         Self {
             cfg,
-            ctx: Context::new_module(mod_cache),
+            ctx: Context::new_module(mod_name, mod_cache),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
@@ -246,7 +256,7 @@ impl ASTLowerer {
                     array(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
                 if elem.ref_t().is_mut() {
                     poly(
                         "ArrayWithMutTypeAndLength!",
@@ -740,7 +750,7 @@ impl ASTLowerer {
         }
         let (_, ctx) = self
             .ctx
-            .get_nominal_type_ctx(&mono(hir_def.sig.ident().inspect()))
+            .get_nominal_type_ctx(&mono(self.ctx.mod_name(), hir_def.sig.ident().inspect()))
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
@@ -777,7 +787,7 @@ impl ASTLowerer {
     ) {
         if let TypeObj::Generated(gen) = type_obj.require_or_sup.as_ref() {
             if let Some(impls) = gen.impls.as_ref() {
-                if !impls.contains_intersec(&mono("InheritableType")) {
+                if !impls.contains_intersec(&builtin_mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
                         line!() as usize,
                         sup_class.to_string(),

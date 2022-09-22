@@ -14,7 +14,7 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{func, mono, mono_proj};
+use erg_type::constructors::{builtin_mono, func, mono, mono_proj};
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
@@ -124,10 +124,10 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &mono("LambdaFunc"),
+                    &builtin_mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    self.get_type_mismatch_hint(&builtin_mono("LambdaFunc"), t),
                 ));
             }
         }
@@ -663,7 +663,7 @@ impl Context {
                         Location::concat(obj, method_name),
                         self.caused_by(),
                         &(obj.to_string() + &method_name.to_string()),
-                        &mono("Callable"),
+                        &builtin_mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -674,7 +674,7 @@ impl Context {
                         obj.loc(),
                         self.caused_by(),
                         &obj.to_string(),
-                        &mono("Callable"),
+                        &builtin_mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -1102,18 +1102,30 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_nominal_type_ctx(&mono("QuantifiedFunc")) {
+                if let Some(res) = self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("QuantifiedFunc")
+                {
                     return Some(res);
                 }
             }
             Type::Subr(_subr) => match _subr.kind {
                 SubrKind::Func => {
-                    if let Some(res) = self.get_nominal_type_ctx(&mono("Func")) {
+                    if let Some(res) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_get_mono_type("Func")
+                    {
                         return Some(res);
                     }
                 }
                 SubrKind::Proc => {
-                    if let Some(res) = self.get_nominal_type_ctx(&mono("Procedure")) {
+                    if let Some(res) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_get_mono_type("Proc")
+                    {
                         return Some(res);
                     }
                 }
@@ -1124,10 +1136,32 @@ impl Context {
                 }
             }
             Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                return self.get_nominal_type_ctx(&mono("RecordType"));
+                return self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("RecordType");
             }
             Type::Record(_) => {
-                return self.get_nominal_type_ctx(&mono("Record"));
+                return self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("Record");
+            }
+            Type::Mono { path, name } => {
+                if let Some(ctx) = self.mod_cache.as_ref().unwrap().ref_ctx(path) {
+                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
+                } else if self.mod_name() == path {
+                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
+                }
+            }
+            Type::BuiltinMono(name) => {
+                if let Some(res) = self.get_builtins().unwrap_or(self).rec_get_mono_type(name) {
+                    return Some(res);
+                }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
@@ -1170,7 +1204,7 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&mono("QuantifiedFunc")) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(&builtin_mono("QuantifiedFunc")) {
                     return Some(res);
                 }
             }
@@ -1265,7 +1299,7 @@ impl Context {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
             let name = self.name.split(&[':', '.']).last().unwrap();
-            let mono_t = mono(Str::rc(name));
+            let mono_t = mono(self.mod_name(), Str::rc(name));
             if let Some((t, _)) = self.get_nominal_type_ctx(&mono_t) {
                 Some(t.clone())
             } else {

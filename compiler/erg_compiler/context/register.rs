@@ -870,7 +870,7 @@ impl Context {
             input: Input::File(path),
             ..ErgConfig::default()
         };
-        let mut hir_builder = HIRBuilder::new(cfg, mod_cache.clone());
+        let mut hir_builder = HIRBuilder::new(cfg, __name__, mod_cache.clone());
         if let Err(errs) = hir_builder.build_and_cache(var_name.clone(), "exec") {
             errs.fmt_all_stderr();
         }

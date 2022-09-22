@@ -41,6 +41,8 @@ use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Visibility::*;
 
+const BUILTINS: &Str = &Str::ever("<builtins>");
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitInstance {
     pub sub_type: Type,
@@ -557,11 +559,21 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
+    pub(crate) fn mod_name(&self) -> &Str {
+        if let Some(outer) = self.get_outer() {
+            outer.mod_name()
+        } else if self.kind == ContextKind::Module {
+            &self.name
+        } else {
+            BUILTINS
+        }
+    }
+
     /// Returns None if self is `<builtins>`.
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if &self.name[..] != "<builtins>" {
+        if &self.mod_name()[..] != "<builtins>" {
             self.mod_cache
                 .as_ref()
                 .map(|cache| cache.ref_ctx("<builtins>").unwrap())
