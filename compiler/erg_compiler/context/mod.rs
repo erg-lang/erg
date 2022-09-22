@@ -601,7 +601,25 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn pop(&mut self) -> Result<Context, TyCheckErrors> {
+    pub fn pop(&mut self) -> Context {
+        if let Some(parent) = self.outer.as_mut() {
+            let parent = mem::take(parent);
+            let ctx = mem::take(self);
+            *self = *parent;
+            log!(info "{}: current namespace: {}", fn_name!(), self.name);
+            ctx
+        } else {
+            // toplevel
+            mem::take(self)
+        }
+    }
+
+    pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {
+        self.check_decls()?;
+        Ok(self.pop())
+    }
+
+    pub(crate) fn check_decls(&mut self) -> Result<(), TyCheckErrors> {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
@@ -612,25 +630,10 @@ impl Context {
                 &vi.t,
             ));
         }
-        if let Some(parent) = self.outer.as_mut() {
-            let parent = mem::take(parent);
-            let ctx = mem::take(self);
-            *self = *parent;
-            log!(info "{}: current namespace: {}", fn_name!(), self.name);
-            if !uninited_errs.is_empty() {
-                Err(uninited_errs)
-            } else {
-                Ok(ctx)
-            }
+        if !uninited_errs.is_empty() {
+            Err(uninited_errs)
         } else {
-            // toplevel
-            let ctx = mem::take(self);
-            log!(info "{}: current namespace: {}", fn_name!(), self.name);
-            if !uninited_errs.is_empty() {
-                Err(uninited_errs)
-            } else {
-                Ok(ctx)
-            }
+            Ok(())
         }
     }
 }

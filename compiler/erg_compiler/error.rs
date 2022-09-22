@@ -246,21 +246,6 @@ impl From<ParserRunnerError> for TyCheckError {
     }
 }
 
-impl ErrorDisplay for TyCheckError {
-    fn core(&self) -> &ErrorCore {
-        &self.core
-    }
-    fn input(&self) -> &Input {
-        &Input::Dummy
-    }
-    fn caused_by(&self) -> &str {
-        &self.caused_by
-    }
-    fn ref_inner(&self) -> Option<&Self> {
-        None
-    }
-}
-
 impl TyCheckError {
     pub const fn new(core: ErrorCore, caused_by: AtomicStr) -> Self {
         Self { core, caused_by }
@@ -1307,13 +1292,16 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn file_error(errno: usize, desc: String, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(ErrorCore::new(errno, IoError, loc, desc, None), caused_by)
+    }
 }
 
 #[derive(Debug)]
 pub struct TyCheckErrors(Vec<TyCheckError>);
 
 impl_stream_for_wrapper!(TyCheckErrors, TyCheckError);
-impl MultiErrorDisplay<TyCheckError> for TyCheckErrors {}
 
 impl From<Vec<TyCheckError>> for TyCheckErrors {
     fn from(errs: Vec<TyCheckError>) -> Self {

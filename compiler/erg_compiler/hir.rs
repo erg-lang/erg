@@ -1551,7 +1551,7 @@ impl Locational for Module {
 
 impl_stream_for_wrapper!(Module, Expr);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HIR {
     pub name: Str,
     pub module: Module,
@@ -1560,6 +1560,15 @@ pub struct HIR {
 impl std::fmt::Display for HIR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.module)
+    }
+}
+
+impl Default for HIR {
+    fn default() -> Self {
+        Self {
+            name: Str::ever("<module>"),
+            module: Module(vec![]),
+        }
     }
 }
 

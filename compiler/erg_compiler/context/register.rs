@@ -1,7 +1,6 @@
 use std::option::Option;
 use std::path::PathBuf; // conflicting to Type::Option
 
-use erg_common::color::{RED, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Locational, Stream};
@@ -18,11 +17,11 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
 use Type::*;
 
-use crate::builder::HIRBuilder;
+use crate::build_hir::HIRBuilder;
 use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
 use crate::error::{TyCheckError, TyCheckResult};
-use crate::hir;
+use crate::hir::{self, Literal};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
@@ -820,8 +819,9 @@ impl Context {
                                 current_input,
                                 var_name,
                                 __name__,
+                                lit,
                                 mod_cache,
-                            ),
+                            )?,
                         }
                     } else {
                         // maybe unreachable
@@ -857,8 +857,9 @@ impl Context {
         current_input: Input,
         var_name: &VarName,
         __name__: Str,
+        name_lit: &Literal,
         mod_cache: &SharedModuleCache,
-    ) {
+    ) -> TyCheckResult<()> {
         let mut dir = if let Input::File(mut path) = current_input {
             path.pop();
             path
@@ -867,21 +868,32 @@ impl Context {
         };
         dir.push(format!("{__name__}.er"));
         // TODO: returns an error
-        let path = dir.canonicalize().unwrap_or_else(|err| {
-            eprintln!(
-                "failed to open {RED}{}{RESET}: {err}",
-                dir.to_string_lossy()
-            );
-            std::process::exit(err.raw_os_error().unwrap_or(1));
-        });
+        let path = match dir.canonicalize() {
+            Ok(path) => path,
+            Err(err) => {
+                return Err(TyCheckError::file_error(
+                    line!() as usize,
+                    err.to_string(),
+                    name_lit.loc(),
+                    self.caused_by(),
+                ));
+            }
+        };
         let cfg = ErgConfig {
             input: Input::File(path),
             ..ErgConfig::default()
         };
-        let mut hir_builder = HIRBuilder::new(cfg, var_name.inspect(), mod_cache.clone());
-        if let Err(errs) = hir_builder.build_and_cache(var_name.clone(), "exec") {
-            errs.fmt_all_stderr();
+        let src = cfg.input.read();
+        let mut builder = HIRBuilder::new_with_cache(cfg, var_name.inspect(), mod_cache.clone());
+        match builder.build(src, "exec") {
+            Ok(hir) => {
+                mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+            }
+            Err(errs) => {
+                errs.fmt_all_stderr();
+            }
         }
+        Ok(())
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {

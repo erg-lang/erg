@@ -440,15 +440,6 @@ pub trait Runnable: Sized {
                         continue;
                     }
 
-                    // if (expect_block(line) && !in_block)
-                    //     || (is_in_the_expected_block(line, &lines, &mut in_block) && in_block)
-                    // {
-                    //     lines += "\n";
-                    //     output.write_all(instance.ps2().as_bytes()).unwrap();
-                    //     output.flush().unwrap();
-                    //     continue;
-                    // }
-
                     match instance.eval(mem::take(&mut lines)) {
                         Ok(out) => {
                             output.write_all((out + "\n").as_bytes()).unwrap();

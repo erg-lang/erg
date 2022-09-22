@@ -11,7 +11,7 @@ use erg_common::traits::Runnable;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
-use erg_compiler::check::Checker;
+use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::Compiler;
 
@@ -32,7 +32,7 @@ fn run() {
             ASTLowerer::run(cfg);
         }
         "check" => {
-            Checker::run(cfg);
+            HIRBuilder::run(cfg);
         }
         "compile" => {
             Compiler::run(cfg);

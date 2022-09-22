@@ -3,7 +3,7 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 
 use erg_common::astr::AtomicStr;
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Runnable, Stream};
@@ -12,7 +12,7 @@ use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, S
 
 use erg_parser::ast;
 use erg_parser::ast::AST;
-use erg_parser::builder::ASTBuilder;
+use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
@@ -76,8 +76,8 @@ impl Runnable for ASTLowerer {
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build()?;
-        let (hir, _, warns) = self.lower(ast, "exec").map_err(|errs| self.convert(errs))?;
+        let ast = ast_builder.build(self.input().read())?;
+        let (hir, warns) = self.lower(ast, "exec").map_err(|errs| self.convert(errs))?;
         if self.cfg.verbose >= 2 {
             let warns = self.convert(warns);
             warns.fmt_all_stderr();
@@ -87,12 +87,8 @@ impl Runnable for ASTLowerer {
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let cfg = ErgConfig {
-            input: Input::Str(src),
-            ..self.cfg.copy()
-        };
-        let mut ast_builder = ASTBuilder::new(cfg);
-        let ast = ast_builder.build()?;
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let ast = ast_builder.build(src)?;
         let (hir, ..) = self.lower(ast, "eval").map_err(|errs| self.convert(errs))?;
         Ok(format!("{hir}"))
     }
@@ -170,7 +166,7 @@ impl ASTLowerer {
     }
 
     fn pop_append_errs(&mut self) {
-        if let Err(mut errs) = self.ctx.pop() {
+        if let Err(mut errs) = self.ctx.check_decls_and_pop() {
             self.errs.append(&mut errs);
         }
     }
@@ -737,7 +733,7 @@ impl ASTLowerer {
                 })?;
                 hir_methods.push(hir::Expr::Def(def));
             }
-            match self.ctx.pop() {
+            match self.ctx.check_decls_and_pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
                     self.check_trait_impl(impl_trait, &class, &methods)?;
@@ -994,11 +990,7 @@ impl ASTLowerer {
         Ok(hir::Block::new(hir_block))
     }
 
-    pub fn lower(
-        &mut self,
-        ast: AST,
-        mode: &str,
-    ) -> Result<(HIR, Context, LowerWarnings), LowerErrors> {
+    pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         let mut module = hir::Module::with_capacity(ast.module.len());
@@ -1013,6 +1005,7 @@ impl ASTLowerer {
                 }
             }
         }
+        self.ctx.check_decls()?;
         let hir = HIR::new(ast.name, module);
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
         let hir = self.ctx.resolve(hir)?;
@@ -1025,11 +1018,7 @@ impl ASTLowerer {
         if self.errs.is_empty() {
             log!(info "HIR:\n{hir}");
             log!(info "the AST lowering process has completed.");
-            Ok((
-                hir,
-                self.ctx.pop()?,
-                LowerWarnings::from(self.warns.take_all()),
-            ))
+            Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
             log!(err "the AST lowering process has failed.");
             Err(LowerErrors::from(self.errs.take_all()))

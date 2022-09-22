@@ -3,13 +3,12 @@
 //! コンパイラーを定義する
 use std::path::Path;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
-use erg_parser::ast::VarName;
 use erg_type::codeobj::CodeObj;
 
-use crate::builder::HIRBuilder;
+use crate::build_hir::HIRBuilder;
 use crate::codegen::CodeGenerator;
 use crate::error::{CompileError, CompileErrors};
 use crate::link::Linker;
@@ -92,6 +91,7 @@ impl AccessKind {
 #[derive(Debug)]
 pub struct Compiler {
     pub cfg: ErgConfig,
+    builder: HIRBuilder,
     mod_cache: SharedModuleCache,
     code_generator: CodeGenerator,
 }
@@ -104,6 +104,7 @@ impl Runnable for Compiler {
     fn new(cfg: ErgConfig) -> Self {
         let mod_cache = SharedModuleCache::new();
         Self {
+            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", mod_cache.clone()),
             code_generator: CodeGenerator::new(cfg.copy()),
             mod_cache,
             cfg,
@@ -124,12 +125,11 @@ impl Runnable for Compiler {
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        self.compile_and_dump_as_pyc(path, "exec")
+        self.compile_and_dump_as_pyc(path, self.input().read(), "exec")
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        self.cfg.input = Input::Str(src);
-        let codeobj = self.compile("eval")?;
+        let codeobj = self.compile(src, "eval")?;
         Ok(codeobj.code_info())
     }
 }
@@ -137,20 +137,20 @@ impl Runnable for Compiler {
 impl Compiler {
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
-        path: P,
+        pyc_path: P,
+        src: String,
         mode: &str,
     ) -> Result<(), CompileErrors> {
-        let code = self.compile(mode)?;
-        code.dump_as_pyc(path, self.cfg.python_ver)
+        let code = self.compile(src, mode)?;
+        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
 
-    pub fn compile(&mut self, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let mut hir_builder = HIRBuilder::new(self.cfg.copy(), "<module>", self.mod_cache.clone());
-        hir_builder.build_and_cache(VarName::from_static("<module>"), mode)?;
-        let hir = Linker::link(self.mod_cache.clone());
+        let hir = self.builder.build(src, mode)?;
+        let hir = Linker::link(self.cfg.copy(), hir, self.mod_cache.clone());
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(

@@ -187,13 +187,13 @@ impl Runnable for ParserRunner {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
-        let ast = self.parse()?;
+        let ast = self.parse(self.input().read())?;
         println!("{ast}");
         Ok(())
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
-        let ast = self.parse_with_str(src)?;
+        let ast = self.parse(src)?;
         Ok(format!("{ast}"))
     }
 }
@@ -205,23 +205,7 @@ impl ParserRunner {
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
     }
 
-    pub fn parse(&mut self) -> Result<Module, ParserRunnerErrors> {
-        let ts = Lexer::new(self.input().clone())
-            .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
-        self.parse_token_stream(ts)
-    }
-
-    pub fn parse_with_default_config(input: Input) -> Result<Module, ParserRunnerErrors> {
-        let cfg = ErgConfig {
-            input,
-            ..Default::default()
-        };
-        let mut self_ = Self::new(cfg);
-        self_.parse()
-    }
-
-    pub fn parse_with_str(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
+    pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
