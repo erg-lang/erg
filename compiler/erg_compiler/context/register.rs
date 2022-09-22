@@ -1,6 +1,7 @@
 use std::option::Option;
 use std::path::PathBuf; // conflicting to Type::Option
 
+use erg_common::color::{RED, RESET};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Locational, Stream};
@@ -865,12 +866,19 @@ impl Context {
             PathBuf::new()
         };
         dir.push(format!("{__name__}.er"));
-        let path = dir;
+        // TODO: returns an error
+        let path = dir.canonicalize().unwrap_or_else(|err| {
+            eprintln!(
+                "failed to open {RED}{}{RESET}: {err}",
+                dir.to_string_lossy()
+            );
+            std::process::exit(err.raw_os_error().unwrap_or(1));
+        });
         let cfg = ErgConfig {
             input: Input::File(path),
             ..ErgConfig::default()
         };
-        let mut hir_builder = HIRBuilder::new(cfg, __name__, mod_cache.clone());
+        let mut hir_builder = HIRBuilder::new(cfg, var_name.inspect(), mod_cache.clone());
         if let Err(errs) = hir_builder.build_and_cache(var_name.clone(), "exec") {
             errs.fmt_all_stderr();
         }
