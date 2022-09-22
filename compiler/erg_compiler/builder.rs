@@ -38,10 +38,7 @@ impl HIRBuilder {
         let ast = Reorderer::new()
             .reorder(ast)
             .map_err(|errs| self.convert(errs))?;
-        let (hir, ctx) = self
-            .checker
-            .check(ast, mode)
-            .map_err(|errs| self.convert(errs))?;
+        let (hir, ctx) = self.checker.check(ast, mode)?;
         self.mod_cache.register(var_name, Some(hir), ctx);
         Ok(())
     }
