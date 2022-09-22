@@ -14,12 +14,12 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{func, mono, mono_proj};
+use erg_type::constructors::{builtin_mono, func, mono, mono_proj};
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, ContextKind, RegistrationMode, TraitInstance, Variance};
+use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
 use crate::error::readable_name;
 use crate::error::{binop_to_dname, unaryop_to_dname, TyCheckError, TyCheckResult};
 use crate::hir;
@@ -83,29 +83,25 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    fn get_context(
-        &self,
-        obj: &hir::Expr,
-        kind: Option<ContextKind>,
-        namespace: &Str,
-    ) -> TyCheckResult<&Context> {
+    fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> TyCheckResult<&Context> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                if kind == Some(ContextKind::Module) {
-                    if let Some(ctx) = self.rec_get_mod(ident.inspect()) {
-                        Ok(ctx)
-                    } else {
-                        Err(TyCheckError::no_var_error(
-                            line!() as usize,
-                            obj.loc(),
-                            namespace.into(),
-                            ident.inspect(),
-                            self.get_similar_name(ident.inspect()),
-                        ))
-                    }
-                } else {
-                    todo!()
-                }
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => self
+                .get_mod(ident.inspect())
+                .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+                .ok_or_else(|| {
+                    TyCheckError::no_var_error(
+                        line!() as usize,
+                        obj.loc(),
+                        namespace.into(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    )
+                }),
+            hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
+                // REVIEW: 両方singularとは限らない?
+                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
+                let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
+                ctx.get_singular_ctx(&attr, namespace)
             }
             _ => todo!(),
         }
@@ -128,10 +124,10 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &mono("LambdaFunc"),
+                    &builtin_mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    self.get_type_mismatch_hint(&builtin_mono("LambdaFunc"), t),
                 ));
             }
         }
@@ -158,7 +154,12 @@ impl Context {
                         .unwrap_or(0),
                 ));
             }
-            let rhs = self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, Normal)?;
+            let rhs = self.instantiate_param_sig_t(
+                &lambda.params.non_defaults[0],
+                None,
+                &mut None,
+                Normal,
+            )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -189,9 +190,9 @@ impl Context {
         Ok(t)
     }
 
-    pub(crate) fn get_local_uniq_obj_name(&self, name: &Token) -> Option<Str> {
+    pub(crate) fn get_local_uniq_obj_name(&self, name: &VarName) -> Option<Str> {
         // TODO: types, functions, patches
-        if let Some(ctx) = self.rec_get_mod(name.inspect()) {
+        if let Some(ctx) = self.get_mod(name.inspect()) {
             return Some(ctx.name.clone());
         }
         if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
@@ -205,7 +206,7 @@ impl Context {
             self.validate_visibility(ident, vi, namespace)?;
             Ok(vi.t())
         } else {
-            if let Some(parent) = self.outer.as_ref() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.rec_get_var_t(ident, namespace);
             }
             Err(TyCheckError::no_var_error(
@@ -235,7 +236,7 @@ impl Context {
                 return Err(e);
             }
         }
-        if let Some(singular_ctx) = self.get_singular_ctx(obj) {
+        if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
             match singular_ctx.rec_get_var_t(ident, namespace) {
                 Ok(t) => {
                     return Ok(t);
@@ -246,10 +247,15 @@ impl Context {
                 }
             }
         }
-        for (_, ctx) in self
-            .get_nominal_super_type_ctxs(&self_t)
-            .ok_or_else(|| todo!())?
-        {
+        for (_, ctx) in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
+            TyCheckError::no_var_error(
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &self_t.to_string(),
+                None, // TODO:
+            )
+        })? {
             match ctx.rec_get_var_t(ident, namespace) {
                 Ok(t) => {
                     return Ok(t);
@@ -261,7 +267,7 @@ impl Context {
             }
         }
         // TODO: dependent type widening
-        if let Some(parent) = self.outer.as_ref() {
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
             parent.rec_get_attr_t(obj, ident, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
@@ -314,7 +320,7 @@ impl Context {
                 }
             }
             Module => {
-                let mod_ctx = self.get_context(obj, Some(ContextKind::Module), namespace)?;
+                let mod_ctx = self.get_singular_ctx(obj, namespace)?;
                 let t = mod_ctx.rec_get_var_t(ident, namespace)?;
                 Ok(t)
             }
@@ -348,7 +354,15 @@ impl Context {
         if let Some(method_name) = method_name.as_ref() {
             for (_, ctx) in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| todo!())?
+                .ok_or_else(|| {
+                    TyCheckError::no_var_error(
+                        line!() as usize,
+                        obj.loc(),
+                        self.caused_by(),
+                        &obj.to_string(),
+                        None, // TODO:
+                    )
+                })?
             {
                 if let Some(vi) = ctx
                     .locals
@@ -369,7 +383,7 @@ impl Context {
                     }
                 }
             }
-            if let Some(singular_ctx) = self.get_singular_ctx(obj) {
+            if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
                 if let Some(vi) = singular_ctx
                     .locals
                     .get(method_name.inspect())
@@ -516,7 +530,6 @@ impl Context {
                     None
                 }
             }) {
-                log!(info "{}, {}", callee.ref_t(), after);
                 self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
             }
         }
@@ -650,7 +663,7 @@ impl Context {
                         Location::concat(obj, method_name),
                         self.caused_by(),
                         &(obj.to_string() + &method_name.to_string()),
-                        &mono("Callable"),
+                        &builtin_mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -661,7 +674,7 @@ impl Context {
                         obj.loc(),
                         self.caused_by(),
                         &obj.to_string(),
-                        &mono("Callable"),
+                        &builtin_mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -836,7 +849,7 @@ impl Context {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
-            if let Some(parent) = self.outer.as_ref() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.get_const_local(name, namespace);
             }
             Err(TyCheckError::no_var_error(
@@ -856,16 +869,21 @@ impl Context {
         namespace: &Str,
     ) -> TyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for (_, ctx) in self
-            .get_nominal_super_type_ctxs(self_t)
-            .ok_or_else(|| todo!())?
-        {
+        for (_, ctx) in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
+            TyCheckError::no_var_error(
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &self_t.to_string(),
+                None, // TODO:
+            )
+        })? {
             if let Ok(t) = ctx.get_const_local(name, namespace) {
                 return Ok(t);
             }
         }
         // TODO: dependent type widening
-        if let Some(parent) = self.outer.as_ref() {
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
             parent._get_const_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
@@ -894,7 +912,7 @@ impl Context {
             .inspect();
         let len = most_similar_name.len();
         if levenshtein(most_similar_name, name) >= len / 2 {
-            let outer = self.outer.as_ref()?;
+            let outer = self.get_outer().or_else(|| self.get_builtins())?;
             outer.get_similar_name(name)
         } else {
             Some(most_similar_name)
@@ -906,7 +924,7 @@ impl Context {
         obj: &hir::Expr,
         name: &str,
     ) -> Option<&'a Str> {
-        if let Some(ctx) = self.get_singular_ctx(obj) {
+        if let Ok(ctx) = self.get_singular_ctx(obj, &self.name) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -1084,18 +1102,30 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_nominal_type_ctx(&mono("QuantifiedFunc")) {
+                if let Some(res) = self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("QuantifiedFunc")
+                {
                     return Some(res);
                 }
             }
             Type::Subr(_subr) => match _subr.kind {
                 SubrKind::Func => {
-                    if let Some(res) = self.get_nominal_type_ctx(&mono("Func")) {
+                    if let Some(res) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_get_mono_type("Func")
+                    {
                         return Some(res);
                     }
                 }
                 SubrKind::Proc => {
-                    if let Some(res) = self.get_nominal_type_ctx(&mono("Procedure")) {
+                    if let Some(res) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_get_mono_type("Proc")
+                    {
                         return Some(res);
                     }
                 }
@@ -1106,10 +1136,32 @@ impl Context {
                 }
             }
             Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                return self.get_nominal_type_ctx(&mono("RecordType"));
+                return self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("RecordType");
             }
             Type::Record(_) => {
-                return self.get_nominal_type_ctx(&mono("Record"));
+                return self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_get_mono_type("Record");
+            }
+            Type::Mono { path, name } => {
+                if let Some(ctx) = self.mod_cache.as_ref().unwrap().ref_ctx(path) {
+                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
+                } else if self.mod_name() == path {
+                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
+                }
+            }
+            Type::BuiltinMono(name) => {
+                if let Some(res) = self.get_builtins().unwrap_or(self).rec_get_mono_type(name) {
+                    return Some(res);
+                }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
@@ -1152,7 +1204,7 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&mono("QuantifiedFunc")) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(&builtin_mono("QuantifiedFunc")) {
                     return Some(res);
                 }
             }
@@ -1185,27 +1237,13 @@ impl Context {
         None
     }
 
-    fn get_singular_ctx(&self, obj: &hir::Expr) -> Option<&Context> {
-        match obj.ref_t() {
-            // TODO: attr
-            Type::Module => self.rec_get_mod(&obj.show_acc()?),
-            Type::Type | Type::Class => {
-                let typ = Type::Mono(Str::from(obj.show_acc().unwrap()));
-                self.get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
-            }
-            Type::Trait => todo!(),
-            Type::Refinement(refine) => self.get_nominal_type_ctx(&refine.t).map(|(_, ctx)| ctx),
-            _ => None,
-        }
-    }
-
     pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstance> {
         let current = if let Some(impls) = self.trait_impls.get(name) {
             impls.clone()
         } else {
             vec![]
         };
-        if let Some(outer) = &self.outer {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             [current, outer.rec_get_trait_impls(name)].concat()
         } else {
             current
@@ -1215,21 +1253,18 @@ impl Context {
     pub(crate) fn _rec_get_patch(&self, name: &VarName) -> Option<&Context> {
         if let Some(patch) = self.patches.get(name) {
             Some(patch)
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer._rec_get_patch(name)
         } else {
             None
         }
     }
 
-    fn rec_get_mod(&self, name: &str) -> Option<&Context> {
-        if let Some(mod_) = self.mods.get(name) {
-            Some(mod_)
-        } else if let Some(outer) = &self.outer {
-            outer.rec_get_mod(name)
-        } else {
-            None
-        }
+    // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
+    fn get_mod(&self, name: &Str) -> Option<&Context> {
+        self.mod_cache
+            .as_ref()
+            .and_then(|cache| cache.ref_ctx(name))
     }
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
@@ -1242,7 +1277,7 @@ impl Context {
                 return Some(val);
             }
         }
-        if let Some(outer) = &self.outer {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -1252,24 +1287,25 @@ impl Context {
     pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
             Some(impls)
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_const_param_defaults(name)
         } else {
             None
         }
     }
 
+    /// FIXME: if trait, returns a freevar
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
             let name = self.name.split(&[':', '.']).last().unwrap();
-            let mono_t = mono(Str::rc(name));
+            let mono_t = mono(self.mod_name(), Str::rc(name));
             if let Some((t, _)) = self.get_nominal_type_ctx(&mono_t) {
                 Some(t.clone())
             } else {
                 None
             }
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_self_t()
         } else {
             None
@@ -1279,7 +1315,7 @@ impl Context {
     fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_mono_type(name)
         } else {
             None
@@ -1289,7 +1325,7 @@ impl Context {
     fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_poly_type(name)
         } else {
             None
@@ -1300,6 +1336,7 @@ impl Context {
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {
+            // builtins cannot be got as mutable
             outer.rec_get_mut_mono_type(name)
         } else {
             None
@@ -1321,7 +1358,7 @@ impl Context {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
-        } else if let Some(outer) = &self.outer {
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_type(name)
         } else {
             None

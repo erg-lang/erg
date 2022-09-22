@@ -8,7 +8,7 @@
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, set};
+use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
@@ -48,10 +48,12 @@ impl Desugarer {
 
     #[allow(clippy::let_and_return)]
     pub fn desugar(&mut self, module: Module) -> Module {
+        log!(info "the desugaring process has started.");
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);
         let module = self.desugar_shortened_record(module);
-        // let module = self.desugar_self(module);
+        log!(info "AST (desugared):\n{module}");
+        log!(info "the desugaring process has completed.");
         module
     }
 
@@ -94,9 +96,9 @@ impl Desugarer {
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},
                                 name,
+                                TypeBoundSpecs::empty(),
                                 params,
                                 return_t_spec,
-                                TypeBoundSpecs::empty(),
                             ));
                             let body = DefBody::new(op, Block::new(vec![Expr::Call(call)]), id);
                             let def = Def::new(sig, body);
@@ -470,7 +472,7 @@ impl Desugarer {
             }
             Expr::TypeAsc(tasc) => {
                 let expr = self.rec_desugar_shortened_record(*tasc.expr);
-                Expr::TypeAsc(TypeAscription::new(expr, tasc.t_spec))
+                Expr::TypeAsc(TypeAscription::new(expr, tasc.op, tasc.t_spec))
             }
             Expr::Methods(method_defs) => {
                 let mut new_defs = vec![];

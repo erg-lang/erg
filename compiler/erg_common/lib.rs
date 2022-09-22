@@ -13,9 +13,9 @@ pub mod levenshtein;
 pub mod macros;
 pub mod opcode;
 pub mod python_util;
-pub mod rccell;
 pub mod serialize;
 pub mod set;
+pub mod shared;
 pub mod stdin;
 pub mod str;
 pub mod traits;
@@ -110,6 +110,19 @@ pub fn chomp(src: &str) -> String {
 pub fn try_map<T, U, E, F, I>(i: I, f: F) -> Result<Vec<U>, E>
 where
     F: Fn(T) -> Result<U, E>,
+    I: Iterator<Item = T>,
+{
+    let mut v = vec![];
+    for x in i {
+        let y = f(x)?;
+        v.push(y);
+    }
+    Ok(v)
+}
+
+pub fn try_map_mut<T, U, E, F, I>(i: I, mut f: F) -> Result<Vec<U>, E>
+where
+    F: FnMut(T) -> Result<U, E>,
     I: Iterator<Item = T>,
 {
     let mut v = vec![];

@@ -19,15 +19,17 @@ use erg_common::traits::LimitedDisplay;
 use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
-use crate::codeobj::CodeObj;
-use crate::constructors::{int_interval, mono, mono_q};
+use erg_parser::ast::{Block, Params};
+use erg_parser::token::TokenKind;
+
+use crate::constructors::{builtin_mono, int_interval, mono_q};
 use crate::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
 use crate::typaram::{IntervalOp, TyParam};
 use crate::value::value_set::*;
-use crate::value::ValueObj;
 use crate::value::ValueObj::{Inf, NegInf};
+use crate::value::{EvalValueResult, ValueObj};
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -131,7 +133,29 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserConstSubr {
-    code: CodeObj, // may be this should be HIR or AST block
+    name: Str,
+    params: Params,
+    block: Block,
+    sig_t: Type,
+    as_type: Option<Type>,
+}
+
+impl UserConstSubr {
+    pub const fn new(
+        name: Str,
+        params: Params,
+        block: Block,
+        sig_t: Type,
+        as_type: Option<Type>,
+    ) -> Self {
+        Self {
+            name,
+            params,
+            block,
+            sig_t,
+            as_type,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -157,8 +181,9 @@ impl ValueArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, Option<Str>) -> ValueObj,
-    t: Type,
+    subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
+    sig_t: Type,
+    as_type: Option<Type>,
 }
 
 impl fmt::Display for BuiltinConstSubr {
@@ -170,10 +195,25 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, Option<Str>) -> ValueObj,
-        t: Type,
+        subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
+        sig_t: Type,
+        as_type: Option<Type>,
     ) -> Self {
-        Self { name, subr, t }
+        Self {
+            name,
+            subr,
+            sig_t,
+            as_type,
+        }
+    }
+
+    pub fn call(
+        &self,
+        args: ValueArgs,
+        mod_name: Str,
+        __name__: Option<Str>,
+    ) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, mod_name, __name__)
     }
 }
 
@@ -187,7 +227,7 @@ impl fmt::Display for ConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstSubr::User(subr) => {
-                write!(f, "<user-defined const subroutine '{}'>", subr.code.name)
+                write!(f, "<user-defined const subroutine '{}'>", subr.name)
             }
             ConstSubr::Builtin(subr) => write!(f, "{subr}"),
         }
@@ -195,17 +235,17 @@ impl fmt::Display for ConstSubr {
 }
 
 impl ConstSubr {
-    pub fn call(&self, args: ValueArgs, __name__: Option<Str>) -> ValueObj {
+    pub fn sig_t(&self) -> &Type {
         match self {
-            ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => (builtin.subr)(args, __name__),
+            ConstSubr::User(user) => &user.sig_t,
+            ConstSubr::Builtin(builtin) => &builtin.sig_t,
         }
     }
 
-    pub fn class(&self) -> Type {
+    pub fn as_type(&self) -> Option<&Type> {
         match self {
-            ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => builtin.t.clone(),
+            ConstSubr::User(user) => user.as_type.as_ref(),
+            ConstSubr::Builtin(builtin) => builtin.as_type.as_ref(),
         }
     }
 }
@@ -964,6 +1004,16 @@ pub enum SubrKind {
     Proc,
 }
 
+impl From<TokenKind> for SubrKind {
+    fn from(op_kind: TokenKind) -> Self {
+        match op_kind {
+            TokenKind::FuncArrow => Self::Func,
+            TokenKind::ProcArrow => Self::Proc,
+            _ => panic!("invalid token kind for subr kind"),
+        }
+    }
+}
+
 impl SubrKind {
     pub const fn arrow(&self) -> Str {
         match self {
@@ -1058,7 +1108,11 @@ pub enum Type {
     NotImplemented,
     Ellipsis, // これはクラスのほうで型推論用のマーカーではない
     Never,    // {}
-    Mono(Str),
+    BuiltinMono(Str),
+    Mono {
+        path: Str,
+        name: Str,
+    },
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut {
@@ -1128,7 +1182,10 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::Mono(l), Self::Mono(r)) => l == r,
+            (Self::BuiltinMono(l), Self::BuiltinMono(r)) => l == r,
+            (Self::Mono { path: lp, name: ln }, Self::Mono { path: rp, name: rn }) => {
+                lp == rp && ln == rn
+            }
             (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
@@ -1223,7 +1280,8 @@ impl LimitedDisplay for Type {
             return write!(f, "...");
         }
         match self {
-            Self::Mono(name) => write!(f, "{name}"),
+            Self::BuiltinMono(name) => write!(f, "{name}"),
+            Self::Mono { path, name } => write!(f, "{name}(of {path})"),
             Self::Ref(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1340,37 +1398,6 @@ impl From<RangeInclusive<&TyParam>> for Type {
     fn from(r: RangeInclusive<&TyParam>) -> Self {
         let (start, end) = r.into_inner();
         int_interval(IntervalOp::Closed, start.clone(), end.clone())
-    }
-}
-
-impl From<&str> for Type {
-    fn from(item: &str) -> Self {
-        match item {
-            "Obj" => Self::Obj,
-            "Int" => Self::Int,
-            "Nat" => Self::Nat,
-            "Ratio" => Self::Ratio,
-            "Float" => Self::Float,
-            "Bool" => Self::Bool,
-            "Str" => Self::Str,
-            "NoneType" => Self::NoneType,
-            "Type" => Self::Type,
-            "Class" => Self::Class,
-            "Trait" => Self::Trait,
-            "Patch" => Self::Patch,
-            "Code" => Self::Code,
-            "Module" => Self::Module,
-            "Frame" => Self::Frame,
-            "Error" => Self::Error,
-            // "Array" => Self::Array(Box::new(Type::Illegal)),
-            "Ellipsis" => Self::Ellipsis,
-            "NotImplemented" => Self::NotImplemented,
-            "Never" => Self::Never,
-            "Inf" => Self::Inf,
-            "NegInf" => Self::NegInf,
-            "_" => Self::Obj,
-            other => Self::Mono(Str::rc(other)),
-        }
     }
 }
 
@@ -1573,12 +1600,12 @@ impl Type {
                 fv.link(&t.mutate());
                 Self::FreeVar(fv)
             }
-            Self::Int => mono("Int!"),
-            Self::Nat => mono("Nat!"),
-            Self::Ratio => mono("Ratio!"),
-            Self::Float => mono("Float!"),
-            Self::Bool => mono("Bool!"),
-            Self::Str => mono("Str!"),
+            Self::Int => builtin_mono("Int!"),
+            Self::Nat => builtin_mono("Nat!"),
+            Self::Ratio => builtin_mono("Ratio!"),
+            Self::Float => builtin_mono("Float!"),
+            Self::Bool => builtin_mono("Bool!"),
+            Self::Str => builtin_mono("Str!"),
             _ => todo!(),
         }
     }
@@ -1620,7 +1647,7 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::Mono(name)
+            Self::BuiltinMono(name)
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
             | Self::PolyQVar { name, .. }
@@ -1640,6 +1667,15 @@ impl Type {
             }
             Self::Poly { name, params } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
+            _ => false,
+        }
+    }
+
+    pub fn is_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
+            Self::Type | Self::Class | Self::Trait => true,
+            Self::Refinement(refine) => refine.t.is_type(),
             _ => false,
         }
     }
@@ -1735,7 +1771,9 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
+            Self::BuiltinMono(name) | Self::MonoQVar(name) | Self::Mono { name, .. } => {
+                name.clone()
+            }
             Self::And(_, _) => Str::ever("And"),
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
@@ -1968,16 +2006,22 @@ impl Type {
 
     pub fn self_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => todo!("linked: {fv}"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.self_t()),
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
             _ => None,
         }
     }
 
-    pub const fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
+    pub fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.non_default_params()),
             Self::Refinement(refine) => refine.t.non_default_params(),
             Self::Subr(SubrType {
                 non_default_params, ..
@@ -1989,7 +2033,10 @@ impl Type {
 
     pub fn var_args(&self) -> Option<&ParamTy> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.var_args()),
             Self::Refinement(refine) => refine.t.var_args(),
             Self::Subr(SubrType {
                 var_params: var_args,
@@ -2000,18 +2047,24 @@ impl Type {
         }
     }
 
-    pub const fn default_params(&self) -> Option<&Vec<ParamTy>> {
+    pub fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.default_params()),
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             _ => None,
         }
     }
 
-    pub const fn return_t(&self) -> Option<&Type> {
+    pub fn return_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.return_t()),
             Self::Refinement(refine) => refine.t.return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2022,7 +2075,10 @@ impl Type {
 
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(_) => panic!("fv"),
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_mut() }
+                .unwrap()
+                .linked_mut()
+                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2077,7 +2133,7 @@ impl From<&Type> for TypeCode {
             Type::Float => Self::Float64,
             Type::Bool => Self::Bool,
             Type::Str => Self::Str,
-            Type::Mono(name) => match &name[..] {
+            Type::BuiltinMono(name) => match &name[..] {
                 "Int!" => Self::Int32,
                 "Nat!" => Self::Nat64,
                 "Float!" => Self::Float64,

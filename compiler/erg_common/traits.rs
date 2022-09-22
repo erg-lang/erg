@@ -218,6 +218,12 @@ macro_rules! impl_stream_for_wrapper {
             }
         }
 
+        impl From<$Strc> for Vec<$Inner> {
+            fn from(item: $Strc) -> Vec<$Inner> {
+                item.payload()
+            }
+        }
+
         impl $crate::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> {
@@ -257,6 +263,12 @@ macro_rules! impl_stream {
             type Output = $Inner;
             fn index(&self, idx: usize) -> &Self::Output {
                 erg_common::traits::Stream::get(self, idx).unwrap()
+            }
+        }
+
+        impl From<$Strc> for Vec<$Inner> {
+            fn from(item: $Strc) -> Vec<$Inner> {
+                item.payload()
             }
         }
     };

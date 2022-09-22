@@ -11,7 +11,7 @@ use erg_common::{
     impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, Params, TypeSpec, VarName};
+use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{array, tuple};
@@ -1185,7 +1185,7 @@ impl Signature {
         }
     }
 
-    pub fn ident(&self) -> &Identifier {
+    pub const fn ident(&self) -> &Identifier {
         match self {
             Self::Var(v) => &v.ident,
             Self::Subr(s) => &s.ident,
@@ -1196,6 +1196,13 @@ impl Signature {
         match self {
             Self::Var(v) => &mut v.ident,
             Self::Subr(s) => &mut s.ident,
+        }
+    }
+
+    pub fn into_ident(self) -> Identifier {
+        match self {
+            Self::Var(v) => v.ident,
+            Self::Subr(s) => s.ident,
         }
     }
 }
@@ -1306,6 +1313,31 @@ impl Def {
     pub const fn new(sig: Signature, body: DefBody) -> Self {
         Self { sig, body }
     }
+
+    pub fn def_kind(&self) -> DefKind {
+        match self.body.block.first().unwrap() {
+            Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
+                Some("Class") => DefKind::Class,
+                Some("Inherit") => DefKind::Inherit,
+                Some("Trait") => DefKind::Trait,
+                Some("Subsume") => DefKind::Subsume,
+                Some("Inheritable") => {
+                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                        match inner.obj.show_acc().as_ref().map(|n| &n[..]) {
+                            Some("Class") => DefKind::Class,
+                            Some("Inherit") => DefKind::Inherit,
+                            _ => DefKind::Other,
+                        }
+                    } else {
+                        DefKind::Other
+                    }
+                }
+                Some("import") => DefKind::Module,
+                _ => DefKind::Other,
+            },
+            _ => DefKind::Other,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1358,16 +1390,14 @@ pub struct ClassDef {
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
-    pub private_methods: RecordAttrs,
-    pub public_methods: RecordAttrs,
+    pub methods: Block,
 }
 
 impl NestedDisplay for ClassDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.sig.fmt_nest(f, level)?;
         writeln!(f, ":")?;
-        self.private_methods.fmt_nest(f, level + 1)?;
-        self.public_methods.fmt_nest(f, level + 1)
+        self.methods.fmt_nest(f, level + 1)
     }
 }
 
@@ -1400,8 +1430,7 @@ impl ClassDef {
         require_or_sup: Expr,
         need_to_gen_new: bool,
         __new__: Type,
-        private_methods: RecordAttrs,
-        public_methods: RecordAttrs,
+        methods: Block,
     ) -> Self {
         Self {
             kind,
@@ -1409,8 +1438,7 @@ impl ClassDef {
             require_or_sup: Box::new(require_or_sup),
             need_to_gen_new,
             __new__,
-            private_methods,
-            public_methods,
+            methods,
         }
     }
 }

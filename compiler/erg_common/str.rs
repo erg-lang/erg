@@ -32,8 +32,8 @@ impl Add<&str> for Str {
 impl Hash for Str {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Str::Rc(s) => (s[..]).hash(state),
-            Str::Static(s) => s.hash(state),
+            Str::Rc(s) => (&s[..]).hash(state),
+            Str::Static(s) => (*s).hash(state),
         }
     }
 }

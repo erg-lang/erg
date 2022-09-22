@@ -11,7 +11,8 @@ use erg_common::traits::Runnable;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
-use erg_compiler::lower::ASTLowererRunner;
+use erg_compiler::check::Checker;
+use erg_compiler::lower::ASTLowerer;
 use erg_compiler::Compiler;
 
 use erg_type::deserialize::Deserializer;
@@ -28,7 +29,10 @@ fn run() {
             ParserRunner::run(cfg);
         }
         "lower" => {
-            ASTLowererRunner::run(cfg);
+            ASTLowerer::run(cfg);
+        }
+        "check" => {
+            Checker::run(cfg);
         }
         "compile" => {
             Compiler::run(cfg);

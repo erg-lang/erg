@@ -237,6 +237,15 @@ pub struct TyCheckError {
     pub caused_by: AtomicStr,
 }
 
+impl From<ParserRunnerError> for TyCheckError {
+    fn from(err: ParserRunnerError) -> Self {
+        Self {
+            core: err.core,
+            caused_by: "".into(),
+        }
+    }
+}
+
 impl ErrorDisplay for TyCheckError {
     fn core(&self) -> &ErrorCore {
         &self.core
@@ -1163,12 +1172,148 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn method_definition_error(
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                MethodError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}にメソッドを定義することはできません",
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}不可定义方法",
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}不可定義方法",
+                    ),
+                    "english" => format!(
+                        "cannot define methods for {RED}{name}{RESET}",
+                    ),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn trait_member_type_error(
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        member_name: &str,
+        trait_type: &Type,
+        expect: &Type,
+        found: &Type,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{YELLOW}{member_name}{RESET}の型が違います。\n{trait_type}で宣言された型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
+                    "simplified_chinese" => format!("{YELLOW}{member_name}{RESET}的类型不匹配：\n在{trait_type}中声明的类型：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "traditional_chinese" => format!("{YELLOW}{member_name}{RESET}的類型不匹配：\n在{trait_type}中聲明的類型：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "english" => format!("the type of {YELLOW}{member_name}{RESET} is mismatched:\ndeclared in {trait_type}: {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn trait_member_not_defined_error(
+        errno: usize,
+        caused_by: AtomicStr,
+        member_name: &str,
+        trait_type: &Type,
+        class_type: &Type,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                Location::Unknown,
+                switch_lang!(
+                    "japanese" => format!("{trait_type}の{YELLOW}{member_name}{RESET}が{class_type}で実装されていません"),
+                    "simplified_chinese" => format!("{trait_type}中的{YELLOW}{member_name}{RESET}没有在{class_type}中实现"),
+                    "traditional_chinese" => format!("{trait_type}中的{YELLOW}{member_name}{RESET}沒有在{class_type}中實現"),
+                    "english" => format!("{YELLOW}{member_name}{RESET} of {trait_type} is not implemented in {class_type}"),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn not_in_trait_error(
+        errno: usize,
+        caused_by: AtomicStr,
+        member_name: &str,
+        trait_type: &Type,
+        class_type: &Type,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                Location::Unknown,
+                switch_lang!(
+                    "japanese" => format!("{class_type}の{YELLOW}{member_name}{RESET}は{trait_type}で宣言されていません"),
+                    "simplified_chinese" => format!("{class_type}中的{YELLOW}{member_name}{RESET}没有在{trait_type}中声明"),
+                    "traditional_chinese" => format!("{class_type}中的{YELLOW}{member_name}{RESET}沒有在{trait_type}中聲明"),
+                    "english" => format!("{YELLOW}{member_name}{RESET} of {class_type} is not declared in {trait_type}"),
+                ),
+                hint,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn tyvar_not_defined_error(
+        errno: usize,
+        name: &str,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("型変数{RED}{name}{RESET}が定義されていません"),
+                    "simplified_chinese" => format!("类型变量{RED}{name}{RESET}没有定义"),
+                    "traditional_chinese" => format!("類型變量{RED}{name}{RESET}沒有定義"),
+                    "english" => format!("type variable {RED}{name}{RESET} is not defined"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]
 pub struct TyCheckErrors(Vec<TyCheckError>);
 
 impl_stream_for_wrapper!(TyCheckErrors, TyCheckError);
+impl MultiErrorDisplay<TyCheckError> for TyCheckErrors {}
 
 impl From<Vec<TyCheckError>> for TyCheckErrors {
     fn from(errs: Vec<TyCheckError>) -> Self {
@@ -1186,6 +1331,12 @@ impl Add for TyCheckErrors {
 impl From<TyCheckError> for TyCheckErrors {
     fn from(err: TyCheckError) -> Self {
         Self(vec![err])
+    }
+}
+
+impl From<ParserRunnerErrors> for TyCheckErrors {
+    fn from(err: ParserRunnerErrors) -> Self {
+        Self(err.into_iter().map(TyCheckError::from).collect())
     }
 }
 

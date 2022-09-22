@@ -4,19 +4,16 @@
 use std::path::Path;
 
 use erg_common::config::{ErgConfig, Input};
-use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
+use erg_parser::ast::VarName;
 use erg_type::codeobj::CodeObj;
 
-use erg_parser::ParserRunner;
-
+use crate::builder::HIRBuilder;
 use crate::codegen::CodeGenerator;
-use crate::effectcheck::SideEffectChecker;
-use crate::error::{CompileError, CompileErrors, TyCheckErrors};
+use crate::error::{CompileError, CompileErrors};
 use crate::link::Linker;
-use crate::lower::ASTLowerer;
-use crate::ownercheck::OwnershipChecker;
+use crate::mod_cache::SharedModuleCache;
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global
@@ -91,13 +88,11 @@ impl AccessKind {
     }
 }
 
-/// Generates a `CodeObj` from an `AST`.
-/// The input AST is not typed, so it's typed by `ASTLowerer` according to the cfg.opt_level.
+/// Generates a `CodeObj` from an String or other File inputs.
 #[derive(Debug)]
 pub struct Compiler {
-    cfg: ErgConfig,
-    lowerer: ASTLowerer,
-    ownership_checker: OwnershipChecker,
+    pub cfg: ErgConfig,
+    mod_cache: SharedModuleCache,
     code_generator: CodeGenerator,
 }
 
@@ -107,10 +102,10 @@ impl Runnable for Compiler {
     const NAME: &'static str = "Erg compiler";
 
     fn new(cfg: ErgConfig) -> Self {
+        let mod_cache = SharedModuleCache::new();
         Self {
             code_generator: CodeGenerator::new(cfg.copy()),
-            ownership_checker: OwnershipChecker::new(),
-            lowerer: ASTLowerer::new(),
+            mod_cache,
             cfg,
         }
     }
@@ -129,61 +124,34 @@ impl Runnable for Compiler {
 
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        let src = self.input().read();
-        self.compile_and_dump_as_pyc(src, path, "exec")
+        self.compile_and_dump_as_pyc(path, "exec")
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let codeobj = self.compile(src, "eval")?;
+        self.cfg.input = Input::Str(src);
+        let codeobj = self.compile("eval")?;
         Ok(codeobj.code_info())
     }
 }
 
 impl Compiler {
-    fn convert(&self, errs: TyCheckErrors) -> CompileErrors {
-        errs.into_iter()
-            .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
-            .collect::<Vec<_>>()
-            .into()
-    }
-
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
-        src: String,
         path: P,
         mode: &str,
     ) -> Result<(), CompileErrors> {
-        let code = self.compile(src, mode)?;
+        let code = self.compile(mode)?;
         code.dump_as_pyc(path, self.cfg.python_ver)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
 
-    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(&mut self, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let mut cfg = self.cfg.copy();
-        cfg.input = Input::Str(src);
-        let mut parser = ParserRunner::new(cfg);
-        let ast = parser.parse()?;
-        let linker = Linker::new();
-        let ast = linker.link(ast).map_err(|errs| self.convert(errs))?;
-        let (hir, warns) = self
-            .lowerer
-            .lower(ast, mode)
-            .map_err(|errs| self.convert(errs))?;
-        if self.cfg.verbose >= 2 {
-            let warns = self.convert(warns);
-            warns.fmt_all_stderr();
-        }
-        let effect_checker = SideEffectChecker::new();
-        let hir = effect_checker
-            .check(hir)
-            .map_err(|errs| self.convert(errs))?;
-        let hir = self
-            .ownership_checker
-            .check(hir)
-            .map_err(|errs| self.convert(errs))?;
-        let codeobj = self.code_generator.codegen(hir);
+        let mut hir_builder = HIRBuilder::new(self.cfg.copy(), "<module>", self.mod_cache.clone());
+        hir_builder.build_and_cache(VarName::from_static("<module>"), mode)?;
+        let hir = Linker::link(self.mod_cache.clone());
+        let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(
             info "the compiling process has completed, found errors: {}",

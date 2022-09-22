@@ -19,13 +19,13 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
-use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
+use erg_parser::ast::DefKind;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{Predicate, TyBound, Type};
@@ -37,9 +37,11 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
-use Mutability::*;
 use Visibility::*;
+
+const BUILTINS: &Str = &Str::ever("<builtins>");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitInstance {
@@ -230,6 +232,18 @@ pub enum ContextKind {
     Dummy,
 }
 
+impl From<DefKind> for ContextKind {
+    fn from(kind: DefKind) -> Self {
+        match kind {
+            DefKind::Class | DefKind::Inherit => Self::Class,
+            DefKind::Trait | DefKind::Subsume => Self::Trait,
+            DefKind::StructuralTrait => Self::StructuralTrait,
+            DefKind::Module => Self::Module,
+            DefKind::Other => Self::Instant,
+        }
+    }
+}
+
 impl ContextKind {
     pub const fn is_method_def(&self) -> bool {
         matches!(self, Self::MethodDefs)
@@ -310,7 +324,7 @@ pub struct Context {
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
-    pub(crate) mods: Dict<VarName, Context>,
+    pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) level: usize,
 }
 
@@ -321,6 +335,7 @@ impl Default for Context {
             "<dummy>".into(),
             ContextKind::Dummy,
             vec![],
+            None,
             None,
             Self::TOP_LEVEL,
         )
@@ -340,7 +355,7 @@ impl fmt::Display for Context {
             .field("mono_types", &self.mono_types)
             .field("poly_types", &self.poly_types)
             .field("patches", &self.patches)
-            .field("mods", &self.mods)
+            // .field("mod_cache", &self.mod_cache)
             .finish()
     }
 }
@@ -352,9 +367,10 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -364,6 +380,7 @@ impl Context {
         params: Vec<ParamSpec>,
         outer: Option<Context>,
         capacity: usize,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
@@ -372,13 +389,14 @@ impl Context {
             if let Some(name) = param.name {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                // TODO: is_const { Const } else { Immutable }
-                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
+                let muty = Mutability::from(name);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
-                let vi = VarInfo::new(param.t, Immutable, Private, kind, None);
+                let muty = Mutability::Immutable;
+                let vi = VarInfo::new(param.t, muty, Private, kind, None);
                 params_.push((None, vi));
             }
         }
@@ -400,15 +418,21 @@ impl Context {
             consts: Dict::default(),
             mono_types: Dict::default(),
             poly_types: Dict::default(),
-            mods: Dict::default(),
+            mod_cache,
             patches: Dict::default(),
             level,
         }
     }
 
     #[inline]
-    pub fn mono(name: Str, kind: ContextKind, outer: Option<Context>, level: usize) -> Self {
-        Self::with_capacity(name, kind, vec![], outer, 0, level)
+    pub fn mono(
+        name: Str,
+        kind: ContextKind,
+        outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::with_capacity(name, kind, vec![], outer, 0, mod_cache, level)
     }
 
     #[inline]
@@ -417,61 +441,111 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
+        mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
     }
 
-    pub fn poly_trait<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
+    pub fn poly_trait<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Trait, params, None, level)
+        Self::poly(name, ContextKind::Trait, params, None, mod_cache, level)
     }
 
-    pub fn poly_class<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
+    pub fn poly_class<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Class, params, None, level)
+        Self::poly(name, ContextKind::Class, params, None, mod_cache, level)
     }
 
     #[inline]
-    pub fn mono_trait<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::poly_trait(name, vec![], level)
+    pub fn mono_trait<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly_trait(name, vec![], mod_cache, level)
     }
 
     #[inline]
-    pub fn mono_class<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::poly_class(name, vec![], level)
+    pub fn mono_class<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly_class(name, vec![], mod_cache, level)
     }
 
     #[inline]
-    pub fn methods<S: Into<Str>>(name: S, level: usize) -> Self {
-        Self::with_capacity(name.into(), ContextKind::MethodDefs, vec![], None, 2, level)
+    pub fn methods<S: Into<Str>>(
+        name: S,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::with_capacity(
+            name.into(),
+            ContextKind::MethodDefs,
+            vec![],
+            None,
+            2,
+            mod_cache,
+            level,
+        )
     }
 
     #[inline]
-    pub fn poly_patch<S: Into<Str>>(name: S, params: Vec<ParamSpec>, level: usize) -> Self {
-        Self::poly(name.into(), ContextKind::Trait, params, None, level)
+    pub fn poly_patch<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        mod_cache: Option<SharedModuleCache>,
+        level: usize,
+    ) -> Self {
+        Self::poly(
+            name.into(),
+            ContextKind::Trait,
+            params,
+            None,
+            mod_cache,
+            level,
+        )
     }
 
     #[inline]
-    pub fn module(name: Str, capacity: usize) -> Self {
+    pub fn module(name: Str, mod_cache: Option<SharedModuleCache>, capacity: usize) -> Self {
         Self::with_capacity(
             name,
             ContextKind::Module,
             vec![],
             None,
             capacity,
+            mod_cache,
             Self::TOP_LEVEL,
         )
     }
 
     #[inline]
-    pub fn instant(name: Str, capacity: usize, outer: Context) -> Self {
+    pub fn instant(
+        name: Str,
+        capacity: usize,
+        mod_cache: Option<SharedModuleCache>,
+        outer: Context,
+    ) -> Self {
         Self::with_capacity(
             name,
             ContextKind::Instant,
             vec![],
             Some(outer),
             capacity,
+            mod_cache,
             Self::TOP_LEVEL,
         )
     }
@@ -479,6 +553,33 @@ impl Context {
     #[inline]
     pub fn caused_by(&self) -> AtomicStr {
         AtomicStr::arc(&self.name[..])
+    }
+
+    pub(crate) fn get_outer(&self) -> Option<&Context> {
+        self.outer.as_ref().map(|x| x.as_ref())
+    }
+
+    pub(crate) fn mod_name(&self) -> &Str {
+        if let Some(outer) = self.get_outer() {
+            outer.mod_name()
+        } else if self.kind == ContextKind::Module {
+            &self.name
+        } else {
+            BUILTINS
+        }
+    }
+
+    /// Returns None if self is `<builtins>`.
+    /// This avoids infinite loops.
+    pub(crate) fn get_builtins(&self) -> Option<&Context> {
+        // builtins中で定義した型等はmod_cacheがNoneになっている
+        if &self.mod_name()[..] != "<builtins>" {
+            self.mod_cache
+                .as_ref()
+                .map(|cache| cache.ref_ctx("<builtins>").unwrap())
+        } else {
+            None
+        }
     }
 
     pub(crate) fn grow(
@@ -494,6 +595,7 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
+        self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
         self.name = name.into();
         self.kind = kind;
         Ok(())
@@ -510,7 +612,7 @@ impl Context {
                 &vi.t,
             ));
         }
-        if let Some(parent) = &mut self.outer {
+        if let Some(parent) = self.outer.as_mut() {
             let parent = mem::take(parent);
             let ctx = mem::take(self);
             *self = *parent;
@@ -521,12 +623,14 @@ impl Context {
                 Ok(ctx)
             }
         } else {
-            Err(TyCheckErrors::from(TyCheckError::checker_bug(
-                0,
-                Location::Unknown,
-                fn_name!(),
-                line!(),
-            )))
+            // toplevel
+            let ctx = mem::take(self);
+            log!(info "{}: current namespace: {}", fn_name!(), self.name);
+            if !uninited_errs.is_empty() {
+                Err(uninited_errs)
+            } else {
+                Ok(ctx)
+            }
         }
     }
 }

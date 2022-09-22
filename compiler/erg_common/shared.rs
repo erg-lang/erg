@@ -4,42 +4,42 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct RcCell<T: ?Sized>(Rc<RefCell<T>>);
+pub struct Shared<T: ?Sized>(Rc<RefCell<T>>);
 
-impl<T: PartialEq> PartialEq for RcCell<T> {
+impl<T: PartialEq> PartialEq for Shared<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T: ?Sized> Clone for RcCell<T> {
-    fn clone(&self) -> RcCell<T> {
+impl<T: ?Sized> Clone for Shared<T> {
+    fn clone(&self) -> Shared<T> {
         Self(Rc::clone(&self.0))
     }
 }
 
-impl<T: Eq> Eq for RcCell<T> {}
+impl<T: Eq> Eq for Shared<T> {}
 
-impl<T: Hash> Hash for RcCell<T> {
+impl<T: Hash> Hash for Shared<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.borrow().hash(state);
     }
 }
 
-impl<T: Default> Default for RcCell<T> {
+impl<T: Default> Default for Shared<T> {
     fn default() -> Self {
         Self::new(Default::default())
     }
 }
 
-impl<T: fmt::Display> fmt::Display for RcCell<T> {
+impl<T: fmt::Display> fmt::Display for Shared<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.borrow())
     }
 }
 
-impl<T> RcCell<T> {
+impl<T> Shared<T> {
     pub fn new(t: T) -> Self {
         Self(Rc::new(RefCell::new(t)))
     }
@@ -54,7 +54,7 @@ impl<T> RcCell<T> {
     }
 }
 
-impl<T: ?Sized> RcCell<T> {
+impl<T: ?Sized> Shared<T> {
     #[inline]
     pub fn copy(&self) -> Self {
         Self(self.0.clone())
@@ -89,7 +89,7 @@ impl<T: ?Sized> RcCell<T> {
     }
 }
 
-impl<T: Clone> RcCell<T> {
+impl<T: Clone> Shared<T> {
     #[inline]
     pub fn clone_inner(&self) -> T {
         self.borrow().clone()

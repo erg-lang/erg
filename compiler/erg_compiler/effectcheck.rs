@@ -84,10 +84,10 @@ impl SideEffectChecker {
                 Expr::Def(def) => {
                     self.check_def(def);
                 }
-                Expr::ClassDef(type_def) => {
+                Expr::ClassDef(class_def) => {
                     // TODO: grow
-                    for def in type_def.public_methods.iter() {
-                        self.check_def(def);
+                    for def in class_def.methods.iter() {
+                        self.check_expr(def);
                     }
                 }
                 Expr::Call(call) => {
@@ -211,9 +211,9 @@ impl SideEffectChecker {
             Expr::Def(def) => {
                 self.check_def(def);
             }
-            Expr::ClassDef(type_def) => {
-                for def in type_def.public_methods.iter() {
-                    self.check_def(def);
+            Expr::ClassDef(class_def) => {
+                for def in class_def.methods.iter() {
+                    self.check_expr(def);
                 }
             }
             Expr::Array(array) => match array {

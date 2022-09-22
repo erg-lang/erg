@@ -39,6 +39,7 @@ pub enum ErrorKind {
     NotConstExpr,
     InheritanceError,
     VisibilityError,
+    MethodError,
     DummyError,
     /* compile warnings */
     AttributeWarning = 60,
@@ -467,14 +468,12 @@ pub trait ErrorDisplay {
 
     fn format_header(&self) -> String {
         let kind = self.core().kind as u8;
-        let (color, err_or_warn) = if kind < 100 {
-            (RED, "Error")
-        } else if (100..150).contains(&kind) {
+        let (color, err_or_warn) = if (60..=100).contains(&kind) || (180..=200).contains(&kind) {
             (YELLOW, "Warning")
-        } else if (150..200).contains(&kind) {
-            (DEEP_RED, "Error")
-        } else {
+        } else if kind >= 200 {
             ("", "Exception")
+        } else {
+            (RED, "Error")
         };
         let loc = match self.core().loc {
             Location::Range {

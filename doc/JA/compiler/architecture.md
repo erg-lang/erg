@@ -16,15 +16,22 @@
 * `Parser` は `Lexer` と同様に `Parser::new` と `Parser::from_str` の 2 つのコンストラクタを持ち、`Parser::parse` は `AST` を返す。
 * `AST`は`Vec<Expr>`のラッパー型で、「抽象構文木」を表す。
 
-### 2.5 `AST`の脱糖
+### 2.1 `AST`の脱糖
 
 * ネストされた変数を展開 (`Desugarer::desugar_nest_vars_pattern`)
 * 複数パターン定義構文をmatchへ変換 (`Desugarer::desugar_multiple_pattern_def`)
 
-## 3. 型チェックと推論、 `AST` -> `HIR` を変換 (compiler/lower.rs)
+## 3. `AST` -> `HIR`  (compiler/lower.rs)
+
+## 3.1 名前解決
+
+* 型推論の前に全てのAST(importされたモジュール含む)を走査し、名前解決を行う
+* 定数の循環検査や並び替えなどが行われるほか、型推論のためのContextが作成される(ただし、このContextに登録された変数の情報ははまだ殆どが未確定)
+
+### 3.2 型チェックと推論 (compiler/lower.rs)
 
 * `HIR` は、すべての変数の型情報を持っており、「高レベルの中間表現」を表す。
-* `ASTLowerer は Parser や Lexer と同じように構築できる。
+* `ASTLowerer` は Parser や Lexer と同じように構築できる。
 * `ASTLowerer::lower` は、エラーが発生しなければ、`HIR` と `CompileWarnings` のタプルを出力する。
 * `ASTLowerer` は `Compiler` によって所有されている。 `ASTLowerer` は従来の構造体とは異なり、文脈を保持し、1 回限りの使い捨てではない。
 * 型推論の結果が不完全な場合(未知の型変数がある場合)、名前解決時にエラーが発生する。

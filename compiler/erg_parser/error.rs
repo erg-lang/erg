@@ -2,6 +2,7 @@
 //!
 //! パーサーが出すエラーを定義
 use erg_common::astr::AtomicStr;
+use erg_common::color::{RED, RESET};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::Stream;
@@ -81,6 +82,35 @@ impl LexError {
         hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(ErrorCore::new(errno, SyntaxWarning, loc, desc, hint))
+    }
+
+    pub fn no_var_error(
+        errno: usize,
+        loc: Location,
+        name: &str,
+        similar_name: Option<String>,
+    ) -> Self {
+        let hint = similar_name.map(|n| {
+            switch_lang!(
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称变量：{n}"),
+                "traditional_chinese" => format!("存在相同名稱變量：{n}"),
+                "english" => format!("exists a similar name variable: {n}"),
+            )
+            .into()
+        });
+        Self::new(ErrorCore::new(
+            errno,
+            NameError,
+            loc,
+            switch_lang!(
+                "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
+                "simplified_chinese" => format!("{RED}{name}{RESET}未定义"),
+                "traditional_chinese" => format!("{RED}{name}{RESET}未定義"),
+                "english" => format!("{RED}{name}{RESET} is not defined"),
+            ),
+            hint,
+        ))
     }
 }
 
