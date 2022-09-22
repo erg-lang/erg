@@ -31,7 +31,7 @@ tuple_map f: (|T: Type| T -> T), tup: (Int, Str) = (f(tup.0), f(tup.1))
 assert tuple_map(i -> i * 2, (1, "a")) == (2, "aa")
 ```
 
-A type of the form `{(type) | (list of type variables)}` is called a universal type (see [Universal type](./../quantified.md) for details).
+A type of the form `{(type) | (list of type variables)}` is called a universal type (see [Universal type](../15_quantified.md) for details).
 The `id` function we have seen so far is a typical universal function = polycorrelation function.
 
 ```python

@@ -2,7 +2,7 @@
 
 ## Overloading (ad-hoc polymorphism)
 
-It was abandoned because it can be replaced by parametric + subtyping polymorphism, and it is incompatible with Python's semantics. See [overload](../syntax/type/overloading.md) article for details.
+It was abandoned because it can be replaced by parametric + subtyping polymorphism, and it is incompatible with Python's semantics. See [overload](../syntax/type/advanced/overloading.md) article for details.
 
 ## Ownership system with explicit lifetime
 

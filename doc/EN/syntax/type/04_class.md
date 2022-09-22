@@ -99,7 +99,7 @@ However, the smallest type can be defined as a single type, in this case `{1}`. 
 Objects can use patch methods as well as class methods.
 Erg does not allow you to add class methods, but you can use [patch](./07_patch.md) to extend a class.
 
-You can also inherit from existing classes ([Inheritable](./../27_decorator.md/#inheritable) class).
+You can also inherit from existing classes ([Inheritable](../29_decorator.md#inheritable) class).
 You can create an inherited class by using `Inherit`. The type on the left-hand side is called the derived class, and the argument type of `Inherit` on the right-hand side is called the base class (inherited class).
 
 ```python

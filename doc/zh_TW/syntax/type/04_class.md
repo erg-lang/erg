@@ -101,7 +101,7 @@ C.i = 1 # 屬性錯誤：`.i` 已在實例字段中定義
 對象可以使用補丁方法以及類方法。
 Erg 不允許您添加類方法，但您可以使用 [patch](./07_patch.md) 來擴展類。
 
-您還可以從現有類([Inheritable](./../27_decorator.md/#inheritable) 類)繼承。
+您還可以從現有類([Inheritable](../29_decorator.md#可繼承) 類)繼承。
 您可以使用 `Inherit` 創建一個繼承類。左側的類型稱為派生類，右側的"繼承"的參數類型稱為基類(繼承類)。
 
 ```python

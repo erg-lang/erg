@@ -38,4 +38,4 @@
 
 请以 Erg 团队和语言标准化的风格编写代码。
 
-## [行为准则](./CODE_OF_CONDUCT.md)
+## [行为准则](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-CN.md)

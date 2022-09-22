@@ -38,4 +38,4 @@
 
 請以 Erg 團隊和語言標準化的風格編寫代碼。
 
-## [行為準則](./CODE_OF_CONDUCT.md)
+## [行為準則](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-TW.md)

@@ -5,7 +5,7 @@
 > __Warning__：本文档不完整。 它未经校对(样式、正确链接、误译等)。 此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。 请事先了解这一点。
 > 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。 我们将不胜感激您的建议。
 
-本文档描述 Erg 的基本语法。 [标准 API](./API/index.md) 和 [Erg 贡献者的内部文档](./dev_guide/index.md) 位于另一个目录中。
+本文档描述 Erg 的基本语法。 [标准 API](../API/index.md) 和 [Erg 贡献者的内部文档](../dev_guide/index.md) 位于另一个目录中。
 
 ## 你好，世界&excl;
 
