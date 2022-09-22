@@ -25,7 +25,7 @@ impl Linker {
                     // In the case of REPL, entries cannot be used up
                     let hir = if cfg.input.is_repl() {
                         mod_cache
-                            .get("<module>")
+                            .get(&def.sig.ident().inspect()[..])
                             .and_then(|entry| entry.hir.clone())
                     } else {
                         mod_cache
