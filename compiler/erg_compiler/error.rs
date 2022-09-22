@@ -1292,6 +1292,10 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn file_error(errno: usize, desc: String, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(ErrorCore::new(errno, IoError, loc, desc, None), caused_by)
+    }
 }
 
 #[derive(Debug)]
