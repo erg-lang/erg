@@ -396,6 +396,7 @@ impl Context {
         float.register_builtin_impl("Real", Float, Const, Public);
         float.register_builtin_impl("Imag", Float, Const, Public);
         float.register_marker_trait(builtin_mono("Num"));
+        float.register_marker_trait(builtin_mono("Ord"));
         let mut float_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
         float_partial_ord.register_builtin_impl(
             "__cmp__",
@@ -438,7 +439,7 @@ impl Context {
         ratio.register_builtin_impl("Real", Ratio, Const, Public);
         ratio.register_builtin_impl("Imag", Ratio, Const, Public);
         ratio.register_marker_trait(builtin_mono("Num"));
-        // ratio.register_marker_trait(mono("Ord"));
+        ratio.register_marker_trait(builtin_mono("Ord"));
         let mut ratio_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
         ratio_partial_ord.register_builtin_impl(
             "__cmp__",
@@ -481,7 +482,7 @@ impl Context {
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
         int.register_superclass(Obj, &obj);
         int.register_marker_trait(builtin_mono("Num"));
-        // int.register_marker_trait(mono("Ord"));
+        int.register_marker_trait(builtin_mono("Ord"));
         int.register_marker_trait(poly("Eq", vec![ty_tp(Int)]));
         // class("Rational"),
         // class("Integral"),
@@ -536,7 +537,7 @@ impl Context {
             Public,
         );
         nat.register_marker_trait(builtin_mono("Num"));
-        // nat.register_marker_trait(mono("Ord"));
+        nat.register_marker_trait(builtin_mono("Ord"));
         let mut nat_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
         nat_eq.register_builtin_impl("__eq__", fn1_met(Nat, Nat, Bool), Const, Public);
         nat.register_trait(Nat, poly("Eq", vec![ty_tp(Nat)]), nat_eq);
@@ -574,7 +575,7 @@ impl Context {
         bool_.register_builtin_impl("__and__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_builtin_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_marker_trait(builtin_mono("Num"));
-        // bool_.register_marker_trait(mono("Ord"));
+        bool_.register_marker_trait(builtin_mono("Ord"));
         let mut bool_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
         bool_partial_ord.register_builtin_impl(
             "__cmp__",
@@ -600,6 +601,7 @@ impl Context {
         bool_.register_trait(Bool, builtin_mono("Mutizable"), bool_mutizable);
         let mut str_ = Self::mono_class("Str", None, Self::TOP_LEVEL);
         str_.register_superclass(Obj, &obj);
+        str_.register_marker_trait(builtin_mono("Ord"));
         str_.register_builtin_impl(
             "replace",
             fn_met(

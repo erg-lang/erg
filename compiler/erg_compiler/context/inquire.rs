@@ -1460,7 +1460,8 @@ impl Context {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
                 } else {
-                    todo!("is_class({typ})")
+                    // TODO: unknown types
+                    false
                 }
             }
         }
@@ -1482,7 +1483,7 @@ impl Context {
                 if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()
                 } else {
-                    todo!("is_trait({typ})")
+                    false
                 }
             }
         }
