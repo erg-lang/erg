@@ -2,7 +2,7 @@
 name = "erg"
 version = "0.5.1"
 description = "The Erg programming language"
-authors = ["Shunsuke Shibayama <sbym1346@gmail.com>"]
+authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 repository = "https://github.com/erg-lang/erg"
