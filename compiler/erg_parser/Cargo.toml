@@ -1,6 +1,6 @@
 [package]
 name = "erg_parser"
-version = "0.5.1"
+version = "0.5.2"
 description = "The Erg parser"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ simplified_chinese = [ "erg_common/simplified_chinese" ]
 traditional_chinese = [ "erg_common/traditional_chinese" ]
 
 [dependencies]
-erg_common = { version = "0.5.1", path = "../erg_common" }
+erg_common = { version = "0.5.2", path = "../erg_common" }
 
 [lib]
 path = "lib.rs"

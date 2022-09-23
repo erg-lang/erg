@@ -1,6 +1,6 @@
 [package]
 name = "erg_common"
-version = "0.5.1"
+version = "0.5.2"
 description = "A common components library of Erg"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
