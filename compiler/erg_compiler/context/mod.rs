@@ -637,3 +637,16 @@ impl Context {
         }
     }
 }
+
+/// for language server
+impl Context {
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        let mut vars: Vec<_> = self.locals.iter().collect();
+        if let Some(outer) = self.get_outer() {
+            vars.extend(outer.dir());
+        } else {
+            vars.extend(self.get_builtins().unwrap().locals.iter());
+        }
+        vars
+    }
+}

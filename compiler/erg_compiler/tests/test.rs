@@ -30,3 +30,13 @@ fn test_resolve_trait_inner1() -> Result<(), ()> {
     Ok(())
 }
 */
+
+#[test]
+fn test_dir() -> Result<(), ()> {
+    let context = Context::new_module("<module>", SharedModuleCache::new());
+    let vars = context.dir();
+    for (name, vi) in vars.into_iter() {
+        println!("{name}: {vi}");
+    }
+    Ok(())
+}
