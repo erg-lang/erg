@@ -1148,12 +1148,16 @@ impl Context {
                     .rec_get_mono_type("Record");
             }
             Type::Mono { path, name } => {
-                if let Some(ctx) = self.mod_cache.as_ref().unwrap().ref_ctx(path) {
-                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
+                if self.mod_name() == path {
+                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
                         return Some((t, ctx));
                     }
-                } else if self.mod_name() == path {
-                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
+                } else if let Some(ctx) = self
+                    .mod_cache
+                    .as_ref()
+                    .and_then(|cache| cache.ref_ctx(path))
+                {
+                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
                         return Some((t, ctx));
                     }
                 }
