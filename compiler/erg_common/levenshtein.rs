@@ -7,18 +7,16 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
     let r_len = rhs.len();
     // l_len+1 × r_len+1 array
     let mut table = vec![vec![0; r_len + 1]; l_len + 1];
-    let _ = table
+    table
         .iter_mut()
         .take(l_len + 1)
         .enumerate()
-        .map(|(i, row)| row[0] = i)
-        .collect::<()>();
-    let _ = table[0]
+        .for_each(|(i, row)| row[0] = i);
+    table[0]
         .iter_mut()
         .take(r_len + 1)
         .enumerate()
-        .map(|(i, elem)| *elem = i)
-        .collect::<()>();
+        .for_each(|(i, elem)| *elem = i);
     for i1 in 0..l_len {
         #[allow(clippy::needless_range_loop)]
         for i2 in 0..r_len {
