@@ -911,7 +911,7 @@ impl Context {
 
     #[inline]
     fn type_of(&self, p: &TyParam) -> Type {
-        self.get_tp_t(p).unwrap()
+        self.get_tp_t(p).unwrap_or(Type::Obj)
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
@@ -926,7 +926,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(max) = &maybe_max {
-                                if self.try_cmp(rhs, max).unwrap() == Greater {
+                                if self.try_cmp(rhs, max) == Some(Greater) {
                                     maybe_max = Some(rhs.clone());
                                 }
                             } else {
@@ -954,7 +954,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(min) = &maybe_min {
-                                if self.try_cmp(rhs, min).unwrap() == Less {
+                                if self.try_cmp(rhs, min) == Some(Less) {
                                     maybe_min = Some(rhs.clone());
                                 }
                             } else {

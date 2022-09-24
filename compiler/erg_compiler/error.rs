@@ -995,19 +995,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 switch_lang!(
                     "japanese" => format!(
                         "{RED}{name}{RESET}は{}行目ですでに移動されています",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "simplified_chinese" => format!(
                         "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "traditional_chinese" => format!(
                         "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "english" => format!(
                         "{RED}{name}{RESET} was moved in line {}",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                 ),
                 None,

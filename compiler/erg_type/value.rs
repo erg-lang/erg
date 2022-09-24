@@ -802,8 +802,12 @@ pub mod value_set {
 
     // false -> SyntaxError
     pub fn is_homogeneous(set: &Set<ValueObj>) -> bool {
-        let l_first = set.iter().next().unwrap().class();
-        set.iter().all(|c| c.class() == l_first)
+        if let Some(first) = set.iter().next() {
+            let l_first = first.class();
+            set.iter().all(|c| c.class() == l_first)
+        } else {
+            true
+        }
     }
 
     pub fn inner_class(set: &Set<ValueObj>) -> Type {

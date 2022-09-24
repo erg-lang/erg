@@ -1427,14 +1427,12 @@ impl Context {
                     let insts = self.rec_get_trait_impls(&sup.name());
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
-                            Some(
-                                self.eval_t_params(
-                                    mono_proj(inst.sub_type, rhs),
-                                    self.level,
-                                    Location::Unknown,
-                                )
-                                .unwrap(),
+                            self.eval_t_params(
+                                mono_proj(inst.sub_type, rhs),
+                                self.level,
+                                Location::Unknown,
                             )
+                            .ok()
                         } else {
                             None
                         }

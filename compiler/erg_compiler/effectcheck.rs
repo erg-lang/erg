@@ -58,7 +58,7 @@ impl SideEffectChecker {
     ///
     /// However, it is not permitted to cause side effects within an instant block in a function
     /// (side effects are allowed in instant blocks in procedures and modules)
-    fn in_context_se_allowed(&self) -> bool {
+    fn in_context_effects_allowed(&self) -> bool {
         // if toplevel
         if self.block_stack.len() == 1 {
             return true;
@@ -255,7 +255,7 @@ impl SideEffectChecker {
                         .as_ref()
                         .map(|name| name.is_procedural())
                         .unwrap_or(false))
-                    && !self.in_context_se_allowed()
+                    && !self.in_context_effects_allowed()
                 {
                     self.errs.push(EffectError::has_effect(
                         line!() as usize,

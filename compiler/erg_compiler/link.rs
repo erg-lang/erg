@@ -43,7 +43,7 @@ impl Linker {
                         let code = Expr::Code(Block::new(Vec::from(hir.module)));
                         let module_type = Expr::Accessor(Accessor::private_with_line(
                             Str::ever("#ModuleType"),
-                            def.ln_begin().unwrap(),
+                            def.ln_begin().unwrap_or(0),
                         ));
                         let args =
                             Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
@@ -59,7 +59,7 @@ impl Linker {
                         ));
                         let exec = Expr::Accessor(Accessor::public_with_line(
                             Str::ever("exec"),
-                            mod_def.ln_begin().unwrap(),
+                            mod_def.ln_begin().unwrap_or(0),
                         ));
                         let module = Expr::Accessor(Accessor::Ident(def.sig.ident().clone()));
                         let __dict__ = Identifier::public("__dict__");
