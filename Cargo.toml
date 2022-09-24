@@ -1,6 +1,6 @@
 [package]
 name = "erg"
-version = "0.5.2"
+version = "0.5.3"
 description = "The Erg programming language"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
