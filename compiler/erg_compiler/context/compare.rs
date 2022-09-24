@@ -619,7 +619,11 @@ impl Context {
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let (defined_rhs, _) = self.get_nominal_type_ctx(rhs).unwrap();
+        let defined_rhs = if let Some((defined_rhs, _)) = self.get_nominal_type_ctx(rhs) {
+            defined_rhs
+        } else {
+            return false;
+        };
         if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
             for (sup_trait, _) in super_traits {
                 if self.sup_conforms(lhs, defined_rhs, sup_trait) {
@@ -846,18 +850,25 @@ impl Context {
             | (Pred::GreaterEqual { .. }, Pred::LessEqual { .. })
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
-            | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                self.try_cmp(rhs, rhs2).unwrap().is_eq()
-            }
+            | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_eq())
+                .unwrap_or(false),
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },
                 Pred::GreaterEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2).unwrap().is_le(),
+            ) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_le())
+                .unwrap_or(false),
             (
                 Pred::LessEqual { rhs, .. },
                 Pred::LessEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2).unwrap().is_ge(),
+            ) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_ge())
+                .unwrap_or(false),
             (lhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. }), Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
