@@ -19,6 +19,7 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
+use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
@@ -648,5 +649,22 @@ impl Context {
             vars.extend(self.get_builtins().unwrap().locals.iter());
         }
         vars
+    }
+
+    pub fn get_var_info(&self, name: &str) -> TyCheckResult<&VarInfo> {
+        if let Some(vi) = self.get_current_scope_var(name) {
+            Ok(vi)
+        } else {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.get_var_info(name);
+            }
+            Err(TyCheckError::no_var_error(
+                line!() as usize,
+                Location::Unknown,
+                self.caused_by(),
+                name,
+                self.get_similar_name(name),
+            ))
+        }
     }
 }
