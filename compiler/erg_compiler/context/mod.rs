@@ -651,9 +651,9 @@ impl Context {
         vars
     }
 
-    pub fn get_var_info(&self, name: &str) -> TyCheckResult<&VarInfo> {
-        if let Some(vi) = self.get_current_scope_var(name) {
-            Ok(vi)
+    pub fn get_var_info(&self, name: &str) -> TyCheckResult<(&VarName, &VarInfo)> {
+        if let Some(info) = self.get_local_kv(name) {
+            Ok(info)
         } else {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.get_var_info(name);
