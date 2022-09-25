@@ -564,6 +564,19 @@ pub trait ErrorDisplay {
     }
 }
 
+#[macro_export]
+macro_rules! impl_display_and_error {
+    ($Strc: ident) => {
+        impl std::fmt::Display for $Strc {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                $crate::error::ErrorDisplay::format(self, f)
+            }
+        }
+
+        impl std::error::Error for $Strc {}
+    };
+}
+
 pub trait MultiErrorDisplay<Item: ErrorDisplay>: Stream<Item> {
     fn fmt_all_stderr(&self) {
         for err in self.iter() {

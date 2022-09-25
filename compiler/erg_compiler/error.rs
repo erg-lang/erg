@@ -8,7 +8,10 @@ use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiEr
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{fmt_iter, fmt_option_map, fmt_vec, impl_stream_for_wrapper, switch_lang, Str};
+use erg_common::{
+    fmt_iter, fmt_option_map, fmt_vec, impl_display_and_error, impl_stream_for_wrapper,
+    switch_lang, Str,
+};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -99,6 +102,8 @@ pub struct CompileError {
     pub input: Input,
     pub caused_by: AtomicStr,
 }
+
+impl_display_and_error!(CompileError);
 
 impl From<ParserRunnerError> for CompileError {
     fn from(err: ParserRunnerError) -> Self {
