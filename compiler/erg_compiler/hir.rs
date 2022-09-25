@@ -1486,6 +1486,49 @@ impl AttrDef {
 }
 
 #[derive(Debug, Clone)]
+pub struct TypeAscription {
+    pub expr: Box<Expr>,
+    pub spec: TypeSpec,
+}
+
+impl NestedDisplay for TypeAscription {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        writeln!(f, "{}: {}", self.expr, self.spec)
+    }
+}
+
+impl_display_from_nested!(TypeAscription);
+impl_locational!(TypeAscription, expr, spec);
+
+impl HasType for TypeAscription {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        self.expr.ref_t()
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.expr.ref_mut_t()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        self.expr.signature_t()
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        self.expr.signature_mut_t()
+    }
+}
+
+impl TypeAscription {
+    pub fn new(expr: Expr, spec: TypeSpec) -> Self {
+        Self {
+            expr: Box::new(expr),
+            spec,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
@@ -1502,14 +1545,15 @@ pub enum Expr {
     Def(Def),
     ClassDef(ClassDef),
     AttrDef(AttrDef),
+    TypeAsc(TypeAscription),
     Code(Block),     // code object
     Compound(Block), // compound statement
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

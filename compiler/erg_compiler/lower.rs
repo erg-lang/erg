@@ -968,6 +968,25 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+        log!(info "entered {}({tasc})", fn_name!());
+        let t = self.ctx.instantiate_typespec(
+            &tasc.t_spec,
+            None,
+            &mut None,
+            RegistrationMode::Normal,
+        )?;
+        let expr = self.lower_expr(*tasc.expr)?;
+        self.ctx.sub_unify(
+            expr.ref_t(),
+            &t,
+            Some(expr.loc()),
+            None,
+            Some(&Str::from(expr.to_string())),
+        )?;
+        Ok(hir::TypeAscription::new(expr, tasc.t_spec))
+    }
+
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
@@ -985,6 +1004,7 @@ impl ASTLowerer {
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             other => todo!("{other}"),
         }
     }
