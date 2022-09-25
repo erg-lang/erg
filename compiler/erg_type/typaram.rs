@@ -509,6 +509,7 @@ impl TyParam {
     pub fn name(&self) -> Option<Str> {
         match self {
             Self::Type(t) => Some(t.name()),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().name(),
             Self::Mono(name) => Some(name.clone()),
             Self::MonoQVar(name) => Some(name.clone()),
             _ => None,
@@ -518,6 +519,7 @@ impl TyParam {
     pub fn tvar_name(&self) -> Option<Str> {
         match self {
             Self::Type(t) => t.tvar_name(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
             Self::MonoQVar(name) => Some(name.clone()),
             _ => None,

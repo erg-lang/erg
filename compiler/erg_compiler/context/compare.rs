@@ -606,10 +606,10 @@ impl Context {
                 self.poly_supertype_of(lhs, lparams, rparams)
             }
             (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
-                panic!("Not instantiated type variable: {name}, r: {r}")
+                panic!("internal error: not instantiated type variable: '{name}, r: {r}")
             }
             (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
-                panic!("Not instantiated type variable: {name}, l: {l}")
+                panic!("internal error: not instantiated type variable: '{name}, l: {l}")
             }
             (MonoProj { .. }, _) => todo!(),
             (_, MonoProj { .. }) => todo!(),

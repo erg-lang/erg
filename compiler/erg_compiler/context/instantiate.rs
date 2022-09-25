@@ -133,6 +133,7 @@ impl TyVarContext {
         params
             .into_iter()
             .map(|p| {
+                erg_common::log!(err "p: {p}, {:?}", p.tvar_name());
                 if let Some(name) = p.tvar_name() {
                     let tp = self.instantiate_qtp(p);
                     self.push_or_init_typaram(&name, &tp);
@@ -243,7 +244,7 @@ impl TyVarContext {
                 }
             }
             TyParam::Type(t) => {
-                if let Type::MonoQVar(n) = *t {
+                if let Some(n) = t.as_ref().tvar_name() {
                     if let Some(t) = self.get_typaram(&n) {
                         t.clone()
                     } else if let Some(t) = self.get_tyvar(&n) {
@@ -254,7 +255,7 @@ impl TyVarContext {
                         TyParam::t(tv)
                     }
                 } else {
-                    todo!("{t}")
+                    unreachable!("{t}")
                 }
             }
             TyParam::UnaryOp { op, val } => {
@@ -336,6 +337,7 @@ impl TyVarContext {
     }
 }
 
+/// TODO: this struct will be removed when const functions are implemented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConstTemplate {
     Obj(ValueObj),
@@ -766,6 +768,9 @@ impl Context {
                 let t = Self::instantiate_t(*t, tv_ctx, loc)?;
                 Ok(TyParam::t(t))
             }
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                Self::instantiate_tp(fv.crack().clone(), tv_ctx, loc)
+            }
             p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
             other => todo!("{other}"),
         }
@@ -867,6 +872,7 @@ impl Context {
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
             }
+            FreeVar(fv) if fv.is_linked() => Self::instantiate_t(fv.crack().clone(), tv_ctx, loc),
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
         }
