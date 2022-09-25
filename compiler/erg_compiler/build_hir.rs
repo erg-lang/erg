@@ -13,7 +13,6 @@ use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
-use crate::reorder::Reorderer;
 
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug)]
@@ -99,9 +98,6 @@ impl HIRBuilder {
     pub fn build(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.cfg().copy());
         let ast = ast_builder.build(src)?;
-        let ast = Reorderer::new()
-            .reorder(ast)
-            .map_err(|errs| self.convert(errs))?;
         let hir = self.check(ast, mode)?;
         Ok(hir)
     }

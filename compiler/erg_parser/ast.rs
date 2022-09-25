@@ -2842,12 +2842,21 @@ pub enum DefKind {
     Subsume,
     StructuralTrait,
     Module,
+    /// type alias included
     Other,
 }
 
 impl DefKind {
     pub const fn is_trait(&self) -> bool {
         matches!(self, Self::Trait | Self::Subsume | Self::StructuralTrait)
+    }
+
+    pub const fn is_class(&self) -> bool {
+        matches!(self, Self::Class | Self::Inherit)
+    }
+
+    pub const fn is_class_or_trait(&self) -> bool {
+        self.is_class() || self.is_trait()
     }
 
     pub fn is_module(&self) -> bool {

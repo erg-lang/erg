@@ -30,6 +30,7 @@ use crate::error::{
 use crate::hir;
 use crate::hir::HIR;
 use crate::mod_cache::SharedModuleCache;
+use crate::reorder::Reorderer;
 use crate::varinfo::VarKind;
 use Visibility::*;
 
@@ -533,6 +534,14 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
+        if def.def_kind().is_class_or_trait() && self.ctx.kind != ContextKind::Module {
+            self.ctx.decls.remove(def.sig.ident().unwrap().inspect());
+            return Err(LowerError::inner_typedef_error(
+                line!() as usize,
+                def.loc(),
+                self.ctx.caused_by(),
+            ));
+        }
         let name = if let Some(name) = def.sig.name_as_str() {
             name
         } else {
@@ -589,7 +598,6 @@ impl ASTLowerer {
             }
         }
         let id = body.id;
-        // TODO: cover all VarPatterns
         self.ctx
             .outer
             .as_mut()
@@ -994,6 +1002,7 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
+        let ast = Reorderer::new().reorder(ast)?;
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.block())?;
         for chunk in ast.module.into_iter() {
