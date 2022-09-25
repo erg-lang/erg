@@ -15,7 +15,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.5.3"
+version = "0.5.4-nightly.0"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -25,14 +25,14 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.5.3"
+version = "0.5.4-nightly.0"
 dependencies = [
  "atty",
 ]
 
 [[package]]
 name = "erg_compiler"
-version = "0.5.3"
+version = "0.5.4-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -41,14 +41,14 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.5.3"
+version = "0.5.4-nightly.0"
 dependencies = [
  "erg_common",
 ]
 
 [[package]]
 name = "erg_type"
-version = "0.5.3"
+version = "0.5.4-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",
