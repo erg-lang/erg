@@ -133,7 +133,6 @@ impl TyVarContext {
         params
             .into_iter()
             .map(|p| {
-                erg_common::log!(err "p: {p}, {:?}", p.tvar_name());
                 if let Some(name) = p.tvar_name() {
                     let tp = self.instantiate_qtp(p);
                     self.push_or_init_typaram(&name, &tp);
@@ -861,6 +860,14 @@ impl Context {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
             }
             FreeVar(fv) if fv.is_linked() => Self::instantiate_t(fv.crack().clone(), tv_ctx, loc),
+            FreeVar(fv) => {
+                let (sub, sup) = fv.get_bound_types().unwrap();
+                let sub = Self::instantiate_t(sub, tv_ctx, loc)?;
+                let sup = Self::instantiate_t(sup, tv_ctx, loc)?;
+                let new_constraint = Constraint::new_sandwiched(sub, sup, fv.cyclicity());
+                fv.update_constraint(new_constraint);
+                Ok(FreeVar(fv))
+            }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
         }

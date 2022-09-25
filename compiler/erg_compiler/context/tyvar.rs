@@ -166,6 +166,10 @@ impl Context {
                     .collect::<Vec<_>>();
                 poly(name, params)
             }
+            MonoProj { lhs, rhs } => {
+                let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
+                mono_proj(lhs, rhs)
+            }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
         }
