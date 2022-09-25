@@ -543,26 +543,32 @@ impl ASTLowerer {
             ));
         }
         let name = if let Some(name) = def.sig.name_as_str() {
-            name
+            name.clone()
         } else {
-            "<lambda>"
+            Str::ever("<lambda>")
         };
-        if self.ctx.registered_info(name, def.sig.is_const()).is_some() {
+        if self
+            .ctx
+            .registered_info(&name, def.sig.is_const())
+            .is_some()
+        {
             return Err(LowerError::reassign_error(
                 line!() as usize,
                 def.sig.loc(),
                 self.ctx.caused_by(),
-                name,
+                &name,
             ));
         }
         let kind = ContextKind::from(def.def_kind());
-        self.ctx.grow(name, kind, def.sig.vis())?;
+        self.ctx.grow(&name, kind, def.sig.vis())?;
         let res = match def.sig {
             ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
             ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
         };
         // TODO: Context上の関数に型境界情報を追加
         self.pop_append_errs();
+        // remove from decls regardless of success or failure to lower
+        self.ctx.decls.remove(&name);
         res
     }
 
@@ -1035,10 +1041,19 @@ impl ASTLowerer {
                 }
             }
         }
-        self.ctx.check_decls()?;
+        self.ctx.check_decls().unwrap_or_else(|mut errs| {
+            self.errs.append(&mut errs);
+        });
         let hir = HIR::new(ast.name, module);
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
-        let hir = self.ctx.resolve(hir)?;
+        let hir = match self.ctx.resolve(hir) {
+            Ok(hir) => hir,
+            Err(err) => {
+                self.errs.push(err);
+                log!(err "the AST lowering process has failed.");
+                return Err(LowerErrors::from(self.errs.take_all()));
+            }
+        };
         // TODO: recursive check
         for chunk in hir.module.iter() {
             if let Err(e) = self.use_check(chunk, mode) {

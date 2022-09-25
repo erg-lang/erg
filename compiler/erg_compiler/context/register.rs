@@ -624,7 +624,7 @@ impl Context {
                         .push((ClassDefType::Simple(gen.t.clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
-                    todo!()
+                    todo!("polymorphic type definition is not supported yet");
                 }
             }
             TypeKind::Subclass => {
@@ -668,7 +668,7 @@ impl Context {
                         todo!("super class not found")
                     }
                 } else {
-                    todo!()
+                    todo!("polymorphic type definition is not supported yet");
                 }
             }
             TypeKind::Trait => {
@@ -688,7 +688,7 @@ impl Context {
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
-                    todo!()
+                    todo!("polymorphic type definition is not supported yet");
                 }
             }
             TypeKind::Subtrait => {
@@ -717,7 +717,7 @@ impl Context {
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
-                    todo!()
+                    todo!("polymorphic type definition is not supported yet");
                 }
             }
             other => todo!("{other:?}"),
