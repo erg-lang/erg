@@ -391,22 +391,16 @@ impl Context {
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
         let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-        let non_defaults = sig
-            .params
-            .non_defaults
-            .iter()
-            .enumerate()
-            .map(|(n, p)| {
-                let opt_decl_t = opt_decl_sig_t
-                    .as_ref()
-                    .and_then(|subr| subr.non_default_params.get(n));
-                ParamTy::pos(
-                    p.inspect().cloned(),
-                    self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)
-                        .unwrap(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let mut non_defaults = vec![];
+        for (n, p) in sig.params.non_defaults.iter().enumerate() {
+            let opt_decl_t = opt_decl_sig_t
+                .as_ref()
+                .and_then(|subr| subr.non_default_params.get(n));
+            non_defaults.push(ParamTy::pos(
+                p.inspect().cloned(),
+                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+            ));
+        }
         let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
@@ -417,22 +411,16 @@ impl Context {
         } else {
             None
         };
-        let defaults = sig
-            .params
-            .defaults
-            .iter()
-            .enumerate()
-            .map(|(n, p)| {
-                let opt_decl_t = opt_decl_sig_t
-                    .as_ref()
-                    .and_then(|subr| subr.default_params.get(n));
-                ParamTy::kw(
-                    p.inspect().unwrap().clone(),
-                    self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)
-                        .unwrap(),
-                )
-            })
-            .collect();
+        let mut defaults = vec![];
+        for (n, p) in sig.params.defaults.iter().enumerate() {
+            let opt_decl_t = opt_decl_sig_t
+                .as_ref()
+                .and_then(|subr| subr.default_params.get(n));
+            defaults.push(ParamTy::kw(
+                p.inspect().unwrap().clone(),
+                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+            ));
+        }
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
