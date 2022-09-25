@@ -113,15 +113,7 @@ impl TyVarContext {
             if defined_params_len < given_params_len {
                 panic!()
             }
-            let inst_non_defaults = params
-                .into_iter()
-                .map(|tp| {
-                    let name = tp.tvar_name().unwrap();
-                    let tp = self.instantiate_qtp(tp);
-                    self.push_or_init_typaram(&name, &tp);
-                    tp
-                })
-                .collect();
+            let inst_non_defaults = self.instantiate_params(params);
             let mut inst_defaults = vec![];
             for template in temp_defaults
                 .iter()
@@ -133,41 +125,45 @@ impl TyVarContext {
             }
             poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            poly(
-                name,
-                params
-                    .into_iter()
-                    .map(|p| {
-                        if let Some(name) = p.tvar_name() {
-                            let tp = self.instantiate_qtp(p);
-                            self.push_or_init_typaram(&name, &tp);
-                            tp
-                        } else {
-                            p
-                        }
-                    })
-                    .collect(),
-            )
+            poly(name, self.instantiate_params(params))
+        }
+    }
+
+    fn instantiate_params(&mut self, params: Vec<TyParam>) -> Vec<TyParam> {
+        params
+            .into_iter()
+            .map(|p| {
+                if let Some(name) = p.tvar_name() {
+                    let tp = self.instantiate_qtp(p);
+                    self.push_or_init_typaram(&name, &tp);
+                    tp
+                } else {
+                    p
+                }
+            })
+            .collect()
+    }
+
+    fn instantiate_bound_type(&mut self, mid: &Type, sub_or_sup: Type, ctx: &Context) -> Type {
+        match sub_or_sup {
+            Type::Poly { name, params } => self.instantiate_poly(mid.name(), &name, params, ctx),
+            Type::MonoProj { lhs, rhs } => {
+                let lhs = if lhs.has_qvar() {
+                    self.instantiate_qvar(*lhs)
+                } else {
+                    *lhs
+                };
+                mono_proj(lhs, rhs)
+            }
+            other => other,
         }
     }
 
     fn instantiate_bound(&mut self, bound: TyBound, ctx: &Context) {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
-                let sub_instance = match sub {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(mid.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
-                    sub => sub,
-                };
-                let sup_instance = match sup {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(mid.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
-                    sup => sup,
-                };
+                let sub_instance = self.instantiate_bound_type(&mid, sub, ctx);
+                let sup_instance = self.instantiate_bound_type(&mid, sup, ctx);
                 let name = mid.name();
                 let constraint =
                     Constraint::new_sandwiched(sub_instance, sup_instance, Cyclicity::Not);
