@@ -2841,7 +2841,8 @@ pub enum DefKind {
     Trait,
     Subsume,
     StructuralTrait,
-    Module,
+    Import,
+    PyImport,
     /// type alias included
     Other,
 }
@@ -2859,8 +2860,8 @@ impl DefKind {
         self.is_class() || self.is_trait()
     }
 
-    pub fn is_module(&self) -> bool {
-        matches!(self, Self::Module)
+    pub fn is_erg_import(&self) -> bool {
+        matches!(self, Self::Import)
     }
 }
 
@@ -2876,6 +2877,32 @@ impl_locational!(DefBody, op, block);
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
+    }
+
+    pub fn def_kind(&self) -> DefKind {
+        match self.block.first().unwrap() {
+            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
+                Some("Class") => DefKind::Class,
+                Some("Inherit") => DefKind::Inherit,
+                Some("Trait") => DefKind::Trait,
+                Some("Subsume") => DefKind::Subsume,
+                Some("Inheritable") => {
+                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                        match inner.obj.get_name().map(|n| &n[..]) {
+                            Some("Class") => DefKind::Class,
+                            Some("Inherit") => DefKind::Inherit,
+                            _ => DefKind::Other,
+                        }
+                    } else {
+                        DefKind::Other
+                    }
+                }
+                Some("import") => DefKind::Import,
+                Some("pyimport") | Some("py") => DefKind::PyImport,
+                _ => DefKind::Other,
+            },
+            _ => DefKind::Other,
+        }
     }
 }
 
@@ -2910,28 +2937,7 @@ impl Def {
     }
 
     pub fn def_kind(&self) -> DefKind {
-        match self.body.block.first().unwrap() {
-            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
-                Some("Class") => DefKind::Class,
-                Some("Inherit") => DefKind::Inherit,
-                Some("Trait") => DefKind::Trait,
-                Some("Subsume") => DefKind::Subsume,
-                Some("Inheritable") => {
-                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
-                        match inner.obj.get_name().map(|n| &n[..]) {
-                            Some("Class") => DefKind::Class,
-                            Some("Inherit") => DefKind::Inherit,
-                            _ => DefKind::Other,
-                        }
-                    } else {
-                        DefKind::Other
-                    }
-                }
-                Some("import") => DefKind::Module,
-                _ => DefKind::Other,
-            },
-            _ => DefKind::Other,
-        }
+        self.body.def_kind()
     }
 }
 

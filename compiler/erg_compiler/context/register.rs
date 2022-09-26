@@ -3,6 +3,7 @@ use std::path::PathBuf; // conflicting to Type::Option
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
+use erg_common::levenshtein::get_similar_name;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -29,6 +30,7 @@ use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::TyVarContext;
+use super::ImportKind;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
@@ -611,10 +613,18 @@ impl Context {
             TypeKind::Class => {
                 if gen.t.is_monomorphic() {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx =
-                        Self::mono_class(gen.t.name(), self.mod_cache.clone(), self.level);
-                    let mut methods =
-                        Self::methods(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let mut ctx = Self::mono_class(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
+                    let mut methods = Self::methods(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
                     methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
@@ -631,14 +641,22 @@ impl Context {
                 if gen.t.is_monomorphic() {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx =
-                        Self::mono_class(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let mut ctx = Self::mono_class(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
                     for sup in super_classes.into_iter() {
                         let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
                         ctx.register_superclass(sup, sup_ctx);
                     }
-                    let mut methods =
-                        Self::methods(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let mut methods = Self::methods(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
                     if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
                         let param_t = match sup {
@@ -673,8 +691,12 @@ impl Context {
             }
             TypeKind::Trait => {
                 if gen.t.is_monomorphic() {
-                    let mut ctx =
-                        Self::mono_trait(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let mut ctx = Self::mono_trait(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
                     let require = enum_unwrap!(gen.require_or_sup.as_ref(), TypeObj::Builtin:(Type::Record:(_)));
                     for (field, t) in require.iter() {
                         let muty = if field.is_const() {
@@ -695,8 +717,12 @@ impl Context {
                 if gen.t.is_monomorphic() {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx =
-                        Self::mono_trait(gen.t.name(), self.mod_cache.clone(), self.level);
+                    let mut ctx = Self::mono_trait(
+                        gen.t.name(),
+                        self.mod_cache.clone(),
+                        self.py_mod_cache.clone(),
+                        self.level,
+                    );
                     let additional = gen.additional.as_ref().map(|additional| enum_unwrap!(additional.as_ref(), TypeObj::Builtin:(Type::Record:(_))));
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
@@ -764,6 +790,7 @@ impl Context {
 
     pub(crate) fn import_mod(
         &mut self,
+        kind: ImportKind,
         current_input: Input,
         var_name: &VarName,
         mod_name: &hir::Expr,
@@ -771,61 +798,10 @@ impl Context {
         match mod_name {
             hir::Expr::Lit(lit) => {
                 if self.subtype_of(&lit.value.class(), &Str) {
-                    let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
-                    if let Some(mod_cache) = self.mod_cache.as_ref() {
-                        match &__name__[..] {
-                            "importlib" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    None,
-                                    Self::init_py_importlib_mod(),
-                                );
-                            }
-                            "io" => {
-                                mod_cache.register(var_name.clone(), None, Self::init_py_io_mod());
-                            }
-                            "math" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    None,
-                                    Self::init_py_math_mod(),
-                                );
-                            }
-                            "random" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    None,
-                                    Self::init_py_random_mod(),
-                                );
-                            }
-                            "socket" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    None,
-                                    Self::init_py_socket_mod(),
-                                );
-                            }
-                            "sys" => {
-                                mod_cache.register(var_name.clone(), None, Self::init_py_sys_mod());
-                            }
-                            "time" => {
-                                mod_cache.register(
-                                    var_name.clone(),
-                                    None,
-                                    Self::init_py_time_mod(),
-                                );
-                            }
-                            _ => self.import_user_module(
-                                current_input,
-                                var_name,
-                                __name__,
-                                lit,
-                                mod_cache,
-                            )?,
-                        }
+                    if kind.is_erg_import() {
+                        self.import_erg_mod(current_input, var_name, lit)?;
                     } else {
-                        // maybe unreachable
-                        todo!("importing {__name__} in the builtin module")
+                        self.import_py_mod(current_input, var_name, lit)?;
                     }
                 } else {
                     return Err(TyCheckError::type_mismatch_error(
@@ -852,14 +828,42 @@ impl Context {
         Ok(())
     }
 
-    fn import_user_module(
+    fn import_erg_mod(
+        &mut self,
+        current_input: Input,
+        var_name: &VarName,
+        lit: &Literal,
+    ) -> TyCheckResult<()> {
+        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        #[allow(clippy::match_single_binding)]
+        match &__name__[..] {
+            _ => self.import_user_erg_mod(
+                current_input,
+                var_name,
+                __name__,
+                lit,
+                mod_cache,
+                py_mod_cache,
+            )?,
+        }
+        Ok(())
+    }
+
+    fn import_user_erg_mod(
         &self,
         current_input: Input,
         var_name: &VarName,
         __name__: Str,
         name_lit: &Literal,
         mod_cache: &SharedModuleCache,
+        py_mod_cache: &SharedModuleCache,
     ) -> TyCheckResult<()> {
+        if let Some((_, entry)) = mod_cache.get_by_name(&__name__) {
+            mod_cache.register_alias(var_name.clone(), entry);
+            return Ok(());
+        }
         let mut dir = if let Input::File(mut path) = current_input {
             path.pop();
             path
@@ -871,11 +875,18 @@ impl Context {
         let path = match dir.canonicalize() {
             Ok(path) => path,
             Err(err) => {
-                return Err(TyCheckError::file_error(
+                return Err(TyCheckError::import_error(
                     line!() as usize,
                     err.to_string(),
                     name_lit.loc(),
                     self.caused_by(),
+                    self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
+                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .unwrap()
+                            .get_similar_name(&__name__)
+                    }),
                 ));
             }
         };
@@ -884,7 +895,12 @@ impl Context {
             ..ErgConfig::default()
         };
         let src = cfg.input.read();
-        let mut builder = HIRBuilder::new_with_cache(cfg, var_name.inspect(), mod_cache.clone());
+        let mut builder = HIRBuilder::new_with_cache(
+            cfg,
+            var_name.inspect(),
+            mod_cache.clone(),
+            py_mod_cache.clone(),
+        );
         match builder.build(src, "exec") {
             Ok(hir) => {
                 mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
@@ -894,6 +910,60 @@ impl Context {
             }
         }
         Ok(())
+    }
+
+    fn import_py_mod(
+        &mut self,
+        current_input: Input,
+        var_name: &VarName,
+        lit: &Literal,
+    ) -> TyCheckResult<()> {
+        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
+        match &__name__[..] {
+            "importlib" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_importlib_mod());
+            }
+            "io" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_io_mod());
+            }
+            "math" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_math_mod());
+            }
+            "random" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_random_mod());
+            }
+            "socket" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_socket_mod());
+            }
+            "sys" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_sys_mod());
+            }
+            "time" => {
+                mod_cache.register(var_name.clone(), None, Self::init_py_time_mod());
+            }
+            _ => self.import_user_py_mod(current_input, var_name, lit)?,
+        }
+        Ok(())
+    }
+
+    fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
+        get_similar_name(
+            ["importlib", "io", "math", "random", "socket", "sys", "time"].into_iter(),
+            name,
+        )
+        .map(Str::rc)
+    }
+
+    fn import_user_py_mod(
+        &self,
+        _current_input: Input,
+        _var_name: &VarName,
+        lit: &Literal,
+    ) -> TyCheckResult<()> {
+        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+        let _mod_cache = self.mod_cache.as_ref().unwrap();
+        todo!()
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {

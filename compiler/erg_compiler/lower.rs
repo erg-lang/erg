@@ -49,6 +49,7 @@ impl Default for ASTLowerer {
             ErgConfig::default(),
             Str::ever("<module>"),
             SharedModuleCache::new(),
+            SharedModuleCache::new(),
         )
     }
 }
@@ -64,7 +65,12 @@ impl Runnable for ASTLowerer {
     }
 
     fn new(cfg: ErgConfig) -> Self {
-        Self::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
+        Self::new_with_cache(
+            cfg,
+            Str::ever("<module>"),
+            SharedModuleCache::new(),
+            SharedModuleCache::new(),
+        )
     }
 
     #[inline]
@@ -87,7 +93,7 @@ impl Runnable for ASTLowerer {
         Ok(())
     }
 
-    fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
+    fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(src)?;
         let (hir, ..) = self.lower(ast, "eval").map_err(|errs| self.convert(errs))?;
@@ -100,10 +106,11 @@ impl ASTLowerer {
         cfg: ErgConfig,
         mod_name: S,
         mod_cache: SharedModuleCache,
+        py_mod_cache: SharedModuleCache,
     ) -> Self {
         Self {
             cfg,
-            ctx: Context::new_module(mod_name, mod_cache),
+            ctx: Context::new_module(mod_name, mod_cache, py_mod_cache),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
@@ -611,9 +618,10 @@ impl ASTLowerer {
             .assign_var_sig(&sig, found_body_t, id)?;
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
-                if call.is_import_call() {
+                if let Some(kind) = call.import_kind() {
                     let current_input = self.input().clone();
                     self.ctx.outer.as_mut().unwrap().import_mod(
+                        kind,
                         current_input,
                         &ident.name,
                         &call.args.pos_args.first().unwrap().expr,

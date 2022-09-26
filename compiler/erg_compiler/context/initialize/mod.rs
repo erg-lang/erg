@@ -180,10 +180,10 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
-        let unpack = Self::mono_trait("Unpack", None, Self::TOP_LEVEL);
-        let inheritable_type = Self::mono_trait("InheritableType", None, Self::TOP_LEVEL);
-        let named = Self::mono_trait("Named", None, Self::TOP_LEVEL);
-        let mut mutable = Self::mono_trait("Mutable", None, Self::TOP_LEVEL);
+        let unpack = Self::mono_trait("Unpack", None, None, Self::TOP_LEVEL);
+        let inheritable_type = Self::mono_trait("InheritableType", None, None, Self::TOP_LEVEL);
+        let named = Self::mono_trait("Named", None, None, Self::TOP_LEVEL);
+        let mut mutable = Self::mono_trait("Mutable", None, None, Self::TOP_LEVEL);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
         let f_t = func(vec![param_t("old", proj.clone())], None, vec![], proj);
         let t = pr1_met(ref_mut(mono_q("Self"), None), f_t, NoneType);
@@ -193,16 +193,22 @@ impl Context {
         );
         mutable.register_builtin_decl("update!", t, Public);
         // REVIEW: Immutatable?
-        let mut immutizable = Self::mono_trait("Immutizable", None, Self::TOP_LEVEL);
+        let mut immutizable = Self::mono_trait("Immutizable", None, None, Self::TOP_LEVEL);
         immutizable.register_superclass(builtin_mono("Mutable"), &mutable);
         immutizable.register_builtin_decl("ImmutType", Type, Public);
         // REVIEW: Mutatable?
-        let mut mutizable = Self::mono_trait("Mutizable", None, Self::TOP_LEVEL);
+        let mut mutizable = Self::mono_trait("Mutizable", None, None, Self::TOP_LEVEL);
         mutizable.register_builtin_decl("MutType!", Type, Public);
-        let mut in_ = Self::poly_trait("In", vec![PS::t("T", NonDefault)], None, Self::TOP_LEVEL);
+        let mut in_ = Self::poly_trait(
+            "In",
+            vec![PS::t("T", NonDefault)],
+            None,
+            None,
+            Self::TOP_LEVEL,
+        );
         let params = vec![PS::t("T", NonDefault)];
-        let input = Self::poly_trait("Input", params.clone(), None, Self::TOP_LEVEL);
-        let output = Self::poly_trait("Output", params, None, Self::TOP_LEVEL);
+        let input = Self::poly_trait("Input", params.clone(), None, None, Self::TOP_LEVEL);
+        let output = Self::poly_trait("Output", params, None, None, Self::TOP_LEVEL);
         in_.register_superclass(poly("Input", vec![ty_tp(mono_q("T"))]), &input);
         let op_t = fn1_met(mono_q("T"), mono_q("I"), Bool);
         let op_t = quant(
@@ -213,7 +219,13 @@ impl Context {
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
         // use `l - r < EPSILON` to check if two floats are almost equal
-        let mut eq = Self::poly_trait("Eq", vec![PS::t("R", WithDefault)], None, Self::TOP_LEVEL);
+        let mut eq = Self::poly_trait(
+            "Eq",
+            vec![PS::t("R", WithDefault)],
+            None,
+            None,
+            Self::TOP_LEVEL,
+        );
         eq.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
         // __eq__: |Self <: Eq()| Self.(Self) -> Bool
         let op_t = fn1_met(mono_q("Self"), mono_q("R"), Bool);
@@ -228,6 +240,7 @@ impl Context {
         let mut partial_ord = Self::poly_trait(
             "PartialOrd",
             vec![PS::t("R", WithDefault)],
+            None,
             None,
             Self::TOP_LEVEL,
         );
@@ -245,20 +258,26 @@ impl Context {
             },
         );
         partial_ord.register_builtin_decl("__partial_cmp__", op_t, Public);
-        let mut ord = Self::mono_trait("Ord", None, Self::TOP_LEVEL);
+        let mut ord = Self::mono_trait("Ord", None, None, Self::TOP_LEVEL);
         ord.register_superclass(poly("Eq", vec![ty_tp(builtin_mono("Self"))]), &eq);
         ord.register_superclass(
             poly("PartialOrd", vec![ty_tp(builtin_mono("Self"))]),
             &partial_ord,
         );
         // FIXME: poly trait
-        let num = Self::mono_trait("Num", None, Self::TOP_LEVEL);
+        let num = Self::mono_trait("Num", None, None, Self::TOP_LEVEL);
         /* vec![
             poly("Add", vec![]),
             poly("Sub", vec![]),
             poly("Mul", vec![]),
         ], */
-        let mut seq = Self::poly_trait("Seq", vec![PS::t("T", NonDefault)], None, Self::TOP_LEVEL);
+        let mut seq = Self::poly_trait(
+            "Seq",
+            vec![PS::t("T", NonDefault)],
+            None,
+            None,
+            Self::TOP_LEVEL,
+        );
         seq.register_superclass(poly("Output", vec![ty_tp(mono_q("T"))]), &output);
         let self_t = mono_q("Self");
         let t = fn0_met(self_t.clone(), Nat);
@@ -278,7 +297,7 @@ impl Context {
         let r_bound = static_instance("R", Type);
         let params = vec![PS::t("R", WithDefault)];
         let ty_params = vec![ty_tp(mono_q("R"))];
-        let mut add = Self::poly_trait("Add", params.clone(), None, Self::TOP_LEVEL);
+        let mut add = Self::poly_trait("Add", params.clone(), None, None, Self::TOP_LEVEL);
         // Rについて共変(__add__の型とは関係ない)
         add.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
         let self_bound = subtypeof(mono_q("Self"), poly("Add", ty_params.clone()));
@@ -290,7 +309,7 @@ impl Context {
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         add.register_builtin_decl("__add__", op_t, Public);
         add.register_builtin_decl("Output", Type, Public);
-        let mut sub = Self::poly_trait("Sub", params.clone(), None, Self::TOP_LEVEL);
+        let mut sub = Self::poly_trait("Sub", params.clone(), None, None, Self::TOP_LEVEL);
         sub.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
         let op_t = fn1_met(
             mono_q("Self"),
@@ -301,7 +320,7 @@ impl Context {
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         sub.register_builtin_decl("__sub__", op_t, Public);
         sub.register_builtin_decl("Output", Type, Public);
-        let mut mul = Self::poly_trait("Mul", params.clone(), None, Self::TOP_LEVEL);
+        let mut mul = Self::poly_trait("Mul", params.clone(), None, None, Self::TOP_LEVEL);
         mul.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
         let op_t = fn1_met(
             mono_q("Self"),
@@ -312,7 +331,7 @@ impl Context {
         let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         mul.register_builtin_decl("__mul__", op_t, Public);
         mul.register_builtin_decl("Output", Type, Public);
-        let mut div = Self::poly_trait("Div", params, None, Self::TOP_LEVEL);
+        let mut div = Self::poly_trait("Div", params, None, None, Self::TOP_LEVEL);
         div.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
         let op_t = fn1_met(mono_q("Self"), r, mono_proj(mono_q("Self"), "Output"));
         let self_bound = subtypeof(mono_q("Self"), poly("Div", ty_params.clone()));
@@ -368,7 +387,7 @@ impl Context {
     }
 
     fn init_builtin_classes(&mut self) {
-        let mut obj = Self::mono_class("Obj", None, Self::TOP_LEVEL);
+        let mut obj = Self::mono_class("Obj", None, None, Self::TOP_LEVEL);
         let t = fn0_met(mono_q("Self"), mono_q("Self"));
         let t = quant(t, set! {subtypeof(mono_q("Self"), builtin_mono("Obj"))});
         obj.register_builtin_impl("clone", t, Const, Public);
@@ -383,13 +402,13 @@ impl Context {
             Immutable,
             Public,
         );
-        let mut obj_in = Self::methods("In", None, Self::TOP_LEVEL);
+        let mut obj_in = Self::methods("In", None, None, Self::TOP_LEVEL);
         obj_in.register_builtin_impl("__in__", fn1_met(Obj, Type, Bool), Const, Public);
         obj.register_trait(Obj, poly("Eq", vec![ty_tp(Type)]), obj_in);
-        let mut obj_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut obj_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         obj_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Obj!")));
         obj.register_trait(Obj, builtin_mono("Mutizable"), obj_mutizable);
-        let mut float = Self::mono_class("Float", None, Self::TOP_LEVEL);
+        let mut float = Self::mono_class("Float", None, None, Self::TOP_LEVEL);
         float.register_superclass(Obj, &obj);
         // TODO: support multi platform
         float.register_builtin_const("EPSILON", ValueObj::Float(2.220446049250313e-16));
@@ -397,7 +416,7 @@ impl Context {
         float.register_builtin_impl("Imag", Float, Const, Public);
         float.register_marker_trait(builtin_mono("Num"));
         float.register_marker_trait(builtin_mono("Ord"));
-        let mut float_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
+        let mut float_partial_ord = Self::methods("PartialOrd", None, None, Self::TOP_LEVEL);
         float_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Float, Float, builtin_mono("Ordering")),
@@ -411,36 +430,36 @@ impl Context {
         );
         // Float doesn't have an `Eq` implementation
         let op_t = fn1_met(Float, Float, Float);
-        let mut float_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut float_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         float_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         float_add.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Add", vec![ty_tp(Float)]), float_add);
-        let mut float_sub = Self::methods("Sub", None, Self::TOP_LEVEL);
+        let mut float_sub = Self::methods("Sub", None, None, Self::TOP_LEVEL);
         float_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         float_sub.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Sub", vec![ty_tp(Float)]), float_sub);
-        let mut float_mul = Self::methods("Mul", None, Self::TOP_LEVEL);
+        let mut float_mul = Self::methods("Mul", None, None, Self::TOP_LEVEL);
         float_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         float_mul.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Mul", vec![ty_tp(Float)]), float_mul);
-        let mut float_div = Self::methods("Div", None, Self::TOP_LEVEL);
+        let mut float_div = Self::methods("Div", None, None, Self::TOP_LEVEL);
         float_div.register_builtin_impl("__div__", op_t, Const, Public);
         float_div.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, poly("Div", vec![ty_tp(Float)]), float_div);
-        let mut float_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut float_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         float_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Float!")));
         float.register_trait(Float, builtin_mono("Mutizable"), float_mutizable);
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
-        let mut ratio = Self::mono_class("Ratio", None, Self::TOP_LEVEL);
+        let mut ratio = Self::mono_class("Ratio", None, None, Self::TOP_LEVEL);
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_impl("Real", Ratio, Const, Public);
         ratio.register_builtin_impl("Imag", Ratio, Const, Public);
         ratio.register_marker_trait(builtin_mono("Num"));
         ratio.register_marker_trait(builtin_mono("Ord"));
-        let mut ratio_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
+        let mut ratio_partial_ord = Self::methods("PartialOrd", None, None, Self::TOP_LEVEL);
         ratio_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Ratio, Ratio, builtin_mono("Ordering")),
@@ -452,33 +471,33 @@ impl Context {
             poly("PartialOrd", vec![ty_tp(Ratio)]),
             ratio_partial_ord,
         );
-        let mut ratio_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut ratio_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         ratio_eq.register_builtin_impl("__eq__", fn1_met(Ratio, Ratio, Bool), Const, Public);
         ratio.register_trait(Ratio, poly("Eq", vec![ty_tp(Ratio)]), ratio_eq);
         let op_t = fn1_met(Ratio, Ratio, Ratio);
-        let mut ratio_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut ratio_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         ratio_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         ratio_add.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Add", vec![ty_tp(Ratio)]), ratio_add);
-        let mut ratio_sub = Self::methods("Sub", None, Self::TOP_LEVEL);
+        let mut ratio_sub = Self::methods("Sub", None, None, Self::TOP_LEVEL);
         ratio_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         ratio_sub.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Sub", vec![ty_tp(Ratio)]), ratio_sub);
-        let mut ratio_mul = Self::methods("Mul", None, Self::TOP_LEVEL);
+        let mut ratio_mul = Self::methods("Mul", None, None, Self::TOP_LEVEL);
         ratio_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         ratio_mul.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Mul", vec![ty_tp(Ratio)]), ratio_mul);
-        let mut ratio_div = Self::methods("Div", None, Self::TOP_LEVEL);
+        let mut ratio_div = Self::methods("Div", None, None, Self::TOP_LEVEL);
         ratio_div.register_builtin_impl("__div__", op_t, Const, Public);
         ratio_div.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, poly("Div", vec![ty_tp(Ratio)]), ratio_div);
-        let mut ratio_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut ratio_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         ratio_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Ratio!")));
         ratio.register_trait(Ratio, builtin_mono("Mutizable"), ratio_mutizable);
-        let mut int = Self::mono_class("Int", None, Self::TOP_LEVEL);
+        let mut int = Self::mono_class("Int", None, None, Self::TOP_LEVEL);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
         int.register_superclass(Obj, &obj);
         int.register_marker_trait(builtin_mono("Num"));
@@ -487,7 +506,7 @@ impl Context {
         // class("Rational"),
         // class("Integral"),
         int.register_builtin_impl("abs", fn0_met(Int, Nat), Immutable, Public);
-        let mut int_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
+        let mut int_partial_ord = Self::methods("PartialOrd", None, None, Self::TOP_LEVEL);
         int_partial_ord.register_builtin_impl(
             "__partial_cmp__",
             fn1_met(Int, Int, option(builtin_mono("Ordering"))),
@@ -495,30 +514,30 @@ impl Context {
             Public,
         );
         int.register_trait(Int, poly("PartialOrd", vec![ty_tp(Int)]), int_partial_ord);
-        let mut int_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut int_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         int_eq.register_builtin_impl("__eq__", fn1_met(Int, Int, Bool), Const, Public);
         int.register_trait(Int, poly("Eq", vec![ty_tp(Int)]), int_eq);
         // __div__ is not included in Int (cast to Ratio)
         let op_t = fn1_met(Int, Int, Int);
-        let mut int_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut int_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         int_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         int_add.register_builtin_const("Output", ValueObj::builtin_t(Int));
         int.register_trait(Int, poly("Add", vec![ty_tp(Int)]), int_add);
-        let mut int_sub = Self::methods("Sub", None, Self::TOP_LEVEL);
+        let mut int_sub = Self::methods("Sub", None, None, Self::TOP_LEVEL);
         int_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         int_sub.register_builtin_const("Output", ValueObj::builtin_t(Int));
         int.register_trait(Int, poly("Sub", vec![ty_tp(Int)]), int_sub);
-        let mut int_mul = Self::methods("Mul", None, Self::TOP_LEVEL);
+        let mut int_mul = Self::methods("Mul", None, None, Self::TOP_LEVEL);
         int_mul.register_builtin_impl("__mul__", op_t, Const, Public);
         int_mul.register_builtin_const("Output", ValueObj::builtin_t(Int));
         int_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Nat));
         int.register_trait(Int, poly("Mul", vec![ty_tp(Int)]), int_mul);
-        let mut int_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut int_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         int_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Int!")));
         int.register_trait(Int, builtin_mono("Mutizable"), int_mutizable);
         int.register_builtin_impl("Real", Int, Const, Public);
         int.register_builtin_impl("Imag", Int, Const, Public);
-        let mut nat = Self::mono_class("Nat", None, Self::TOP_LEVEL);
+        let mut nat = Self::mono_class("Nat", None, None, Self::TOP_LEVEL);
         nat.register_superclass(Int, &int);
         nat.register_superclass(Float, &float); // TODO: Float -> Ratio
         nat.register_superclass(Obj, &obj);
@@ -538,10 +557,10 @@ impl Context {
         );
         nat.register_marker_trait(builtin_mono("Num"));
         nat.register_marker_trait(builtin_mono("Ord"));
-        let mut nat_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut nat_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         nat_eq.register_builtin_impl("__eq__", fn1_met(Nat, Nat, Bool), Const, Public);
         nat.register_trait(Nat, poly("Eq", vec![ty_tp(Nat)]), nat_eq);
-        let mut nat_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
+        let mut nat_partial_ord = Self::methods("PartialOrd", None, None, Self::TOP_LEVEL);
         nat_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Nat, Nat, builtin_mono("Ordering")),
@@ -551,20 +570,20 @@ impl Context {
         nat.register_trait(Nat, poly("PartialOrd", vec![ty_tp(Nat)]), nat_partial_ord);
         // __sub__, __div__ is not included in Nat (cast to Int/ Ratio)
         let op_t = fn1_met(Nat, Nat, Nat);
-        let mut nat_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut nat_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         nat_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         nat_add.register_builtin_const("Output", ValueObj::builtin_t(Nat));
         nat.register_trait(Nat, poly("Add", vec![ty_tp(Nat)]), nat_add);
-        let mut nat_mul = Self::methods("Mul", None, Self::TOP_LEVEL);
+        let mut nat_mul = Self::methods("Mul", None, None, Self::TOP_LEVEL);
         nat_mul.register_builtin_impl("__mul__", op_t, Const, Public);
         nat_mul.register_builtin_const("Output", ValueObj::builtin_t(Nat));
         nat.register_trait(Nat, poly("Mul", vec![ty_tp(Nat)]), nat_mul);
-        let mut nat_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut nat_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         nat_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Nat!")));
         nat.register_trait(Nat, builtin_mono("Mutizable"), nat_mutizable);
         nat.register_builtin_impl("Real", Nat, Const, Public);
         nat.register_builtin_impl("Imag", Nat, Const, Public);
-        let mut bool_ = Self::mono_class("Bool", None, Self::TOP_LEVEL);
+        let mut bool_ = Self::mono_class("Bool", None, None, Self::TOP_LEVEL);
         bool_.register_superclass(Nat, &nat);
         bool_.register_superclass(Int, &int);
         bool_.register_superclass(Float, &float); // TODO: Float -> Ratio
@@ -576,7 +595,7 @@ impl Context {
         bool_.register_builtin_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_marker_trait(builtin_mono("Num"));
         bool_.register_marker_trait(builtin_mono("Ord"));
-        let mut bool_partial_ord = Self::methods("PartialOrd", None, Self::TOP_LEVEL);
+        let mut bool_partial_ord = Self::methods("PartialOrd", None, None, Self::TOP_LEVEL);
         bool_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Bool, Bool, builtin_mono("Ordering")),
@@ -588,18 +607,18 @@ impl Context {
             poly("PartialOrd", vec![ty_tp(Bool)]),
             bool_partial_ord,
         );
-        let mut bool_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut bool_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         bool_eq.register_builtin_impl("__eq__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_trait(Bool, poly("Eq", vec![ty_tp(Bool)]), bool_eq);
-        let mut bool_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut bool_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         bool_add.register_builtin_impl("__add__", fn1_met(Bool, Bool, Int), Const, Public);
         bool_add.register_builtin_const("Output", ValueObj::builtin_t(Nat));
         bool_.register_trait(Bool, poly("Add", vec![ty_tp(Bool)]), bool_add);
-        let mut bool_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut bool_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         bool_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Bool!")));
         bool_.register_trait(Bool, builtin_mono("Mutizable"), bool_mutizable);
-        let mut str_ = Self::mono_class("Str", None, Self::TOP_LEVEL);
+        let mut str_ = Self::mono_class("Str", None, None, Self::TOP_LEVEL);
         str_.register_superclass(Obj, &obj);
         str_.register_marker_trait(builtin_mono("Ord"));
         str_.register_builtin_impl(
@@ -626,47 +645,48 @@ impl Context {
             Immutable,
             Public,
         );
-        let mut str_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut str_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, poly("Eq", vec![ty_tp(Str)]), str_eq);
-        let mut str_seq = Self::methods("Seq", None, Self::TOP_LEVEL);
+        let mut str_seq = Self::methods("Seq", None, None, Self::TOP_LEVEL);
         str_seq.register_builtin_impl("len", fn0_met(Str, Nat), Const, Public);
         str_seq.register_builtin_impl("get", fn1_met(Str, Nat, Str), Const, Public);
         str_.register_trait(Str, poly("Seq", vec![ty_tp(Str)]), str_seq);
-        let mut str_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut str_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         str_add.register_builtin_impl("__add__", fn1_met(Str, Str, Str), Const, Public);
         str_add.register_builtin_const("Output", ValueObj::builtin_t(Str));
         str_.register_trait(Str, poly("Add", vec![ty_tp(Str)]), str_add);
-        let mut str_mul = Self::methods("Mul", None, Self::TOP_LEVEL);
+        let mut str_mul = Self::methods("Mul", None, None, Self::TOP_LEVEL);
         str_mul.register_builtin_impl("__mul__", fn1_met(Str, Nat, Str), Const, Public);
         str_mul.register_builtin_const("Output", ValueObj::builtin_t(Str));
         str_.register_trait(Str, poly("Mul", vec![ty_tp(Nat)]), str_mul);
-        let mut str_mutizable = Self::methods("Mutizable", None, Self::TOP_LEVEL);
+        let mut str_mutizable = Self::methods("Mutizable", None, None, Self::TOP_LEVEL);
         str_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Str!")));
         str_.register_trait(Str, builtin_mono("Mutizable"), str_mutizable);
-        let mut type_ = Self::mono_class("Type", None, Self::TOP_LEVEL);
+        let mut type_ = Self::mono_class("Type", None, None, Self::TOP_LEVEL);
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
         type_.register_marker_trait(builtin_mono("Named"));
-        let mut type_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut type_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         type_eq.register_builtin_impl("__eq__", fn1_met(Type, Type, Bool), Const, Public);
         type_.register_trait(Type, poly("Eq", vec![ty_tp(Type)]), type_eq);
-        let mut class_type = Self::mono_class("ClassType", None, Self::TOP_LEVEL);
+        let mut class_type = Self::mono_class("ClassType", None, None, Self::TOP_LEVEL);
         class_type.register_superclass(Type, &type_);
         class_type.register_superclass(Obj, &obj);
         class_type.register_marker_trait(builtin_mono("Named"));
-        let mut class_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut class_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         class_eq.register_builtin_impl("__eq__", fn1_met(Class, Class, Bool), Const, Public);
         class_type.register_trait(Class, poly("Eq", vec![ty_tp(Class)]), class_eq);
-        let mut module = Self::mono_class("Module", None, Self::TOP_LEVEL);
+        let mut module = Self::mono_class("Module", None, None, Self::TOP_LEVEL);
         module.register_superclass(Obj, &obj);
         module.register_marker_trait(builtin_mono("Named"));
-        let mut module_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut module_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         module_eq.register_builtin_impl("__eq__", fn1_met(Module, Module, Bool), Const, Public);
         module.register_trait(Module, poly("Eq", vec![ty_tp(Module)]), module_eq);
         let mut array_ = Self::poly_class(
             "Array",
             vec![PS::t_nd("T"), PS::named_nd("N", Nat)],
+            None,
             None,
             Self::TOP_LEVEL,
         );
@@ -693,7 +713,7 @@ impl Context {
         ));
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         array_.register_builtin_const("MutType!", mut_type);
-        let mut array_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut array_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         array_eq.register_builtin_impl(
             "__eq__",
             fn1_met(array_t.clone(), array_t.clone(), Bool),
@@ -704,9 +724,9 @@ impl Context {
         array_.register_marker_trait(builtin_mono("Mutizable"));
         array_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
         // TODO: make Tuple6, Tuple7, ... etc.
-        let mut tuple_ = Self::mono_class("Tuple", None, Self::TOP_LEVEL);
+        let mut tuple_ = Self::mono_class("Tuple", None, None, Self::TOP_LEVEL);
         tuple_.register_superclass(Obj, &obj);
-        let mut tuple_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple_eq.register_builtin_impl(
             "__eq__",
             fn1_met(builtin_mono("Tuple"), builtin_mono("Tuple"), Bool),
@@ -718,10 +738,11 @@ impl Context {
             poly("Eq", vec![ty_tp(builtin_mono("Tuple"))]),
             tuple_eq,
         );
-        let mut tuple1 = Self::poly_class("Tuple1", vec![PS::t_nd("A")], None, Self::TOP_LEVEL);
+        let mut tuple1 =
+            Self::poly_class("Tuple1", vec![PS::t_nd("A")], None, None, Self::TOP_LEVEL);
         tuple1.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple1.register_superclass(Obj, &obj);
-        let mut tuple1_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple1_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple1_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -741,11 +762,12 @@ impl Context {
             "Tuple2",
             vec![PS::t_nd("A"), PS::t_nd("B")],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple2.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple2.register_superclass(Obj, &obj);
-        let mut tuple2_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple2_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple2_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -771,11 +793,12 @@ impl Context {
             "Tuple3",
             vec![PS::t_nd("A"), PS::t_nd("B"), PS::t_nd("C")],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple3.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple3.register_superclass(Obj, &obj);
-        let mut tuple3_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple3_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple3_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -810,11 +833,12 @@ impl Context {
             "Tuple4",
             vec![PS::t_nd("A"), PS::t_nd("B"), PS::t_nd("C"), PS::t_nd("D")],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple4.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple4.register_superclass(Obj, &obj);
-        let mut tuple4_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple4_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple4_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -875,11 +899,12 @@ impl Context {
                 PS::t_nd("E"),
             ],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple5.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple5.register_superclass(Obj, &obj);
-        let mut tuple5_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple5_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple5_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -945,11 +970,12 @@ impl Context {
                 PS::t_nd("F"),
             ],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple6.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple6.register_superclass(Obj, &obj);
-        let mut tuple6_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple6_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple6_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -1020,11 +1046,12 @@ impl Context {
                 PS::t_nd("G"),
             ],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple7.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple7.register_superclass(Obj, &obj);
-        let mut tuple7_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple7_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple7_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -1100,11 +1127,12 @@ impl Context {
                 PS::t_nd("H"),
             ],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         tuple8.register_superclass(builtin_mono("Tuple"), &tuple_);
         tuple8.register_superclass(Obj, &obj);
-        let mut tuple8_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut tuple8_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         tuple8_eq.register_builtin_impl(
             "__eq__",
             fn1_met(
@@ -1171,16 +1199,16 @@ impl Context {
             ),
             tuple8_eq,
         );
-        let mut record = Self::mono_class("Record", None, Self::TOP_LEVEL);
+        let mut record = Self::mono_class("Record", None, None, Self::TOP_LEVEL);
         record.register_superclass(Obj, &obj);
-        let mut record_type = Self::mono_class("RecordType", None, Self::TOP_LEVEL);
+        let mut record_type = Self::mono_class("RecordType", None, None, Self::TOP_LEVEL);
         record_type.register_superclass(builtin_mono("Record"), &record);
         record_type.register_superclass(builtin_mono("Type"), &type_);
         record_type.register_superclass(Obj, &obj);
-        let mut float_mut = Self::mono_class("Float!", None, Self::TOP_LEVEL);
+        let mut float_mut = Self::mono_class("Float!", None, None, Self::TOP_LEVEL);
         float_mut.register_superclass(Float, &float);
         float_mut.register_superclass(Obj, &obj);
-        let mut float_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut float_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         float_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Float));
         let f_t = param_t("f", func(vec![param_t("old", Float)], None, vec![], Float));
         let t = pr_met(
@@ -1196,10 +1224,10 @@ impl Context {
             builtin_mono("Mutable"),
             float_mut_mutable,
         );
-        let mut ratio_mut = Self::mono_class("Ratio!", None, Self::TOP_LEVEL);
+        let mut ratio_mut = Self::mono_class("Ratio!", None, None, Self::TOP_LEVEL);
         ratio_mut.register_superclass(Ratio, &ratio);
         ratio_mut.register_superclass(Obj, &obj);
-        let mut ratio_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut ratio_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         ratio_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Ratio));
         let f_t = param_t(
             "f",
@@ -1223,11 +1251,11 @@ impl Context {
             builtin_mono("Mutable"),
             ratio_mut_mutable,
         );
-        let mut int_mut = Self::mono_class("Int!", None, Self::TOP_LEVEL);
+        let mut int_mut = Self::mono_class("Int!", None, None, Self::TOP_LEVEL);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(builtin_mono("Float!"), &float_mut);
         int_mut.register_superclass(Obj, &obj);
-        let mut int_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut int_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         int_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Int));
         let f_t = param_t("f", func(vec![param_t("old", Int)], None, vec![], Int));
         let t = pr_met(
@@ -1243,12 +1271,12 @@ impl Context {
             builtin_mono("Mutable"),
             int_mut_mutable,
         );
-        let mut nat_mut = Self::mono_class("Nat!", None, Self::TOP_LEVEL);
+        let mut nat_mut = Self::mono_class("Nat!", None, None, Self::TOP_LEVEL);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(builtin_mono("Int!"), &int_mut);
         nat_mut.register_superclass(builtin_mono("Float!"), &float_mut);
         nat_mut.register_superclass(Obj, &obj);
-        let mut nat_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut nat_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         nat_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Nat));
         let f_t = param_t("f", func(vec![param_t("old", Nat)], None, vec![], Nat));
         let t = pr_met(
@@ -1264,13 +1292,13 @@ impl Context {
             builtin_mono("Mutable"),
             nat_mut_mutable,
         );
-        let mut bool_mut = Self::mono_class("Bool!", None, Self::TOP_LEVEL);
+        let mut bool_mut = Self::mono_class("Bool!", None, None, Self::TOP_LEVEL);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(builtin_mono("Nat!"), &nat_mut);
         bool_mut.register_superclass(builtin_mono("Int!"), &int_mut);
         bool_mut.register_superclass(builtin_mono("Float!"), &float_mut);
         bool_mut.register_superclass(Obj, &obj);
-        let mut bool_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut bool_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         bool_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Bool));
         let f_t = param_t("f", func(vec![param_t("old", Bool)], None, vec![], Bool));
         let t = pr_met(
@@ -1286,10 +1314,10 @@ impl Context {
             builtin_mono("Mutable"),
             bool_mut_mutable,
         );
-        let mut str_mut = Self::mono_class("Str!", None, Self::TOP_LEVEL);
+        let mut str_mut = Self::mono_class("Str!", None, None, Self::TOP_LEVEL);
         str_mut.register_superclass(Str, &str_);
         str_mut.register_superclass(Obj, &obj);
-        let mut str_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut str_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         str_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Str));
         let f_t = param_t("f", func(vec![param_t("old", Str)], None, vec![], Str));
         let t = pr_met(
@@ -1310,6 +1338,7 @@ impl Context {
         let mut array_mut_ = Self::poly_class(
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", builtin_mono("Nat!"))],
+            None,
             None,
             Self::TOP_LEVEL,
         );
@@ -1364,7 +1393,7 @@ impl Context {
             vec![],
             NoneType,
         );
-        let mut array_mut_mutable = Self::methods("Mutable", None, Self::TOP_LEVEL);
+        let mut array_mut_mutable = Self::methods("Mutable", None, None, Self::TOP_LEVEL);
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         array_mut_.register_trait(
             array_mut_t.clone(),
@@ -1372,10 +1401,10 @@ impl Context {
             array_mut_mutable,
         );
         let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
-        let mut range = Self::poly_class("Range", vec![PS::t_nd("T")], None, Self::TOP_LEVEL);
+        let mut range = Self::poly_class("Range", vec![PS::t_nd("T")], None, None, Self::TOP_LEVEL);
         range.register_superclass(Obj, &obj);
         range.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
-        let mut range_eq = Self::methods("Eq", None, Self::TOP_LEVEL);
+        let mut range_eq = Self::methods("Eq", None, None, Self::TOP_LEVEL);
         range_eq.register_builtin_impl(
             "__eq__",
             fn1_met(range_t.clone(), range_t.clone(), Bool),
@@ -1387,16 +1416,16 @@ impl Context {
             poly("Eq", vec![ty_tp(range_t.clone())]),
             range_eq,
         );
-        let mut proc = Self::mono_class("Proc", None, Self::TOP_LEVEL);
+        let mut proc = Self::mono_class("Proc", None, None, Self::TOP_LEVEL);
         proc.register_superclass(Obj, &obj);
         // TODO: lambda
         proc.register_marker_trait(builtin_mono("Named"));
-        let mut func = Self::mono_class("Func", None, Self::TOP_LEVEL);
+        let mut func = Self::mono_class("Func", None, None, Self::TOP_LEVEL);
         func.register_superclass(builtin_mono("Proc"), &proc);
         func.register_superclass(Obj, &obj);
         // TODO: lambda
         func.register_marker_trait(builtin_mono("Named"));
-        let mut qfunc = Self::mono_class("QuantifiedFunc", None, Self::TOP_LEVEL);
+        let mut qfunc = Self::mono_class("QuantifiedFunc", None, None, Self::TOP_LEVEL);
         qfunc.register_superclass(builtin_mono("Func"), &func);
         qfunc.register_superclass(Obj, &obj);
         self.register_builtin_type(Obj, obj, Const);
@@ -1780,6 +1809,7 @@ impl Context {
             params,
             // super: vec![Type::from(&m..=&n)],
             None,
+            None,
             Self::TOP_LEVEL,
         );
         let op_t = fn1_met(
@@ -1787,7 +1817,7 @@ impl Context {
             Type::from(&o..=&p),
             Type::from(m.clone() + o.clone()..=n.clone() + p.clone()),
         );
-        let mut interval_add = Self::methods("Add", None, Self::TOP_LEVEL);
+        let mut interval_add = Self::methods("Add", None, None, Self::TOP_LEVEL);
         interval_add.register_builtin_impl("__add__", op_t, Const, Public);
         interval_add.register_builtin_const(
             "Output",
@@ -1798,7 +1828,7 @@ impl Context {
             poly("Add", vec![TyParam::from(&o..=&p)]),
             interval_add,
         );
-        let mut interval_sub = Self::methods("Sub", None, Self::TOP_LEVEL);
+        let mut interval_sub = Self::methods("Sub", None, None, Self::TOP_LEVEL);
         let op_t = fn1_met(
             Type::from(&m..=&n),
             Type::from(&o..=&p),
@@ -1823,7 +1853,7 @@ impl Context {
 
     pub(crate) fn init_builtins(mod_cache: &SharedModuleCache) {
         // TODO: capacityを正確に把握する
-        let mut ctx = Context::module("<builtins>".into(), None, 40);
+        let mut ctx = Context::module("<builtins>".into(), None, None, 40);
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
@@ -1834,13 +1864,18 @@ impl Context {
         mod_cache.register(VarName::from_static("<builtins>"), None, ctx);
     }
 
-    pub fn new_module<S: Into<Str>>(name: S, mod_cache: SharedModuleCache) -> Self {
+    pub fn new_module<S: Into<Str>>(
+        name: S,
+        mod_cache: SharedModuleCache,
+        py_mod_cache: SharedModuleCache,
+    ) -> Self {
         Context::new(
             name.into(),
             ContextKind::Module,
             vec![],
             None,
             Some(mod_cache),
+            Some(py_mod_cache),
             Context::TOP_LEVEL,
         )
     }

@@ -20,6 +20,7 @@ use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
+use crate::context::ImportKind;
 use crate::error::readable_name;
 
 #[derive(Debug, Clone)]
@@ -1006,11 +1007,12 @@ impl Call {
         }
     }
 
-    pub fn is_import_call(&self) -> bool {
-        self.obj
-            .show_acc()
-            .map(|s| &s[..] == "import" || &s[..] == "pyimport" || &s[..] == "py")
-            .unwrap_or(false)
+    pub fn import_kind(&self) -> Option<ImportKind> {
+        self.obj.show_acc().and_then(|s| match &s[..] {
+            "import" => Some(ImportKind::ErgImport),
+            "pyimport" | "py" => Some(ImportKind::PyImport),
+            _ => None,
+        })
     }
 }
 
@@ -1332,7 +1334,7 @@ impl Def {
                         DefKind::Other
                     }
                 }
-                Some("import") => DefKind::Module,
+                Some("import") => DefKind::Import,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,

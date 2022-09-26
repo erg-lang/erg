@@ -239,7 +239,7 @@ impl From<DefKind> for ContextKind {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
-            DefKind::Module => Self::Module,
+            DefKind::Import | DefKind::PyImport => Self::Module,
             DefKind::Other => Self::Instant,
         }
     }
@@ -270,6 +270,21 @@ impl ContextKind {
 pub enum RegistrationMode {
     PreRegister,
     Normal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImportKind {
+    ErgImport,
+    PyImport,
+}
+
+impl ImportKind {
+    pub const fn is_erg_import(&self) -> bool {
+        matches!(self, Self::ErgImport)
+    }
+    pub const fn is_py_import(&self) -> bool {
+        matches!(self, Self::PyImport)
+    }
 }
 
 /// Represents the context of the current scope
@@ -326,6 +341,7 @@ pub struct Context {
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mod_cache: Option<SharedModuleCache>,
+    pub(crate) py_mod_cache: Option<SharedModuleCache>,
     pub(crate) level: usize,
 }
 
@@ -336,6 +352,7 @@ impl Default for Context {
             "<dummy>".into(),
             ContextKind::Dummy,
             vec![],
+            None,
             None,
             None,
             Self::TOP_LEVEL,
@@ -369,9 +386,10 @@ impl Context {
         params: Vec<ParamSpec>,
         outer: Option<Context>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, py_mod_cache, level)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -382,6 +400,7 @@ impl Context {
         outer: Option<Context>,
         capacity: usize,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
@@ -420,6 +439,7 @@ impl Context {
             mono_types: Dict::default(),
             poly_types: Dict::default(),
             mod_cache,
+            py_mod_cache,
             patches: Dict::default(),
             level,
         }
@@ -431,9 +451,10 @@ impl Context {
         kind: ContextKind,
         outer: Option<Context>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, vec![], outer, 0, mod_cache, level)
+        Self::with_capacity(name, kind, vec![], outer, 0, mod_cache, py_mod_cache, level)
     }
 
     #[inline]
@@ -443,53 +464,75 @@ impl Context {
         params: Vec<ParamSpec>,
         outer: Option<Context>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, mod_cache, level)
+        Self::with_capacity(name, kind, params, outer, 0, mod_cache, py_mod_cache, level)
     }
 
     pub fn poly_trait<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Trait, params, None, mod_cache, level)
+        Self::poly(
+            name,
+            ContextKind::Trait,
+            params,
+            None,
+            mod_cache,
+            py_mod_cache,
+            level,
+        )
     }
 
     pub fn poly_class<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         let name = name.into();
-        Self::poly(name, ContextKind::Class, params, None, mod_cache, level)
+        Self::poly(
+            name,
+            ContextKind::Class,
+            params,
+            None,
+            mod_cache,
+            py_mod_cache,
+            level,
+        )
     }
 
     #[inline]
     pub fn mono_trait<S: Into<Str>>(
         name: S,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::poly_trait(name, vec![], mod_cache, level)
+        Self::poly_trait(name, vec![], mod_cache, py_mod_cache, level)
     }
 
     #[inline]
     pub fn mono_class<S: Into<Str>>(
         name: S,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::poly_class(name, vec![], mod_cache, level)
+        Self::poly_class(name, vec![], mod_cache, py_mod_cache, level)
     }
 
     #[inline]
     pub fn methods<S: Into<Str>>(
         name: S,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         Self::with_capacity(
@@ -499,6 +542,7 @@ impl Context {
             None,
             2,
             mod_cache,
+            py_mod_cache,
             level,
         )
     }
@@ -508,6 +552,7 @@ impl Context {
         name: S,
         params: Vec<ParamSpec>,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
         Self::poly(
@@ -516,12 +561,18 @@ impl Context {
             params,
             None,
             mod_cache,
+            py_mod_cache,
             level,
         )
     }
 
     #[inline]
-    pub fn module(name: Str, mod_cache: Option<SharedModuleCache>, capacity: usize) -> Self {
+    pub fn module(
+        name: Str,
+        mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
+    ) -> Self {
         Self::with_capacity(
             name,
             ContextKind::Module,
@@ -529,6 +580,7 @@ impl Context {
             None,
             capacity,
             mod_cache,
+            py_mod_cache,
             Self::TOP_LEVEL,
         )
     }
@@ -538,6 +590,7 @@ impl Context {
         name: Str,
         capacity: usize,
         mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
         outer: Context,
     ) -> Self {
         Self::with_capacity(
@@ -547,6 +600,7 @@ impl Context {
             Some(outer),
             capacity,
             mod_cache,
+            py_mod_cache,
             Self::TOP_LEVEL,
         )
     }
@@ -597,6 +651,7 @@ impl Context {
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
         self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
+        self.py_mod_cache = self.get_outer().unwrap().py_mod_cache.clone();
         self.name = name.into();
         self.kind = kind;
         Ok(())

@@ -12,8 +12,8 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_io_mod() -> Self {
-        let mut io = Context::module("io".into(), None, 15);
-        let mut string_io = Context::mono_class(Str::ever("StringIO!"), None, 0);
+        let mut io = Context::module("io".into(), None, None, 15);
+        let mut string_io = Context::mono_class(Str::ever("StringIO!"), None, None, 0);
         // FIXME: include Obj (pass main_ctx as a param)
         // string_io.register_superclass(Obj, obj);
         string_io.register_builtin_impl(

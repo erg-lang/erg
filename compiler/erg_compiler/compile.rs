@@ -103,8 +103,14 @@ impl Runnable for Compiler {
 
     fn new(cfg: ErgConfig) -> Self {
         let mod_cache = SharedModuleCache::new();
+        let py_mod_cache = SharedModuleCache::new();
         Self {
-            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", mod_cache.clone()),
+            builder: HIRBuilder::new_with_cache(
+                cfg.copy(),
+                "<module>",
+                mod_cache.clone(),
+                py_mod_cache,
+            ),
             code_generator: CodeGenerator::new(cfg.copy()),
             mod_cache,
             cfg,

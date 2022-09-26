@@ -416,7 +416,7 @@ impl TyCheckError {
         loc: Location,
         caused_by: AtomicStr,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
@@ -452,7 +452,7 @@ impl TyCheckError {
         caused_by: AtomicStr,
         obj_t: &Type,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
@@ -488,7 +488,7 @@ impl TyCheckError {
         obj_name: &str,
         obj_t: &Type,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
@@ -1298,8 +1298,34 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn file_error(errno: usize, desc: String, loc: Location, caused_by: AtomicStr) -> Self {
-        Self::new(ErrorCore::new(errno, IoError, loc, desc, None), caused_by)
+    pub fn file_error(
+        errno: usize,
+        desc: String,
+        loc: Location,
+        caused_by: AtomicStr,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(ErrorCore::new(errno, IoError, loc, desc, hint), caused_by)
+    }
+
+    pub fn import_error(
+        errno: usize,
+        desc: String,
+        loc: Location,
+        caused_by: AtomicStr,
+        similar_erg_mod: Option<Str>,
+        similar_py_mod: Option<Str>,
+    ) -> Self {
+        let hint = match (similar_erg_mod, similar_py_mod) {
+            (Some(erg), Some(py)) => Some(format!(
+                "similar name erg module {YELLOW}{erg}{RESET} and python module {YELLOW}{py}{RESET} exists (to import python modules, use `pyimport`)",
+            )),
+            (Some(erg), None) => Some(format!("similar name erg module exists: {YELLOW}{erg}{RESET}")),
+            (None, Some(py)) => Some(format!("similar name python module exists: {YELLOW}{py}{RESET} (to import python modules, use `pyimport`)")),
+            (None, None) => None,
+        };
+        let hint = hint.map(AtomicStr::from);
+        Self::file_error(errno, desc, loc, caused_by, hint)
     }
 
     pub fn inner_typedef_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {

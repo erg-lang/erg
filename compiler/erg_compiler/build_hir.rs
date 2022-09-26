@@ -27,7 +27,12 @@ impl Runnable for HIRBuilder {
     const NAME: &'static str = "Erg HIR builder";
 
     fn new(cfg: ErgConfig) -> Self {
-        HIRBuilder::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
+        HIRBuilder::new_with_cache(
+            cfg,
+            Str::ever("<module>"),
+            SharedModuleCache::new(),
+            SharedModuleCache::new(),
+        )
     }
 
     #[inline]
@@ -61,9 +66,10 @@ impl HIRBuilder {
         cfg: ErgConfig,
         mod_name: S,
         mod_cache: SharedModuleCache,
+        py_mod_cache: SharedModuleCache,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache),
+            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache, py_mod_cache),
             ownership_checker: OwnershipChecker::new(),
         }
     }

@@ -22,7 +22,7 @@ impl Linker {
                 // ↓
                 // x = ModuleType("mod")
                 // exec(code, x.__dict__) # `code` is the mod's content
-                Expr::Def(ref def) if def.def_kind().is_module() => {
+                Expr::Def(ref def) if def.def_kind().is_erg_import() => {
                     // In the case of REPL, entries cannot be used up
                     let hir = if cfg.input.is_repl() {
                         mod_cache

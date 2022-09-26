@@ -4,7 +4,9 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use erg_common::dict::Dict;
+use erg_common::levenshtein::get_similar_name;
 use erg_common::shared::Shared;
+use erg_common::Str;
 
 use erg_parser::ast::VarName;
 
@@ -26,7 +28,7 @@ impl ModId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModuleEntry {
     id: ModId, // builtin == 0, __main__ == 1
     pub hir: Option<HIR>,
@@ -88,6 +90,12 @@ impl ModuleCache {
         self.cache.get(name)
     }
 
+    pub fn get_by_name(&self, __name__: &str) -> Option<(&VarName, &ModuleEntry)> {
+        self.cache
+            .iter()
+            .find(|(_, ent)| &ent.ctx.name[..] == __name__)
+    }
+
     pub fn get_mut<Q: Eq + Hash + ?Sized>(&mut self, name: &Q) -> Option<&mut ModuleEntry>
     where
         VarName: Borrow<Q>,
@@ -100,6 +108,10 @@ impl ModuleCache {
         let id = ModId::new(self.last_id);
         let entry = ModuleEntry::new(id, hir, ctx);
         self.cache.insert(name, entry);
+    }
+
+    pub fn register_alias(&mut self, name: VarName, entry: &ModuleEntry) {
+        self.cache.insert(name, entry.clone());
     }
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&mut self, name: &Q) -> Option<ModuleEntry>
@@ -121,6 +133,10 @@ impl ModuleCache {
         } else {
             None
         }
+    }
+
+    pub fn get_similar_name(&self, name: &str) -> Option<Str> {
+        get_similar_name(self.cache.iter().map(|(v, _)| &v.inspect()[..]), name).map(Str::rc)
     }
 }
 
@@ -146,6 +162,11 @@ impl SharedModuleCache {
     {
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
         ref_.get(name)
+    }
+
+    pub fn get_by_name(&self, __name__: &str) -> Option<(&VarName, &ModuleEntry)> {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.get_by_name(__name__)
     }
 
     pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&mut ModuleEntry>
@@ -175,6 +196,10 @@ impl SharedModuleCache {
         self.0.borrow_mut().register(name, hir, ctx);
     }
 
+    pub fn register_alias(&self, name: VarName, entry: &ModuleEntry) {
+        self.0.borrow_mut().register_alias(name, entry);
+    }
+
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<ModuleEntry>
     where
         VarName: Borrow<Q>,
@@ -184,5 +209,9 @@ impl SharedModuleCache {
 
     pub fn remove_by_id(&self, id: ModId) -> Option<ModuleEntry> {
         self.0.borrow_mut().remove_by_id(id)
+    }
+
+    pub fn get_similar_name(&self, name: &str) -> Option<Str> {
+        self.0.borrow().get_similar_name(name)
     }
 }

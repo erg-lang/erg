@@ -2,7 +2,7 @@
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::error::{ErrorCore, ErrorKind, Location};
-use erg_common::levenshtein::levenshtein;
+use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
 use erg_common::vis::{Field, Visibility};
@@ -897,33 +897,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_similar_name(&self, name: &str) -> Option<&Str> {
+    pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
         let name = readable_name(name);
-        if name.len() <= 1 {
-            return None;
-        }
-        // TODO: add `.decls`
-        let most_similar_name = self
-            .params
-            .iter()
-            .filter_map(|(opt_name, _)| opt_name.as_ref())
-            .chain(self.locals.keys())
-            .min_by_key(|v| levenshtein(readable_name(v.inspect()), name))?
-            .inspect();
-        let len = most_similar_name.len();
-        if levenshtein(most_similar_name, name) >= len / 2 {
-            let outer = self.get_outer().or_else(|| self.get_builtins())?;
-            outer.get_similar_name(name)
-        } else {
-            Some(most_similar_name)
-        }
+        // TODO: add decls
+        get_similar_name(
+            self.params
+                .iter()
+                .filter_map(|(opt_name, _)| opt_name.as_ref().map(|n| &n.inspect()[..]))
+                .chain(self.locals.keys().map(|name| &name.inspect()[..])),
+            name,
+        )
     }
 
     pub(crate) fn get_similar_attr_from_singular<'a>(
         &'a self,
         obj: &hir::Expr,
         name: &str,
-    ) -> Option<&'a Str> {
+    ) -> Option<&'a str> {
         if let Ok(ctx) = self.get_singular_ctx(obj, &self.name) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
@@ -932,7 +922,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a Str> {
+    pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a str> {
         for (_, ctx) in self.get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
