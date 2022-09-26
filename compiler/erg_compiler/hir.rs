@@ -1334,7 +1334,8 @@ impl Def {
                         DefKind::Other
                     }
                 }
-                Some("import") => DefKind::Import,
+                Some("import") => DefKind::ErgImport,
+                Some("pyimport") | Some("py") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,

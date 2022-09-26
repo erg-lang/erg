@@ -239,7 +239,7 @@ impl From<DefKind> for ContextKind {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
-            DefKind::Import | DefKind::PyImport => Self::Module,
+            DefKind::ErgImport | DefKind::PyImport => Self::Module,
             DefKind::Other => Self::Instant,
         }
     }

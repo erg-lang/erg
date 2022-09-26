@@ -872,7 +872,6 @@ impl Context {
             PathBuf::new()
         };
         dir.push(format!("{__name__}.er"));
-        // TODO: returns an error
         let path = match dir.canonicalize() {
             Ok(path) => path,
             Err(err) => {
@@ -974,8 +973,7 @@ impl Context {
         } else {
             PathBuf::new()
         };
-        dir.push(format!("{__name__}.er"));
-        // TODO: returns an error
+        dir.push(format!("{__name__}.d.er"));
         let path = match dir.canonicalize() {
             Ok(path) => path,
             Err(err) => {

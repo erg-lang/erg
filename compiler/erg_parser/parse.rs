@@ -2524,9 +2524,66 @@ impl Parser {
         todo!()
     }
 
-    fn convert_lambda_to_subr_type_spec(&mut self, _lambda: Lambda) -> ParseResult<SubrTypeSpec> {
+    fn convert_lambda_to_subr_type_spec(
+        &mut self,
+        mut lambda: Lambda,
+    ) -> ParseResult<SubrTypeSpec> {
         debug_call_info!(self);
-        todo!()
+        let bounds = lambda.sig.bounds;
+        let lparen = lambda.sig.params.parens.map(|(l, _)| l);
+        let mut non_defaults = vec![];
+        for param in lambda.sig.params.non_defaults.into_iter() {
+            let param = match (param.pat, param.t_spec) {
+                (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
+                )),
+                _ => todo!(),
+            };
+            non_defaults.push(param);
+        }
+        let var_args =
+            lambda
+                .sig
+                .params
+                .var_args
+                .map(|var_args| match (var_args.pat, var_args.t_spec) {
+                    (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                        ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                    }
+                    (ParamPattern::VarName(name), None) => {
+                        ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
+                            SimpleTypeSpec::new(name, ConstArgs::empty()),
+                        )))
+                    }
+                    _ => todo!(),
+                });
+        let mut defaults = vec![];
+        for param in lambda.sig.params.defaults.into_iter() {
+            let param = match (param.pat, param.t_spec) {
+                (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
+                )),
+                _ => todo!(),
+            };
+            defaults.push(param);
+        }
+        let return_t = self.convert_rhs_to_type_spec(lambda.body.remove(0))?;
+        self.level -= 1;
+        Ok(SubrTypeSpec::new(
+            bounds,
+            lparen,
+            non_defaults,
+            var_args,
+            defaults,
+            lambda.op,
+            return_t,
+        ))
     }
 
     fn convert_array_to_array_type_spec(&mut self, _array: Array) -> ParseResult<ArrayTypeSpec> {

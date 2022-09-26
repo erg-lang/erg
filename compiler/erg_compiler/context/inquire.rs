@@ -1259,6 +1259,11 @@ impl Context {
         self.mod_cache
             .as_ref()
             .and_then(|cache| cache.ref_ctx(name))
+            .or_else(|| {
+                self.py_mod_cache
+                    .as_ref()
+                    .and_then(|cache| cache.ref_ctx(name))
+            })
     }
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない

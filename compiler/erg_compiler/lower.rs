@@ -1037,10 +1037,138 @@ impl ASTLowerer {
         Ok(hir::Block::new(hir_block))
     }
 
+    fn declare_var_alias(
+        &mut self,
+        sig: ast::VarSignature,
+        mut body: ast::DefBody,
+    ) -> LowerResult<hir::Def> {
+        log!(info "entered {}({sig})", fn_name!());
+        if body.block.len() > 1 {
+            return Err(LowerError::declare_error(
+                line!() as usize,
+                body.block.loc(),
+                self.ctx.caused_by(),
+            ));
+        }
+        let block = hir::Block::new(vec![self.declare_chunk(body.block.remove(0))?]);
+        let found_body_t = block.ref_t();
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            _ => unreachable!(),
+        };
+        let id = body.id;
+        self.ctx.assign_var_sig(&sig, found_body_t, id)?;
+        let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+        let sig = hir::VarSignature::new(ident, found_body_t.clone());
+        let body = hir::DefBody::new(body.op, block, body.id);
+        Ok(hir::Def::new(hir::Signature::Var(sig), body))
+    }
+
+    fn declare_alias(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
+        log!(info "entered {}({})", fn_name!(), def.sig);
+        let name = if let Some(name) = def.sig.name_as_str() {
+            name.clone()
+        } else {
+            Str::ever("<lambda>")
+        };
+        if self
+            .ctx
+            .registered_info(&name, def.sig.is_const())
+            .is_some()
+        {
+            return Err(LowerError::reassign_error(
+                line!() as usize,
+                def.sig.loc(),
+                self.ctx.caused_by(),
+                &name,
+            ));
+        }
+        let res = match def.sig {
+            ast::Signature::Subr(_sig) => todo!(),
+            ast::Signature::Var(sig) => self.declare_var_alias(sig, def.body),
+        };
+        self.pop_append_errs();
+        res
+    }
+
+    fn declare_type(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+        log!(info "entered {}({})", fn_name!(), tasc);
+        match *tasc.expr {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                let t = self.ctx.instantiate_typespec(
+                    &tasc.t_spec,
+                    None,
+                    &mut None,
+                    RegistrationMode::Normal,
+                )?;
+                self.ctx.assign_var_sig(
+                    &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
+                    &t,
+                    ast::DefId(0),
+                )?;
+                let ident = hir::Identifier::new(ident.dot, ident.name, None, t);
+                Ok(hir::TypeAscription::new(
+                    hir::Expr::Accessor(hir::Accessor::Ident(ident)),
+                    tasc.t_spec,
+                ))
+            }
+            other => Err(LowerError::declare_error(
+                line!() as usize,
+                other.loc(),
+                self.ctx.caused_by(),
+            )),
+        }
+    }
+
+    fn declare_chunk(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+        log!(info "entered {}", fn_name!());
+        match expr {
+            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias(def)?)),
+            ast::Expr::ClassDef(defs) => Err(LowerError::feature_error(
+                line!() as usize,
+                defs.loc(),
+                "class declaration",
+                self.ctx.caused_by(),
+            )),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_type(tasc)?)),
+            other => Err(LowerError::declare_error(
+                line!() as usize,
+                other.loc(),
+                self.ctx.caused_by(),
+            )),
+        }
+    }
+
+    fn declare_module(&mut self, ast: AST) -> HIR {
+        let mut module = hir::Module::with_capacity(ast.module.len());
+        for chunk in ast.module.into_iter() {
+            match self.declare_chunk(chunk) {
+                Ok(chunk) => {
+                    module.push(chunk);
+                }
+                Err(e) => {
+                    self.errs.push(e);
+                }
+            }
+        }
+        HIR::new(ast.name, module)
+    }
+
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         let ast = Reorderer::new().reorder(ast)?;
+        if mode == "declare" {
+            let hir = self.declare_module(ast);
+            if self.errs.is_empty() {
+                log!(info "HIR:\n{hir}");
+                log!(info "the declaring process has completed.");
+                return Ok((hir, LowerWarnings::from(self.warns.take_all())));
+            } else {
+                log!(err "the declaring process has failed.");
+                return Err(LowerErrors::from(self.errs.take_all()));
+            }
+        }
         let mut module = hir::Module::with_capacity(ast.module.len());
         self.ctx.preregister(ast.module.block())?;
         for chunk in ast.module.into_iter() {

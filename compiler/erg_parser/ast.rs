@@ -1511,6 +1511,7 @@ impl ParamTySpec {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
+    pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_args: Option<Box<ParamTySpec>>,
@@ -1521,9 +1522,12 @@ pub struct SubrTypeSpec {
 
 impl fmt::Display for SubrTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.bounds.is_empty() {
+            write!(f, "|{}|", self.bounds)?;
+        }
         write!(
             f,
-            "({}, {}, := {}) {} {}",
+            "({}, {}, {}) {} {}",
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
@@ -1535,7 +1539,9 @@ impl fmt::Display for SubrTypeSpec {
 
 impl Locational for SubrTypeSpec {
     fn loc(&self) -> Location {
-        if let Some(lparen) = &self.lparen {
+        if !self.bounds.is_empty() {
+            Location::concat(&self.bounds[0], self.return_t.as_ref())
+        } else if let Some(lparen) = &self.lparen {
             Location::concat(lparen, self.return_t.as_ref())
         } else {
             // FIXME: only default subrs
@@ -1546,6 +1552,7 @@ impl Locational for SubrTypeSpec {
 
 impl SubrTypeSpec {
     pub fn new(
+        bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_args: Option<ParamTySpec>,
@@ -1554,6 +1561,7 @@ impl SubrTypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self {
+            bounds,
             lparen,
             non_defaults,
             var_args: var_args.map(Box::new),
@@ -2841,7 +2849,7 @@ pub enum DefKind {
     Trait,
     Subsume,
     StructuralTrait,
-    Import,
+    ErgImport,
     PyImport,
     /// type alias included
     Other,
@@ -2861,7 +2869,11 @@ impl DefKind {
     }
 
     pub fn is_erg_import(&self) -> bool {
-        matches!(self, Self::Import)
+        matches!(self, Self::ErgImport)
+    }
+
+    pub fn is_py_import(&self) -> bool {
+        matches!(self, Self::PyImport)
     }
 }
 
@@ -2897,7 +2909,7 @@ impl DefBody {
                         DefKind::Other
                     }
                 }
-                Some("import") => DefKind::Import,
+                Some("import") => DefKind::ErgImport,
                 Some("pyimport") | Some("py") => DefKind::PyImport,
                 _ => DefKind::Other,
             },

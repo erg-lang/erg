@@ -1345,6 +1345,24 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn declare_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                SyntaxError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("d.erファイル内では宣言、別名定義のみが許可されています"),
+                    "simplified_chinese" => format!("在d.er文件中只允许声明和别名定义"),
+                    "traditional_chinese" => format!("在d.er文件中只允許聲明和別名定義"),
+                    "english" => format!("declarations and alias definitions are only allowed in d.er files"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
 }
 
 #[derive(Debug)]
