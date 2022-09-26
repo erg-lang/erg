@@ -146,8 +146,12 @@ impl ASTLowerer {
             })
     }
 
+    /// OK: exec `i: Int`
+    /// OK: exec `i: Int = 1`
+    /// NG: exec `1 + 2`
+    /// OK: exec `None`
     fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        if mode != "eval" && !expr.ref_t().is_nonelike() {
+        if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
             Err(LowerError::syntax_error(
                 0,
                 expr.loc(),

@@ -137,6 +137,9 @@ impl SideEffectChecker {
                     self.path_stack.pop();
                     self.block_stack.pop();
                 }
+                Expr::TypeAsc(tasc) => {
+                    self.check_expr(&tasc.expr);
+                }
                 other => todo!("{other}"),
             }
         }
@@ -292,6 +295,9 @@ impl SideEffectChecker {
                 self.path_stack.pop();
                 self.block_stack.pop();
             }
+            Expr::TypeAsc(type_asc) => {
+                self.check_expr(&type_asc.expr);
+            }
             _ => {}
         }
     }
@@ -306,6 +312,7 @@ impl SideEffectChecker {
             // !procedural: !x.y
             Expr::Accessor(Accessor::Attr(attr)) => attr.ident.is_procedural(),
             Expr::Accessor(_) => todo!(),
+            Expr::TypeAsc(tasc) => self.is_procedural(&tasc.expr),
             _ => false,
         }
     }

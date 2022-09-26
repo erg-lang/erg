@@ -839,6 +839,7 @@ impl Context {
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         #[allow(clippy::match_single_binding)]
         match &__name__[..] {
+            // TODO: erg builtin modules
             _ => self.import_user_erg_mod(
                 current_input,
                 var_name,
@@ -957,13 +958,62 @@ impl Context {
 
     fn import_user_py_mod(
         &self,
-        _current_input: Input,
-        _var_name: &VarName,
+        current_input: Input,
+        var_name: &VarName,
         lit: &Literal,
     ) -> TyCheckResult<()> {
         let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
-        let _mod_cache = self.mod_cache.as_ref().unwrap();
-        todo!()
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        if let Some((_, entry)) = py_mod_cache.get_by_name(&__name__) {
+            py_mod_cache.register_alias(var_name.clone(), entry);
+            return Ok(());
+        }
+        let mut dir = if let Input::File(mut path) = current_input {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        dir.push(format!("{__name__}.er"));
+        // TODO: returns an error
+        let path = match dir.canonicalize() {
+            Ok(path) => path,
+            Err(err) => {
+                return Err(TyCheckError::import_error(
+                    line!() as usize,
+                    err.to_string(),
+                    lit.loc(),
+                    self.caused_by(),
+                    self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
+                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .unwrap()
+                            .get_similar_name(&__name__)
+                    }),
+                ));
+            }
+        };
+        let cfg = ErgConfig {
+            input: Input::File(path),
+            ..ErgConfig::default()
+        };
+        let src = cfg.input.read();
+        let mut builder = HIRBuilder::new_with_cache(
+            cfg,
+            var_name.inspect(),
+            py_mod_cache.clone(),
+            py_mod_cache.clone(),
+        );
+        match builder.build(src, "declare") {
+            Ok(hir) => {
+                py_mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+            }
+            Err(errs) => {
+                errs.fmt_all_stderr();
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {

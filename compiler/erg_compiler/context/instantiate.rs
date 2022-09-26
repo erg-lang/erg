@@ -529,8 +529,8 @@ impl Context {
                     Ok(decl_t.typ().clone())
                 } else {
                     let typ = mono(self.mod_name(), Str::rc(other));
-                    if self.get_nominal_type_ctx(&typ).is_some() {
-                        Ok(typ)
+                    if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
+                        Ok(defined_t.clone())
                     } else {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,

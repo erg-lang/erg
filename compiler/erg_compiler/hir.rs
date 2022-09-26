@@ -1579,6 +1579,10 @@ impl Expr {
             _ => None,
         }
     }
+
+    pub fn is_type_asc(&self) -> bool {
+        matches!(self, Expr::TypeAsc(_))
+    }
 }
 
 /// Toplevel grammar unit
