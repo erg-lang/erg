@@ -280,5 +280,5 @@ assert DepFn(Int).type() == Int # by DepFn
 ```
 
 <p align='center'>
-    <a href='./14_dependent.md'>Previous</a> | <a href='./16_iterator.md'>Next</a>
+    <a href='./14_dependent.md'>Previous</a> | <a href='./16_subtyping.md'>Next</a>
 </p>

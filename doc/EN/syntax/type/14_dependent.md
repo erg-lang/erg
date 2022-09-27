@@ -74,5 +74,5 @@ MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
 
 <p align='center'>
-    <a href='./12_refinement.md'>Previous</a> | <a href='./14_dependent.md'>Next</a>
+    <a href='./13_algebraic.md'>Previous</a> | <a href='./15_quantified.md'>Next</a>
 </p>
