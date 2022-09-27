@@ -173,6 +173,14 @@ impl Default for ErgConfig {
 }
 
 impl ErgConfig {
+    pub fn with_path(path: PathBuf) -> Self {
+        Self {
+            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
+            input: Input::File(path),
+            ..ErgConfig::default()
+        }
+    }
+
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
     pub fn copy(&self) -> Self {

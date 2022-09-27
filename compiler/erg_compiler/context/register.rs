@@ -890,10 +890,7 @@ impl Context {
                 ));
             }
         };
-        let cfg = ErgConfig {
-            input: Input::File(path),
-            ..ErgConfig::default()
-        };
+        let cfg = ErgConfig::with_path(path);
         let src = cfg.input.read();
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
@@ -992,10 +989,7 @@ impl Context {
                 ));
             }
         };
-        let cfg = ErgConfig {
-            input: Input::File(path),
-            ..ErgConfig::default()
-        };
+        let cfg = ErgConfig::with_path(path);
         let src = cfg.input.read();
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
