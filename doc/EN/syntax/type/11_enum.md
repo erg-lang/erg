@@ -83,3 +83,7 @@ OpaqueAbc = Class {inner = {"A", "B", "C"}}.
     new inner: {"A", "B", "C"} = Self.new {inner;}
 OpaqueAbc.new("A").is_uppercase() # TypeError
 ```
+
+<p align='center'>
+    <a href='./10_interval.md'>Previous</a> | <a href='./12_refinement.md'>Next</a>
+</p>

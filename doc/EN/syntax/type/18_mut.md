@@ -161,3 +161,7 @@ And for the type `T!` which has no internal structure, this instance is simply a
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> It is intentional that `T!` and `T` types have no special linguistic relationship. It's a design. If there is a relationship, for example, if the `T`/`T!` type exists in the namespace, it will not be possible to introduce the `T!`/`T` type from another module. Also, the mutable type is not uniquely defined for the immutable type. Given the definition `T = (U, V)`, the possible variable subtypes of `T!` are `(U!, V)` and `(U, V!)`. [↩](#f1)</span>
+
+<p align='center'>
+    <a href='./19_bound.md'>Previous</a> | <a href='./17_type_casting.md'>Next</a>
+</p>

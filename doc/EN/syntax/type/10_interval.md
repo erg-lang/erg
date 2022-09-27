@@ -34,3 +34,7 @@ A Range operator can be used for non-numeric types, as long as they are `Ord` im
 ```python
 Alphabet = "A".."z"
 ```
+
+<p align='center'>
+    <a href='./09_attributive.md'>Previous</a> | <a href='./11_enum.md'>Next</a>
+</p>
