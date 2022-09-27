@@ -6,7 +6,7 @@ See [here](../terms.md) for terminology.
 
 ## symbol
 
-* ! → [side&sbsp;effect](./07_side_effect.md)
+* ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
 * &#35; → [Str](./00_basic.md/#comment)
@@ -37,7 +37,7 @@ See [here](../terms.md) for terminology.
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
   * : → [Declaration](./03_declaration.md.md)
-  * : → [Keyword&bsp;Arguments](./04_function.md)
+  * : → [Keyword&nbsp;Arguments](./04_function.md)
   * :: → [visibility](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
@@ -62,13 +62,12 @@ See [here](../terms.md) for terminology.
   * &#95;-&#95; → &minus; (infix)
 * [``&nbsp;(back&nbsp;quote)](./22_subroutine.md#operator)
 * {}
-  * {} type → [Structure&nbsp;type](./type/01_type_system.md)
+  * [{} type](./type/01_type_system.md)
 * {:}
 * {=} → [Type&nbsp;System](./type/01_type_system.md#classification)
-  * {=} → [&nbsp;type](./13_record.md#empty-record)
+  * [{=}&nbsp;type](./13_record.md#empty-record)
 * |
-  * || → [Quantified&nbsp;Dependent&nbsp;Type](./type/advanced/quantified_dependent.md)
-  * || → [Trait](./type/03_trait.md)
+  * || → [Type variable list](./type/advanced/)
 * ~
 
 ## alphabet
@@ -94,8 +93,7 @@ See [here](../terms.md) for terminology.
 
 ### B
 
-* Base → [Class](./type/04_class.md)
-* [Boolean](./01_literal.md#boolean-object)
+* [Bool, Boolean](./01_literal.md#boolean-object)
 * [Boolean&nbsp;Object](./01_literal.md#boolean-object)
 * [borrow](./18_ownership.md#borrow)
 
@@ -140,7 +138,7 @@ See [here](../terms.md) for terminology.
 * [Empty&nbsp;Record](./13_record.md#empty-record)
 * [Enum&nbsp;Class](./type/04_class.md#enum-class)
 * [Enum&nbsp;type](./type/11_enum.md)
-* [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Shift&nbsp;Types](./type/12_refinement.md#enumerated-interval-and-sift-types)
+* [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;Types](./type/12_refinement.md#enumerated-interval-and-refinement-types)
 * [error&nbsp;handling](./30_error_handling.md)
 * [Existential&nbsp;type](./type/advanced/existential.md)
 * [Exponential&nbsp;Literal](./01_literal.md#exponential-literal)
@@ -148,7 +146,7 @@ See [here](../terms.md) for terminology.
 
 ### F
 
-* False → Boolean Object
+* False → [Boolean Object](./01_literal.md#boolean-object)
 * [Float&sbsp;Object](./01_literal.md#float-object)
 * [for](./05_builtin_funcs.md#for)
 * [For-All&nbsp;Patch](./type/07_patch.md#for-all-patch)
@@ -168,7 +166,7 @@ See [here](../terms.md) for terminology.
 
 * [id](./09_builtin_procs.md#id)
 * [if](./05_builtin_funcs.md#if)
-* import → [Integration&nbsp;with&nbsp;Python](32_integration_with_Python.md)
+* [import](./33_package_system.md)
 * [impl](./29_decorator.md#impl)
 * [in]
 * [Indention](./00_basic.md#indentation)
@@ -188,8 +186,8 @@ See [here](../terms.md) for terminology.
 
 ### K
 
- * [Keyword&nbsp;arguments](./04_function.md#keyword-arguments)
- * [Kind](./type/advanced/kind.md)
+* [Keyword&nbsp;arguments](./04_function.md#keyword-arguments)
+* [Kind](./type/advanced/kind.md)
 
 ### L
 
@@ -201,7 +199,7 @@ See [here](../terms.md) for terminology.
 ### M
 
 * [match]
-* [Marker&sbsp;Trait](./type/advanced/marker_trait.md)
+* [Marker&nbsp;Trait](./type/advanced/marker_trait.md)
 * [Method](./07_side_effect.md#methods)
 * Modifier → [decorator](./29_decorator.md)
 * [module](./24_module.md)
@@ -245,7 +243,7 @@ See [here](../terms.md) for terminology.
 * [Predicate](./type/19_bound.md#predicate)
 * [print!]
 * [Procedures](./08_procedure.md)
-* [Projection%nbsp;Type](./type/advanced/projection.md)
+* [Projection&nbsp;Type](./type/advanced/projection.md)
 * Python → [Integration&nbsp;with&nbsp;Python](./32_integration_with_Python.md)
 
 ### Q
@@ -274,7 +272,7 @@ See [here](../terms.md) for terminology.
 
 * [Script](./00_basic.md#scripts)
 * [Selecting&nbsp;Patches](./type/07_patch.md#selecting-patches)
-* self → [Visibility](./19_visibility.md)
+* self
 * [Self](./type/advanced/special.md)
 * [Shared&nbsp;Reference](./type/advanced/shared.md)
 * [side-effect](./07_side_effect.md)
@@ -285,7 +283,7 @@ See [here](../terms.md) for terminology.
 * [Structure&nbsp;type](./type/01_type_system.md#structure-type-anonymous-type)
 * [Structural&nbsp;Patch](./type/07_patch.md#structural-patch)
 * [Structural&nbsp;Trait](./type/03_trait.md#structural-traits)
-* Structural&nbsp;Subtyping → [Patch](./type/07_patch.md)
+* [Structural&nbsp;Subtyping](./type/01_type_system.md#classification)
 * [Structural&nbsp;types&nbsp;and&nbsp;class&nbsp;type&nbsp;relationships](./type/16_subtyping.md#structural-types-and-class-type-relationships)
 * [Str](./01_literal.md#str-literal)
 * [Subtyping](./type/16_subtyping.md)
@@ -299,7 +297,7 @@ See [here](../terms.md) for terminology.
 * [Test](./29_decorator.md#test)
 * [Traits](./type/03_trait.md)
 * [Trait&nbsp;inclusion](./type/03_trait.md#trait-inclusion)
-* True → [Boolean&nbsp;Object]
+* True → [Boolean&nbsp;Object](./01_literal.md#boolean-object)
 * [True&nbsp;Algebraic&nbsp;type](./type/13_algebraic.md#true-algebraic-type)
 * [Type]
 * [type](./15_type.md)
@@ -335,4 +333,3 @@ See [here](../terms.md) for terminology.
 ### Y
 
 ### Z
-

@@ -3,7 +3,7 @@
 Refinement type is a type constrained by a predicate expression. Enumeration types and interval types are syntax sugar of refinement types.
 
 The standard form of a refinement type is `{Elem: Type | (Pred)*}`. This means that the type is a type whose elements are `Elem` satisfying `Pred`.
-The type that can be used for the sifting type is [Const type] only.
+The type that can be used for the refinement type is [Value type](./08_value.md) only.
 
 ```python
 Nat = 0.. _
@@ -53,7 +53,7 @@ match i:
 
 However, Erg cannot currently make sub-decisions such as `Even` because it was not `Odd`, etc.
 
-## Enumerated, Interval and Sift Types
+## Enumerated, Interval and Refinement Types
 
 The enumerative/interval types introduced before are syntax sugar of the refinement type.
 `{a, b, ...}` is `{I: Typeof(a) | I == a or I == b or ... }`, and `a..b` is desugarized to `{I: Typeof(a) | I >= a and I <= b}`.
