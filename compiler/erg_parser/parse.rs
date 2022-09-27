@@ -2485,6 +2485,25 @@ impl Parser {
                 self.level -= 1;
                 Ok(TypeSpec::Array(array))
             }
+            Expr::BinOp(bin) => {
+                if bin.op.kind.is_range_op() {
+                    let op = bin.op;
+                    let mut args = bin.args.into_iter();
+                    let lhs = self
+                        .validate_const_expr(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    let rhs = self
+                        .validate_const_expr(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    Ok(TypeSpec::Interval { op, lhs, rhs })
+                } else {
+                    self.level -= 1;
+                    let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());
+                    self.errs.push(err);
+                    Err(())
+                }
+            }
             other => {
                 self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
@@ -2586,8 +2605,27 @@ impl Parser {
         ))
     }
 
-    fn convert_array_to_array_type_spec(&mut self, _array: Array) -> ParseResult<ArrayTypeSpec> {
+    fn convert_array_to_array_type_spec(&mut self, array: Array) -> ParseResult<ArrayTypeSpec> {
         debug_call_info!(self);
-        todo!()
+        match array {
+            Array::Normal(arr) => {
+                // TODO: add hint
+                self.errs
+                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
+                Err(())
+            }
+            Array::WithLength(arr) => {
+                let t_spec = self.convert_rhs_to_type_spec(arr.elem.expr)?;
+                let len = self.validate_const_expr(*arr.len)?;
+                self.level -= 1;
+                Ok(ArrayTypeSpec::new(t_spec, len))
+            }
+            Array::Comprehension(arr) => {
+                // TODO: add hint
+                self.errs
+                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
+                Err(())
+            }
+        }
     }
 }

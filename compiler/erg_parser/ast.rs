@@ -1586,6 +1586,15 @@ impl fmt::Display for ArrayTypeSpec {
 
 impl_locational!(ArrayTypeSpec, ty, len);
 
+impl ArrayTypeSpec {
+    pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
+        Self {
+            ty: Box::new(ty),
+            len,
+        }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.

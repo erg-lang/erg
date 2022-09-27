@@ -617,7 +617,11 @@ impl Context {
                 self.instantiate_typespec(lhs, opt_decl_t, tv_ctx, mode)?,
                 self.instantiate_typespec(rhs, opt_decl_t, tv_ctx, mode)?,
             )),
-            TypeSpec::Array { .. } => todo!(),
+            TypeSpec::Array(arr) => {
+                let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tv_ctx, mode)?;
+                let len = self.instantiate_const_expr(&arr.len);
+                Ok(array(elem_t, len))
+            }
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(tuple(
                 tys.iter()

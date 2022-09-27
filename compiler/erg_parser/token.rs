@@ -265,6 +265,10 @@ impl TokenKind {
             FuncArrow | ProcArrow | Equal /* | PreDollar | PreAt */
         )
     }
+
+    pub const fn is_range_op(&self) -> bool {
+        matches!(self, Closed | LeftOpen | RightOpen | Open)
+    }
 }
 
 impl fmt::Display for TokenKind {
