@@ -9,5 +9,5 @@ It is possible to flatten Record types composited.
 For example, `{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` becomes `{.name = Str; .age = Nat; .id = Nat}`.
 
 <p align='center'>
-    <a href='./08_procedure.md'>Previous</a> | <a href='./10_interval.md'>Next</a>
+    <a href='./08_value.md'>Previous</a> | <a href='./10_interval.md'>Next</a>
 </p>
