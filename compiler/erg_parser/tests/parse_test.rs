@@ -49,17 +49,9 @@ fn parse_test2_advanced_syntax() -> Result<(), ParserRunnerErrors> {
 fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
     let input = Input::File(file_path.into());
     let cfg = ErgConfig {
-        mode: "exec",
-        opt_level: 1,
-        dump_as_pyc: false,
-        python_ver: None,
-        py_server_timeout: 100,
-        quiet_startup: false,
         input: input.clone(),
-        module: "<module>",
-        verbose: 2,
-        ps1: ">>> ",
-        ps2: "... ",
+        py_server_timeout: 100,
+        ..ErgConfig::default()
     };
     let lexer = Lexer::new(input.clone());
     let mut parser = ParserRunner::new(cfg);

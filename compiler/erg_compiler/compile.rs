@@ -5,7 +5,7 @@ use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::log;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::Runnable;
 use erg_type::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
@@ -155,18 +155,11 @@ impl Compiler {
 
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let hir = self.builder.build(src, mode)?;
+        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
         let hir = Linker::link(self.cfg.copy(), hir, self.mod_cache.clone());
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
-        log!(
-            info "the compiling process has completed, found errors: {}",
-            self.code_generator.errs.len()
-        );
-        if self.code_generator.errs.is_empty() {
-            Ok(codeobj)
-        } else {
-            Err(self.code_generator.errs.flush())
-        }
+        log!(info "the compiling process has completed");
+        Ok(codeobj)
     }
 }

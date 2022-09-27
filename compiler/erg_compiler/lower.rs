@@ -26,6 +26,7 @@ use erg_type::{HasType, ParamTy, Type};
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
+    SingleLowerResult,
 };
 use crate::hir;
 use crate::hir::HIR;
@@ -84,7 +85,9 @@ impl Runnable for ASTLowerer {
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(self.input().read())?;
-        let (hir, warns) = self.lower(ast, "exec").map_err(|errs| self.convert(errs))?;
+        let (hir, warns) = self
+            .lower(ast, "exec")
+            .map_err(|(_, errs)| self.convert(errs))?;
         if self.cfg.verbose >= 2 {
             let warns = self.convert(warns);
             warns.fmt_all_stderr();
@@ -96,7 +99,9 @@ impl Runnable for ASTLowerer {
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(src)?;
-        let (hir, ..) = self.lower(ast, "eval").map_err(|errs| self.convert(errs))?;
+        let (hir, ..) = self
+            .lower(ast, "eval")
+            .map_err(|(_, errs)| self.convert(errs))?;
         Ok(format!("{hir}"))
     }
 }
@@ -109,8 +114,8 @@ impl ASTLowerer {
         py_mod_cache: SharedModuleCache,
     ) -> Self {
         Self {
+            ctx: Context::new_module(mod_name, cfg.clone(), mod_cache, py_mod_cache),
             cfg,
-            ctx: Context::new_module(mod_name, mod_cache, py_mod_cache),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
@@ -129,11 +134,12 @@ impl ASTLowerer {
         name: &Str,
         expect: &Type,
         found: &Type,
-    ) -> LowerResult<()> {
+    ) -> SingleLowerResult<()> {
         self.ctx
             .sub_unify(found, expect, None, Some(loc), Some(name))
             .map_err(|_| {
                 LowerError::type_mismatch_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     loc,
                     self.ctx.caused_by(),
@@ -150,9 +156,10 @@ impl ASTLowerer {
     /// OK: exec `i: Int = 1`
     /// NG: exec `1 + 2`
     /// OK: exec `None`
-    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
+    fn use_check(&self, expr: &hir::Expr, mode: &str) -> SingleLowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
             Err(LowerError::syntax_error(
+                self.cfg.input.clone(),
                 0,
                 expr.loc(),
                 AtomicStr::arc(&self.ctx.name[..]),
@@ -203,7 +210,8 @@ impl ASTLowerer {
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
             if matches!(union, Type::Or(_, _)) {
-                return Err(LowerError::syntax_error(
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
                     AtomicStr::arc(&self.ctx.name[..]),
@@ -222,7 +230,7 @@ impl ASTLowerer {
                         )
                         .into(),
                     ),
-                ));
+                )));
             }
             new_array.push(elem);
         }
@@ -547,11 +555,12 @@ impl ASTLowerer {
         log!(info "entered {}({})", fn_name!(), def.sig);
         if def.def_kind().is_class_or_trait() && self.ctx.kind != ContextKind::Module {
             self.ctx.decls.remove(def.sig.ident().unwrap().inspect());
-            return Err(LowerError::inner_typedef_error(
+            return Err(LowerErrors::from(LowerError::inner_typedef_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 def.loc(),
                 self.ctx.caused_by(),
-            ));
+            )));
         }
         let name = if let Some(name) = def.sig.name_as_str() {
             name.clone()
@@ -563,12 +572,13 @@ impl ASTLowerer {
             .registered_info(&name, def.sig.is_const())
             .is_some()
         {
-            return Err(LowerError::reassign_error(
+            return Err(LowerErrors::from(LowerError::reassign_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 def.sig.loc(),
                 self.ctx.caused_by(),
                 &name,
-            ));
+            )));
         }
         let kind = ContextKind::from(def.def_kind());
         self.ctx.grow(&name, kind, def.sig.vis())?;
@@ -623,13 +633,13 @@ impl ASTLowerer {
         match block.first().unwrap() {
             hir::Expr::Call(call) => {
                 if let Some(kind) = call.import_kind() {
-                    let current_input = self.input().clone();
-                    self.ctx.outer.as_mut().unwrap().import_mod(
+                    if let Err(errs) = self.ctx.outer.as_mut().unwrap().import_mod(
                         kind,
-                        current_input,
                         &ident.name,
                         &call.args.pos_args.first().unwrap().expr,
-                    )?;
+                    ) {
+                        self.errs.extend(errs.into_iter());
+                    };
                 }
             }
             _other => {}
@@ -723,22 +733,24 @@ impl ASTLowerer {
             };
             if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
-                    return Err(LowerError::method_definition_error(
+                    return Err(LowerErrors::from(LowerError::method_definition_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         methods.loc(),
                         self.ctx.caused_by(),
                         &class.name(),
                         None,
-                    ));
+                    )));
                 }
             } else {
-                return Err(LowerError::no_var_error(
+                return Err(LowerErrors::from(LowerError::no_var_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     methods.class.loc(),
                     self.ctx.caused_by(),
                     &class.name(),
                     self.ctx.get_similar_name(&class.name()),
-                ));
+                )));
             }
             self.ctx
                 .grow(&class.name(), ContextKind::MethodDefs, Private)?;
@@ -780,7 +792,7 @@ impl ASTLowerer {
             .args
             .get_left_or_key("Super")
             .unwrap();
-        Self::check_inheritable(&mut self.errs, type_obj, sup_type, &hir_def.sig);
+        Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
             ctx.get_current_scope_var("__new__"),
@@ -803,6 +815,7 @@ impl ASTLowerer {
 
     /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
     fn check_inheritable(
+        cfg: &ErgConfig,
         errs: &mut LowerErrors,
         type_obj: &GenTypeObj,
         sup_class: &hir::Expr,
@@ -812,6 +825,7 @@ impl ASTLowerer {
             if let Some(impls) = gen.impls.as_ref() {
                 if !impls.contains_intersec(&builtin_mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
+                        cfg.input.clone(),
                         line!() as usize,
                         sup_class.to_string(),
                         sup_class.loc(),
@@ -820,6 +834,7 @@ impl ASTLowerer {
                 }
             } else {
                 errs.push(LowerError::inheritance_error(
+                    cfg.input.clone(),
                     line!() as usize,
                     sup_class.to_string(),
                     sup_class.loc(),
@@ -841,6 +856,7 @@ impl ASTLowerer {
                             }
                         }
                         self.errs.push(LowerError::override_error(
+                            self.cfg.input.clone(),
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
@@ -858,7 +874,7 @@ impl ASTLowerer {
         impl_trait: Option<(Type, Location)>,
         class: &Type,
         methods: &Context,
-    ) -> LowerResult<()> {
+    ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
             // assume the class has implemented the trait, regardless of whether the implementation is correct
             let trait_ctx = self
@@ -881,6 +897,7 @@ impl ASTLowerer {
                                         unverified_names.remove(name);
                                         if !self.ctx.supertype_of(typ, &vi.t) {
                                             self.errs.push(LowerError::trait_member_type_error(
+                                                self.cfg.input.clone(),
                                                 line!() as usize,
                                                 name.loc(),
                                                 self.ctx.caused_by(),
@@ -893,6 +910,7 @@ impl ASTLowerer {
                                         }
                                     } else {
                                         self.errs.push(LowerError::trait_member_not_defined_error(
+                                            self.cfg.input.clone(),
                                             line!() as usize,
                                             self.ctx.caused_by(),
                                             &field.symbol,
@@ -904,6 +922,7 @@ impl ASTLowerer {
                                 }
                                 for unverified in unverified_names {
                                     self.errs.push(LowerError::trait_member_not_defined_error(
+                                        self.cfg.input.clone(),
                                         line!() as usize,
                                         self.ctx.caused_by(),
                                         unverified.inspect(),
@@ -919,6 +938,7 @@ impl ASTLowerer {
                     }
                 } else {
                     return Err(LowerError::type_mismatch_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         loc,
                         self.ctx.caused_by(),
@@ -931,6 +951,7 @@ impl ASTLowerer {
                 }
             } else {
                 return Err(LowerError::no_var_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     loc,
                     self.ctx.caused_by(),
@@ -953,6 +974,7 @@ impl ASTLowerer {
                 {
                     if already_defined_vi.kind != VarKind::Auto {
                         self.errs.push(LowerError::duplicate_definition_error(
+                            self.cfg.input.clone(),
                             line!() as usize,
                             newly_defined_name.loc(),
                             methods.name.clone().into(),
@@ -1044,11 +1066,12 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
         if body.block.len() > 1 {
-            return Err(LowerError::declare_error(
+            return Err(LowerErrors::from(LowerError::declare_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 body.block.loc(),
                 self.ctx.caused_by(),
-            ));
+            )));
         }
         let block = hir::Block::new(vec![self.declare_chunk(body.block.remove(0))?]);
         let found_body_t = block.ref_t();
@@ -1076,12 +1099,13 @@ impl ASTLowerer {
             .registered_info(&name, def.sig.is_const())
             .is_some()
         {
-            return Err(LowerError::reassign_error(
+            return Err(LowerErrors::from(LowerError::reassign_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 def.sig.loc(),
                 self.ctx.caused_by(),
                 &name,
-            ));
+            )));
         }
         let res = match def.sig {
             ast::Signature::Subr(_sig) => todo!(),
@@ -1112,11 +1136,12 @@ impl ASTLowerer {
                     tasc.t_spec,
                 ))
             }
-            other => Err(LowerError::declare_error(
+            other => Err(LowerErrors::from(LowerError::declare_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 other.loc(),
                 self.ctx.caused_by(),
-            )),
+            ))),
         }
     }
 
@@ -1124,18 +1149,19 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias(def)?)),
-            ast::Expr::ClassDef(defs) => Err(LowerError::feature_error(
-                line!() as usize,
+            ast::Expr::ClassDef(defs) => Err(LowerErrors::from(LowerError::feature_error(
+                self.cfg.input.clone(),
                 defs.loc(),
                 "class declaration",
                 self.ctx.caused_by(),
-            )),
+            ))),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_type(tasc)?)),
-            other => Err(LowerError::declare_error(
+            other => Err(LowerErrors::from(LowerError::declare_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 other.loc(),
                 self.ctx.caused_by(),
-            )),
+            ))),
         }
     }
 
@@ -1146,18 +1172,24 @@ impl ASTLowerer {
                 Ok(chunk) => {
                     module.push(chunk);
                 }
-                Err(e) => {
-                    self.errs.push(e);
+                Err(errs) => {
+                    self.errs.extend(errs.into_iter());
                 }
             }
         }
         HIR::new(ast.name, module)
     }
 
-    pub fn lower(&mut self, ast: AST, mode: &str) -> Result<(HIR, LowerWarnings), LowerErrors> {
+    pub fn lower(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<(HIR, LowerWarnings), (Option<HIR>, LowerErrors)> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
-        let ast = Reorderer::new().reorder(ast)?;
+        let ast = Reorderer::new(self.cfg.clone())
+            .reorder(ast)
+            .map_err(|errs| (None, errs))?;
         if mode == "declare" {
             let hir = self.declare_module(ast);
             if self.errs.is_empty() {
@@ -1166,18 +1198,20 @@ impl ASTLowerer {
                 return Ok((hir, LowerWarnings::from(self.warns.take_all())));
             } else {
                 log!(err "the declaring process has failed.");
-                return Err(LowerErrors::from(self.errs.take_all()));
+                return Err((Some(hir), LowerErrors::from(self.errs.take_all())));
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
-        self.ctx.preregister(ast.module.block())?;
+        if let Err(errs) = self.ctx.preregister(ast.module.block()) {
+            self.errs.extend(errs.into_iter());
+        }
         for chunk in ast.module.into_iter() {
             match self.lower_expr(chunk) {
                 Ok(chunk) => {
                     module.push(chunk);
                 }
-                Err(e) => {
-                    self.errs.push(e);
+                Err(errs) => {
+                    self.errs.extend(errs.into_iter());
                 }
             }
         }
@@ -1188,16 +1222,16 @@ impl ASTLowerer {
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
         let hir = match self.ctx.resolve(hir) {
             Ok(hir) => hir,
-            Err(err) => {
-                self.errs.push(err);
+            Err((hir, errs)) => {
+                self.errs.extend(errs.into_iter());
                 log!(err "the AST lowering process has failed.");
-                return Err(LowerErrors::from(self.errs.take_all()));
+                return Err((Some(hir), LowerErrors::from(self.errs.take_all())));
             }
         };
         // TODO: recursive check
         for chunk in hir.module.iter() {
-            if let Err(e) = self.use_check(chunk, mode) {
-                self.errs.push(e);
+            if let Err(err) = self.use_check(chunk, mode) {
+                self.errs.push(err);
             }
         }
         if self.errs.is_empty() {
@@ -1206,7 +1240,7 @@ impl ASTLowerer {
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
             log!(err "the AST lowering process has failed.");
-            Err(LowerErrors::from(self.errs.take_all()))
+            Err((Some(hir), LowerErrors::from(self.errs.take_all())))
         }
     }
 }

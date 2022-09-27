@@ -18,6 +18,7 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
@@ -37,7 +38,7 @@ use erg_parser::ast;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::ConstTemplate;
-use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Visibility::*;
@@ -293,6 +294,7 @@ impl ImportKind {
 #[derive(Debug, Clone)]
 pub struct Context {
     pub(crate) name: Str,
+    pub(crate) cfg: ErgConfig,
     pub(crate) kind: ContextKind,
     // Type bounds & Predicates (if the context kind is Subroutine)
     // ユーザー定義APIでのみ使う
@@ -350,6 +352,7 @@ impl Default for Context {
     fn default() -> Self {
         Self::new(
             "<dummy>".into(),
+            ErgConfig::default(),
             ContextKind::Dummy,
             vec![],
             None,
@@ -379,9 +382,11 @@ impl fmt::Display for Context {
 }
 
 impl Context {
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub fn new(
         name: Str,
+        cfg: ErgConfig,
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
@@ -389,18 +394,29 @@ impl Context {
         py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, mod_cache, py_mod_cache, level)
+        Self::with_capacity(
+            name,
+            cfg,
+            kind,
+            params,
+            outer,
+            mod_cache,
+            py_mod_cache,
+            0,
+            level,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn with_capacity(
         name: Str,
+        cfg: ErgConfig,
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        capacity: usize,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
@@ -422,6 +438,7 @@ impl Context {
         }
         Self {
             name,
+            cfg,
             kind,
             bounds: vec![],
             preds: vec![],
@@ -448,146 +465,287 @@ impl Context {
     #[inline]
     pub fn mono(
         name: Str,
+        cfg: ErgConfig,
         kind: ContextKind,
         outer: Option<Context>,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, vec![], outer, 0, mod_cache, py_mod_cache, level)
+        Self::new(
+            name,
+            cfg,
+            kind,
+            vec![],
+            outer,
+            mod_cache,
+            py_mod_cache,
+            level,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub fn poly(
         name: Str,
+        cfg: ErgConfig,
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
-        Self::with_capacity(name, kind, params, outer, 0, mod_cache, py_mod_cache, level)
+        Self::with_capacity(
+            name,
+            cfg,
+            kind,
+            params,
+            outer,
+            mod_cache,
+            py_mod_cache,
+            capacity,
+            level,
+        )
     }
 
     pub fn poly_trait<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
         let name = name.into();
         Self::poly(
             name,
+            cfg,
             ContextKind::Trait,
             params,
             None,
             mod_cache,
             py_mod_cache,
+            capacity,
             level,
+        )
+    }
+
+    #[inline]
+    pub fn builtin_poly_trait<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        capacity: usize,
+    ) -> Self {
+        Self::poly_trait(
+            name,
+            params,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
         )
     }
 
     pub fn poly_class<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
         let name = name.into();
         Self::poly(
             name,
+            cfg,
             ContextKind::Class,
             params,
             None,
             mod_cache,
             py_mod_cache,
+            capacity,
             level,
+        )
+    }
+
+    #[inline]
+    pub fn builtin_poly_class<S: Into<Str>>(
+        name: S,
+        params: Vec<ParamSpec>,
+        capacity: usize,
+    ) -> Self {
+        Self::poly_class(
+            name,
+            params,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
         )
     }
 
     #[inline]
     pub fn mono_trait<S: Into<Str>>(
         name: S,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
-        Self::poly_trait(name, vec![], mod_cache, py_mod_cache, level)
+        Self::poly_trait(name, vec![], cfg, mod_cache, py_mod_cache, capacity, level)
+    }
+
+    #[inline]
+    pub fn builtin_mono_trait<S: Into<Str>>(name: S, capacity: usize) -> Self {
+        Self::mono_trait(
+            name,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
+        )
     }
 
     #[inline]
     pub fn mono_class<S: Into<Str>>(
         name: S,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
-        Self::poly_class(name, vec![], mod_cache, py_mod_cache, level)
+        Self::poly_class(name, vec![], cfg, mod_cache, py_mod_cache, capacity, level)
+    }
+
+    #[inline]
+    pub fn builtin_mono_class<S: Into<Str>>(name: S, capacity: usize) -> Self {
+        Self::mono_class(
+            name,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
+        )
     }
 
     #[inline]
     pub fn methods<S: Into<Str>>(
         name: S,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
         Self::with_capacity(
             name.into(),
+            cfg,
             ContextKind::MethodDefs,
             vec![],
             None,
-            2,
             mod_cache,
             py_mod_cache,
+            capacity,
             level,
         )
     }
 
     #[inline]
+    pub fn builtin_methods<S: Into<Str>>(name: S, capacity: usize) -> Self {
+        Self::methods(
+            name,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
     pub fn poly_patch<S: Into<Str>>(
         name: S,
+        base: Type,
         params: Vec<ParamSpec>,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
         level: usize,
     ) -> Self {
         Self::poly(
             name.into(),
-            ContextKind::Trait,
+            cfg,
+            ContextKind::Patch(base),
             params,
             None,
             mod_cache,
             py_mod_cache,
+            capacity,
             level,
+        )
+    }
+
+    #[inline]
+    pub fn builtin_poly_patch<S: Into<Str>>(
+        name: S,
+        base: Type,
+        params: Vec<ParamSpec>,
+        capacity: usize,
+    ) -> Self {
+        Self::poly_patch(
+            name,
+            base,
+            params,
+            ErgConfig::default(),
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
         )
     }
 
     #[inline]
     pub fn module(
         name: Str,
+        cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
         capacity: usize,
     ) -> Self {
         Self::with_capacity(
             name,
+            cfg,
             ContextKind::Module,
             vec![],
             None,
-            capacity,
             mod_cache,
             py_mod_cache,
+            capacity,
             Self::TOP_LEVEL,
         )
     }
 
     #[inline]
+    pub fn builtin_module<S: Into<Str>>(name: S, capacity: usize) -> Self {
+        Self::module(name.into(), ErgConfig::default(), None, None, capacity)
+    }
+
+    #[inline]
     pub fn instant(
         name: Str,
+        cfg: ErgConfig,
         capacity: usize,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
@@ -595,12 +753,13 @@ impl Context {
     ) -> Self {
         Self::with_capacity(
             name,
+            cfg,
             ContextKind::Instant,
             vec![],
             Some(outer),
-            capacity,
             mod_cache,
             py_mod_cache,
+            capacity,
             Self::TOP_LEVEL,
         )
     }
@@ -679,6 +838,7 @@ impl Context {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 name.loc(),
                 self.caused_by(),
@@ -706,7 +866,7 @@ impl Context {
         vars
     }
 
-    pub fn get_var_info(&self, name: &str) -> TyCheckResult<(&VarName, &VarInfo)> {
+    pub fn get_var_info(&self, name: &str) -> SingleTyCheckResult<(&VarName, &VarInfo)> {
         if let Some(info) = self.get_local_kv(name) {
             Ok(info)
         } else {
@@ -714,6 +874,7 @@ impl Context {
                 return parent.get_var_info(name);
             }
             Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 Location::Unknown,
                 self.caused_by(),

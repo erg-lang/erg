@@ -1,3 +1,4 @@
+use erg_common::config::ErgConfig;
 use erg_compiler::context::Context;
 use erg_compiler::mod_cache::SharedModuleCache;
 
@@ -5,6 +6,7 @@ use erg_compiler::mod_cache::SharedModuleCache;
 fn test_subtyping() -> Result<(), ()> {
     let context = Context::new_module(
         "<module>",
+        ErgConfig::default(),
         SharedModuleCache::new(),
         SharedModuleCache::new(),
     );
@@ -16,6 +18,7 @@ fn test_subtyping() -> Result<(), ()> {
 fn test_instantiation_and_generalization() -> Result<(), ()> {
     let context = Context::new_module(
         "<module>",
+        ErgConfig::default(),
         SharedModuleCache::new(),
         SharedModuleCache::new(),
     );
@@ -43,6 +46,7 @@ fn test_resolve_trait_inner1() -> Result<(), ()> {
 fn test_dir() -> Result<(), ()> {
     let context = Context::new_module(
         "<module>",
+        ErgConfig::default(),
         SharedModuleCache::new(),
         SharedModuleCache::new(),
     );

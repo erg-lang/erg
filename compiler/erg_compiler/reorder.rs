@@ -1,3 +1,4 @@
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
@@ -10,6 +11,7 @@ use crate::error::{TyCheckError, TyCheckErrors};
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
 pub struct Reorderer {
+    cfg: ErgConfig,
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
     pub deps: Dict<Str, Vec<Str>>,
@@ -17,8 +19,9 @@ pub struct Reorderer {
 }
 
 impl Reorderer {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            cfg,
             def_root_pos_map: Dict::new(),
             deps: Dict::new(),
             errs: TyCheckErrors::empty(),
@@ -67,6 +70,7 @@ impl Reorderer {
                                 .keys()
                                 .fold("".to_string(), |acc, key| acc + &key[..] + ",");
                             self.errs.push(TyCheckError::no_var_error(
+                                self.cfg.input.clone(),
                                 line!() as usize,
                                 methods.class.loc(),
                                 "".into(),
@@ -105,6 +109,7 @@ impl Reorderer {
                 .keys()
                 .fold("".to_string(), |acc, key| acc + &key[..] + ",");
             self.errs.push(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 methods.class.loc(),
                 "".into(),

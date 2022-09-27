@@ -11,7 +11,7 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_math_mod() -> Self {
-        let mut math = Context::module("math".into(), None, None, 10);
+        let mut math = Context::builtin_module("math", 10);
         math.register_builtin_impl("pi", Float, Immutable, Public);
         math.register_builtin_impl("tau", Float, Immutable, Public);
         math.register_builtin_impl("e", Float, Immutable, Public);

@@ -1,6 +1,6 @@
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::Runnable;
 use erg_common::Str;
 
 use erg_parser::ast::AST;
@@ -8,7 +8,7 @@ use erg_parser::build_ast::ASTBuilder;
 
 use crate::context::Context;
 use crate::effectcheck::SideEffectChecker;
-use crate::error::{CompileError, CompileErrors, TyCheckErrors};
+use crate::error::{CompileError, CompileErrors};
 use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
@@ -48,7 +48,7 @@ impl Runnable for HIRBuilder {
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(self.input().read())?;
-        let hir = self.check(ast, "exec")?;
+        let hir = self.check(ast, "exec").map_err(|(_, errs)| errs)?;
         println!("{hir}");
         Ok(())
     }
@@ -56,7 +56,7 @@ impl Runnable for HIRBuilder {
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(src)?;
-        let hir = self.check(ast, "eval")?;
+        let hir = self.check(ast, "eval").map_err(|(_, errs)| errs)?;
         Ok(hir.to_string())
     }
 }
@@ -69,41 +69,32 @@ impl HIRBuilder {
         py_mod_cache: SharedModuleCache,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache, py_mod_cache),
-            ownership_checker: OwnershipChecker::new(),
+            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, mod_cache, py_mod_cache),
+            ownership_checker: OwnershipChecker::new(cfg),
         }
     }
 
-    fn convert(&self, errs: TyCheckErrors) -> CompileErrors {
-        errs.into_iter()
-            .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
-            .collect::<Vec<_>>()
-            .into()
-    }
-
-    pub fn check(&mut self, ast: AST, mode: &str) -> Result<HIR, CompileErrors> {
-        let (hir, warns) = self
-            .lowerer
-            .lower(ast, mode)
-            .map_err(|errs| self.convert(errs))?;
+    pub fn check(&mut self, ast: AST, mode: &str) -> Result<HIR, (Option<HIR>, CompileErrors)> {
+        let (hir, warns) = self.lowerer.lower(ast, mode)?;
         if self.cfg().verbose >= 2 {
-            let warns = self.convert(warns);
             warns.fmt_all_stderr();
         }
-        let effect_checker = SideEffectChecker::new();
+        let effect_checker = SideEffectChecker::new(self.cfg().clone());
         let hir = effect_checker
             .check(hir)
-            .map_err(|errs| self.convert(errs))?;
+            .map_err(|(hir, errs)| (Some(hir), errs))?;
         let hir = self
             .ownership_checker
             .check(hir)
-            .map_err(|errs| self.convert(errs))?;
+            .map_err(|(hir, errs)| (Some(hir), errs))?;
         Ok(hir)
     }
 
-    pub fn build(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
+    pub fn build(&mut self, src: String, mode: &str) -> Result<HIR, (Option<HIR>, CompileErrors)> {
         let mut ast_builder = ASTBuilder::new(self.cfg().copy());
-        let ast = ast_builder.build(src)?;
+        let ast = ast_builder
+            .build(src)
+            .map_err(|errs| (None, CompileErrors::from(errs)))?;
         let hir = self.check(ast, mode)?;
         Ok(hir)
     }

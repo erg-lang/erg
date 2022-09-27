@@ -16,7 +16,7 @@ use erg_type::{HasType, Predicate, TyBound, Type};
 
 use crate::context::{Context, Variance};
 // use crate::context::instantiate::TyVarContext;
-use crate::error::{TyCheckError, TyCheckResult};
+use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 
 use Predicate as Pred;
@@ -203,15 +203,17 @@ impl Context {
         }
     }
 
-    fn deref_tp(&self, tp: TyParam, loc: Location) -> TyCheckResult<TyParam> {
+    fn deref_tp(&self, tp: TyParam, loc: Location) -> SingleTyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let inner = fv.unwrap_linked();
                 self.deref_tp(inner, loc)
             }
-            TyParam::FreeVar(_fv) if self.level == 0 => {
-                Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
-            }
+            TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckError::dummy_infer_error(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            )),
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t, loc)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
@@ -228,13 +230,21 @@ impl Context {
             | TyParam::Failure
                 if self.level == 0 =>
             {
-                Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
+                Err(TyCheckError::dummy_infer_error(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
             }
             t => Ok(t),
         }
     }
 
-    fn deref_constraint(&self, constraint: Constraint, loc: Location) -> TyCheckResult<Constraint> {
+    fn deref_constraint(
+        &self,
+        constraint: Constraint,
+        loc: Location,
+    ) -> SingleTyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched {
                 sub,
@@ -242,7 +252,11 @@ impl Context {
                 cyclicity: cyclic,
             } => {
                 if cyclic.is_cyclic() {
-                    return Err(TyCheckError::dummy_infer_error(fn_name!(), line!()));
+                    return Err(TyCheckError::dummy_infer_error(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    ));
                 }
                 Ok(Constraint::new_sandwiched(
                     self.deref_tyvar(sub, loc)?,
@@ -262,7 +276,7 @@ impl Context {
     // ?T(:> Nat, <: Sub(Str)) ==> Error!
     // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
     // ```
-    pub(crate) fn deref_tyvar(&self, t: Type, loc: Location) -> TyCheckResult<Type> {
+    pub(crate) fn deref_tyvar(&self, t: Type, loc: Location) -> SingleTyCheckResult<Type> {
         match t {
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
             // ?T(:> Nat, <: Sub ?U(:> {1}))[n] ==> Nat
@@ -277,6 +291,7 @@ impl Context {
                         Ok(sub_t.clone())
                     } else {
                         Err(TyCheckError::subtyping_error(
+                            self.cfg.input.clone(),
                             line!() as usize,
                             &self.deref_tyvar(sub_t.clone(), loc)?,
                             &self.deref_tyvar(super_t.clone(), loc)?,
@@ -294,9 +309,11 @@ impl Context {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {
-                        Constraint::TypeOf(_) => {
-                            Err(TyCheckError::dummy_infer_error(fn_name!(), line!()))
-                        }
+                        Constraint::TypeOf(_) => Err(TyCheckError::dummy_infer_error(
+                            self.cfg.input.clone(),
+                            fn_name!(),
+                            line!(),
+                        )),
                         _ => unreachable!(),
                     }
                 } else {
@@ -360,15 +377,25 @@ impl Context {
 
     /// Check if all types are resolvable (if traits, check if an implementation exists)
     /// And replace them if resolvable
-    pub(crate) fn resolve(&mut self, mut hir: hir::HIR) -> TyCheckResult<hir::HIR> {
+    pub(crate) fn resolve(
+        &mut self,
+        mut hir: hir::HIR,
+    ) -> Result<hir::HIR, (hir::HIR, TyCheckErrors)> {
         self.level = 0;
+        let mut errs = TyCheckErrors::empty();
         for chunk in hir.module.iter_mut() {
-            self.resolve_expr_t(chunk)?;
+            if let Err(err) = self.resolve_expr_t(chunk) {
+                errs.push(err);
+            }
         }
-        Ok(hir)
+        if errs.is_empty() {
+            Ok(hir)
+        } else {
+            Err((hir, errs))
+        }
     }
 
-    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
+    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> SingleTyCheckResult<()> {
         match expr {
             hir::Expr::Lit(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
@@ -568,7 +595,11 @@ impl Context {
                     fv.link(tp);
                     Ok(())
                 } else {
-                    Err(TyCheckError::unreachable(fn_name!(), line!()))
+                    Err(TyCheckErrors::from(TyCheckError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
                 }
             }
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
@@ -591,7 +622,7 @@ impl Context {
         }
     }
 
-    fn reunify_tp(&self, before: &TyParam, after: &TyParam) -> TyCheckResult<()> {
+    fn reunify_tp(&self, before: &TyParam, after: &TyParam) -> SingleTyCheckResult<()> {
         match (before, after) {
             (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
                 *l.borrow_mut() = r.borrow().clone();
@@ -656,12 +687,13 @@ impl Context {
                         self.sub_unify_tp(rhs, ge_rhs, None, false)?;
                         self.sub_unify_tp(le_rhs, &TyParam::value(Inf), None, true)
                     }
-                    _ => Err(TyCheckError::pred_unification_error(
+                    _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         l_pred,
                         r_pred,
                         self.caused_by(),
-                    )),
+                    ))),
                 }
             }
             (Pred::LessEqual { rhs, .. }, Pred::And(l, r))
@@ -671,12 +703,13 @@ impl Context {
                     self.sub_unify_tp(rhs, le_rhs, None, false)?;
                     self.sub_unify_tp(ge_rhs, &TyParam::value(NegInf), None, true)
                 }
-                _ => Err(TyCheckError::pred_unification_error(
+                _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     l_pred,
                     r_pred,
                     self.caused_by(),
-                )),
+                ))),
             },
             (Pred::Equal { rhs, .. }, Pred::And(l, r))
             | (Pred::And(l, r), Pred::Equal { rhs, .. }) => match (l.as_ref(), r.as_ref()) {
@@ -685,19 +718,21 @@ impl Context {
                     self.sub_unify_tp(rhs, le_rhs, None, false)?;
                     self.sub_unify_tp(rhs, ge_rhs, None, false)
                 }
-                _ => Err(TyCheckError::pred_unification_error(
+                _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     l_pred,
                     r_pred,
                     self.caused_by(),
-                )),
+                ))),
             },
-            _ => Err(TyCheckError::pred_unification_error(
+            _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 l_pred,
                 r_pred,
                 self.caused_by(),
-            )),
+            ))),
         }
     }
 
@@ -710,7 +745,7 @@ impl Context {
         after_t: &Type,
         bef_loc: Option<Location>,
         aft_loc: Option<Location>,
-    ) -> TyCheckResult<()> {
+    ) -> SingleTyCheckResult<()> {
         match (before_t, after_t) {
             (Type::FreeVar(fv), r) if fv.is_linked() => {
                 self.reunify(&fv.crack(), r, bef_loc, aft_loc)
@@ -757,6 +792,7 @@ impl Context {
                 if ln != rn {
                     let before_t = poly(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         &before_t,
                         after_t,
@@ -772,6 +808,7 @@ impl Context {
             }
             (l, r) if self.same_type_of(l, r) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 l,
                 r,
@@ -814,7 +851,8 @@ impl Context {
         }
         if !maybe_sub_is_sub {
             let loc = sub_loc.or(sup_loc).unwrap_or(Location::Unknown);
-            return Err(TyCheckError::type_mismatch_error(
+            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 loc,
                 self.caused_by(),
@@ -823,7 +861,7 @@ impl Context {
                 maybe_sub,
                 self.get_candidates(maybe_sub),
                 self.get_type_mismatch_hint(maybe_sup, maybe_sub),
-            ));
+            )));
         }
         match (maybe_sub, maybe_sup) {
             (Type::FreeVar(lfv), _) if lfv.is_linked() =>
@@ -849,14 +887,15 @@ impl Context {
                 let new_constraint = if intersec != Type::Never {
                     Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec, cyclicity)
                 } else {
-                    return Err(TyCheckError::subtyping_error(
+                    return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         maybe_sub,
                         maybe_sup,
                         sub_loc,
                         sup_loc,
                         self.caused_by(),
-                    ));
+                    )));
                 };
                 if lfv.level().unwrap() <= rfv.level().unwrap() {
                     lfv.update_constraint(new_constraint);
@@ -892,14 +931,15 @@ impl Context {
                                 _ => todo!(),
                             };
                             if !judge {
-                                return Err(TyCheckError::subtyping_error(
+                                return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                                    self.cfg.input.clone(),
                                     line!() as usize,
                                     maybe_sub,
                                     sup, // TODO: this?
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
-                                ));
+                                )));
                             }
                             if let Some(new_sub) = self.max(maybe_sub, sub) {
                                 *constraint =
@@ -940,14 +980,15 @@ impl Context {
                         // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
                         Constraint::Sandwiched { sub, sup, cyclicity } => {
                             if !self.subtype_of(sub, maybe_sup) || !self.supertype_of(sup, maybe_sup) {
-                                return Err(TyCheckError::subtyping_error(
+                                return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                                    self.cfg.input.clone(),
                                     line!() as usize,
                                     sub,
                                     maybe_sup,
                                     sub_loc,
                                     sup_loc,
                                     self.caused_by(),
-                                ));
+                                )));
                             }
                             if let Some(new_sup) = self.min(sup, maybe_sup) {
                                 *constraint =
@@ -977,14 +1018,15 @@ impl Context {
                     if let Some(r) = rrec.get(k) {
                         self.sub_unify(l, r, sub_loc, sup_loc, param_name)?;
                     } else {
-                        return Err(TyCheckError::subtyping_error(
+                        return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                            self.cfg.input.clone(),
                             line!() as usize,
                             maybe_sub,
                             maybe_sup,
                             sub_loc,
                             sup_loc,
                             self.caused_by(),
-                        ));
+                        )));
                     }
                 }
                 Ok(())
@@ -1015,14 +1057,15 @@ impl Context {
                 },
             ) => {
                 if ln != rn {
-                    return Err(TyCheckError::unification_error(
+                    return Err(TyCheckErrors::from(TyCheckError::unification_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         maybe_sub,
                         maybe_sup,
                         sub_loc,
                         sup_loc,
                         self.caused_by(),
-                    ));
+                    )));
                 }
                 for (l, r) in lps.iter().zip(rps.iter()) {
                     self.sub_unify_tp(l, r, None, false)?;

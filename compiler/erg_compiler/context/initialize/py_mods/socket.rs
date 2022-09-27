@@ -1,5 +1,4 @@
 use erg_common::vis::Visibility;
-use erg_common::Str;
 
 use erg_type::constructors::{builtin_mono, func, option, param_t};
 use erg_type::Type;
@@ -12,8 +11,8 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_socket_mod() -> Self {
-        let mut socket = Context::module("socket".into(), None, None, 15);
-        let mut sock = Context::mono_class(Str::ever("Socket!"), None, None, 0);
+        let mut socket = Context::builtin_module("socket", 15);
+        let mut sock = Context::builtin_mono_class("Socket!", 0);
         // FIXME: include Obj (pass main_ctx as a param)
         // sock.register_superclass(Obj, obj);
         sock.register_builtin_impl(

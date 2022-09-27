@@ -1,5 +1,4 @@
 use erg_common::vis::Visibility;
-use erg_common::Str;
 
 use erg_type::constructors::{builtin_mono, pr0_met, ref_};
 use erg_type::Type;
@@ -12,8 +11,8 @@ use Visibility::*;
 
 impl Context {
     pub(crate) fn init_py_io_mod() -> Self {
-        let mut io = Context::module("io".into(), None, None, 15);
-        let mut string_io = Context::mono_class(Str::ever("StringIO!"), None, None, 0);
+        let mut io = Context::builtin_module("io", 15);
+        let mut string_io = Context::builtin_mono_class("StringIO!", 0);
         // FIXME: include Obj (pass main_ctx as a param)
         // string_io.register_superclass(Obj, obj);
         string_io.register_builtin_impl(

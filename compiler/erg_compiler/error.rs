@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::ops::Add;
 
 use erg_common::astr::AtomicStr;
 use erg_common::color::{GREEN, RED, RESET, YELLOW};
@@ -236,35 +235,24 @@ impl CompileError {
     }
 }
 
-#[derive(Debug)]
-pub struct TyCheckError {
-    pub core: ErrorCore,
-    pub caused_by: AtomicStr,
-}
-
-impl From<ParserRunnerError> for TyCheckError {
-    fn from(err: ParserRunnerError) -> Self {
-        Self {
-            core: err.core,
-            caused_by: "".into(),
-        }
-    }
-}
+pub type TyCheckError = CompileError;
 
 impl TyCheckError {
-    pub const fn new(core: ErrorCore, caused_by: AtomicStr) -> Self {
-        Self { core, caused_by }
+    pub fn dummy(input: Input, errno: usize) -> Self {
+        Self::new(ErrorCore::dummy(errno), input, "".into())
     }
 
-    pub fn dummy(errno: usize) -> Self {
-        Self::new(ErrorCore::dummy(errno), "".into())
+    pub fn unreachable(input: Input, fn_name: &str, line: u32) -> Self {
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
     }
 
-    pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), "".into())
-    }
-
-    pub fn checker_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
+    pub fn checker_bug(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        fn_name: &str,
+        line: u32,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -278,29 +266,13 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             "".into(),
         )
     }
 
-    pub fn feature_error(errno: usize, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                FeatureError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
-                    "simplified_chinese" => format!("此功能（{name}）尚未实现"),
-                    "traditional_chinese" => format!("此功能（{name}）尚未實現"),
-                    "english" => format!("this feature({name}) is not implemented yet"),
-                ),
-                None,
-            ),
-            caused_by,
-        )
-    }
-
     pub fn syntax_error<S: Into<AtomicStr>>(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -309,11 +281,13 @@ impl TyCheckError {
     ) -> Self {
         Self::new(
             ErrorCore::new(errno, SyntaxError, loc, desc, hint),
+            input,
             caused_by,
         )
     }
 
     pub fn duplicate_decl_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -333,11 +307,13 @@ impl TyCheckError {
                 ),
                 Option::<AtomicStr>::None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn duplicate_definition_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -357,11 +333,13 @@ impl TyCheckError {
                 ),
                 Option::<AtomicStr>::None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn violate_decl_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -383,11 +361,13 @@ impl TyCheckError {
                 ),
                 Option::<AtomicStr>::None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn no_type_spec_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -407,11 +387,13 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn no_var_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -442,11 +424,13 @@ impl TyCheckError {
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn no_attr_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -477,11 +461,14 @@ impl TyCheckError {
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn singular_no_attr_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -513,11 +500,13 @@ impl TyCheckError {
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn callable_impl_error<'a, C: Locational + Display>(
+        input: Input,
         errno: usize,
         callee: &C,
         param_ts: impl Iterator<Item = &'a Type>,
@@ -541,12 +530,14 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn type_mismatch_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -569,11 +560,13 @@ impl TyCheckError {
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn return_type_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -594,11 +587,13 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn uninitialized_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -618,11 +613,13 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn argument_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -642,11 +639,18 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn match_error(errno: usize, loc: Location, caused_by: AtomicStr, expr_t: &Type) -> Self {
+    pub fn match_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        expr_t: &Type,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -660,11 +664,18 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn infer_error(errno: usize, loc: Location, caused_by: AtomicStr, expr: &str) -> Self {
+    pub fn infer_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        expr: &str,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -678,19 +689,26 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn dummy_infer_error(fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), "".into())
+    pub fn dummy_infer_error(input: Input, fn_name: &str, line: u32) -> Self {
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
     }
 
-    pub fn not_relation(fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), "".into())
+    pub fn not_relation(input: Input, fn_name: &str, line: u32) -> Self {
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
     }
 
-    pub fn reassign_error(errno: usize, loc: Location, caused_by: AtomicStr, name: &str) -> Self {
+    pub fn reassign_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -705,11 +723,14 @@ impl TyCheckError {
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn too_many_args_error(
+        input: Input,
         errno: usize,
         loc: Location,
         callee_name: &str,
@@ -752,11 +773,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn args_missing_error(
+        input: Input,
         errno: usize,
         loc: Location,
         callee_name: &str,
@@ -778,11 +801,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn multiple_args_error(
+        input: Input,
         errno: usize,
         loc: Location,
         callee_name: &str,
@@ -803,11 +828,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn unexpected_kw_arg_error(
+        input: Input,
         errno: usize,
         loc: Location,
         callee_name: &str,
@@ -828,11 +855,18 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn unused_warning(errno: usize, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
+    pub fn unused_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        name: &str,
+        caused_by: AtomicStr,
+    ) -> Self {
         let name = readable_name(name);
         Self::new(
             ErrorCore::new(
@@ -847,11 +881,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn unification_error(
+        input: Input,
         errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
@@ -878,11 +914,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn re_unification_error(
+        input: Input,
         errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
@@ -909,11 +947,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn subtyping_error(
+        input: Input,
         errno: usize,
         sub_t: &Type,
         sup_t: &Type,
@@ -940,11 +980,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn pred_unification_error(
+        input: Input,
         errno: usize,
         lhs: &Predicate,
         rhs: &Predicate,
@@ -963,11 +1005,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn has_effect<S: Into<AtomicStr>>(errno: usize, expr: &Expr, caused_by: S) -> Self {
+    pub fn has_effect<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        expr: &Expr,
+        caused_by: S,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -981,11 +1029,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by.into(),
         )
     }
 
     pub fn move_error<S: Into<AtomicStr>>(
+        input: Input,
         errno: usize,
         name: &str,
         name_loc: Location,
@@ -1017,11 +1067,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by.into(),
         )
     }
 
     pub fn visibility_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -1057,11 +1109,12 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn not_const_expr(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+    pub fn not_const_expr(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1075,11 +1128,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn override_error<S: Into<AtomicStr>>(
+        input: Input,
         errno: usize,
         name: &str,
         name_loc: Location,
@@ -1112,11 +1167,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                     "english" => "cannot override by default (use `Override` decorator)",
                 ).into()),
             ),
+            input,
             caused_by.into(),
         )
     }
 
     pub fn inheritance_error(
+        input: Input,
         errno: usize,
         class: String,
         loc: Location,
@@ -1135,11 +1192,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn no_candidate_error(
+        input: Input,
         errno: usize,
         proj: &Type,
         loc: Location,
@@ -1159,11 +1218,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn method_definition_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -1191,12 +1252,14 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn trait_member_type_error(
+        input: Input,
         errno: usize,
         loc: Location,
         caused_by: AtomicStr,
@@ -1219,12 +1282,14 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn trait_member_not_defined_error(
+        input: Input,
         errno: usize,
         caused_by: AtomicStr,
         member_name: &str,
@@ -1245,12 +1310,14 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn not_in_trait_error(
+        input: Input,
         errno: usize,
         caused_by: AtomicStr,
         member_name: &str,
@@ -1271,11 +1338,13 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 hint,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn tyvar_not_defined_error(
+        input: Input,
         errno: usize,
         name: &str,
         loc: Location,
@@ -1294,21 +1363,28 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
     pub fn file_error(
+        input: Input,
         errno: usize,
         desc: String,
         loc: Location,
         caused_by: AtomicStr,
         hint: Option<AtomicStr>,
     ) -> Self {
-        Self::new(ErrorCore::new(errno, IoError, loc, desc, hint), caused_by)
+        Self::new(
+            ErrorCore::new(errno, IoError, loc, desc, hint),
+            input,
+            caused_by,
+        )
     }
 
     pub fn import_error(
+        input: Input,
         errno: usize,
         desc: String,
         loc: Location,
@@ -1325,10 +1401,15 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             (None, None) => None,
         };
         let hint = hint.map(AtomicStr::from);
-        Self::file_error(errno, desc, loc, caused_by, hint)
+        Self::file_error(input, errno, desc, loc, caused_by, hint)
     }
 
-    pub fn inner_typedef_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+    pub fn inner_typedef_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1342,11 +1423,12 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 
-    pub fn declare_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+    pub fn declare_error(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1360,62 +1442,35 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 ),
                 None,
             ),
+            input,
             caused_by,
         )
     }
 }
 
-#[derive(Debug)]
-pub struct TyCheckErrors(Vec<TyCheckError>);
-
-impl_stream_for_wrapper!(TyCheckErrors, TyCheckError);
-
-impl From<Vec<TyCheckError>> for TyCheckErrors {
-    fn from(errs: Vec<TyCheckError>) -> Self {
-        Self(errs)
-    }
-}
-
-impl Add for TyCheckErrors {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self(self.0.into_iter().chain(other.0.into_iter()).collect())
-    }
-}
-
-impl From<TyCheckError> for TyCheckErrors {
-    fn from(err: TyCheckError) -> Self {
-        Self(vec![err])
-    }
-}
-
-impl From<ParserRunnerErrors> for TyCheckErrors {
-    fn from(err: ParserRunnerErrors) -> Self {
-        Self(err.into_iter().map(TyCheckError::from).collect())
-    }
-}
-
-pub type TyCheckResult<T> = Result<T, TyCheckError>;
+pub type TyCheckErrors = CompileErrors;
+pub type SingleTyCheckResult<T> = Result<T, TyCheckError>;
+pub type TyCheckResult<T> = Result<T, TyCheckErrors>;
 pub type TyCheckWarning = TyCheckError;
 pub type TyCheckWarnings = TyCheckErrors;
 
 pub type EvalError = TyCheckError;
 pub type EvalErrors = TyCheckErrors;
 pub type EvalResult<T> = TyCheckResult<T>;
+pub type SingleEvalResult<T> = SingleTyCheckResult<T>;
 
 pub type EffectError = TyCheckError;
 pub type EffectErrors = TyCheckErrors;
-pub type EffectResult<T> = Result<T, EffectErrors>;
 
 pub type OwnershipError = TyCheckError;
 pub type OwnershipErrors = TyCheckErrors;
-pub type OwnershipResult<T> = Result<T, OwnershipErrors>;
 
 pub type LowerError = TyCheckError;
 pub type LowerWarning = LowerError;
 pub type LowerErrors = TyCheckErrors;
 pub type LowerWarnings = LowerErrors;
 pub type LowerResult<T> = TyCheckResult<T>;
+pub type SingleLowerResult<T> = SingleTyCheckResult<T>;
 
 #[derive(Debug)]
 pub struct CompileErrors(Vec<CompileError>);
@@ -1448,6 +1503,7 @@ impl CompileErrors {
     }
 }
 
-pub type CompileResult<T> = Result<T, CompileError>;
+pub type SingleCompileResult<T> = Result<T, CompileError>;
+pub type CompileResult<T> = Result<T, CompileErrors>;
 pub type CompileWarning = CompileError;
 pub type CompileWarnings = CompileErrors;

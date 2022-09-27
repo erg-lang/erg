@@ -24,7 +24,7 @@ use erg_type::{
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, RegistrationMode};
-use crate::error::{EvalError, EvalResult, TyCheckResult};
+use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult, TyCheckResult};
 
 #[inline]
 pub fn type_from_token_kind(kind: TokenKind) -> Type {
@@ -104,7 +104,7 @@ impl SubstContext {
 
     pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {
         let mut tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
-        let inst = Context::instantiate_t(quant_t, &mut tv_ctx, loc)?;
+        let inst = ctx.instantiate_t(quant_t, &mut tv_ctx, loc)?;
         for param in inst.typarams() {
             self.substitute_tp(&param, ctx)?;
         }
@@ -172,30 +172,32 @@ impl Context {
                 if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
                 } else if ident.is_const() {
-                    Err(EvalError::no_var_error(
+                    Err(EvalErrors::from(EvalError::no_var_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         ident.loc(),
                         self.caused_by(),
                         ident.inspect(),
                         self.get_similar_name(ident.inspect()),
-                    ))
+                    )))
                 } else {
-                    Err(EvalError::not_const_expr(
+                    Err(EvalErrors::from(EvalError::not_const_expr(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         acc.loc(),
                         self.caused_by(),
-                    ))
+                    )))
                 }
             }
             Accessor::Attr(attr) => {
                 let obj = self.eval_const_expr(&attr.obj, None)?;
-                self.eval_attr(obj, &attr.ident)
+                Ok(self.eval_attr(obj, &attr.ident)?)
             }
             _ => todo!(),
         }
     }
 
-    fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> EvalResult<ValueObj> {
+    fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> SingleEvalResult<ValueObj> {
         if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
             return Ok(val);
         }
@@ -214,6 +216,7 @@ impl Context {
             }
         }
         Err(EvalError::no_attr_error(
+            self.cfg.input.clone(),
             line!() as usize,
             ident.loc(),
             self.caused_by(),
@@ -256,6 +259,7 @@ impl Context {
                 Accessor::Ident(ident) => {
                     let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
                         EvalError::no_var_error(
+                            self.cfg.input.clone(),
                             line!() as usize,
                             ident.loc(),
                             self.caused_by(),
@@ -266,6 +270,7 @@ impl Context {
                     let subr = option_enum_unwrap!(obj, ValueObj::Subr)
                         .ok_or_else(|| {
                             EvalError::type_mismatch_error(
+                                self.cfg.input.clone(),
                                 line!() as usize,
                                 ident.loc(),
                                 self.caused_by(),
@@ -303,7 +308,7 @@ impl Context {
                 .call(args, self.mod_name().clone(), __name__)
                 .map_err(|mut e| {
                     e.loc = loc;
-                    EvalError::new(e, self.caused_by())
+                    EvalErrors::from(EvalError::new(e, self.cfg.input.clone(), self.caused_by()))
                 }),
         }
     }
@@ -315,11 +320,12 @@ impl Context {
             self.register_gen_const(def.sig.ident().unwrap(), obj)?;
             Ok(ValueObj::None)
         } else {
-            Err(EvalError::not_const_expr(
+            Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
                 line!() as usize,
                 def.body.block.loc(),
                 self.caused_by(),
-            ))
+            )))
         }
     }
 
@@ -351,6 +357,7 @@ impl Context {
         // HACK: should avoid cloning
         let mut record_ctx = Context::instant(
             Str::ever("<unnamed record>"),
+            self.cfg.clone(),
             2,
             self.mod_cache.clone(),
             self.py_mod_cache.clone(),
@@ -423,6 +430,7 @@ impl Context {
         // HACK: should avoid cloning
         let mut lambda_ctx = Context::instant(
             Str::ever("<lambda>"),
+            self.cfg.clone(),
             0,
             self.mod_cache.clone(),
             self.py_mod_cache.clone(),
@@ -511,30 +519,62 @@ impl Context {
 
     fn eval_bin(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
         match op {
-            Add => lhs
-                .try_add(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Sub => lhs
-                .try_sub(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Mul => lhs
-                .try_mul(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Div => lhs
-                .try_div(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Gt => lhs
-                .try_gt(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Ge => lhs
-                .try_ge(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Eq => lhs
-                .try_eq(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
-            Ne => lhs
-                .try_ne(rhs)
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
+            Add => lhs.try_add(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Sub => lhs.try_sub(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Mul => lhs.try_mul(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Div => lhs.try_div(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Gt => lhs.try_gt(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Ge => lhs.try_ge(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Eq => lhs.try_eq(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Ne => lhs.try_ne(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
             other => todo!("{other}"),
         }
     }
@@ -556,14 +596,22 @@ impl Context {
                 if fv.is_linked() {
                     self.eval_bin_tp(op, &*fv.crack(), r)
                 } else {
-                    Err(EvalError::unreachable(fn_name!(), line!()))
+                    Err(EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
                 }
             }
             (l, TyParam::FreeVar(fv)) => {
                 if fv.is_linked() {
                     self.eval_bin_tp(op, l, &*fv.crack())
                 } else {
-                    Err(EvalError::unreachable(fn_name!(), line!()))
+                    Err(EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
                 }
             }
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
@@ -601,7 +649,13 @@ impl Context {
             TyParam::Mono(name) => self
                 .rec_get_const_obj(name)
                 .map(|v| TyParam::value(v.clone()))
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| {
+                    EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    ))
+                }),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(*op, val),
             TyParam::App { name, args } => self.eval_app(name, args),
@@ -673,6 +727,7 @@ impl Context {
                 }
                 for (_ty, ty_ctx) in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
                     EvalError::no_var_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         t_loc,
                         self.caused_by(),
@@ -717,13 +772,14 @@ impl Context {
                     }
                 }
                 let proj = mono_proj(*lhs, rhs);
-                Err(EvalError::no_candidate_error(
+                Err(EvalErrors::from(EvalError::no_candidate_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     &proj,
                     t_loc,
                     self.caused_by(),
                     self.get_no_candidate_hint(&proj),
-                ))
+                )))
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
@@ -797,7 +853,13 @@ impl Context {
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
                 .map(|v| enum_t(set![v.clone()]))
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
+                .ok_or_else(|| {
+                    EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    ))
+                }),
             TyParam::MonoQVar(name) => {
                 panic!("Not instantiated type variable: {name}")
             }
@@ -822,10 +884,17 @@ impl Context {
                 }
             }
             TyParam::Type(_) => Ok(Type::Type),
-            TyParam::Mono(name) => self
-                .rec_get_const_obj(&name)
-                .map(|v| v.class())
-                .ok_or_else(|| EvalError::unreachable(fn_name!(), line!())),
+            TyParam::Mono(name) => {
+                self.rec_get_const_obj(&name)
+                    .map(|v| v.class())
+                    .ok_or_else(|| {
+                        EvalErrors::from(EvalError::unreachable(
+                            self.cfg.input.clone(),
+                            fn_name!(),
+                            line!(),
+                        ))
+                    })
+            }
             other => todo!("{other}"),
         }
     }

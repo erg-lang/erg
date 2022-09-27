@@ -1,5 +1,6 @@
 use std::mem;
 
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::log;
@@ -11,7 +12,7 @@ use Visibility::*;
 
 use erg_type::{HasType, Ownership};
 
-use crate::error::{OwnershipError, OwnershipErrors, OwnershipResult};
+use crate::error::{OwnershipError, OwnershipErrors};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,14 +30,16 @@ struct LocalVars {
 
 #[derive(Debug)]
 pub struct OwnershipChecker {
+    cfg: ErgConfig,
     path_stack: Vec<(Str, Visibility)>,
     dict: Dict<Str, LocalVars>,
     errs: OwnershipErrors,
 }
 
 impl OwnershipChecker {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         OwnershipChecker {
+            cfg,
             path_stack: vec![],
             dict: Dict::new(),
             errs: OwnershipErrors::empty(),
@@ -57,7 +60,7 @@ impl OwnershipChecker {
 
     // moveされた後の変数が使用されていないかチェックする
     // ProceduralでないメソッドでRefMutが使われているかはSideEffectCheckerでチェックする
-    pub fn check(&mut self, hir: HIR) -> OwnershipResult<HIR> {
+    pub fn check(&mut self, hir: HIR) -> Result<HIR, (HIR, OwnershipErrors)> {
         log!(info "the ownership checking process has started.{RESET}");
         if self.full_path() != ("::".to_string() + &hir.name[..]) {
             self.path_stack.push((hir.name.clone(), Private));
@@ -74,7 +77,7 @@ impl OwnershipChecker {
         if self.errs.is_empty() {
             Ok(hir)
         } else {
-            Err(mem::take(&mut self.errs))
+            Err((hir, mem::take(&mut self.errs)))
         }
     }
 
@@ -272,6 +275,7 @@ impl OwnershipChecker {
             if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(name) {
                 let moved_loc = *moved_loc;
                 return Err(OwnershipError::move_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     name,
                     loc,
@@ -286,6 +290,6 @@ impl OwnershipChecker {
 
 impl Default for OwnershipChecker {
     fn default() -> Self {
-        Self::new()
+        Self::new(ErgConfig::default())
     }
 }

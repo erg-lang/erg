@@ -2,13 +2,14 @@
 //! SideEffectCheckerを実装
 //! 関数や不変型に副作用がないかチェックする
 
+use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::Stream;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
-use crate::error::{EffectError, EffectErrors, EffectResult};
+use crate::error::{EffectError, EffectErrors};
 use crate::hir::{Accessor, Array, Def, Expr, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,14 +28,16 @@ use BlockKind::*;
 
 #[derive(Debug)]
 pub struct SideEffectChecker {
+    cfg: ErgConfig,
     path_stack: Vec<(Str, Visibility)>,
     block_stack: Vec<BlockKind>,
     errs: EffectErrors,
 }
 
 impl SideEffectChecker {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            cfg,
             path_stack: vec![],
             block_stack: vec![],
             errs: EffectErrors::empty(),
@@ -74,7 +77,7 @@ impl SideEffectChecker {
         }
     }
 
-    pub fn check(mut self, hir: HIR) -> EffectResult<HIR> {
+    pub fn check(mut self, hir: HIR) -> Result<HIR, (HIR, EffectErrors)> {
         self.path_stack.push((hir.name.clone(), Private));
         self.block_stack.push(Module);
         log!(info "the side-effects checking process has started.{RESET}");
@@ -147,7 +150,7 @@ impl SideEffectChecker {
         if self.errs.is_empty() {
             Ok(hir)
         } else {
-            Err(self.errs)
+            Err((hir, self.errs))
         }
     }
 
@@ -261,6 +264,7 @@ impl SideEffectChecker {
                     && !self.in_context_effects_allowed()
                 {
                     self.errs.push(EffectError::has_effect(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         expr,
                         self.full_path(),
@@ -315,11 +319,5 @@ impl SideEffectChecker {
             Expr::TypeAsc(tasc) => self.is_procedural(&tasc.expr),
             _ => false,
         }
-    }
-}
-
-impl Default for SideEffectChecker {
-    fn default() -> Self {
-        Self::new()
     }
 }

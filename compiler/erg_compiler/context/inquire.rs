@@ -4,7 +4,7 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
-use erg_common::traits::Locational;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
@@ -20,8 +20,10 @@ use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
-use crate::error::readable_name;
-use crate::error::{binop_to_dname, unaryop_to_dname, TyCheckError, TyCheckResult};
+use crate::error::{
+    binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
+    TyCheckErrors, TyCheckResult,
+};
 use crate::hir;
 use crate::varinfo::VarInfo;
 use RegistrationMode::*;
@@ -40,7 +42,8 @@ impl Context {
             .sub_unify(body_t, &spec_t, None, Some(ident.loc()), None)
             .is_err()
         {
-            return Err(TyCheckError::type_mismatch_error(
+            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -49,7 +52,7 @@ impl Context {
                 body_t,
                 self.get_candidates(body_t),
                 self.get_type_mismatch_hint(&spec_t, body_t),
-            ));
+            )));
         }
         Ok(())
     }
@@ -83,13 +86,14 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> TyCheckResult<&Context> {
+    fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> SingleTyCheckResult<&Context> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => self
                 .get_mod(ident.inspect())
                 .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
                 .ok_or_else(|| {
                     TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         obj.loc(),
                         namespace.into(),
@@ -119,7 +123,8 @@ impl Context {
             let t = pos_arg.expr.ref_t();
             // Allow only anonymous functions to be passed as match arguments (for aesthetic reasons)
             if !matches!(&pos_arg.expr, hir::Expr::Lambda(_)) {
-                return Err(TyCheckError::type_mismatch_error(
+                return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     pos_arg.loc(),
                     self.caused_by(),
@@ -128,7 +133,7 @@ impl Context {
                     t,
                     self.get_candidates(t),
                     self.get_type_mismatch_hint(&builtin_mono("LambdaFunc"), t),
-                ));
+                )));
             }
         }
         let match_target_expr_t = pos_args[0].expr.ref_t();
@@ -141,7 +146,8 @@ impl Context {
             }
             // TODO: If the first argument of the match is a tuple?
             if lambda.params.len() != 1 {
-                return Err(TyCheckError::argument_error(
+                return Err(TyCheckErrors::from(TyCheckError::argument_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     pos_args[i + 1].loc(),
                     self.caused_by(),
@@ -152,7 +158,7 @@ impl Context {
                         .unwrap()
                         .typarams_len()
                         .unwrap_or(0),
-                ));
+                )));
             }
             let rhs = self.instantiate_param_sig_t(
                 &lambda.params.non_defaults[0],
@@ -168,12 +174,13 @@ impl Context {
             .sub_unify(match_target_expr_t, &union_pat_t, None, None, None)
             .is_err()
         {
-            return Err(TyCheckError::match_error(
+            return Err(TyCheckErrors::from(TyCheckError::match_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 pos_args[0].loc(),
                 self.caused_by(),
                 match_target_expr_t,
-            ));
+            )));
         }
         let branch_ts = pos_args
             .iter()
@@ -201,7 +208,11 @@ impl Context {
         None
     }
 
-    pub(crate) fn rec_get_var_t(&self, ident: &Identifier, namespace: &Str) -> TyCheckResult<Type> {
+    pub(crate) fn rec_get_var_t(
+        &self,
+        ident: &Identifier,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
             self.validate_visibility(ident, vi, namespace)?;
             Ok(vi.t())
@@ -210,6 +221,7 @@ impl Context {
                 return parent.rec_get_var_t(ident, namespace);
             }
             Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 namespace.into(),
@@ -224,7 +236,7 @@ impl Context {
         obj: &hir::Expr,
         ident: &Identifier,
         namespace: &Str,
-    ) -> TyCheckResult<Type> {
+    ) -> SingleTyCheckResult<Type> {
         let self_t = obj.t();
         let name = ident.name.token();
         match self.get_attr_t_from_attributive_t(obj, &self_t, ident, namespace) {
@@ -249,6 +261,7 @@ impl Context {
         }
         for (_, ctx) in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
             TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 obj.loc(),
                 self.caused_by(),
@@ -271,6 +284,7 @@ impl Context {
             parent.rec_get_attr_t(obj, ident, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 name.loc(),
                 namespace.into(),
@@ -287,7 +301,7 @@ impl Context {
         t: &Type,
         ident: &Identifier,
         namespace: &Str,
-    ) -> TyCheckResult<Type> {
+    ) -> SingleTyCheckResult<Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_t_from_attributive_t(obj, &fv.crack(), ident, namespace)
@@ -310,6 +324,7 @@ impl Context {
                 } else {
                     let t = Type::Record(record.clone());
                     Err(TyCheckError::no_attr_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         ident.loc(),
                         namespace.into(),
@@ -330,15 +345,23 @@ impl Context {
                         ValueObj::Type(TypeObj::Generated(gen)) => self
                             .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
                             .cloned()
-                            .ok_or_else(|| TyCheckError::dummy(line!() as usize)),
+                            .ok_or_else(|| {
+                                TyCheckError::dummy(self.cfg.input.clone(), line!() as usize)
+                            }),
                         ValueObj::Type(TypeObj::Builtin(_t)) => {
                             // FIXME:
-                            Err(TyCheckError::dummy(line!() as usize))
+                            Err(TyCheckError::dummy(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                            ))
                         }
                         other => todo!("{other}"),
                     }
                 } else {
-                    Err(TyCheckError::dummy(line!() as usize))
+                    Err(TyCheckError::dummy(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                    ))
                 }
             }
         }
@@ -350,12 +373,13 @@ impl Context {
         obj: &hir::Expr,
         method_name: &Option<Identifier>,
         namespace: &Str,
-    ) -> TyCheckResult<Type> {
+    ) -> SingleTyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
             for (_, ctx) in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| {
                     TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         obj.loc(),
                         self.caused_by(),
@@ -403,6 +427,7 @@ impl Context {
                     }
                 }
                 return Err(TyCheckError::singular_no_attr_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     method_name.loc(),
                     namespace.into(),
@@ -414,6 +439,7 @@ impl Context {
             }
             // TODO: patch
             Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 method_name.loc(),
                 namespace.into(),
@@ -431,9 +457,10 @@ impl Context {
         ident: &Identifier,
         vi: &VarInfo,
         namespace: &str,
-    ) -> TyCheckResult<()> {
+    ) -> SingleTyCheckResult<()> {
         if ident.vis() != vi.vis {
             Err(TyCheckError::visibility_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -447,6 +474,7 @@ impl Context {
             && !namespace.contains(&self.name[..])
         {
             Err(TyCheckError::visibility_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -473,20 +501,26 @@ impl Context {
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
-            .map_err(|e| {
+            .map_err(|errs| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
                 let bin = hir::BinOp::new(op.name.into_token(), lhs, rhs, op.t);
-                // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
-                let core = ErrorCore::new(
-                    e.core.errno,
-                    e.core.kind,
-                    bin.loc(),
-                    e.core.desc,
-                    e.core.hint,
-                );
-                TyCheckError::new(core, e.caused_by)
+                TyCheckErrors::new(
+                    errs.into_iter()
+                        .map(|e| {
+                            // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                            let core = ErrorCore::new(
+                                e.core.errno,
+                                e.core.kind,
+                                bin.loc(),
+                                e.core.desc,
+                                e.core.hint,
+                            );
+                            TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
+                        })
+                        .collect(),
+                )
             })
     }
 
@@ -505,18 +539,24 @@ impl Context {
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], namespace)
-            .map_err(|e| {
+            .map_err(|errs| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
                 let unary = hir::UnaryOp::new(op.name.into_token(), expr, op.t);
-                let core = ErrorCore::new(
-                    e.core.errno,
-                    e.core.kind,
-                    unary.loc(),
-                    e.core.desc,
-                    e.core.hint,
-                );
-                TyCheckError::new(core, e.caused_by)
+                TyCheckErrors::new(
+                    errs.into_iter()
+                        .map(|e| {
+                            let core = ErrorCore::new(
+                                e.core.errno,
+                                e.core.kind,
+                                unary.loc(),
+                                e.core.desc,
+                                e.core.hint,
+                            );
+                            TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
+                        })
+                        .collect(),
+                )
             })
     }
 
@@ -573,7 +613,8 @@ impl Context {
                 if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
                     && subr.var_params.is_none()
                 {
-                    return Err(TyCheckError::too_many_args_error(
+                    return Err(TyCheckErrors::from(TyCheckError::too_many_args_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         callee.loc(),
                         &callee.to_string(),
@@ -581,7 +622,7 @@ impl Context {
                         params_len,
                         pos_args.len(),
                         kw_args.len(),
-                    ));
+                    )));
                 }
                 let mut passed_params = set! {};
                 let non_default_params_len = if method_name.is_some() {
@@ -645,20 +686,22 @@ impl Context {
                         .rev()
                         .map(|pt| pt.name().cloned().unwrap_or(Str::ever("")))
                         .collect();
-                    return Err(TyCheckError::args_missing_error(
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         callee.loc(),
                         &callee.to_string(),
                         self.caused_by(),
                         missing_len,
                         missing_params,
-                    ));
+                    )));
                 }
                 Ok(())
             }
             other => {
                 if let Some(method_name) = method_name {
-                    Err(TyCheckError::type_mismatch_error(
+                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         Location::concat(obj, method_name),
                         self.caused_by(),
@@ -667,9 +710,10 @@ impl Context {
                         other,
                         self.get_candidates(other),
                         None,
-                    ))
+                    )))
                 } else {
-                    Err(TyCheckError::type_mismatch_error(
+                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         obj.loc(),
                         self.caused_by(),
@@ -678,7 +722,7 @@ impl Context {
                         other,
                         self.get_candidates(other),
                         None,
-                    ))
+                    )))
                 }
             }
         }
@@ -694,32 +738,39 @@ impl Context {
         let arg_t = arg.ref_t();
         let param_t = &param.typ();
         self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
-            .map_err(|e| {
+            .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                log!(err "errno: {}", e.core.errno);
                 // REVIEW:
                 let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
-                TyCheckError::type_mismatch_error(
-                    line!() as usize,
-                    e.core.loc,
-                    e.caused_by,
-                    &name[..],
-                    param_t,
-                    arg_t,
-                    self.get_candidates(arg_t),
-                    self.get_type_mismatch_hint(param_t, arg_t),
+                TyCheckErrors::new(
+                    errs.into_iter()
+                        .map(|e| {
+                            TyCheckError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                e.core.loc,
+                                e.caused_by,
+                                &name[..],
+                                param_t,
+                                arg_t,
+                                self.get_candidates(arg_t),
+                                self.get_type_mismatch_hint(param_t, arg_t),
+                            )
+                        })
+                        .collect(),
                 )
             })?;
         if let Some(name) = param.name() {
             if passed_params.contains(name) {
-                return Err(TyCheckError::multiple_args_error(
+                return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     callee.loc(),
                     &callee.to_string(),
                     self.caused_by(),
                     name,
-                ));
+                )));
             } else {
                 passed_params.insert(name.clone());
             }
@@ -736,21 +787,27 @@ impl Context {
         let arg_t = arg.ref_t();
         let param_t = &param.typ();
         self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
-            .map_err(|e| {
+            .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                log!(err "errno: {}", e.core.errno);
                 // REVIEW:
                 let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
-                TyCheckError::type_mismatch_error(
-                    line!() as usize,
-                    e.core.loc,
-                    e.caused_by,
-                    &name[..],
-                    param_t,
-                    arg_t,
-                    self.get_candidates(arg_t),
-                    self.get_type_mismatch_hint(param_t, arg_t),
+                TyCheckErrors::new(
+                    errs.into_iter()
+                        .map(|e| {
+                            TyCheckError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                e.core.loc,
+                                e.caused_by,
+                                &name[..],
+                                param_t,
+                                arg_t,
+                                self.get_candidates(arg_t),
+                                self.get_type_mismatch_hint(param_t, arg_t),
+                            )
+                        })
+                        .collect(),
                 )
             })
     }
@@ -765,13 +822,14 @@ impl Context {
         let arg_t = arg.expr.ref_t();
         let kw_name = arg.keyword.inspect();
         if passed_params.contains(&kw_name[..]) {
-            return Err(TyCheckError::multiple_args_error(
+            return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 callee.loc(),
                 &callee.to_string(),
                 self.caused_by(),
                 arg.keyword.inspect(),
-            ));
+            )));
         } else {
             passed_params.insert(kw_name.clone());
         }
@@ -780,31 +838,38 @@ impl Context {
             .find(|pt| pt.name().unwrap() == kw_name)
         {
             self.sub_unify(arg_t, pt.typ(), Some(arg.loc()), None, Some(kw_name))
-                .map_err(|e| {
+                .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
-                    log!(err "errno: {}", e.core.errno);
                     // REVIEW:
                     let name = callee.show_acc().unwrap_or_else(|| "".to_string());
                     let name = name + "::" + readable_name(kw_name);
-                    TyCheckError::type_mismatch_error(
-                        line!() as usize,
-                        e.core.loc,
-                        e.caused_by,
-                        &name[..],
-                        pt.typ(),
-                        arg_t,
-                        self.get_candidates(arg_t),
-                        self.get_type_mismatch_hint(pt.typ(), arg_t),
+                    TyCheckErrors::new(
+                        errs.into_iter()
+                            .map(|e| {
+                                TyCheckError::type_mismatch_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    e.core.loc,
+                                    e.caused_by,
+                                    &name[..],
+                                    pt.typ(),
+                                    arg_t,
+                                    self.get_candidates(arg_t),
+                                    self.get_type_mismatch_hint(pt.typ(), arg_t),
+                                )
+                            })
+                            .collect(),
                     )
                 })?;
         } else {
-            return Err(TyCheckError::unexpected_kw_arg_error(
+            return Err(TyCheckErrors::from(TyCheckError::unexpected_kw_arg_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 arg.keyword.loc(),
                 &callee.to_string(),
                 self.caused_by(),
                 kw_name,
-            ));
+            )));
         }
         Ok(())
     }
@@ -845,7 +910,11 @@ impl Context {
         Ok(res)
     }
 
-    pub(crate) fn get_const_local(&self, name: &Token, namespace: &Str) -> TyCheckResult<ValueObj> {
+    pub(crate) fn get_const_local(
+        &self,
+        name: &Token,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<ValueObj> {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
@@ -853,6 +922,7 @@ impl Context {
                 return parent.get_const_local(name, namespace);
             }
             Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 name.loc(),
                 namespace.into(),
@@ -867,10 +937,11 @@ impl Context {
         obj: &hir::Expr,
         name: &Token,
         namespace: &Str,
-    ) -> TyCheckResult<ValueObj> {
+    ) -> SingleTyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
         for (_, ctx) in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
             TyCheckError::no_var_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 obj.loc(),
                 self.caused_by(),
@@ -887,6 +958,7 @@ impl Context {
             parent._get_const_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 name.loc(),
                 namespace.into(),

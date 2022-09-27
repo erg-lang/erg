@@ -2,7 +2,6 @@ use std::option::Option;
 use std::path::PathBuf; // conflicting to Type::Option
 
 use erg_common::config::{ErgConfig, Input};
-use erg_common::error::MultiErrorDisplay;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
@@ -21,7 +20,9 @@ use Type::*;
 use crate::build_hir::HIRBuilder;
 use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
 use crate::error::readable_name;
-use crate::error::{TyCheckError, TyCheckResult};
+use crate::error::{
+    CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
+};
 use crate::hir::{self, Literal};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -73,12 +74,13 @@ impl Context {
                 let kind = id.map_or(VarKind::Declared, VarKind::Defined);
                 let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
                 if let Some(_decl) = self.decls.remove(&ident.name) {
-                    Err(TyCheckError::duplicate_decl_error(
+                    Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         sig.loc(),
                         self.caused_by(),
                         ident.name.inspect(),
-                    ))
+                    )))
                 } else {
                     self.decls.insert(
                         ident.name.clone(),
@@ -113,12 +115,13 @@ impl Context {
             .collect();
         let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos));
         if let Some(_decl) = self.decls.remove(name) {
-            Err(TyCheckError::duplicate_decl_error(
+            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 sig.loc(),
                 self.caused_by(),
                 name,
-            ))
+            )))
         } else {
             self.decls.insert(sig.ident.name.clone(), vi);
             Ok(())
@@ -167,12 +170,13 @@ impl Context {
                     .registered_info(name.inspect(), name.is_const())
                     .is_some()
                 {
-                    Err(TyCheckError::reassign_error(
+                    Err(TyCheckErrors::from(TyCheckError::reassign_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         name.loc(),
                         self.caused_by(),
                         name.inspect(),
-                    ))
+                    )))
                 } else {
                     // ok, not defined
                     let spec_t =
@@ -212,12 +216,13 @@ impl Context {
                     .registered_info(name.inspect(), name.is_const())
                     .is_some()
                 {
-                    Err(TyCheckError::reassign_error(
+                    Err(TyCheckErrors::from(TyCheckError::reassign_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         name.loc(),
                         self.caused_by(),
                         name.inspect(),
-                    ))
+                    )))
                 } else {
                     // ok, not defined
                     let spec_t =
@@ -257,12 +262,13 @@ impl Context {
                     .registered_info(name.inspect(), name.is_const())
                     .is_some()
                 {
-                    Err(TyCheckError::reassign_error(
+                    Err(TyCheckErrors::from(TyCheckError::reassign_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         name.loc(),
                         self.caused_by(),
                         name.inspect(),
-                    ))
+                    )))
                 } else {
                     // ok, not defined
                     let spec_t =
@@ -376,14 +382,21 @@ impl Context {
         let default_params = t.default_params().unwrap();
         if let Some(spec_ret_t) = t.return_t() {
             self.sub_unify(body_t, spec_ret_t, None, Some(sig.loc()), None)
-                .map_err(|e| {
-                    TyCheckError::return_type_error(
-                        line!() as usize,
-                        e.core.loc,
-                        e.caused_by,
-                        readable_name(name.inspect()),
-                        spec_ret_t,
-                        body_t,
+                .map_err(|errs| {
+                    TyCheckErrors::new(
+                        errs.into_iter()
+                            .map(|e| {
+                                TyCheckError::return_type_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    e.core.loc,
+                                    e.caused_by,
+                                    readable_name(name.inspect()),
+                                    spec_ret_t,
+                                    body_t,
+                                )
+                            })
+                            .collect(),
                     )
                 })?;
         }
@@ -413,14 +426,15 @@ impl Context {
         }
         if let Some(vi) = self.decls.remove(name) {
             if !self.supertype_of(&vi.t, &found_t) {
-                return Err(TyCheckError::violate_decl_error(
+                return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     sig.loc(),
                     self.caused_by(),
                     name.inspect(),
                     &vi.t,
                     &found_t,
-                ));
+                )));
             }
         }
         let comptime_decos = sig
@@ -576,9 +590,10 @@ impl Context {
         &mut self,
         ident: &Identifier,
         obj: ValueObj,
-    ) -> TyCheckResult<()> {
+    ) -> SingleTyCheckResult<()> {
         if self.rec_get_const_obj(ident.inspect()).is_some() {
             Err(TyCheckError::reassign_error(
+                self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -615,14 +630,18 @@ impl Context {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     let mut methods = Self::methods(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     let require = gen.require_or_sup.typ().clone();
@@ -643,8 +662,10 @@ impl Context {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
@@ -653,8 +674,10 @@ impl Context {
                     }
                     let mut methods = Self::methods(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
@@ -693,8 +716,10 @@ impl Context {
                 if gen.t.is_monomorphic() {
                     let mut ctx = Self::mono_trait(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     let require = enum_unwrap!(gen.require_or_sup.as_ref(), TypeObj::Builtin:(Type::Record:(_)));
@@ -719,8 +744,10 @@ impl Context {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
                         gen.t.name(),
+                        self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
+                        2,
                         self.level,
                     );
                     let additional = gen.additional.as_ref().map(|additional| enum_unwrap!(additional.as_ref(), TypeObj::Builtin:(Type::Record:(_))));
@@ -791,20 +818,20 @@ impl Context {
     pub(crate) fn import_mod(
         &mut self,
         kind: ImportKind,
-        current_input: Input,
         var_name: &VarName,
         mod_name: &hir::Expr,
-    ) -> TyCheckResult<()> {
+    ) -> CompileResult<()> {
         match mod_name {
             hir::Expr::Lit(lit) => {
                 if self.subtype_of(&lit.value.class(), &Str) {
                     if kind.is_erg_import() {
-                        self.import_erg_mod(current_input, var_name, lit)?;
+                        self.import_erg_mod(var_name, lit)?;
                     } else {
-                        self.import_py_mod(current_input, var_name, lit)?;
+                        self.import_py_mod(var_name, lit)?;
                     }
                 } else {
-                    return Err(TyCheckError::type_mismatch_error(
+                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
                         line!() as usize,
                         mod_name.loc(),
                         self.caused_by(),
@@ -813,59 +840,46 @@ impl Context {
                         mod_name.ref_t(),
                         self.get_candidates(mod_name.ref_t()),
                         self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
-                    ));
+                    )));
                 }
             }
-            _ => {
-                return Err(TyCheckError::feature_error(
-                    line!() as usize,
+            _other => {
+                return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                    self.cfg.input.clone(),
                     mod_name.loc(),
                     "non-literal importing",
                     self.caused_by(),
-                ))
+                )))
             }
         }
         Ok(())
     }
 
-    fn import_erg_mod(
-        &mut self,
-        current_input: Input,
-        var_name: &VarName,
-        lit: &Literal,
-    ) -> TyCheckResult<()> {
+    fn import_erg_mod(&mut self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
         let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         #[allow(clippy::match_single_binding)]
         match &__name__[..] {
             // TODO: erg builtin modules
-            _ => self.import_user_erg_mod(
-                current_input,
-                var_name,
-                __name__,
-                lit,
-                mod_cache,
-                py_mod_cache,
-            )?,
+            _ => self.import_user_erg_mod(var_name, __name__, lit, mod_cache, py_mod_cache)?,
         }
         Ok(())
     }
 
     fn import_user_erg_mod(
         &self,
-        current_input: Input,
         var_name: &VarName,
         __name__: Str,
         name_lit: &Literal,
         mod_cache: &SharedModuleCache,
         py_mod_cache: &SharedModuleCache,
-    ) -> TyCheckResult<()> {
+    ) -> CompileResult<()> {
         if let Some((_, entry)) = mod_cache.get_by_name(&__name__) {
             mod_cache.register_alias(var_name.clone(), entry);
             return Ok(());
         }
-        let mut dir = if let Input::File(mut path) = current_input {
+        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
             path.pop();
             path
         } else {
@@ -875,7 +889,8 @@ impl Context {
         let path = match dir.canonicalize() {
             Ok(path) => path,
             Err(err) => {
-                return Err(TyCheckError::import_error(
+                let err = TyCheckErrors::from(TyCheckError::import_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     err.to_string(),
                     name_lit.loc(),
@@ -888,6 +903,7 @@ impl Context {
                             .get_similar_name(&__name__)
                     }),
                 ));
+                return Err(err);
             }
         };
         let cfg = ErgConfig::with_path(path);
@@ -902,19 +918,17 @@ impl Context {
             Ok(hir) => {
                 mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
             }
-            Err(errs) => {
-                errs.fmt_all_stderr();
+            Err((maybe_hir, errs)) => {
+                if let Some(hir) = maybe_hir {
+                    mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                }
+                return Err(errs);
             }
         }
         Ok(())
     }
 
-    fn import_py_mod(
-        &mut self,
-        current_input: Input,
-        var_name: &VarName,
-        lit: &Literal,
-    ) -> TyCheckResult<()> {
+    fn import_py_mod(&mut self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
         let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         match &__name__[..] {
@@ -939,7 +953,7 @@ impl Context {
             "time" => {
                 mod_cache.register(var_name.clone(), None, Self::init_py_time_mod());
             }
-            _ => self.import_user_py_mod(current_input, var_name, lit)?,
+            _ => self.import_user_py_mod(var_name, lit)?,
         }
         Ok(())
     }
@@ -952,19 +966,14 @@ impl Context {
         .map(Str::rc)
     }
 
-    fn import_user_py_mod(
-        &self,
-        current_input: Input,
-        var_name: &VarName,
-        lit: &Literal,
-    ) -> TyCheckResult<()> {
+    fn import_user_py_mod(&self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
         let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         if let Some((_, entry)) = py_mod_cache.get_by_name(&__name__) {
             py_mod_cache.register_alias(var_name.clone(), entry);
             return Ok(());
         }
-        let mut dir = if let Input::File(mut path) = current_input {
+        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
             path.pop();
             path
         } else {
@@ -974,7 +983,8 @@ impl Context {
         let path = match dir.canonicalize() {
             Ok(path) => path,
             Err(err) => {
-                return Err(TyCheckError::import_error(
+                let err = TyCheckError::import_error(
+                    self.cfg.input.clone(),
                     line!() as usize,
                     err.to_string(),
                     lit.loc(),
@@ -986,7 +996,8 @@ impl Context {
                             .unwrap()
                             .get_similar_name(&__name__)
                     }),
-                ));
+                );
+                return Err(TyCheckErrors::from(err));
             }
         };
         let cfg = ErgConfig::with_path(path);
@@ -1001,8 +1012,11 @@ impl Context {
             Ok(hir) => {
                 py_mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
             }
-            Err(errs) => {
-                errs.fmt_all_stderr();
+            Err((maybe_hir, errs)) => {
+                if let Some(hir) = maybe_hir {
+                    py_mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                }
+                return Err(errs);
             }
         }
         Ok(())

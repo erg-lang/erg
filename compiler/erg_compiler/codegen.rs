@@ -7,7 +7,7 @@ use std::process;
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
-use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::Opcode;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
@@ -30,7 +30,7 @@ use erg_type::{HasType, Type, TypeCode, TypePair};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::eval_lit;
-use crate::error::{CompileError, CompileErrors, CompileResult};
+use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
     Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
@@ -345,7 +345,6 @@ pub struct CodeGenerator {
     prelude_loaded: bool,
     unit_size: usize,
     units: CodeGenStack,
-    pub(crate) errs: CompileErrors,
 }
 
 impl CodeGenerator {
@@ -356,13 +355,11 @@ impl CodeGenerator {
             prelude_loaded: false,
             unit_size: 0,
             units: CodeGenStack::empty(),
-            errs: CompileErrors::empty(),
         }
     }
 
     pub fn clear(&mut self) {
         self.units.clear();
-        self.errs.clear();
     }
 
     #[inline]
@@ -565,7 +562,7 @@ impl CodeGenerator {
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
-    fn emit_load_name_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+    fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}", fn_name!());
         let escaped = escape_name(ident);
         let name = self
@@ -580,10 +577,9 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
         self.stack_inc();
-        Ok(())
     }
 
-    fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) -> CompileResult<()> {
+    fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) {
         log!(info "entered {}", fn_name!());
         let escaped = escape_name(ident);
         let name = self
@@ -593,10 +589,9 @@ impl CodeGenerator {
         self.write_arg(name.idx as u8);
         self.stack_dec(); // (level + from_list) -> module object
         self.stack_inc_n(items_len - 1);
-        Ok(())
     }
 
-    fn emit_import_from_instr(&mut self, ident: Identifier) -> CompileResult<()> {
+    fn emit_import_from_instr(&mut self, ident: Identifier) {
         log!(info "entered {}", fn_name!());
         let escaped = escape_name(ident);
         let name = self
@@ -605,7 +600,6 @@ impl CodeGenerator {
         self.write_instr(IMPORT_FROM);
         self.write_arg(name.idx as u8);
         // self.stack_inc(); (module object) -> attribute
-        Ok(())
     }
 
     /// item: (name, renamed)
@@ -621,13 +615,13 @@ impl CodeGenerator {
             .collect::<Vec<_>>();
         let items_len = item_names.len();
         self.emit_load_const(item_names);
-        self.emit_import_name_instr(module, items_len).unwrap();
+        self.emit_import_name_instr(module, items_len);
         for (item, renamed) in items.into_iter() {
             if let Some(renamed) = renamed {
-                self.emit_import_from_instr(item).unwrap();
+                self.emit_import_from_instr(item);
                 self.emit_store_instr(renamed, Name);
             } else {
-                self.emit_import_from_instr(item.clone()).unwrap();
+                self.emit_import_from_instr(item.clone());
                 self.emit_store_instr(item, Name);
             }
         }
@@ -638,7 +632,7 @@ impl CodeGenerator {
         class: &str,
         uniq_obj_name: Option<&str>,
         ident: Identifier,
-    ) -> CompileResult<()> {
+    ) {
         log!(info "entered {} ({class}{ident})", fn_name!());
         let escaped = escape_attr(class, uniq_obj_name, ident);
         let name = self
@@ -652,7 +646,6 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
-        Ok(())
     }
 
     fn emit_load_method_instr(
@@ -660,7 +653,7 @@ impl CodeGenerator {
         class: &str,
         uniq_obj_name: Option<&str>,
         ident: Identifier,
-    ) -> CompileResult<()> {
+    ) {
         log!(info "entered {} ({class}{ident})", fn_name!());
         let escaped = escape_attr(class, uniq_obj_name, ident);
         let name = self
@@ -674,7 +667,6 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
-        Ok(())
     }
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
@@ -746,7 +738,6 @@ impl CodeGenerator {
     /// Compileが継続不能になった際呼び出す
     /// 極力使わないこと
     fn crash(&mut self, description: &'static str) -> ! {
-        self.errs.fmt_all_stderr();
         if cfg!(feature = "debug") {
             panic!("internal error: {description}");
         } else {
@@ -779,9 +770,7 @@ impl CodeGenerator {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
             Accessor::Ident(ident) => {
-                self.emit_load_name_instr(ident).unwrap_or_else(|err| {
-                    self.errs.push(err);
-                });
+                self.emit_load_name_instr(ident);
             }
             Accessor::Attr(a) => {
                 let class = a.obj.ref_t().name();
@@ -795,19 +784,14 @@ impl CodeGenerator {
                 if Some(&self.cur_block_codeobj().name[..]) == a.obj.__name__()
                     && &self.cur_block_codeobj().name[..] != "<module>"
                 {
-                    self.emit_load_name_instr(a.ident).unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
+                    self.emit_load_name_instr(a.ident);
                 } else {
                     self.emit_expr(*a.obj);
                     self.emit_load_attr_instr(
                         &class,
                         uniq_obj_name.as_ref().map(|s| &s[..]),
                         a.ident,
-                    )
-                    .unwrap_or_else(|err| {
-                        self.errs.push(err);
-                    });
+                    );
                 }
             }
             Accessor::TupleAttr(t_attr) => {
@@ -848,8 +832,7 @@ impl CodeGenerator {
         self.write_instr(Opcode::MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(def.sig.ident().inspect().clone());
-        self.emit_load_name_instr(Identifier::private(Str::ever("#ABCMeta")))
-            .unwrap();
+        self.emit_load_name_instr(Identifier::private(Str::ever("#ABCMeta")));
         self.emit_load_const(vec![ValueObj::from("metaclass")]);
         let subclasses_len = 1;
         self.write_instr(Opcode::CALL_FUNCTION_KW);
@@ -908,13 +891,14 @@ impl CodeGenerator {
         if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
-            self.errs.push(CompileError::stack_bug(
+            CompileError::stack_bug(
                 self.input().clone(),
                 Location::Unknown,
                 stack_len,
                 block_id,
                 fn_name_full!(),
-            ));
+            )
+            .write_to_stderr();
             self.crash("error in emit_trait_block: invalid stack size");
         }
         // flagging
@@ -944,7 +928,7 @@ impl CodeGenerator {
         log!(info "entered {} ({ident})", fn_name!());
         let deco_is_some = deco.is_some();
         if let Some(deco) = deco {
-            self.emit_load_name_instr(deco).unwrap();
+            self.emit_load_name_instr(deco);
         }
         let code = {
             self.unit_size += 1;
@@ -1096,12 +1080,13 @@ impl CodeGenerator {
             TokenKind::PreMinus => UNARY_NEGATIVE,
             TokenKind::Mutate => NOP, // ERG_MUTATE,
             _ => {
-                self.errs.push(CompileError::feature_error(
+                CompileError::feature_error(
                     self.cfg.input.clone(),
                     unary.op.loc(),
                     "",
                     AtomicStr::from(unary.op.content),
-                ));
+                )
+                .write_to_stderr();
                 NOT_IMPLEMENTED
             }
         };
@@ -1116,8 +1101,7 @@ impl CodeGenerator {
         match &bin.op.kind {
             // l..<r == range(l, r)
             TokenKind::RightOpen => {
-                self.emit_load_name_instr(Identifier::public("range"))
-                    .unwrap();
+                self.emit_load_name_instr(Identifier::public("range"));
             }
             TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
             _ => {}
@@ -1144,12 +1128,13 @@ impl CodeGenerator {
                 CALL_FUNCTION
             } // ERG_BINARY_RANGE,
             _ => {
-                self.errs.push(CompileError::feature_error(
+                CompileError::feature_error(
                     self.cfg.input.clone(),
                     bin.op.loc(),
                     "",
                     AtomicStr::from(bin.op.content),
-                ));
+                )
+                .write_to_stderr();
                 NOT_IMPLEMENTED
             }
         };
@@ -1174,16 +1159,15 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_discard_instr(&mut self, mut args: Args) -> CompileResult<()> {
+    fn emit_discard_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
             self.emit_expr(arg);
             self.emit_pop_top();
         }
-        Ok(())
     }
 
-    fn emit_if_instr(&mut self, mut args: Args) -> CompileResult<()> {
+    fn emit_if_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let cond = args.remove(0);
         self.emit_expr(cond);
@@ -1229,10 +1213,9 @@ impl CodeGenerator {
             self.stack_dec();
             self.stack_dec();
         }
-        Ok(())
     }
 
-    fn emit_for_instr(&mut self, mut args: Args) -> CompileResult<()> {
+    fn emit_for_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let iterable = args.remove(0);
         self.emit_expr(iterable);
@@ -1252,10 +1235,9 @@ impl CodeGenerator {
         let idx_end = self.cur_block().lasti;
         self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
         self.emit_load_const(ValueObj::None);
-        Ok(())
     }
 
-    fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) -> CompileResult<()> {
+    fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) {
         log!(info "entered {}", fn_name!());
         let expr = args.remove(0);
         self.emit_expr(expr);
@@ -1275,7 +1257,7 @@ impl CodeGenerator {
                 todo!("default values in match expression are not supported yet")
             }
             let pat = lambda.params.non_defaults.remove(0).pat;
-            let pop_jump_points = self.emit_match_pattern(pat)?;
+            let pop_jump_points = self.emit_match_pattern(pat);
             self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = self.cur_block().lasti + 2;
@@ -1289,10 +1271,9 @@ impl CodeGenerator {
         for absolute_jump_point in absolute_jump_points.into_iter() {
             self.edit_code(absolute_jump_point + 1, lasti / 2);
         }
-        Ok(())
     }
 
-    fn emit_match_pattern(&mut self, pat: ParamPattern) -> CompileResult<Vec<usize>> {
+    fn emit_match_pattern(&mut self, pat: ParamPattern) -> Vec<usize> {
         log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
         match pat {
@@ -1333,7 +1314,7 @@ impl CodeGenerator {
                 self.write_arg(len as u8);
                 self.stack_inc_n(len - 1);
                 for elem in arr.elems.non_defaults {
-                    pop_jump_points.append(&mut self.emit_match_pattern(elem.pat)?);
+                    pop_jump_points.append(&mut self.emit_match_pattern(elem.pat));
                 }
                 if !arr.elems.defaults.is_empty() {
                     todo!("default values in match are not supported yet")
@@ -1343,7 +1324,7 @@ impl CodeGenerator {
                 todo!()
             }
         }
-        Ok(pop_jump_points)
+        pop_jump_points
     }
 
     fn emit_call(&mut self, call: Call) {
@@ -1353,7 +1334,7 @@ impl CodeGenerator {
         } else {
             match *call.obj {
                 Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {
-                    self.emit_call_local(ident, call.args).unwrap()
+                    self.emit_call_local(ident, call.args)
                 }
                 other => {
                     self.emit_expr(other);
@@ -1363,7 +1344,7 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_call_local(&mut self, local: Identifier, args: Args) -> CompileResult<()> {
+    fn emit_call_local(&mut self, local: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
@@ -1372,11 +1353,8 @@ impl CodeGenerator {
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             _ => {
-                self.emit_load_name_instr(local).unwrap_or_else(|e| {
-                    self.errs.push(e);
-                });
+                self.emit_load_name_instr(local);
                 self.emit_args(args, Name);
-                Ok(())
             }
         }
     }
@@ -1392,10 +1370,7 @@ impl CodeGenerator {
             return self.emit_call_fake_method(obj, method_name, args);
         }
         self.emit_expr(obj);
-        self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name)
-            .unwrap_or_else(|err| {
-                self.errs.push(err);
-            });
+        self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name);
         self.emit_args(args, Method);
     }
 
@@ -1471,13 +1446,13 @@ impl CodeGenerator {
     fn emit_call_fake_method(&mut self, obj: Expr, mut method_name: Identifier, mut args: Args) {
         log!(info "entered {}", fn_name!());
         method_name.dot = None;
-        self.emit_load_name_instr(method_name).unwrap();
+        self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
         self.emit_args(args, Name);
     }
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)
-    fn emit_assert_instr(&mut self, mut args: Args) -> CompileResult<()> {
+    fn emit_assert_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.cur_block().lasti;
@@ -1495,7 +1470,6 @@ impl CodeGenerator {
         self.write_arg(1);
         let idx = self.cur_block().lasti;
         self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
-        Ok(())
     }
 
     #[allow(clippy::identity_op)]
@@ -1504,7 +1478,7 @@ impl CodeGenerator {
         let attrs_len = rec.attrs.len();
         // making record type
         let ident = Identifier::private(Str::ever("#NamedTuple"));
-        self.emit_load_name_instr(ident).unwrap();
+        self.emit_load_name_instr(ident);
         // record name, let it be anonymous
         self.emit_load_const("Record");
         for field in rec.attrs.iter() {
@@ -1525,7 +1499,7 @@ impl CodeGenerator {
         self.emit_store_instr(ident, Name);
         // making record instance
         let ident = Identifier::private(Str::ever("#rec"));
-        self.emit_load_name_instr(ident).unwrap();
+        self.emit_load_name_instr(ident);
         for field in rec.attrs.into_iter() {
             self.emit_frameless_block(field.body.block, vec![]);
         }
@@ -1557,13 +1531,14 @@ impl CodeGenerator {
                 self.mut_cur_block().prev_lineno += ld;
                 self.mut_cur_block().prev_lasti = self.cur_block().lasti;
             } else {
-                self.errs.push(CompileError::compiler_bug(
+                CompileError::compiler_bug(
                     0,
                     self.cfg.input.clone(),
                     expr.loc(),
                     fn_name_full!(),
                     line!(),
-                ));
+                )
+                .write_to_stderr();
                 self.crash("codegen failed: invalid bytecode format");
             }
         }
@@ -1624,12 +1599,8 @@ impl CodeGenerator {
             }
             // Dict,
             other => {
-                self.errs.push(CompileError::feature_error(
-                    self.cfg.input.clone(),
-                    other.loc(),
-                    "???",
-                    "".into(),
-                ));
+                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "???", "".into())
+                    .write_to_stderr();
                 self.crash("cannot compile this expression at this time");
             }
         }
@@ -1685,13 +1656,14 @@ impl CodeGenerator {
         if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
-            self.errs.push(CompileError::stack_bug(
+            CompileError::stack_bug(
                 self.input().clone(),
                 Location::Unknown,
                 stack_len,
                 block_id,
                 fn_name_full!(),
-            ));
+            )
+            .write_to_stderr();
             self.crash("error in emit_class_block: invalid stack size");
         }
         // flagging
@@ -1836,13 +1808,14 @@ impl CodeGenerator {
         } else if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
-            self.errs.push(CompileError::stack_bug(
+            CompileError::stack_bug(
                 self.input().clone(),
                 Location::Unknown,
                 stack_len,
                 block_id,
                 fn_name_full!(),
-            ));
+            )
+            .write_to_stderr();
             self.crash("error in emit_block: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
@@ -1928,8 +1901,7 @@ impl CodeGenerator {
         let mut print_point = 0;
         if self.input().is_repl() {
             print_point = self.cur_block().lasti;
-            self.emit_load_name_instr(Identifier::public("print"))
-                .unwrap();
+            self.emit_load_name_instr(Identifier::public("print"));
             // Consistency will be taken later (when NOP replacing)
             // 後で(NOP書き換え時)整合性を取る
             self.stack_dec();
@@ -1958,13 +1930,14 @@ impl CodeGenerator {
         } else if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
-            self.errs.push(CompileError::stack_bug(
+            CompileError::stack_bug(
                 self.input().clone(),
                 Location::Unknown,
                 stack_len,
                 block_id,
                 fn_name_full!(),
-            ));
+            )
+            .write_to_stderr();
             self.crash("error in codegen: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
