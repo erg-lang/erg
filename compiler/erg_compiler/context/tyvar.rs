@@ -166,6 +166,10 @@ impl Context {
                     .collect::<Vec<_>>();
                 poly(name, params)
             }
+            MonoProj { lhs, rhs } => {
+                let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
+                mono_proj(lhs, rhs)
+            }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
         }
@@ -489,6 +493,7 @@ impl Context {
                 }
                 Ok(())
             }
+            hir::Expr::TypeAsc(tasc) => self.resolve_expr_t(&mut tasc.expr),
             hir::Expr::Code(chunks) | hir::Expr::Compound(chunks) => {
                 for chunk in chunks.iter_mut() {
                     self.resolve_expr_t(chunk)?;

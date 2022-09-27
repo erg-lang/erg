@@ -1817,6 +1817,7 @@ impl Type {
 
     pub fn tvar_name(&self) -> Option<Str> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
             Self::MonoQVar(name) => Some(name.clone()),
             _ => None,

@@ -1619,7 +1619,10 @@ impl CodeGenerator {
             Expr::Compound(chunks) => {
                 self.emit_frameless_block(chunks, vec![]);
             }
-            // Dict, Decl
+            Expr::TypeAsc(tasc) => {
+                self.emit_expr(*tasc.expr);
+            }
+            // Dict,
             other => {
                 self.errs.push(CompileError::feature_error(
                     self.cfg.input.clone(),

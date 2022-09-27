@@ -353,6 +353,7 @@ impl Context {
             Str::ever("<unnamed record>"),
             2,
             self.mod_cache.clone(),
+            self.py_mod_cache.clone(),
             self.clone(),
         );
         for attr in record.attrs.iter() {
@@ -424,6 +425,7 @@ impl Context {
             Str::ever("<lambda>"),
             0,
             self.mod_cache.clone(),
+            self.py_mod_cache.clone(),
             self.clone(),
         );
         let return_t = lambda_ctx.eval_const_block(&lambda.body, None)?;

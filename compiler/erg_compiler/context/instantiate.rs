@@ -113,15 +113,7 @@ impl TyVarContext {
             if defined_params_len < given_params_len {
                 panic!()
             }
-            let inst_non_defaults = params
-                .into_iter()
-                .map(|tp| {
-                    let name = tp.tvar_name().unwrap();
-                    let tp = self.instantiate_qtp(tp);
-                    self.push_or_init_typaram(&name, &tp);
-                    tp
-                })
-                .collect();
+            let inst_non_defaults = self.instantiate_params(params);
             let mut inst_defaults = vec![];
             for template in temp_defaults
                 .iter()
@@ -133,41 +125,45 @@ impl TyVarContext {
             }
             poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            poly(
-                name,
-                params
-                    .into_iter()
-                    .map(|p| {
-                        if let Some(name) = p.tvar_name() {
-                            let tp = self.instantiate_qtp(p);
-                            self.push_or_init_typaram(&name, &tp);
-                            tp
-                        } else {
-                            p
-                        }
-                    })
-                    .collect(),
-            )
+            poly(name, self.instantiate_params(params))
+        }
+    }
+
+    fn instantiate_params(&mut self, params: Vec<TyParam>) -> Vec<TyParam> {
+        params
+            .into_iter()
+            .map(|p| {
+                if let Some(name) = p.tvar_name() {
+                    let tp = self.instantiate_qtp(p);
+                    self.push_or_init_typaram(&name, &tp);
+                    tp
+                } else {
+                    p
+                }
+            })
+            .collect()
+    }
+
+    fn instantiate_bound_type(&mut self, mid: &Type, sub_or_sup: Type, ctx: &Context) -> Type {
+        match sub_or_sup {
+            Type::Poly { name, params } => self.instantiate_poly(mid.name(), &name, params, ctx),
+            Type::MonoProj { lhs, rhs } => {
+                let lhs = if lhs.has_qvar() {
+                    self.instantiate_qvar(*lhs)
+                } else {
+                    *lhs
+                };
+                mono_proj(lhs, rhs)
+            }
+            other => other,
         }
     }
 
     fn instantiate_bound(&mut self, bound: TyBound, ctx: &Context) {
         match bound {
             TyBound::Sandwiched { sub, mid, sup } => {
-                let sub_instance = match sub {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(mid.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
-                    sub => sub,
-                };
-                let sup_instance = match sup {
-                    Type::Poly { name, params } => {
-                        self.instantiate_poly(mid.name(), &name, params, ctx)
-                    }
-                    Type::MonoProj { lhs, rhs } => mono_proj(self.instantiate_qvar(*lhs), rhs),
-                    sup => sup,
-                };
+                let sub_instance = self.instantiate_bound_type(&mid, sub, ctx);
+                let sup_instance = self.instantiate_bound_type(&mid, sup, ctx);
                 let name = mid.name();
                 let constraint =
                     Constraint::new_sandwiched(sub_instance, sup_instance, Cyclicity::Not);
@@ -247,7 +243,7 @@ impl TyVarContext {
                 }
             }
             TyParam::Type(t) => {
-                if let Type::MonoQVar(n) = *t {
+                if let Some(n) = t.as_ref().tvar_name() {
                     if let Some(t) = self.get_typaram(&n) {
                         t.clone()
                     } else if let Some(t) = self.get_tyvar(&n) {
@@ -258,7 +254,7 @@ impl TyVarContext {
                         TyParam::t(tv)
                     }
                 } else {
-                    todo!("{t}")
+                    unreachable!("{t}")
                 }
             }
             TyParam::UnaryOp { op, val } => {
@@ -340,6 +336,7 @@ impl TyVarContext {
     }
 }
 
+/// TODO: this struct will be removed when const functions are implemented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConstTemplate {
     Obj(ValueObj),
@@ -393,22 +390,16 @@ impl Context {
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
         let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-        let non_defaults = sig
-            .params
-            .non_defaults
-            .iter()
-            .enumerate()
-            .map(|(n, p)| {
-                let opt_decl_t = opt_decl_sig_t
-                    .as_ref()
-                    .and_then(|subr| subr.non_default_params.get(n));
-                ParamTy::pos(
-                    p.inspect().cloned(),
-                    self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)
-                        .unwrap(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let mut non_defaults = vec![];
+        for (n, p) in sig.params.non_defaults.iter().enumerate() {
+            let opt_decl_t = opt_decl_sig_t
+                .as_ref()
+                .and_then(|subr| subr.non_default_params.get(n));
+            non_defaults.push(ParamTy::pos(
+                p.inspect().cloned(),
+                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+            ));
+        }
         let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
@@ -419,22 +410,16 @@ impl Context {
         } else {
             None
         };
-        let defaults = sig
-            .params
-            .defaults
-            .iter()
-            .enumerate()
-            .map(|(n, p)| {
-                let opt_decl_t = opt_decl_sig_t
-                    .as_ref()
-                    .and_then(|subr| subr.default_params.get(n));
-                ParamTy::kw(
-                    p.inspect().unwrap().clone(),
-                    self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)
-                        .unwrap(),
-                )
-            })
-            .collect();
+        let mut defaults = vec![];
+        for (n, p) in sig.params.defaults.iter().enumerate() {
+            let opt_decl_t = opt_decl_sig_t
+                .as_ref()
+                .and_then(|subr| subr.default_params.get(n));
+            defaults.push(ParamTy::kw(
+                p.inspect().unwrap().clone(),
+                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+            ));
+        }
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
@@ -544,8 +529,8 @@ impl Context {
                     Ok(decl_t.typ().clone())
                 } else {
                     let typ = mono(self.mod_name(), Str::rc(other));
-                    if self.get_nominal_type_ctx(&typ).is_some() {
-                        Ok(typ)
+                    if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
+                        Ok(defined_t.clone())
                     } else {
                         Err(TyCheckError::no_var_error(
                             line!() as usize,
@@ -770,6 +755,9 @@ impl Context {
                 let t = Self::instantiate_t(*t, tv_ctx, loc)?;
                 Ok(TyParam::t(t))
             }
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                Self::instantiate_tp(fv.crack().clone(), tv_ctx, loc)
+            }
             p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
             other => todo!("{other}"),
         }
@@ -870,6 +858,15 @@ impl Context {
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
+            }
+            FreeVar(fv) if fv.is_linked() => Self::instantiate_t(fv.crack().clone(), tv_ctx, loc),
+            FreeVar(fv) => {
+                let (sub, sup) = fv.get_bound_types().unwrap();
+                let sub = Self::instantiate_t(sub, tv_ctx, loc)?;
+                let sup = Self::instantiate_t(sup, tv_ctx, loc)?;
+                let new_constraint = Constraint::new_sandwiched(sub, sup, fv.cyclicity());
+                fv.update_constraint(new_constraint);
+                Ok(FreeVar(fv))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),

@@ -606,10 +606,10 @@ impl Context {
                 self.poly_supertype_of(lhs, lparams, rparams)
             }
             (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
-                panic!("Not instantiated type variable: {name}, r: {r}")
+                panic!("internal error: not instantiated type variable: '{name}, r: {r}")
             }
             (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
-                panic!("Not instantiated type variable: {name}, l: {l}")
+                panic!("internal error: not instantiated type variable: '{name}, l: {l}")
             }
             (MonoProj { .. }, _) => todo!(),
             (_, MonoProj { .. }) => todo!(),
@@ -619,7 +619,11 @@ impl Context {
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let (defined_rhs, _) = self.get_nominal_type_ctx(rhs).unwrap();
+        let defined_rhs = if let Some((defined_rhs, _)) = self.get_nominal_type_ctx(rhs) {
+            defined_rhs
+        } else {
+            return false;
+        };
         if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
             for (sup_trait, _) in super_traits {
                 if self.sup_conforms(lhs, defined_rhs, sup_trait) {
@@ -846,18 +850,25 @@ impl Context {
             | (Pred::GreaterEqual { .. }, Pred::LessEqual { .. })
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
-            | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
-                self.try_cmp(rhs, rhs2).unwrap().is_eq()
-            }
+            | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_eq())
+                .unwrap_or(false),
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },
                 Pred::GreaterEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2).unwrap().is_le(),
+            ) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_le())
+                .unwrap_or(false),
             (
                 Pred::LessEqual { rhs, .. },
                 Pred::LessEqual { rhs: rhs2, .. } | Pred::Equal { rhs: rhs2, .. },
-            ) => self.try_cmp(rhs, rhs2).unwrap().is_ge(),
+            ) => self
+                .try_cmp(rhs, rhs2)
+                .map(|ord| ord.is_ge())
+                .unwrap_or(false),
             (lhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. }), Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
@@ -900,7 +911,7 @@ impl Context {
 
     #[inline]
     fn type_of(&self, p: &TyParam) -> Type {
-        self.get_tp_t(p).unwrap()
+        self.get_tp_t(p).unwrap_or(Type::Obj)
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
@@ -915,7 +926,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(max) = &maybe_max {
-                                if self.try_cmp(rhs, max).unwrap() == Greater {
+                                if self.try_cmp(rhs, max) == Some(Greater) {
                                     maybe_max = Some(rhs.clone());
                                 }
                             } else {
@@ -943,7 +954,7 @@ impl Context {
                             if lhs == &refine.var =>
                         {
                             if let Some(min) = &maybe_min {
-                                if self.try_cmp(rhs, min).unwrap() == Less {
+                                if self.try_cmp(rhs, min) == Some(Less) {
                                     maybe_min = Some(rhs.clone());
                                 }
                             } else {

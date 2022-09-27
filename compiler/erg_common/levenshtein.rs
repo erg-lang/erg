@@ -33,3 +33,19 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
     }
     table[l_len][r_len]
 }
+
+pub fn get_similar_name<'a, I: Iterator<Item = &'a str>>(
+    candidates: I,
+    name: &str,
+) -> Option<&'a str> {
+    if name.len() <= 1 {
+        return None;
+    }
+    let most_similar_name = candidates.min_by_key(|v| levenshtein(v, name))?;
+    let len = most_similar_name.len();
+    if levenshtein(most_similar_name, name) >= len / 2 {
+        None
+    } else {
+        Some(most_similar_name)
+    }
+}

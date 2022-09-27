@@ -22,20 +22,20 @@ print(foo.public)
 print(foo.private) # AttributeError:
 ```
 
-## Import from Python
+## import from Python
 
-All objects imported from Python are by default of type `Object`. Since no comparisons can be made at this point, it is necessary to refine the type.
+By default, all objects imported from Python are of type `Object`. Since no comparison is possible with this type, it is necessary to narrow down the type.
 
-## Type Specification in the Standard Library
+## Type specification in the standard library
 
-All APIs in the Python standard library are type specified by the Erg development team.
+All APIs in the Python standard library are type-specified by the Erg development team.
 
 ```python
 time = pyimport "time"
 time.sleep! 1
 ```
 
-## Type Specification for User Scripts
+## Type specification for user scripts
 
 Create a `foo.d.er` file that types the Python `foo` module.
 Type hints on the Python side are ignored since they are not 100% guaranteed.
@@ -47,30 +47,34 @@ def bar(x):
     ...
 def baz():
     ...
+class C:
+    ...
 ...
-```
 
-```python
+````python
 # foo.d.er
-foo = pyimport "foo"
-.X = declare foo.'X', Int
-.bar = declare foo.'bar', Int -> Int
-.baz! = declare foo.'baz', () => Int
+.X: Int
+.bar!: Int => Int
+.foo! = baz!: () => Int # aliasing
+.C!: Class
 ```
+
+No syntax other than declarations and definitions (aliasing) are allowed in ``d.er``.
+
+Note that all Python functions can only be registered as procedures, and all classes as variable classes.
 
 ```python
 foo = pyimport "foo"
-assert foo.bar(1) in Int
+assert foo.bar!(1) in Int
 ```
 
-This ensures type safety by performing type checking at runtime. The ``declare`` function works roughly as follows.
+This ensures type safety by performing type checking at runtime. The checking mechanism generally works as follows.
 
 ```python
-declare|S: Subroutine| sub!: S, T =
-    # Actually, => can be cast to a function without block side effects
+decl_proc proc!: Proc, T =
     x =>
         assert x in T.Input
-        y = sub!(x)
+        y = proc!(x)
         assert y in T.Output
         y
 ```

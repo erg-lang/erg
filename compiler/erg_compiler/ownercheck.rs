@@ -187,6 +187,9 @@ impl OwnershipChecker {
                 self.check_block(&lambda.body);
                 self.path_stack.pop();
             }
+            Expr::TypeAsc(asc) => {
+                self.check_expr(&asc.expr, ownership, chunk);
+            }
             _ => {}
         }
     }

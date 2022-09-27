@@ -148,14 +148,6 @@ pub struct ErgConfig {
 impl Default for ErgConfig {
     #[inline]
     fn default() -> Self {
-        let is_stdin_piped: bool = atty::isnt(atty::Stream::Stdin);
-        let input = if is_stdin_piped {
-            let mut buffer = String::new();
-            stdin().read_to_string(&mut buffer).unwrap();
-            Input::Pipe(buffer)
-        } else {
-            Input::REPL
-        };
         Self {
             mode: "exec",
             opt_level: 1,
@@ -163,7 +155,7 @@ impl Default for ErgConfig {
             python_ver: None,
             py_server_timeout: 10,
             quiet_startup: false,
-            input,
+            input: Input::REPL,
             module: "<module>",
             verbose: 2,
             ps1: ">>> ",
@@ -173,6 +165,14 @@ impl Default for ErgConfig {
 }
 
 impl ErgConfig {
+    pub fn with_path(path: PathBuf) -> Self {
+        Self {
+            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
+            input: Input::File(path),
+            ..ErgConfig::default()
+        }
+    }
+
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
     pub fn copy(&self) -> Self {
@@ -252,6 +252,17 @@ impl ErgConfig {
                     break;
                 }
             }
+        }
+        if cfg.input == Input::REPL {
+            let is_stdin_piped = atty::isnt(atty::Stream::Stdin);
+            let input = if is_stdin_piped {
+                let mut buffer = String::new();
+                stdin().read_to_string(&mut buffer).unwrap();
+                Input::Pipe(buffer)
+            } else {
+                Input::REPL
+            };
+            cfg.input = input;
         }
         cfg
     }

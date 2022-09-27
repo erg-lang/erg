@@ -18,7 +18,7 @@ sum = match a:
     (i: Int) -> i
     _ -> panic "unknown object"
 
-for! 0..1000, i =>
+for! 0..<1000, i =>
     print! "i = {i}"
     if i >= 100:
         do return break()

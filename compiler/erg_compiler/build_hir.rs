@@ -13,7 +13,6 @@ use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
-use crate::reorder::Reorderer;
 
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug)]
@@ -28,7 +27,12 @@ impl Runnable for HIRBuilder {
     const NAME: &'static str = "Erg HIR builder";
 
     fn new(cfg: ErgConfig) -> Self {
-        HIRBuilder::new_with_cache(cfg, Str::ever("<module>"), SharedModuleCache::new())
+        HIRBuilder::new_with_cache(
+            cfg,
+            Str::ever("<module>"),
+            SharedModuleCache::new(),
+            SharedModuleCache::new(),
+        )
     }
 
     #[inline]
@@ -62,9 +66,10 @@ impl HIRBuilder {
         cfg: ErgConfig,
         mod_name: S,
         mod_cache: SharedModuleCache,
+        py_mod_cache: SharedModuleCache,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache),
+            lowerer: ASTLowerer::new_with_cache(cfg, mod_name, mod_cache, py_mod_cache),
             ownership_checker: OwnershipChecker::new(),
         }
     }
@@ -99,9 +104,6 @@ impl HIRBuilder {
     pub fn build(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
         let mut ast_builder = ASTBuilder::new(self.cfg().copy());
         let ast = ast_builder.build(src)?;
-        let ast = Reorderer::new()
-            .reorder(ast)
-            .map_err(|errs| self.convert(errs))?;
         let hir = self.check(ast, mode)?;
         Ok(hir)
     }

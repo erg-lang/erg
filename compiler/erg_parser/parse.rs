@@ -362,7 +362,10 @@ impl Parser {
             if self.cur_is(Newline) {
                 self.skip();
             } else {
-                todo!()
+                self.level -= 1;
+                let err = self.skip_and_throw_syntax_err(caused_by!());
+                self.errs.push(err);
+                return Err(());
             }
         }
         self.level -= 1;
@@ -863,13 +866,24 @@ impl Parser {
         if self.cur_is(Indent) {
             self.skip();
         } else {
-            todo!()
+            self.level -= 1;
+            let err = self.skip_and_throw_syntax_err(caused_by!());
+            self.errs.push(err);
+            return Err(());
         }
         while self.cur_is(Newline) {
             self.skip();
         }
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-        let first = option_enum_unwrap!(first, Expr::Def).unwrap_or_else(|| todo!());
+        let first = if let Some(fst) = option_enum_unwrap!(first, Expr::Def) {
+            fst
+        } else {
+            // self.restore();
+            self.level -= 1;
+            let err = self.skip_and_throw_syntax_err(caused_by!());
+            self.errs.push(err);
+            return Err(());
+        };
         let mut defs = vec![first];
         loop {
             match self.peek() {
@@ -894,7 +908,12 @@ impl Parser {
                         }
                     }
                 }
-                _ => todo!(),
+                _ => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
             }
         }
         let defs = RecordAttrs::from(defs);
@@ -912,7 +931,7 @@ impl Parser {
         let op = match &do_symbol.inspect()[..] {
             "do" => Token::from_str(FuncArrow, "->"),
             "do!" => Token::from_str(ProcArrow, "=>"),
-            _ => todo!(),
+            _ => unreachable!(),
         };
         if self.cur_is(Colon) {
             self.lpop();
@@ -1058,8 +1077,13 @@ impl Parser {
                                     let pack = DataPack::new(maybe_class, vis, args);
                                     stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
                                 }
-                                BraceContainer::Dict(dict) => todo!("{dict}"),
-                                BraceContainer::Set(set) => todo!("{set}"),
+                                BraceContainer::Dict(_) | BraceContainer::Set(_) => {
+                                    // self.restore(other);
+                                    self.level -= 1;
+                                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                                    self.errs.push(err);
+                                    return Err(());
+                                }
                             }
                         }
                         other => {
@@ -1344,7 +1368,15 @@ impl Parser {
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
                 let expr = self.try_reduce_chunk(false)?;
-                let mut def = option_enum_unwrap!(expr, Expr::Def).unwrap_or_else(|| todo!());
+                let mut def = if let Some(def) = option_enum_unwrap!(expr, Expr::Def) {
+                    def
+                } else {
+                    // self.restore(other);
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                };
                 match def.sig {
                     Signature::Subr(mut subr) => {
                         subr.decorators = decos;
@@ -1509,7 +1541,15 @@ impl Parser {
             ArrayInner::WithLength(elem, len) => {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
-            ArrayInner::Comprehension { .. } => todo!(),
+            ArrayInner::Comprehension { .. } => {
+                self.level -= 1;
+                self.errs.push(ParseError::feature_error(
+                    line!() as usize,
+                    Location::concat(&l_sqbr, &r_sqbr),
+                    "array comprehension",
+                ));
+                return Err(());
+            }
         };
         self.level -= 1;
         Ok(arr)
@@ -1525,7 +1565,10 @@ impl Parser {
             if self.cur_is(Indent) {
                 self.skip();
             } else {
-                todo!()
+                self.level -= 1;
+                let err = self.skip_and_throw_syntax_err(caused_by!());
+                self.errs.push(err);
+                return Err(());
             }
         }
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
@@ -1576,7 +1619,12 @@ impl Parser {
                         let attrs = RecordAttrs::from(attrs);
                         return Ok(NormalRecord::new(l_brace, r_brace, attrs));
                     } else {
-                        todo!()
+                        // TODO: not closed
+                        // self.restore(other);
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
                     }
                 }
                 Some(term) if term.is(RBrace) => {
@@ -1587,10 +1635,24 @@ impl Parser {
                 }
                 Some(_) => {
                     let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
-                    let def = option_enum_unwrap!(def, Expr::Def).unwrap_or_else(|| todo!());
+                    let def = if let Some(def) = option_enum_unwrap!(def, Expr::Def) {
+                        def
+                    } else {
+                        // self.restore(other);
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
                     attrs.push(def);
                 }
-                _ => todo!(),
+                _ => {
+                    //  self.restore(other);
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
             }
         }
     }
@@ -1603,7 +1665,12 @@ impl Parser {
         debug_call_info!(self);
         let first = match first {
             Accessor::Ident(ident) => ident,
-            other => todo!("{other}"), // syntax error
+            other => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                return Err(());
+            }
         };
         let mut idents = vec![first];
         loop {
@@ -1618,7 +1685,11 @@ impl Parser {
                         self.level -= 1;
                         return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                     } else {
-                        todo!()
+                        // self.restore(other);
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
                     }
                 }
                 Some(term) if term.is(RBrace) => {
@@ -1630,11 +1701,22 @@ impl Parser {
                     let acc = self.try_reduce_acc(false).map_err(|_| self.stack_dec())?;
                     let acc = match acc {
                         Accessor::Ident(ident) => ident,
-                        other => todo!("{other}"), // syntax error
+                        other => {
+                            self.level -= 1;
+                            let err =
+                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
                     };
                     idents.push(acc);
                 }
-                _ => todo!(),
+                _ => {
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
             }
         }
     }
@@ -1669,7 +1751,12 @@ impl Parser {
                                 args.push_pos(PosArg::new(other));
                             }
                         },
-                        PosOrKwArg::Kw(_arg) => todo!(),
+                        PosOrKwArg::Kw(arg) => {
+                            self.level -= 1;
+                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
                     }
                 }
                 _ => {
@@ -1808,7 +1895,22 @@ impl Parser {
                 self.level -= 1;
                 Ok(pat)
             }
-            _ => todo!(),
+            Array::Comprehension(arr) => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                self.errs.push(err);
+                Err(())
+            }
+            Array::WithLength(arr) => {
+                self.level -= 1;
+                let err = ParseError::feature_error(
+                    line!() as usize,
+                    arr.loc(),
+                    "array-with-length pattern",
+                );
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -1876,7 +1978,13 @@ impl Parser {
                         Signature::Var(var) => {
                             vars.push(var);
                         }
-                        other => todo!("{other}"),
+                        other => {
+                            self.level -= 1;
+                            let err =
+                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
                     }
                 }
                 let tuple = VarTuplePattern::new(paren, vars);
@@ -1995,7 +2103,11 @@ impl Parser {
                 let bound = TypeBoundSpec::non_default(lhs.name.into_token(), spec_with_op);
                 Ok(bound)
             }
-            other => todo!("{other}"),
+            other => {
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -2150,7 +2262,12 @@ impl Parser {
                 self.level -= 1;
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
-            _ => todo!(),
+            other => {
+                self.level -= 1;
+                let err = ParseError::feature_error(line!() as usize, other.loc(), "?");
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -2368,7 +2485,12 @@ impl Parser {
                 self.level -= 1;
                 Ok(TypeSpec::Array(array))
             }
-            other => todo!("{other}"),
+            other => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                Err(())
+            }
         }
     }
 
@@ -2386,7 +2508,12 @@ impl Parser {
                     .map_err(|_| self.stack_dec())?;
                 TypeSpec::type_app(spec, tapp.type_args)
             }
-            other => todo!("{other}"),
+            other => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                return Err(());
+            }
         };
         self.level -= 1;
         Ok(t_spec)
@@ -2397,9 +2524,66 @@ impl Parser {
         todo!()
     }
 
-    fn convert_lambda_to_subr_type_spec(&mut self, _lambda: Lambda) -> ParseResult<SubrTypeSpec> {
+    fn convert_lambda_to_subr_type_spec(
+        &mut self,
+        mut lambda: Lambda,
+    ) -> ParseResult<SubrTypeSpec> {
         debug_call_info!(self);
-        todo!()
+        let bounds = lambda.sig.bounds;
+        let lparen = lambda.sig.params.parens.map(|(l, _)| l);
+        let mut non_defaults = vec![];
+        for param in lambda.sig.params.non_defaults.into_iter() {
+            let param = match (param.pat, param.t_spec) {
+                (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
+                )),
+                _ => todo!(),
+            };
+            non_defaults.push(param);
+        }
+        let var_args =
+            lambda
+                .sig
+                .params
+                .var_args
+                .map(|var_args| match (var_args.pat, var_args.t_spec) {
+                    (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                        ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                    }
+                    (ParamPattern::VarName(name), None) => {
+                        ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
+                            SimpleTypeSpec::new(name, ConstArgs::empty()),
+                        )))
+                    }
+                    _ => todo!(),
+                });
+        let mut defaults = vec![];
+        for param in lambda.sig.params.defaults.into_iter() {
+            let param = match (param.pat, param.t_spec) {
+                (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
+                )),
+                _ => todo!(),
+            };
+            defaults.push(param);
+        }
+        let return_t = self.convert_rhs_to_type_spec(lambda.body.remove(0))?;
+        self.level -= 1;
+        Ok(SubrTypeSpec::new(
+            bounds,
+            lparen,
+            non_defaults,
+            var_args,
+            defaults,
+            lambda.op,
+            return_t,
+        ))
     }
 
     fn convert_array_to_array_type_spec(&mut self, _array: Array) -> ParseResult<ArrayTypeSpec> {

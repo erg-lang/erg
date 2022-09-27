@@ -1,6 +1,6 @@
 # Pythonとの連携
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/32_integration_with_Python.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/32_integration_with_Python.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/32_integration_with_Python.md%26commit_hash%3D0d05a715f8e9d5f70d64fbd5b35b4651eb6aa1d6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/32_integration_with_Python.md&commit_hash=0d05a715f8e9d5f70d64fbd5b35b4651eb6aa1d6)
 
 ## Pythonへのexport
 
@@ -49,29 +49,34 @@ def bar(x):
     ...
 def baz():
     ...
+class C:
+    ...
 ```
 
 ```python
 # foo.d.er
-foo = pyimport "foo"
-.X = declare foo.'X', Int
-.bar = declare foo.'bar', Int -> Int
-.baz! = declare foo.'baz', () => Int
+.X: Int
+.bar!: Int => Int
+.foo! = baz!: () => Int # aliasing
+.C!: Class
 ```
+
+`d.er`内では宣言と定義(エイリアシング)以外の構文は使えません。
+
+Pythonの関数はすべてプロシージャとして、クラスはすべて可変クラスとしてしか登録できないことに注意してください。
 
 ```python
 foo = pyimport "foo"
-assert foo.bar(1) in Int
+assert foo.bar!(1) in Int
 ```
 
-これは、実行時に型チェックを行うことで型安全性を担保しています。`declare`関数は概ね以下のように動作します。
+これは、実行時に型チェックを行うことで型安全性を担保しています。チェック機構は概ね以下のように動作します。
 
 ```python
-declare|S: Subroutine| sub!: S, T =
-    # 実は、=>はブロックの副作用がなければ関数にキャストできる
+decl_proc proc!: Proc, T =
     x =>
         assert x in T.Input
-        y = sub!(x)
+        y = proc!(x)
         assert y in T.Output
         y
 ```

@@ -6,7 +6,7 @@ use erg_common::color::{RED, RESET};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::traits::Stream;
-use erg_common::{impl_stream_for_wrapper, switch_lang};
+use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
 #[derive(Debug)]
 pub struct LexError(ErrorCore);
@@ -143,6 +143,8 @@ pub struct ParserRunnerError {
     pub core: ErrorCore,
     pub input: Input,
 }
+
+impl_display_and_error!(ParserRunnerError);
 
 impl ErrorDisplay for ParserRunnerError {
     fn core(&self) -> &ErrorCore {

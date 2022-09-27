@@ -1511,6 +1511,7 @@ impl ParamTySpec {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
+    pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_args: Option<Box<ParamTySpec>>,
@@ -1521,9 +1522,12 @@ pub struct SubrTypeSpec {
 
 impl fmt::Display for SubrTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.bounds.is_empty() {
+            write!(f, "|{}|", self.bounds)?;
+        }
         write!(
             f,
-            "({}, {}, := {}) {} {}",
+            "({}, {}, {}) {} {}",
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "...", &self.var_args),
             fmt_vec(&self.defaults),
@@ -1535,7 +1539,9 @@ impl fmt::Display for SubrTypeSpec {
 
 impl Locational for SubrTypeSpec {
     fn loc(&self) -> Location {
-        if let Some(lparen) = &self.lparen {
+        if !self.bounds.is_empty() {
+            Location::concat(&self.bounds[0], self.return_t.as_ref())
+        } else if let Some(lparen) = &self.lparen {
             Location::concat(lparen, self.return_t.as_ref())
         } else {
             // FIXME: only default subrs
@@ -1546,6 +1552,7 @@ impl Locational for SubrTypeSpec {
 
 impl SubrTypeSpec {
     pub fn new(
+        bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_args: Option<ParamTySpec>,
@@ -1554,6 +1561,7 @@ impl SubrTypeSpec {
         return_t: TypeSpec,
     ) -> Self {
         Self {
+            bounds,
             lparen,
             non_defaults,
             var_args: var_args.map(Box::new),
@@ -2841,7 +2849,9 @@ pub enum DefKind {
     Trait,
     Subsume,
     StructuralTrait,
-    Module,
+    ErgImport,
+    PyImport,
+    /// type alias included
     Other,
 }
 
@@ -2850,8 +2860,20 @@ impl DefKind {
         matches!(self, Self::Trait | Self::Subsume | Self::StructuralTrait)
     }
 
-    pub fn is_module(&self) -> bool {
-        matches!(self, Self::Module)
+    pub const fn is_class(&self) -> bool {
+        matches!(self, Self::Class | Self::Inherit)
+    }
+
+    pub const fn is_class_or_trait(&self) -> bool {
+        self.is_class() || self.is_trait()
+    }
+
+    pub fn is_erg_import(&self) -> bool {
+        matches!(self, Self::ErgImport)
+    }
+
+    pub fn is_py_import(&self) -> bool {
+        matches!(self, Self::PyImport)
     }
 }
 
@@ -2867,6 +2889,32 @@ impl_locational!(DefBody, op, block);
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
+    }
+
+    pub fn def_kind(&self) -> DefKind {
+        match self.block.first().unwrap() {
+            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
+                Some("Class") => DefKind::Class,
+                Some("Inherit") => DefKind::Inherit,
+                Some("Trait") => DefKind::Trait,
+                Some("Subsume") => DefKind::Subsume,
+                Some("Inheritable") => {
+                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
+                        match inner.obj.get_name().map(|n| &n[..]) {
+                            Some("Class") => DefKind::Class,
+                            Some("Inherit") => DefKind::Inherit,
+                            _ => DefKind::Other,
+                        }
+                    } else {
+                        DefKind::Other
+                    }
+                }
+                Some("import") => DefKind::ErgImport,
+                Some("pyimport") | Some("py") => DefKind::PyImport,
+                _ => DefKind::Other,
+            },
+            _ => DefKind::Other,
+        }
     }
 }
 
@@ -2901,28 +2949,7 @@ impl Def {
     }
 
     pub fn def_kind(&self) -> DefKind {
-        match self.body.block.first().unwrap() {
-            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
-                Some("Class") => DefKind::Class,
-                Some("Inherit") => DefKind::Inherit,
-                Some("Trait") => DefKind::Trait,
-                Some("Subsume") => DefKind::Subsume,
-                Some("Inheritable") => {
-                    if let Some(Expr::Call(inner)) = call.args.get_left_or_key("Class") {
-                        match inner.obj.get_name().map(|n| &n[..]) {
-                            Some("Class") => DefKind::Class,
-                            Some("Inherit") => DefKind::Inherit,
-                            _ => DefKind::Other,
-                        }
-                    } else {
-                        DefKind::Other
-                    }
-                }
-                Some("import") => DefKind::Module,
-                _ => DefKind::Other,
-            },
-            _ => DefKind::Other,
-        }
+        self.body.def_kind()
     }
 }
 

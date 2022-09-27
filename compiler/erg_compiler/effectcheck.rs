@@ -58,7 +58,7 @@ impl SideEffectChecker {
     ///
     /// However, it is not permitted to cause side effects within an instant block in a function
     /// (side effects are allowed in instant blocks in procedures and modules)
-    fn in_context_se_allowed(&self) -> bool {
+    fn in_context_effects_allowed(&self) -> bool {
         // if toplevel
         if self.block_stack.len() == 1 {
             return true;
@@ -136,6 +136,9 @@ impl SideEffectChecker {
                     }
                     self.path_stack.pop();
                     self.block_stack.pop();
+                }
+                Expr::TypeAsc(tasc) => {
+                    self.check_expr(&tasc.expr);
                 }
                 other => todo!("{other}"),
             }
@@ -255,7 +258,7 @@ impl SideEffectChecker {
                         .as_ref()
                         .map(|name| name.is_procedural())
                         .unwrap_or(false))
-                    && !self.in_context_se_allowed()
+                    && !self.in_context_effects_allowed()
                 {
                     self.errs.push(EffectError::has_effect(
                         line!() as usize,
@@ -292,6 +295,9 @@ impl SideEffectChecker {
                 self.path_stack.pop();
                 self.block_stack.pop();
             }
+            Expr::TypeAsc(type_asc) => {
+                self.check_expr(&type_asc.expr);
+            }
             _ => {}
         }
     }
@@ -306,6 +312,7 @@ impl SideEffectChecker {
             // !procedural: !x.y
             Expr::Accessor(Accessor::Attr(attr)) => attr.ident.is_procedural(),
             Expr::Accessor(_) => todo!(),
+            Expr::TypeAsc(tasc) => self.is_procedural(&tasc.expr),
             _ => false,
         }
     }

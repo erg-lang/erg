@@ -8,7 +8,10 @@ use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiEr
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{fmt_iter, fmt_option_map, fmt_vec, impl_stream_for_wrapper, switch_lang, Str};
+use erg_common::{
+    fmt_iter, fmt_option_map, fmt_vec, impl_display_and_error, impl_stream_for_wrapper,
+    switch_lang, Str,
+};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -99,6 +102,8 @@ pub struct CompileError {
     pub input: Input,
     pub caused_by: AtomicStr,
 }
+
+impl_display_and_error!(CompileError);
 
 impl From<ParserRunnerError> for CompileError {
     fn from(err: ParserRunnerError) -> Self {
@@ -411,7 +416,7 @@ impl TyCheckError {
         loc: Location,
         caused_by: AtomicStr,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
@@ -447,7 +452,7 @@ impl TyCheckError {
         caused_by: AtomicStr,
         obj_t: &Type,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
@@ -483,7 +488,7 @@ impl TyCheckError {
         obj_name: &str,
         obj_t: &Type,
         name: &str,
-        similar_name: Option<&Str>,
+        similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
             let n = readable_name(n);
@@ -995,19 +1000,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 switch_lang!(
                     "japanese" => format!(
                         "{RED}{name}{RESET}は{}行目ですでに移動されています",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "simplified_chinese" => format!(
                         "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "traditional_chinese" => format!(
                         "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "english" => format!(
                         "{RED}{name}{RESET} was moved in line {}",
-                        moved_loc.ln_begin().unwrap()
+                        moved_loc.ln_begin().unwrap_or(0)
                     ),
                 ),
                 None,
@@ -1293,8 +1298,70 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn file_error(errno: usize, desc: String, loc: Location, caused_by: AtomicStr) -> Self {
-        Self::new(ErrorCore::new(errno, IoError, loc, desc, None), caused_by)
+    pub fn file_error(
+        errno: usize,
+        desc: String,
+        loc: Location,
+        caused_by: AtomicStr,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(ErrorCore::new(errno, IoError, loc, desc, hint), caused_by)
+    }
+
+    pub fn import_error(
+        errno: usize,
+        desc: String,
+        loc: Location,
+        caused_by: AtomicStr,
+        similar_erg_mod: Option<Str>,
+        similar_py_mod: Option<Str>,
+    ) -> Self {
+        let hint = match (similar_erg_mod, similar_py_mod) {
+            (Some(erg), Some(py)) => Some(format!(
+                "similar name erg module {YELLOW}{erg}{RESET} and python module {YELLOW}{py}{RESET} exists (to import python modules, use `pyimport`)",
+            )),
+            (Some(erg), None) => Some(format!("similar name erg module exists: {YELLOW}{erg}{RESET}")),
+            (None, Some(py)) => Some(format!("similar name python module exists: {YELLOW}{py}{RESET} (to import python modules, use `pyimport`)")),
+            (None, None) => None,
+        };
+        let hint = hint.map(AtomicStr::from);
+        Self::file_error(errno, desc, loc, caused_by, hint)
+    }
+
+    pub fn inner_typedef_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("型はトップレベルで定義されなければなりません"),
+                    "simplified_chinese" => format!("类型必须在顶层定义"),
+                    "traditional_chinese" => format!("類型必須在頂層定義"),
+                    "english" => format!("types must be defined at the top level"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
+    }
+
+    pub fn declare_error(errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                SyntaxError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("d.erファイル内では宣言、別名定義のみが許可されています"),
+                    "simplified_chinese" => format!("在d.er文件中只允许声明和别名定义"),
+                    "traditional_chinese" => format!("在d.er文件中只允許聲明和別名定義"),
+                    "english" => format!("declarations and alias definitions are only allowed in d.er files"),
+                ),
+                None,
+            ),
+            caused_by,
+        )
     }
 }
 

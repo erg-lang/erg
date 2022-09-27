@@ -3,7 +3,7 @@ use std::mem;
 use erg_common::Str;
 
 use erg_common::astr::AtomicStr;
-use erg_common::color::{RED, RESET};
+use erg_common::color::{RED, RESET, YELLOW};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_type::constructors::{and, builtin_mono, mono};
 use erg_type::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
@@ -18,20 +18,32 @@ pub fn class_func(
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
-            ErrorKind::KeyError,
+            ErrorKind::TypeError,
             Location::Unknown,
             AtomicStr::from(format!("{RED}Requirement{RESET} is not passed")),
             None,
         )
     })?;
-    let require = require.as_type().unwrap();
+    let require = if let Some(t) = require.as_type() {
+        t
+    } else {
+        return Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
+            )),
+            None,
+        ));
+    };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
 }
 
-/// Super: Type, Impl := Type, Additional := Type -> ClassType
+/// Super: ClassType, Impl := Type, Additional := Type -> ClassType
 pub fn inherit_func(
     mut args: ValueArgs,
     mod_name: Str,
@@ -46,7 +58,19 @@ pub fn inherit_func(
             None,
         )
     })?;
-    let sup = sup.as_type().unwrap();
+    let sup = if let Some(t) = sup.as_type() {
+        t
+    } else {
+        return Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "non-class object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
+            )),
+            None,
+        ));
+    };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
@@ -97,7 +121,7 @@ pub fn inheritable_func(
     }
 }
 
-/// Requirement: Type, Impl := Type -> ClassType
+/// Requirement: Type, Impl := Type -> TraitType
 pub fn trait_func(
     mut args: ValueArgs,
     mod_name: Str,
@@ -112,14 +136,26 @@ pub fn trait_func(
             None,
         )
     })?;
-    let require = require.as_type().unwrap();
+    let require = if let Some(t) = require.as_type() {
+        t
+    } else {
+        return Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
+            )),
+            None,
+        ));
+    };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
 }
 
-/// Super: Type, Impl := Type, Additional := Type -> ClassType
+/// Super: TraitType, Impl := Type, Additional := Type -> TraitType
 pub fn subsume_func(
     mut args: ValueArgs,
     mod_name: Str,
@@ -134,7 +170,19 @@ pub fn subsume_func(
             None,
         )
     })?;
-    let sup = sup.as_type().unwrap();
+    let sup = if let Some(t) = sup.as_type() {
+        t
+    } else {
+        return Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "non-trait object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
+            )),
+            None,
+        ));
+    };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
