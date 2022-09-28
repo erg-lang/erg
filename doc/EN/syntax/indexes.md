@@ -38,8 +38,8 @@ Also, see [here](../terms.md) for terminology.
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
-  * : → [Declaration](./03_declaration.md.md)
-  * : → [Keyword&nbsp;Arguments](./04_function.md)
+  * : → [Type ascription](./03_declaration.md.md)
+  * : → [Keyword&nbsp;arguments](./04_function.md)
   * :: → [private variable modifier](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
@@ -47,6 +47,8 @@ Also, see [here](../terms.md) for terminology.
   * &lt;: → [Subtype&nbsp;specification](./type/02_basic.md)
   * &lt;&lt;
   * &lt;=
+  * &lt;.. → [left-open range operator](./01_literal.md/#range-object)
+  * &lt;..&lt; → [open range operator](./01_literal.md/#range-object)
 * = → [Variable](./19_visibility.md)
   * ==
   * => → [anonymous procedure operator](./08_procedure.md)
@@ -55,8 +57,7 @@ Also, see [here](../terms.md) for terminology.
   * &gt;=
 * @ → [decorator](./29_decorator.md)
 * [] → [Array](./10_array.md)
-* \ → [Indention](./00_basic.md)
-* \ → [Str](./01_literal.md)
+* \ → [Escaping](./00_basic.md)
 * ^
   * ^^
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
@@ -65,7 +66,6 @@ Also, see [here](../terms.md) for terminology.
 * [``&nbsp;(back&nbsp;quote)](./22_subroutine.md#operator)
 * {}
   * [{} type](./type/01_type_system.md)
-* {:}
 * {=} → [Type&nbsp;System](./type/01_type_system.md#classification)
   * [{=}&nbsp;type](./13_record.md#empty-record)
 * |
@@ -84,34 +84,33 @@ Also, see [here](../terms.md) for terminology.
 * [And]
 * [and]
 * [anonymous&nbsp;function](./21_lambda.md)
-* [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./21_lambda.md#anonymous-polycorrelation-coefficient)
-* anonymous type → [Type&nbsp;System](./type/01_type_system.md)
+* anonymous type → [Type&nbsp;system](./type/01_type_system.md)
 * [Array](./10_array.md)
 * [assert]
 * [Attach](./29_decorator.md#attach)
 * [attribute](type/09_attributive.md)
 * [Attribute&nbsp;definitions](./type/02_basic.md#attribute-definitions)
-* [Attribute&nbsp;Type](./type/09_attributive.md)
+* [Attribute&nbsp;type](./type/09_attributive.md)
 
 ### B
 
 * [Bool, Boolean](./01_literal.md#boolean-object)
-* [Boolean&nbsp;Object](./01_literal.md#boolean-object)
-* [borrow](./18_ownership.md#borrow)
+* [Boolean&nbsp;object](./01_literal.md#boolean-object)
+* [borrowing](./18_ownership.md#borrow)
 
 ### C
 
 * [Cast](./type/17_type_casting.md)
 * [Comments](./00_basic.md#comments)
-* [Complex&nbsp;Object](./01_literal.md#complex-object)
+* [Complex&nbsp;object](./01_literal.md#complex-object)
 * [Compile-time&nbsp;functions](./04_function.md#compile-time-functions)
 * [circular&nbsp;references](./18_ownership.md#circular-references)
 * [Class](./type/04_class.md)
-* [Class&nbsp;Relationship](./type/04_class.md#class-relationships)
+* [Class&nbsp;relationship](./type/04_class.md#class-relationships)
 * [Class&nbsp;upcasting](./type/16_subtyping.md#class-upcasting)
 * [Colon&nbsp;application&nbsp;style](./04_function.md#colon-application-style)
 * [Closure](./23_closure.md)
-* [Compound Literals](./01_literal.md#compound-literals)
+* [Compound literals](./01_literal.md#compound-literals)
 * [Complement](./type/13_algebraic.md#complement)
 * [Comprehension](./27_comprehension.md)
 * [constant](./17_mutability.md#constant)
@@ -125,33 +124,30 @@ Also, see [here](../terms.md) for terminology.
 * [decorator](./29_decorator.md)
 * [Default&nbsp;parameters](./04_function.md#default-parameters)
 * [Del](./02_name.md#delete-an-variable)
-* [Dependent&nbsp;Type](./type/14_dependent.md)
-* [Deconstructing&nbsp;a&nbsp;record](13_record.md#deconstructing-a-record)
+* [Dependent&nbsp;type](./type/14_dependent.md)
 * Deprecated
 * [Dict](./12_dict.md)
 * [Diff](./type/13_algebraic.md#diff)
-* [Difference&nbsp;from&nbsp;Data&nbsp;Class](./type/04_class.md#difference-from-data-class)
-* [Difference&nbsp;from&nbsp;structural&nbsp;types](type/04_class.md#difference-from-structural-types)
 * distinct
 * [Downcasting](./type/17_type_casting.md#downcasting)
 
 ### E
 
-* [Empty&nbsp;Record](./13_record.md#empty-record)
-* [Enum&nbsp;Class](./type/04_class.md#enum-class)
+* [Empty&nbsp;record](./13_record.md#empty-record)
+* [Enum&nbsp;class](./type/04_class.md#enum-class)
 * [Enum&nbsp;type](./type/11_enum.md)
-* [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;Types](./type/12_refinement.md#enumerated-interval-and-refinement-types)
+* [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;types](./type/12_refinement.md#enumerated-interval-and-refinement-types)
 * [error&nbsp;handling](./30_error_handling.md)
 * [Existential&nbsp;type](./type/advanced/existential.md)
-* [Exponential&nbsp;Literal](./01_literal.md#exponential-literal)
+* [Exponential&nbsp;literal](./01_literal.md#exponential-literal)
 * [Extract&nbsp;assignment](./28_spread_syntax.md#extract-assignment)
 
 ### F
 
-* False → [Boolean Object](./01_literal.md#boolean-object)
-* [Float&sbsp;Object](./01_literal.md#float-object)
+* False → [Boolean object](./01_literal.md#boolean-object)
+* [Float&nbsp;object](./01_literal.md#float-object)
 * [for](./05_builtin_funcs.md#for)
-* [For-All&nbsp;Patch](./type/07_patch.md#for-all-patch)
+* [For-All&nbsp;patch](./type/07_patch.md#for-all-patch)
 * [freeze](./18_ownership.md#freeze)
 * [Function](./04_function.md)
 * [Function&nbsp;definition&nbsp;with&nbsp;multiple patterns](./04_function.md#function-definition-with-multiple-patterns)
@@ -172,12 +168,10 @@ Also, see [here](../terms.md) for terminology.
 * [impl](./29_decorator.md#impl)
 * [in]
 * [Indention](./00_basic.md#indentation)
-* [Instant&nbsp;Block](./13_record.md#instant-block)
-* [Instance&nbsp;and&nbsp;class&nbsp;attributes](./type/04_class.md#instance-and-class-attributes)
-* [Implementing&nbsp;and&nbsp;resolving&nbsp;duplicate&nbsp;traits&nbsp;in&nbsp;the&nbsp;API](type/03_trait.md#implementing-and-resolving-duplicate-traits-in-the-api)
+* [Instant&nbsp;block](./13_record.md#instant-block)
+* [Instance/class&nbsp;attributes](./type/04_class.md#instance-and-class-attributes)
 * [inheritable](./29_decorator.md#inheritable)
 * [inheritance](./type/05_inheritance.md)
-* [Inheritance&nbsp;of&nbsp;Enumerated&nbsp;Classes](./type/05_inheritance.md#inheritance)
 * [Int](./01_literal.md)
 * [Integration&nbsp;with&nbsp;Python](./32_integration_with_Python.md)
 * [Interval&nbsp;Type](./type/10_interval.md)
@@ -200,14 +194,14 @@ Also, see [here](../terms.md) for terminology.
 ### M
 
 * [match]
-* [Marker&nbsp;Trait](./type/advanced/marker_trait.md)
+* [Marker&nbsp;trait](./type/advanced/marker_trait.md)
 * [Method](./07_side_effect.md#methods)
 * Modifier → [decorator](./29_decorator.md)
 * [module](./24_module.md)
-* [Multiple&nbsp;Inheritance](type/05_inheritance.md#multiple-inheritance)
+* [Multiple&nbsp;inheritance](type/05_inheritance.md#multiple-inheritance)
 * [Multi-layer&nbsp;(multi-level)&nbsp;Inheritance](type/05_inheritance.md#multi-layer-multi-level-inheritance)
-* [Mutable&nbsp;Type](./type/18_mut.md)
-* [Mutable&nbsp;Structure&nbsp;Type](./type/advanced/mut_struct.md)
+* [Mutable&nbsp;type](./type/18_mut.md)
+* [Mutable&nbsp;structure&nbsp;type](./type/advanced/mut_struct.md)
 * [Mutability](./17_mutability.md)
 
 ### N
@@ -232,7 +226,7 @@ Also, see [here](../terms.md) for terminology.
 * [ownership&nbsp;system](./18_ownership.md)
 * [Overloading](./type/advanced/overloading.md)
 * [Overriding](./type/05_inheritance.md#overriding)
-* [Override&nbsp;in&nbsp;Trait](./type/03_trait.md#override-in-trait)
+* [Override&nbsp;in&nbsp;trait](./type/03_trait.md#override-in-trait)
 
 ### P
 
@@ -244,14 +238,13 @@ Also, see [here](../terms.md) for terminology.
 * [Predicate](./type/19_bound.md#predicate)
 * [print!]
 * [Procedures](./08_procedure.md)
-* [Projection&nbsp;Type](./type/advanced/projection.md)
+* [Projection&nbsp;type](./type/advanced/projection.md)
 * Python → [Integration&nbsp;with&nbsp;Python](./32_integration_with_Python.md)
 
 ### Q
 
-* [Quantified&nbsp;Type](./type/15_quantified.md)
-* [Quantified&nbsp;Dependent&nbsp;Type](./type/advanced/quantified_dependent.md)
-* [Quantified&nbsp;Types&nbsp;and&nbsp;Dependent&nbsp;Types](./type/15_quantified.md#quantified-types-and-dependent-types)
+* [Quantified&nbsp;type](./type/15_quantified.md)
+* [Quantified&nbsp;dependent&nbsp;type](./type/advanced/quantified_dependent.md)
 
 ### R
 
@@ -259,56 +252,53 @@ Also, see [here](../terms.md) for terminology.
 * [ref]
 * [ref!]
 * [Record](./13_record.md)
-* [Record&nbsp;Type&nbsp;Composite](./type/09_attributive.mda12_refinement.md)
 * [Recursive&nbsp;functions](./04_function.md#recursive-functions)
 * [Refinement&nbsp;pattern](./type/12_refinement.md#refinement-pattern)
-* [Refinement&nbsp;Type](./type/12_refinement.md)
+* [Refinement&nbsp;type](./type/12_refinement.md)
 * [replication](./18_ownership.md#replication)
-* [Replacing&nbsp;Traits](./type/05_inheritance.md#replacing-traits-or-what-looks-like-it)
+* [Replacing&nbsp;traits](./type/05_inheritance.md#replacing-traits-or-what-looks-like-it)
 * Result → [error&nbsp;handling](./30_error_handling.md)
-* [Rewriting&nbsp;Inherited&nbsp;Attributes](./type/05_inheritance.md#rewriting-inherited-attributes)
 
 ### S
 
 * [Script](./00_basic.md#scripts)
-* [Selecting&nbsp;Patches](./type/07_patch.md#selecting-patches)
 * self
 * [Self](./type/advanced/special.md)
-* [Shared&nbsp;Reference](./type/advanced/shared.md)
+* [Shared&nbsp;reference](./type/advanced/shared.md)
 * [side-effect](./07_side_effect.md)
-* [Smart&nbsp;Cast](./type/12_refinement.md#smart-cast)
+* [Smart&nbsp;cast](./type/12_refinement.md#smart-cast)
 * [Spread&nbsp;assignment](./28_spread_syntax.md)
 * [special&nbsp;type&nbsp;variables](./type/advanced/special.md#special-type-variables)
 * [Stack&nbsp;trace](30_error_handling.md#stack-trace)
 * [Structure&nbsp;type](./type/01_type_system.md#structure-type-anonymous-type)
-* [Structural&nbsp;Patch](./type/07_patch.md#structural-patch)
-* [Structural&nbsp;Trait](./type/03_trait.md#structural-traits)
-* [Structural&nbsp;Subtyping](./type/01_type_system.md#classification)
+* [Structural&nbsp;patch](./type/07_patch.md#structural-patch)
+* [Structural&nbsp;trait](./type/03_trait.md#structural-traits)
+* [Structural&nbsp;subtyping](./type/01_type_system.md#classification)
 * [Structural&nbsp;types&nbsp;and&nbsp;class&nbsp;type&nbsp;relationships](./type/16_subtyping.md#structural-types-and-class-type-relationships)
 * [Str](./01_literal.md#str-literal)
 * [Subtyping](./type/16_subtyping.md)
 * [Subtyping&nbsp;of&nbsp;subroutines](./type/16_subtyping.md#subtyping-of-subroutines)
 * [Subtype&nbsp;specification](./type/02_basic.md#subtype-specification)
-* [Subtyping&nbsp;of&nbsp;Polymorphic&nbsp;Function Types](./type/15_quantified.md#subtyping-of-polymorphic-function-types)
-* [Subroutine&nbsp;Signatures](./22_subroutine.md)
+* [Subtyping&nbsp;of&nbsp;polymorphic&nbsp;function types](./type/15_quantified.md#subtyping-of-polymorphic-function-types)
+* [Subroutine&nbsp;signatures](./22_subroutine.md)
 
 ### T
 
 * [Test](./29_decorator.md#test)
 * [Traits](./type/03_trait.md)
 * [Trait&nbsp;inclusion](./type/03_trait.md#trait-inclusion)
-* True → [Boolean&nbsp;Object](./01_literal.md#boolean-object)
-* [True&nbsp;Algebraic&nbsp;type](./type/13_algebraic.md#true-algebraic-type)
+* True → [Boolean&nbsp;object](./01_literal.md#boolean-object)
+* [True&nbsp;algebraic&nbsp;type](./type/13_algebraic.md#true-algebraic-type)
 * [Type]
 * [type](./15_type.md)
 * [Type&nbsp;arguments&nbsp;in&nbsp;method&nbsp;definitions](./type/15_quantified.md#type-arguments-in-method-definitions)
-* [Type&nbsp;Bound](./type/19_bound.md)
-* [Type&nbsp;Definitions](./type/01_type_system.md#type-definitions)
+* [Type&nbsp;bound](./type/19_bound.md)
+* [Type&nbsp;definitions](./type/01_type_system.md#type-definitions)
 * [Type&nbsp;erasure](./type/advanced/erasure.md)
-* [Type&nbsp;Inference&nbsp;System](./type/01_type_system.md#type-inference-system)
+* [Type&nbsp;inference&nbsp;system](./type/01_type_system.md#type-inference-system)
 * [Type&nbsp;specification](./type/02_basic.md#type-specification)
-* [Type&nbsp;System](./type/01_type_system.md)
-* [Type&nbsp;Widening](./type/advanced/widening.md)
+* [Type&nbsp;system](./type/01_type_system.md)
+* [Type&nbsp;widening](./type/advanced/widening.md)
 * [Tuple](./11_tuple.md)
 
 ### U
@@ -316,11 +306,10 @@ Also, see [here](../terms.md) for terminology.
 * [union](type/13_algebraic.md#union)
 * [Unit](./11_tuple.md#unit)
 * [Upcasting](type/17_type_casting.md#upcasting)
-* [Usage&nbsp;of&nbsp;Inheritance](./type/05_inheritance.md#usage-of-inheritance)
 
 ### V
 
-* [Value&nbsp;Type](./type/08_value.md)
+* [Value&nbsp;type](./type/08_value.md)
 * [Variable](./02_name.md)
 * [variable-length&nbsp;arguments](./04_function.md#variable-length-arguments)
 
