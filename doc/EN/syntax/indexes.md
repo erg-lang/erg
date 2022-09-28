@@ -2,7 +2,7 @@
 
 See [here](../API/index.md) for APIs not in this index.
 
-See [here](../terms.md) for terminology.
+Also, see [here](../terms.md) for terminology.
 
 ## symbol
 
@@ -30,15 +30,17 @@ See [here](../terms.md) for terminology.
 * &minus; (infix) → [Trait](./type/03_trait.md)
   * &minus;> → [anonymous&nbsp;function](./21_lambda.md)
 * . → [Visibility](./19_visibility.md)
-  * [...&nbsp;assignment](./28_spread_syntax.md)
-  * [...&nbsp;Extract&nbsp;assignment](./28_spread_syntax.md#extract-assignment)
-  * [...&nbsp;function](./04_function.md#variable-length-arguments)
+  * .. → [closed range operator](./01_literal.md/#range-object)
+  * ..< → [right-open range operator](./01_literal.md/#range-object)
+  * ...
+    * ... → [Extract&nbsp;assignment](./28_spread_syntax.md#extract-assignment)
+    * ... → [Variable-length arguments](./04_function.md#variable-length-arguments)
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
   * : → [Declaration](./03_declaration.md.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
-  * :: → [visibility](./19_visibility.md)
+  * :: → [private variable modifier](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
 * &lt;
@@ -47,7 +49,7 @@ See [here](../terms.md) for terminology.
   * &lt;=
 * = → [Variable](./19_visibility.md)
   * ==
-  * => → [procedure](./08_procedure.md)
+  * => → [anonymous procedure operator](./08_procedure.md)
 * &gt;
   * &gt;&gt;
   * &gt;=
@@ -194,7 +196,6 @@ See [here](../terms.md) for terminology.
 * lambda → [anonymous&nbsp;function](./21_lambda.md)
 * let-polymorphism → [rank&nbsp;1&nbsp;polymorphism]
 * [Literal&nbsp;Identifiers](./20_naming_rule.md#literal-identifiers)
-* log → [side&nbsp;effect](./07_side_effect.md)
 
 ### M
 
@@ -266,7 +267,6 @@ See [here](../terms.md) for terminology.
 * [Replacing&nbsp;Traits](./type/05_inheritance.md#replacing-traits-or-what-looks-like-it)
 * Result → [error&nbsp;handling](./30_error_handling.md)
 * [Rewriting&nbsp;Inherited&nbsp;Attributes](./type/05_inheritance.md#rewriting-inherited-attributes)
-* rootobj
 
 ### S
 
