@@ -1,20 +1,23 @@
 // (type) getters & validators
 use std::option::Option; // conflicting to Type::Option
+use std::path::{Path, PathBuf};
 
+use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::{Field, Visibility};
-use erg_common::Str;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
+use erg_common::{option_enum_unwrap, Str};
 use Type::*;
 
 use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{builtin_mono, func, mono, mono_proj};
+use erg_type::constructors::{builtin_mono, func, module, mono, mono_proj, v_enum};
+use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
@@ -86,21 +89,15 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    fn get_singular_ctx(&self, obj: &hir::Expr, namespace: &Str) -> SingleTyCheckResult<&Context> {
+    pub fn get_singular_ctx(
+        &self,
+        obj: &hir::Expr,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<&Context> {
         match obj {
-            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => self
-                .get_mod(ident.inspect())
-                .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
-                .ok_or_else(|| {
-                    TyCheckError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        namespace.into(),
-                        ident.inspect(),
-                        self.get_similar_name(ident.inspect()),
-                    )
-                }),
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
+                self.get_singular_ctx_from_ident(&ident.clone().downcast(), namespace)
+            }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
                 let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
@@ -109,6 +106,25 @@ impl Context {
             }
             _ => todo!(),
         }
+    }
+
+    pub fn get_singular_ctx_from_ident(
+        &self,
+        ident: &ast::Identifier,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<&Context> {
+        self.get_mod(ident)
+            .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+            .ok_or_else(|| {
+                TyCheckError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.into(),
+                    ident.inspect(),
+                    self.get_similar_name(ident.inspect()),
+                )
+            })
     }
 
     fn get_match_call_t(
@@ -197,31 +213,74 @@ impl Context {
         Ok(t)
     }
 
-    pub(crate) fn get_local_uniq_obj_name(&self, name: &VarName) -> Option<Str> {
-        // TODO: types, functions, patches
-        if let Some(ctx) = self.get_mod(name.inspect()) {
-            return Some(ctx.name.clone());
-        }
-        if let Some((_, ctx)) = self.rec_get_type(name.inspect()) {
-            return Some(ctx.name.clone());
-        }
-        None
+    fn get_import_call_t(
+        &self,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+    ) -> TyCheckResult<Type> {
+        let mod_name = pos_args
+            .get(0)
+            .map(|a| &a.expr)
+            .or_else(|| {
+                kw_args
+                    .iter()
+                    .find(|k| &k.keyword.inspect()[..] == "Path")
+                    .map(|a| &a.expr)
+            })
+            .unwrap();
+        let path = match mod_name {
+            hir::Expr::Lit(lit) => {
+                if self.subtype_of(&lit.value.class(), &Str) {
+                    enum_unwrap!(&lit.value, ValueObj::Str)
+                } else {
+                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        mod_name.loc(),
+                        self.caused_by(),
+                        "import::name",
+                        &Str,
+                        mod_name.ref_t(),
+                        self.get_candidates(mod_name.ref_t()),
+                        self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
+                    )));
+                }
+            }
+            _other => {
+                return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                    self.cfg.input.clone(),
+                    mod_name.loc(),
+                    "non-literal importing",
+                    self.caused_by(),
+                )))
+            }
+        };
+        let path = PathBuf::from(&path[..]);
+        let s = ValueObj::Str(Str::rc(path.to_str().unwrap()));
+        let import_t = func(
+            vec![ParamTy::anonymous(v_enum(set! {s.clone()}))],
+            None,
+            vec![],
+            module(TyParam::Value(s)),
+        );
+        Ok(import_t)
     }
 
     pub(crate) fn rec_get_var_t(
         &self,
         ident: &Identifier,
+        input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
-            self.validate_visibility(ident, vi, namespace)?;
+            self.validate_visibility(ident, vi, input, namespace)?;
             Ok(vi.t())
         } else {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return parent.rec_get_var_t(ident, namespace);
+                return parent.rec_get_var_t(ident, input, namespace);
             }
             Err(TyCheckError::no_var_error(
-                self.cfg.input.clone(),
+                input.clone(),
                 line!() as usize,
                 ident.loc(),
                 namespace.into(),
@@ -235,11 +294,12 @@ impl Context {
         &self,
         obj: &hir::Expr,
         ident: &Identifier,
+        input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         let self_t = obj.t();
         let name = ident.name.token();
-        match self.get_attr_t_from_attributive_t(obj, &self_t, ident, namespace) {
+        match self.get_attr_t_from_attributive(obj, &self_t, ident, namespace) {
             Ok(t) => {
                 return Ok(t);
             }
@@ -249,7 +309,7 @@ impl Context {
             }
         }
         if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
-            match singular_ctx.rec_get_var_t(ident, namespace) {
+            match singular_ctx.rec_get_var_t(ident, input, namespace) {
                 Ok(t) => {
                     return Ok(t);
                 }
@@ -269,7 +329,7 @@ impl Context {
                 None, // TODO:
             )
         })? {
-            match ctx.rec_get_var_t(ident, namespace) {
+            match ctx.rec_get_var_t(ident, input, namespace) {
                 Ok(t) => {
                     return Ok(t);
                 }
@@ -281,10 +341,10 @@ impl Context {
         }
         // TODO: dependent type widening
         if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            parent.rec_get_attr_t(obj, ident, namespace)
+            parent.rec_get_attr_t(obj, ident, input, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
+                input.clone(),
                 line!() as usize,
                 name.loc(),
                 namespace.into(),
@@ -295,7 +355,9 @@ impl Context {
         }
     }
 
-    fn get_attr_t_from_attributive_t(
+    /// get type from given attributive type (Record).
+    /// not ModuleType or ClassType etc.
+    fn get_attr_t_from_attributive(
         &self,
         obj: &hir::Expr,
         t: &Type,
@@ -304,18 +366,18 @@ impl Context {
     ) -> SingleTyCheckResult<Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_t_from_attributive_t(obj, &fv.crack(), ident, namespace)
+                self.get_attr_t_from_attributive(obj, &fv.crack(), ident, namespace)
             }
             Type::FreeVar(fv) => {
                 let sup = fv.get_sup().unwrap();
-                self.get_attr_t_from_attributive_t(obj, &sup, ident, namespace)
+                self.get_attr_t_from_attributive(obj, &sup, ident, namespace)
             }
-            Type::Ref(t) => self.get_attr_t_from_attributive_t(obj, t, ident, namespace),
+            Type::Ref(t) => self.get_attr_t_from_attributive(obj, t, ident, namespace),
             Type::RefMut { before, .. } => {
-                self.get_attr_t_from_attributive_t(obj, before, ident, namespace)
+                self.get_attr_t_from_attributive(obj, before, ident, namespace)
             }
             Type::Refinement(refine) => {
-                self.get_attr_t_from_attributive_t(obj, &refine.t, ident, namespace)
+                self.get_attr_t_from_attributive(obj, &refine.t, ident, namespace)
             }
             Type::Record(record) => {
                 // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
@@ -333,11 +395,6 @@ impl Context {
                         self.get_similar_attr(&t, ident.inspect()),
                     ))
                 }
-            }
-            Module => {
-                let mod_ctx = self.get_singular_ctx(obj, namespace)?;
-                let t = mod_ctx.rec_get_var_t(ident, namespace)?;
-                Ok(t)
             }
             other => {
                 if let Some(v) = self.rec_get_const_obj(&other.name()) {
@@ -372,6 +429,7 @@ impl Context {
         &self,
         obj: &hir::Expr,
         method_name: &Option<Identifier>,
+        input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
@@ -393,7 +451,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, namespace)?;
+                    self.validate_visibility(method_name, vi, input, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, methods_ctx) in ctx.methods_list.iter() {
@@ -402,7 +460,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| methods_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, namespace)?;
+                        self.validate_visibility(method_name, vi, input, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -413,7 +471,7 @@ impl Context {
                     .get(method_name.inspect())
                     .or_else(|| singular_ctx.decls.get(method_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, namespace)?;
+                    self.validate_visibility(method_name, vi, input, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, method_ctx) in singular_ctx.methods_list.iter() {
@@ -422,7 +480,7 @@ impl Context {
                         .get(method_name.inspect())
                         .or_else(|| method_ctx.decls.get(method_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, namespace)?;
+                        self.validate_visibility(method_name, vi, input, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -456,11 +514,12 @@ impl Context {
         &self,
         ident: &Identifier,
         vi: &VarInfo,
+        input: &Input,
         namespace: &str,
     ) -> SingleTyCheckResult<()> {
         if ident.vis() != vi.vis {
             Err(TyCheckError::visibility_error(
-                self.cfg.input.clone(),
+                input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -474,7 +533,7 @@ impl Context {
             && !namespace.contains(&self.name[..])
         {
             Err(TyCheckError::visibility_error(
-                self.cfg.input.clone(),
+                input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
@@ -490,6 +549,7 @@ impl Context {
         &self,
         op: &Token,
         args: &[hir::PosArg],
+        input: &Input,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 2);
@@ -497,10 +557,11 @@ impl Context {
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(
             &Identifier::new(None, VarName::new(symbol.clone())),
+            input,
             namespace,
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
-        self.get_call_t(&op, &None, args, &[], namespace)
+        self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|errs| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let lhs = args[0].expr.clone();
@@ -528,6 +589,7 @@ impl Context {
         &self,
         op: &Token,
         args: &[hir::PosArg],
+        input: &Input,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
         erg_common::debug_power_assert!(args.len() == 1);
@@ -535,10 +597,11 @@ impl Context {
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(
             &Identifier::new(None, VarName::new(symbol.clone())),
+            input,
             namespace,
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
-        self.get_call_t(&op, &None, args, &[], namespace)
+        self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|errs| {
                 let op = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
                 let expr = args[0].expr.clone();
@@ -880,17 +943,34 @@ impl Context {
         method_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        input: &Input,
         namespace: &Str,
     ) -> TyCheckResult<Type> {
-        match obj {
-            hir::Expr::Accessor(hir::Accessor::Ident(local))
-                if local.vis().is_private() && &local.inspect()[..] == "match" =>
-            {
-                return self.get_match_call_t(pos_args, kw_args);
+        if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
+            if local.vis().is_private() {
+                match &local.inspect()[..] {
+                    "match" => {
+                        return self.get_match_call_t(pos_args, kw_args);
+                    }
+                    "import" | "pyimport" | "py" => {
+                        return self.get_import_call_t(pos_args, kw_args);
+                    }
+                    // handle assert casting
+                    /*"assert" => {
+                        if let Some(arg) = pos_args.first() {
+                            match &arg.expr {
+                                hir::Expr::BinOp(bin) if bin.op.is(TokenKind::InOp) && bin.rhs.ref_t() == &Type => {
+                                    let t = self.eval_const_expr(bin.lhs.as_ref(), None)?.as_type().unwrap();
+                                }
+                                _ => {}
+                            }
+                        }
+                    },*/
+                    _ => {}
+                }
             }
-            _ => {}
         }
-        let found = self.search_callee_t(obj, method_name, namespace)?;
+        let found = self.search_callee_t(obj, method_name, input, namespace)?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
             fmt_option!(pre ".", method_name.as_ref().map(|ident| &ident.name))
@@ -1192,9 +1272,31 @@ impl Context {
                     }
                 }
             },
-            Type::Poly { name, params: _ } => {
-                if let Some((t, ctx)) = self.rec_get_poly_type(name) {
-                    return Some((t, ctx));
+            Type::BuiltinPoly { name, .. } => {
+                if let Some(res) = self.get_builtins().unwrap_or(self).rec_get_poly_type(name) {
+                    return Some(res);
+                }
+            }
+            Type::Poly { path, name, .. } => {
+                if self.path() == path {
+                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
+                }
+                let path = self.cfg.input.resolve(path.as_path()).ok()?;
+                if let Some(ctx) = self
+                    .mod_cache
+                    .as_ref()
+                    .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    .or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    })
+                {
+                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
+                        return Some((t, ctx));
+                    }
                 }
             }
             Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
@@ -1210,14 +1312,21 @@ impl Context {
                     .rec_get_mono_type("Record");
             }
             Type::Mono { path, name } => {
-                if self.mod_name() == path {
+                if self.path() == path {
                     if let Some((t, ctx)) = self.rec_get_mono_type(name) {
                         return Some((t, ctx));
                     }
-                } else if let Some(ctx) = self
+                }
+                let path = self.cfg.input.resolve(path.as_path()).ok()?;
+                if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path))
+                    .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    .or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    })
                 {
                     if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
                         return Some((t, ctx));
@@ -1274,7 +1383,7 @@ impl Context {
                     return Some(res);
                 }
             }
-            Type::Poly { name, params: _ } => {
+            Type::BuiltinPoly { name, params: _ } => {
                 if let Some((t, ctx)) = self.rec_get_mut_poly_type(name) {
                     return Some((t, ctx));
                 }
@@ -1327,15 +1436,27 @@ impl Context {
     }
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
-    fn get_mod(&self, name: &Str) -> Option<&Context> {
-        self.mod_cache
-            .as_ref()
-            .and_then(|cache| cache.ref_ctx(name))
-            .or_else(|| {
-                self.py_mod_cache
+    fn get_mod(&self, ident: &ast::Identifier) -> Option<&Context> {
+        let t = self
+            .rec_get_var_t(ident, &self.cfg.input, &self.name)
+            .ok()?;
+        match t {
+            Type::BuiltinPoly { name, mut params } if &name[..] == "Module" => {
+                let path =
+                    option_enum_unwrap!(params.remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
+                let path = Path::new(&path[..]);
+                let path = self.cfg.input.resolve(path).ok()?;
+                self.mod_cache
                     .as_ref()
-                    .and_then(|cache| cache.ref_ctx(name))
-            })
+                    .and_then(|cache| cache.ref_ctx(&path))
+                    .or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .and_then(|cache| cache.ref_ctx(&path))
+                    })
+            }
+            _ => None,
+        }
     }
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
@@ -1370,7 +1491,7 @@ impl Context {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
             let name = self.name.split(&[':', '.']).last().unwrap();
-            let mono_t = mono(self.mod_name(), Str::rc(name));
+            let mono_t = mono(self.path(), Str::rc(name));
             if let Some((t, _)) = self.get_nominal_type_ctx(&mono_t) {
                 Some(t.clone())
             } else {

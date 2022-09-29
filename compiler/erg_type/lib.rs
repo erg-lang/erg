@@ -12,6 +12,7 @@ pub mod value;
 
 use std::fmt;
 use std::ops::{Range, RangeInclusive};
+use std::path::PathBuf;
 
 use erg_common::dict::Dict;
 use erg_common::set::Set;
@@ -181,7 +182,7 @@ impl ValueArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
+    subr: fn(ValueArgs, PathBuf, Option<Str>) -> EvalValueResult<ValueObj>,
     sig_t: Type,
     as_type: Option<Type>,
 }
@@ -195,7 +196,7 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, Str, Option<Str>) -> EvalValueResult<ValueObj>,
+        subr: fn(ValueArgs, PathBuf, Option<Str>) -> EvalValueResult<ValueObj>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
@@ -210,10 +211,10 @@ impl BuiltinConstSubr {
     pub fn call(
         &self,
         args: ValueArgs,
-        mod_name: Str,
+        path: PathBuf,
         __name__: Option<Str>,
     ) -> EvalValueResult<ValueObj> {
-        (self.subr)(args, mod_name, __name__)
+        (self.subr)(args, path, __name__)
     }
 }
 
@@ -413,6 +414,13 @@ impl TyBound {
                 }
             }
             Self::Instance { t, .. } => t,
+        }
+    }
+
+    pub fn get_types(&self) -> Option<(&Type, &Type, &Type)> {
+        match self {
+            Self::Sandwiched { sub, mid, sup } => Some((sub, mid, sup)),
+            Self::Instance { .. } => None,
         }
     }
 
@@ -1095,7 +1103,6 @@ pub enum Type {
     Str,
     NoneType,
     Code,
-    Module,
     Frame,
     Error,
     Inf,    // {∞}
@@ -1110,7 +1117,7 @@ pub enum Type {
     Never,    // {}
     BuiltinMono(Str),
     Mono {
-        path: Str,
+        path: PathBuf,
         name: Str,
     },
     /* Polymorphic types */
@@ -1138,7 +1145,12 @@ pub enum Type {
     And(Box<Type>, Box<Type>),
     Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
+    BuiltinPoly {
+        name: Str,
+        params: Vec<TyParam>,
+    },
     Poly {
+        path: PathBuf,
         name: Str,
         params: Vec<TyParam>,
     },
@@ -1170,7 +1182,6 @@ impl PartialEq for Type {
             | (Self::Str, Self::Str)
             | (Self::NoneType, Self::NoneType)
             | (Self::Code, Self::Code)
-            | (Self::Module, Self::Module)
             | (Self::Frame, Self::Frame)
             | (Self::Error, Self::Error)
             | (Self::Inf, Self::Inf)
@@ -1182,11 +1193,11 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::BuiltinMono(l), Self::BuiltinMono(r)) => l == r,
+            (Self::BuiltinMono(l), Self::BuiltinMono(r))
+            | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Mono { path: lp, name: ln }, Self::Mono { path: rp, name: rn }) => {
                 lp == rp && ln == rn
             }
-            (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
                 Self::RefMut {
@@ -1228,6 +1239,18 @@ impl PartialEq for Type {
             | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll == rl && lr == rr,
             (
                 Self::Poly {
+                    path: lp,
+                    name: ln,
+                    params: lps,
+                },
+                Self::Poly {
+                    path: rp,
+                    name: rn,
+                    params: rps,
+                },
+            ) => lp == rp && ln == rn && lps == rps,
+            (
+                Self::BuiltinPoly {
                     name: ln,
                     params: lps,
                 }
@@ -1235,7 +1258,7 @@ impl PartialEq for Type {
                     name: ln,
                     params: lps,
                 },
-                Self::Poly {
+                Self::BuiltinPoly {
                     name: rn,
                     params: rps,
                 }
@@ -1281,7 +1304,7 @@ impl LimitedDisplay for Type {
         }
         match self {
             Self::BuiltinMono(name) => write!(f, "{name}"),
-            Self::Mono { path, name } => write!(f, "{name}(of {path})"),
+            Self::Mono { path, name } => write!(f, "{}.{name}", path.display()),
             Self::Ref(t) => {
                 write!(f, "{}(", self.name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1338,7 +1361,17 @@ impl LimitedDisplay for Type {
                 write!(f, " or ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::Poly { name, params } => {
+            Self::Poly { path, name, params } => {
+                write!(f, "{}.{name}(", path.display())?;
+                for (i, tp) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    tp.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
+            Self::BuiltinPoly { name, params } => {
                 write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
                     if i > 0 {
@@ -1430,7 +1463,9 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
-            Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
+            Self::BuiltinPoly { params, .. }
+            | Self::Poly { params, .. }
+            | Self::PolyQVar { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
     }
@@ -1488,7 +1523,9 @@ impl HasLevel for Type {
                     t.update_level(level);
                 }
             }
-            Self::Poly { params, .. } => {
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => {
                 for p in params.iter() {
                     p.update_level(level);
                 }
@@ -1549,7 +1586,9 @@ impl HasLevel for Type {
                     t.lift();
                 }
             }
-            Self::Poly { params, .. } => {
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => {
                 for p in params.iter() {
                     p.lift();
                 }
@@ -1622,7 +1661,6 @@ impl Type {
             | Self::Str
             | Self::NoneType
             | Self::Code
-            | Self::Module
             | Self::Frame
             | Self::Error
             | Self::Inf
@@ -1648,8 +1686,10 @@ impl Type {
                 }
             }
             Self::BuiltinMono(name)
+            | Self::Mono { name, .. }
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
+            | Self::BuiltinPoly { name, .. }
             | Self::PolyQVar { name, .. }
             | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
             Self::Refinement(refine) => refine.t.is_mut(),
@@ -1661,11 +1701,13 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
-            Self::Poly { name, params } if &name[..] == "Option" || &name[..] == "Option!" => {
+            Self::BuiltinPoly { name, params, .. }
+                if &name[..] == "Option" || &name[..] == "Option!" =>
+            {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
                 inner_t.is_nonelike()
             }
-            Self::Poly { name, params } if &name[..] == "Tuple" => params.is_empty(),
+            Self::BuiltinPoly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             _ => false,
         }
@@ -1693,7 +1735,9 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::Poly { params, .. } => {
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => {
                 for param in params.iter() {
                     match param {
                         TyParam::Type(t) if t.contains_tvar(name) => {
@@ -1766,7 +1810,6 @@ impl Type {
             Self::Trait => Str::ever("TraitType"),
             Self::Patch => Str::ever("Patch"),
             Self::Code => Str::ever("Code"),
-            Self::Module => Str::ever("Module"),
             Self::Frame => Str::ever("Frame"),
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
@@ -1789,7 +1832,9 @@ impl Type {
             }) => Str::ever("Proc"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
-            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
+            Self::Poly { name, .. }
+            | Self::BuiltinPoly { name, .. }
+            | Self::PolyQVar { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.name(),
             Self::Quantified(_) => Str::ever("Quantified"),
@@ -1819,7 +1864,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
-            Self::MonoQVar(name) => Some(name.clone()),
+            Self::MonoQVar(name) | Self::PolyQVar { name, .. } => Some(name.clone()),
             _ => None,
         }
     }
@@ -1869,7 +1914,9 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|tb| tb.has_qvar())
             }
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
+            Self::Poly { params, .. } | Self::BuiltinPoly { params, .. } => {
+                params.iter().any(|tp| tp.has_qvar())
+            }
             Self::MonoProj { lhs, .. } => lhs.has_qvar(),
             _ => false,
         }
@@ -1907,9 +1954,9 @@ impl Type {
             Self::Quantified(quant) => {
                 quant.unbound_callable.is_cachable() || quant.bounds.iter().all(|b| b.is_cachable())
             }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                params.iter().all(|p| p.is_cachable())
-            }
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => params.iter().all(|p| p.is_cachable()),
             Self::MonoProj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
@@ -1958,9 +2005,9 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|b| b.has_unbound_var())
             }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                params.iter().any(|p| p.has_unbound_var())
-            }
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => params.iter().any(|p| p.has_unbound_var()),
             Self::MonoProj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
@@ -1984,7 +2031,9 @@ impl Type {
                     + 1,
             ),
             Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => Some(params.len()),
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => Some(params.len()),
             _ => None,
         }
     }
@@ -2000,7 +2049,9 @@ impl Type {
             }
             Self::Subr(subr) => subr.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => params.clone(),
+            Self::Poly { params, .. }
+            | Self::BuiltinPoly { params, .. }
+            | Self::PolyQVar { params, .. } => params.clone(),
             _ => vec![],
         }
     }

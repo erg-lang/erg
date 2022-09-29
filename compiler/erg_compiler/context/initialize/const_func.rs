@@ -1,4 +1,5 @@
 use std::mem;
+use std::path::PathBuf;
 
 use erg_common::Str;
 
@@ -12,7 +13,7 @@ use erg_type::ValueArgs;
 /// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(
     mut args: ValueArgs,
-    mod_name: Str,
+    path: PathBuf,
     __name__: Option<Str>,
 ) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
@@ -39,14 +40,14 @@ pub fn class_func(
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
 pub fn inherit_func(
     mut args: ValueArgs,
-    mod_name: Str,
+    path: PathBuf,
     __name__: Option<Str>,
 ) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
@@ -75,7 +76,7 @@ pub fn inherit_func(
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subclass,
         t,
@@ -89,7 +90,7 @@ pub fn inherit_func(
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
 pub fn inheritable_func(
     mut args: ValueArgs,
-    _mod_name: Str,
+    _path: PathBuf,
     __name__: Option<Str>,
 ) -> EvalValueResult<ValueObj> {
     let class = args.remove_left_or_key("Class").ok_or_else(|| {
@@ -124,7 +125,7 @@ pub fn inheritable_func(
 /// Requirement: Type, Impl := Type -> TraitType
 pub fn trait_func(
     mut args: ValueArgs,
-    mod_name: Str,
+    path: PathBuf,
     __name__: Option<Str>,
 ) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
@@ -151,14 +152,14 @@ pub fn trait_func(
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
 }
 
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
 pub fn subsume_func(
     mut args: ValueArgs,
-    mod_name: Str,
+    path: PathBuf,
     __name__: Option<Str>,
 ) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
@@ -187,7 +188,7 @@ pub fn subsume_func(
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(mod_name, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
     Ok(ValueObj::gen_t(
         TypeKind::Subtrait,
         t,

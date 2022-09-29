@@ -14,7 +14,7 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    builtin_mono, enum_t, mono_proj, poly, ref_, ref_mut, refinement, subr_t,
+    builtin_mono, builtin_poly, mono_proj, poly, ref_, ref_mut, refinement, subr_t, v_enum,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
@@ -305,7 +305,7 @@ impl Context {
         match subr {
             ConstSubr::User(_user) => todo!(),
             ConstSubr::Builtin(builtin) => builtin
-                .call(args, self.mod_name().clone(), __name__)
+                .call(args, self.path().to_path_buf(), __name__)
                 .map_err(|mut e| {
                     e.loc = loc;
                     EvalErrors::from(EvalError::new(e, self.cfg.input.clone(), self.caused_by()))
@@ -445,7 +445,7 @@ impl Context {
             non_default_params.clone(),
             var_params.clone(),
             default_params.clone(),
-            enum_t(set![return_t.clone()]),
+            v_enum(set![return_t.clone()]),
         );
         let sig_t = self.generalize_t(sig_t);
         let as_type = subr_t(
@@ -791,11 +791,21 @@ impl Context {
                 };
                 Ok(ref_mut(before, after))
             }
-            Type::Poly { name, mut params } => {
+            Type::BuiltinPoly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p))?;
                 }
-                Ok(poly(name, params))
+                Ok(builtin_poly(name, params))
+            }
+            Type::Poly {
+                path,
+                name,
+                mut params,
+            } => {
+                for p in params.iter_mut() {
+                    *p = self.eval_tp(&mem::take(p))?;
+                }
+                Ok(poly(path, name, params))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
@@ -839,7 +849,7 @@ impl Context {
         let p = self.eval_tp(p)?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
-            TyParam::Value(v) => Ok(enum_t(set![v])),
+            TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.get_type() {
@@ -852,7 +862,7 @@ impl Context {
             TyParam::Type(_) => Ok(Type::Type),
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
-                .map(|v| enum_t(set![v.clone()]))
+                .map(|v| v_enum(set![v.clone()]))
                 .ok_or_else(|| {
                     EvalErrors::from(EvalError::unreachable(
                         self.cfg.input.clone(),

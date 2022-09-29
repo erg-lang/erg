@@ -509,7 +509,28 @@ impl Parser {
                 let local = ConstLocal::new(local.name.into_token());
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
-            // TODO: App, Array, Record, BinOp, UnaryOp,
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let (elems, _, _) = arr.elems.deconstruct();
+                    let mut const_elems = vec![];
+                    for elem in elems.into_iter() {
+                        let const_expr = self.validate_const_expr(elem.expr)?;
+                        const_elems.push(ConstPosArg::new(const_expr));
+                    }
+                    let elems = ConstArgs::new(const_elems, vec![], None);
+                    let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
+                    Ok(ConstExpr::Array(const_arr))
+                }
+                other => {
+                    self.errs.push(ParseError::feature_error(
+                        line!() as usize,
+                        other.loc(),
+                        "???",
+                    ));
+                    Err(())
+                }
+            },
+            // TODO: App, Record, BinOp, UnaryOp,
             other => {
                 self.errs.push(ParseError::syntax_error(
                 0,

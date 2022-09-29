@@ -4,7 +4,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
@@ -35,7 +35,7 @@ impl Input {
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename) => filename.as_os_str().to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("???"),
             Self::REPL | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -45,7 +45,7 @@ impl Input {
     /// ファイルに書き出すとき使う
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename) => filename.as_os_str().to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("???"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -115,6 +115,21 @@ impl Input {
             Self::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
+    }
+
+    pub fn resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        let mut dir = if let Self::File(mut path) = self.clone() {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        dir.push(path);
+        dir.set_extension("er");
+        dir.canonicalize().or_else(|_| {
+            dir.set_extension("d.er");
+            dir.canonicalize()
+        })
     }
 }
 

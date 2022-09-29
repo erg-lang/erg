@@ -16,7 +16,7 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    array, array_mut, builtin_mono, free_var, func, mono, poly, proc, quant,
+    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -85,11 +85,8 @@ impl Runnable for ASTLowerer {
     fn exec(&mut self) -> Result<(), Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(self.input().read())?;
-        let (hir, warns) = self
-            .lower(ast, "exec")
-            .map_err(|(_, errs)| self.convert(errs))?;
+        let (hir, warns) = self.lower(ast, "exec").map_err(|(_, errs)| errs)?;
         if self.cfg.verbose >= 2 {
-            let warns = self.convert(warns);
             warns.fmt_all_stderr();
         }
         println!("{hir}");
@@ -99,9 +96,7 @@ impl Runnable for ASTLowerer {
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(src)?;
-        let (hir, ..) = self
-            .lower(ast, "eval")
-            .map_err(|(_, errs)| self.convert(errs))?;
+        let (hir, ..) = self.lower(ast, "eval").map_err(|(_, errs)| errs)?;
         Ok(format!("{hir}"))
     }
 }
@@ -119,13 +114,6 @@ impl ASTLowerer {
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
-    }
-
-    fn convert(&self, errs: LowerErrors) -> CompileErrors {
-        errs.into_iter()
-            .map(|e| CompileError::new(e.core, self.input().clone(), e.caused_by))
-            .collect::<Vec<_>>()
-            .into()
     }
 
     fn return_t_check(
@@ -160,7 +148,7 @@ impl ASTLowerer {
         if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
             Err(LowerError::syntax_error(
                 self.cfg.input.clone(),
-                0,
+                line!() as usize,
                 expr.loc(),
                 AtomicStr::arc(&self.ctx.name[..]),
                 switch_lang!(
@@ -264,7 +252,7 @@ impl ASTLowerer {
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    builtin_poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -274,7 +262,7 @@ impl ASTLowerer {
             }
             Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    builtin_poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -286,7 +274,7 @@ impl ASTLowerer {
             // REVIEW: is it ok to ignore the error?
             Err(_e) => {
                 if elem.ref_t().is_mut() {
-                    poly(
+                    builtin_poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
@@ -349,7 +337,9 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let t = self.ctx.rec_get_attr_t(&obj, &attr.ident, &self.ctx.name)?;
+                let t =
+                    self.ctx
+                        .rec_get_attr_t(&obj, &attr.ident, &self.cfg.input, &self.ctx.name)?;
                 let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident, t));
                 Ok(acc)
@@ -389,8 +379,12 @@ impl ASTLowerer {
             (Type::Failure, None)
         } else {
             (
-                self.ctx.rec_get_var_t(&ident, &self.ctx.name)?,
-                self.ctx.get_local_uniq_obj_name(&ident.name),
+                self.ctx
+                    .rec_get_var_t(&ident, &self.cfg.input, &self.ctx.name)?,
+                self.ctx
+                    .get_singular_ctx_from_ident(&ident, &self.ctx.name)
+                    .ok()
+                    .map(|ctx| ctx.name.clone()),
             )
         };
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, t);
@@ -403,7 +397,9 @@ impl ASTLowerer {
         let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [lhs, rhs];
-        let t = self.ctx.get_binop_t(&bin.op, &args, &self.ctx.name)?;
+        let t = self
+            .ctx
+            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.ctx.name)?;
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
@@ -415,7 +411,9 @@ impl ASTLowerer {
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [arg];
-        let t = self.ctx.get_unaryop_t(&unary.op, &args, &self.ctx.name)?;
+        let t = self
+            .ctx
+            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.ctx.name)?;
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         Ok(hir::UnaryOp::new(unary.op, expr, t))
@@ -443,6 +441,7 @@ impl ASTLowerer {
             &call.method_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
+            &self.cfg.input,
             &self.ctx.name,
         )?;
         let method_name = if let Some(method_name) = call.method_name {
@@ -455,7 +454,14 @@ impl ASTLowerer {
         } else {
             None
         };
-        Ok(hir::Call::new(obj, method_name, hir_args, sig_t))
+        let call = hir::Call::new(obj, method_name, hir_args, sig_t);
+        if let Some(kind) = call.import_kind() {
+            let mod_name = enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
+            if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
+                self.errs.extend(errs.into_iter());
+            };
+        }
+        Ok(call)
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -482,6 +488,7 @@ impl ASTLowerer {
             &Some(method_name.clone()),
             &args,
             &[],
+            &self.cfg.input,
             &self.ctx.name,
         )?;
         let args = hir::Args::new(args, None, vec![], None);
@@ -630,20 +637,6 @@ impl ASTLowerer {
             .as_mut()
             .unwrap()
             .assign_var_sig(&sig, found_body_t, id)?;
-        match block.first().unwrap() {
-            hir::Expr::Call(call) => {
-                if let Some(kind) = call.import_kind() {
-                    if let Err(errs) = self.ctx.outer.as_mut().unwrap().import_mod(
-                        kind,
-                        &ident.name,
-                        &call.args.pos_args.first().unwrap().expr,
-                    ) {
-                        self.errs.extend(errs.into_iter());
-                    };
-                }
-            }
-            _other => {}
-        }
         let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         let sig = hir::VarSignature::new(ident, found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
@@ -785,7 +778,7 @@ impl ASTLowerer {
         }
         let (_, ctx) = self
             .ctx
-            .get_nominal_type_ctx(&mono(self.ctx.mod_name(), hir_def.sig.ident().inspect()))
+            .get_nominal_type_ctx(&mono(self.ctx.path(), hir_def.sig.ident().inspect()))
             .unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
@@ -1224,7 +1217,7 @@ impl ASTLowerer {
             Ok(hir) => hir,
             Err((hir, errs)) => {
                 self.errs.extend(errs.into_iter());
-                log!(err "the AST lowering process has failed.");
+                log!(err "the resolving process has failed. errs:  {}", self.errs.len());
                 return Err((Some(hir), LowerErrors::from(self.errs.take_all())));
             }
         };
@@ -1239,7 +1232,7 @@ impl ASTLowerer {
             log!(info "the AST lowering process has completed.");
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
-            log!(err "the AST lowering process has failed.");
+            log!(err "the AST lowering process has failed. errs: {}", self.errs.len());
             Err((Some(hir), LowerErrors::from(self.errs.take_all())))
         }
     }

@@ -594,16 +594,33 @@ impl Context {
             (Ref(l), r) => self.supertype_of(l, r),
             (RefMut { before: l, .. }, r) => self.supertype_of(l, r),
             (
-                Poly {
+                BuiltinPoly {
                     name: ln,
                     params: lparams,
                 },
-                Poly {
+                BuiltinPoly {
                     name: rn,
                     params: rparams,
                 },
             ) => {
                 if ln != rn || lparams.len() != rparams.len() {
+                    return false;
+                }
+                self.poly_supertype_of(lhs, lparams, rparams)
+            }
+            (
+                Poly {
+                    path: lp,
+                    name: ln,
+                    params: lparams,
+                },
+                Poly {
+                    path: rp,
+                    name: rn,
+                    params: rparams,
+                },
+            ) => {
+                if lp != rp || ln != rn || lparams.len() != rparams.len() {
                     return false;
                 }
                 self.poly_supertype_of(lhs, lparams, rparams)

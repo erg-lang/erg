@@ -18,7 +18,7 @@ use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, builtin_mono, poly, refinement, tuple};
+use crate::constructors::{array, builtin_mono, builtin_poly, refinement, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -506,7 +506,7 @@ impl ValueObj {
                 Self::Float(_) => builtin_mono("Float!"),
                 Self::Str(_) => builtin_mono("Str!"),
                 Self::Bool(_) => builtin_mono("Bool!"),
-                Self::Array(arr) => poly(
+                Self::Array(arr) => builtin_poly(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),
