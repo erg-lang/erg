@@ -343,6 +343,9 @@ pub struct CodeGenerator {
     cfg: ErgConfig,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
+    record_type_loaded: bool,
+    module_type_loaded: bool,
+    abc_loaded: bool,
     unit_size: usize,
     units: CodeGenStack,
 }
@@ -353,6 +356,9 @@ impl CodeGenerator {
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,
+            record_type_loaded: false,
+            module_type_loaded: false,
+            abc_loaded: false,
             unit_size: 0,
             units: CodeGenStack::empty(),
         }
@@ -435,6 +441,8 @@ impl CodeGenerator {
         }
     }
 
+    /// NOTE: For example, an operation that increases the stack by 2 and decreases it by 1 should be `stack_inc_n(2); stack_dec();` not `stack_inc(1);`.
+    /// This is because the stack size will not increase correctly.
     fn stack_inc_n(&mut self, n: usize) {
         self.mut_cur_block().stack_len += n as u32;
         if self.cur_block().stack_len > self.cur_block_codeobj().stacksize {
@@ -587,8 +595,8 @@ impl CodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx as u8);
+        self.stack_inc_n(items_len);
         self.stack_dec(); // (level + from_list) -> module object
-        self.stack_inc_n(items_len - 1);
     }
 
     fn emit_import_from_instr(&mut self, ident: Identifier) {
@@ -603,28 +611,29 @@ impl CodeGenerator {
     }
 
     /// item: (name, renamed)
-    fn emit_import_items(
+    fn emit_global_import_items(
         &mut self,
         module: Identifier,
         items: Vec<(Identifier, Option<Identifier>)>,
     ) {
         self.emit_load_const(0);
-        let item_names = items
+        let item_name_tuple = items
             .iter()
             .map(|ident| ValueObj::Str(ident.0.inspect().clone()))
             .collect::<Vec<_>>();
-        let items_len = item_names.len();
-        self.emit_load_const(item_names);
+        let items_len = item_name_tuple.len();
+        self.emit_load_const(item_name_tuple);
         self.emit_import_name_instr(module, items_len);
         for (item, renamed) in items.into_iter() {
             if let Some(renamed) = renamed {
                 self.emit_import_from_instr(item);
-                self.emit_store_instr(renamed, Name);
+                self.emit_store_global_instr(renamed);
             } else {
                 self.emit_import_from_instr(item.clone());
-                self.emit_store_instr(item, Name);
+                self.emit_store_global_instr(item);
             }
         }
+        self.emit_pop_top(); // discard IMPORT_FROM object
     }
 
     fn emit_load_attr_instr(
@@ -701,6 +710,20 @@ impl CodeGenerator {
         if instr == Opcode::STORE_ATTR {
             self.stack_dec();
         }
+    }
+
+    /// used for importing Erg builtin objects, etc. normally, this is not used
+    // Ergの組み込みオブジェクトをimportするときなどに使う、通常は使わない
+    fn emit_store_global_instr(&mut self, ident: Identifier) {
+        log!(info "entered {} ({ident})", fn_name!());
+        let escaped = escape_name(ident);
+        let name = self
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
+        let instr = Opcode::STORE_GLOBAL;
+        self.write_instr(instr);
+        self.write_arg(name.idx as u8);
+        self.stack_dec();
     }
 
     /// Ergの文法として、属性への代入は存在しない(必ずオブジェクトはすべての属性を初期化しなくてはならないため)
@@ -823,6 +846,10 @@ impl CodeGenerator {
     }
 
     fn emit_trait_def(&mut self, def: Def) {
+        if !self.abc_loaded {
+            self.load_abc();
+            self.abc_loaded = true;
+        }
         self.write_instr(Opcode::LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
@@ -1352,6 +1379,14 @@ impl CodeGenerator {
             "for" | "for!" => self.emit_for_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
+            "import" => {
+                if !self.module_type_loaded {
+                    self.load_module_type();
+                    self.module_type_loaded = true;
+                }
+                self.emit_load_name_instr(local);
+                self.emit_args(args, Name);
+            }
             _ => {
                 self.emit_load_name_instr(local);
                 self.emit_args(args, Name);
@@ -1475,6 +1510,10 @@ impl CodeGenerator {
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
+        if !self.record_type_loaded {
+            self.load_record_type();
+            self.record_type_loaded = true;
+        }
         let attrs_len = rec.attrs.len();
         // making record type
         let ident = Identifier::private(Str::ever("#NamedTuple"));
@@ -1592,6 +1631,10 @@ impl CodeGenerator {
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => {
+                if !self.module_type_loaded {
+                    self.load_module_type();
+                    self.module_type_loaded = true;
+                }
                 self.emit_frameless_block(chunks, vec![]);
             }
             Expr::TypeAsc(tasc) => {
@@ -1841,14 +1884,12 @@ impl CodeGenerator {
     }
 
     fn load_prelude(&mut self) {
-        self.init_record();
-        self.load_abc();
-        self.load_module_type();
+        // TODO:
     }
 
-    fn init_record(&mut self) {
+    fn load_record_type(&mut self) {
         // importing namedtuple
-        self.emit_import_items(
+        self.emit_global_import_items(
             Identifier::public("collections"),
             vec![(
                 Identifier::public("namedtuple"),
@@ -1859,7 +1900,7 @@ impl CodeGenerator {
     }
 
     fn load_abc(&mut self) {
-        self.emit_import_items(
+        self.emit_global_import_items(
             Identifier::public("abc"),
             vec![
                 (
@@ -1875,7 +1916,7 @@ impl CodeGenerator {
     }
 
     fn load_module_type(&mut self) {
-        self.emit_import_items(
+        self.emit_global_import_items(
             Identifier::public("types"),
             vec![(
                 Identifier::public("ModuleType"),

@@ -9,133 +9,243 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::DefId;
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::free::fresh_varname;
 use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Type};
 
-use crate::hir::{
-    Accessor, Args, Block, Call, Def, DefBody, Expr, Identifier, Literal, PosArg, HIR,
-};
+use crate::context::ImportKind;
+use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;
 
-pub struct Linker {}
+pub struct Linker<'a> {
+    cfg: &'a ErgConfig,
+    mod_cache: &'a SharedModuleCache,
+}
 
-impl Linker {
-    #[allow(deprecated)]
-    pub fn link(cfg: ErgConfig, mut main: HIR, mod_cache: SharedModuleCache) -> HIR {
+impl<'a> Linker<'a> {
+    pub fn new(cfg: &'a ErgConfig, mod_cache: &'a SharedModuleCache) -> Self {
+        Self { cfg, mod_cache }
+    }
+
+    pub fn link(&self, mut main: HIR) -> HIR {
         log!(info "the linking process has started.");
         for chunk in main.module.iter_mut() {
-            match chunk {
-                // x = import "mod"
-                // ↓
-                // x = ModuleType("mod")
-                // exec(code, x.__dict__) # `code` is the mod's content
-                Expr::Def(ref def) if def.def_kind().is_erg_import() => {
-                    let path = enum_unwrap!(def.sig.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
-                    let path = Path::new(&path[..]);
-                    let path = cfg.input.resolve(path).unwrap();
-                    // In the case of REPL, entries cannot be used up
-                    let hir = if cfg.input.is_repl() {
-                        mod_cache
-                            .get(path.as_path())
-                            .and_then(|entry| entry.hir.clone())
-                    } else {
-                        mod_cache.remove(path.as_path()).and_then(|entry| entry.hir)
-                    };
-                    let mod_name = enum_unwrap!(def.body.block.first().unwrap(), Expr::Call)
-                        .args
-                        .get_left_or_key("path")
-                        .unwrap();
-                    // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
-                    //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
-                    if let Some(hir) = hir {
-                        let code = Expr::Code(Block::new(Vec::from(hir.module)));
-                        let module_type = Expr::Accessor(Accessor::private_with_line(
-                            Str::ever("#ModuleType"),
-                            def.ln_begin().unwrap_or(0),
-                        ));
-                        let args =
-                            Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
-                        let block = Block::new(vec![Expr::Call(Call::new(
-                            module_type,
-                            None,
-                            args,
-                            Type::Uninited,
-                        ))]);
-                        let mod_def = Expr::Def(Def::new(
-                            def.sig.clone(),
-                            DefBody::new(Token::dummy(), block, DefId(0)),
-                        ));
-                        let exec = Expr::Accessor(Accessor::public_with_line(
-                            Str::ever("exec"),
-                            mod_def.ln_begin().unwrap_or(0),
-                        ));
-                        let module = Expr::Accessor(Accessor::Ident(def.sig.ident().clone()));
-                        let __dict__ = Identifier::public("__dict__");
-                        let m_dict =
-                            Expr::Accessor(Accessor::attr(module, __dict__, Type::Uninited));
-                        let args = Args::new(
-                            vec![PosArg::new(code), PosArg::new(m_dict)],
-                            None,
-                            vec![],
-                            None,
-                        );
-                        let exec_code = Expr::Call(Call::new(exec, None, args, Type::Uninited));
-                        let compound = Block::new(vec![mod_def, exec_code]);
-                        *chunk = Expr::Compound(compound);
-                    }
-                }
-                // x = pyimport "x" (called from dir "a")
-                // ↓
-                // x = __import__("a.x").x
-                Expr::Def(def) if def.def_kind().is_py_import() => {
-                    let mut dir = if let Input::File(mut path) = cfg.input.clone() {
-                        path.pop();
-                        path
-                    } else {
-                        PathBuf::new()
-                    };
-                    let args =
-                        &mut enum_unwrap!(def.body.block.first_mut().unwrap(), Expr::Call).args;
-                    let mod_name_lit =
-                        enum_unwrap!(args.remove_left_or_key("path").unwrap(), Expr::Lit);
-                    let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
-                    let mod_name_str = if let Some(stripped) = mod_name_str.strip_prefix("./") {
-                        stripped
-                    } else {
-                        &mod_name_str
-                    };
-                    dir.push(mod_name_str);
-                    let mut comps = dir.components();
-                    let _first = comps.next().unwrap();
-                    let path = dir.to_string_lossy().replace('/', ".").replace('\\', ".");
-                    let token = Token::new(
-                        TokenKind::StrLit,
-                        path,
-                        mod_name_lit.ln_begin().unwrap(),
-                        mod_name_lit.col_begin().unwrap(),
-                    );
-                    let mod_name = Expr::Lit(Literal::from(token));
-                    args.insert_pos(0, PosArg::new(mod_name));
-                    let expr = def.body.block.first_mut().unwrap();
-                    let line = expr.ln_begin().unwrap_or(0);
-                    for attr in comps {
-                        *expr = Expr::Accessor(Accessor::attr(
-                            // instead of mem::take(),
-                            mem::replace(expr, Expr::Code(Block::empty())),
-                            Identifier::public_with_line(
-                                Token::dummy(),
-                                Str::rc(attr.as_os_str().to_str().unwrap()),
-                                line,
-                            ),
-                            Type::Uninited,
-                        ));
-                    }
-                }
-                _ => {}
-            }
+            self.replace_import(chunk);
         }
         log!(info "linked: {main}");
         main
+    }
+
+    fn replace_import(&self, expr: &mut Expr) {
+        match expr {
+            Expr::Lit(_) => {}
+            Expr::Accessor(acc) => match acc {
+                Accessor::Attr(attr) => {
+                    self.replace_import(&mut attr.obj);
+                }
+                Accessor::TupleAttr(attr) => {
+                    self.replace_import(&mut attr.obj);
+                }
+                Accessor::Subscr(subscr) => {
+                    self.replace_import(&mut subscr.obj);
+                    self.replace_import(&mut subscr.index);
+                }
+                Accessor::Ident(_) => {}
+            },
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    for elem in arr.elems.pos_args.iter_mut() {
+                        self.replace_import(&mut elem.expr);
+                    }
+                }
+                _ => todo!(),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    for elem in tup.elems.pos_args.iter_mut() {
+                        self.replace_import(&mut elem.expr);
+                    }
+                }
+            },
+            Expr::Dict(_dict) => {
+                todo!()
+            }
+            Expr::Record(record) => {
+                for attr in record.attrs.iter_mut() {
+                    for chunk in attr.body.block.iter_mut() {
+                        self.replace_import(chunk);
+                    }
+                }
+            }
+            Expr::BinOp(binop) => {
+                self.replace_import(&mut binop.lhs);
+                self.replace_import(&mut binop.rhs);
+            }
+            Expr::UnaryOp(unaryop) => {
+                self.replace_import(&mut unaryop.expr);
+            }
+            Expr::Call(call) => match call.import_kind() {
+                Some(ImportKind::ErgImport) => {
+                    self.replace_erg_import(expr);
+                }
+                Some(ImportKind::PyImport) => {
+                    self.replace_py_import(expr);
+                }
+                None => {
+                    for arg in call.args.pos_args.iter_mut() {
+                        self.replace_import(&mut arg.expr);
+                    }
+                    for arg in call.args.kw_args.iter_mut() {
+                        self.replace_import(&mut arg.expr);
+                    }
+                }
+            },
+            Expr::Decl(_decl) => {}
+            Expr::Def(def) => {
+                for chunk in def.body.block.iter_mut() {
+                    self.replace_import(chunk);
+                }
+            }
+            Expr::Lambda(lambda) => {
+                for chunk in lambda.body.iter_mut() {
+                    self.replace_import(chunk);
+                }
+            }
+            Expr::ClassDef(class_def) => {
+                for def in class_def.methods.iter_mut() {
+                    self.replace_import(def);
+                }
+            }
+            Expr::AttrDef(attr_def) => {
+                // REVIEW:
+                for chunk in attr_def.block.iter_mut() {
+                    self.replace_import(chunk);
+                }
+            }
+            Expr::TypeAsc(tasc) => self.replace_import(&mut tasc.expr),
+            Expr::Code(chunks) | Expr::Compound(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    self.replace_import(chunk);
+                }
+            }
+        }
+    }
+
+    /// ```erg
+    /// x = import "mod"
+    /// ```
+    /// ↓
+    /// ```python
+    /// x =
+    ///     _x = ModuleType("mod")
+    ///     exec(code, _x.__dict__)  # `code` is the mod's content
+    ///     _x
+    /// ```
+    fn replace_erg_import(&self, expr: &mut Expr) {
+        let line = expr.ln_begin().unwrap_or(0);
+        let path =
+            enum_unwrap!(expr.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
+        let path = Path::new(&path[..]);
+        let path = self.cfg.input.resolve(path).unwrap();
+        // In the case of REPL, entries cannot be used up
+        let hir = if self.cfg.input.is_repl() {
+            self.mod_cache
+                .get(path.as_path())
+                .and_then(|entry| entry.hir.clone())
+        } else {
+            self.mod_cache
+                .remove(path.as_path())
+                .and_then(|entry| entry.hir)
+        };
+        let mod_name = enum_unwrap!(expr, Expr::Call)
+            .args
+            .get_left_or_key("Path")
+            .unwrap();
+        // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
+        //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
+        if let Some(hir) = hir {
+            let code = Expr::Code(Block::new(Vec::from(hir.module)));
+            let module_type =
+                Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
+            let args = Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
+            let block = Block::new(vec![Expr::Call(Call::new(
+                module_type,
+                None,
+                args,
+                Type::Uninited,
+            ))]);
+            let tmp =
+                Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
+            let mod_def = Expr::Def(Def::new(
+                Signature::Var(VarSignature::new(tmp.clone(), Type::Uninited)),
+                DefBody::new(Token::dummy(), block, DefId(0)),
+            ));
+            let exec = Expr::Accessor(Accessor::public_with_line(
+                Str::ever("exec"),
+                expr.ln_begin().unwrap_or(0),
+            ));
+            let module = Expr::Accessor(Accessor::Ident(tmp));
+            let __dict__ = Identifier::public("__dict__");
+            let m_dict = Expr::Accessor(Accessor::attr(module.clone(), __dict__, Type::Uninited));
+            let args = Args::new(
+                vec![PosArg::new(code), PosArg::new(m_dict)],
+                None,
+                vec![],
+                None,
+            );
+            let exec_code = Expr::Call(Call::new(exec, None, args, Type::Uninited));
+            let compound = Block::new(vec![mod_def, exec_code, module]);
+            *expr = Expr::Compound(compound);
+        }
+    }
+
+    /// ```erg
+    /// x = pyimport "x" # called from dir "a"
+    /// ```
+    /// ↓
+    /// ```python
+    /// x = __import__("a.x").x
+    /// ```
+    fn replace_py_import(&self, expr: &mut Expr) {
+        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        let args = &mut enum_unwrap!(expr, Expr::Call).args;
+        let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
+        let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
+        let mod_name_str = if let Some(stripped) = mod_name_str.strip_prefix("./") {
+            stripped
+        } else {
+            &mod_name_str
+        };
+        dir.push(mod_name_str);
+        let mut comps = dir.components();
+        let _first = comps.next().unwrap();
+        let path = dir.to_string_lossy().replace('/', ".").replace('\\', ".");
+        let token = Token::new(
+            TokenKind::StrLit,
+            path,
+            mod_name_lit.ln_begin().unwrap(),
+            mod_name_lit.col_begin().unwrap(),
+        );
+        let mod_name = Expr::Lit(Literal::from(token));
+        args.insert_pos(0, PosArg::new(mod_name));
+        let line = expr.ln_begin().unwrap_or(0);
+        for attr in comps {
+            *expr = Expr::Accessor(Accessor::attr(
+                // instead of mem::take(),
+                mem::replace(expr, Expr::Code(Block::empty())),
+                Identifier::public_with_line(
+                    Token::dummy(),
+                    Str::rc(attr.as_os_str().to_str().unwrap()),
+                    line,
+                ),
+                Type::Uninited,
+            ));
+        }
     }
 }

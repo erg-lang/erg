@@ -156,7 +156,8 @@ impl Compiler {
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
         let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
-        let hir = Linker::link(self.cfg.copy(), hir, self.mod_cache.clone());
+        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let hir = linker.link(hir);
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(info "the compiling process has completed");
