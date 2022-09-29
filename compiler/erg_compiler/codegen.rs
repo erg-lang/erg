@@ -631,6 +631,7 @@ impl CodeGenerator {
                 self.emit_store_global_instr(item);
             }
         }
+        self.emit_pop_top(); // discard IMPORT_FROM object
     }
 
     fn emit_load_attr_instr(
