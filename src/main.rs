@@ -3,6 +3,7 @@ extern crate erg_compiler;
 extern crate erg_parser;
 
 use std::process;
+#[cfg(target_os = "windows")]
 use std::thread;
 
 use erg_common::config::ErgConfig;
@@ -51,7 +52,8 @@ fn run() {
 }
 
 fn main() {
-    if cfg!(windows) {
+    #[cfg(target_os = "windows")]
+    {
         const STACK_SIZE: usize = 4 * 1024 * 1024;
 
         let child = thread::Builder::new()
@@ -61,7 +63,7 @@ fn main() {
 
         // Wait for thread to join
         child.join().unwrap();
-    } else {
-        run();
     }
+    #[cfg(not(target_os = "windows"))]
+    run();
 }
