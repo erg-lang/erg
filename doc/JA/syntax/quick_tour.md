@@ -43,7 +43,6 @@ True、Falseは真偽値型のシングルトンですが、Int型にキャス�
 そのため、Int型であれば比較することができますが、その他の型と比較するとエラーになります。
 
 ```python
-# erg
 True == 1 # OK
 False == 0 # OK
 True == 1.0 # NG
