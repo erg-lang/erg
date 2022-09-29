@@ -1506,7 +1506,10 @@ impl Parser {
                 other => (Expr::Accessor(other), None),
             };
             let mut call = Expr::Call(Call::new(obj, method_name, args));
-            // e.g. f(x) g(x) == f(x)(g(x))
+            // e.g.
+            // f(x).y == Attr { obj: f(x) attr: .y }
+            // f(x) .y == Call { obj: f(x), args: [.y] } (with warning)
+            // f(x) g(x) == f(x)(g(x))
             while let Some(res) = self.opt_reduce_args(in_type_args) {
                 let args = res.map_err(|_| self.stack_dec())?;
                 call = Expr::Call(Call::new(call, None, args));
