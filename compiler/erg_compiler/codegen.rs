@@ -441,6 +441,8 @@ impl CodeGenerator {
         }
     }
 
+    /// NOTE: For example, an operation that increases the stack by 2 and decreases it by 1 should be `stack_inc_n(2); stack_dec();` not `stack_inc(1);`.
+    /// This is because the stack size will not increase correctly.
     fn stack_inc_n(&mut self, n: usize) {
         self.mut_cur_block().stack_len += n as u32;
         if self.cur_block().stack_len > self.cur_block_codeobj().stacksize {
