@@ -1369,7 +1369,7 @@ impl CodeGenerator {
         // push __exit__, __enter__() to the stack
         self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
-        self.emit_frameless_block(lambda.body, params);
+        self.emit_with_block(lambda.body, params);
         let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
@@ -1383,10 +1383,10 @@ impl CodeGenerator {
         self.stack_inc();
         self.write_instr(CALL_FUNCTION);
         self.write_arg(3);
-        self.stack_dec_n(3 - 1);
+        self.stack_dec_n((1 + 3) - 1);
         self.emit_pop_top();
-        self.emit_load_const(ValueObj::None);
-        self.write_instr(RETURN_VALUE);
+        let idx_jump_forward = self.cur_block().lasti;
+        self.write_instr(JUMP_FORWARD);
         self.write_arg(0);
         self.edit_code(
             idx_setup_with + 1,
@@ -1400,11 +1400,13 @@ impl CodeGenerator {
         self.write_instr(RERAISE);
         self.write_arg(1);
         self.edit_code(idx_pop_jump_if_true + 1, self.cur_block().lasti / 2);
-        self.emit_pop_top();
-        self.emit_pop_top();
+        // self.emit_pop_top();
+        // self.emit_pop_top();
         self.emit_pop_top();
         self.write_instr(POP_EXCEPT);
         self.write_arg(0);
+        let idx_end = self.cur_block().lasti;
+        self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
         self.emit_load_name_instr(stash);
     }
 
@@ -1719,6 +1721,24 @@ impl CodeGenerator {
             // TODO: discard
             // 最終的に帳尻を合わせる(コード生成の順番的にスタックの整合性が一時的に崩れる場合がある)
             if self.cur_block().stack_len == 1 {
+                self.emit_pop_top();
+            }
+        }
+        self.cancel_pop_top();
+    }
+
+    fn emit_with_block(&mut self, block: Block, params: Vec<Str>) {
+        log!(info "entered {}", fn_name!());
+        let line = block.ln_begin().unwrap_or(0);
+        for param in params {
+            self.emit_store_instr(
+                Identifier::public_with_line(Token::dummy(), param, line),
+                Name,
+            );
+        }
+        for expr in block.into_iter() {
+            self.emit_expr(expr);
+            if self.cur_block().stack_len != 0 {
                 self.emit_pop_top();
             }
         }
