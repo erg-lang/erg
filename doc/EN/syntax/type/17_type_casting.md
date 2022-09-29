@@ -70,3 +70,7 @@ IntTryFromFloat.
             then: r.ceil()
             else: Error "conversion failed".
 ```
+
+<p align='center'>
+    <a href='./16_subtyping.md'>Previous</a> | <a href='./18_mut.md'>Next</a>
+</p>

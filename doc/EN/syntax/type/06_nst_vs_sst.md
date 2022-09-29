@@ -39,5 +39,5 @@ If you cannot decide which one to use, our recommendation is NST.
 SST requires abstraction skills to write code that does not break down in any use case. Good abstraction can lead to high productivity, but wrong abstraction (commonality by appearances) can lead to counterproductive results. (NSTs can reduce this risk by deliberately keeping abstraction to a minimum. If you are not a library implementor, it is not a bad idea to code only with NSTs.
 
 <p align='center'>
-    <a href='./04_class.md'>Previous</a> | <a href='./06_inheritance.md'>Next</a>
+    <a href='./05_inheritance.md'>Previous</a> | <a href='./07_patch.md'>Next</a>
 </p>

@@ -35,3 +35,7 @@ Types classified as value types may be added in the future.
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> The term "value type" in Erg differs from the definition in other languages. There is no concept of memory within pure Erg semantics, and it is incorrect to state that it is a value type because it is placed on the stack, or that it is not a value type because it is actually a pointer. A value type only means that it is a `Value` type or its subtypes. [↩](#f1)</span>
+
+<p align='center'>
+    <a href='./07_patch.md'>Previous</a> | <a href='./09_attributive.md'>Next</a>
+</p>
