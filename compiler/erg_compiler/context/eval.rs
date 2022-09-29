@@ -14,7 +14,8 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    builtin_mono, builtin_poly, mono_proj, poly, ref_, ref_mut, refinement, subr_t, v_enum,
+    and, builtin_mono, builtin_poly, mono_proj, not, or, poly, ref_, ref_mut, refinement, subr_t,
+    v_enum,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
@@ -806,6 +807,21 @@ impl Context {
                     *p = self.eval_tp(&mem::take(p))?;
                 }
                 Ok(poly(path, name, params))
+            }
+            Type::And(l, r) => {
+                let l = self.eval_t_params(*l, level, t_loc)?;
+                let r = self.eval_t_params(*r, level, t_loc)?;
+                Ok(and(l, r))
+            }
+            Type::Or(l, r) => {
+                let l = self.eval_t_params(*l, level, t_loc)?;
+                let r = self.eval_t_params(*r, level, t_loc)?;
+                Ok(or(l, r))
+            }
+            Type::Not(l, r) => {
+                let l = self.eval_t_params(*l, level, t_loc)?;
+                let r = self.eval_t_params(*r, level, t_loc)?;
+                Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),

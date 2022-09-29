@@ -893,6 +893,21 @@ impl Context {
                 fv.update_constraint(new_constraint);
                 Ok(FreeVar(fv))
             }
+            And(l, r) => {
+                let l = self.instantiate_t(*l, tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                Ok(and(l, r))
+            }
+            Or(l, r) => {
+                let l = self.instantiate_t(*l, tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                Ok(or(l, r))
+            }
+            Not(l, r) => {
+                let l = self.instantiate_t(*l, tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                Ok(not(l, r))
+            }
             other if other.is_monomorphic() => Ok(other),
             other => todo!("{other}"),
         }

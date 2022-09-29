@@ -204,6 +204,7 @@ impl Context {
         // REVIEW: Mutatable?
         let mut mutizable = Self::builtin_mono_trait("Mutizable", 2);
         mutizable.register_builtin_decl("MutType!", Type, Public);
+        let pathlike = Self::builtin_mono_trait("PathLike", 2);
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
@@ -326,6 +327,7 @@ impl Context {
         self.register_builtin_type(builtin_mono("Mutable"), mutable, Const);
         self.register_builtin_type(builtin_mono("Immutizable"), immutizable, Const);
         self.register_builtin_type(builtin_mono("Mutizable"), mutizable, Const);
+        self.register_builtin_type(builtin_mono("PathLike"), pathlike, Const);
         self.register_builtin_type(
             builtin_poly("Input", vec![ty_tp(mono_q("T"))]),
             input,
@@ -619,6 +621,7 @@ impl Context {
         let mut str_ = Self::builtin_mono_class("Str", 10);
         str_.register_superclass(Obj, &obj);
         str_.register_marker_trait(builtin_mono("Ord"));
+        str_.register_marker_trait(builtin_mono("PathLike"));
         str_.register_builtin_impl(
             "replace",
             fn_met(
@@ -1327,6 +1330,7 @@ impl Context {
             builtin_mono("Mutable"),
             str_mut_mutable,
         );
+        let file_mut = Self::builtin_mono_class("File!", 2);
         let array_t = builtin_poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = builtin_poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
@@ -1503,6 +1507,7 @@ impl Context {
         self.register_builtin_type(builtin_mono("Ratio!"), ratio_mut, Const);
         self.register_builtin_type(builtin_mono("Bool!"), bool_mut, Const);
         self.register_builtin_type(builtin_mono("Str!"), str_mut, Const);
+        self.register_builtin_type(builtin_mono("File!"), file_mut, Const);
         self.register_builtin_type(array_mut_t, array_mut_, Const);
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(builtin_mono("Tuple"), tuple_, Const);
@@ -1684,6 +1689,37 @@ impl Context {
             None,
             NoneType,
         );
+        let t_open = proc(
+            vec![param_t("file", mono_q("P"))],
+            None,
+            vec![
+                param_t("mode", Str),
+                param_t("buffering", Int),
+                param_t("encoding", or(Str, NoneType)),
+                param_t("errors", or(Str, NoneType)),
+                param_t("newline", or(Str, NoneType)),
+                param_t("closefd", Bool),
+                // param_t("opener", option),
+            ],
+            builtin_mono("File!"),
+        );
+        let t_open = quant(
+            t_open,
+            set! {subtypeof(mono_q("P"), builtin_mono("PathLike"))},
+        );
+        // TODO: T <: With
+        let t_with = nd_proc(
+            vec![
+                param_t("obj", mono_q("T")),
+                param_t("p!", nd_proc(vec![anon(mono_q("T"))], None, mono_q("U"))),
+            ],
+            None,
+            mono_q("U"),
+        );
+        let t_with = quant(
+            t_with,
+            set! {static_instance("T", Type), static_instance("U", Type)},
+        );
         self.register_builtin_impl("dir!", t_dir, Immutable, Private);
         self.register_builtin_impl("print!", t_print, Immutable, Private);
         self.register_builtin_impl("id!", t_id, Immutable, Private);
@@ -1691,6 +1727,8 @@ impl Context {
         self.register_builtin_impl("if!", t_if, Immutable, Private);
         self.register_builtin_impl("for!", t_for, Immutable, Private);
         self.register_builtin_impl("while!", t_while, Immutable, Private);
+        self.register_builtin_impl("open!", t_open, Immutable, Private);
+        self.register_builtin_impl("with!", t_with, Immutable, Private);
     }
 
     fn init_builtin_operators(&mut self) {
