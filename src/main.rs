@@ -3,6 +3,7 @@ extern crate erg_compiler;
 extern crate erg_parser;
 
 use std::process;
+#[cfg(target_os = "windows")]
 use std::thread;
 
 use erg_common::config::ErgConfig;
