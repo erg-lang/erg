@@ -810,6 +810,14 @@ impl Context {
                     );
                 }
             }
+            for method in ctx.decls.keys() {
+                if let Some(impls) = self.method_traits.get_mut(method.inspect()) {
+                    impls.push(t.clone());
+                } else {
+                    self.method_traits
+                        .insert(method.inspect().clone(), vec![t.clone()]);
+                }
+            }
             self.mono_types.insert(name.clone(), (t, ctx));
         }
     }

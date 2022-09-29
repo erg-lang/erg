@@ -1,0 +1,2 @@
+with! open!("examples/record.er"), f =>
+    print! f.read()

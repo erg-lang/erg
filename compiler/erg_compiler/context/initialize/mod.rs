@@ -100,8 +100,7 @@ impl Context {
     }
 
     fn register_mono_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
-        // FIXME: recursive search
-        if self.mono_types.contains_key(&t.name()) {
+        if self.rec_get_mono_type(&t.name()).is_some() {
             panic!("{} has already been registered", t.name());
         } else if self.rec_get_const_obj(&t.name()).is_some() {
             panic!("{} has already been registered as const", t.name());
@@ -121,6 +120,16 @@ impl Context {
                         impl_trait.name(),
                         vec![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
+                }
+            }
+            if ctx.kind == ContextKind::Trait {
+                for method in ctx.decls.keys() {
+                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
+                        traits.push(t.clone());
+                    } else {
+                        self.method_traits
+                            .insert(method.inspect().clone(), vec![t.clone()]);
+                    }
                 }
             }
             self.mono_types.insert(name, (t, ctx));
@@ -152,6 +161,16 @@ impl Context {
                         impl_trait.name(),
                         vec![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
+                }
+            }
+            if ctx.kind == ContextKind::Trait {
+                for method in ctx.decls.keys() {
+                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
+                        traits.push(t.clone());
+                    } else {
+                        self.method_traits
+                            .insert(method.inspect().clone(), vec![t.clone()]);
+                    }
                 }
             }
             self.poly_types.insert(name, (t, ctx));
@@ -217,7 +236,7 @@ impl Context {
             t_read,
             set! { subtypeof(mono_q("Self"), builtin_mono("Readable")) },
         );
-        readable.register_builtin_impl("read", t_read, Immutable, Public);
+        readable.register_builtin_decl("read", t_read, Public);
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
@@ -341,6 +360,7 @@ impl Context {
         self.register_builtin_type(builtin_mono("Immutizable"), immutizable, Const);
         self.register_builtin_type(builtin_mono("Mutizable"), mutizable, Const);
         self.register_builtin_type(builtin_mono("PathLike"), pathlike, Const);
+        self.register_builtin_type(builtin_mono("Readable"), readable, Const);
         self.register_builtin_type(
             builtin_poly("Input", vec![ty_tp(mono_q("T"))]),
             input,

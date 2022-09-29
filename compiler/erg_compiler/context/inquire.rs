@@ -495,6 +495,10 @@ impl Context {
                     self.get_similar_attr_from_singular(obj, method_name.inspect()),
                 ));
             }
+            if let Some(trait_) = self.rec_get_method_traits(method_name) {
+                let (_, ctx) = self.get_nominal_type_ctx(trait_).unwrap();
+                return ctx.rec_get_var_t(method_name, input, namespace);
+            }
             // TODO: patch
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
@@ -1504,7 +1508,7 @@ impl Context {
         }
     }
 
-    fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
@@ -1514,7 +1518,7 @@ impl Context {
         }
     }
 
-    fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
@@ -1552,6 +1556,20 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn rec_get_method_traits(&self, name: &Identifier) -> Option<&Type> {
+        if let Some(t) = self.method_traits.get(name.inspect()) {
+            if t.len() == 1 {
+                Some(&t[0])
+            } else {
+                None
+            }
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            outer.rec_get_method_traits(name)
         } else {
             None
         }
