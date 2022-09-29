@@ -439,6 +439,9 @@ impl CodeObj {
                     Opcode::JUMP_FORWARD => {
                         write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
                     }
+                    Opcode::SETUP_WITH => {
+                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
+                    }
                     Opcode::JUMP_ABSOLUTE => {
                         write!(instrs, "{} (to {})", arg, arg * 2).unwrap();
                     }

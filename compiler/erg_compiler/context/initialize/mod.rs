@@ -205,6 +205,19 @@ impl Context {
         let mut mutizable = Self::builtin_mono_trait("Mutizable", 2);
         mutizable.register_builtin_decl("MutType!", Type, Public);
         let pathlike = Self::builtin_mono_trait("PathLike", 2);
+        let mut readable = Self::builtin_mono_trait("Readable", 2);
+        let t_read = fn_met(
+            ref_(mono_q("Self")),
+            vec![],
+            None,
+            vec![param_t("n", Int)],
+            Str,
+        );
+        let t_read = quant(
+            t_read,
+            set! { subtypeof(mono_q("Self"), builtin_mono("Readable")) },
+        );
+        readable.register_builtin_impl("read", t_read, Immutable, Public);
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
@@ -1330,7 +1343,25 @@ impl Context {
             builtin_mono("Mutable"),
             str_mut_mutable,
         );
-        let file_mut = Self::builtin_mono_class("File!", 2);
+        let mut file_mut = Self::builtin_mono_class("File!", 2);
+        let mut file_mut_readable = Self::builtin_methods("Readable", 1);
+        file_mut_readable.register_builtin_impl(
+            "read",
+            fn_met(
+                ref_(builtin_mono("File!")),
+                vec![],
+                None,
+                vec![param_t("n", Int)],
+                Str,
+            ),
+            Immutable,
+            Public,
+        );
+        file_mut.register_trait(
+            builtin_mono("File!"),
+            builtin_mono("Readable"),
+            file_mut_readable,
+        );
         let array_t = builtin_poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = builtin_poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
