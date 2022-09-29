@@ -16,6 +16,7 @@ pub mod tyvar;
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
+use std::path::Path;
 
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
@@ -286,6 +287,11 @@ impl ImportKind {
     pub const fn is_py_import(&self) -> bool {
         matches!(self, Self::PyImport)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ContextInfo {
+    mod_id: usize,
 }
 
 /// Represents the context of the current scope
@@ -773,13 +779,13 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
-    pub(crate) fn mod_name(&self) -> &Str {
+    pub(crate) fn path(&self) -> &Path {
         if let Some(outer) = self.get_outer() {
-            outer.mod_name()
+            outer.path()
         } else if self.kind == ContextKind::Module {
-            &self.name
+            Path::new(&self.name[..])
         } else {
-            BUILTINS
+            Path::new(&BUILTINS[..])
         }
     }
 
@@ -787,10 +793,10 @@ impl Context {
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if &self.mod_name()[..] != "<builtins>" {
+        if self.path().to_string_lossy() != "<builtins>" {
             self.mod_cache
                 .as_ref()
-                .map(|cache| cache.ref_ctx("<builtins>").unwrap())
+                .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())
         } else {
             None
         }
@@ -809,6 +815,7 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
+        self.cfg = self.get_outer().unwrap().cfg.clone();
         self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
         self.py_mod_cache = self.get_outer().unwrap().py_mod_cache.clone();
         self.name = name.into();

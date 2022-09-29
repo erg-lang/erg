@@ -2,7 +2,7 @@ use erg_common::set;
 use erg_common::vis::Visibility;
 
 use erg_type::constructors::{
-    builtin_mono, mono_q, nd_proc, param_t, poly, proc, quant, static_instance, ty_tp,
+    builtin_mono, builtin_poly, mono_q, nd_proc, param_t, proc, quant, static_instance, ty_tp,
 };
 use erg_type::Type;
 use Type::*;
@@ -36,7 +36,10 @@ impl Context {
             Public,
         );
         let t = nd_proc(
-            vec![param_t("seq", poly("Seq", vec![ty_tp(mono_q("T"))]))],
+            vec![param_t(
+                "seq",
+                builtin_poly("Seq", vec![ty_tp(mono_q("T"))]),
+            )],
             None,
             mono_q("T"),
         );

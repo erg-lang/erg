@@ -1,5 +1,5 @@
 use std::option::Option;
-use std::path::PathBuf; // conflicting to Type::Option
+use std::path::PathBuf;
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::levenshtein::get_similar_name;
@@ -12,10 +12,9 @@ use erg_type::free::HasLevel;
 use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
 
-use erg_type::constructors::{enum_t, func, func1, proc, ref_, ref_mut};
+use erg_type::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
 use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, SubrType, TyBound, Type};
-use Type::*;
+use erg_type::{ParamTy, SubrType, TyBound, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
@@ -23,7 +22,7 @@ use crate::error::readable_name;
 use crate::error::{
     CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
-use crate::hir::{self, Literal};
+use crate::hir::Literal;
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
@@ -484,7 +483,7 @@ impl Context {
                     let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
                     let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
-                        Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                        Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err(e) => {
                             return Err(e);
                         }
@@ -505,7 +504,7 @@ impl Context {
             }
             ast::Signature::Var(sig) if sig.is_const() => {
                 let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
-                    Ok(obj) => (obj.clone(), enum_t(set! {obj})),
+                    Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                     Err(e) => {
                         return Err(e);
                     }
@@ -609,7 +608,7 @@ impl Context {
                 other => {
                     let id = DefId(get_hash(ident));
                     let vi = VarInfo::new(
-                        enum_t(set! {other.clone()}),
+                        v_enum(set! {other.clone()}),
                         Const,
                         ident.vis(),
                         VarKind::Defined(id),
@@ -818,67 +817,33 @@ impl Context {
     pub(crate) fn import_mod(
         &mut self,
         kind: ImportKind,
-        var_name: &VarName,
-        mod_name: &hir::Expr,
-    ) -> CompileResult<()> {
-        match mod_name {
-            hir::Expr::Lit(lit) => {
-                if self.subtype_of(&lit.value.class(), &Str) {
-                    if kind.is_erg_import() {
-                        self.import_erg_mod(var_name, lit)?;
-                    } else {
-                        self.import_py_mod(var_name, lit)?;
-                    }
-                } else {
-                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        mod_name.loc(),
-                        self.caused_by(),
-                        "import::name",
-                        &Str,
-                        mod_name.ref_t(),
-                        self.get_candidates(mod_name.ref_t()),
-                        self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
-                    )));
-                }
-            }
-            _other => {
-                return Err(TyCheckErrors::from(TyCheckError::feature_error(
-                    self.cfg.input.clone(),
-                    mod_name.loc(),
-                    "non-literal importing",
-                    self.caused_by(),
-                )))
-            }
+        mod_name: &Literal,
+    ) -> CompileResult<PathBuf> {
+        if kind.is_erg_import() {
+            self.import_erg_mod(mod_name)
+        } else {
+            self.import_py_mod(mod_name)
         }
-        Ok(())
     }
 
-    fn import_erg_mod(&mut self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
-        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+    fn import_erg_mod(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         #[allow(clippy::match_single_binding)]
         match &__name__[..] {
             // TODO: erg builtin modules
-            _ => self.import_user_erg_mod(var_name, __name__, lit, mod_cache, py_mod_cache)?,
+            _ => self.import_user_erg_mod(__name__, mod_name, mod_cache, py_mod_cache),
         }
-        Ok(())
     }
 
     fn import_user_erg_mod(
         &self,
-        var_name: &VarName,
         __name__: Str,
-        name_lit: &Literal,
+        mod_name: &Literal,
         mod_cache: &SharedModuleCache,
         py_mod_cache: &SharedModuleCache,
-    ) -> CompileResult<()> {
-        if let Some((_, entry)) = mod_cache.get_by_name(&__name__) {
-            mod_cache.register_alias(var_name.clone(), entry);
-            return Ok(());
-        }
+    ) -> CompileResult<PathBuf> {
         let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
             path.pop();
             path
@@ -893,7 +858,7 @@ impl Context {
                     self.cfg.input.clone(),
                     line!() as usize,
                     err.to_string(),
-                    name_lit.loc(),
+                    mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
                     self.similar_builtin_py_mod_name(&__name__).or_else(|| {
@@ -906,56 +871,68 @@ impl Context {
                 return Err(err);
             }
         };
-        let cfg = ErgConfig::with_path(path);
+        if mod_cache.get(&path).is_some() {
+            return Ok(path);
+        }
+        let cfg = ErgConfig::with_path(path.clone());
         let src = cfg.input.read();
-        let mut builder = HIRBuilder::new_with_cache(
-            cfg,
-            var_name.inspect(),
-            mod_cache.clone(),
-            py_mod_cache.clone(),
-        );
+        let mut builder =
+            HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
             Ok(hir) => {
-                mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                mod_cache.register(path.clone(), Some(hir), builder.pop_ctx());
             }
             Err((maybe_hir, errs)) => {
                 if let Some(hir) = maybe_hir {
-                    mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                    mod_cache.register(path, Some(hir), builder.pop_ctx());
                 }
                 return Err(errs);
             }
         }
-        Ok(())
+        Ok(path)
     }
 
-    fn import_py_mod(&mut self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
-        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
-        let mod_cache = self.mod_cache.as_ref().unwrap();
+    fn import_py_mod(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         match &__name__[..] {
             "importlib" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_importlib_mod());
+                let path = PathBuf::from("<builtins>.importlib");
+                py_mod_cache.register(path.clone(), None, Self::init_py_importlib_mod());
+                Ok(path)
             }
             "io" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_io_mod());
+                let path = PathBuf::from("<builtins>.io");
+                py_mod_cache.register(path.clone(), None, Self::init_py_io_mod());
+                Ok(path)
             }
             "math" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_math_mod());
+                let path = PathBuf::from("<builtins>.math");
+                py_mod_cache.register(path.clone(), None, Self::init_py_math_mod());
+                Ok(path)
             }
             "random" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_random_mod());
+                let path = PathBuf::from("<builtins>.random");
+                py_mod_cache.register(path.clone(), None, Self::init_py_random_mod());
+                Ok(path)
             }
             "socket" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_socket_mod());
+                let path = PathBuf::from("<builtins>.socket");
+                py_mod_cache.register(path.clone(), None, Self::init_py_socket_mod());
+                Ok(path)
             }
             "sys" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_sys_mod());
+                let path = PathBuf::from("<builtins>.sys");
+                py_mod_cache.register(path.clone(), None, Self::init_py_sys_mod());
+                Ok(path)
             }
             "time" => {
-                mod_cache.register(var_name.clone(), None, Self::init_py_time_mod());
+                let path = PathBuf::from("<builtins>.time");
+                py_mod_cache.register(path.clone(), None, Self::init_py_time_mod());
+                Ok(path)
             }
-            _ => self.import_user_py_mod(var_name, lit)?,
+            _ => self.import_user_py_mod(mod_name),
         }
-        Ok(())
     }
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
@@ -966,13 +943,9 @@ impl Context {
         .map(Str::rc)
     }
 
-    fn import_user_py_mod(&self, var_name: &VarName, lit: &Literal) -> CompileResult<()> {
-        let __name__ = enum_unwrap!(lit.value.clone(), ValueObj::Str);
+    fn import_user_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        if let Some((_, entry)) = py_mod_cache.get_by_name(&__name__) {
-            py_mod_cache.register_alias(var_name.clone(), entry);
-            return Ok(());
-        }
         let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
             path.pop();
             path
@@ -987,39 +960,34 @@ impl Context {
                     self.cfg.input.clone(),
                     line!() as usize,
                     err.to_string(),
-                    lit.loc(),
+                    mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .unwrap()
-                            .get_similar_name(&__name__)
-                    }),
+                    self.similar_builtin_py_mod_name(&__name__)
+                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
                 );
                 return Err(TyCheckErrors::from(err));
             }
         };
-        let cfg = ErgConfig::with_path(path);
+        if py_mod_cache.get(&path).is_some() {
+            return Ok(path);
+        }
+        let cfg = ErgConfig::with_path(path.clone());
         let src = cfg.input.read();
-        let mut builder = HIRBuilder::new_with_cache(
-            cfg,
-            var_name.inspect(),
-            py_mod_cache.clone(),
-            py_mod_cache.clone(),
-        );
+        let mut builder =
+            HIRBuilder::new_with_cache(cfg, __name__, py_mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "declare") {
             Ok(hir) => {
-                py_mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                py_mod_cache.register(path.clone(), Some(hir), builder.pop_ctx());
             }
             Err((maybe_hir, errs)) => {
                 if let Some(hir) = maybe_hir {
-                    py_mod_cache.register(var_name.clone(), Some(hir), builder.pop_ctx());
+                    py_mod_cache.register(path, Some(hir), builder.pop_ctx());
                 }
                 return Err(errs);
             }
         }
-        Ok(())
+        Ok(path)
     }
 
     pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {

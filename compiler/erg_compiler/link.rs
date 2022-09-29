@@ -1,5 +1,5 @@
 use std::mem;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::traits::{Locational, Stream};
@@ -9,8 +9,9 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::DefId;
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
-use erg_type::Type;
+use erg_type::{HasType, Type};
 
 use crate::hir::{
     Accessor, Args, Block, Call, Def, DefBody, Expr, Identifier, Literal, PosArg, HIR,
@@ -30,15 +31,16 @@ impl Linker {
                 // x = ModuleType("mod")
                 // exec(code, x.__dict__) # `code` is the mod's content
                 Expr::Def(ref def) if def.def_kind().is_erg_import() => {
+                    let path = enum_unwrap!(def.sig.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
+                    let path = Path::new(&path[..]);
+                    let path = cfg.input.resolve(path).unwrap();
                     // In the case of REPL, entries cannot be used up
                     let hir = if cfg.input.is_repl() {
                         mod_cache
-                            .get(&def.sig.ident().inspect()[..])
+                            .get(path.as_path())
                             .and_then(|entry| entry.hir.clone())
                     } else {
-                        mod_cache
-                            .remove(&def.sig.ident().inspect()[..])
-                            .and_then(|entry| entry.hir)
+                        mod_cache.remove(path.as_path()).and_then(|entry| entry.hir)
                     };
                     let mod_name = enum_unwrap!(def.body.block.first().unwrap(), Expr::Call)
                         .args

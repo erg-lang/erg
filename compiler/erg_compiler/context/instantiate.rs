@@ -106,7 +106,7 @@ impl TyVarContext {
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(name) {
             let (_, ctx) = ctx
-                .get_nominal_type_ctx(&poly(name.clone(), params.clone()))
+                .get_nominal_type_ctx(&builtin_poly(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = ctx.params.len();
             let given_params_len = params.len();
@@ -123,9 +123,9 @@ impl TyVarContext {
                 self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
                 inst_defaults.push(tp);
             }
-            poly(name, [inst_non_defaults, inst_defaults].concat())
+            builtin_poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            poly(name, self.instantiate_params(params))
+            builtin_poly(name, self.instantiate_params(params))
         }
     }
 
@@ -146,7 +146,10 @@ impl TyVarContext {
 
     fn instantiate_bound_type(&mut self, mid: &Type, sub_or_sup: Type, ctx: &Context) -> Type {
         match sub_or_sup {
-            Type::Poly { name, params } => self.instantiate_poly(mid.name(), &name, params, ctx),
+            Type::Poly { .. } => todo!(),
+            Type::BuiltinPoly { name, params } => {
+                self.instantiate_poly(mid.name(), &name, params, ctx)
+            }
             Type::MonoProj { lhs, rhs } => {
                 let lhs = if lhs.has_qvar() {
                     self.instantiate_qvar(*lhs)
@@ -174,9 +177,10 @@ impl TyVarContext {
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
-                    Type::Poly { name, params } => {
+                    Type::BuiltinPoly { name, params } => {
                         self.instantiate_poly(name.clone(), &name, params, ctx)
                     }
+                    Type::Poly { .. } => todo!(),
                     t => t,
                 };
                 let constraint = Constraint::new_type_of(t.clone());
@@ -385,7 +389,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let opt_decl_sig_t = self
-            .rec_get_var_t(&sig.ident, &self.name)
+            .rec_get_var_t(&sig.ident, &self.cfg.input, &self.name)
             .ok()
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
@@ -453,7 +457,7 @@ impl Context {
             self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tv_ctx, mode)?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => enum_t(set![eval_lit(lit)]),
+                ast::ParamPattern::Lit(lit) => v_enum(set![eval_lit(lit)]),
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -528,7 +532,7 @@ impl Context {
                 } else if let Some(decl_t) = opt_decl_t {
                     Ok(decl_t.typ().clone())
                 } else {
-                    let typ = mono(self.mod_name(), Str::rc(other));
+                    let typ = mono(self.path(), Str::rc(other));
                     if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
                         Ok(defined_t.clone())
                     } else {
@@ -551,8 +555,8 @@ impl Context {
                         todo!()
                     }
                 });
-                // FIXME: if type is a trait
-                Ok(poly(Str::rc(other), params.collect()))
+                // FIXME: non-builtin
+                Ok(builtin_poly(Str::rc(other), params.collect()))
             }
         }
     }
@@ -573,7 +577,7 @@ impl Context {
     ) -> SingleTyCheckResult<Type> {
         match expr {
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                Ok(mono(self.mod_name(), name.inspect()))
+                Ok(mono(self.path(), name.inspect()))
             }
             _ => todo!(),
         }
@@ -632,7 +636,7 @@ impl Context {
                     .collect(),
             )),
             // TODO: エラー処理(リテラルでない、ダブりがある)はパーサーにやらせる
-            TypeSpec::Enum(set) => Ok(enum_t(
+            TypeSpec::Enum(set) => Ok(v_enum(
                 set.pos_args()
                     .map(|arg| {
                         if let ast::ConstExpr::Lit(lit) = &arg.expr {
@@ -861,11 +865,21 @@ impl Context {
                 let lhs = self.instantiate_t(*lhs, tv_ctx, loc)?;
                 Ok(mono_proj(lhs, rhs))
             }
-            Poly { name, mut params } => {
+            BuiltinPoly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.instantiate_tp(mem::take(param), tv_ctx, loc)?;
                 }
-                Ok(poly(name, params))
+                Ok(builtin_poly(name, params))
+            }
+            Poly {
+                path,
+                name,
+                mut params,
+            } => {
+                for param in params.iter_mut() {
+                    *param = self.instantiate_tp(mem::take(param), tv_ctx, loc)?;
+                }
+                Ok(poly(path, name, params))
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")

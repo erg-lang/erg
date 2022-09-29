@@ -385,6 +385,10 @@ impl Identifier {
     pub fn is_procedural(&self) -> bool {
         self.name.is_procedural()
     }
+
+    pub fn downcast(self) -> erg_parser::ast::Identifier {
+        erg_parser::ast::Identifier::new(self.dot, self.name)
+    }
 }
 
 #[derive(Debug, Clone)]

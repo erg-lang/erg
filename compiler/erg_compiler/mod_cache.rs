@@ -1,14 +1,13 @@
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use erg_common::dict::Dict;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::shared::Shared;
 use erg_common::Str;
-
-use erg_parser::ast::VarName;
 
 use crate::context::Context;
 use crate::hir::HIR;
@@ -65,13 +64,17 @@ impl ModuleEntry {
 
 #[derive(Debug, Default)]
 pub struct ModuleCache {
-    cache: Dict<VarName, ModuleEntry>,
+    cache: Dict<PathBuf, ModuleEntry>,
     last_id: usize,
 }
 
 impl fmt::Display for ModuleCache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ModuleCache {}", self.cache)
+        write!(f, "ModuleCache {{")?;
+        for (path, entry) in self.cache.iter() {
+            writeln!(f, "{}: {}, ", path.display(), entry)?;
+        }
+        write!(f, "}}")
     }
 }
 
@@ -83,42 +86,32 @@ impl ModuleCache {
         }
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&ModuleEntry>
+    pub fn get<P: Eq + Hash + ?Sized>(&self, path: &P) -> Option<&ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<P>,
     {
-        self.cache.get(name)
+        self.cache.get(path)
     }
 
-    pub fn get_by_name(&self, __name__: &str) -> Option<(&VarName, &ModuleEntry)> {
-        self.cache
-            .iter()
-            .find(|(_, ent)| &ent.ctx.name[..] == __name__)
-    }
-
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&mut self, name: &Q) -> Option<&mut ModuleEntry>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&mut self, path: &Q) -> Option<&mut ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
-        self.cache.get_mut(name)
+        self.cache.get_mut(path)
     }
 
-    pub fn register(&mut self, name: VarName, hir: Option<HIR>, ctx: Context) {
+    pub fn register(&mut self, path: PathBuf, hir: Option<HIR>, ctx: Context) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
         let entry = ModuleEntry::new(id, hir, ctx);
-        self.cache.insert(name, entry);
+        self.cache.insert(path, entry);
     }
 
-    pub fn register_alias(&mut self, name: VarName, entry: &ModuleEntry) {
-        self.cache.insert(name, entry.clone());
-    }
-
-    pub fn remove<Q: Eq + Hash + ?Sized>(&mut self, name: &Q) -> Option<ModuleEntry>
+    pub fn remove<Q: Eq + Hash + ?Sized>(&mut self, path: &Q) -> Option<ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
-        self.cache.remove(name)
+        self.cache.remove(path)
     }
 
     pub fn remove_by_id(&mut self, id: ModId) -> Option<ModuleEntry> {
@@ -136,7 +129,7 @@ impl ModuleCache {
     }
 
     pub fn get_similar_name(&self, name: &str) -> Option<Str> {
-        get_similar_name(self.cache.iter().map(|(v, _)| &v.inspect()[..]), name).map(Str::rc)
+        get_similar_name(self.cache.iter().map(|(v, _)| v.to_str().unwrap()), name).map(Str::rc)
     }
 }
 
@@ -156,55 +149,46 @@ impl SharedModuleCache {
         self_
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&ModuleEntry>
+    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(name)
+        ref_.get(path)
     }
 
-    pub fn get_by_name(&self, __name__: &str) -> Option<(&VarName, &ModuleEntry)> {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get_by_name(__name__)
-    }
-
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&mut ModuleEntry>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&mut ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
         let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
-        ref_.get_mut(name)
+        ref_.get_mut(path)
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<Rc<Context>>
+    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<Context>>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
-        self.0.borrow().get(name).map(|entry| entry.ctx.clone())
+        self.0.borrow().get(path).map(|entry| entry.ctx.clone())
     }
 
-    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<&Context>
+    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&Context>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(name).map(|entry| entry.ctx.as_ref())
+        ref_.get(path).map(|entry| entry.ctx.as_ref())
     }
 
-    pub fn register(&self, name: VarName, hir: Option<HIR>, ctx: Context) {
-        self.0.borrow_mut().register(name, hir, ctx);
+    pub fn register(&self, path: PathBuf, hir: Option<HIR>, ctx: Context) {
+        self.0.borrow_mut().register(path, hir, ctx);
     }
 
-    pub fn register_alias(&self, name: VarName, entry: &ModuleEntry) {
-        self.0.borrow_mut().register_alias(name, entry);
-    }
-
-    pub fn remove<Q: Eq + Hash + ?Sized>(&self, name: &Q) -> Option<ModuleEntry>
+    pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
     where
-        VarName: Borrow<Q>,
+        PathBuf: Borrow<Q>,
     {
-        self.0.borrow_mut().remove(name)
+        self.0.borrow_mut().remove(path)
     }
 
     pub fn remove_by_id(&self, id: ModId) -> Option<ModuleEntry> {
