@@ -18,7 +18,11 @@ pub fn which_python() -> String {
     let res = String::from_utf8(out.stdout).unwrap();
     let res = res.split('\n').next().unwrap_or("").replace('\r', "");
     if res.is_empty() {
-        panic!("python not found");
+        println!("python not found");
+        std::process::exit(1);
+    } else if res.contains("pyenv") {
+        println!("cannot use pyenv");
+        std::process::exit(1);
     }
     res
 }
