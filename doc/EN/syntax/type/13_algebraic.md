@@ -82,3 +82,7 @@ assert Int and Marker == And(Int, Marker)
 ```
 
 Diff, Complement types are not true algebraic types because they can always be simplified.
+
+<p align='center'>
+    <a href='./12_refinement.md'>Previous</a> | <a href='./14_dependent.md'>Next</a>
+</p>

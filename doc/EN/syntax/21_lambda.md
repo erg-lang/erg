@@ -83,7 +83,7 @@ match res2:
     err: Error -> panic err.msg
 ```
 
-## Anonymous polycorrelation coefficient
+## Anonymous polymorphic functions
 
 ```python
 # same as id|T| x: T = x

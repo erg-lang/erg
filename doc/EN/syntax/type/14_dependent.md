@@ -72,3 +72,7 @@ MyArray(T, N) = Inherit[T; N]
 # The type of self: Self(T, N) changes in conjunction with .array
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+
+<p align='center'>
+    <a href='./13_algebraic.md'>Previous</a> | <a href='./15_quantified.md'>Next</a>
+</p>
