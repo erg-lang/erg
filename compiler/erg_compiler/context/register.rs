@@ -50,11 +50,8 @@ impl Context {
             return Some((name, vi));
         }
         if is_const {
-            if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-                outer.registered_info(name, is_const)
-            } else {
-                None
-            }
+            let outer = self.get_outer().or_else(|| self.get_builtins())?;
+            outer.registered_info(name, is_const)
         } else {
             None
         }
@@ -460,18 +457,27 @@ impl Context {
 
     // To allow forward references and recursive definitions
     pub(crate) fn preregister(&mut self, block: &ast::Block) -> TyCheckResult<()> {
+        let mut total_errs = TyCheckErrors::empty();
         for expr in block.iter() {
             match expr {
                 ast::Expr::Def(def) => {
-                    self.preregister_def(def)?;
+                    if let Err(errs) = self.preregister_def(def) {
+                        total_errs.extend(errs.into_iter());
+                    }
                 }
                 ast::Expr::ClassDef(class_def) => {
-                    self.preregister_def(&class_def.def)?;
+                    if let Err(errs) = self.preregister_def(&class_def.def) {
+                        total_errs.extend(errs.into_iter());
+                    }
                 }
                 _ => {}
             }
         }
-        Ok(())
+        if total_errs.is_empty() {
+            Ok(())
+        } else {
+            Err(total_errs)
+        }
     }
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {

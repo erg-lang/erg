@@ -920,6 +920,38 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+
+    pub fn ambiguous_type_error(
+        input: Input,
+        errno: usize,
+        expr: &(impl Locational + Display),
+        candidates: &[Type],
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                expr.loc(),
+                switch_lang!(
+                    "japanese" => format!("{expr}の型を一意に決定できませんでした\n候補: {}", fmt_vec(candidates)),
+                    "simplified_chinese" => format!("无法确定{expr}的类型\n候选：{}", fmt_vec(candidates)),
+                    "traditional_chinese" => format!("無法確定{expr}的類型\n候選：{}", fmt_vec(candidates)),
+                    "english" => format!("cannot determine the type of {expr}\ncandidates: {}", fmt_vec(candidates)),
+                ),
+                Some(
+                    switch_lang!(
+                        "japanese" => "多相関数の場合は`f|T := Int|`, 型属性の場合は`T|T <: Trait|.X`などのようにして型を指定してください",
+                        "simplified_chinese" => "如果是多态函数，请使用`f|T := Int|`，如果是类型属性，请使用`T|T <: Trait|.X`等方式指定类型",
+                        "traditional_chinese" => "如果是多型函數，請使用`f|T := Int|`，如果是類型屬性，請使用`T|T <: Trait|.X`等方式指定類型",
+                        "english" => "if it is a polymorphic function, use `f|T := Int|`, or if it is a type attribute, use `T|T <: Trait|.X` etc. to specify the type",
+                    ).into(),
+                ),
+            ),
+            input,
+            caused_by,
+        )
+    }
 }
 
 pub type TyCheckErrors = CompileErrors;

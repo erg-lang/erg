@@ -508,16 +508,12 @@ impl ASTLowerer {
             ContextKind::Func
         };
         self.ctx.grow(&name, kind, Private)?;
-        self.ctx
-            .assign_params(&lambda.sig.params, None)
-            .map_err(|e| {
-                self.pop_append_errs();
-                e
-            })?;
-        self.ctx.preregister(&lambda.body).map_err(|e| {
-            self.pop_append_errs();
-            e
-        })?;
+        if let Err(errs) = self.ctx.assign_params(&lambda.sig.params, None) {
+            self.errs.extend(errs.into_iter());
+        }
+        if let Err(errs) = self.ctx.preregister(&lambda.body) {
+            self.errs.extend(errs.into_iter());
+        }
         let body = self.lower_block(lambda.body).map_err(|e| {
             self.pop_append_errs();
             e
@@ -606,8 +602,13 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        self.ctx.preregister(&body.block)?;
-        let block = self.lower_block(body.block)?;
+        if let Err(errs) = self.ctx.preregister(&body.block) {
+            self.errs.extend(errs.into_iter());
+        }
+        let block = self.lower_block(body.block).map_err(|e| {
+            self.pop_append_errs();
+            e
+        })?;
         let found_body_t = block.ref_t();
         let opt_expect_body_t = self
             .ctx
@@ -660,9 +661,16 @@ impl ASTLowerer {
             .t
             .clone();
         let t = enum_unwrap!(t, Type::Subr);
-        self.ctx.assign_params(&sig.params, Some(t.clone()))?;
-        self.ctx.preregister(&body.block)?;
-        let block = self.lower_block(body.block)?;
+        if let Err(errs) = self.ctx.assign_params(&sig.params, Some(t.clone())) {
+            self.errs.extend(errs.into_iter());
+        }
+        if let Err(errs) = self.ctx.preregister(&body.block) {
+            self.errs.extend(errs.into_iter());
+        }
+        let block = self.lower_block(body.block).map_err(|e| {
+            self.pop_append_errs();
+            e
+        })?;
         let found_body_t = block.ref_t();
         let expect_body_t = t.return_t.as_ref();
         if !sig.is_const() {

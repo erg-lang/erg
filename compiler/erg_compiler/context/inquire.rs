@@ -495,9 +495,15 @@ impl Context {
                     self.get_similar_attr_from_singular(obj, method_name.inspect()),
                 ));
             }
-            if let Some(trait_) = self.rec_get_method_traits(method_name) {
-                let (_, ctx) = self.get_nominal_type_ctx(trait_).unwrap();
-                return ctx.rec_get_var_t(method_name, input, namespace);
+            match self.rec_get_method_traits(method_name) {
+                Ok(trait_) => {
+                    let (_, ctx) = self.get_nominal_type_ctx(trait_).unwrap();
+                    return ctx.rec_get_var_t(method_name, input, namespace);
+                }
+                Err(err) if err.core.kind == ErrorKind::TypeError => {
+                    return Err(err);
+                }
+                _ => {}
             }
             // TODO: patch
             Err(TyCheckError::no_attr_error(
@@ -1561,17 +1567,32 @@ impl Context {
         }
     }
 
-    fn rec_get_method_traits(&self, name: &Identifier) -> Option<&Type> {
-        if let Some(t) = self.method_traits.get(name.inspect()) {
-            if t.len() == 1 {
-                Some(&t[0])
+    fn rec_get_method_traits(&self, name: &Identifier) -> SingleTyCheckResult<&Type> {
+        if let Some(candidates) = self.method_traits.get(name.inspect()) {
+            let first_t = candidates.first().unwrap();
+            if candidates.iter().skip(1).all(|t| t == first_t) {
+                Ok(&candidates[0])
             } else {
-                None
+                Err(TyCheckError::ambiguous_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    name,
+                    candidates,
+                    self.caused_by(),
+                ))
             }
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_method_traits(name)
         } else {
-            None
+            Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                self.caused_by(),
+                &Type::Failure,
+                name.inspect(),
+                None,
+            ))
         }
     }
 
