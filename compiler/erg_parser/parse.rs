@@ -1765,6 +1765,8 @@ impl Parser {
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
                         return Err(());
+                    } else if self.cur_is(RParen) {
+                        break;
                     }
                     match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
                         PosOrKwArg::Pos(arg) => match arg.expr {
