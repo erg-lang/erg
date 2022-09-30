@@ -65,7 +65,7 @@ Also, a constant is identical in all scopes since its definition.
 ```python
 PI = 3.141592653589793
 match random.random!(0..10):
-    PIs:
+    PI ->
         log "You get PI, it's a miracle!"
 ```
 
@@ -114,6 +114,8 @@ assert i == 1
 
 Subroutines with side effects are called procedures and are marked with `!`.
 
+You cannot call procedures in functions.
+
 ```python
 print! 1 # 1
 ```
@@ -132,6 +134,7 @@ You can use the equivalent of records in ML-like languages ​​(or object lite
 
 ```python
 p = {x = 1; y = 2}
+assert p.x == 1
 ```
 
 ## Ownership
