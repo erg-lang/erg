@@ -225,7 +225,7 @@ impl Context {
         mutizable.register_builtin_decl("MutType!", Type, Public);
         let pathlike = Self::builtin_mono_trait("PathLike", 2);
         let mut readable = Self::builtin_mono_trait("Readable", 2);
-        let t_read = fn_met(
+        let t_read = pr_met(
             ref_(mono_q("Self")),
             vec![],
             None,
@@ -236,7 +236,7 @@ impl Context {
             t_read,
             set! { subtypeof(mono_q("Self"), builtin_mono("Readable")) },
         );
-        readable.register_builtin_decl("read", t_read, Public);
+        readable.register_builtin_decl("read!", t_read, Public);
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
@@ -1366,8 +1366,8 @@ impl Context {
         let mut file_mut = Self::builtin_mono_class("File!", 2);
         let mut file_mut_readable = Self::builtin_methods("Readable", 1);
         file_mut_readable.register_builtin_impl(
-            "read",
-            fn_met(
+            "read!",
+            pr_met(
                 ref_(builtin_mono("File!")),
                 vec![],
                 None,
