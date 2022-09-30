@@ -201,9 +201,10 @@ impl ErgConfig {
         let mut cfg = Self::default();
         // ループ内でnextするのでforにしないこと
         while let Some(arg) = args.next() {
+            let next_arg = args.next();
             match &arg[..] {
-                "-c" => {
-                    cfg.input = Input::Str(args.next().unwrap());
+                "-c" if next_arg.is_some() => {
+                    cfg.input = Input::Str(next_arg.unwrap());
                 }
                 "--dump-as-pyc" => {
                     cfg.dump_as_pyc = true;
@@ -213,32 +214,43 @@ impl ErgConfig {
                     println!("{}", CMD_HELP);
                     process::exit(0);
                 }
-                "-m" => {
-                    cfg.module = Box::leak(args.next().unwrap().into_boxed_str());
+                "-m" if next_arg.is_some() => {
+                    cfg.module = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "--mode" => {
-                    cfg.mode = Box::leak(args.next().unwrap().into_boxed_str());
+                "--mode" if next_arg.is_some() => {
+                    let mode = next_arg.unwrap();
+                    if let "-?" | "-h" | "--help" = &mode[..] {
+                        println!("{}", MODE_HELP);
+                        process::exit(0);
+                    }
+                    cfg.mode = Box::leak(mode.into_boxed_str());
                 }
-                "--ps1" => {
-                    cfg.ps1 = Box::leak(args.next().unwrap().into_boxed_str());
+                "--ps1" if next_arg.is_some() => {
+                    cfg.ps1 = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "--ps2" => {
-                    cfg.ps2 = Box::leak(args.next().unwrap().into_boxed_str());
+                "--ps2" if next_arg.is_some() => {
+                    cfg.ps2 = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "-o" | "--opt-level" | "--optimization-level" => {
-                    cfg.opt_level = args.next().unwrap().parse::<u8>().unwrap();
+                "-o" | "--opt-level" | "--optimization-level" if next_arg.is_some() => {
+                    cfg.opt_level = next_arg.unwrap().parse::<u8>().unwrap();
                 }
-                "-p" | "--py-ver" | "--python-version" => {
-                    cfg.python_ver = Some(args.next().unwrap().parse::<u32>().unwrap());
+                "-p" | "--py-ver" | "--python-version" if next_arg.is_some() => {
+                    if let Ok(ver) = next_arg.unwrap().parse::<u32>() {
+                        cfg.python_ver = Some(ver)
+                    }
                 }
-                "--py-server-timeout" => {
-                    cfg.py_server_timeout = args.next().unwrap().parse::<u64>().unwrap();
+                "--py-server-timeout" if next_arg.is_some() => {
+                    if let Ok(time) = next_arg.unwrap().parse::<u64>() {
+                        cfg.py_server_timeout = time;
+                    }
                 }
                 "--quiet-startup" => {
                     cfg.quiet_startup = true;
                 }
-                "--verbose" => {
-                    cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();
+                "--verbose" if next_arg.is_some() => {
+                    if let Ok(vr) = next_arg.unwrap().parse::<u8>() {
+                        cfg.verbose = vr;
+                    }
                 }
                 "-V" | "--version" => {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
