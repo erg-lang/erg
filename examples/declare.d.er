@@ -1,2 +1,6 @@
 .x: Int
 .f: Int -> Int
+
+.C: ClassType
+.C.__call__: Int -> .C
+.C.f: Int -> Int

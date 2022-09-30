@@ -628,7 +628,7 @@ impl Context {
         }
     }
 
-    fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
+    pub(crate) fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
         match gen.kind {
             TypeKind::Class => {
                 if gen.t.is_monomorphic() {

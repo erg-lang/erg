@@ -1455,7 +1455,6 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
         let uniq_obj_name = obj.__name__().map(Str::rc);
-        log!("{class} {method_name}");
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
         } else if is_fake_method(&class, method_name.inspect()) {
