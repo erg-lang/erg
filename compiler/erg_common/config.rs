@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
+use crate::help_messages::{CMD_HELP, MODE_HELP};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -208,21 +209,8 @@ impl ErgConfig {
                     cfg.dump_as_pyc = true;
                 }
                 "-?" | "-h" | "--help" => {
-                    println!("erg [option] ... [-c cmd | -m mod | file | -] [arg] ...");
-                    println!("-c cmd : program passed in as string");
-                    println!("-m mod : module to be executed");
-                    println!("-?/-h  : show this help");
-                    println!("--dump-as-pyc: dump as .pyc file");
-                    println!("--mode lex|parse|compile|exec: execution mode");
-                    println!("--opt-level/-o 0|1|2|3: optimization level");
-                    println!("--python-version/-p (uint 32 number): Python version");
-                    println!(
-                        "--py-server-timeout (uint 64 number): timeout for the Python REPL server"
-                    );
-                    println!("--verbose 0|1|2: verbosity level");
-                    println!("--version/-V: show version");
-                    println!("file : program read from script file");
                     // TODO:
+                    println!("{}", CMD_HELP);
                     process::exit(0);
                 }
                 "-m" => {
