@@ -7,6 +7,11 @@ repos:
         entry: cargo fmt --all
         language: system
         pass_filenames: false
+      - id: cargo-test
+        name: Cargo test
+        entry: cargo test
+        language: system
+        # pass_filenames: false
       - id: rust-clippy
         name: Rust clippy
         description: Run cargo clippy on files included in the commit
