@@ -1005,6 +1005,10 @@ impl CodeGenerator {
 
     fn emit_class_def(&mut self, class_def: ClassDef) {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
+        if !self.record_type_loaded {
+            self.load_record_type();
+            self.record_type_loaded = true;
+        }
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
