@@ -15,10 +15,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: taiki-e/create-gh-release-action@v1
         with:
-          changelog: CHANGELOG.md
-          branch: main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
     needs: create-release
