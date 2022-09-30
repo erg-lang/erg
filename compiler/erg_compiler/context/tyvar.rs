@@ -559,8 +559,12 @@ impl Context {
                 let loc = call.loc();
                 let t = call.signature_mut_t().unwrap();
                 *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                self.resolve_expr_t(&mut call.obj)?;
                 for arg in call.args.pos_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr)?;
+                }
+                if let Some(var_args) = &mut call.args.var_args {
+                    self.resolve_expr_t(&mut var_args.expr)?;
                 }
                 for arg in call.args.kw_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr)?;
