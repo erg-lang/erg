@@ -10,6 +10,8 @@ Point3D|Point2D <: Norm|.
 
 norm|T <: Norm| x: T = x.norm()
 
+inplicit_norm x = x.norm()
+
 p = Point2D.new {x = 3; y = 4}
 print! norm(p)
 assert norm(p) == 25

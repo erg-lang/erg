@@ -373,7 +373,9 @@ impl Context {
             }
             Type::BuiltinPoly { name, mut params } => {
                 let typ = builtin_poly(&name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
+                let (_, ctx) = self
+                    .get_nominal_type_ctx(&typ)
+                    .unwrap_or_else(|| todo!("{typ} not found"));
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;

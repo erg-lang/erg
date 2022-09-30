@@ -317,6 +317,8 @@ pub struct Context {
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
+    // K: method name, V: trait defines the method
+    pub(crate) method_traits: Dict<Str, Vec<Type>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -453,6 +455,7 @@ impl Context {
             super_traits: vec![],
             methods_list: vec![],
             const_param_defaults: Dict::default(),
+            method_traits: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
             params: params_,

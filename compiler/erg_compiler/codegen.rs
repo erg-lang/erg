@@ -218,6 +218,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Array!", _, "push!") => Str::ever("append"),
         ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Real") => Str::ever("real"),
         ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Imag") => Str::ever("imag"),
+        ("File!", _, "read") => Str::ever("read"),
         (_, _, "__new__") => Str::ever("__call__"),
         ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
         ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
@@ -257,6 +258,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
         "log" => Str::ever("print"), // TODO: log != print (prints after executing)
+        "open!" => Str::ever("open"),
         "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
@@ -1354,6 +1356,60 @@ impl CodeGenerator {
         pop_jump_points
     }
 
+    fn emit_with_instr(&mut self, args: Args) {
+        log!(info "entered {}", fn_name!());
+        let mut args = args;
+        let expr = args.remove(0);
+        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_expr(expr);
+        let idx_setup_with = self.cur_block().lasti;
+        self.write_instr(SETUP_WITH);
+        self.write_arg(0);
+        // push __exit__, __enter__() to the stack
+        self.stack_inc_n(2);
+        let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
+        self.emit_with_block(lambda.body, params);
+        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        self.emit_store_instr(stash.clone(), Name);
+        self.write_instr(POP_BLOCK);
+        self.write_arg(0);
+        self.emit_load_const(ValueObj::None);
+        self.write_instr(DUP_TOP);
+        self.write_arg(0);
+        self.stack_inc();
+        self.write_instr(DUP_TOP);
+        self.write_arg(0);
+        self.stack_inc();
+        self.write_instr(CALL_FUNCTION);
+        self.write_arg(3);
+        self.stack_dec_n((1 + 3) - 1);
+        self.emit_pop_top();
+        let idx_jump_forward = self.cur_block().lasti;
+        self.write_instr(JUMP_FORWARD);
+        self.write_arg(0);
+        self.edit_code(
+            idx_setup_with + 1,
+            (self.cur_block().lasti - idx_setup_with - 2) / 2,
+        );
+        self.write_instr(WITH_EXCEPT_START);
+        self.write_arg(0);
+        let idx_pop_jump_if_true = self.cur_block().lasti;
+        self.write_instr(POP_JUMP_IF_TRUE);
+        self.write_arg(0);
+        self.write_instr(RERAISE);
+        self.write_arg(1);
+        self.edit_code(idx_pop_jump_if_true + 1, self.cur_block().lasti / 2);
+        // self.emit_pop_top();
+        // self.emit_pop_top();
+        self.emit_pop_top();
+        self.write_instr(POP_EXCEPT);
+        self.write_arg(0);
+        let idx_end = self.cur_block().lasti;
+        self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
+        self.emit_load_name_instr(stash);
+    }
+
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
         if let Some(method_name) = call.method_name {
@@ -1379,6 +1435,7 @@ impl CodeGenerator {
             "for" | "for!" => self.emit_for_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
+            "with!" => self.emit_with_instr(args),
             "import" => {
                 if !self.module_type_loaded {
                     self.load_module_type();
@@ -1418,14 +1475,14 @@ impl CodeGenerator {
         }
         if let Some(var_args) = &args.var_args {
             if pos_len > 0 {
-                self.write_instr(Opcode::BUILD_LIST);
+                self.write_instr(BUILD_LIST);
                 self.write_arg(pos_len as u8);
             }
             self.emit_expr(var_args.expr.clone());
             if pos_len > 0 {
-                self.write_instr(Opcode::LIST_EXTEND);
+                self.write_instr(LIST_EXTEND);
                 self.write_arg(1);
-                self.write_instr(Opcode::LIST_TO_TUPLE);
+                self.write_instr(LIST_TO_TUPLE);
                 self.write_arg(0);
             }
         }
@@ -1652,14 +1709,36 @@ impl CodeGenerator {
     /// forブロックなどで使う
     fn emit_frameless_block(&mut self, block: Block, params: Vec<Str>) {
         log!(info "entered {}", fn_name!());
+        let line = block.ln_begin().unwrap_or(0);
         for param in params {
-            self.emit_store_instr(Identifier::private(param), Name);
+            self.emit_store_instr(
+                Identifier::public_with_line(Token::dummy(), param, line),
+                Name,
+            );
         }
         for expr in block.into_iter() {
             self.emit_expr(expr);
             // TODO: discard
             // 最終的に帳尻を合わせる(コード生成の順番的にスタックの整合性が一時的に崩れる場合がある)
             if self.cur_block().stack_len == 1 {
+                self.emit_pop_top();
+            }
+        }
+        self.cancel_pop_top();
+    }
+
+    fn emit_with_block(&mut self, block: Block, params: Vec<Str>) {
+        log!(info "entered {}", fn_name!());
+        let line = block.ln_begin().unwrap_or(0);
+        for param in params {
+            self.emit_store_instr(
+                Identifier::public_with_line(Token::dummy(), param, line),
+                Name,
+            );
+        }
+        for expr in block.into_iter() {
+            self.emit_expr(expr);
+            if self.cur_block().stack_len != 0 {
                 self.emit_pop_top();
             }
         }
