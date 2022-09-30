@@ -45,12 +45,12 @@ impl Runnable for HIRBuilder {
 
     fn clear(&mut self) {}
 
-    fn exec(&mut self) -> Result<(), Self::Errs> {
+    fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(self.input().read())?;
         let hir = self.check(ast, "exec").map_err(|(_, errs)| errs)?;
         println!("{hir}");
-        Ok(())
+        Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {

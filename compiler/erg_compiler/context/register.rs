@@ -888,7 +888,7 @@ impl Context {
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_path(path.clone());
+        let cfg = ErgConfig::with_module_path(path.clone());
         let src = cfg.input.read();
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
@@ -986,7 +986,7 @@ impl Context {
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_path(path.clone());
+        let cfg = ErgConfig::with_module_path(path.clone());
         let src = cfg.input.read();
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, py_mod_cache.clone(), py_mod_cache.clone());

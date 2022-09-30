@@ -359,7 +359,7 @@ pub trait Runnable: Sized {
     fn finish(&mut self); // called when the :exit command is received.
     fn clear(&mut self);
     fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
-    fn exec(&mut self) -> Result<(), Self::Errs>;
+    fn exec(&mut self) -> Result<i32, Self::Errs>;
 
     fn input(&self) -> &Input {
         &self.cfg().input

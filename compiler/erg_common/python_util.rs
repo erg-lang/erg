@@ -54,7 +54,7 @@ pub fn detect_magic_number() -> u32 {
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>>(file: S) {
+pub fn exec_pyc<S: Into<String>>(file: S) -> Option<i32> {
     let mut out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
@@ -70,7 +70,7 @@ pub fn exec_pyc<S: Into<String>>(file: S) {
             .spawn()
             .expect("cannot execute python")
     };
-    out.wait().expect("python doesn't work");
+    out.wait().expect("python doesn't work").code()
 }
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
@@ -94,19 +94,20 @@ pub fn eval_pyc<S: Into<String>>(file: S) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn exec_py(code: &str) {
-    if cfg!(windows) {
+pub fn exec_py(code: &str) -> Option<i32> {
+    let mut child = if cfg!(windows) {
         Command::new(which_python())
             .arg("-c")
             .arg(code)
             .spawn()
-            .expect("cannot execute python");
+            .expect("cannot execute python")
     } else {
         let python_command = format!("{} -c \"{}\"", which_python(), code);
         Command::new("sh")
             .arg("-c")
             .arg(python_command)
             .spawn()
-            .expect("cannot execute python");
-    }
+            .expect("cannot execute python")
+    };
+    child.wait().expect("python doesn't work").code()
 }

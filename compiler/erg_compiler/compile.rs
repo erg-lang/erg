@@ -129,9 +129,10 @@ impl Runnable for Compiler {
         self.code_generator.clear();
     }
 
-    fn exec(&mut self) -> Result<(), Self::Errs> {
+    fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        self.compile_and_dump_as_pyc(path, self.input().read(), "exec")
+        self.compile_and_dump_as_pyc(path, self.input().read(), "exec")?;
+        Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
