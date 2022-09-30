@@ -2,5 +2,6 @@
 .f: Int -> Int
 
 .C: ClassType
-.C.__call__: Int -> .C
-.C.f: Int -> Int
+# or .C.__call__: Int -> .C
+.C.__call__: (x: Int,) -> .C
+.C.f: (self: .C, y: Int) -> Int
