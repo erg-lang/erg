@@ -271,101 +271,6 @@ impl TyCheckError {
         )
     }
 
-    pub fn syntax_error<S: Into<AtomicStr>>(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        desc: S,
-        hint: Option<AtomicStr>,
-    ) -> Self {
-        Self::new(
-            ErrorCore::new(errno, SyntaxError, loc, desc, hint),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn duplicate_decl_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-    ) -> Self {
-        let name = readable_name(name);
-        Self::new(
-            ErrorCore::new(
-                errno,
-                NameError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{name}は既に宣言されています"),
-                    "simplified_chinese" => format!("{name}已声明"),
-                    "traditional_chinese" => format!("{name}已聲明"),
-                    "english" => format!("{name} is already declared"),
-                ),
-                Option::<AtomicStr>::None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn duplicate_definition_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-    ) -> Self {
-        let name = readable_name(name);
-        Self::new(
-            ErrorCore::new(
-                errno,
-                NameError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{name}は既に定義されています"),
-                    "simplified_chinese" => format!("{name}已定义"),
-                    "traditional_chinese" => format!("{name}已定義"),
-                    "english" => format!("{name} is already defined"),
-                ),
-                Option::<AtomicStr>::None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn violate_decl_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-        spec_t: &Type,
-        found_t: &Type,
-    ) -> Self {
-        let name = readable_name(name);
-        Self::new(
-            ErrorCore::new(
-                errno,
-                TypeError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{name}は{GREEN}{spec_t}{RESET}型として宣言されましたが、{RED}{found_t}{RESET}型のオブジェクトが代入されています"),
-                    "simplified_chinese" => format!("{name}被声明为{GREEN}{spec_t}{RESET}，但分配了一个{RED}{found_t}{RESET}对象"),
-                    "traditional_chinese" => format!("{name}被聲明為{GREEN}{spec_t}{RESET}，但分配了一個{RED}{found_t}{RESET}對象"),
-                    "english" => format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
-                ),
-                Option::<AtomicStr>::None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
     pub fn no_type_spec_error(
         input: Input,
         errno: usize,
@@ -386,119 +291,6 @@ impl TyCheckError {
                     "english" => format!("the type of {name} is not specified"),
                 ),
                 None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn no_var_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-        similar_name: Option<&str>,
-    ) -> Self {
-        let name = readable_name(name);
-        let hint = similar_name.map(|n| {
-            let n = readable_name(n);
-            switch_lang!(
-                "japanese" => format!("似た名前の変数があります: {n}"),
-                "simplified_chinese" => format!("存在相同名称变量：{n}"),
-                "traditional_chinese" => format!("存在相同名稱變量：{n}"),
-                "english" => format!("exists a similar name variable: {n}"),
-            )
-            .into()
-        });
-        Self::new(
-            ErrorCore::new(
-                errno,
-                NameError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
-                    "simplified_chinese" => format!("{RED}{name}{RESET}未定义"),
-                    "traditional_chinese" => format!("{RED}{name}{RESET}未定義"),
-                    "english" => format!("{RED}{name}{RESET} is not defined"),
-                ),
-                hint,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn no_attr_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        obj_t: &Type,
-        name: &str,
-        similar_name: Option<&str>,
-    ) -> Self {
-        let hint = similar_name.map(|n| {
-            let n = readable_name(n);
-            switch_lang!(
-                "japanese" => format!("似た名前の属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
-                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
-                "english" => format!("has a similar name attribute: {n}"),
-            )
-            .into()
-        });
-        Self::new(
-            ErrorCore::new(
-                errno,
-                AttributeError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{obj_t}型オブジェクトに{RED}{name}{RESET}という属性はありません"),
-                    "simplified_chinese" => format!("{obj_t}对象没有属性{RED}{name}{RESET}"),
-                    "traditional_chinese" => format!("{obj_t}對像沒有屬性{RED}{name}{RESET}"),
-                    "english" => format!("{obj_t} object has no attribute {RED}{name}{RESET}"),
-                ),
-                hint,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn singular_no_attr_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        obj_name: &str,
-        obj_t: &Type,
-        name: &str,
-        similar_name: Option<&str>,
-    ) -> Self {
-        let hint = similar_name.map(|n| {
-            let n = readable_name(n);
-            switch_lang!(
-                "japanese" => format!("似た名前の属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
-                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
-                "english" => format!("has a similar name attribute: {n}"),
-            )
-            .into()
-        });
-        Self::new(
-            ErrorCore::new(
-                errno,
-                AttributeError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{obj_name}(: {obj_t})に{RED}{name}{RESET}という属性はありません"),
-                    "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{RED}{name}{RESET}"),
-                    "traditional_chinese" => format!("{obj_name}(: {obj_t})沒有屬性{RED}{name}{RESET}"),
-                    "english" => format!("{obj_name}(: {obj_t}) has no attribute {RED}{name}{RESET}"),
-                ),
-                hint,
             ),
             input,
             caused_by,
@@ -702,32 +494,6 @@ impl TyCheckError {
         Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
     }
 
-    pub fn reassign_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-    ) -> Self {
-        let name = readable_name(name);
-        Self::new(
-            ErrorCore::new(
-                errno,
-                AssignError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("変数{YELLOW}{name}{RESET}に再代入されています"),
-                    "simplified_chinese" => format!("不能为变量{YELLOW}{name}{RESET}分配两次"),
-                    "traditional_chinese" => format!("不能為變量{YELLOW}{name}{RESET}分配兩次"),
-                    "english" => format!("cannot assign twice to the variable {YELLOW}{name}{RESET}"),
-                ),
-                None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn too_many_args_error(
         input: Input,
@@ -860,32 +626,6 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
-    pub fn unused_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        name: &str,
-        caused_by: AtomicStr,
-    ) -> Self {
-        let name = readable_name(name);
-        Self::new(
-            ErrorCore::new(
-                errno,
-                UnusedWarning,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}は使用されていません"),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
-                    "english" => format!("{YELLOW}{name}{RESET} is not used"),
-                ),
-                None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
     pub fn unification_error(
         input: Input,
         errno: usize,
@@ -1002,193 +742,6 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                     "simplified_chinese" => format!("无法统一谓词表达式：\n左边：{YELLOW}{lhs}{RESET}\n左边：{YELLOW}{rhs}{RESET}"),
                     "traditional_chinese" => format!("無法統一謂詞表達式：\n左邊：{YELLOW}{lhs}{RESET}\n左邊：{YELLOW}{rhs}{RESET}"),
                     "english" => format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
-                ),
-                None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn has_effect<S: Into<AtomicStr>>(
-        input: Input,
-        errno: usize,
-        expr: &Expr,
-        caused_by: S,
-    ) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                HasEffect,
-                expr.loc(),
-                switch_lang!(
-                    "japanese" => "この式には副作用があります",
-                    "simplified_chinese" => "此表达式会产生副作用",
-                    "traditional_chinese" => "此表達式會產生副作用",
-                    "english" => "this expression causes a side-effect",
-                ),
-                None,
-            ),
-            input,
-            caused_by.into(),
-        )
-    }
-
-    pub fn move_error<S: Into<AtomicStr>>(
-        input: Input,
-        errno: usize,
-        name: &str,
-        name_loc: Location,
-        moved_loc: Location,
-        caused_by: S,
-    ) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                MoveError,
-                name_loc,
-                switch_lang!(
-                    "japanese" => format!(
-                        "{RED}{name}{RESET}は{}行目ですでに移動されています",
-                        moved_loc.ln_begin().unwrap_or(0)
-                    ),
-                    "simplified_chinese" => format!(
-                        "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap_or(0)
-                    ),
-                    "traditional_chinese" => format!(
-                        "{RED}{name}{RESET}已移至第{}行",
-                        moved_loc.ln_begin().unwrap_or(0)
-                    ),
-                    "english" => format!(
-                        "{RED}{name}{RESET} was moved in line {}",
-                        moved_loc.ln_begin().unwrap_or(0)
-                    ),
-                ),
-                None,
-            ),
-            input,
-            caused_by.into(),
-        )
-    }
-
-    pub fn visibility_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-        name: &str,
-        vis: Visibility,
-    ) -> Self {
-        let name = readable_name(name);
-        let visibility = if vis.is_private() {
-            switch_lang!(
-                "japanese" => "非公開",
-                "simplified_chinese" => "私有",
-                "traditional_chinese" => "私有",
-                "english" => "private",
-            )
-        } else {
-            switch_lang!(
-                "japanese" => "公開",
-                "simplified_chinese" => "公有",
-                "traditional_chinese" => "公有",
-                "english" => "public",
-            )
-        };
-        Self::new(
-            ErrorCore::new(
-                errno,
-                VisibilityError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),
-                    "simplified_chinese" => format!("{RED}{name}{RESET}是{visibility}变量",),
-                    "traditional_chinese" => format!("{RED}{name}{RESET}是{visibility}變量",),
-                    "english" => format!("{RED}{name}{RESET} is {visibility} variable",),
-                ),
-                None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn not_const_expr(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                NotConstExpr,
-                loc,
-                switch_lang!(
-                    "japanese" => "定数式ではありません",
-                    "simplified_chinese" => "不是常量表达式",
-                    "traditional_chinese" => "不是常量表達式",
-                    "english" => "not a constant expression",
-                ),
-                None,
-            ),
-            input,
-            caused_by,
-        )
-    }
-
-    pub fn override_error<S: Into<AtomicStr>>(
-        input: Input,
-        errno: usize,
-        name: &str,
-        name_loc: Location,
-        superclass: &Type,
-        caused_by: S,
-    ) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                NameError,
-                name_loc,
-                switch_lang!(
-                    "japanese" => format!(
-                        "{RED}{name}{RESET}は{YELLOW}{superclass}{RESET}で既に定義されています",
-                    ),
-                    "simplified_chinese" => format!(
-                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定义",
-                    ),
-                    "traditional_chinese" => format!(
-                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定義",
-                    ),
-                    "english" => format!(
-                        "{RED}{name}{RESET} is already defined in {YELLOW}{superclass}{RESET}",
-                    ),
-                ),
-                Some(switch_lang!(
-                    "japanese" => "デフォルトでオーバーライドはできません(`Override`デコレータを使用してください)",
-                    "simplified_chinese" => "默认不可重写(请使用`Override`装饰器)",
-                    "traditional_chinese" => "默認不可重寫(請使用`Override`裝飾器)",
-                    "english" => "cannot override by default (use `Override` decorator)",
-                ).into()),
-            ),
-            input,
-            caused_by.into(),
-        )
-    }
-
-    pub fn inheritance_error(
-        input: Input,
-        errno: usize,
-        class: String,
-        loc: Location,
-        caused_by: AtomicStr,
-    ) -> Self {
-        Self::new(
-            ErrorCore::new(
-                errno,
-                InheritanceError,
-                loc,
-                switch_lang!(
-                    "japanese" => format!("{class}は継承できません"),
-                    "simplified_chinese" => format!("{class}不可继承"),
-                    "traditional_chinese" => format!("{class}不可繼承"),
-                    "english" => format!("{class} is not inheritable"),
                 ),
                 None,
             ),
@@ -1367,6 +920,485 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
             caused_by,
         )
     }
+}
+
+pub type TyCheckErrors = CompileErrors;
+pub type SingleTyCheckResult<T> = Result<T, TyCheckError>;
+pub type TyCheckResult<T> = Result<T, TyCheckErrors>;
+pub type TyCheckWarning = TyCheckError;
+pub type TyCheckWarnings = TyCheckErrors;
+
+pub type EvalError = TyCheckError;
+pub type EvalErrors = TyCheckErrors;
+pub type EvalResult<T> = TyCheckResult<T>;
+pub type SingleEvalResult<T> = SingleTyCheckResult<T>;
+
+impl EvalError {
+    pub fn not_const_expr(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NotConstExpr,
+                loc,
+                switch_lang!(
+                    "japanese" => "定数式ではありません",
+                    "simplified_chinese" => "不是常量表达式",
+                    "traditional_chinese" => "不是常量表達式",
+                    "english" => "not a constant expression",
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+}
+
+pub type EffectError = TyCheckError;
+pub type EffectErrors = TyCheckErrors;
+
+impl EffectError {
+    pub fn has_effect<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        expr: &Expr,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                HasEffect,
+                expr.loc(),
+                switch_lang!(
+                    "japanese" => "この式には副作用があります",
+                    "simplified_chinese" => "此表达式会产生副作用",
+                    "traditional_chinese" => "此表達式會產生副作用",
+                    "english" => "this expression causes a side-effect",
+                ),
+                None,
+            ),
+            input,
+            caused_by.into(),
+        )
+    }
+}
+
+pub type OwnershipError = TyCheckError;
+pub type OwnershipErrors = TyCheckErrors;
+
+impl OwnershipError {
+    pub fn move_error<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        name: &str,
+        name_loc: Location,
+        moved_loc: Location,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                MoveError,
+                name_loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}は{}行目ですでに移動されています",
+                        moved_loc.ln_begin().unwrap_or(0)
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}已移至第{}行",
+                        moved_loc.ln_begin().unwrap_or(0)
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}已移至第{}行",
+                        moved_loc.ln_begin().unwrap_or(0)
+                    ),
+                    "english" => format!(
+                        "{RED}{name}{RESET} was moved in line {}",
+                        moved_loc.ln_begin().unwrap_or(0)
+                    ),
+                ),
+                None,
+            ),
+            input,
+            caused_by.into(),
+        )
+    }
+}
+
+pub type LowerError = TyCheckError;
+pub type LowerWarning = LowerError;
+pub type LowerErrors = TyCheckErrors;
+pub type LowerWarnings = LowerErrors;
+pub type LowerResult<T> = TyCheckResult<T>;
+pub type SingleLowerResult<T> = SingleTyCheckResult<T>;
+
+impl LowerError {
+    pub fn syntax_error<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        desc: S,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(errno, SyntaxError, loc, desc, hint),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn duplicate_decl_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は既に宣言されています"),
+                    "simplified_chinese" => format!("{name}已声明"),
+                    "traditional_chinese" => format!("{name}已聲明"),
+                    "english" => format!("{name} is already declared"),
+                ),
+                Option::<AtomicStr>::None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn duplicate_definition_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は既に定義されています"),
+                    "simplified_chinese" => format!("{name}已定义"),
+                    "traditional_chinese" => format!("{name}已定義"),
+                    "english" => format!("{name} is already defined"),
+                ),
+                Option::<AtomicStr>::None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn violate_decl_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        spec_t: &Type,
+        found_t: &Type,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{name}は{GREEN}{spec_t}{RESET}型として宣言されましたが、{RED}{found_t}{RESET}型のオブジェクトが代入されています"),
+                    "simplified_chinese" => format!("{name}被声明为{GREEN}{spec_t}{RESET}，但分配了一个{RED}{found_t}{RESET}对象"),
+                    "traditional_chinese" => format!("{name}被聲明為{GREEN}{spec_t}{RESET}，但分配了一個{RED}{found_t}{RESET}對象"),
+                    "english" => format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
+                ),
+                Option::<AtomicStr>::None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn no_var_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = readable_name(n);
+            switch_lang!(
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称变量：{n}"),
+                "traditional_chinese" => format!("存在相同名稱變量：{n}"),
+                "english" => format!("exists a similar name variable: {n}"),
+            )
+            .into()
+        });
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
+                    "simplified_chinese" => format!("{RED}{name}{RESET}未定义"),
+                    "traditional_chinese" => format!("{RED}{name}{RESET}未定義"),
+                    "english" => format!("{RED}{name}{RESET} is not defined"),
+                ),
+                hint,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn no_attr_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        obj_t: &Type,
+        name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let hint = similar_name.map(|n| {
+            let n = readable_name(n);
+            switch_lang!(
+                "japanese" => format!("似た名前の属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
+                "english" => format!("has a similar name attribute: {n}"),
+            )
+            .into()
+        });
+        Self::new(
+            ErrorCore::new(
+                errno,
+                AttributeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{obj_t}型オブジェクトに{RED}{name}{RESET}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_t}对象没有属性{RED}{name}{RESET}"),
+                    "traditional_chinese" => format!("{obj_t}對像沒有屬性{RED}{name}{RESET}"),
+                    "english" => format!("{obj_t} object has no attribute {RED}{name}{RESET}"),
+                ),
+                hint,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn singular_no_attr_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        obj_name: &str,
+        obj_t: &Type,
+        name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let hint = similar_name.map(|n| {
+            let n = readable_name(n);
+            switch_lang!(
+                "japanese" => format!("似た名前の属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
+                "english" => format!("has a similar name attribute: {n}"),
+            )
+            .into()
+        });
+        Self::new(
+            ErrorCore::new(
+                errno,
+                AttributeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{obj_name}(: {obj_t})に{RED}{name}{RESET}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{RED}{name}{RESET}"),
+                    "traditional_chinese" => format!("{obj_name}(: {obj_t})沒有屬性{RED}{name}{RESET}"),
+                    "english" => format!("{obj_name}(: {obj_t}) has no attribute {RED}{name}{RESET}"),
+                ),
+                hint,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn reassign_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                AssignError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("変数{YELLOW}{name}{RESET}に再代入されています"),
+                    "simplified_chinese" => format!("不能为变量{YELLOW}{name}{RESET}分配两次"),
+                    "traditional_chinese" => format!("不能為變量{YELLOW}{name}{RESET}分配兩次"),
+                    "english" => format!("cannot assign twice to the variable {YELLOW}{name}{RESET}"),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn unused_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        name: &str,
+        caused_by: AtomicStr,
+    ) -> Self {
+        let name = readable_name(name);
+        Self::new(
+            ErrorCore::new(
+                errno,
+                UnusedWarning,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{YELLOW}{name}{RESET}は使用されていません"),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
+                    "english" => format!("{YELLOW}{name}{RESET} is not used"),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn visibility_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        vis: Visibility,
+    ) -> Self {
+        let name = readable_name(name);
+        let visibility = if vis.is_private() {
+            switch_lang!(
+                "japanese" => "非公開",
+                "simplified_chinese" => "私有",
+                "traditional_chinese" => "私有",
+                "english" => "private",
+            )
+        } else {
+            switch_lang!(
+                "japanese" => "公開",
+                "simplified_chinese" => "公有",
+                "traditional_chinese" => "公有",
+                "english" => "public",
+            )
+        };
+        Self::new(
+            ErrorCore::new(
+                errno,
+                VisibilityError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),
+                    "simplified_chinese" => format!("{RED}{name}{RESET}是{visibility}变量",),
+                    "traditional_chinese" => format!("{RED}{name}{RESET}是{visibility}變量",),
+                    "english" => format!("{RED}{name}{RESET} is {visibility} variable",),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn override_error<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        name: &str,
+        name_loc: Location,
+        superclass: &Type,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                name_loc,
+                switch_lang!(
+                    "japanese" => format!(
+                        "{RED}{name}{RESET}は{YELLOW}{superclass}{RESET}で既に定義されています",
+                    ),
+                    "simplified_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定义",
+                    ),
+                    "traditional_chinese" => format!(
+                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定義",
+                    ),
+                    "english" => format!(
+                        "{RED}{name}{RESET} is already defined in {YELLOW}{superclass}{RESET}",
+                    ),
+                ),
+                Some(switch_lang!(
+                    "japanese" => "デフォルトでオーバーライドはできません(`Override`デコレータを使用してください)",
+                    "simplified_chinese" => "默认不可重写(请使用`Override`装饰器)",
+                    "traditional_chinese" => "默認不可重寫(請使用`Override`裝飾器)",
+                    "english" => "cannot override by default (use `Override` decorator)",
+                ).into()),
+            ),
+            input,
+            caused_by.into(),
+        )
+    }
+
+    pub fn inheritance_error(
+        input: Input,
+        errno: usize,
+        class: String,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                InheritanceError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{class}は継承できません"),
+                    "simplified_chinese" => format!("{class}不可继承"),
+                    "traditional_chinese" => format!("{class}不可繼承"),
+                    "english" => format!("{class} is not inheritable"),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
 
     pub fn file_error(
         input: Input,
@@ -1447,30 +1479,6 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 }
-
-pub type TyCheckErrors = CompileErrors;
-pub type SingleTyCheckResult<T> = Result<T, TyCheckError>;
-pub type TyCheckResult<T> = Result<T, TyCheckErrors>;
-pub type TyCheckWarning = TyCheckError;
-pub type TyCheckWarnings = TyCheckErrors;
-
-pub type EvalError = TyCheckError;
-pub type EvalErrors = TyCheckErrors;
-pub type EvalResult<T> = TyCheckResult<T>;
-pub type SingleEvalResult<T> = SingleTyCheckResult<T>;
-
-pub type EffectError = TyCheckError;
-pub type EffectErrors = TyCheckErrors;
-
-pub type OwnershipError = TyCheckError;
-pub type OwnershipErrors = TyCheckErrors;
-
-pub type LowerError = TyCheckError;
-pub type LowerWarning = LowerError;
-pub type LowerErrors = TyCheckErrors;
-pub type LowerWarnings = LowerErrors;
-pub type LowerResult<T> = TyCheckResult<T>;
-pub type SingleLowerResult<T> = SingleTyCheckResult<T>;
 
 #[derive(Debug)]
 pub struct CompileErrors(Vec<CompileError>);
