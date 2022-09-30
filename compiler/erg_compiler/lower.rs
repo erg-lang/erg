@@ -20,7 +20,7 @@ use erg_type::constructors::{
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
-use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
+use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
@@ -32,7 +32,7 @@ use crate::hir;
 use crate::hir::HIR;
 use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
-use crate::varinfo::VarKind;
+use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Visibility::*;
 
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
@@ -1116,6 +1116,27 @@ impl ASTLowerer {
         res
     }
 
+    fn fake_lower_obj(&self, obj: ast::Expr) -> LowerResult<hir::Expr> {
+        match obj {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                let acc = hir::Accessor::Ident(hir::Identifier::bare(ident.dot, ident.name));
+                Ok(hir::Expr::Accessor(acc))
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let obj = self.fake_lower_obj(*attr.obj)?;
+                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
+                let acc = hir::Accessor::attr(obj, ident, Type::Uninited);
+                Ok(hir::Expr::Accessor(acc))
+            }
+            other => Err(LowerErrors::from(LowerError::declare_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                other.loc(),
+                self.ctx.caused_by(),
+            ))),
+        }
+    }
+
     fn declare_type(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         match *tasc.expr {
@@ -1126,14 +1147,72 @@ impl ASTLowerer {
                     &mut None,
                     RegistrationMode::Normal,
                 )?;
+                if ident.is_const() {
+                    let vi = VarInfo::new(
+                        t.clone(),
+                        Mutability::Const,
+                        ident.vis(),
+                        VarKind::Declared,
+                        None,
+                    );
+                    self.ctx.decls.insert(ident.name.clone(), vi);
+                }
                 self.ctx.assign_var_sig(
                     &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
                     &t,
                     ast::DefId(0),
                 )?;
+                match t {
+                    Type::Class => {
+                        let ty_obj = GenTypeObj::new(
+                            TypeKind::Class,
+                            mono(self.ctx.path(), ident.inspect()),
+                            TypeObj::Builtin(Type::Uninited),
+                            None,
+                            None,
+                        );
+                        self.ctx.register_gen_type(&ident, ty_obj);
+                    }
+                    Type::Trait => {
+                        let ty_obj = GenTypeObj::new(
+                            TypeKind::Trait,
+                            mono(self.ctx.path(), ident.inspect()),
+                            TypeObj::Builtin(Type::Uninited),
+                            None,
+                            None,
+                        );
+                        self.ctx.register_gen_type(&ident, ty_obj);
+                    }
+                    _ => {}
+                }
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, t);
                 Ok(hir::TypeAscription::new(
                     hir::Expr::Accessor(hir::Accessor::Ident(ident)),
+                    tasc.t_spec,
+                ))
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let t = self.ctx.instantiate_typespec(
+                    &tasc.t_spec,
+                    None,
+                    &mut None,
+                    RegistrationMode::Normal,
+                )?;
+                let namespace = self.ctx.name.clone();
+                let ctx = self
+                    .ctx
+                    .get_mut_singular_ctx(attr.obj.as_ref(), &namespace)?;
+                ctx.assign_var_sig(
+                    &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
+                    &t,
+                    ast::DefId(0),
+                )?;
+                let obj = self.fake_lower_obj(*attr.obj)?;
+                let ident =
+                    hir::Identifier::new(attr.ident.dot, attr.ident.name, None, Type::Uninited);
+                let attr = hir::Accessor::attr(obj, ident, t);
+                Ok(hir::TypeAscription::new(
+                    hir::Expr::Accessor(attr),
                     tasc.t_spec,
                 ))
             }

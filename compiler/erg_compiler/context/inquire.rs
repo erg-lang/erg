@@ -127,6 +127,43 @@ impl Context {
             })
     }
 
+    pub fn get_mut_singular_ctx_from_ident(
+        &mut self,
+        ident: &ast::Identifier,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<&mut Context> {
+        let err = TyCheckError::no_var_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            ident.inspect(),
+            self.get_similar_name(ident.inspect()),
+        );
+        self.get_mut_type(ident.inspect())
+            .map(|(_, ctx)| ctx)
+            .ok_or(err)
+    }
+
+    pub fn get_mut_singular_ctx(
+        &mut self,
+        obj: &ast::Expr,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<&mut Context> {
+        match obj {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                self.get_mut_singular_ctx_from_ident(ident, namespace)
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                // REVIEW: 両方singularとは限らない?
+                let ctx = self.get_mut_singular_ctx(&attr.obj, namespace)?;
+                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
+                ctx.get_mut_singular_ctx(&attr, namespace)
+            }
+            _ => todo!(),
+        }
+    }
+
     fn get_match_call_t(
         &self,
         pos_args: &[hir::PosArg],
@@ -1562,6 +1599,16 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_get_type(name)
+        } else {
+            None
+        }
+    }
+
+    fn get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
+        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
+            Some((t, ctx))
         } else {
             None
         }

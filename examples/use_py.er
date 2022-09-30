@@ -1,3 +1,5 @@
 declare = pyimport "declare"
 
 print! declare.f(declare.x + 1)
+c = declare.C.__call__ 1
+print! c.f(1)
