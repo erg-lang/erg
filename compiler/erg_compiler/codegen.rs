@@ -1005,10 +1005,6 @@ impl CodeGenerator {
 
     fn emit_class_def(&mut self, class_def: ClassDef) {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
-        if !self.record_type_loaded {
-            self.load_record_type();
-            self.record_type_loaded = true;
-        }
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
@@ -1571,10 +1567,6 @@ impl CodeGenerator {
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
-        if !self.record_type_loaded {
-            self.load_record_type();
-            self.record_type_loaded = true;
-        }
         let attrs_len = rec.attrs.len();
         // making record type
         let ident = Identifier::private(Str::ever("#NamedTuple"));
@@ -1967,11 +1959,11 @@ impl CodeGenerator {
     }
 
     fn load_prelude(&mut self) {
-        // TODO:
+        self.load_record_type();
+        self.record_type_loaded = true;
     }
 
     fn load_record_type(&mut self) {
-        // importing namedtuple
         self.emit_global_import_items(
             Identifier::public("collections"),
             vec![(
@@ -1979,7 +1971,6 @@ impl CodeGenerator {
                 Some(Identifier::private(Str::ever("#NamedTuple"))),
             )],
         );
-        // self.namedtuple_loaded = true;
     }
 
     fn load_abc(&mut self) {
