@@ -454,6 +454,22 @@ impl Context {
                 // TODO: deref_predicate
                 Ok(refinement(refine.var, t, refine.preds))
             }
+            Type::And(l, r) => {
+                let l = self.deref_tyvar(*l, variance, loc)?;
+                let r = self.deref_tyvar(*r, variance, loc)?;
+                Ok(self.intersection(&l, &r))
+            }
+            Type::Or(l, r) => {
+                let l = self.deref_tyvar(*l, variance, loc)?;
+                let r = self.deref_tyvar(*r, variance, loc)?;
+                Ok(self.union(&l, &r))
+            }
+            Type::Not(l, r) => {
+                let l = self.deref_tyvar(*l, variance, loc)?;
+                let r = self.deref_tyvar(*r, variance, loc)?;
+                // TODO: complement
+                Ok(not(l, r))
+            }
             t => Ok(t),
         }
     }

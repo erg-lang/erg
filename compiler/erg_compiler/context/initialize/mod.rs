@@ -269,7 +269,7 @@ impl Context {
         let op_t = fn1_met(
             mono_q("Self"),
             mono_q("R"),
-            option(builtin_mono("Ordering")),
+            or(builtin_mono("Ordering"), NoneType),
         );
         let op_t = quant(
             op_t,
@@ -534,7 +534,7 @@ impl Context {
         let mut int_partial_ord = Self::builtin_methods("PartialOrd", 2);
         int_partial_ord.register_builtin_impl(
             "__partial_cmp__",
-            fn1_met(Int, Int, option(builtin_mono("Ordering"))),
+            fn1_met(Int, Int, or(builtin_mono("Ordering"), NoneType)),
             Const,
             Public,
         );
@@ -1575,7 +1575,7 @@ impl Context {
             vec![param_t("err_message", Str)],
             NoneType,
         );
-        let t_classof = nd_func(vec![param_t("old", Obj)], None, option(Class));
+        let t_classof = nd_func(vec![param_t("old", Obj)], None, Class);
         let t_compile = nd_func(vec![param_t("src", Str)], None, Code);
         let t_cond = nd_func(
             vec![
@@ -1596,7 +1596,7 @@ impl Context {
             ],
             None,
             vec![param_t("else", nd_func(vec![], None, mono_q("T")))],
-            option(mono_q("T")),
+            or(mono_q("T"), NoneType),
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_import = nd_func(
@@ -1724,7 +1724,7 @@ impl Context {
             ],
             None,
             vec![param_t("else", nd_proc(vec![], None, mono_q("T")))],
-            option(mono_q("T")),
+            or(mono_q("T"), NoneType),
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_for = nd_proc(
