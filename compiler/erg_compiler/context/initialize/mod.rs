@@ -1621,17 +1621,21 @@ impl Context {
             None,
             module(mono_q_tp("Path")),
         );
+        let t_panic = nd_func(vec![param_t("err_message", Str)], None, NoneType);
         let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
         let t_quit = func(vec![], None, vec![param_t("code", Int)], NoneType);
+        let t_exit = t_quit.clone();
         self.register_builtin_impl("abs", t_abs, Immutable, Private);
         self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
         self.register_builtin_impl("classof", t_classof, Immutable, Private);
         self.register_builtin_impl("compile", t_compile, Immutable, Private);
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
         self.register_builtin_impl("discard", t_discard, Immutable, Private);
+        self.register_builtin_impl("exit", t_exit, Immutable, Private);
         self.register_builtin_impl("if", t_if, Immutable, Private);
         self.register_builtin_impl("log", t_log, Immutable, Private);
         self.register_builtin_impl("import", t_import, Immutable, Private);
+        self.register_builtin_impl("panic", t_panic, Immutable, Private);
         if cfg!(feature = "debug") {
             self.register_builtin_impl("py", t_pyimport.clone(), Immutable, Private);
         }
