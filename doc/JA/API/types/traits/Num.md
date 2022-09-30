@@ -18,7 +18,7 @@ Erg組み込み数値型の型関係は以下のようになります。
 
 ```python
 >>> 1 + 1.0 # Nat(Int)+Ratioの型はRatio+Ratio型にアップキャストされる
-2.0 # Float
+2.0 # Ratio
 >>> 10.0 // 2 # `Ratio型//Nat(Int)型`も同様に`Ratio型//Ratio型`にアップキャストされる。Ratio//Ratioの結果はInt
 5 # Int(Nat)
 >>> True == 1.0 # `Bool型==Ratio型`はRatio型==Ratio型`にアップキャストされる
