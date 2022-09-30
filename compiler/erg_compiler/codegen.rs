@@ -151,6 +151,7 @@ fn is_python_global(name: &str) -> bool {
             | "enumerate"
             | "eval"
             | "exec"
+            | "exit"
             | "filter"
             | "float"
             | "format"
@@ -259,6 +260,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "input!" => Str::ever("input"),
         "log" => Str::ever("print"), // TODO: log != print (prints after executing)
         "open!" => Str::ever("open"),
+        "panic" => Str::ever("exit"),
         "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
