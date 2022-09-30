@@ -1765,7 +1765,9 @@ impl CodeGenerator {
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
         }
-        self.emit_frameless_block(class.methods, vec![]);
+        if !class.methods.is_empty() {
+            self.emit_frameless_block(class.methods, vec![]);
+        }
         if self.cur_block().stack_len == 0 {
             self.emit_load_const(ValueObj::None);
         }
