@@ -127,13 +127,13 @@ pub fn ref_mut(before: Type, after: Option<Type>) -> Type {
     }
 }
 
-pub fn option(t: Type) -> Type {
+/*pub fn option(t: Type) -> Type {
     builtin_poly("Option", vec![TyParam::t(t)])
 }
 
 pub fn option_mut(t: Type) -> Type {
     builtin_poly("Option!", vec![TyParam::t(t)])
-}
+}*/
 
 pub fn subr_t(
     kind: SubrKind,

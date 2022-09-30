@@ -1222,7 +1222,10 @@ impl ASTLowerer {
         let hir = HIR::new(ast.name, module);
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
         let hir = match self.ctx.resolve(hir) {
-            Ok(hir) => hir,
+            Ok(hir) => {
+                log!(info "HIR (resolved):\n{hir}");
+                hir
+            }
             Err((hir, errs)) => {
                 self.errs.extend(errs.into_iter());
                 log!(err "the resolving process has failed. errs:  {}", self.errs.len());
@@ -1236,7 +1239,6 @@ impl ASTLowerer {
             }
         }
         if self.errs.is_empty() {
-            log!(info "HIR:\n{hir}");
             log!(info "the AST lowering process has completed.");
             Ok((hir, LowerWarnings::from(self.warns.take_all())))
         } else {
