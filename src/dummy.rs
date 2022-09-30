@@ -94,12 +94,21 @@ impl Runnable for DummyVM {
         self.compiler.clear();
     }
 
-    fn exec(&mut self) -> Result<(), Self::Errs> {
+    fn exec(&mut self) -> Result<i32, Self::Errs> {
+        // Parallel execution is not possible without dumping with a unique file name.
+        let filename = self
+            .cfg()
+            .input
+            .filename()
+            .split('/')
+            .last()
+            .unwrap()
+            .replace(".er", ".pyc");
         self.compiler
-            .compile_and_dump_as_pyc("o.pyc", self.input().read(), "exec")?;
-        exec_pyc("o.pyc");
-        remove_file("o.pyc").unwrap();
-        Ok(())
+            .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
+        let code = exec_pyc(&filename);
+        remove_file(&filename).unwrap();
+        Ok(code.unwrap_or(1))
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {

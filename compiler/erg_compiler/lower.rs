@@ -82,7 +82,7 @@ impl Runnable for ASTLowerer {
         self.warns.clear();
     }
 
-    fn exec(&mut self) -> Result<(), Self::Errs> {
+    fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(self.input().read())?;
         let (hir, warns) = self.lower(ast, "exec").map_err(|(_, errs)| errs)?;
@@ -90,7 +90,7 @@ impl Runnable for ASTLowerer {
             warns.fmt_all_stderr();
         }
         println!("{hir}");
-        Ok(())
+        Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
