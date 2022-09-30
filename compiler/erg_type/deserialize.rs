@@ -124,9 +124,18 @@ impl Deserializer {
             eprintln!("{:?} is not a filename", cfg.input);
             process::exit(1);
         };
-        let codeobj = CodeObj::from_pyc(&filename)
-            .unwrap_or_else(|_| panic!("failed to deserialize {}", filename.to_string_lossy()));
-        println!("{}", codeobj.code_info());
+        match CodeObj::from_pyc(&filename) {
+            Ok(codeobj) => {
+                println!("{}", codeobj.code_info());
+            }
+            Err(e) => {
+                eprintln!(
+                    "failed to deserialize {}: {}",
+                    filename.to_string_lossy(),
+                    e.desc
+                )
+            }
+        }
     }
 
     fn get_cached_str(&mut self, s: &str) -> ValueObj {
