@@ -131,38 +131,6 @@ exec
 read
     <filename>.pycをデシリアライズしダンプ",
 
-    "simplified_chinese" =>
-        "\
-USAGE:
-    erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
-
-lex
-    Receive input from <filename>.er, REPL, etc., and tokenize the text
-    Returns analysis results as TokenStream
-
-parse
-    Execute lex, get TokenStream, and parse the syntax
-    Desugar multiple pattern definition sentences, convert by match and return ast (abstract syntax tree)
-
-lower
-    Execute parse to get ast
-    Resolve name, check type and infer, and return ast
-
-check
-    Execute lower and get ast
-    Check side-effects, ownership and return ast
-
-compile
-    Run check to get checked ast
-    Compile ast and return <filename>.pyc
-
-exec
-    Execute check to get checked ast
-    Delete <filename>.pyc after executing <filename>.pyc
-
-read
-    Deserialize <filename>.pyc and dump",
-
     "traditional_chinese" =>
         "\
 USAGE:
@@ -195,7 +163,7 @@ exec
 read
     反序列化 <filename>.pyc 并转储",
 
-    "english" =>
+    "simplified_chinese" =>
         "\
 USAGE:
     erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
@@ -226,5 +194,37 @@ exec
 
 read
     反序列化 <filename>.pyc 並轉儲",
+
+    "english" =>
+        "\
+USAGE:
+    erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
+
+lex
+    Receive input from <filename>.er, REPL, etc., and tokenize the text
+    Returns analysis results as TokenStream
+
+parse
+    Execute lex, get TokenStream, and parse the syntax
+    Desugar multiple pattern definition sentences, convert by match and return ast (abstract syntax tree)
+
+lower
+    Execute parse to get ast
+    Resolve name, check type and infer, and return ast
+
+check
+    Execute lower and get ast
+    Check side-effects, ownership and return ast
+
+compile
+    Run check to get checked ast
+    Compile ast and return <filename>.pyc
+
+exec
+    Execute check to get checked ast
+    Delete <filename>.pyc after executing <filename>.pyc
+
+read
+    Deserialize <filename>.pyc and dump",
     )
 }
