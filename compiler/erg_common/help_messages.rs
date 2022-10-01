@@ -176,12 +176,12 @@ parse
     將多模式定義語句的語法糖按匹配轉換並返回 AST(抽象語法樹)
 
 lower
-    執行 parse 以獲取 AST
+    執行 parse
     解析名稱、檢查類型和推斷, 並返回 HIR(高級中間表示)
 
 check
-    執行 lower 並獲取 AST
-    檢查副作用、所有權並返回 AST
+    執行 lower
+    檢查副作用、所有權並返回 HIR
 
 compile
     運行 check 以獲取檢查完成的 AST
