@@ -1,22 +1,23 @@
 # Erg への貢献
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Dc0b4a426d3de4e2fb4ef908c897371c46cbacda3)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=c0b4a426d3de4e2fb4ef908c897371c46cbacda3)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3D61d72afbbfdba8c2ca994499c7ec9f8fc01440cb)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=61d72afbbfdba8c2ca994499c7ec9f8fc01440cb)
 
 初心者は[こちら](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)の説明を読んでください。
 
 ## ドキュメント
 
-Erg への貢献を考えている場合は、`doc/*/dev_guide` にあるドキュメントを読む必要があります。
-または、Erg の内部構造に興味がある場合は、`doc/*/compiler` が役立つ情報を提供する可能性があります。
+Erg への貢献を考えている場合は、`doc/*/dev_guide` にあるドキュメントを読む必要があります。特に`env.md`に書かれているものを事前にインストールしてください。
+
+Erg の内部構造に興味がある場合は、`doc/*/compiler` が役に立つかもしれません。
 
 ## バグレポート
 
-Erg のバグだと思われる動作を見つけた場合は、[報告](https://github.com/erg-lang/erg/issues/new/choose)していただければ幸いです。同じバグがまだ問題として報告されていないことを確認してください。
+Ergのバグだと思われる動作を見つけた場合は、[報告](https://github.com/erg-lang/erg/issues/new/choose)していただければ幸いです。同じバグがまだissueとして報告されていないことを確認してください。
 
-「cargo run --features debug」と入力すると、Erg はデバッグ モードでビルドされます。このモードでは、バグの調査に役立つ情報がダンプされる場合があります。このモードでエラーログを報告していただければ幸いです。
+`cargo run --features debug`と入力すると、Erg はデバッグモードでビルドされます。このモードでは、バグの調査に役立つ情報がダンプされる場合があります。このモードでエラーログを報告していただければ幸いです。
 
-また、バグが発生した環境が原因ではないことが明らかな場合は、バグが発生した環境を報告する必要はありません。
+また、バグの原因が環境によらない場合は、バグが発生した環境を報告する必要はありません。
 
 ## ドキュメントの翻訳
 
