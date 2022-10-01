@@ -3,7 +3,7 @@ assert id(1) == 1
 assert id(True) == True
 assert id("hello") == "hello"
 
-const|T: Type, C: Type|(c: C): C = (_: T,) -> c
+const|T: Type, C: Type|(c: C): (T -> C) = (_: T,) -> c
 assert const(1)(2) == 1
 assert const(True)(2) == True
 
