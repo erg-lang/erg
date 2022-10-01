@@ -201,7 +201,7 @@ USAGE:
 
 lex
     Receive input from <filename>.er, REPL, etc. and lex the text
-    Returns the analysis results as s a TokenStream
+    Returns the analysis results as a TokenStream
 
 parse
     Executes lex to get TokenStream, and parses it
