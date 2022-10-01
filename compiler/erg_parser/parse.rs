@@ -377,10 +377,16 @@ impl Parser {
         assert!(self.cur_is(VBar));
         let l_vbar = self.lpop();
         let args = self.try_reduce_args(true).map_err(|_| self.stack_dec())?;
-        assert!(self.cur_is(VBar));
-        let r_vbar = self.lpop();
-        self.level -= 1;
-        Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
+        if self.cur_is(VBar) {
+            let r_vbar = self.lpop();
+            self.level -= 1;
+            Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
+        } else {
+            self.level -= 1;
+            let err = self.skip_and_throw_syntax_err(caused_by!());
+            self.errs.push(err);
+            Err(())
+        }
     }
 
     fn try_reduce_acc(&mut self, in_type_args: bool) -> ParseResult<Accessor> {
