@@ -144,12 +144,12 @@ parse
     将多模式定义语句的语法糖按匹配转换并返回AST(抽象语法树)
 
 lower
-    执行 parse 以获取 AST
-    解析名称、检查类型和推断, 并返回 AST
+    执行 parse
+    解析名称、检查类型和推断, 并返回HIR(高级中间表示)
 
 check
-    执行 lower 并获取 AST
-    检查副作用、所有权并返回 AST
+    执行 lower
+    检查副作用、所有权并返回HIR
 
 compile
     运行 check 以获取检查完成的 AST
@@ -212,11 +212,11 @@ lower
 
 check
     Execute lowering
-    Check side-effects, ownership and return AST
+    Check side-effects, ownership and return HIR
 
 compile
     Execute check
-    Compile AST and return <filename>.pyc
+    Compile HIR and return <filename>.pyc
 
 exec
     Execute compiling & executing <filename>.pyc
