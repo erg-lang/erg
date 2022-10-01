@@ -769,6 +769,8 @@ impl Context {
         );
         array_.register_marker_trait(builtin_mono("Mutizable"));
         array_.register_marker_trait(builtin_poly("Seq", vec![ty_tp(mono_q("T"))]));
+        let mut bytes = Self::builtin_mono_class("Bytes", 2);
+        bytes.register_superclass(Obj, &obj);
         // TODO: make Tuple6, Tuple7, ... etc.
         let mut tuple_ = Self::builtin_mono_class("Tuple", 2);
         tuple_.register_superclass(Obj, &obj);
@@ -1488,6 +1490,7 @@ impl Context {
         self.register_builtin_type(g_module_t, generic_module, Const);
         self.register_builtin_type(module_t, module, Const);
         self.register_builtin_type(array_t, array_, Const);
+        self.register_builtin_type(builtin_mono("Bytes"), bytes, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
         self.register_builtin_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);
         self.register_builtin_type(

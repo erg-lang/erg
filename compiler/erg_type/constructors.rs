@@ -49,6 +49,11 @@ pub fn module(path: TyParam) -> Type {
     builtin_poly("Module", vec![path])
 }
 
+pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
+    let s = ValueObj::Str(Str::rc(path.into().to_str().unwrap()));
+    module(TyParam::Value(s))
+}
+
 pub fn v_enum(s: Set<ValueObj>) -> Type {
     assert!(is_homogeneous(&s));
     let name = Str::from(fresh_varname());

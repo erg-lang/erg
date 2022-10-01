@@ -5,3 +5,4 @@ pub mod random;
 pub mod socket;
 pub mod sys;
 pub mod time;
+pub mod urllib;

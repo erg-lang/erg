@@ -909,41 +909,42 @@ impl Context {
     fn import_py_mod(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        let builtin_path = PathBuf::from(&format!("<builtins>.{__name__}"));
+        if py_mod_cache.get(&builtin_path).is_some() {
+            return Ok(builtin_path);
+        }
         match &__name__[..] {
             "importlib" => {
-                let path = PathBuf::from("<builtins>.importlib");
-                py_mod_cache.register(path.clone(), None, Self::init_py_importlib_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_importlib_mod());
+                Ok(builtin_path)
             }
             "io" => {
-                let path = PathBuf::from("<builtins>.io");
-                py_mod_cache.register(path.clone(), None, Self::init_py_io_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_io_mod());
+                Ok(builtin_path)
             }
             "math" => {
-                let path = PathBuf::from("<builtins>.math");
-                py_mod_cache.register(path.clone(), None, Self::init_py_math_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_math_mod());
+                Ok(builtin_path)
             }
             "random" => {
-                let path = PathBuf::from("<builtins>.random");
-                py_mod_cache.register(path.clone(), None, Self::init_py_random_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_random_mod());
+                Ok(builtin_path)
             }
             "socket" => {
-                let path = PathBuf::from("<builtins>.socket");
-                py_mod_cache.register(path.clone(), None, Self::init_py_socket_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_socket_mod());
+                Ok(builtin_path)
             }
             "sys" => {
-                let path = PathBuf::from("<builtins>.sys");
-                py_mod_cache.register(path.clone(), None, Self::init_py_sys_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_sys_mod());
+                Ok(builtin_path)
             }
             "time" => {
-                let path = PathBuf::from("<builtins>.time");
-                py_mod_cache.register(path.clone(), None, Self::init_py_time_mod());
-                Ok(path)
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_time_mod());
+                Ok(builtin_path)
+            }
+            "urllib" => {
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_urllib_mod());
+                Ok(builtin_path)
             }
             _ => self.import_user_py_mod(mod_name),
         }
