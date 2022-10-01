@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
-use crate::help_messages::{CMD_HELP, MODE_HELP};
+use crate::help_messages::{command_message, mode_message};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -211,7 +211,7 @@ impl ErgConfig {
                 }
                 "-?" | "-h" | "--help" => {
                     // TODO:
-                    println!("{}", CMD_HELP);
+                    println!("{}", command_message());
                     process::exit(0);
                 }
                 "-m" if next_arg.is_some() => {
@@ -220,7 +220,7 @@ impl ErgConfig {
                 "--mode" if next_arg.is_some() => {
                     let mode = next_arg.unwrap();
                     if let "-?" | "-h" | "--help" = &mode[..] {
-                        println!("{}", MODE_HELP);
+                        println!("{}", mode_message());
                         process::exit(0);
                     }
                     cfg.mode = Box::leak(mode.into_boxed_str());
