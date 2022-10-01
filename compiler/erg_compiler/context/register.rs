@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::levenshtein::get_similar_name;
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -98,7 +99,6 @@ impl Context {
         let vis = sig.ident.vis();
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        let t = self.instantiate_sub_sig_t(sig, PreRegister)?;
         let comptime_decos = sig
             .decorators
             .iter()
@@ -108,7 +108,18 @@ impl Context {
                 }
                 _ => None,
             })
-            .collect();
+            .collect::<Set<_>>();
+        let t = self.instantiate_sub_sig_t(sig, PreRegister).map_err(|e| {
+            let vi = VarInfo::new(
+                Type::Failure,
+                muty,
+                vis,
+                kind.clone(),
+                Some(comptime_decos.clone()),
+            );
+            self.decls.insert(sig.ident.name.clone(), vi);
+            e
+        })?;
         let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos));
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
@@ -453,6 +464,40 @@ impl Context {
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
         Ok(())
+    }
+
+    pub(crate) fn fake_subr_assign(&mut self, sig: &ast::SubrSignature, failure_t: Type) {
+        // already defined as const
+        if sig.is_const() {
+            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
+            self.locals.insert(sig.ident.name.clone(), vi);
+        }
+        let muty = if sig.ident.is_const() {
+            Mutability::Const
+        } else {
+            Mutability::Immutable
+        };
+        let name = &sig.ident.name;
+        self.decls.remove(name);
+        let comptime_decos = sig
+            .decorators
+            .iter()
+            .filter_map(|deco| match &deco.0 {
+                ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
+                    Some(local.inspect().clone())
+                }
+                _ => None,
+            })
+            .collect();
+        let vi = VarInfo::new(
+            failure_t,
+            muty,
+            sig.ident.vis(),
+            VarKind::DoesNotExist,
+            Some(comptime_decos),
+        );
+        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        self.locals.insert(name.clone(), vi);
     }
 
     // To allow forward references and recursive definitions

@@ -660,36 +660,64 @@ impl ASTLowerer {
             .unwrap()
             .t
             .clone();
-        let t = enum_unwrap!(t, Type::Subr);
-        if let Err(errs) = self.ctx.assign_params(&sig.params, Some(t.clone())) {
-            self.errs.extend(errs.into_iter());
-        }
-        if let Err(errs) = self.ctx.preregister(&body.block) {
-            self.errs.extend(errs.into_iter());
-        }
-        let block = self.lower_block(body.block).map_err(|e| {
-            self.pop_append_errs();
-            e
-        })?;
-        let found_body_t = block.ref_t();
-        let expect_body_t = t.return_t.as_ref();
-        if !sig.is_const() {
-            if let Err(e) =
-                self.return_t_check(sig.loc(), sig.ident.inspect(), expect_body_t, found_body_t)
-            {
-                self.errs.push(e);
+        match t {
+            Type::Subr(t) => {
+                if let Err(errs) = self.ctx.assign_params(&sig.params, Some(t.clone())) {
+                    self.errs.extend(errs.into_iter());
+                }
+                if let Err(errs) = self.ctx.preregister(&body.block) {
+                    self.errs.extend(errs.into_iter());
+                }
+                let block = self.lower_block(body.block).map_err(|e| {
+                    self.pop_append_errs();
+                    e
+                })?;
+                let found_body_t = block.ref_t();
+                let expect_body_t = t.return_t.as_ref();
+                if !sig.is_const() {
+                    if let Err(e) = self.return_t_check(
+                        sig.loc(),
+                        sig.ident.inspect(),
+                        expect_body_t,
+                        found_body_t,
+                    ) {
+                        self.errs.push(e);
+                    }
+                }
+                let id = body.id;
+                self.ctx
+                    .outer
+                    .as_mut()
+                    .unwrap()
+                    .assign_subr(&sig, id, found_body_t)?;
+                let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                let sig = hir::SubrSignature::new(ident, sig.params, Type::Subr(t));
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
+            Type::Failure => {
+                if let Err(errs) = self.ctx.assign_params(&sig.params, None) {
+                    self.errs.extend(errs.into_iter());
+                }
+                if let Err(errs) = self.ctx.preregister(&body.block) {
+                    self.errs.extend(errs.into_iter());
+                }
+                let block = self.lower_block(body.block).map_err(|e| {
+                    self.pop_append_errs();
+                    e
+                })?;
+                self.ctx
+                    .outer
+                    .as_mut()
+                    .unwrap()
+                    .fake_subr_assign(&sig, Type::Failure);
+                let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                let sig = hir::SubrSignature::new(ident, sig.params, Type::Failure);
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
+            }
+            _ => unreachable!(),
         }
-        let id = body.id;
-        self.ctx
-            .outer
-            .as_mut()
-            .unwrap()
-            .assign_subr(&sig, id, found_body_t)?;
-        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-        let sig = hir::SubrSignature::new(ident, sig.params, Type::Subr(t));
-        let body = hir::DefBody::new(body.op, block, body.id);
-        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
     }
 
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {

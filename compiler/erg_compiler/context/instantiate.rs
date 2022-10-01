@@ -388,6 +388,7 @@ impl Context {
         sig: &ast::SubrSignature,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
+        // -> Result<Type, (Type, TyCheckErrors)> {
         let opt_decl_sig_t = self
             .rec_get_var_t(&sig.ident, &self.cfg.input, &self.name)
             .ok()
