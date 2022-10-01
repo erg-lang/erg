@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
+use crate::help_messages::{command_message, mode_message};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -208,57 +209,56 @@ impl ErgConfig {
         let mut cfg = Self::default();
         // ループ内でnextするのでforにしないこと
         while let Some(arg) = args.next() {
+            let next_arg = args.next();
             match &arg[..] {
-                "-c" => {
-                    cfg.input = Input::Str(args.next().unwrap());
+                "-c" if next_arg.is_some() => {
+                    cfg.input = Input::Str(next_arg.unwrap());
                 }
                 "--dump-as-pyc" => {
                     cfg.dump_as_pyc = true;
                 }
                 "-?" | "-h" | "--help" => {
-                    println!("erg [option] ... [-c cmd | -m mod | file | -] [arg] ...");
-                    println!("-c cmd : program passed in as string");
-                    println!("-m mod : module to be executed");
-                    println!("-?/-h  : show this help");
-                    println!("--dump-as-pyc: dump as .pyc file");
-                    println!("--mode lex|parse|compile|exec: execution mode");
-                    println!("--opt-level/-o 0|1|2|3: optimization level");
-                    println!("--python-version/-p (uint 32 number): Python version");
-                    println!(
-                        "--py-server-timeout (uint 64 number): timeout for the Python REPL server"
-                    );
-                    println!("--verbose 0|1|2: verbosity level");
-                    println!("--version/-V: show version");
-                    println!("file : program read from script file");
                     // TODO:
+                    println!("{}", command_message());
                     process::exit(0);
                 }
-                "-m" => {
-                    cfg.module = Box::leak(args.next().unwrap().into_boxed_str());
+                "-m" if next_arg.is_some() => {
+                    cfg.module = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "--mode" => {
-                    cfg.mode = Box::leak(args.next().unwrap().into_boxed_str());
+                "--mode" if next_arg.is_some() => {
+                    let mode = next_arg.unwrap();
+                    if let "-?" | "-h" | "--help" = &mode[..] {
+                        println!("{}", mode_message());
+                        process::exit(0);
+                    }
+                    cfg.mode = Box::leak(mode.into_boxed_str());
                 }
-                "--ps1" => {
-                    cfg.ps1 = Box::leak(args.next().unwrap().into_boxed_str());
+                "--ps1" if next_arg.is_some() => {
+                    cfg.ps1 = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "--ps2" => {
-                    cfg.ps2 = Box::leak(args.next().unwrap().into_boxed_str());
+                "--ps2" if next_arg.is_some() => {
+                    cfg.ps2 = Box::leak(next_arg.unwrap().into_boxed_str());
                 }
-                "-o" | "--opt-level" | "--optimization-level" => {
-                    cfg.opt_level = args.next().unwrap().parse::<u8>().unwrap();
+                "-o" | "--opt-level" | "--optimization-level" if next_arg.is_some() => {
+                    cfg.opt_level = next_arg.unwrap().parse::<u8>().unwrap();
                 }
-                "-p" | "--py-ver" | "--python-version" => {
-                    cfg.python_ver = Some(args.next().unwrap().parse::<u32>().unwrap());
+                "-p" | "--py-ver" | "--python-version" if next_arg.is_some() => {
+                    if let Ok(ver) = next_arg.unwrap().parse::<u32>() {
+                        cfg.python_ver = Some(ver)
+                    }
                 }
-                "--py-server-timeout" => {
-                    cfg.py_server_timeout = args.next().unwrap().parse::<u64>().unwrap();
+                "--py-server-timeout" if next_arg.is_some() => {
+                    if let Ok(time) = next_arg.unwrap().parse::<u64>() {
+                        cfg.py_server_timeout = time;
+                    }
                 }
                 "--quiet-startup" => {
                     cfg.quiet_startup = true;
                 }
-                "--verbose" => {
-                    cfg.verbose = args.next().unwrap().parse::<u8>().unwrap();
+                "--verbose" if next_arg.is_some() => {
+                    if let Ok(vr) = next_arg.unwrap().parse::<u8>() {
+                        cfg.verbose = vr;
+                    }
                 }
                 "-V" | "--version" => {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));

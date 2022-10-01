@@ -9,6 +9,7 @@ pub mod datetime;
 pub mod dict;
 pub mod error;
 pub mod fxhash;
+pub mod help_messages;
 pub mod levenshtein;
 pub mod macros;
 pub mod opcode;
