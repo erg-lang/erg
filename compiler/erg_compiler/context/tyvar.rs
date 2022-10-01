@@ -635,8 +635,94 @@ impl Context {
         }
     }
 
-    fn _occur(&self, _t: Type) -> TyCheckResult<Type> {
-        todo!()
+    // occur(X -> ?T, ?T) ==> Error
+    // occur(?T, ?T -> X) ==> Error
+    // occur(?T, Option(?T)) ==> Error
+    fn occur(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        sub_loc: Option<Location>,
+        sup_loc: Option<Location>,
+    ) -> TyCheckResult<()> {
+        match (maybe_sub, maybe_sup) {
+            (Type::FreeVar(sub), Type::FreeVar(sup)) => {
+                if sub.is_unbound() && sup.is_unbound() && sub == sup {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        sub_loc,
+                        sup_loc,
+                        self.caused_by(),
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
+            (Type::Subr(subr), Type::FreeVar(fv)) if fv.is_unbound() => {
+                for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
+                    self.occur(default_t, maybe_sup, sub_loc, sup_loc)?;
+                }
+                if let Some(var_params) = subr.var_params.as_ref() {
+                    self.occur(var_params.typ(), maybe_sup, sub_loc, sup_loc)?;
+                }
+                for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
+                    self.occur(non_default_t, maybe_sup, sub_loc, sup_loc)?;
+                }
+                self.occur(&subr.return_t, maybe_sup, sub_loc, sup_loc)?;
+                Ok(())
+            }
+            (Type::FreeVar(fv), Type::Subr(subr)) if fv.is_unbound() => {
+                for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
+                    self.occur(maybe_sub, default_t, sub_loc, sup_loc)?;
+                }
+                if let Some(var_params) = subr.var_params.as_ref() {
+                    self.occur(maybe_sub, var_params.typ(), sub_loc, sup_loc)?;
+                }
+                for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
+                    self.occur(maybe_sub, non_default_t, sub_loc, sup_loc)?;
+                }
+                self.occur(maybe_sub, &subr.return_t, sub_loc, sup_loc)?;
+                Ok(())
+            }
+            (
+                Type::Poly { params, .. }
+                | Type::BuiltinPoly { params, .. }
+                | Type::PolyQVar { params, .. },
+                Type::FreeVar(fv),
+            ) if fv.is_unbound() => {
+                for param in params.iter().filter_map(|tp| {
+                    if let TyParam::Type(t) = tp {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                }) {
+                    self.occur(param, maybe_sup, sub_loc, sup_loc)?;
+                }
+                Ok(())
+            }
+            (
+                Type::FreeVar(fv),
+                Type::Poly { params, .. }
+                | Type::BuiltinPoly { params, .. }
+                | Type::PolyQVar { params, .. },
+            ) if fv.is_unbound() => {
+                for param in params.iter().filter_map(|tp| {
+                    if let TyParam::Type(t) = tp {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                }) {
+                    self.occur(maybe_sub, param, sub_loc, sup_loc)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// allow_divergence = trueにすると、Num型変数と±Infの単一化を許す
@@ -979,6 +1065,7 @@ impl Context {
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
             return Ok(());
         }
+        self.occur(maybe_sub, maybe_sup, sub_loc, sup_loc)?;
         let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
         if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() && maybe_sub_is_sub {
             return Ok(());
