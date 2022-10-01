@@ -9,7 +9,9 @@
 >
 > [Erg Book 简体中文翻译](https://erg-lang.org/the-erg-book/zh_CN/)
 
-This document describes the basic syntax of Erg. The [Standard API](../API/index.md) and [internal documents for Erg contributors](../dev_guide/index.md) are located in another directory.
+This document describes the basic syntax of Erg.
+If you already have experience with languages such as Python, please refer to the [quick tour](quick_tour.md) for an overview.
+There is also a separate [Standard API](../API/index.md) and [Internal Documentation for Erg Contributors](../dev_guide/index.md). If you need a detailed explanation of the syntax or Erg itself, please refer to those documents.
 
 ## Hello, World&excl;
 

@@ -25,7 +25,7 @@ assert i == 0
 ```python
 PI = 3.141592653589793
 match random.random!(0..10):
-    PIs:
+    PI ->
         log "You get PI, it's a miracle!"
 ```
 

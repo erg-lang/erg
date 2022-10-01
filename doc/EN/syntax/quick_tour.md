@@ -6,6 +6,48 @@ For those who have already mastered languages ​​such as Python, Rust, Haskel
 So, here's an overview of the Erg grammar.
 Please think that the parts not mentioned are the same as Python.
 
+## Basic calculation
+
+Erg has a strict type. However, types are automatically casting if subtypes due to the flexibility provided by classes and traits (see [API] for details).
+
+In addition, different types can be calculated for each other as long as the type is a numeric type.
+
+```python
+a = 1 # 1: Nat
+b = a - 10 # -9: Int
+c = b / 2 # -4.5: Float
+d = c * 0 # -0.0: Float
+e = f // 2 # 0: Nat
+```
+
+If you do not want to allow these implicit type conversions, you can specify the type at declaration time to detect them as errors at compile time.
+
+```python
+a = 1
+b: Int = a / 2
+# error message
+Error[#0047]: File <stdin>, line 1, in <module>
+2│ b: Int = int / 2
+   ^
+TypeError: the type of ratio is mismatched:
+expected:  Int
+but found: Float
+```
+
+## Boolean type
+
+`True` and `False` are singletons of the Boolean type, but they can also be cast to the Int type.
+
+Therefore, they can be compared if they are of type Int, but comparisons with other types will result in an error.
+
+```python
+True == 1 # OK
+False == 0 # OK
+True == 1.0 # NG
+False == 0.0 # NG
+True == "a" # NG
+```
+
 ## variables, constants
 
 Variables are defined with `=`. As with Haskell, variables once defined cannot be changed. However, it can be shadowed in another scope.
@@ -23,7 +65,7 @@ Also, a constant is identical in all scopes since its definition.
 ```python
 PI = 3.141592653589793
 match random.random!(0..10):
-    PIs:
+    PI ->
         log "You get PI, it's a miracle!"
 ```
 
@@ -72,6 +114,8 @@ assert i == 1
 
 Subroutines with side effects are called procedures and are marked with `!`.
 
+You cannot call procedures in functions.
+
 ```python
 print! 1 # 1
 ```
@@ -90,6 +134,7 @@ You can use the equivalent of records in ML-like languages ​​(or object lite
 
 ```python
 p = {x = 1; y = 2}
+assert p.x == 1
 ```
 
 ## Ownership
