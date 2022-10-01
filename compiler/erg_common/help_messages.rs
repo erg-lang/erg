@@ -200,28 +200,29 @@ USAGE:
     erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
 
 lex
-    Receive input from <filename>.er, REPL, etc., and tokenize the text
-    Returns analysis results as TokenStream
+    Receive input from <filename>.er, REPL, etc. and lex the text
+    Returns the analysis results as s a TokenStream
 
 parse
-    Execute lexing, parsing & desugaring then return AST (abstract syntax tree)
+    Executes lex to get TokenStream, and parses it
+    Degenerate and return AST (Abstract Syntax Tree)
 
 lower
-    Execute parsing
-    Resolve name, check type and infer, and return HIR (High-Level Intermediate Representation)
+    Execute parse to obtain AST
+    Performs name resolution, type checking, and type inference, and returns HIR (High-level Intermediate Representation)
 
 check
-    Execute lowering
-    Check side-effects, ownership and return HIR
+    Execute lower
+    Checks for side-effects, ownership, and returns HIR
 
 compile
     Execute check
-    Compile HIR and return <filename>.pyc
+    Generates bytecode from HIR and outputs <filename>.pyc
 
 exec
-    Execute compiling & executing <filename>.pyc
+    Execute compile and then <filename>.pyc
 
 read
-    Deserialize <filename>.pyc and dump",
+    Deserialize <filename>.pyc and dump code object information",
     )
 }
