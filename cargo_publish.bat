@@ -8,15 +8,15 @@ if %~dp0 == C:%homepath%\GitHub\erg\ (
     cd ../erg_parser
     echo publish erg_parser ...
     cargo publish
-    timeout 10
+    timeout 12
     cd ../erg_type
     echo publish erg_type ...
     cargo publish
-    timeout 10
+    timeout 12
     cd ../erg_compiler
     echo publish erg_compiler ...
     cargo publish
-    timeout 10
+    timeout 12
     cd ../../
     cargo publish
     echo completed
