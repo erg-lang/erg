@@ -111,3 +111,20 @@ pub fn exec_py(code: &str) -> Option<i32> {
     };
     child.wait().expect("python doesn't work").code()
 }
+
+pub fn spawn_py(code: &str) {
+    if cfg!(windows) {
+        Command::new(which_python())
+            .arg("-c")
+            .arg(code)
+            .spawn()
+            .expect("cannot execute python");
+    } else {
+        let python_command = format!("{} -c \"{}\"", which_python(), code);
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
+            .spawn()
+            .expect("cannot execute python");
+    }
+}

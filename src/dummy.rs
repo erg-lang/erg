@@ -5,7 +5,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::ErgConfig;
-use erg_common::python_util::{exec_py, exec_pyc};
+use erg_common::python_util::{exec_pyc, spawn_py};
 use erg_common::traits::Runnable;
 
 use erg_compiler::error::{CompileError, CompileErrors};
@@ -41,7 +41,7 @@ impl Runnable for DummyVM {
             let port = find_available_port();
             let code = include_str!("scripts/repl_server.py")
                 .replace("__PORT__", port.to_string().as_str());
-            exec_py(&code);
+            spawn_py(&code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
             if !cfg.quiet_startup {
                 println!("Connecting to the REPL server...");

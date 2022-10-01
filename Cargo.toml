@@ -44,6 +44,7 @@ traditional_chinese = [
     "erg_compiler/traditional_chinese",
     "erg_type/traditional_chinese",
 ]
+pre-commit = []
 
 [dependencies]
 erg_common = { version = "0.5.5", path = "./compiler/erg_common" }

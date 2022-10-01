@@ -9,9 +9,9 @@ repos:
         pass_filenames: false
       - id: cargo-test
         name: Cargo test
-        entry: cargo test
+        entry: cargo test --features pre-commit -- --nocapture
         language: system
-        # pass_filenames: false
+        pass_filenames: false
       - id: rust-clippy
         name: Rust clippy
         description: Run cargo clippy on files included in the commit
