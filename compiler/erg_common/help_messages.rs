@@ -40,9 +40,9 @@ OPTIONS
     --version/-V                         显示版本
     --verbose 0|1|2                      指定细致程度
     --opt-level/-o 0|1|2|3               指定优化级别
-    --python-version/-p (uint 32 number) Python版本
-    --py-server-timeout (uint 64 number) Python REPL服务器超时
-    --dump-as-pyc                        转储为.pyc文件
+    --python-version/-p (uint 32 number) Python 版本
+    --py-server-timeout (uint 64 number) Python REPL 服务器超时
+    --dump-as-pyc                        转储为 .pyc 文件
     --mode lex|parse|compile|exec        执行模式
     
 SUBCOMMAND
@@ -137,31 +137,31 @@ USAGE:
     erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
 
 lex
-    从 <filename>.er, REPL等接受输入, 并标记文本
+    从 <filename>.er, REPL 等接受输入, 并标记文本
     以TokenStream形式返回分析结果
 
 parse
-    执行lex, 获取TokenStream, 并解析语法
+    执行 lex, 获取 TokenStream, 并解析语法
     将多模式定义语句的语法糖按匹配转换并返回ast(抽象语法树)
 
 lower
-    执行parse以获取ast
-    解析名称、检查类型和推断, 并返回ast
+    执行 parse 以获取 ast
+    解析名称、检查类型和推断, 并返回 ast
 
 check
-    执行lower并获取ast
-    检查副作用、所有权并返回ast
+    执行 lower 并获取 ast
+    检查副作用、所有权并返回 ast
 
 compile
-    运行check以获取检查完成的ast
-    编译ast并返回<文件名>.pyc
+    运行 check 以获取检查完成的 ast
+    编译 ast 并返回 <文件名>.pyc
 
 exec
-    运行check以获取检查完成的ast
-    在执行<filename>.pyc后删除<文件名>.pyc
+    运行 check 以获取检查完成的 ast
+    在执行 <filename>.pyc 后删除 <文件名>.pyc
 
 read
-    反序列化<文件名>.pyc和dump",
+    反序列化<文件名> .pyc 和 dump",
 
     "traditional_chinese" =>
     "\
@@ -169,31 +169,31 @@ USAGE:
         erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
     
 lex
-    從<檔名>.er, REPL等接受輸入, 並標記文字
-    以TokenStream形式返回分析結果
+    從 <檔名>.er, REPL 等接受輸入, 並標記文字
+    以 TokenStream 形式返回分析結果
     
 parse
-    執行lex, 獲取TokenStream, 並解析語法
-    將多模式定義語句的語法糖按匹配轉換並返回ast(抽象語法樹)
+    執行 lex, 獲取 TokenStream, 並解析語法
+    將多模式定義語句的語法糖按匹配轉換並返回 ast(抽象語法樹)
     
 lower
-    執行parse以獲取ast
-    解析名稱、檢查類型和推斷, 並返回ast
+    執行 parse 以獲取 ast
+    解析名稱、檢查類型和推斷, 並返回 ast
     
 check
-    執行lower並獲取ast
-    檢查副作用、所有權並返回ast
+    執行 lower 並獲取 ast
+    檢查副作用、所有權並返回 ast
     
 compile
-    運行check以獲取檢查完成的ast
-    編譯ast並返回<檔名>.pyc
+    運行 check 以獲取檢查完成的 ast
+    編譯 ast 並返回 <檔名>.pyc
     
 exec
     運行check以獲取檢查完成的ast
     在執行<檔名>.pyc後删除<檔名>.pyc
     
 read
-    反序列化<檔名>.pyc和dump",
+    反序列化 <檔名>.pyc 和 dump",
 
     "english" =>
     "\
