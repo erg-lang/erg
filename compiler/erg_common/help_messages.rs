@@ -137,19 +137,19 @@ USAGE:
 
 lex
     从 <filename>.er, REPL 等接受输入, 并标记文本
-    以TokenStream形式返回分析结果
+    以 TokenStream 形式返回分析结果
 
 parse
     执行 lex, 获取 TokenStream, 并解析语法
-    将多模式定义语句的语法糖按匹配转换并返回AST(抽象语法树)
+    将多模式定义语句的语法糖按匹配转换并返回 AST(抽象语法树)
 
 lower
     执行 parse
-    解析名称、检查类型和推断, 并返回HIR(高级中间表示)
+    解析名称、检查类型和推断, 并返回 HIR(高级中间表示)
 
 check
     执行 lower
-    检查副作用、所有权并返回HIR
+    检查副作用、所有权并返回 HIR
 
 compile
     运行 check 以获取检查完成的 AST
@@ -157,10 +157,10 @@ compile
 
 exec
     运行 check 以获取检查完成的 AST
-    在执行 <filename>.pyc 后删除 <文件名>.pyc
+    在执行 <文件名>.pyc 后删除 <文件名>.pyc
 
 read
-    反序列化<文件名> .pyc 和 dump",
+    反序列化 <文件名>.pyc 和 dump",
 
     "traditional_chinese" =>
     "\
@@ -176,8 +176,8 @@ parse
     將多模式定義語句的語法糖按匹配轉換並返回 AST(抽象語法樹)
 
 lower
-    執行 parse 以獲取AST
-    解析名稱、檢查類型和推斷, 並返回HIR
+    執行 parse 以獲取 AST
+    解析名稱、檢查類型和推斷, 並返回 HIR(高級中間表示)
 
 check
     執行 lower 並獲取 AST
@@ -188,8 +188,8 @@ compile
     編譯 AST 並返回 <檔名>.pyc
 
 exec
-    運行check以獲取檢查完成的AST
-    在執行<檔名>.pyc後删除<檔名>.pyc
+    運行check以獲取檢查完成的 AST
+    在執行 <檔名>.pyc 後删除 <檔名>.pyc
 
 read
     反序列化 <檔名>.pyc 和 dump",
