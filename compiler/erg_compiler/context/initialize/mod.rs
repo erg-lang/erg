@@ -237,6 +237,13 @@ impl Context {
             set! { subtypeof(mono_q("Self"), builtin_mono("Readable!")) },
         );
         readable.register_builtin_decl("read!", t_read, Public);
+        let mut show = Self::builtin_mono_trait("Show", 2);
+        let t_show = pr0_met(ref_(mono_q("Self")), Str);
+        let t_show = quant(
+            t_show,
+            set! { subtypeof(mono_q("Self"), builtin_mono("Show")) },
+        );
+        show.register_builtin_decl("to_str", t_show, Public);
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
@@ -361,6 +368,7 @@ impl Context {
         self.register_builtin_type(builtin_mono("Mutizable"), mutizable, Const);
         self.register_builtin_type(builtin_mono("PathLike"), pathlike, Const);
         self.register_builtin_type(builtin_mono("Readable!"), readable, Const);
+        self.register_builtin_type(builtin_mono("Show"), show, Const);
         self.register_builtin_type(
             builtin_poly("Input", vec![ty_tp(mono_q("T"))]),
             input,

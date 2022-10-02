@@ -18,7 +18,9 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{ParamTy, SubrType, TyBound, Type};
 
 use crate::build_hir::HIRBuilder;
-use crate::context::{ClassDefType, Context, DefaultInfo, RegistrationMode, TraitInstance};
+use crate::context::{
+    ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode, TraitInstance,
+};
 use crate::error::readable_name;
 use crate::error::{
     CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
@@ -527,34 +529,35 @@ impl Context {
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
-        let __name__ = def.sig.ident().map(|i| i.inspect());
+        let __name__ = def.sig.ident().unwrap().inspect();
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
                     let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-                    let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
-                    let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
-                        Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    };
+                    let tv_ctx = TyVarContext::new(self.level, bounds, self);
+                    let vis = def.sig.vis();
+                    self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx))?;
+                    let (obj, const_t) =
+                        match self.eval_const_block(&def.body.block, Some(__name__)) {
+                            Ok(obj) => (obj.clone(), v_enum(set! {obj})),
+                            Err(e) => {
+                                self.pop();
+                                return Err(e);
+                            }
+                        };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut Some(&mut tv_ctx),
-                            PreRegister,
-                        )?;
+                        let spec_t =
+                            self.instantiate_typespec(spec, None, &mut None, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
+                    self.pop();
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
                 } else {
                     self.declare_sub(sig, id)?;
                 }
             }
             ast::Signature::Var(sig) if sig.is_const() => {
-                let (obj, const_t) = match self.eval_const_block(&def.body.block, __name__) {
+                let (obj, const_t) = match self.eval_const_block(&def.body.block, Some(__name__)) {
                     Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                     Err(e) => {
                         return Err(e);

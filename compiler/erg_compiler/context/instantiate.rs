@@ -233,6 +233,25 @@ impl TyVarContext {
         }
     }
 
+    pub(crate) fn get_qvar(&self, quantified: Type) -> Option<Type> {
+        match quantified {
+            Type::MonoQVar(n) => {
+                if let Some(t) = self.get_tyvar(&n) {
+                    Some(t.clone())
+                } else if let Some(t) = self.get_typaram(&n) {
+                    if let TyParam::Type(t) = t {
+                        Some(*t.clone())
+                    } else {
+                        todo!()
+                    }
+                } else {
+                    None
+                }
+            }
+            other => todo!("{other}"),
+        }
+    }
+
     fn instantiate_qtp(&mut self, quantified: TyParam) -> TyParam {
         match quantified {
             TyParam::MonoQVar(n) => {
@@ -272,6 +291,41 @@ impl TyVarContext {
             }
             TyParam::App { .. } => todo!(),
             p @ TyParam::Value(_) => p,
+            other => todo!("{other}"),
+        }
+    }
+
+    fn get_qtp(&self, quantified: TyParam) -> Option<TyParam> {
+        match quantified {
+            TyParam::MonoQVar(n) => {
+                if let Some(t) = self.get_typaram(&n) {
+                    Some(t.clone())
+                } else {
+                    self.get_tyvar(&n).map(|t| TyParam::t(t.clone()))
+                }
+            }
+            TyParam::Type(t) => {
+                if let Some(n) = t.as_ref().tvar_name() {
+                    if let Some(t) = self.get_typaram(&n) {
+                        Some(t.clone())
+                    } else {
+                        self.get_tyvar(&n).map(|t| TyParam::t(t.clone()))
+                    }
+                } else {
+                    unreachable!("{t}")
+                }
+            }
+            TyParam::UnaryOp { op, val } => {
+                let res = self.get_qtp(*val)?;
+                Some(TyParam::unary(op, res))
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let lhs = self.get_qtp(*lhs)?;
+                let rhs = self.get_qtp(*rhs)?;
+                Some(TyParam::bin(op, lhs, rhs))
+            }
+            TyParam::App { .. } => todo!(),
+            p @ TyParam::Value(_) => Some(p),
             other => todo!("{other}"),
         }
     }
@@ -451,11 +505,11 @@ impl Context {
         &self,
         sig: &ParamSignature,
         opt_decl_t: Option<&ParamTy>,
-        tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tv_ctx, mode)?
+            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_ctx, mode)?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![eval_lit(lit)]),
@@ -486,11 +540,11 @@ impl Context {
         &self,
         predecl: &PreDeclTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
     ) -> TyCheckResult<Type> {
         match predecl {
             ast::PreDeclTypeSpec::Simple(simple) => {
-                self.instantiate_simple_t(simple, opt_decl_t, tv_ctx)
+                self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_ctx)
             }
             _ => todo!(),
         }
@@ -500,7 +554,7 @@ impl Context {
         &self,
         simple: &SimpleTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
     ) -> TyCheckResult<Type> {
         match &simple.name.inspect()[..] {
             "Nat" => Ok(Type::Nat),
@@ -528,24 +582,38 @@ impl Context {
                 }
             }
             other if simple.args.is_empty() => {
-                if let Some(tv_ctx) = tv_ctx {
-                    self.instantiate_t(mono_q(Str::rc(other)), tv_ctx, simple.loc())
-                } else if let Some(decl_t) = opt_decl_t {
-                    Ok(decl_t.typ().clone())
-                } else {
-                    let typ = mono(self.path(), Str::rc(other));
-                    if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
-                        Ok(defined_t.clone())
-                    } else {
-                        Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            simple.loc(),
-                            self.caused_by(),
-                            other,
-                            self.get_similar_name(other),
-                        )))
+                if let Some(tmp_tv_ctx) = tmp_tv_ctx {
+                    if let Ok(t) =
+                        self.instantiate_t(mono_q(Str::rc(other)), tmp_tv_ctx, simple.loc())
+                    {
+                        return Ok(t);
                     }
+                }
+                if let Some(tv_ctx) = &self.tv_ctx {
+                    if let Some(t) = tv_ctx.get_qvar(MonoQVar(Str::rc(other))) {
+                        return Ok(t);
+                    }
+                }
+                if let Some(outer) = &self.outer {
+                    if let Ok(t) = outer.instantiate_simple_t(simple, opt_decl_t, &mut None) {
+                        return Ok(t);
+                    }
+                }
+                if let Some(decl_t) = opt_decl_t {
+                    return Ok(decl_t.typ().clone());
+                }
+                let typ = mono(self.path(), Str::rc(other));
+                if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
+                    Ok(defined_t.clone())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.loc(),
+                        self.caused_by(),
+                        other,
+                        self.get_similar_name(other),
+                    )))
                 }
             }
             other => {
@@ -602,28 +670,28 @@ impl Context {
         &self,
         spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         match spec {
             TypeSpec::PreDeclTy(predecl) => {
-                Ok(self.instantiate_predecl_t(predecl, opt_decl_t, tv_ctx)?)
+                Ok(self.instantiate_predecl_t(predecl, opt_decl_t, tmp_tv_ctx)?)
             }
             // TODO: Flatten
             TypeSpec::And(lhs, rhs) => Ok(and(
-                self.instantiate_typespec(lhs, opt_decl_t, tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tv_ctx, mode)?,
+                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
             TypeSpec::Not(lhs, rhs) => Ok(not(
-                self.instantiate_typespec(lhs, opt_decl_t, tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tv_ctx, mode)?,
+                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
             TypeSpec::Or(lhs, rhs) => Ok(or(
-                self.instantiate_typespec(lhs, opt_decl_t, tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tv_ctx, mode)?,
+                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
             TypeSpec::Array(arr) => {
-                let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tv_ctx, mode)?;
+                let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&arr.len);
                 Ok(array(elem_t, len))
             }
@@ -631,7 +699,7 @@ impl Context {
             TypeSpec::Tuple(tys) => Ok(tuple(
                 tys.iter()
                     .map(|spec| {
-                        self.instantiate_typespec(spec, opt_decl_t, tv_ctx, mode)
+                        self.instantiate_typespec(spec, opt_decl_t, tmp_tv_ctx, mode)
                             .unwrap()
                     })
                     .collect(),
@@ -667,20 +735,20 @@ impl Context {
             }
             TypeSpec::Subr(subr) => {
                 let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
-                    self.instantiate_func_param_spec(p, opt_decl_t, tv_ctx, mode)
+                    self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode)
                 })?;
                 let var_args = subr
                     .var_args
                     .as_ref()
-                    .map(|p| self.instantiate_func_param_spec(p, opt_decl_t, tv_ctx, mode))
+                    .map(|p| self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode))
                     .transpose()?;
                 let defaults = try_map_mut(subr.defaults.iter(), |p| {
-                    self.instantiate_func_param_spec(p, opt_decl_t, tv_ctx, mode)
+                    self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode)
                 })?
                 .into_iter()
                 .collect();
                 let return_t =
-                    self.instantiate_typespec(&subr.return_t, opt_decl_t, tv_ctx, mode)?;
+                    self.instantiate_typespec(&subr.return_t, opt_decl_t, tmp_tv_ctx, mode)?;
                 Ok(subr_t(
                     SubrKind::from(subr.arrow.kind),
                     non_defaults,
@@ -737,15 +805,27 @@ impl Context {
     fn instantiate_tp(
         &self,
         quantified: TyParam,
-        tv_ctx: &mut TyVarContext,
+        tmp_tv_ctx: &mut TyVarContext,
         loc: Location,
     ) -> TyCheckResult<TyParam> {
         match quantified {
             TyParam::MonoQVar(n) => {
-                if let Some(tp) = tv_ctx.get_typaram(&n) {
+                if let Some(tp) = tmp_tv_ctx.get_typaram(&n) {
                     Ok(tp.clone())
-                } else if let Some(t) = tv_ctx.get_tyvar(&n) {
+                } else if let Some(t) = tmp_tv_ctx.get_tyvar(&n) {
                     Ok(TyParam::t(t.clone()))
+                } else if let Some(tv_ctx) = &self.tv_ctx {
+                    tv_ctx.get_qtp(TyParam::MonoQVar(n.clone())).ok_or_else(|| {
+                        TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            &n,
+                            loc,
+                            AtomicStr::ever("?"),
+                        ))
+                    })
+                } else if let Some(outer) = &self.outer {
+                    outer.instantiate_tp(TyParam::MonoQVar(n), tmp_tv_ctx, loc)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
                         self.cfg.input.clone(),
@@ -757,20 +837,20 @@ impl Context {
                 }
             }
             TyParam::UnaryOp { op, val } => {
-                let res = self.instantiate_tp(*val, tv_ctx, loc)?;
+                let res = self.instantiate_tp(*val, tmp_tv_ctx, loc)?;
                 Ok(TyParam::unary(op, res))
             }
             TyParam::BinOp { op, lhs, rhs } => {
-                let lhs = self.instantiate_tp(*lhs, tv_ctx, loc)?;
-                let rhs = self.instantiate_tp(*rhs, tv_ctx, loc)?;
+                let lhs = self.instantiate_tp(*lhs, tmp_tv_ctx, loc)?;
+                let rhs = self.instantiate_tp(*rhs, tmp_tv_ctx, loc)?;
                 Ok(TyParam::bin(op, lhs, rhs))
             }
             TyParam::Type(t) => {
-                let t = self.instantiate_t(*t, tv_ctx, loc)?;
+                let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
                 Ok(TyParam::t(t))
             }
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_tp(fv.crack().clone(), tv_ctx, loc)
+                self.instantiate_tp(fv.crack().clone(), tmp_tv_ctx, loc)
             }
             p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
             other => todo!("{other}"),
@@ -781,23 +861,33 @@ impl Context {
     pub(crate) fn instantiate_t(
         &self,
         unbound: Type,
-        tv_ctx: &mut TyVarContext,
+        tmp_tv_ctx: &mut TyVarContext,
         loc: Location,
     ) -> TyCheckResult<Type> {
         match unbound {
             MonoQVar(n) => {
-                if let Some(t) = tv_ctx.get_tyvar(&n) {
+                if let Some(t) = tmp_tv_ctx.get_tyvar(&n) {
                     Ok(t.clone())
-                } else if let Some(tp) = tv_ctx.get_typaram(&n) {
+                } else if let Some(tp) = tmp_tv_ctx.get_typaram(&n) {
                     if let TyParam::Type(t) = tp {
                         Ok(*t.clone())
                     } else {
                         todo!(
                             "typaram_insts: {}\ntyvar_insts:{}\n{tp}",
-                            tv_ctx.typaram_instances,
-                            tv_ctx.tyvar_instances,
+                            tmp_tv_ctx.typaram_instances,
+                            tmp_tv_ctx.tyvar_instances,
                         )
                     }
+                } else if let Some(tv_ctx) = &self.tv_ctx {
+                    tv_ctx.get_qvar(MonoQVar(n.clone())).ok_or_else(|| {
+                        TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            &n,
+                            loc,
+                            AtomicStr::ever("?"),
+                        ))
+                    })
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
                         self.cfg.input.clone(),
@@ -810,7 +900,7 @@ impl Context {
             }
             PolyQVar { name, mut params } => {
                 for param in params.iter_mut() {
-                    *param = self.instantiate_tp(mem::take(param), tv_ctx, loc)?;
+                    *param = self.instantiate_tp(mem::take(param), tmp_tv_ctx, loc)?;
                 }
                 Ok(poly_q(name, params))
             }
@@ -818,7 +908,7 @@ impl Context {
                 let mut new_preds = set! {};
                 for mut pred in refine.preds.into_iter() {
                     for tp in pred.typarams_mut() {
-                        *tp = self.instantiate_tp(mem::take(tp), tv_ctx, loc)?;
+                        *tp = self.instantiate_tp(mem::take(tp), tmp_tv_ctx, loc)?;
                     }
                     new_preds.insert(pred);
                 }
@@ -827,16 +917,16 @@ impl Context {
             }
             Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
-                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tv_ctx, loc)?;
+                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
                 }
                 if let Some(var_args) = subr.var_params.as_mut() {
                     *var_args.typ_mut() =
-                        self.instantiate_t(mem::take(var_args.typ_mut()), tv_ctx, loc)?;
+                        self.instantiate_t(mem::take(var_args.typ_mut()), tmp_tv_ctx, loc)?;
                 }
                 for pt in subr.default_params.iter_mut() {
-                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tv_ctx, loc)?;
+                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
                 }
-                let return_t = self.instantiate_t(*subr.return_t, tv_ctx, loc)?;
+                let return_t = self.instantiate_t(*subr.return_t, tmp_tv_ctx, loc)?;
                 Ok(subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -847,28 +937,28 @@ impl Context {
             }
             Record(mut dict) => {
                 for v in dict.values_mut() {
-                    *v = self.instantiate_t(mem::take(v), tv_ctx, loc)?;
+                    *v = self.instantiate_t(mem::take(v), tmp_tv_ctx, loc)?;
                 }
                 Ok(Type::Record(dict))
             }
             Ref(t) => {
-                let t = self.instantiate_t(*t, tv_ctx, loc)?;
+                let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
                 Ok(ref_(t))
             }
             RefMut { before, after } => {
-                let before = self.instantiate_t(*before, tv_ctx, loc)?;
+                let before = self.instantiate_t(*before, tmp_tv_ctx, loc)?;
                 let after = after
-                    .map(|aft| self.instantiate_t(*aft, tv_ctx, loc))
+                    .map(|aft| self.instantiate_t(*aft, tmp_tv_ctx, loc))
                     .transpose()?;
                 Ok(ref_mut(before, after))
             }
             MonoProj { lhs, rhs } => {
-                let lhs = self.instantiate_t(*lhs, tv_ctx, loc)?;
+                let lhs = self.instantiate_t(*lhs, tmp_tv_ctx, loc)?;
                 Ok(mono_proj(lhs, rhs))
             }
             BuiltinPoly { name, mut params } => {
                 for param in params.iter_mut() {
-                    *param = self.instantiate_tp(mem::take(param), tv_ctx, loc)?;
+                    *param = self.instantiate_tp(mem::take(param), tmp_tv_ctx, loc)?;
                 }
                 Ok(builtin_poly(name, params))
             }
@@ -878,35 +968,37 @@ impl Context {
                 mut params,
             } => {
                 for param in params.iter_mut() {
-                    *param = self.instantiate_tp(mem::take(param), tv_ctx, loc)?;
+                    *param = self.instantiate_tp(mem::take(param), tmp_tv_ctx, loc)?;
                 }
                 Ok(poly(path, name, params))
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
             }
-            FreeVar(fv) if fv.is_linked() => self.instantiate_t(fv.crack().clone(), tv_ctx, loc),
+            FreeVar(fv) if fv.is_linked() => {
+                self.instantiate_t(fv.crack().clone(), tmp_tv_ctx, loc)
+            }
             FreeVar(fv) => {
                 let (sub, sup) = fv.get_bound_types().unwrap();
-                let sub = self.instantiate_t(sub, tv_ctx, loc)?;
-                let sup = self.instantiate_t(sup, tv_ctx, loc)?;
+                let sub = self.instantiate_t(sub, tmp_tv_ctx, loc)?;
+                let sup = self.instantiate_t(sup, tmp_tv_ctx, loc)?;
                 let new_constraint = Constraint::new_sandwiched(sub, sup, fv.cyclicity());
                 fv.update_constraint(new_constraint);
                 Ok(FreeVar(fv))
             }
             And(l, r) => {
-                let l = self.instantiate_t(*l, tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
                 Ok(and(l, r))
             }
             Or(l, r) => {
-                let l = self.instantiate_t(*l, tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
                 Ok(or(l, r))
             }
             Not(l, r) => {
-                let l = self.instantiate_t(*l, tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tv_ctx, loc)?;
+                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
@@ -917,8 +1009,9 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
-                let mut tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
-                let t = self.instantiate_t(*quant.unbound_callable, &mut tv_ctx, callee.loc())?;
+                let mut tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
+                let t =
+                    self.instantiate_t(*quant.unbound_callable, &mut tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {

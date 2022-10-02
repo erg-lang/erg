@@ -24,7 +24,7 @@ use erg_type::{
 };
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context, RegistrationMode};
+use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult, TyCheckResult};
 
 #[inline]
@@ -317,9 +317,32 @@ impl Context {
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
             let __name__ = def.sig.ident().unwrap().inspect();
-            let obj = self.eval_const_block(&def.body.block, Some(__name__))?;
-            self.register_gen_const(def.sig.ident().unwrap(), obj)?;
-            Ok(ValueObj::None)
+            let vis = def.sig.vis();
+            let tv_ctx = match &def.sig {
+                Signature::Subr(subr) => {
+                    let bounds =
+                        self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal)?;
+                    Some(TyVarContext::new(self.level, bounds, self))
+                }
+                Signature::Var(_) => None,
+            };
+            self.grow(__name__, ContextKind::Instant, vis, tv_ctx)?;
+            let obj = self
+                .eval_const_block(&def.body.block, Some(__name__))
+                .map_err(|e| {
+                    self.pop();
+                    e
+                })?;
+            match self.check_decls_and_pop() {
+                Ok(_) => {
+                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    Ok(ValueObj::None)
+                }
+                Err(errs) => {
+                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    Err(errs)
+                }
+            }
         } else {
             Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
@@ -379,6 +402,7 @@ impl Context {
         Ok(ValueObj::Record(attrs.into_iter().collect()))
     }
 
+    /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
         let bounds = self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
         let mut tv_ctx = TyVarContext::new(self.level, bounds, self);

@@ -23,6 +23,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
+use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
@@ -315,7 +316,8 @@ impl ASTLowerer {
         log!(info "entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
-        self.ctx.grow("<record>", ContextKind::Dummy, Private)?;
+        self.ctx
+            .grow("<record>", ContextKind::Dummy, Private, None)?;
         for attr in record.attrs.into_iter() {
             let attr = self.lower_def(attr).map_err(|e| {
                 self.pop_append_errs();
@@ -507,7 +509,11 @@ impl ASTLowerer {
         } else {
             ContextKind::Func
         };
-        self.ctx.grow(&name, kind, Private)?;
+        let bounds = self
+            .ctx
+            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+        let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+        self.ctx.grow(&name, kind, Private, Some(tv_ctx))?;
         if let Err(errs) = self.ctx.assign_params(&lambda.sig.params, None) {
             self.errs.extend(errs.into_iter());
         }
@@ -584,10 +590,20 @@ impl ASTLowerer {
             )));
         }
         let kind = ContextKind::from(def.def_kind());
-        self.ctx.grow(&name, kind, def.sig.vis())?;
+        let vis = def.sig.vis();
         let res = match def.sig {
-            ast::Signature::Subr(sig) => self.lower_subr_def(sig, def.body),
-            ast::Signature::Var(sig) => self.lower_var_def(sig, def.body),
+            ast::Signature::Subr(sig) => {
+                let bounds = self
+                    .ctx
+                    .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
+                let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+                self.ctx.grow(&name, kind, vis, Some(tv_ctx))?;
+                self.lower_subr_def(sig, def.body)
+            }
+            ast::Signature::Var(sig) => {
+                self.ctx.grow(&name, kind, vis, None)?;
+                self.lower_var_def(sig, def.body)
+            }
         };
         // TODO: Context上の関数に型境界情報を追加
         self.pop_append_errs();
@@ -782,7 +798,7 @@ impl ASTLowerer {
                 )));
             }
             self.ctx
-                .grow(&class.name(), ContextKind::MethodDefs, Private)?;
+                .grow(&class.name(), ContextKind::MethodDefs, Private, None)?;
             for def in methods.defs.iter_mut() {
                 if methods.vis.is(TokenKind::Dot) {
                     def.sig.ident_mut().unwrap().dot = Some(Token::new(
