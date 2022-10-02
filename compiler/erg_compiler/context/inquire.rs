@@ -1242,13 +1242,21 @@ impl Context {
         }))
     }
 
-    /*pub(crate) fn get_nominal_super_type_ctxs<'a>(
+    pub(crate) fn get_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
     ) -> Option<Vec<(&'a Type, &'a Context)>> {
         match t {
+            Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
+            Type::FreeVar(fv) => {
+                let sup = fv.get_sup().unwrap();
+                self.get_nominal_super_type_ctxs(&sup)
+            }
             Type::And(l, r) => {
-                match (self.get_nominal_super_type_ctxs(l), self.get_nominal_super_type_ctxs(r)) {
+                match (
+                    self.get_nominal_super_type_ctxs(l),
+                    self.get_nominal_super_type_ctxs(r),
+                ) {
                     // TODO: sort
                     (Some(l), Some(r)) => Some([l, r].concat()),
                     (Some(l), None) => Some(l),
@@ -1258,24 +1266,13 @@ impl Context {
             }
             // TODO
             Type::Or(_l, _r) => None,
-            _ => self.get_simple_nominal_super_type_ctxs(t).map(|ctxs| ctxs.collect()),
+            _ => self
+                .get_simple_nominal_super_type_ctxs(t)
+                .map(|ctxs| ctxs.collect()),
         }
     }
 
     fn get_simple_nominal_super_type_ctxs<'a>(
-        &'a self,
-        t: &Type,
-    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
-        let (t, ctx) = self.get_nominal_type_ctx(t)?;
-        let sups = ctx
-            .super_classes
-            .iter()
-            .chain(ctx.super_traits.iter())
-            .map(|sup| self.get_nominal_type_ctx(sup).unwrap());
-        Some(vec![(t, ctx)].into_iter().chain(sups))
-    }*/
-
-    pub(crate) fn get_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
     ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {

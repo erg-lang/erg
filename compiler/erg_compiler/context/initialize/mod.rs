@@ -238,7 +238,7 @@ impl Context {
         );
         readable.register_builtin_decl("read!", t_read, Public);
         let mut show = Self::builtin_mono_trait("Show", 2);
-        let t_show = pr0_met(ref_(mono_q("Self")), Str);
+        let t_show = fn0_met(ref_(mono_q("Self")), Str);
         let t_show = quant(
             t_show,
             set! { subtypeof(mono_q("Self"), builtin_mono("Show")) },
@@ -485,6 +485,10 @@ impl Context {
         float_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Float!")));
         float.register_trait(Float, builtin_mono("Mutizable"), float_mutizable);
+        let mut float_show = Self::builtin_methods("Show", 1);
+        let t = fn0_met(Float, Str);
+        float_show.register_builtin_impl("to_str", t, Immutable, Public);
+        float.register_trait(Float, builtin_mono("Show"), float_show);
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
         let mut ratio = Self::builtin_mono_class("Ratio", 2);
         ratio.register_superclass(Obj, &obj);
@@ -530,6 +534,10 @@ impl Context {
         ratio_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Ratio!")));
         ratio.register_trait(Ratio, builtin_mono("Mutizable"), ratio_mutizable);
+        let mut ratio_show = Self::builtin_methods("Show", 1);
+        let t = fn0_met(Ratio, Str);
+        ratio_show.register_builtin_impl("to_str", t, Immutable, Public);
+        ratio.register_trait(Ratio, builtin_mono("Show"), ratio_show);
         let mut int = Self::builtin_mono_class("Int", 2);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
         int.register_superclass(Obj, &obj);
@@ -572,6 +580,10 @@ impl Context {
         let mut int_mutizable = Self::builtin_methods("Mutizable", 2);
         int_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Int!")));
         int.register_trait(Int, builtin_mono("Mutizable"), int_mutizable);
+        let mut int_show = Self::builtin_methods("Show", 1);
+        let t = fn0_met(Int, Str);
+        int_show.register_builtin_impl("to_str", t, Immutable, Public);
+        int.register_trait(Int, builtin_mono("Show"), int_show);
         int.register_builtin_impl("Real", Int, Const, Public);
         int.register_builtin_impl("Imag", Int, Const, Public);
         let mut nat = Self::builtin_mono_class("Nat", 10);
