@@ -171,7 +171,50 @@ impl SubstContext {
                     }
                 }
             }
-            t => todo!("{t}"),
+            Type::Subr(subr) => {
+                for nd_param in subr.non_default_params.iter() {
+                    self.substitute_t(nd_param.typ(), ctx)?;
+                }
+                if let Some(var_params) = &subr.var_params {
+                    self.substitute_t(var_params.typ(), ctx)?;
+                }
+                for d_param in subr.default_params.iter() {
+                    self.substitute_t(d_param.typ(), ctx)?;
+                }
+                self.substitute_t(&subr.return_t, ctx)?;
+            }
+            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+                self.substitute_t(l, ctx)?;
+                self.substitute_t(r, ctx)?;
+            }
+            Type::MonoProj { lhs, .. } => {
+                self.substitute_t(lhs, ctx)?;
+            }
+            Type::Record(rec) => {
+                for (_, t) in rec.iter() {
+                    self.substitute_t(t, ctx)?;
+                }
+            }
+            Type::Ref(t) => {
+                self.substitute_t(t, ctx)?;
+            }
+            Type::RefMut { before, after } => {
+                self.substitute_t(before, ctx)?;
+                if let Some(aft) = after {
+                    self.substitute_t(aft, ctx)?;
+                }
+            }
+            Type::Refinement(refine) => {
+                self.substitute_t(&refine.t, ctx)?;
+            }
+            Type::Poly { params, .. }
+            | Type::BuiltinPoly { params, .. }
+            | Type::PolyQVar { params, .. } => {
+                for param in params.iter() {
+                    self.substitute_tp(param, ctx)?;
+                }
+            }
+            t => todo!("{t:?}"),
         }
         Ok(())
     }
