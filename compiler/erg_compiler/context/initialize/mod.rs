@@ -138,9 +138,9 @@ impl Context {
 
     // FIXME: MethodDefsと再代入は違う
     fn register_poly_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
-        let mut tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
+        let tmp_tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
         let t = self
-            .instantiate_t(t, &mut tv_ctx, Location::Unknown)
+            .instantiate_t(t, &tmp_tv_ctx, Location::Unknown)
             .unwrap();
         // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {

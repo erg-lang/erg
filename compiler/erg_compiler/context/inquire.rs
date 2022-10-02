@@ -213,12 +213,8 @@ impl Context {
                         .unwrap_or(0),
                 )));
             }
-            let rhs = self.instantiate_param_sig_t(
-                &lambda.params.non_defaults[0],
-                None,
-                &mut None,
-                Normal,
-            )?;
+            let rhs =
+                self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, None, Normal)?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}

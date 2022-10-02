@@ -458,6 +458,7 @@ impl Context {
                         // ?T cannot be `Never`
                         // `Nat :> (?T <: Int)` can be true
                         // `Int :> (?T <: Nat)` can be true
+                        // * so sup is unrelated
                         // `Str :> (?T <: Int)` is false
                         // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
                         // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
@@ -547,19 +548,19 @@ impl Context {
             }
             (Quantified(l), Quantified(r)) => {
                 // REVIEW: maybe this should be `unreachable`
-                let mut l_tv_ctx = TyVarContext::new(self.level, l.bounds.clone(), self);
-                let mut r_tv_ctx = TyVarContext::new(self.level, r.bounds.clone(), self);
+                let l_tv_ctx = TyVarContext::new(self.level, l.bounds.clone(), self);
+                let r_tv_ctx = TyVarContext::new(self.level, r.bounds.clone(), self);
                 let l_callable = self
                     .instantiate_t(
                         l.unbound_callable.as_ref().clone(),
-                        &mut l_tv_ctx,
+                        &l_tv_ctx,
                         Location::Unknown,
                     )
                     .unwrap();
                 let r_callable = self
                     .instantiate_t(
                         r.unbound_callable.as_ref().clone(),
-                        &mut r_tv_ctx,
+                        &r_tv_ctx,
                         Location::Unknown,
                     )
                     .unwrap();
@@ -567,21 +568,25 @@ impl Context {
             }
             (Quantified(q), r) => {
                 // REVIEW: maybe this should be `unreachable`
-                let mut tv_ctx = TyVarContext::new(self.level, q.bounds.clone(), self);
+                let tmp_tv_ctx = TyVarContext::new(self.level, q.bounds.clone(), self);
                 let q_callable = self
                     .instantiate_t(
                         q.unbound_callable.as_ref().clone(),
-                        &mut tv_ctx,
+                        &tmp_tv_ctx,
                         Location::Unknown,
                     )
                     .unwrap();
                 self.structural_supertype_of(&q_callable, r)
             }
+            // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),
-            (lhs, Or(or_l, or_r)) => self.supertype_of(lhs, or_l) && self.supertype_of(lhs, or_r),
+            // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
+            (lhs, Or(l_or, r_or)) => self.supertype_of(lhs, l_or) && self.supertype_of(lhs, r_or),
+            // (Num and Show) :> Show == false
             (And(l_and, r_and), rhs) => {
                 self.supertype_of(l_and, rhs) && self.supertype_of(r_and, rhs)
             }
+            // Show :> (Num and Show) == true
             (lhs, And(l_and, r_and)) => {
                 self.supertype_of(lhs, l_and) || self.supertype_of(lhs, r_and)
             }

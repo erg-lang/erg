@@ -104,8 +104,8 @@ impl SubstContext {
     }
 
     pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {
-        let mut tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
-        let inst = ctx.instantiate_t(quant_t, &mut tv_ctx, loc)?;
+        let tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
+        let inst = ctx.instantiate_t(quant_t, &tv_ctx, loc)?;
         for param in inst.typarams() {
             self.substitute_tp(&param, ctx)?;
         }
@@ -405,15 +405,11 @@ impl Context {
     /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
         let bounds = self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
+        let tv_ctx = TyVarContext::new(self.level, bounds, self);
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
-            let t = self.instantiate_param_sig_t(
-                sig,
-                None,
-                &mut Some(&mut tv_ctx),
-                RegistrationMode::Normal,
-            )?;
+            let t =
+                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             let pt = if let Some(name) = sig.inspect() {
                 ParamTy::kw(name.clone(), t)
             } else {
@@ -422,12 +418,8 @@ impl Context {
             non_default_params.push(pt);
         }
         let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
-            let t = self.instantiate_param_sig_t(
-                p,
-                None,
-                &mut Some(&mut tv_ctx),
-                RegistrationMode::Normal,
-            )?;
+            let t =
+                self.instantiate_param_sig_t(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             let pt = if let Some(name) = p.inspect() {
                 ParamTy::kw(name.clone(), t)
             } else {
@@ -439,12 +431,8 @@ impl Context {
         };
         let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
         for sig in lambda.sig.params.defaults.iter() {
-            let t = self.instantiate_param_sig_t(
-                sig,
-                None,
-                &mut Some(&mut tv_ctx),
-                RegistrationMode::Normal,
-            )?;
+            let t =
+                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             let pt = if let Some(name) = sig.inspect() {
                 ParamTy::kw(name.clone(), t)
             } else {

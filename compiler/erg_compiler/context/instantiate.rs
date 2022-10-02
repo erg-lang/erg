@@ -212,7 +212,7 @@ impl TyVarContext {
         todo!()
     }
 
-    pub(crate) fn instantiate_qvar(&mut self, quantified: Type) -> Type {
+    fn instantiate_qvar(&mut self, quantified: Type) -> Type {
         match quantified {
             Type::MonoQVar(n) => {
                 if let Some(t) = self.get_tyvar(&n) {
@@ -427,7 +427,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(s) = t_spec {
-            self.instantiate_typespec(s, None, &mut None, mode)?
+            self.instantiate_typespec(s, None, None, mode)?
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
@@ -448,7 +448,7 @@ impl Context {
             .ok()
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-        let mut tv_ctx = TyVarContext::new(self.level, bounds, self);
+        let tv_ctx = TyVarContext::new(self.level, bounds, self);
         let mut non_defaults = vec![];
         for (n, p) in sig.params.non_defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
@@ -456,15 +456,14 @@ impl Context {
                 .and_then(|subr| subr.non_default_params.get(n));
             non_defaults.push(ParamTy::pos(
                 p.inspect().cloned(),
-                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+                self.instantiate_param_sig_t(p, opt_decl_t, Some(&tv_ctx), mode)?,
             ));
         }
         let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
-            let va_t =
-                self.instantiate_param_sig_t(var_args, opt_decl_t, &mut Some(&mut tv_ctx), mode)?;
+            let va_t = self.instantiate_param_sig_t(var_args, opt_decl_t, Some(&tv_ctx), mode)?;
             Some(ParamTy::pos(var_args.inspect().cloned(), va_t))
         } else {
             None
@@ -476,14 +475,14 @@ impl Context {
                 .and_then(|subr| subr.default_params.get(n));
             defaults.push(ParamTy::kw(
                 p.inspect().unwrap().clone(),
-                self.instantiate_param_sig_t(p, opt_decl_t, &mut Some(&mut tv_ctx), mode)?,
+                self.instantiate_param_sig_t(p, opt_decl_t, Some(&tv_ctx), mode)?,
             ));
         }
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .map(|subr| ParamTy::anonymous(subr.return_t.as_ref().clone()));
-            self.instantiate_typespec(s, opt_decl_t.as_ref(), &mut Some(&mut tv_ctx), mode)?
+            self.instantiate_typespec(s, opt_decl_t.as_ref(), Some(&tv_ctx), mode)?
         } else {
             // preregisterならouter scopeで型宣言(see inference.md)
             let level = if mode == PreRegister {
@@ -505,7 +504,7 @@ impl Context {
         &self,
         sig: &ParamSignature,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
@@ -540,7 +539,7 @@ impl Context {
         &self,
         predecl: &PreDeclTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarContext>,
     ) -> TyCheckResult<Type> {
         match predecl {
             ast::PreDeclTypeSpec::Simple(simple) => {
@@ -554,7 +553,7 @@ impl Context {
         &self,
         simple: &SimpleTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarContext>,
     ) -> TyCheckResult<Type> {
         match &simple.name.inspect()[..] {
             "Nat" => Ok(Type::Nat),
@@ -595,7 +594,7 @@ impl Context {
                     }
                 }
                 if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_simple_t(simple, opt_decl_t, &mut None) {
+                    if let Ok(t) = outer.instantiate_simple_t(simple, opt_decl_t, None) {
                         return Ok(t);
                     }
                 }
@@ -656,10 +655,10 @@ impl Context {
         &self,
         p: &ParamTySpec,
         opt_decl_t: Option<&ParamTy>,
-        tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_typespec(&p.ty, opt_decl_t, tv_ctx, mode)?;
+        let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_ctx, mode)?;
         Ok(ParamTy::pos(
             p.name.as_ref().map(|t| t.inspect().to_owned()),
             t,
@@ -670,7 +669,7 @@ impl Context {
         &self,
         spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: &mut Option<&mut TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         match spec {
@@ -775,12 +774,12 @@ impl Context {
                 let bound = match spec.op.kind {
                     TokenKind::SubtypeOf => TyBound::subtype_of(
                         mono_q(lhs.inspect().clone()),
-                        self.instantiate_typespec(&spec.t_spec, None, &mut None, mode)?,
+                        self.instantiate_typespec(&spec.t_spec, None, None, mode)?,
                     ),
                     TokenKind::SupertypeOf => todo!(),
                     TokenKind::Colon => TyBound::instance(
                         lhs.inspect().clone(),
-                        self.instantiate_typespec(&spec.t_spec, None, &mut None, mode)?,
+                        self.instantiate_typespec(&spec.t_spec, None, None, mode)?,
                     ),
                     _ => unreachable!(),
                 };
@@ -805,7 +804,7 @@ impl Context {
     fn instantiate_tp(
         &self,
         quantified: TyParam,
-        tmp_tv_ctx: &mut TyVarContext,
+        tmp_tv_ctx: &TyVarContext,
         loc: Location,
     ) -> TyCheckResult<TyParam> {
         match quantified {
@@ -861,7 +860,7 @@ impl Context {
     pub(crate) fn instantiate_t(
         &self,
         unbound: Type,
-        tmp_tv_ctx: &mut TyVarContext,
+        tmp_tv_ctx: &TyVarContext,
         loc: Location,
     ) -> TyCheckResult<Type> {
         match unbound {
@@ -1009,9 +1008,8 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
-                let mut tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
-                let t =
-                    self.instantiate_t(*quant.unbound_callable, &mut tmp_tv_ctx, callee.loc())?;
+                let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
+                let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {

@@ -749,7 +749,7 @@ impl ASTLowerer {
                             self.ctx.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
-                                &mut None,
+                                None,
                                 RegistrationMode::Normal,
                             )?,
                             tasc.t_spec.loc(),
@@ -760,19 +760,15 @@ impl ASTLowerer {
                         self.ctx.instantiate_typespec(
                             spec,
                             None,
-                            &mut None,
+                            None,
                             RegistrationMode::Normal,
                         )?,
                         Some((impl_trait, loc)),
                     )
                 }
                 other => (
-                    self.ctx.instantiate_typespec(
-                        other,
-                        None,
-                        &mut None,
-                        RegistrationMode::Normal,
-                    )?,
+                    self.ctx
+                        .instantiate_typespec(other, None, None, RegistrationMode::Normal)?,
                     None,
                 ),
             };
@@ -1055,12 +1051,9 @@ impl ASTLowerer {
 
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let t = self.ctx.instantiate_typespec(
-            &tasc.t_spec,
-            None,
-            &mut None,
-            RegistrationMode::Normal,
-        )?;
+        let t =
+            self.ctx
+                .instantiate_typespec(&tasc.t_spec, None, None, RegistrationMode::Normal)?;
         let expr = self.lower_expr(*tasc.expr)?;
         self.ctx.sub_unify(
             expr.ref_t(),
@@ -1188,7 +1181,7 @@ impl ASTLowerer {
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    &mut None,
+                    None,
                     RegistrationMode::Normal,
                 )?;
                 if ident.is_const() {
@@ -1239,7 +1232,7 @@ impl ASTLowerer {
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    &mut None,
+                    None,
                     RegistrationMode::Normal,
                 )?;
                 let namespace = self.ctx.name.clone();

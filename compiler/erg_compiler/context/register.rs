@@ -188,8 +188,7 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -234,8 +233,7 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -280,8 +278,7 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut None, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(
@@ -546,8 +543,7 @@ impl Context {
                             }
                         };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t =
-                            self.instantiate_typespec(spec, None, &mut None, PreRegister)?;
+                        let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                     }
                     self.pop();
@@ -564,7 +560,7 @@ impl Context {
                     }
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
-                    let spec_t = self.instantiate_typespec(spec, None, &mut None, PreRegister)?;
+                    let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
                 }
                 self.register_gen_const(sig.ident().unwrap(), obj)?;
