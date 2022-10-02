@@ -2121,8 +2121,8 @@ impl Parser {
         Ok(bounds)
     }
 
-    fn convert_type_arg_to_bound(&mut self, _arg: PosArg) -> ParseResult<TypeBoundSpec> {
-        match _arg.expr {
+    fn convert_type_arg_to_bound(&mut self, arg: PosArg) -> ParseResult<TypeBoundSpec> {
+        match arg.expr {
             Expr::TypeAsc(tasc) => {
                 let lhs = self
                     .convert_rhs_to_sig(*tasc.expr)
@@ -2529,6 +2529,26 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(TypeSpec::Interval { op, lhs, rhs })
+                } else if bin.op.kind == TokenKind::AndOp {
+                    let mut args = bin.args.into_iter();
+                    let lhs = self
+                        .convert_rhs_to_type_spec(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    let rhs = self
+                        .convert_rhs_to_type_spec(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    Ok(TypeSpec::and(lhs, rhs))
+                } else if bin.op.kind == TokenKind::OrOp {
+                    let mut args = bin.args.into_iter();
+                    let lhs = self
+                        .convert_rhs_to_type_spec(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    let rhs = self
+                        .convert_rhs_to_type_spec(*args.next().unwrap())
+                        .map_err(|_| self.stack_dec())?;
+                    self.level -= 1;
+                    Ok(TypeSpec::or(lhs, rhs))
                 } else {
                     self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());

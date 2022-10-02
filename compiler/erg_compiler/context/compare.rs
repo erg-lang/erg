@@ -366,7 +366,7 @@ impl Context {
     /// assert supertype_of(Bool, Bool)
     /// ```
     /// This function does not consider the nominal subtype relation.
-    /// Use `rec_full_supertype_of` for complete judgement.
+    /// Use `supertype_of` for complete judgement.
     /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
