@@ -191,13 +191,7 @@ impl Context {
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(
-                            &spec_t,
-                            &self_t,
-                            Some(name.loc()),
-                            None,
-                            Some(name.inspect()),
-                        )?;
+                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
                     let idx = if let Some(outer) = outer {
                         ParamIdx::nested(outer, nth)
@@ -236,13 +230,7 @@ impl Context {
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(
-                            &spec_t,
-                            &self_t,
-                            Some(name.loc()),
-                            None,
-                            Some(name.inspect()),
-                        )?;
+                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
                     let spec_t = ref_(spec_t);
                     let idx = if let Some(outer) = outer {
@@ -281,13 +269,7 @@ impl Context {
                     let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(
-                            &spec_t,
-                            &self_t,
-                            Some(name.loc()),
-                            None,
-                            Some(name.inspect()),
-                        )?;
+                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let idx = if let Some(outer) = outer {
@@ -387,7 +369,7 @@ impl Context {
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
         if let Some(spec_ret_t) = t.return_t() {
-            self.sub_unify(body_t, spec_ret_t, None, Some(sig.loc()), None)
+            self.sub_unify(body_t, spec_ret_t, sig.loc(), None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -544,7 +526,7 @@ impl Context {
                         };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
-                        self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                     }
                     self.pop();
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -561,7 +543,7 @@ impl Context {
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
                     let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
-                    self.sub_unify(&const_t, &spec_t, Some(def.body.loc()), None, None)?;
+                    self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
                 self.register_gen_const(sig.ident().unwrap(), obj)?;
             }

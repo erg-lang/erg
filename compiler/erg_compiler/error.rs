@@ -631,16 +631,9 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
-        lhs_loc: Option<Location>,
-        rhs_loc: Option<Location>,
+        loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let loc = match (lhs_loc, rhs_loc) {
-            (Some(l), Some(r)) => Location::pair(l, r),
-            (Some(l), None) => l,
-            (None, Some(r)) => r,
-            (None, None) => Location::Unknown,
-        };
         Self::new(
             ErrorCore::new(
                 errno,
@@ -664,16 +657,9 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         lhs_t: &Type,
         rhs_t: &Type,
-        lhs_loc: Option<Location>,
-        rhs_loc: Option<Location>,
+        loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let loc = match (lhs_loc, rhs_loc) {
-            (Some(l), Some(r)) => Location::pair(l, r),
-            (Some(l), None) => l,
-            (None, Some(r)) => r,
-            (None, None) => Location::Unknown,
-        };
         Self::new(
             ErrorCore::new(
                 errno,
@@ -697,16 +683,9 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         errno: usize,
         sub_t: &Type,
         sup_t: &Type,
-        sub_loc: Option<Location>,
-        sup_loc: Option<Location>,
+        loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let loc = match (sub_loc, sup_loc) {
-            (Some(l), Some(r)) => Location::pair(l, r),
-            (Some(l), None) => l,
-            (None, Some(r)) => r,
-            (None, None) => Location::Unknown,
-        };
         Self::new(
             ErrorCore::new(
                 errno,

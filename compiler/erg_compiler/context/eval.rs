@@ -1,3 +1,4 @@
+use std::fmt;
 use std::mem;
 
 use erg_common::dict::Dict;
@@ -77,12 +78,22 @@ pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     ValueObj::from_str(t, lit.token.content.clone())
 }
 
-/// SubstContext::new([?T; 0], Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
-/// ctx.substitute(['T; !'N]): [?T; !0]
+/// SubstContext::new(Array(?T, 0), Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
+/// ctx.substitute(Array!('T; !'N)): Array(?T, !0)
 #[derive(Debug)]
 pub struct SubstContext {
     bounds: Set<TyBound>,
     params: Dict<Str, TyParam>,
+}
+
+impl fmt::Display for SubstContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "SubstContext{{ bounds: {}, params: {} }}",
+            self.bounds, self.params
+        )
+    }
 }
 
 impl SubstContext {
@@ -116,8 +127,8 @@ impl SubstContext {
         match param {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
-                    if let Some(v) = self.params.get(&name) {
-                        ctx.sub_unify_tp(param, v, None, false)?;
+                    if let Some(tp) = self.params.get(&name) {
+                        ctx.sub_unify_tp(param, tp, None, Location::Unknown, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
@@ -151,9 +162,9 @@ impl SubstContext {
         match param_t {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
-                    if let Some(v) = self.params.get(&name) {
-                        if let TyParam::Type(v) = v {
-                            ctx.sub_unify(param_t, v, None, None, None)?;
+                    if let Some(tp) = self.params.get(&name) {
+                        if let TyParam::Type(t) = tp {
+                            ctx.sub_unify(param_t, t, Location::Unknown, None)?;
                         } else {
                             panic!()
                         }

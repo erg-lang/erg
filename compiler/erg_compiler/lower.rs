@@ -125,7 +125,7 @@ impl ASTLowerer {
         found: &Type,
     ) -> SingleLowerResult<()> {
         self.ctx
-            .sub_unify(found, expect, None, Some(loc), Some(name))
+            .sub_unify(found, expect, loc, Some(name))
             .map_err(|_| {
                 LowerError::type_mismatch_error(
                     self.cfg.input.clone(),
@@ -887,7 +887,7 @@ impl ASTLowerer {
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
         if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
-            for (sup_t, sup) in sups.skip(1) {
+            for (sup_t, sup) in sups.into_iter().skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
@@ -1058,8 +1058,7 @@ impl ASTLowerer {
         self.ctx.sub_unify(
             expr.ref_t(),
             &t,
-            Some(expr.loc()),
-            None,
+            expr.loc(),
             Some(&Str::from(expr.to_string())),
         )?;
         Ok(hir::TypeAscription::new(expr, tasc.t_spec))

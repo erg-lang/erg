@@ -41,10 +41,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<()> {
         let spec_t = self.instantiate_var_sig_t(t_spec, None, mode)?;
-        if self
-            .sub_unify(body_t, &spec_t, None, Some(ident.loc()), None)
-            .is_err()
-        {
+        if self.sub_unify(body_t, &spec_t, ident.loc(), None).is_err() {
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -220,7 +217,7 @@ impl Context {
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
         if self
-            .sub_unify(match_target_expr_t, &union_pat_t, None, None, None)
+            .sub_unify(match_target_expr_t, &union_pat_t, pos_args[0].loc(), None)
             .is_err()
         {
             return Err(TyCheckErrors::from(TyCheckError::match_error(
@@ -457,7 +454,7 @@ impl Context {
         }
     }
 
-    /// 戻り値ではなく、call全体の型を返す
+    // returns callee's type, not the return type
     fn search_callee_t(
         &self,
         obj: &hir::Expr,
@@ -676,7 +673,7 @@ impl Context {
                     None
                 }
             }) {
-                self.reunify(callee.ref_t(), after, Some(callee.loc()), None)?;
+                self.reunify(callee.ref_t(), after, callee.loc())?;
             }
         }
         Ok(())
@@ -746,13 +743,7 @@ impl Context {
                     {
                         let mut non_default_params = subr.non_default_params.iter();
                         let self_pt = non_default_params.next().unwrap();
-                        self.sub_unify(
-                            obj.ref_t(),
-                            self_pt.typ(),
-                            Some(obj.loc()),
-                            None,
-                            self_pt.name(),
-                        )?;
+                        self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())?;
                         non_default_params
                     } else {
                         subr.non_default_params.iter()
@@ -843,7 +834,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = &param.typ();
-        self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
+        self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 // REVIEW:
@@ -892,7 +883,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = &param.typ();
-        self.sub_unify(arg_t, param_t, Some(arg.loc()), None, param.name())
+        self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 // REVIEW:
@@ -943,7 +934,7 @@ impl Context {
             .iter()
             .find(|pt| pt.name().unwrap() == kw_name)
         {
-            self.sub_unify(arg_t, pt.typ(), Some(arg.loc()), None, Some(kw_name))
+            self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     // REVIEW:
@@ -1250,6 +1241,39 @@ impl Context {
             (sup, sup_ctx)
         }))
     }
+
+    /*pub(crate) fn get_nominal_super_type_ctxs<'a>(
+        &'a self,
+        t: &Type,
+    ) -> Option<Vec<(&'a Type, &'a Context)>> {
+        match t {
+            Type::And(l, r) => {
+                match (self.get_nominal_super_type_ctxs(l), self.get_nominal_super_type_ctxs(r)) {
+                    // TODO: sort
+                    (Some(l), Some(r)) => Some([l, r].concat()),
+                    (Some(l), None) => Some(l),
+                    (None, Some(r)) => Some(r),
+                    (None, None) => None,
+                }
+            }
+            // TODO
+            Type::Or(_l, _r) => None,
+            _ => self.get_simple_nominal_super_type_ctxs(t).map(|ctxs| ctxs.collect()),
+        }
+    }
+
+    fn get_simple_nominal_super_type_ctxs<'a>(
+        &'a self,
+        t: &Type,
+    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+        let (t, ctx) = self.get_nominal_type_ctx(t)?;
+        let sups = ctx
+            .super_classes
+            .iter()
+            .chain(ctx.super_traits.iter())
+            .map(|sup| self.get_nominal_type_ctx(sup).unwrap());
+        Some(vec![(t, ctx)].into_iter().chain(sups))
+    }*/
 
     pub(crate) fn get_nominal_super_type_ctxs<'a>(
         &'a self,

@@ -391,6 +391,7 @@ impl Context {
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
                 ls.non_default_params.len() == rs.non_default_params.len()
+                // REVIEW:
                 && ls.default_params.len() == rs.default_params.len()
                 && self.supertype_of(&ls.return_t, &rs.return_t) // covariant
                 && ls.non_default_params.iter()
@@ -579,6 +580,7 @@ impl Context {
                 self.structural_supertype_of(&q_callable, r)
             }
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
+            // (Num or Show) :> Show == Num :> Show || Show :> Num == true
             (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
             (lhs, Or(l_or, r_or)) => self.supertype_of(lhs, l_or) && self.supertype_of(lhs, r_or),

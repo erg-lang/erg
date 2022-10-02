@@ -432,7 +432,12 @@ impl Context {
             free_var(self.level, Constraint::new_type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
-            self.sub_unify(&eval_t, &spec_t, None, t_spec.map(|s| s.loc()), None)?;
+            self.sub_unify(
+                &eval_t,
+                &spec_t,
+                t_spec.map(|s| s.loc()).unwrap_or(Location::Unknown),
+                None,
+            )?;
         }
         Ok(spec_t)
     }
@@ -527,8 +532,10 @@ impl Context {
             self.sub_unify(
                 decl_pt.typ(),
                 &spec_t,
-                None,
-                sig.t_spec.as_ref().map(|s| s.loc()),
+                sig.t_spec
+                    .as_ref()
+                    .map(|s| s.loc())
+                    .unwrap_or_else(|| sig.loc()),
                 None,
             )?;
         }
@@ -1016,8 +1023,7 @@ impl Context {
                             self.sub_unify(
                                 callee.ref_t(),
                                 self_t,
-                                None,
-                                Some(callee.loc()),
+                                callee.loc(),
                                 Some(&Str::ever("self")),
                             )?;
                         }
