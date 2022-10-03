@@ -37,6 +37,11 @@ fn exec_move_check() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_quantified() -> Result<(), ()> {
+    expect_success("examples/quantified.er")
+}
+
+#[test]
 fn exec_record() -> Result<(), ()> {
     expect_success("examples/record.er")
 }
