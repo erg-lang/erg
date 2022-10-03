@@ -546,7 +546,8 @@ impl CodeGenerator {
                 Name::new(st, self.cur_block_codeobj().names.len() - 1)
             }
             Some(StoreLoadKind::Deref) => {
-                self.mut_cur_block_codeobj().freevars.push(name);
+                self.mut_cur_block_codeobj().freevars.push(name.clone());
+                // cellvarsのpushはrec_search()で行われる
                 Name::deref(self.cur_block_codeobj().freevars.len() - 1)
             }
             None => {
@@ -582,10 +583,10 @@ impl CodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => Opcode::LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => Opcode::LOAD_NAME,
+            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
         };
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
@@ -653,10 +654,10 @@ impl CodeGenerator {
             .local_search(&escaped, Attr)
             .unwrap_or_else(|| self.register_attr(escaped));
         let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => Opcode::LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => Opcode::LOAD_ATTR,
+            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_ATTR,
         };
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
@@ -674,10 +675,10 @@ impl CodeGenerator {
             .local_search(&escaped, Method)
             .unwrap_or_else(|| self.register_method(escaped));
         let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => Opcode::LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::LOAD_GLOBAL,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => Opcode::LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => Opcode::LOAD_METHOD,
+            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_METHOD,
         };
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
@@ -694,18 +695,18 @@ impl CodeGenerator {
             }
         });
         let instr = match name.kind {
-            StoreLoadKind::Fast => Opcode::STORE_FAST,
-            StoreLoadKind::FastConst => Opcode::ERG_STORE_FAST_IMMUT,
+            StoreLoadKind::Fast => STORE_FAST,
+            StoreLoadKind::FastConst => ERG_STORE_FAST_IMMUT,
             // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
             // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => Opcode::STORE_NAME,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => Opcode::STORE_DEREF,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => STORE_NAME,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => STORE_DEREF,
             StoreLoadKind::Local | StoreLoadKind::LocalConst => {
                 match acc_kind {
-                    AccessKind::Name => Opcode::STORE_NAME,
-                    AccessKind::Attr => Opcode::STORE_ATTR,
+                    AccessKind::Name => STORE_NAME,
+                    AccessKind::Attr => STORE_ATTR,
                     // cannot overwrite methods directly
-                    AccessKind::Method => Opcode::STORE_ATTR,
+                    AccessKind::Method => STORE_ATTR,
                 }
             }
         };
@@ -725,7 +726,7 @@ impl CodeGenerator {
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
-        let instr = Opcode::STORE_GLOBAL;
+        let instr = STORE_GLOBAL;
         self.write_instr(instr);
         self.write_arg(name.idx as u8);
         self.stack_dec();
@@ -755,7 +756,7 @@ impl CodeGenerator {
 
     fn cancel_pop_top(&mut self) {
         let lasop_t_idx = self.cur_block_codeobj().code.len() - 2;
-        if self.cur_block_codeobj().code.get(lasop_t_idx) == Some(&(Opcode::POP_TOP as u8)) {
+        if self.cur_block_codeobj().code.get(lasop_t_idx) == Some(&(POP_TOP as u8)) {
             self.mut_cur_block_codeobj().code.pop();
             self.mut_cur_block_codeobj().code.pop();
             self.mut_cur_block().lasti -= 2;
@@ -855,13 +856,13 @@ impl CodeGenerator {
             self.load_abc();
             self.abc_loaded = true;
         }
-        self.write_instr(Opcode::LOAD_BUILD_CLASS);
+        self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
         let code = self.emit_trait_block(def.def_kind(), &def.sig, def.body.block);
         self.emit_load_const(code);
         self.emit_load_const(def.sig.ident().inspect().clone());
-        self.write_instr(Opcode::MAKE_FUNCTION);
+        self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(def.sig.ident().inspect().clone());
         self.emit_load_name_instr(Identifier::private(Str::ever("#ABCMeta")));
@@ -1011,18 +1012,18 @@ impl CodeGenerator {
         let ident = class_def.sig.ident().clone();
         let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
-        self.write_instr(Opcode::LOAD_BUILD_CLASS);
+        self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
         let code = self.emit_class_block(class_def);
         self.emit_load_const(code);
         self.emit_load_const(ident.inspect().clone());
-        self.write_instr(Opcode::MAKE_FUNCTION);
+        self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
         let subclasses_len = self.emit_require_type(kind, *require_or_sup);
-        self.write_instr(Opcode::CALL_FUNCTION);
+        self.write_instr(CALL_FUNCTION);
         self.write_arg(2 + subclasses_len as u8);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
@@ -1064,10 +1065,9 @@ impl CodeGenerator {
     fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
         log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         let name = sig.ident.inspect().clone();
-        let mut opcode_flag = 0u8;
+        let mut make_function_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
         let code = self.emit_block(body.block, Some(name.clone()), params);
-        self.emit_load_const(code);
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
             for i in 0..cellvars_len {
@@ -1076,15 +1076,16 @@ impl CodeGenerator {
             }
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
-            opcode_flag += 8;
+            make_function_flag += 8;
         }
+        self.emit_load_const(code);
         if let Some(class) = class_name {
             self.emit_load_const(Str::from(format!("{class}.{name}")));
         } else {
             self.emit_load_const(name);
         }
         self.write_instr(MAKE_FUNCTION);
-        self.write_arg(opcode_flag);
+        self.write_arg(make_function_flag);
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
         self.emit_store_instr(sig.ident, Name);
@@ -1092,12 +1093,23 @@ impl CodeGenerator {
 
     fn emit_lambda(&mut self, lambda: Lambda) {
         log!(info "entered {} ({lambda})", fn_name!());
+        let mut make_function_flag = 0u8;
         let params = self.gen_param_names(&lambda.params);
         let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
+        if !self.cur_block_codeobj().cellvars.is_empty() {
+            let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
+            for i in 0..cellvars_len {
+                self.write_instr(LOAD_CLOSURE);
+                self.write_arg(i);
+            }
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(cellvars_len);
+            make_function_flag += 8;
+        }
         self.emit_load_const(code);
         self.emit_load_const("<lambda>");
         self.write_instr(MAKE_FUNCTION);
-        self.write_arg(0u8);
+        self.write_arg(make_function_flag);
         // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
         self.stack_dec();
     }
@@ -1948,6 +1960,7 @@ impl CodeGenerator {
         }
         // end of flagging
         let unit = self.units.pop().unwrap();
+        // increase lineno
         if !self.units.is_empty() {
             let ld = unit
                 .prev_lineno

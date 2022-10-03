@@ -415,6 +415,15 @@ impl CodeObj {
                         )
                         .unwrap();
                     }
+                    Opcode::LOAD_CLOSURE => {
+                        write!(
+                            instrs,
+                            "{} ({})",
+                            arg,
+                            self.cellvars.get(*arg as usize).unwrap()
+                        )
+                        .unwrap();
+                    }
                     Opcode::STORE_FAST | Opcode::LOAD_FAST => {
                         write!(
                             instrs,
