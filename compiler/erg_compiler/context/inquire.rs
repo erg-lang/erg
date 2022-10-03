@@ -101,7 +101,15 @@ impl Context {
                 let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
                 ctx.get_singular_ctx(&attr, namespace)
             }
-            _ => todo!(),
+            // TODO: change error
+            _ => Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &obj.to_string(),
+                None,
+            )),
         }
     }
 
@@ -157,7 +165,14 @@ impl Context {
                 let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
                 ctx.get_mut_singular_ctx(&attr, namespace)
             }
-            _ => todo!(),
+            _ => Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &obj.to_string(),
+                None,
+            )),
         }
     }
 
@@ -1712,6 +1727,7 @@ impl Context {
     }
 
     fn get_proj_candidates(&self, lhs: &Type, rhs: &Str) -> Set<Type> {
+        #[allow(clippy::single_match)]
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_sup() {
@@ -1731,9 +1747,9 @@ impl Context {
                     return candidates.collect();
                 }
             }
-            _ => todo!(),
+            _ => {}
         }
-        todo!("{lhs}.{rhs}")
+        set! {}
     }
 
     pub(crate) fn is_class(&self, typ: &Type) -> bool {

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::mem;
-use std::option::Option; // conflicting to Type::Option
+use std::option::Option;
+use std::path::PathBuf; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
@@ -99,6 +100,7 @@ impl TyVarContext {
 
     fn instantiate_poly(
         &mut self,
+        path: Option<PathBuf>,
         tvar_name: Str,
         name: &Str,
         params: Vec<TyParam>,
@@ -123,7 +125,13 @@ impl TyVarContext {
                 self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
                 inst_defaults.push(tp);
             }
-            builtin_poly(name, [inst_non_defaults, inst_defaults].concat())
+            if let Some(path) = path {
+                poly(path, name, [inst_non_defaults, inst_defaults].concat())
+            } else {
+                builtin_poly(name, [inst_non_defaults, inst_defaults].concat())
+            }
+        } else if let Some(path) = path {
+            poly(path, name, self.instantiate_params(params))
         } else {
             builtin_poly(name, self.instantiate_params(params))
         }
@@ -146,9 +154,11 @@ impl TyVarContext {
 
     fn instantiate_bound_type(&mut self, mid: &Type, sub_or_sup: Type, ctx: &Context) -> Type {
         match sub_or_sup {
-            Type::Poly { .. } => todo!(),
+            Type::Poly { path, name, params } => {
+                self.instantiate_poly(Some(path), mid.name(), &name, params, ctx)
+            }
             Type::BuiltinPoly { name, params } => {
-                self.instantiate_poly(mid.name(), &name, params, ctx)
+                self.instantiate_poly(None, mid.name(), &name, params, ctx)
             }
             Type::MonoProj { lhs, rhs } => {
                 let lhs = if lhs.has_qvar() {
@@ -178,9 +188,11 @@ impl TyVarContext {
             TyBound::Instance { name, t } => {
                 let t = match t {
                     Type::BuiltinPoly { name, params } => {
-                        self.instantiate_poly(name.clone(), &name, params, ctx)
+                        self.instantiate_poly(None, name.clone(), &name, params, ctx)
                     }
-                    Type::Poly { .. } => todo!(),
+                    Type::Poly { path, name, params } => {
+                        self.instantiate_poly(Some(path), name.clone(), &name, params, ctx)
+                    }
                     t => t,
                 };
                 let constraint = Constraint::new_type_of(t.clone());

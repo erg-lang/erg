@@ -152,7 +152,9 @@ impl SubstContext {
             TyParam::Type(t) => {
                 self.substitute_t(t, ctx)?;
             }
-            TyParam::MonoProj { obj, attr } => todo!("{obj}.{attr}"),
+            TyParam::MonoProj { obj, .. } => {
+                self.substitute_tp(obj, ctx)?;
+            }
             _ => {}
         }
         Ok(())
@@ -731,7 +733,12 @@ impl Context {
             | TyParam::Value(_)
             | TyParam::FreeVar(_)
             | TyParam::MonoQVar(_)) => Ok(p.clone()),
-            other => todo!("{other}"),
+            _other => Err(EvalErrors::from(EvalError::feature_error(
+                self.cfg.input.clone(),
+                Location::Unknown,
+                "???",
+                self.caused_by(),
+            ))),
         }
     }
 
@@ -890,7 +897,12 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            other => todo!("{other}"),
+            _other => Err(EvalErrors::from(EvalError::feature_error(
+                self.cfg.input.clone(),
+                t_loc,
+                "???",
+                self.caused_by(),
+            ))),
         }
     }
 
