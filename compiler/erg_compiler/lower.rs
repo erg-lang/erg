@@ -673,9 +673,8 @@ impl ASTLowerer {
             .as_ref()
             .unwrap()
             .get_current_scope_var(sig.ident.inspect())
-            .unwrap()
-            .t
-            .clone();
+            .map(|vi| vi.t.clone())
+            .unwrap_or(Type::Failure);
         match t {
             Type::Subr(t) => {
                 if let Err(errs) = self.ctx.assign_params(&sig.params, Some(t.clone())) {
