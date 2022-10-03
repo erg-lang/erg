@@ -1684,11 +1684,25 @@ impl Type {
         }
     }
 
-    pub fn is_mut(&self) -> bool {
+    /// Procedure or MutType?
+    pub fn is_procedural(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_procedural(),
+            Self::Callable { .. } => true,
+            Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
+            Self::Refinement(refine) =>
+                refine.t.is_procedural() || refine.preds.iter().any(|pred|
+                    matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.name().map(|n| n.ends_with('!')).unwrap_or(false))
+                ),
+            _ => false,
+        }
+    }
+
+    pub fn is_mut_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
                 if fv.is_linked() {
-                    fv.crack().is_mut()
+                    fv.crack().is_mut_type()
                 } else {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
@@ -1700,7 +1714,7 @@ impl Type {
             | Self::BuiltinPoly { name, .. }
             | Self::PolyQVar { name, .. }
             | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
-            Self::Refinement(refine) => refine.t.is_mut(),
+            Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
     }

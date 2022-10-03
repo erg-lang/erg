@@ -633,10 +633,12 @@ impl Context {
             ))
         } else {
             match obj {
-                ValueObj::Type(t) => {
-                    let gen = enum_unwrap!(t, TypeObj::Generated);
-                    self.register_gen_type(ident, gen);
-                }
+                ValueObj::Type(t) => match t {
+                    TypeObj::Generated(gen) => {
+                        self.register_gen_type(ident, gen);
+                    }
+                    TypeObj::Builtin(_t) => panic!("aliasing bug"),
+                },
                 // TODO: not all value objects are comparable
                 other => {
                     let id = DefId(get_hash(ident));

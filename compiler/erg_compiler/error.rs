@@ -16,7 +16,7 @@ use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use erg_type::{Predicate, Type};
 
-use crate::hir::{Expr, Identifier};
+use crate::hir::{Expr, Identifier, Signature};
 
 /// dname is for "double under name"
 pub fn binop_to_dname(op: &str) -> &str {
@@ -987,6 +987,38 @@ impl EffectError {
                     "english" => "this expression causes a side-effect",
                 ),
                 None,
+            ),
+            input,
+            caused_by.into(),
+        )
+    }
+
+    pub fn proc_assign_error<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        sig: &Signature,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                HasEffect,
+                sig.loc(),
+                switch_lang!(
+                    "japanese" => "プロシージャを通常の変数に代入することはできません",
+                    "simplified_chinese" => "不能将过程赋值给普通变量",
+                    "traditional_chinese" => "不能將過程賦值給普通變量",
+                    "english" => "cannot assign a procedure to a normal variable",
+                ),
+                Some(
+                    switch_lang!(
+                        "japanese" => "変数の末尾に`!`をつけてください",
+                        "simplified_chinese" => "请在变量名后加上`!`",
+                        "traditional_chinese" => "請在變量名後加上`!`",
+                        "english" => "add `!` to the end of the variable name",
+                    )
+                    .into(),
+                ),
             ),
             input,
             caused_by.into(),
