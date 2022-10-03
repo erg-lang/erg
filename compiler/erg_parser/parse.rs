@@ -1601,6 +1601,41 @@ impl Parser {
                 return Err(());
             }
         }
+
+        // Empty brace literals
+        if let Some(first) = self.peek() {
+            if first.is(RBrace) {
+                let r_brace = self.lpop();
+                let arg = Args::empty();
+                let set = NormalSet::new(l_brace, r_brace, arg);
+                return Ok(BraceContainer::Set(Set::Normal(set)));
+            }
+            if first.is(Equal) {
+                let _eq = self.lpop();
+                if let Some(t) = self.peek() {
+                    if t.is(RBrace) {
+                        let r_brace = self.lpop();
+                        let attr = RecordAttrs::from(vec![]);
+                        let rec = NormalRecord::new(l_brace, r_brace, attr);
+                        return Ok(BraceContainer::Record(Record::Normal(rec)));
+                    }
+                }
+                return Err(());
+            }
+            if first.is(Colon) {
+                let _colon = self.lpop();
+                if let Some(t) = self.peek() {
+                    if t.is(RBrace) {
+                        let r_brace = self.lpop();
+                        let arg = Args::empty();
+                        let dict = NormalDict::new(l_brace, r_brace, arg);
+                        return Ok(BraceContainer::Dict(Dict::Normal(dict)));
+                    }
+                }
+                return Err(());
+            }
+        }
+
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
