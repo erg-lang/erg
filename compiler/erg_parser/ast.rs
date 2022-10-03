@@ -194,6 +194,10 @@ impl Args {
         &self.kw_args[..]
     }
 
+    pub fn has_pos_arg(&self, pa: &PosArg) -> bool {
+        self.pos_args.contains(pa)
+    }
+
     pub fn into_iters(
         self,
     ) -> (
@@ -765,8 +769,8 @@ impl_locational_for_enum!(Record; Normal, Shortened);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
-    l_brace: Token,
-    r_brace: Token,
+    pub l_brace: Token,
+    pub r_brace: Token,
     pub elems: Args,
 }
 

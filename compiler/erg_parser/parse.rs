@@ -1790,8 +1790,54 @@ impl Parser {
         todo!()
     }
 
-    fn try_reduce_set(&mut self, _l_brace: Token, _first: Expr) -> ParseResult<Set> {
-        todo!()
+    fn try_reduce_set(&mut self, l_brace: Token, first_elem: Expr) -> ParseResult<Set> {
+        debug_call_info!(self);
+        let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
+        loop {
+            match self.peek() {
+                Some(t) if t.is(Comma) => {
+                    self.skip();
+                    if self.cur_is(Comma) {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    } else if self.cur_is(RBrace) {
+                        let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
+                        self.level -= 1;
+                        return Ok(set);
+                    }
+                    match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
+                        PosOrKwArg::Pos(arg) => match arg.expr {
+                            Expr::Set(Set::Normal(set)) if set.elems.paren.is_none() => {
+                                args.extend_pos(set.elems.into_iters().0);
+                            }
+                            other => {
+                                let pos = PosArg::new(other);
+                                if !args.has_pos_arg(&pos) {
+                                    args.push_pos(pos);
+                                }
+                            }
+                        },
+                        PosOrKwArg::Kw(arg) => {
+                            self.level -= 1;
+                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(RBrace) => {
+                    let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
+                    self.level -= 1;
+                    return Ok(set);
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Err(())
     }
 
     fn try_reduce_tuple(&mut self, first_elem: Expr) -> ParseResult<Tuple> {
