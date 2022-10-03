@@ -39,6 +39,14 @@ pub fn tuple(args: Vec<Type>) -> Type {
     builtin_poly(name, args.into_iter().map(TyParam::t).collect())
 }
 
+pub fn set(elem_t: Type, len: TyParam) -> Type {
+    builtin_poly("Set", vec![TyParam::t(elem_t), len])
+}
+
+pub fn set_mut(elem_t: Type, len: TyParam) -> Type {
+    builtin_poly("Set!", vec![TyParam::t(elem_t), len])
+}
+
 #[inline]
 pub fn range(t: Type) -> Type {
     builtin_poly("Range", vec![TyParam::t(t)])
