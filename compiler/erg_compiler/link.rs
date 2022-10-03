@@ -74,6 +74,7 @@ impl<'a> Linker<'a> {
                         self.replace_erg_import(&mut elem.expr);
                     }
                 }
+                Set::WithLength(_) => todo!(),
             },
 
             Expr::Dict(_dict) => {

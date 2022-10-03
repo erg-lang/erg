@@ -16,7 +16,7 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant,
+    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -333,6 +333,7 @@ impl ASTLowerer {
         log!(info "enter {}({set})", fn_name!());
         match set {
             ast::Set::Normal(set) => Ok(hir::Set::Normal(self.lower_normal_set(set)?)),
+            ast::Set::WithLength(set) => Ok(hir::Set::WithLength(self.lower_set_with_length(set)?)),
         }
     }
 
@@ -380,6 +381,55 @@ impl ASTLowerer {
             elem_t,
             hir::Args::from(new_set),
         ))
+    }
+
+    fn lower_set_with_length(
+        &mut self,
+        set: ast::SetWithLength,
+    ) -> LowerResult<hir::SetWithLength> {
+        log!("entered {}({set})", fn_name!());
+        let elem = self.lower_expr(set.elem.expr)?;
+        let set_t = self.gen_set_with_length_type(&elem, &set.len);
+        let len = self.lower_expr(*set.len)?;
+        let hir_set = hir::SetWithLength::new(set.l_brace, set.r_brace, set_t, elem, len);
+        Ok(hir_set)
+    }
+
+    fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+        let maybe_len = self.ctx.eval_const_expr(len, None);
+        match maybe_len {
+            Ok(v @ ValueObj::Nat(_)) => {
+                if elem.ref_t().is_mut() {
+                    builtin_poly(
+                        "SetWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    set(elem.t(), TyParam::Value(v))
+                }
+            }
+            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+                if elem.ref_t().is_mut() {
+                    builtin_poly(
+                        "SetWithMutTypeAndLength!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    set_mut(elem.t(), TyParam::Value(v))
+                }
+            }
+            Ok(other) => todo!("{other} is not a Nat object"),
+            Err(_e) => {
+                if elem.ref_t().is_mut() {
+                    builtin_poly(
+                        "SetWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
+                    )
+                } else {
+                    set(elem.t(), TyParam::erased(Type::Nat))
+                }
+            }
+        }
     }
 
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
@@ -1125,6 +1175,7 @@ impl ASTLowerer {
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
+            ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
@@ -1134,7 +1185,6 @@ impl ASTLowerer {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
-            ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
             other => todo!("{other}"),
         }
     }

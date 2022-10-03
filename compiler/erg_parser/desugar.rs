@@ -14,9 +14,9 @@ use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
     DefBody, DefId, Expr, Identifier, KwArg, Lambda, LambdaSignature, Literal, Methods, Module,
     NormalArray, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamSignature, Params,
-    PosArg, Record, RecordAttrs, Set as astSet, ShortenedRecord, Signature, SubrSignature, Tuple,
-    TypeAscription, TypeBoundSpecs, TypeSpec, UnaryOp, VarName, VarPattern, VarRecordAttr,
-    VarSignature,
+    PosArg, Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature,
+    SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec, UnaryOp, VarName, VarPattern,
+    VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -427,6 +427,12 @@ impl Desugarer {
                     let elems = Args::new(elems, vec![], None);
                     let set = NormalSet::new(set.l_brace, set.r_brace, elems);
                     Expr::Set(astSet::Normal(set))
+                }
+                astSet::WithLength(set) => {
+                    let elem = PosArg::new(self.rec_desugar_self(set.elem.expr));
+                    let len = self.rec_desugar_shortened_record(*set.len);
+                    let set = SetWithLength::new(set.l_brace, set.r_brace, elem, len);
+                    Expr::Set(astSet::WithLength(set))
                 }
             },
             Expr::Dict(dict) => {

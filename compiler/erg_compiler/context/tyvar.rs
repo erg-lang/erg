@@ -543,6 +543,7 @@ impl Context {
                     }
                     Ok(())
                 }
+                hir::Set::WithLength(_) => todo!(),
             },
             hir::Expr::Dict(_dict) => {
                 todo!()

@@ -794,14 +794,43 @@ impl NormalSet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetWithLength {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub elem: Box<PosArg>,
+    pub len: Box<Expr>,
+}
+
+impl NestedDisplay for SetWithLength {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}; {}}}", self.elem, self.len)
+    }
+}
+
+impl_display_from_nested!(SetWithLength);
+impl_locational!(SetWithLength, l_brace, r_brace);
+
+impl SetWithLength {
+    pub fn new(l_brace: Token, r_brace: Token, elem: PosArg, len: Expr) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            elem: Box::new(elem),
+            len: Box::new(len),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Set {
     Normal(NormalSet),
+    WithLength(SetWithLength),
     // Comprehension(SetComprehension),
 }
 
-impl_nested_display_for_enum!(Set; Normal);
-impl_display_for_enum!(Set; Normal);
-impl_locational_for_enum!(Set; Normal);
+impl_nested_display_for_enum!(Set; Normal, WithLength);
+impl_display_for_enum!(Set; Normal, WithLength);
+impl_locational_for_enum!(Set; Normal, WithLength);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -1256,15 +1285,15 @@ pub enum ConstExpr {
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
-    // Set(Set),
+    Set(Set),
     Dict(ConstDict),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
