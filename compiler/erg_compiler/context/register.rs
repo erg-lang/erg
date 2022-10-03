@@ -15,7 +15,7 @@ use erg_parser::ast;
 
 use erg_type::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
 use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{ParamTy, SubrType, TyBound, Type};
+use erg_type::{ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -25,6 +25,7 @@ use crate::error::readable_name;
 use crate::error::{
     CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
+use crate::hir;
 use crate::hir::Literal;
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -33,7 +34,7 @@ use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::TyVarContext;
-use super::ImportKind;
+use super::OperationKind;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
@@ -856,7 +857,7 @@ impl Context {
 
     pub(crate) fn import_mod(
         &mut self,
-        kind: ImportKind,
+        kind: OperationKind,
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
         if kind.is_erg_import() {
@@ -1031,11 +1032,32 @@ impl Context {
         Ok(path)
     }
 
-    pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {
-        self.bounds.push(TyBound::subtype_of(sub, sup));
-    }
-
-    pub(crate) fn _push_instance_bound(&mut self, name: Str, t: Type) {
-        self.bounds.push(TyBound::instance(name, t));
+    pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
+        if self.rec_get_const_obj(ident.inspect()).is_some()
+            || self
+                .get_builtins()
+                .unwrap()
+                .get_local_kv(ident.inspect())
+                .is_some()
+        {
+            Err(TyCheckErrors::from(TyCheckError::del_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident,
+                self.caused_by(),
+            )))
+        } else if self.locals.get(ident.inspect()).is_some() {
+            self.locals.remove(ident.inspect());
+            Ok(())
+        } else {
+            Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            )))
+        }
     }
 }

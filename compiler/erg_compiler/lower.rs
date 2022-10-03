@@ -24,7 +24,7 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
+use crate::context::{ClassDefType, Context, ContextKind, OperationKind, RegistrationMode};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
@@ -457,11 +457,30 @@ impl ASTLowerer {
             None
         };
         let call = hir::Call::new(obj, method_name, hir_args, sig_t);
-        if let Some(kind) = call.import_kind() {
-            let mod_name = enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
-            if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
-                self.errs.extend(errs.into_iter());
-            };
+        match call.additional_operation() {
+            Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
+                let mod_name =
+                    enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
+                if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
+                    self.errs.extend(errs.into_iter());
+                };
+            }
+            Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
+                hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
+                    self.ctx.del(ident)?;
+                }
+                other => {
+                    return Err(LowerErrors::from(LowerError::syntax_error(
+                        self.input().clone(),
+                        line!() as usize,
+                        other.loc(),
+                        self.ctx.caused_by(),
+                        "",
+                        None,
+                    )))
+                }
+            },
+            _ => {}
         }
         Ok(call)
     }

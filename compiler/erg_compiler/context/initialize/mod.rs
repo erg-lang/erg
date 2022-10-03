@@ -1586,7 +1586,7 @@ impl Context {
             mono_q("T"),
         );
         let t_cond = quant(t_cond, set! {static_instance("T", Type)});
-        let t_discard = nd_func(vec![param_t("old", Obj)], None, NoneType);
+        let t_discard = nd_func(vec![param_t("obj", Obj)], None, NoneType);
         // FIXME: quantify
         let t_if = func(
             vec![
@@ -1694,6 +1694,9 @@ impl Context {
             None,
         ));
         self.register_builtin_const("Inheritable", ValueObj::Subr(inheritable));
+        // TODO: register Del function object
+        let t_del = nd_func(vec![param_t("obj", Obj)], None, NoneType);
+        self.register_builtin_impl("Del", t_del, Immutable, Private);
     }
 
     fn init_builtin_procs(&mut self) {

@@ -16,7 +16,7 @@ use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use erg_type::{Predicate, Type};
 
-use crate::hir::Expr;
+use crate::hir::{Expr, Identifier};
 
 /// dname is for "double under name"
 pub fn binop_to_dname(op: &str) -> &str {
@@ -1297,6 +1297,26 @@ impl LowerError {
                     "simplified_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
                     "traditional_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
                     "english" => format!("{YELLOW}{name}{RESET} is not used"),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
+        let name = readable_name(ident.inspect());
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                ident.loc(),
+                switch_lang!(
+                    "japanese" => format!("{YELLOW}{name}{RESET}は削除できません"),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}不能删除"),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}不能刪除"),
+                    "english" => format!("{YELLOW}{name}{RESET} cannot be deleted"),
                 ),
                 None,
             ),

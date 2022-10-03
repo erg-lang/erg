@@ -274,15 +274,17 @@ pub enum RegistrationMode {
     Normal,
 }
 
+/// Some Erg functions require additional operation by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ImportKind {
-    ErgImport,
+pub enum OperationKind {
+    Import,
     PyImport,
+    Del,
 }
 
-impl ImportKind {
+impl OperationKind {
     pub const fn is_erg_import(&self) -> bool {
-        matches!(self, Self::ErgImport)
+        matches!(self, Self::Import)
     }
     pub const fn is_py_import(&self) -> bool {
         matches!(self, Self::PyImport)
