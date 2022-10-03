@@ -23,7 +23,7 @@ use crate::context::eval::type_from_token_kind;
 use crate::context::ImportKind;
 use crate::error::readable_name;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {
     pub value: ValueObj,
     pub token: Token, // for Locational
@@ -65,7 +65,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PosArg {
     pub expr: Expr,
 }
@@ -90,7 +90,7 @@ impl PosArg {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KwArg {
     pub keyword: Token,
     pub expr: Expr,
@@ -117,7 +117,7 @@ impl KwArg {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Args {
     pub pos_args: Vec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
@@ -391,7 +391,7 @@ impl Identifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
     pub ident: Identifier,
@@ -423,7 +423,7 @@ impl Attribute {
 }
 
 /// e.g. obj.0, obj.1
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TupleAttribute {
     pub obj: Box<Expr>,
     pub index: Literal,
@@ -450,7 +450,7 @@ impl TupleAttribute {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Subscript {
     pub(crate) obj: Box<Expr>,
     pub(crate) index: Box<Expr>,
@@ -477,7 +477,7 @@ impl Subscript {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Accessor {
     Ident(Identifier),
     Attr(Attribute),
@@ -542,7 +542,7 @@ impl Accessor {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayWithLength {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
@@ -574,7 +574,7 @@ impl ArrayWithLength {
 }
 
 // TODO: generators
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
@@ -593,7 +593,7 @@ impl_display_from_nested!(ArrayComprehension);
 impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
 impl_t!(ArrayComprehension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalArray {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
@@ -629,7 +629,7 @@ impl NormalArray {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Array {
     Normal(NormalArray),
     Comprehension(ArrayComprehension),
@@ -641,7 +641,7 @@ impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
     pub elems: Args,
     t: Type,
@@ -666,7 +666,7 @@ impl NormalTuple {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Tuple {
     Normal(NormalTuple),
     // Comprehension(TupleComprehension),
@@ -677,7 +677,7 @@ impl_display_for_enum!(Tuple; Normal);
 impl_locational_for_enum!(Tuple; Normal);
 impl_t_for_enum!(Tuple; Normal);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
     pub r_brace: Token,
@@ -707,7 +707,7 @@ impl NormalDict {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DictComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
@@ -731,7 +731,7 @@ impl_display_from_nested!(DictComprehension);
 impl_locational!(DictComprehension, l_sqbr, r_sqbr);
 impl_t!(DictComprehension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Dict {
     Normal(NormalDict),
     Comprehension(DictComprehension),
@@ -742,7 +742,7 @@ impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_t_for_enum!(Dict; Normal, Comprehension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalSet {
     pub l_brace: Token,
     pub r_brace: Token,
@@ -772,7 +772,7 @@ impl NestedDisplay for NormalSet {
 impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, r_brace);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Set {
     Normal(NormalSet),
 }
@@ -782,7 +782,7 @@ impl_display_for_enum!(Set; Normal);
 impl_locational_for_enum!(Set; Normal);
 impl_t_for_enum!(Set; Normal);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
 
 impl NestedDisplay for RecordAttrs {
@@ -832,7 +832,7 @@ impl RecordAttrs {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Record {
     l_brace: Token,
     r_brace: Token,
@@ -874,7 +874,7 @@ impl Record {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BinOp {
     pub op: Token,
     pub lhs: Box<Expr>,
@@ -931,7 +931,7 @@ impl BinOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnaryOp {
     pub op: Token,
     pub expr: Box<Expr>,
@@ -984,7 +984,7 @@ impl UnaryOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
     pub method_name: Option<Identifier>,
@@ -1060,7 +1060,7 @@ impl Call {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Block(Vec<Expr>);
 
 impl HasType for Block {
@@ -1101,7 +1101,7 @@ impl Locational for Block {
     }
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
     pub t: Type,
@@ -1131,7 +1131,7 @@ impl VarSignature {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub ident: Identifier,
     pub params: Params,
@@ -1158,7 +1158,7 @@ impl SubrSignature {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Lambda {
     pub params: Params,
     op: Token,
@@ -1194,7 +1194,7 @@ impl Lambda {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Signature {
     Var(VarSignature),
     Subr(SubrSignature),
@@ -1255,7 +1255,7 @@ impl Signature {
 
 /// represents a declaration of a variable
 /// necessary for type field declaration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Decl {
     pub sig: Signature,
     pub t: Type,
@@ -1305,7 +1305,7 @@ impl Decl {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
     pub block: Block,
@@ -1320,7 +1320,7 @@ impl DefBody {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Def {
     pub sig: Signature,
     pub body: DefBody,
@@ -1387,7 +1387,7 @@ impl Def {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
     pub class: TypeSpec,
     pub vis: Token,        // `.` or `::`
@@ -1429,7 +1429,7 @@ impl Methods {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassDef {
     pub kind: TypeKind,
     pub sig: Signature,
@@ -1490,7 +1490,7 @@ impl ClassDef {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttrDef {
     pub attr: Accessor,
     pub block: Block,
@@ -1532,7 +1532,7 @@ impl AttrDef {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
     pub spec: TypeSpec,
@@ -1575,7 +1575,7 @@ impl TypeAscription {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     Lit(Literal),
     Accessor(Accessor),
@@ -1631,7 +1631,7 @@ impl Expr {
 }
 
 /// Toplevel grammar unit
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module(Vec<Expr>);
 
 impl fmt::Display for Module {
@@ -1648,7 +1648,7 @@ impl Locational for Module {
 
 impl_stream_for_wrapper!(Module, Expr);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HIR {
     pub name: Str,
     pub module: Module,
