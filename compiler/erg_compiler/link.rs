@@ -70,7 +70,7 @@ impl<'a> Linker<'a> {
             },
             Expr::Set(set) => match set {
                 Set::Normal(st) => {
-                    for elem in st.attrs.pos_args.iter_mut() {
+                    for elem in st.elems.pos_args.iter_mut() {
                         self.replace_erg_import(&mut elem.expr);
                     }
                 }

@@ -747,25 +747,27 @@ pub struct NormalSet {
     pub l_brace: Token,
     pub r_brace: Token,
     pub t: Type,
-    pub attrs: Args,
+    pub elems: Args,
 }
 
 impl_t!(NormalSet);
 
 impl NormalSet {
-    pub const fn new(l_brace: Token, r_brace: Token, t: Type, attrs: Args) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, t: Type, elems: Args) -> Self {
         Self {
             l_brace,
             r_brace,
             t,
-            attrs,
+            elems,
         }
     }
 }
 
 impl NestedDisplay for NormalSet {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}(: {})", self.attrs, self.t)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "{{")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "\n{}}}(: {})", "    ".repeat(level), self.t)
     }
 }
 
@@ -773,14 +775,46 @@ impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, r_brace);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Set {
-    Normal(NormalSet),
+pub struct SetWithLength {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub t: Type,
+    pub elem: Box<Expr>,
+    pub len: Box<Expr>,
 }
 
-impl_nested_display_for_enum!(Set; Normal);
-impl_display_for_enum!(Set; Normal);
-impl_locational_for_enum!(Set; Normal);
-impl_t_for_enum!(Set; Normal);
+impl NestedDisplay for SetWithLength {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{}; {}](: {})", self.elem, self.len, self.t)
+    }
+}
+
+impl_display_from_nested!(SetWithLength);
+impl_locational!(SetWithLength, l_brace, r_brace);
+impl_t!(SetWithLength);
+
+impl SetWithLength {
+    pub fn new(l_brace: Token, r_brace: Token, t: Type, elem: Expr, len: Expr) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            t,
+            elem: Box::new(elem),
+            len: Box::new(len),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Set {
+    Normal(NormalSet),
+    WithLength(SetWithLength),
+}
+
+impl_nested_display_for_enum!(Set; Normal, WithLength);
+impl_display_for_enum!(Set; Normal, WithLength);
+impl_locational_for_enum!(Set; Normal, WithLength);
+impl_t_for_enum!(Set; Normal, WithLength);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
