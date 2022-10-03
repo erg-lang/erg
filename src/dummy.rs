@@ -8,6 +8,9 @@ use erg_common::config::ErgConfig;
 use erg_common::python_util::{exec_pyc, spawn_py};
 use erg_common::traits::Runnable;
 
+use erg_compiler::hir::Expr;
+use erg_type::HasType;
+
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
 
@@ -112,8 +115,9 @@ impl Runnable for DummyVM {
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        self.compiler
-            .compile_and_dump_as_pyc("o.pyc", src, "eval")?;
+        let last = self
+            .compiler
+            .eval_compile_and_dump_as_pyc("o.pyc", src, "eval")?;
         let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
             Result::Ok(_) => {
                 let mut buf = [0; 1024];
@@ -138,6 +142,15 @@ impl Runnable for DummyVM {
         };
         if res.ends_with("None") {
             res.truncate(res.len() - 5);
+        }
+        if self.cfg().show_type {
+            res.push_str(": ");
+            res.push_str(&last.t().to_string());
+            if let Expr::Def(def) = last {
+                res.push_str(&format!(" ({}: ", def.sig.ident()));
+                res.push_str(&def.sig.t().to_string());
+                res.push(')');
+            }
         }
         Ok(res)
     }

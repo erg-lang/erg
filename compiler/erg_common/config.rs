@@ -148,6 +148,7 @@ pub struct ErgConfig {
     pub python_ver: Option<u32>,
     pub py_server_timeout: u64,
     pub quiet_startup: bool,
+    pub show_type: bool,
     pub input: Input,
     /// module name to be executed
     pub module: &'static str,
@@ -171,6 +172,7 @@ impl Default for ErgConfig {
             python_ver: None,
             py_server_timeout: 10,
             quiet_startup: false,
+            show_type: false,
             input: Input::REPL,
             module: "<module>",
             verbose: 2,
@@ -254,6 +256,9 @@ impl ErgConfig {
                 }
                 "--quiet-startup" => {
                     cfg.quiet_startup = true;
+                }
+                "-t" | "--show-type" => {
+                    cfg.show_type = true;
                 }
                 "--verbose" if next_arg.is_some() => {
                     if let Ok(vr) = next_arg.unwrap().parse::<u8>() {
