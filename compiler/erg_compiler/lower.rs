@@ -329,6 +329,59 @@ impl ASTLowerer {
         Ok(hir_record)
     }
 
+    fn lower_set(&mut self, set: ast::Set) -> LowerResult<hir::Set> {
+        log!(info "enter {}({set})", fn_name!());
+        match set {
+            ast::Set::Normal(set) => Ok(hir::Set::Normal(self.lower_normal_set(set)?)),
+        }
+    }
+
+    fn lower_normal_set(&mut self, set: ast::NormalSet) -> LowerResult<hir::NormalSet> {
+        log!(info "entered {}({set})", fn_name!());
+        let (elems, _) = set.elems.into_iters();
+        let mut new_set = vec![];
+        let mut union = Type::Never;
+        for elem in elems {
+            let elem = self.lower_expr(elem.expr)?;
+            union = self.ctx.union(&union, elem.ref_t());
+            if matches!(union, Type::Or(_, _)) {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    elem.loc(),
+                    AtomicStr::arc(&self.ctx.name[..]),
+                    switch_lang!(
+                        "japanese" => "集合の要素は全て同じ型である必要があります",
+                        "simplified_chinese" => "集合元素必须全部是相同类型",
+                        "traditional_chinese" => "集合元素必須全部是相同類型",
+                        "english" => "all elements of a set must be of the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                )));
+            }
+            new_set.push(elem);
+        }
+        let elem_t = if union == Type::Never {
+            free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
+        } else {
+            union
+        };
+        Ok(hir::NormalSet::new(
+            set.l_brace,
+            set.r_brace,
+            elem_t,
+            hir::Args::from(new_set),
+        ))
+    }
+
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
@@ -1081,6 +1134,7 @@ impl ASTLowerer {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+            ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
             other => todo!("{other}"),
         }
     }

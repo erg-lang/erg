@@ -743,6 +743,46 @@ impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_t_for_enum!(Dict; Normal, Comprehension);
 
 #[derive(Debug, Clone)]
+pub struct NormalSet {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub t: Type,
+    pub attrs: Args,
+}
+
+impl_t!(NormalSet);
+
+impl NormalSet {
+    pub const fn new(l_brace: Token, r_brace: Token, t: Type, attrs: Args) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            t,
+            attrs,
+        }
+    }
+}
+
+impl NestedDisplay for NormalSet {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}}}(: {})", self.attrs, self.t)
+    }
+}
+
+impl_display_from_nested!(NormalSet);
+impl_locational!(NormalSet, l_brace, r_brace);
+
+#[derive(Debug, Clone)]
+pub enum Set {
+    Normal(NormalSet),
+}
+
+impl_nested_display_for_enum!(Set; Normal);
+impl_display_for_enum!(Set; Normal);
+impl_locational_for_enum!(Set; Normal);
+impl_t_for_enum!(Set; Normal);
+
+#[derive(Debug, Clone)]
 pub struct RecordAttrs(Vec<Def>);
 
 impl NestedDisplay for RecordAttrs {
@@ -1541,7 +1581,7 @@ pub enum Expr {
     Accessor(Accessor),
     Array(Array),
     Tuple(Tuple),
-    // Set(Set),
+    Set(Set),
     Dict(Dict),
     Record(Record),
     BinOp(BinOp),
@@ -1557,10 +1597,10 @@ pub enum Expr {
     Compound(Block), // compound statement
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
 
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {

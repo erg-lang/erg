@@ -536,6 +536,14 @@ impl Context {
                     Ok(())
                 }
             },
+            hir::Expr::Set(set) => match set {
+                hir::Set::Normal(st) => {
+                    for elem in st.attrs.pos_args.iter_mut() {
+                        self.resolve_expr_t(&mut elem.expr)?;
+                    }
+                    Ok(())
+                }
+            },
             hir::Expr::Dict(_dict) => {
                 todo!()
             }
