@@ -1852,7 +1852,7 @@ impl Type {
             Self::FreeVar(fv) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.name(),
                 FreeKind::NamedUnbound { name, .. } => name.clone(),
-                FreeKind::Unbound { id, .. } => Str::from(id.to_string()),
+                FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
             }, // TODO: 中身がSomeなら表示したい
             Self::MonoProj { .. } => Str::ever("MonoProj"),
             Self::Failure => Str::ever("Failure"),

@@ -143,6 +143,19 @@ impl SideEffectChecker {
                 Expr::TypeAsc(tasc) => {
                     self.check_expr(&tasc.expr);
                 }
+                Expr::Lambda(lambda) => {
+                    let is_proc = lambda.is_procedural();
+                    if is_proc {
+                        self.path_stack.push((Str::ever("<lambda!>"), Private));
+                        self.block_stack.push(Proc);
+                    } else {
+                        self.path_stack.push((Str::ever("<lambda>"), Private));
+                        self.block_stack.push(Func);
+                    }
+                    lambda.body.iter().for_each(|chunk| self.check_expr(chunk));
+                    self.path_stack.pop();
+                    self.block_stack.pop();
+                }
                 other => todo!("{other}"),
             }
         }

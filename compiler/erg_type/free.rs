@@ -632,7 +632,7 @@ impl<T: Clone + HasLevel> Free<T> {
     pub fn unbound_name(&self) -> Option<Str> {
         match &*self.borrow() {
             FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
-            FreeKind::Unbound { id, .. } => Some(Str::from(id.to_string())),
+            FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
             _ => None,
         }
     }

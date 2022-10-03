@@ -53,7 +53,7 @@ impl Context {
             // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => match &*fv.borrow() {
                 FreeKind::Unbound { id, constraint, .. } => {
-                    let name = id.to_string();
+                    let name = format!("%{id}");
                     self.generalize_constraint(&name, constraint, bounds, lazy_inits);
                     TyParam::mono_q(name)
                 }
@@ -120,7 +120,7 @@ impl Context {
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => match &*fv.borrow() {
                 FreeKind::Unbound { id, constraint, .. } => {
-                    let name = id.to_string();
+                    let name = format!("%{id}");
                     self.generalize_constraint(&name, constraint, bounds, lazy_inits);
                     mono_q(name)
                 }
@@ -510,7 +510,10 @@ impl Context {
                         self.resolve_expr_t(&mut subscr.obj)?;
                         self.resolve_expr_t(&mut subscr.index)?;
                     }
-                    hir::Accessor::Ident(_) => {}
+                    hir::Accessor::Ident(ident) => {
+                        ident.t =
+                            self.deref_tyvar(mem::take(&mut ident.t), Covariant, ident.loc())?;
+                    }
                 }
                 Ok(())
             }

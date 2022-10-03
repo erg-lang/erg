@@ -5,12 +5,14 @@ use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::log;
-use erg_common::traits::Runnable;
+use erg_common::traits::{Runnable, Stream};
+
 use erg_type::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
 use crate::codegen::CodeGenerator;
 use crate::error::{CompileError, CompileErrors};
+use crate::hir::Expr;
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 
@@ -154,6 +156,18 @@ impl Compiler {
         Ok(())
     }
 
+    pub fn eval_compile_and_dump_as_pyc<P: AsRef<Path>>(
+        &mut self,
+        pyc_path: P,
+        src: String,
+        mode: &str,
+    ) -> Result<Expr, CompileErrors> {
+        let (code, last) = self.eval_compile(src, mode)?;
+        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
+            .expect("failed to dump a .pyc file (maybe permission denied)");
+        Ok(last)
+    }
+
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
         let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
@@ -163,5 +177,21 @@ impl Compiler {
         log!(info "code object:\n{}", codeobj.code_info());
         log!(info "the compiling process has completed");
         Ok(codeobj)
+    }
+
+    pub fn eval_compile(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<(CodeObj, Expr), CompileErrors> {
+        log!(info "the compiling process has started.");
+        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
+        let last = hir.module.last().unwrap().clone();
+        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let hir = linker.link(hir);
+        let codeobj = self.code_generator.emit(hir);
+        log!(info "code object:\n{}", codeobj.code_info());
+        log!(info "the compiling process has completed");
+        Ok((codeobj, last))
     }
 }
