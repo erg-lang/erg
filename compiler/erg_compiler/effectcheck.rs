@@ -170,18 +170,6 @@ impl SideEffectChecker {
     }
 
     fn check_def(&mut self, def: &Def) {
-        if !def.sig.is_subr() {
-            let expr = def.body.block.last().unwrap();
-            if !def.sig.is_procedural() && expr.t().is_procedural() {
-                self.errs.push(EffectError::proc_assign_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    &def.sig,
-                    self.full_path(),
-                ));
-            }
-            return;
-        }
         let name_and_vis = match &def.sig {
             Signature::Var(var) => (var.inspect().clone(), var.vis()),
             Signature::Subr(subr) => (subr.ident.inspect().clone(), subr.ident.vis()),
@@ -211,8 +199,22 @@ impl SideEffectChecker {
                 self.block_stack.push(ConstInstant);
             }
         }
-        for chunk in def.body.block.iter() {
+        let last_idx = def.body.block.len() - 1;
+        for (i, chunk) in def.body.block.iter().enumerate() {
             self.check_expr(chunk);
+            // e.g. `echo = print!`
+            if i == last_idx
+                && self.block_stack.last().unwrap() == &Instant
+                && !def.sig.is_procedural()
+                && chunk.t().is_procedural()
+            {
+                self.errs.push(EffectError::proc_assign_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &def.sig,
+                    self.full_path(),
+                ));
+            }
         }
         self.path_stack.pop();
         self.block_stack.pop();
