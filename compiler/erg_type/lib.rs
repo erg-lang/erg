@@ -1382,7 +1382,10 @@ impl LimitedDisplay for Type {
                 write!(f, ")")
             }
             Self::PolyQVar { name, params } => {
-                write!(f, "'{name}(")?;
+                if cfg!(feature = "debug") {
+                    write!(f, "'")?;
+                }
+                write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
@@ -1391,7 +1394,12 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, ")")
             }
-            Self::MonoQVar(name) => write!(f, "'{name}"),
+            Self::MonoQVar(name) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "'")?;
+                }
+                write!(f, "{name}")
+            }
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::MonoProj { lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
