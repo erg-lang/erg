@@ -306,7 +306,7 @@ impl LimitedDisplay for TyBound {
                 }
             },
             Self::Instance { name, t } => {
-                write!(f, "'{name}: ")?;
+                write!(f, "{name}: ")?;
                 t.limited_fmt(f, limit - 1)
             }
         }
