@@ -342,6 +342,12 @@ impl Context {
                 let constraint = fv.crack_constraint();
                 let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.level <= fv.level().unwrap() {
+                    /*if self.is_trait(sub_t) {
+                        self.check_trait_exists(sub_t, loc)?;
+                    }*/
+                    if self.is_trait(super_t) {
+                        self.check_trait_exists(sub_t, super_t, loc)?;
+                    }
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
                     if self.subtype_of(sub_t, super_t) {
                         match variance {
@@ -499,6 +505,34 @@ impl Context {
                 Ok(not(l, r))
             }
             t => Ok(t),
+        }
+    }
+
+    fn check_trait_exists(
+        &self,
+        class: &Type,
+        trait_: &Type,
+        loc: Location,
+    ) -> SingleTyCheckResult<()> {
+        let mut super_exists = false;
+        for inst in self.get_trait_impls(trait_).into_iter() {
+            if self.supertype_of(&inst.sup_trait, trait_) {
+                super_exists = true;
+                break;
+            }
+        }
+        if !super_exists {
+            Err(TyCheckError::no_trait_impl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                class,
+                trait_,
+                loc,
+                self.caused_by(),
+                None,
+            ))
+        } else {
+            Ok(())
         }
     }
 

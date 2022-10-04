@@ -1490,6 +1490,17 @@ impl Context {
                     return Some(res);
                 }
             }
+            Type::Or(l, r) => {
+                let (lt, lctx) = self.get_nominal_type_ctx(l)?;
+                let (rt, rctx) = self.get_nominal_type_ctx(r)?;
+                // use smaller context
+                return match (self.supertype_of(lt, rt), self.supertype_of(rt, lt)) {
+                    (true, true) => Some((rt, lctx)),
+                    (true, false) => Some((rt, lctx)),
+                    (false, true) => Some((lt, rctx)),
+                    (false, false) => None,
+                };
+            }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
                 if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {

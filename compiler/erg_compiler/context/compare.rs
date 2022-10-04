@@ -828,28 +828,18 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) => return lhs.clone(),  // lhs = rhs
-            (true, false) => return lhs.clone(), // lhs :> rhs
-            (false, true) => return rhs.clone(),
-            (false, false) => {}
+        // ?T or ?U will not be unified
+        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
+            match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+                (true, true) => return lhs.clone(),  // lhs = rhs
+                (true, false) => return lhs.clone(), // lhs :> rhs
+                (false, true) => return rhs.clone(),
+                (false, false) => {}
+            }
         }
         match (lhs, rhs) {
-            (Type::FreeVar(lfv), Type::FreeVar(rfv)) if lfv.is_unbound() && rfv.is_unbound() => {
-                let (lsub, lsup) = lfv.get_bound_types().unwrap();
-                let (rsub, rsup) = rfv.get_bound_types().unwrap();
-                let sub = self.union(&lsub, &rsub);
-                let sup = self.union(&lsup, &rsup);
-                let new_constraint =
-                    Constraint::new_sandwiched(sub, sup, lfv.cyclicity().combine(rfv.cyclicity()));
-                if lfv.level().unwrap() <= rfv.level().unwrap() {
-                    lfv.update_constraint(new_constraint);
-                    rfv.link(lhs);
-                } else {
-                    rfv.update_constraint(new_constraint);
-                    lfv.link(rhs);
-                }
-                Type::FreeVar(lfv.clone())
+            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
+                self.union(&lfv.crack(), &rfv.crack())
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
@@ -876,28 +866,18 @@ impl Context {
 
     /// returns intersection of two types (A and B)
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) => return lhs.clone(),  // lhs = rhs
-            (true, false) => return rhs.clone(), // lhs :> rhs
-            (false, true) => return lhs.clone(),
-            (false, false) => {}
+        // ?T and ?U will not be unified
+        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
+            match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+                (true, true) => return lhs.clone(),  // lhs = rhs
+                (true, false) => return rhs.clone(), // lhs :> rhs
+                (false, true) => return lhs.clone(),
+                (false, false) => {}
+            }
         }
         match (lhs, rhs) {
-            (Type::FreeVar(lfv), Type::FreeVar(rfv)) if lfv.is_unbound() && rfv.is_unbound() => {
-                let (lsub, lsup) = lfv.get_bound_types().unwrap();
-                let (rsub, rsup) = rfv.get_bound_types().unwrap();
-                let sub = self.intersection(&lsub, &rsub);
-                let sup = self.intersection(&lsup, &rsup);
-                let new_constraint =
-                    Constraint::new_sandwiched(sub, sup, lfv.cyclicity().combine(rfv.cyclicity()));
-                if lfv.level().unwrap() <= rfv.level().unwrap() {
-                    lfv.update_constraint(new_constraint);
-                    rfv.link(lhs);
-                } else {
-                    rfv.update_constraint(new_constraint);
-                    lfv.link(rhs);
-                }
-                Type::FreeVar(lfv.clone())
+            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
+                self.intersection(&lfv.crack(), &rfv.crack())
             }
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Type::Record(l), Type::Record(r)) => Type::Record(l.clone().concat(r.clone())),

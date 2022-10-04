@@ -5,6 +5,7 @@
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::vis::Visibility;
@@ -24,7 +25,9 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context, ContextKind, OperationKind, RegistrationMode};
+use crate::context::{
+    ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
+};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
@@ -834,6 +837,9 @@ impl ASTLowerer {
             match self.ctx.check_decls_and_pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
+                    if let Some((trait_, _)) = &impl_trait {
+                        self.register_trait_impl(&class, trait_);
+                    }
                     self.check_trait_impl(impl_trait, &class, &methods)?;
                     self.push_methods(class, methods);
                 }
@@ -928,6 +934,8 @@ impl ASTLowerer {
         }
     }
 
+    /// Inspect the Trait implementation for correctness,
+    /// i.e., check that all required attributes are defined and that no extra attributes are defined
     fn check_trait_impl(
         &mut self,
         impl_trait: Option<(Type, Location)>,
@@ -1020,6 +1028,18 @@ impl ASTLowerer {
             }
         }
         Ok(())
+    }
+
+    fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
+        // TODO: polymorphic trait
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.name()) {
+            impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
+        } else {
+            self.ctx.trait_impls.insert(
+                trait_.name(),
+                set! {TraitInstance::new(class.clone(), trait_.clone())},
+            );
+        }
     }
 
     fn push_methods(&mut self, class: Type, methods: Context) {

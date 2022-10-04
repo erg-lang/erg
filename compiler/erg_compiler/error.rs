@@ -755,6 +755,33 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
+    pub fn no_trait_impl_error(
+        input: Input,
+        errno: usize,
+        class: &Type,
+        trait_: &Type,
+        loc: Location,
+        caused_by: AtomicStr,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{class}は{trait_}を実装していません"),
+                    "simplified_chinese" => format!("{class}没有实现{trait_}"),
+                    "traditional_chinese" => format!("{class}沒有實現{trait_}"),
+                    "english" => format!("{class} does not implement {trait_}"),
+                ),
+                hint,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn method_definition_error(
         input: Input,
         errno: usize,
