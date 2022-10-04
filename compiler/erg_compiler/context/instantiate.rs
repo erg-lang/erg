@@ -711,16 +711,15 @@ impl Context {
             TypeSpec::PreDeclTy(predecl) => {
                 Ok(self.instantiate_predecl_t(predecl, opt_decl_t, tmp_tv_ctx)?)
             }
-            // TODO: Flatten
-            TypeSpec::And(lhs, rhs) => Ok(and(
-                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
+            TypeSpec::And(lhs, rhs) => Ok(self.union(
+                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
+            )),
+            TypeSpec::Or(lhs, rhs) => Ok(self.intersection(
+                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
             TypeSpec::Not(lhs, rhs) => Ok(not(
-                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
-            )),
-            TypeSpec::Or(lhs, rhs) => Ok(or(
                 self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
                 self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
@@ -1024,12 +1023,12 @@ impl Context {
             And(l, r) => {
                 let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
                 let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
-                Ok(and(l, r))
+                Ok(self.intersection(&l, &r))
             }
             Or(l, r) => {
                 let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
                 let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
-                Ok(or(l, r))
+                Ok(self.union(&l, &r))
             }
             Not(l, r) => {
                 let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;

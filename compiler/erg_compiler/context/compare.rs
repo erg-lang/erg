@@ -835,6 +835,22 @@ impl Context {
             (false, false) => {}
         }
         match (lhs, rhs) {
+            (Type::FreeVar(lfv), Type::FreeVar(rfv)) if lfv.is_unbound() && rfv.is_unbound() => {
+                let (lsub, lsup) = lfv.get_bound_types().unwrap();
+                let (rsub, rsup) = rfv.get_bound_types().unwrap();
+                let sub = self.union(&lsub, &rsub);
+                let sup = self.union(&lsup, &rsup);
+                let new_constraint =
+                    Constraint::new_sandwiched(sub, sup, lfv.cyclicity().combine(rfv.cyclicity()));
+                if lfv.level().unwrap() <= rfv.level().unwrap() {
+                    lfv.update_constraint(new_constraint);
+                    rfv.link(lhs);
+                } else {
+                    rfv.update_constraint(new_constraint);
+                    lfv.link(rhs);
+                }
+                Type::FreeVar(lfv.clone())
+            }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             (t, Refinement(r)) | (Refinement(r), t) => {
@@ -867,9 +883,22 @@ impl Context {
             (false, false) => {}
         }
         match (lhs, rhs) {
-            /*(Type::FreeVar(_), _) | (_, Type::FreeVar(_)) => {
-                todo!()
-            }*/
+            (Type::FreeVar(lfv), Type::FreeVar(rfv)) if lfv.is_unbound() && rfv.is_unbound() => {
+                let (lsub, lsup) = lfv.get_bound_types().unwrap();
+                let (rsub, rsup) = rfv.get_bound_types().unwrap();
+                let sub = self.intersection(&lsub, &rsub);
+                let sup = self.intersection(&lsup, &rsup);
+                let new_constraint =
+                    Constraint::new_sandwiched(sub, sup, lfv.cyclicity().combine(rfv.cyclicity()));
+                if lfv.level().unwrap() <= rfv.level().unwrap() {
+                    lfv.update_constraint(new_constraint);
+                    rfv.link(lhs);
+                } else {
+                    rfv.update_constraint(new_constraint);
+                    lfv.link(rhs);
+                }
+                Type::FreeVar(lfv.clone())
+            }
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Type::Record(l), Type::Record(r)) => Type::Record(l.clone().concat(r.clone())),
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),

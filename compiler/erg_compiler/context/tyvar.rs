@@ -204,6 +204,7 @@ impl Context {
             Or(l, r) => {
                 let l = self.generalize_t_inner(*l, bounds, lazy_inits);
                 let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                // not `self.union` because types are generalized
                 or(l, r)
             }
             Not(l, r) => {
