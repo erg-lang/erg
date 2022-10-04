@@ -177,6 +177,10 @@ impl<T: Hash + Eq> Set<T> {
 }
 
 impl<T: Hash + Eq + Clone> Set<T> {
+    /// ```
+    /// # use erg_common::set;
+    /// assert_eq!(set!{1, 2, 3}.union(&set!{2, 3, 4}), set!{1, 2, 3, 4});
+    /// ```
     #[inline]
     pub fn union(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.union(&other.elems);
@@ -185,6 +189,10 @@ impl<T: Hash + Eq + Clone> Set<T> {
         }
     }
 
+    /// ```
+    /// # use erg_common::set;
+    /// assert_eq!(set!{1, 2, 3}.intersection(&set!{2, 3, 4}), set!{2, 3});
+    /// ```
     #[inline]
     pub fn intersection(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.intersection(&other.elems);

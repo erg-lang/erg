@@ -837,11 +837,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }

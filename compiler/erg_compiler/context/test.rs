@@ -32,9 +32,9 @@ impl Context {
     pub fn test_resolve_trait_inner1(&self) -> Result<(), ()> {
         let name = Str::ever("Add");
         let params = vec![TyParam::t(Nat)];
-        let maybe_trait = builtin_poly(name.clone(), params);
+        let maybe_trait = builtin_poly(name, params);
         let mut min = Type::Obj;
-        for pair in self.rec_get_trait_impls(&name) {
+        for pair in self.get_trait_impls(&maybe_trait) {
             if self.supertype_of(&pair.sup_trait, &maybe_trait) {
                 min = self.min(&min, &pair.sub_type).unwrap_or(&min).clone();
             }

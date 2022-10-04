@@ -23,6 +23,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -329,7 +330,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Vec<TraitInstance>>,
+    pub(crate) trait_impls: Dict<Str, Set<TraitInstance>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names

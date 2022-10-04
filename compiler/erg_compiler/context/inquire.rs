@@ -16,7 +16,10 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{builtin_mono, func, module, mono, mono_proj, v_enum};
+use erg_type::constructors::{
+    anon, builtin_mono, free_var, func, module, mono, mono_proj, subr_t, v_enum,
+};
+use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
@@ -700,6 +703,7 @@ impl Context {
     /// substitute_call(instance: ((?T, Int) -> ?T), [Int, Nat], []) => instance: (Int, Int) -> Str
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
     /// substitute_call(instance: ((?L(: Add(?R, ?O)), ?R) -> ?O), [1, 2], []) => instance: (Nat, Nat) -> Nat
+    /// substitute_call(instance: ?T, [Int, Str], []) => instance: (Int, Str) -> Int
     /// ```
     fn substitute_call(
         &self,
@@ -712,6 +716,26 @@ impl Context {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.substitute_call(obj, method_name, &fv.crack(), pos_args, kw_args)
+            }
+            Type::FreeVar(fv) => {
+                if let Some(_method_name) = method_name {
+                    todo!()
+                } else {
+                    let is_procedural = obj
+                        .show_acc()
+                        .map(|acc| acc.ends_with('!'))
+                        .unwrap_or(false);
+                    let kind = if is_procedural {
+                        SubrKind::Proc
+                    } else {
+                        SubrKind::Func
+                    };
+                    let ret_t = free_var(self.level, Constraint::new_type_of(Type));
+                    let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
+                    let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
+                    fv.link(&subr_t);
+                    Ok(())
+                }
             }
             Type::Refinement(refine) => {
                 self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
@@ -1152,13 +1176,19 @@ impl Context {
             .iter()
             .map(|(opt_name, _)| {
                 if let Some(name) = opt_name {
-                    if let Some(t) = self.super_traits.iter().find(|t| {
-                        (&t.name()[..] == "Input" || &t.name()[..] == "Output")
-                            && t.inner_ts()
-                                .first()
-                                .map(|t| &t.name() == name.inspect())
-                                .unwrap_or(false)
-                    }) {
+                    // トレイトの変性を調べるときはsuper_classesも見る必要がある
+                    if let Some(t) = self
+                        .super_traits
+                        .iter()
+                        .chain(self.super_classes.iter())
+                        .find(|t| {
+                            (&t.name()[..] == "Input" || &t.name()[..] == "Output")
+                                && t.inner_ts()
+                                    .first()
+                                    .map(|t| &t.name() == name.inspect())
+                                    .unwrap_or(false)
+                        })
+                    {
                         match &t.name()[..] {
                             "Output" => Variance::Covariant,
                             "Input" => Variance::Contravariant,
@@ -1491,14 +1521,43 @@ impl Context {
         None
     }
 
-    pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstance> {
-        let current = if let Some(impls) = self.trait_impls.get(name) {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+        match t {
+            // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
+            // == {Int <: Add(Int) and Sub(Int), ...}
+            Type::And(l, r) => {
+                let l_impls = self.get_trait_impls(l);
+                let l_base = Set::from_iter(l_impls.iter().map(|ti| &ti.sub_type));
+                let r_impls = self.get_trait_impls(r);
+                let r_base = Set::from_iter(r_impls.iter().map(|ti| &ti.sub_type));
+                let bases = l_base.intersection(&r_base);
+                let mut isec = set! {};
+                for base in bases.into_iter() {
+                    let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
+                    let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
+                    let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
+                    isec.insert(TraitInstance::new(lti.sub_type.clone(), sup_trait));
+                }
+                isec
+            }
+            Type::Or(l, r) => {
+                let l_impls = self.get_trait_impls(l);
+                let r_impls = self.get_trait_impls(r);
+                // FIXME:
+                l_impls.union(&r_impls)
+            }
+            _ => self.get_simple_trait_impls(t),
+        }
+    }
+
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+        let current = if let Some(impls) = self.trait_impls.get(&t.name()) {
             impls.clone()
         } else {
-            vec![]
+            set! {}
         };
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            [current, outer.rec_get_trait_impls(name)].concat()
+            current.union(&outer.get_simple_trait_impls(t))
         } else {
             current
         }
@@ -1731,7 +1790,7 @@ impl Context {
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_sup() {
-                    let insts = self.rec_get_trait_impls(&sup.name());
+                    let insts = self.get_trait_impls(&sup);
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
                             self.eval_t_params(

@@ -945,13 +945,14 @@ impl Context {
                     *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
                 }
                 let return_t = self.instantiate_t(*subr.return_t, tmp_tv_ctx, loc)?;
-                Ok(subr_t(
+                let res = subr_t(
                     subr.kind,
                     subr.non_default_params,
                     subr.var_params.map(|p| *p),
                     subr.default_params,
                     return_t,
-                ))
+                );
+                Ok(res)
             }
             Record(mut dict) => {
                 for v in dict.values_mut() {

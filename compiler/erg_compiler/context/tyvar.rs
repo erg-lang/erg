@@ -120,15 +120,28 @@ impl Context {
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => match &*fv.borrow() {
                 FreeKind::Unbound { id, constraint, .. } => {
-                    let name = format!("%{id}");
-                    self.generalize_constraint(&name, constraint, bounds, lazy_inits);
-                    mono_q(name)
+                    // |Int <: T <: Int| T -> T ==> Int -> Int
+                    let (l, r) = constraint.get_sub_sup().unwrap();
+                    if l == r {
+                        fv.forced_link(&l.clone());
+                        FreeVar(fv.clone())
+                    } else {
+                        let name = format!("%{id}");
+                        self.generalize_constraint(&name, constraint, bounds, lazy_inits);
+                        mono_q(name)
+                    }
                 }
                 FreeKind::NamedUnbound {
                     name, constraint, ..
                 } => {
-                    self.generalize_constraint(name, constraint, bounds, lazy_inits);
-                    mono_q(name)
+                    let (l, r) = constraint.get_sub_sup().unwrap();
+                    if l == r {
+                        fv.forced_link(l);
+                        FreeVar(fv.clone())
+                    } else {
+                        self.generalize_constraint(name, constraint, bounds, lazy_inits);
+                        mono_q(name)
+                    }
                 }
                 _ => assume_unreachable!(),
             },
@@ -181,6 +194,22 @@ impl Context {
             MonoProj { lhs, rhs } => {
                 let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
                 mono_proj(lhs, rhs)
+            }
+            And(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                // not `self.intersection` because types are generalized
+                and(l, r)
+            }
+            Or(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                or(l, r)
+            }
+            Not(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                not(l, r)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,

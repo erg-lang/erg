@@ -77,6 +77,7 @@ impl Context {
         }
     }
 
+    /// FIXME: トレイトの汎化型を指定するのにも使っているので、この名前は適当でない
     pub(crate) fn register_superclass(&mut self, sup: Type, sup_ctx: &Context) {
         self.super_classes.push(sup);
         self.super_classes.extend(sup_ctx.super_classes.clone());
@@ -114,11 +115,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
@@ -155,11 +156,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
@@ -1587,7 +1588,6 @@ impl Context {
         );
         let t_cond = quant(t_cond, set! {static_instance("T", Type)});
         let t_discard = nd_func(vec![param_t("obj", Obj)], None, NoneType);
-        // FIXME: quantify
         let t_if = func(
             vec![
                 param_t("cond", Bool),

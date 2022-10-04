@@ -436,6 +436,16 @@ impl<T: Clone + HasLevel> Free<T> {
         *self.borrow_mut() = FreeKind::Linked(to.clone());
     }
 
+    pub fn forced_link(&self, to: &T) {
+        // prevent linking to self
+        if self.is_linked() && addr_eq!(*self.crack(), *to) {
+            return;
+        }
+        unsafe {
+            *self.as_ptr() = FreeKind::Linked(to.clone());
+        }
+    }
+
     pub fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");

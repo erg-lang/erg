@@ -638,8 +638,26 @@ impl Context {
             (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
                 panic!("internal error: not instantiated type variable: '{name}, l: {l}")
             }
-            (MonoProj { .. }, _) => todo!(),
-            (_, MonoProj { .. }) => todo!(),
+            (MonoProj { .. }, _) => {
+                if let Some(cands) = self.get_candidates(lhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(&cand, rhs) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            (_, MonoProj { .. }) => {
+                if let Some(cands) = self.get_candidates(rhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(lhs, &cand) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
             (_l, _r) => false,
         }
     }
