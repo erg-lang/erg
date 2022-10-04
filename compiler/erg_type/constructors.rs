@@ -3,8 +3,13 @@ use std::convert::TryInto;
 use crate::*;
 
 #[inline]
-pub const fn param_t(name: &'static str, ty: Type) -> ParamTy {
+pub const fn kw(name: &'static str, ty: Type) -> ParamTy {
     ParamTy::kw(Str::ever(name), ty)
+}
+
+#[inline]
+pub const fn kw_default(name: &'static str, ty: Type, default: Type) -> ParamTy {
+    ParamTy::kw_default(Str::ever(name), ty, default)
 }
 
 #[inline]

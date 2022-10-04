@@ -338,6 +338,30 @@ impl Context {
         }
     }
 
+    pub(crate) fn rec_get_decl_t(
+        &self,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<Type> {
+        if let Some(vi) = self.decls.get(&ident.inspect()[..]) {
+            self.validate_visibility(ident, vi, input, namespace)?;
+            Ok(vi.t())
+        } else {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.rec_get_decl_t(ident, input, namespace);
+            }
+            Err(TyCheckError::no_var_error(
+                input.clone(),
+                line!() as usize,
+                ident.loc(),
+                namespace.into(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            ))
+        }
+    }
+
     pub(crate) fn rec_get_attr_t(
         &self,
         obj: &hir::Expr,
@@ -811,6 +835,15 @@ impl Context {
                             &subr.default_params,
                             &mut passed_params,
                         )?;
+                    }
+                    for not_passed in subr
+                        .default_params
+                        .iter()
+                        .filter(|pt| !passed_params.contains(pt.name().unwrap()))
+                    {
+                        if let ParamTy::KwWithDefault { ty, default, .. } = not_passed {
+                            self.sub_unify(default, ty, obj.loc(), not_passed.name())?;
+                        }
                     }
                 } else {
                     let missing_len = subr.non_default_params.len() - pos_args.len();
@@ -1310,7 +1343,17 @@ impl Context {
                 }
             }
             // TODO
-            Type::Or(_l, _r) => None,
+            Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
+                (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
+                    let (_lsub, lsup) = l.get_bound_types().unwrap();
+                    let (_rsub, rsup) = r.get_bound_types().unwrap();
+                    self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
+                }
+                (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
+                    self.get_nominal_super_type_ctxs(&l.t)
+                }
+                _ => None,
+            },
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)
                 .map(|ctxs| ctxs.collect()),

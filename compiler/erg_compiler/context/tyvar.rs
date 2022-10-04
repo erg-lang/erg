@@ -501,6 +501,24 @@ impl Context {
         }
     }
 
+    /// Fix type variables at their lower bound
+    pub(crate) fn coerce(&self, t: &Type) {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.coerce(&fv.crack());
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, _sup) = fv.get_bound_types().unwrap();
+                fv.link(&sub);
+            }
+            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+                self.coerce(l);
+                self.coerce(r);
+            }
+            _ => {}
+        }
+    }
+
     /// Check if all types are resolvable (if traits, check if an implementation exists)
     /// And replace them if resolvable
     pub(crate) fn resolve(
@@ -1349,6 +1367,13 @@ impl Context {
                 for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
                 }
+                Ok(())
+            }
+            (Type::And(l, r), _)
+            | (Type::Or(l, r), _)
+            | (Type::Not(l, r), _) => {
+                self.sub_unify(l, maybe_sup, loc, param_name)?;
+                self.sub_unify(r, maybe_sup, loc, param_name)?;
                 Ok(())
             }
             (_, Type::Ref(t)) => {

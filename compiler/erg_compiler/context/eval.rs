@@ -20,13 +20,13 @@ use erg_type::constructors::{
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{
-    ConstSubr, HasType, ParamTy, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs,
-};
+use erg_type::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult, TyCheckResult};
+
+use super::Variance;
 
 #[inline]
 pub fn type_from_token_kind(kind: TokenKind) -> Type {
@@ -464,36 +464,20 @@ impl Context {
         let tv_ctx = TyVarContext::new(self.level, bounds, self);
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
-            let t =
-                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = sig.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt =
+                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             non_default_params.push(pt);
         }
         let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
-            let t =
-                self.instantiate_param_sig_t(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = p.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt = self.instantiate_param_ty(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             Some(pt)
         } else {
             None
         };
         let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
         for sig in lambda.sig.params.defaults.iter() {
-            let t =
-                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = sig.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt =
+                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             default_params.push(pt);
         }
         // HACK: should avoid cloning
@@ -845,15 +829,26 @@ impl Context {
                         }
                     }
                 }
-                let proj = mono_proj(*lhs, rhs);
-                Err(EvalErrors::from(EvalError::no_candidate_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    &proj,
-                    t_loc,
-                    self.caused_by(),
-                    self.get_no_candidate_hint(&proj),
-                )))
+                // if the target can't be found in the supertype, the type will be dereferenced.
+                // In many cases, it is still better to determine the type variable than if the target is not found.
+                let coerced = self.deref_tyvar(*lhs.clone(), Variance::Covariant, t_loc)?;
+                if lhs.as_ref() != &coerced {
+                    let proj = mono_proj(coerced, rhs);
+                    self.eval_t_params(proj, level, t_loc).map(|t| {
+                        self.coerce(&lhs);
+                        t
+                    })
+                } else {
+                    let proj = mono_proj(*lhs, rhs);
+                    Err(EvalErrors::from(EvalError::no_candidate_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &proj,
+                        t_loc,
+                        self.caused_by(),
+                        self.get_no_candidate_hint(&proj),
+                    )))
+                }
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
