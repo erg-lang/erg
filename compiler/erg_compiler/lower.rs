@@ -342,7 +342,9 @@ impl ASTLowerer {
         let (elems, _) = set.elems.into_iters();
         let mut union = Type::Never;
         let mut new_set = Set::new();
+        let mut is_duplicated = false;
         for elem in elems {
+            // TODO: Check if the object's type implements Eq
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
             if matches!(union, Type::Or(_, _)) {
@@ -368,20 +370,9 @@ impl ASTLowerer {
                     ),
                 )));
             }
-            if !new_set.insert(elem.clone()) {
-                self.warns.push(LowerWarning::syntax_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
-                    switch_lang!(
-                        "japanese" => "要素が重複しています",
-                        "simplified_chinese" => "TODO",
-                        "traditional_chinese" => "TODO",
-                        "english" => "Duplicate elements",
-                    ),
-                    None,
-                ));
+            // Returns false if the element to inserted is a duplicate
+            if !new_set.insert(elem) {
+                is_duplicated = true
             }
         }
         let elem_t = if union == Type::Never {
@@ -389,13 +380,28 @@ impl ASTLowerer {
         } else {
             union
         };
-        let new_set: Vec<hir::Expr> = new_set.into_iter().collect();
-        Ok(hir::NormalSet::new(
+        let normal_set = hir::NormalSet::new(
             set.l_brace,
             set.r_brace,
             elem_t,
-            hir::Args::from(new_set),
-        ))
+            hir::Args::from(new_set.into_iter().collect::<Vec<hir::Expr>>()),
+        );
+        if is_duplicated {
+            self.warns.push(LowerWarning::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                normal_set.loc(),
+                AtomicStr::arc(&self.ctx.name[..]),
+                switch_lang!(
+                    "japanese" => "要素が重複しています",
+                    "simplified_chinese" => "TODO",
+                    "traditional_chinese" => "TODO",
+                    "english" => "Duplicate elements",
+                ),
+                None,
+            ));
+        }
+        Ok(normal_set)
     }
 
     fn lower_set_with_length(
