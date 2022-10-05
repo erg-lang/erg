@@ -168,6 +168,62 @@ impl TyVarContext {
                 };
                 mono_proj(lhs, rhs)
             }
+            Type::Ref(t) if t.has_qvar() => ref_(self.instantiate_qvar(*t)),
+            Type::RefMut { before, after } => {
+                let before = if before.has_qvar() {
+                    self.instantiate_qvar(*before)
+                } else {
+                    *before
+                };
+                let after = after.map(|t| {
+                    if t.has_qvar() {
+                        self.instantiate_qvar(*t)
+                    } else {
+                        *t
+                    }
+                });
+                ref_mut(before, after)
+            }
+            Type::And(l, r) => {
+                let l = if l.has_qvar() {
+                    self.instantiate_qvar(*l)
+                } else {
+                    *l
+                };
+                let r = if r.has_qvar() {
+                    self.instantiate_qvar(*r)
+                } else {
+                    *r
+                };
+                and(l, r)
+            }
+            Type::Or(l, r) => {
+                let l = if l.has_qvar() {
+                    self.instantiate_qvar(*l)
+                } else {
+                    *l
+                };
+                let r = if r.has_qvar() {
+                    self.instantiate_qvar(*r)
+                } else {
+                    *r
+                };
+                or(l, r)
+            }
+            Type::Not(l, r) => {
+                let l = if l.has_qvar() {
+                    self.instantiate_qvar(*l)
+                } else {
+                    *l
+                };
+                let r = if r.has_qvar() {
+                    self.instantiate_qvar(*r)
+                } else {
+                    *r
+                };
+                not(l, r)
+            }
+            Type::MonoQVar(_) => self.instantiate_qvar(sub_or_sup),
             other => other,
         }
     }

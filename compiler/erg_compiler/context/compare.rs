@@ -278,6 +278,11 @@ impl Context {
         if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
+                    let rhs = match rhs {
+                        Type::Ref(t) => t,
+                        Type::RefMut { before, .. } => before,
+                        other => other,
+                    };
                     let subst_ctx = SubstContext::new(rhs, ty_ctx);
                     subst_ctx
                         .substitute(rhs_sup.clone(), self, Location::Unknown)
@@ -311,6 +316,11 @@ impl Context {
         if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
+                    let rhs = match rhs {
+                        Type::Ref(t) => t,
+                        Type::RefMut { before, .. } => before,
+                        other => other,
+                    };
                     let subst_ctx = SubstContext::new(rhs, rhs_ctx);
                     subst_ctx
                         .substitute(rhs_sup.clone(), self, Location::Unknown)

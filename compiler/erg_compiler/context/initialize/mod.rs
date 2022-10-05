@@ -23,7 +23,9 @@ use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
-use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
+use crate::context::{
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodType, ParamSpec, TraitInstance,
+};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
@@ -123,14 +125,29 @@ impl Context {
                     );
                 }
             }
-            if ctx.kind == ContextKind::Trait {
-                for method in ctx.decls.keys() {
-                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
-                        traits.push(t.clone());
-                    } else {
-                        self.method_traits
-                            .insert(method.inspect().clone(), vec![t.clone()]);
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(types) = self.method_to_types.get_mut(trait_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_types.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(mut types) = self.method_to_types.remove(class_method.inspect()) {
+                    // doesn't register if it's declared as a trait
+                    if self.is_class(&types.first().unwrap().definition_type) {
+                        types.push(MethodType::new(t.clone(), vi.t.clone()));
                     }
+                    self.method_to_types
+                        .insert(class_method.inspect().clone(), types);
+                } else {
+                    self.method_to_types.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.mono_types.insert(name, (t, ctx));
@@ -164,14 +181,29 @@ impl Context {
                     );
                 }
             }
-            if ctx.kind == ContextKind::Trait {
-                for method in ctx.decls.keys() {
-                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
-                        traits.push(t.clone());
-                    } else {
-                        self.method_traits
-                            .insert(method.inspect().clone(), vec![t.clone()]);
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(traits) = self.method_to_types.get_mut(trait_method.inspect()) {
+                    traits.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_types.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(mut types) = self.method_to_types.remove(class_method.inspect()) {
+                    // doesn't register if it's declared as a trait
+                    if self.is_class(&types.first().unwrap().definition_type) {
+                        types.push(MethodType::new(t.clone(), vi.t.clone()));
                     }
+                    self.method_to_types
+                        .insert(class_method.inspect().clone(), types);
+                } else {
+                    self.method_to_types.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.poly_types.insert(name, (t, ctx));

@@ -19,7 +19,7 @@ use erg_type::{ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode, TraitInstance,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodType, RegistrationMode, TraitInstance,
 };
 use crate::error::readable_name;
 use crate::error::{
@@ -847,12 +847,29 @@ impl Context {
                     );
                 }
             }
-            for method in ctx.decls.keys() {
-                if let Some(impls) = self.method_traits.get_mut(method.inspect()) {
-                    impls.push(t.clone());
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(types) = self.method_to_types.get_mut(trait_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_traits
-                        .insert(method.inspect().clone(), vec![t.clone()]);
+                    self.method_to_types.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(mut types) = self.method_to_types.remove(class_method.inspect()) {
+                    // doesn't register if it's declared as a trait
+                    if self.is_class(&types.first().unwrap().definition_type) {
+                        types.push(MethodType::new(t.clone(), vi.t.clone()));
+                    }
+                    self.method_to_types
+                        .insert(class_method.inspect().clone(), types);
+                } else {
+                    self.method_to_types.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.mono_types.insert(name.clone(), (t, ctx));

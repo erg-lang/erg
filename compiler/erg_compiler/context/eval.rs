@@ -72,6 +72,34 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
     }
 }
 
+fn op_to_name(op: OpKind) -> &'static str {
+    match op {
+        OpKind::Add => "__add__",
+        OpKind::Sub => "__sub__",
+        OpKind::Mul => "__mul__",
+        OpKind::Div => "__div__",
+        OpKind::Mod => "__mod__",
+        OpKind::Pow => "__pow__",
+        OpKind::Pos => "__pos__",
+        OpKind::Neg => "__neg__",
+        OpKind::Eq => "__eq__",
+        OpKind::Ne => "__ne__",
+        OpKind::Lt => "__lt__",
+        OpKind::Le => "__le__",
+        OpKind::Gt => "__gt__",
+        OpKind::Ge => "__ge__",
+        OpKind::And => "__and__",
+        OpKind::Or => "__or__",
+        OpKind::Invert => "__invert__",
+        OpKind::BitAnd => "__bitand__",
+        OpKind::BitOr => "__bitor__",
+        OpKind::BitXor => "__bitxor__",
+        OpKind::Shl => "__shl__",
+        OpKind::Shr => "__shr__",
+        OpKind::Mutate => "__mutate__",
+    }
+}
+
 #[inline]
 pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     let t = type_from_token_kind(lit.token.kind);
@@ -104,7 +132,13 @@ impl SubstContext {
                 .as_ref()
                 .map_or_else(|| Str::ever("_"), |n| n.inspect().clone())
         });
-        assert_eq!(param_names.len(), substituted.typarams().len());
+        if param_names.len() != substituted.typarams().len() {
+            let param_names = param_names.collect::<Vec<_>>();
+            panic!(
+                "{param_names:?} != {}",
+                erg_common::fmt_vec(&substituted.typarams())
+            );
+        }
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
         SubstContext {
             bounds,
@@ -645,28 +679,10 @@ impl Context {
             (TyParam::Value(lhs), TyParam::Value(rhs)) => self
                 .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
-            (TyParam::FreeVar(fv), r) => {
-                if fv.is_linked() {
-                    self.eval_bin_tp(op, &*fv.crack(), r)
-                } else {
-                    Err(EvalErrors::from(EvalError::unreachable(
-                        self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
-                    )))
-                }
-            }
-            (l, TyParam::FreeVar(fv)) => {
-                if fv.is_linked() {
-                    self.eval_bin_tp(op, l, &*fv.crack())
-                } else {
-                    Err(EvalErrors::from(EvalError::unreachable(
-                        self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
-                    )))
-                }
-            }
+            (TyParam::FreeVar(fv), r) if fv.is_linked() => self.eval_bin_tp(op, &*fv.crack(), r),
+            (TyParam::FreeVar(_), _) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
+            (l, TyParam::FreeVar(fv)) if fv.is_linked() => self.eval_bin_tp(op, l, &*fv.crack()),
+            (_, TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
             (l, r) => todo!("{l} {op} {r}"),
         }
@@ -982,6 +998,10 @@ impl Context {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
                 _ => todo!(),
             },
+            TyParam::BinOp { op, lhs, rhs } => {
+                let op_name = op_to_name(op);
+                todo!("get type: {op_name}({lhs}, {rhs})")
+            }
             other => todo!("{other}"),
         }
     }

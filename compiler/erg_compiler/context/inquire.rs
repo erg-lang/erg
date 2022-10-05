@@ -35,6 +35,8 @@ use crate::varinfo::VarInfo;
 use RegistrationMode::*;
 use Visibility::*;
 
+use super::MethodType;
+
 impl Context {
     pub(crate) fn validate_var_sig_t(
         &self,
@@ -567,10 +569,12 @@ impl Context {
                     self.get_similar_attr_from_singular(obj, method_name.inspect()),
                 ));
             }
-            match self.rec_get_method_traits(method_name) {
-                Ok(trait_) => {
-                    let (_, ctx) = self.get_nominal_type_ctx(trait_).unwrap();
-                    return ctx.rec_get_var_t(method_name, input, namespace);
+            match self.get_method_type_by_name(method_name) {
+                Ok(t) => {
+                    self.sub_unify(obj.ref_t(), &t.definition_type, obj.loc(), None)
+                        // HACK: change this func's return type to TyCheckResult<Type>
+                        .map_err(|mut errs| errs.remove(0))?;
+                    return Ok(t.method_type.clone());
                 }
                 Err(err) if err.core.kind == ErrorKind::TypeError => {
                     return Err(err);
@@ -1759,22 +1763,29 @@ impl Context {
         }
     }
 
-    fn rec_get_method_traits(&self, name: &Identifier) -> SingleTyCheckResult<&Type> {
-        if let Some(candidates) = self.method_traits.get(name.inspect()) {
-            let first_t = candidates.first().unwrap();
-            if candidates.iter().skip(1).all(|t| t == first_t) {
+    fn get_method_type_by_name(&self, name: &Identifier) -> SingleTyCheckResult<&MethodType> {
+        if let Some(candidates) = self.method_to_types.get(name.inspect()) {
+            let first_method_type = &candidates.first().unwrap().method_type;
+            if candidates
+                .iter()
+                .skip(1)
+                .all(|t| &t.method_type == first_method_type)
+            {
                 Ok(&candidates[0])
             } else {
                 Err(TyCheckError::ambiguous_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
-                    candidates,
+                    &candidates
+                        .iter()
+                        .map(|t| t.definition_type.clone())
+                        .collect::<Vec<_>>(),
                     self.caused_by(),
                 ))
             }
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_method_traits(name)
+            outer.get_method_type_by_name(name)
         } else {
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),

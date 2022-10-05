@@ -207,7 +207,7 @@ fn is_fake_method(class: &str, name: &str) -> bool {
     matches!(
         (class, name),
         (
-            "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
+            _, // "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
             "abs"
         ) | (_, "iter")
             | (_, "map")

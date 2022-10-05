@@ -1,0 +1,6 @@
+show s =
+    s.to_str()
+
+assert show(1) == "1"
+assert show(True) == "True"
+# discard show((x,) -> x)

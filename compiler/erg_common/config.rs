@@ -93,7 +93,7 @@ impl Input {
                     let mut codes = vec![];
                     let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
                     for _ in ln_begin..=ln_end {
-                        codes.push(lines.next().unwrap().unwrap());
+                        codes.push(lines.next().unwrap_or_else(|| Ok("".to_string())).unwrap());
                     }
                     codes
                 }

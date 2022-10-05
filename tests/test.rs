@@ -37,6 +37,16 @@ fn exec_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_infer_class() -> Result<(), ()> {
+    expect_success("tests/infer_class.er")
+}
+
+#[test]
+fn exec_infer_trait() -> Result<(), ()> {
+    expect_success("tests/infer_trait.er")
+}
+
+#[test]
 fn exec_move_check() -> Result<(), ()> {
     expect_failure("examples/move_check.er")
 }

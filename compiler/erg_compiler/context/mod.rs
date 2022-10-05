@@ -297,6 +297,31 @@ pub struct ContextInfo {
     mod_id: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MethodType {
+    definition_type: Type,
+    method_type: Type,
+}
+
+impl fmt::Display for MethodType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ def: {} t: {} }}",
+            self.definition_type, self.method_type
+        )
+    }
+}
+
+impl MethodType {
+    pub const fn new(definition_type: Type, method_type: Type) -> Self {
+        Self {
+            definition_type,
+            method_type,
+        }
+    }
+}
+
 /// Represents the context of the current scope
 ///
 /// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
@@ -320,8 +345,9 @@ pub struct Context {
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
-    // K: method name, V: trait defines the method
-    pub(crate) method_traits: Dict<Str, Vec<Type>>,
+    // K: method name, V: types defines the method
+    // If it is declared in a trait, it takes precedence over the class.
+    pub(crate) method_to_types: Dict<Str, Vec<MethodType>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -459,7 +485,7 @@ impl Context {
             super_traits: vec![],
             methods_list: vec![],
             const_param_defaults: Dict::default(),
-            method_traits: Dict::default(),
+            method_to_types: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
             params: params_,
