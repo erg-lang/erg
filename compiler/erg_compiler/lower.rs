@@ -26,7 +26,7 @@ use erg_type::{HasType, ParamTy, Type};
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{
-    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
+    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
     SingleLowerResult,
 };
 use crate::hir;
@@ -340,8 +340,8 @@ impl ASTLowerer {
     fn lower_normal_set(&mut self, set: ast::NormalSet) -> LowerResult<hir::NormalSet> {
         log!(info "entered {}({set})", fn_name!());
         let (elems, _) = set.elems.into_iters();
-        let mut new_set = vec![];
         let mut union = Type::Never;
+        let mut new_set = Set::new();
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
@@ -368,13 +368,28 @@ impl ASTLowerer {
                     ),
                 )));
             }
-            new_set.push(elem);
+            if !new_set.insert(elem.clone()) {
+                self.warns.push(LowerWarning::syntax_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    elem.loc(),
+                    AtomicStr::arc(&self.ctx.name[..]),
+                    switch_lang!(
+                        "japanese" => "要素が重複しています",
+                        "simplified_chinese" => "TODO",
+                        "traditional_chinese" => "TODO",
+                        "english" => "Duplicate elements",
+                    ),
+                    None,
+                ));
+            }
         }
         let elem_t = if union == Type::Never {
             free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
         } else {
             union
         };
+        let new_set: Vec<hir::Expr> = new_set.into_iter().collect();
         Ok(hir::NormalSet::new(
             set.l_brace,
             set.r_brace,
