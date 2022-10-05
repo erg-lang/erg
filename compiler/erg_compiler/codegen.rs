@@ -217,6 +217,7 @@ fn is_fake_method(class: &str, name: &str) -> bool {
 fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
     match (class, uniq_obj_name, &name[..]) {
         ("Array!", _, "push!") => Str::ever("append"),
+        ("Set!", _, "add") => Str::ever("add"),
         ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Real") => Str::ever("real"),
         ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Imag") => Str::ever("imag"),
         ("File!", _, "read!") => Str::ever("read"),
@@ -273,6 +274,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "Str" | "Str!" => Str::ever("str"),
         "Bool" | "Bool!" => Str::ever("bool"),
         "Array" | "Array!" => Str::ever("list"),
+        "Set" | "Set!" => Str::ever("set"),
         _ => name,
     }
 }
@@ -1691,6 +1693,22 @@ impl CodeGenerator {
                         self.stack_dec_n(len - 1);
                     }
                 }
+            },
+            Expr::Set(set) => match set {
+                crate::hir::Set::Normal(mut set) => {
+                    let len = set.elems.len();
+                    while let Some(arg) = set.elems.try_remove_pos(0) {
+                        self.emit_expr(arg.expr);
+                    }
+                    self.write_instr(BUILD_SET);
+                    self.write_arg(len as u8);
+                    if len == 0 {
+                        self.stack_inc();
+                    } else {
+                        self.stack_dec_n(len - 1);
+                    }
+                }
+                crate::hir::Set::WithLength(_) => todo!(),
             },
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
