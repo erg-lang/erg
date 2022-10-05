@@ -348,12 +348,13 @@ impl Context {
         sig: &ast::SubrSignature,
         id: DefId,
         body_t: &Type,
-    ) -> TyCheckResult<()> {
+    ) -> TyCheckResult<Type> {
         // already defined as const
         if sig.is_const() {
             let vi = self.decls.remove(sig.ident.inspect()).unwrap();
+            let t = vi.t.clone();
             self.locals.insert(sig.ident.name.clone(), vi);
-            return Ok(());
+            return Ok(t);
         }
         let muty = if sig.ident.is_const() {
             Mutability::Const
@@ -443,9 +444,10 @@ impl Context {
             VarKind::Defined(id),
             Some(comptime_decos),
         );
-        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        let t = vi.t.clone();
+        log!(info "Registered {}::{name}: {}", self.name, t);
         self.locals.insert(name.clone(), vi);
-        Ok(())
+        Ok(t)
     }
 
     pub(crate) fn fake_subr_assign(&mut self, sig: &ast::SubrSignature, failure_t: Type) {

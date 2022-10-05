@@ -829,7 +829,7 @@ impl Context {
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         // ?T or ?U will not be unified
-        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
+        if lhs.has_no_unbound_var() && rhs.has_no_unbound_var() {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
                 (true, true) => return lhs.clone(),  // lhs = rhs
                 (true, false) => return lhs.clone(), // lhs :> rhs
@@ -1035,7 +1035,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),

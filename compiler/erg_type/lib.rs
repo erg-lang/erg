@@ -940,11 +940,12 @@ impl LimitedDisplay for RefinementType {
             return write!(f, "...");
         }
         let first_subj = self.preds.iter().next().and_then(|p| p.subject());
-        if self
+        let is_simple_type = self.t.is_simple_class();
+        let is_simple_preds = self
             .preds
             .iter()
-            .all(|p| p.is_equal() && p.subject() == first_subj)
-        {
+            .all(|p| p.is_equal() && p.subject() == first_subj);
+        if is_simple_type && is_simple_preds {
             write!(f, "{{")?;
             for pred in self.preds.iter() {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
@@ -1749,6 +1750,14 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
             Self::Type | Self::Class | Self::Trait => true,
             Self::Refinement(refine) => refine.t.is_type(),
+            _ => false,
+        }
+    }
+
+    pub fn is_quantified(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),
+            Self::Quantified(_) => true,
             _ => false,
         }
     }

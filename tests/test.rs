@@ -7,6 +7,11 @@ use erg_common::traits::Runnable;
 use erg::dummy::DummyVM;
 
 #[test]
+fn exec_addition() -> Result<(), ()> {
+    expect_failure("tests/addition.er")
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
 }
@@ -42,6 +47,12 @@ fn exec_quantified() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_rec() -> Result<(), ()> {
+    // this script is valid but the current code generating process has a bug.
+    expect_end_with("tests/rec.er", 1)
+}
+
+#[test]
 fn exec_record() -> Result<(), ()> {
     expect_success("examples/record.er")
 }
@@ -49,6 +60,11 @@ fn exec_record() -> Result<(), ()> {
 #[test]
 fn exec_side_effect() -> Result<(), ()> {
     expect_failure("examples/side_effect.er")
+}
+
+#[test]
+fn exec_subtyping() -> Result<(), ()> {
+    expect_failure("tests/subtyping.er")
 }
 
 #[test]

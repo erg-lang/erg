@@ -2,6 +2,7 @@ use std::fmt;
 use std::mem;
 
 use erg_common::dict::Dict;
+use erg_common::enum_unwrap;
 use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
@@ -826,6 +827,22 @@ impl Context {
                                 todo!()
                             }
                         }
+                    }
+                }
+                if lhs.is_unbound_var() {
+                    let (sub, sup) = enum_unwrap!(lhs.as_ref(), Type::FreeVar)
+                        .get_bound_types()
+                        .unwrap();
+                    if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                        return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            &sub,
+                            &sup,
+                            t_loc,
+                            self.caused_by(),
+                            None,
+                        )));
                     }
                 }
                 // if the target can't be found in the supertype, the type will be dereferenced.

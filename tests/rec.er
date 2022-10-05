@@ -1,0 +1,10 @@
+stop_or_call n, f: (Nat -> Nat), g: (Nat -> Nat) =
+    cond n <= 0:
+        1
+        g (f (n - 1))
+
+fact(n: Nat): Nat =
+    stop_or_call n, fact, (r, ) -> r * n
+
+print! fact
+print! fact 5

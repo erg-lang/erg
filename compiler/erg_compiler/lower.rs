@@ -722,13 +722,14 @@ impl ASTLowerer {
                     }
                 }
                 let id = body.id;
-                self.ctx
+                let t = self
+                    .ctx
                     .outer
                     .as_mut()
                     .unwrap()
                     .assign_subr(&sig, id, found_body_t)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, sig.params, Type::Subr(t));
+                let sig = hir::SubrSignature::new(ident, sig.params, t);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
