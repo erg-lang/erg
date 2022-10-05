@@ -14,7 +14,7 @@ use erg_common::{
 use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{array, tuple};
+use erg_type::constructors::{array, set, tuple};
 use erg_type::typaram::TyParam;
 use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
@@ -750,19 +750,6 @@ pub struct NormalSet {
     pub elems: Args,
 }
 
-impl_t!(NormalSet);
-
-impl NormalSet {
-    pub const fn new(l_brace: Token, r_brace: Token, t: Type, elems: Args) -> Self {
-        Self {
-            l_brace,
-            r_brace,
-            t,
-            elems,
-        }
-    }
-}
-
 impl NestedDisplay for NormalSet {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{{")?;
@@ -773,6 +760,19 @@ impl NestedDisplay for NormalSet {
 
 impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, r_brace);
+impl_t!(NormalSet);
+
+impl NormalSet {
+    pub fn new(l_brace: Token, r_brace: Token, elem_t: Type, elems: Args) -> Self {
+        let t = set(elem_t, TyParam::value(elems.len()));
+        Self {
+            l_brace,
+            r_brace,
+            t,
+            elems,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetWithLength {
