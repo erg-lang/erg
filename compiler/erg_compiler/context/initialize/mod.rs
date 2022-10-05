@@ -666,6 +666,9 @@ impl Context {
         bool_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Bool!")));
         bool_.register_trait(Bool, builtin_mono("Mutizable"), bool_mutizable);
+        let mut bool_show = Self::builtin_methods("Show", 1);
+        bool_show.register_builtin_impl("to_str", fn0_met(Bool, Str), Immutable, Public);
+        bool_.register_trait(Bool, builtin_mono("Show"), bool_show);
         let mut str_ = Self::builtin_mono_class("Str", 10);
         str_.register_superclass(Obj, &obj);
         str_.register_marker_trait(builtin_mono("Ord"));
@@ -712,6 +715,9 @@ impl Context {
         let mut str_mutizable = Self::builtin_methods("Mutizable", 2);
         str_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Str!")));
         str_.register_trait(Str, builtin_mono("Mutizable"), str_mutizable);
+        let mut str_show = Self::builtin_methods("Show", 1);
+        str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
+        str_.register_trait(Str, builtin_mono("Show"), str_show);
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
@@ -778,14 +784,22 @@ impl Context {
         );
         array_.register_trait(
             array_t.clone(),
-            builtin_poly("Eq", vec![ty_tp(array_t)]),
+            builtin_poly("Eq", vec![ty_tp(array_t.clone())]),
             array_eq,
         );
         array_.register_marker_trait(builtin_mono("Mutizable"));
         array_.register_marker_trait(builtin_poly("Seq", vec![ty_tp(mono_q("T"))]));
+        let mut array_show = Self::builtin_methods("Show", 1);
+        array_show.register_builtin_impl(
+            "to_str",
+            fn0_met(array_t.clone(), Str),
+            Immutable,
+            Public,
+        );
+        array_.register_trait(array_t, builtin_mono("Show"), array_show);
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
-        // TODO: make Tuple6, Tuple7, ... etc.
+        // FIXME: replace to Tuple Ts (e.g. Tuple [Int, Str])
         let mut tuple_ = Self::builtin_mono_class("Tuple", 2);
         tuple_.register_superclass(Obj, &obj);
         let mut tuple_eq = Self::builtin_methods("Eq", 2);
