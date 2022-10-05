@@ -1,0 +1,11 @@
+a = {1, 2, 3, 1, 2, 3} # {1, 2, 3} in no particular order
+assert {1, 2, 3} == {1, 2, 3}
+b = {"a", "a", "b", "b", "a", "b"} # {"a", "b"} in no particular order
+assert {"a", "b"} == {"a", "b"}
+
+c: {Int} = {-1, 1, -1, 1} # {-1, 1}
+
+# If the object does not implement `Eq`, a compile error will occur
+A = Class { i = Int }
+B = Class { i = Int }
+print! {A, B} # compile error
