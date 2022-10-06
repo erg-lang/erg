@@ -902,7 +902,11 @@ impl Context {
 /// for language server
 impl Context {
     pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self.locals.iter().collect();
+        let mut vars: Vec<_> = self
+            .locals
+            .iter()
+            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
+            .collect();
         if let Some(outer) = self.get_outer() {
             vars.extend(outer.dir());
         } else {
