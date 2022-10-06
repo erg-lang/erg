@@ -819,6 +819,50 @@ impl Context {
             Public,
         );
         array_.register_trait(array_t, builtin_mono("Show"), array_show);
+
+        // *** Set *** //
+        let mut set_ =
+            Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
+        set_.register_superclass(Obj, &obj);
+        set_.register_marker_trait(builtin_poly("output", vec![ty_tp(mono_q("T"))]));
+        let n = mono_q_tp("N");
+        let m = mono_q_tp("M");
+        let set_t = array(mono_q("T"), n.clone());
+        let t = fn_met(
+            set_t.clone(),
+            vec![kw("rhs", array(mono_q("T"), m.clone()))],
+            None,
+            vec![],
+            array(mono_q("T"), n + m),
+        );
+        let t = quant(
+            t,
+            set! {static_instance("N", Nat), static_instance("M", Nat)},
+        );
+        set_.register_builtin_impl("concat", t, Immutable, Public);
+        let mut_type = ValueObj::builtin_t(builtin_poly(
+            "Set!",
+            vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
+        ));
+        set_.register_builtin_const("MutType!", mut_type);
+        let mut set_eq = Self::builtin_methods("Eq", 2);
+        set_eq.register_builtin_impl(
+            "__eq__",
+            fn1_met(set_t.clone(), set_t.clone(), Bool),
+            Const,
+            Public,
+        );
+        array_.register_trait(
+            set_t.clone(),
+            builtin_poly("Eq", vec![ty_tp(set_t.clone())]),
+            set_eq,
+        );
+        set_.register_marker_trait(builtin_mono("Mutizable"));
+        set_.register_marker_trait(builtin_poly("Seq", vec![ty_tp(mono_q("T"))]));
+        let mut set_show = Self::builtin_methods("Show", 1);
+        set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
+        set_.register_trait(set_t, builtin_mono("Show"), set_show);
+
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
         // FIXME: replace to Tuple Ts (e.g. Tuple [Int, Str])
@@ -1477,6 +1521,61 @@ impl Context {
             builtin_mono("Mutable"),
             array_mut_mutable,
         );
+
+        // *** Set_mut *** //
+        let set_t = builtin_poly("Set", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
+        let set_mut_t = builtin_poly("Set!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
+        let mut set_mut_ = Self::builtin_poly_class(
+            "Set!",
+            vec![PS::t_nd("T"), PS::named_nd("N", builtin_mono("Nat!"))],
+            2,
+        );
+        set_mut_.register_superclass(set_t.clone(), &array_);
+        let t = pr_met(
+            ref_mut(
+                set_mut_t.clone(),
+                Some(builtin_poly(
+                    "Set!",
+                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
+                )),
+            ),
+            vec![kw("elem", mono_q("T"))],
+            None,
+            vec![],
+            NoneType,
+        );
+        let t = quant(
+            t,
+            set! {static_instance("T", Type), static_instance("N", builtin_mono("Nat!"))},
+        );
+        set_mut_.register_builtin_impl("add!", t, Immutable, Public);
+        let t = pr_met(
+            set_mut_t.clone(),
+            vec![kw("f", nd_func(vec![anon(mono_q("T"))], None, mono_q("T")))],
+            None,
+            vec![],
+            NoneType,
+        );
+        let t = quant(
+            t,
+            set! {static_instance("T", Type), static_instance("N", builtin_mono("Nat!"))},
+        );
+        set_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
+        let f_t = kw(
+            "f",
+            func(vec![kw("old", set_t.clone())], None, vec![], set_t.clone()),
+        );
+        let t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
+        let mut set_mut_mutable = Self::builtin_methods("Mutable", 2);
+        set_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
+        set_mut_.register_trait(set_mut_t.clone(), builtin_mono("Mutable"), set_mut_mutable);
+
         let range_t = builtin_poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
         range.register_superclass(Obj, &obj);
