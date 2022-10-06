@@ -423,7 +423,7 @@ impl ASTLowerer {
         let maybe_len = self.ctx.eval_const_expr(len, None);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
@@ -433,7 +433,7 @@ impl ASTLowerer {
                 }
             }
             Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "SetWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
@@ -444,7 +444,7 @@ impl ASTLowerer {
             }
             Ok(other) => todo!("{other} is not a Nat object"),
             Err(_e) => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
