@@ -18,7 +18,7 @@ use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, builtin_mono, builtin_poly, refinement, tuple};
+use crate::constructors::{array, builtin_mono, builtin_poly, refinement, set as const_set, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -124,6 +124,7 @@ pub enum ValueObj {
     Str(Str),
     Bool(bool),
     Array(Rc<[ValueObj]>),
+    Set(Rc<[ValueObj]>),
     Dict(Rc<[(ValueObj, ValueObj)]>),
     Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
@@ -173,6 +174,7 @@ impl fmt::Debug for ValueObj {
                 write!(f, "}}")
             }
             Self::Tuple(tup) => write!(f, "({})", fmt_iter(tup.iter())),
+            Self::Set(st) => write!(f, "{{{}}}", fmt_iter(st.iter())),
             Self::Code(code) => write!(f, "{code}"),
             Self::Record(rec) => {
                 write!(f, "{{")?;
@@ -229,6 +231,7 @@ impl Hash for ValueObj {
             Self::Array(arr) => arr.hash(state),
             Self::Dict(dict) => dict.hash(state),
             Self::Tuple(tup) => tup.hash(state),
+            Self::Set(st) => st.hash(state),
             Self::Code(code) => code.hash(state),
             Self::Record(rec) => rec.hash(state),
             Self::Subr(subr) => subr.hash(state),
@@ -485,6 +488,7 @@ impl ValueObj {
             ),
             Self::Dict(_dict) => todo!(),
             Self::Tuple(tup) => tuple(tup.iter().map(|v| v.class()).collect()),
+            Self::Set(st) => const_set(st.iter().next().unwrap().class(), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())

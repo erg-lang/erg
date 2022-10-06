@@ -2206,6 +2206,8 @@ pub enum TypeCode {
     Array, // 要素数は検査済みなので、気にする必要はない
     ArrayMut,
     // Dict,
+    Set,
+    SetMut,
     Func,
     Proc,
     MaybeBigInt,
@@ -2235,6 +2237,7 @@ impl From<&Type> for TypeCode {
             },
             Type::Poly { name, .. } => match &name[..] {
                 "Array" | "Array!" => Self::Array,
+                "Set" | "Set!" => Self::Set,
                 "Func" => Self::Func,
                 "Proc" => Self::Proc,
                 _ => Self::Other,

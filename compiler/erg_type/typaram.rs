@@ -125,6 +125,7 @@ pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
     Array(Vec<TyParam>),
+    Set(Vec<TyParam>),
     Tuple(Vec<TyParam>),
     Mono(Str),
     MonoProj {
@@ -288,6 +289,16 @@ impl LimitedDisplay for TyParam {
                     t.limited_fmt(f, limit - 1)?;
                 }
                 write!(f, "]")
+            }
+            Self::Set(st) => {
+                write!(f, "{{")?;
+                for (i, t) in st.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
             }
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
@@ -566,7 +577,7 @@ impl TyParam {
             }
             Self::Type(t) => t.has_qvar(),
             Self::MonoProj { obj, .. } => obj.has_qvar(),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Array(ts) | Self::Tuple(ts) | Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
@@ -582,6 +593,7 @@ impl TyParam {
             Self::MonoProj { obj, .. } => obj.is_cachable(),
             Self::Array(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::Tuple(ts) => ts.iter().all(|t| t.is_cachable()),
+            Self::Set(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::UnaryOp { val, .. } => val.is_cachable(),
             Self::BinOp { lhs, rhs, .. } => lhs.is_cachable() && rhs.is_cachable(),
             Self::App { args, .. } => args.iter().all(|p| p.is_cachable()),
