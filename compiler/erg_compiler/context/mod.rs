@@ -327,9 +327,9 @@ impl MethodType {
 /// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
 #[derive(Debug, Clone)]
 pub struct Context {
-    pub(crate) name: Str,
+    pub name: Str,
+    pub kind: ContextKind,
     pub(crate) cfg: ErgConfig,
-    pub(crate) kind: ContextKind,
     // Type bounds & Predicates (if the context kind is Subroutine)
     // ユーザー定義APIでのみ使う
     pub(crate) bounds: Vec<TyBound>,
