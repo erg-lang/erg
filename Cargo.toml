@@ -1,6 +1,6 @@
 [package]
 name = "erg"
-version = "0.5.7-nightly.1"
+version = "0.5.7-nightly.2"
 description = "The Erg programming language"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -47,10 +47,10 @@ traditional_chinese = [
 pre-commit = []
 
 [dependencies]
-erg_common = { version = "0.5.7-nightly.1", path = "./compiler/erg_common" }
-erg_parser = { version = "0.5.7-nightly.1", path = "./compiler/erg_parser" }
-erg_compiler = { version = "0.5.7-nightly.1", path = "./compiler/erg_compiler" }
-erg_type = { version = "0.5.7-nightly.1", path = "./compiler/erg_type" }
+erg_common = { version = "0.5.7-nightly.2", path = "./compiler/erg_common" }
+erg_parser = { version = "0.5.7-nightly.2", path = "./compiler/erg_parser" }
+erg_compiler = { version = "0.5.7-nightly.2", path = "./compiler/erg_compiler" }
+erg_type = { version = "0.5.7-nightly.2", path = "./compiler/erg_type" }
 
 # [workspace]
 # member = ["cm", "dyne"]
