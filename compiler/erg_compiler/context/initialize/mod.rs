@@ -443,6 +443,7 @@ impl Context {
     }
 
     fn init_builtin_classes(&mut self) {
+        // *** Obj *** //
         let mut obj = Self::builtin_mono_class("Obj", 2);
         let t = fn0_met(mono_q("Self"), mono_q("Self"));
         let t = quant(t, set! {subtypeof(mono_q("Self"), builtin_mono("Obj"))});
@@ -464,6 +465,8 @@ impl Context {
         let mut obj_mutizable = Self::builtin_methods("Mutizable", 1);
         obj_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Obj!")));
         obj.register_trait(Obj, builtin_mono("Mutizable"), obj_mutizable);
+
+        // *** Float *** //
         let mut float = Self::builtin_mono_class("Float", 2);
         float.register_superclass(Obj, &obj);
         // TODO: support multi platform
@@ -512,6 +515,8 @@ impl Context {
         let t = fn0_met(Float, Str);
         float_show.register_builtin_impl("to_str", t, Immutable, Public);
         float.register_trait(Float, builtin_mono("Show"), float_show);
+
+        // *** Ratio *** //
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
         let mut ratio = Self::builtin_mono_class("Ratio", 2);
         ratio.register_superclass(Obj, &obj);
@@ -561,6 +566,8 @@ impl Context {
         let t = fn0_met(Ratio, Str);
         ratio_show.register_builtin_impl("to_str", t, Immutable, Public);
         ratio.register_trait(Ratio, builtin_mono("Show"), ratio_show);
+
+        // *** Int *** //
         let mut int = Self::builtin_mono_class("Int", 2);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
         int.register_marker_trait(builtin_mono("Num"));
@@ -608,6 +615,8 @@ impl Context {
         int.register_trait(Int, builtin_mono("Show"), int_show);
         int.register_builtin_impl("Real", Int, Const, Public);
         int.register_builtin_impl("Imag", Int, Const, Public);
+
+        // *** Nat *** //
         let mut nat = Self::builtin_mono_class("Nat", 10);
         nat.register_superclass(Int, &int);
         // class("Rational"),
@@ -656,6 +665,8 @@ impl Context {
         nat.register_trait(Nat, builtin_mono("Mutizable"), nat_mutizable);
         nat.register_builtin_impl("Real", Nat, Const, Public);
         nat.register_builtin_impl("Imag", Nat, Const, Public);
+
+        // *** Bool *** //
         let mut bool_ = Self::builtin_mono_class("Bool", 10);
         bool_.register_superclass(Nat, &nat);
         // class("Rational"),
@@ -719,6 +730,7 @@ impl Context {
             Immutable,
             Public,
         );
+        // *** Str *** //
         let mut str_eq = Self::builtin_methods("Eq", 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, builtin_poly("Eq", vec![ty_tp(Str)]), str_eq);
@@ -772,6 +784,8 @@ impl Context {
         let module_t = module(mono_q_tp("Path"));
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
+
+        // *** Array *** //
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
         array_.register_superclass(Obj, &obj);
@@ -863,6 +877,7 @@ impl Context {
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
         set_.register_trait(set_t, builtin_mono("Show"), set_show);
 
+        // *** Bytes *** //
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
         // FIXME: replace to Tuple Ts (e.g. Tuple [Int, Str])
@@ -901,6 +916,8 @@ impl Context {
             ),
             tuple1_eq,
         );
+
+        // *** Tuple(n) *** //
         let mut tuple2 = Self::builtin_poly_class("Tuple2", vec![PS::t_nd("A"), PS::t_nd("B")], 2);
         tuple2.register_superclass(builtin_mono("Tuple"), &tuple_);
         let mut tuple2_eq = Self::builtin_methods("Eq", 2);
@@ -1317,11 +1334,15 @@ impl Context {
             ),
             tuple8_eq,
         );
+
+        // *** record *** //
         let mut record = Self::builtin_mono_class("Record", 2);
         record.register_superclass(Obj, &obj);
         let mut record_type = Self::builtin_mono_class("RecordType", 2);
         record_type.register_superclass(builtin_mono("Record"), &record);
         record_type.register_superclass(builtin_mono("Type"), &type_);
+
+        // *** Float_mut *** //
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
         let mut float_mut_mutable = Self::builtin_methods("Mutable", 2);
@@ -1340,6 +1361,8 @@ impl Context {
             builtin_mono("Mutable"),
             float_mut_mutable,
         );
+
+        // *** Ratio_mut *** //
         let mut ratio_mut = Self::builtin_mono_class("Ratio!", 2);
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods("Mutable", 2);
@@ -1366,6 +1389,8 @@ impl Context {
             builtin_mono("Mutable"),
             ratio_mut_mutable,
         );
+
+        // *** Int_mut *** //
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(builtin_mono("Float!"), &float_mut);
@@ -1388,6 +1413,8 @@ impl Context {
         let mut nat_mut = Self::builtin_mono_class("Nat!", 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(builtin_mono("Int!"), &int_mut);
+
+        // *** Nat_mut *** //
         let mut nat_mut_mutable = Self::builtin_methods("Mutable", 2);
         nat_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Nat));
         let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
@@ -1404,6 +1431,8 @@ impl Context {
             builtin_mono("Mutable"),
             nat_mut_mutable,
         );
+
+        // *** Bool_mut *** //
         let mut bool_mut = Self::builtin_mono_class("Bool!", 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(builtin_mono("Nat!"), &nat_mut);
@@ -1423,6 +1452,8 @@ impl Context {
             builtin_mono("Mutable"),
             bool_mut_mutable,
         );
+
+        // *** Str_mut *** //
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
         str_mut.register_superclass(Str, &str_);
         let mut str_mut_mutable = Self::builtin_methods("Mutable", 2);
@@ -1441,6 +1472,8 @@ impl Context {
             builtin_mono("Mutable"),
             str_mut_mutable,
         );
+
+        // *** File_mut *** //
         let mut file_mut = Self::builtin_mono_class("File!", 2);
         let mut file_mut_readable = Self::builtin_methods("Readable!", 1);
         file_mut_readable.register_builtin_impl(
@@ -1460,6 +1493,8 @@ impl Context {
             builtin_mono("Readable!"),
             file_mut_readable,
         );
+
+        // *** Array_mut *** //
         let array_t = builtin_poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = builtin_poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
@@ -1576,6 +1611,7 @@ impl Context {
         set_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         set_mut_.register_trait(set_mut_t.clone(), builtin_mono("Mutable"), set_mut_mutable);
 
+        // *** Range *** //
         let range_t = builtin_poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
         range.register_superclass(Obj, &obj);
@@ -1592,11 +1628,15 @@ impl Context {
             builtin_poly("Eq", vec![ty_tp(range_t.clone())]),
             range_eq,
         );
+
+        // *** Proc *** //
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);
         let mut named_proc = Self::builtin_mono_class("NamedProc", 2);
         named_proc.register_superclass(Obj, &obj);
         named_proc.register_marker_trait(builtin_mono("Named"));
+
+        // *** Func *** //
         let mut func = Self::builtin_mono_class("Func", 2);
         func.register_superclass(builtin_mono("Proc"), &proc);
         let mut named_func = Self::builtin_mono_class("NamedFunc", 2);
@@ -1617,6 +1657,7 @@ impl Context {
         self.register_builtin_type(g_module_t, generic_module, Const);
         self.register_builtin_type(module_t, module, Const);
         self.register_builtin_type(array_t, array_, Const);
+        self.register_builtin_type(set_t, set_, Const);
         self.register_builtin_type(builtin_mono("Bytes"), bytes, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
         self.register_builtin_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);
@@ -1690,6 +1731,7 @@ impl Context {
         self.register_builtin_type(builtin_mono("Str!"), str_mut, Const);
         self.register_builtin_type(builtin_mono("File!"), file_mut, Const);
         self.register_builtin_type(array_mut_t, array_mut_, Const);
+        self.register_builtin_type(set_mut_t, set_mut_, Const);
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(builtin_mono("Tuple"), tuple_, Const);
         self.register_builtin_type(builtin_mono("Proc"), proc, Const);
