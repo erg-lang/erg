@@ -29,7 +29,7 @@ use crate::context::{
     ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
 };
 use crate::error::{
-    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
+    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
 };
 use crate::hir;
@@ -344,13 +344,12 @@ impl ASTLowerer {
         log!(info "entered {}({set})", fn_name!());
         let (elems, _) = set.elems.into_iters();
         let mut union = Type::Never;
-        let mut new_set = Set::new();
-        let mut is_duplicated = false;
+        let mut new_set = vec![];
         for elem in elems {
             // TODO: Check if the object's type implements Eq
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
-            if matches!(union, Type::Or(_, _)) {
+            if union.is_intersection_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -373,22 +372,15 @@ impl ASTLowerer {
                     ),
                 )));
             }
-            // Returns false if the element to inserted is a duplicate
-            if !new_set.insert(elem) {
-                is_duplicated = true
-            }
+            new_set.push(elem);
         }
         let elem_t = if union == Type::Never {
             free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
         } else {
             union
         };
-        let normal_set = hir::NormalSet::new(
-            set.l_brace,
-            set.r_brace,
-            elem_t,
-            hir::Args::from(new_set.into_iter().collect::<Vec<hir::Expr>>()),
-        );
+        // TODO: lint
+        /*
         if is_duplicated {
             self.warns.push(LowerWarning::syntax_error(
                 self.cfg.input.clone(),
@@ -405,8 +397,21 @@ impl ASTLowerer {
             ));
         }
         Ok(normal_set)
+        */
+        let elems = hir::Args::from(new_set);
+        let inner_t = match &elem_t {
+            Type::Refinement(refine) => refine.t.as_ref(),
+            other => other,
+        };
+        let sup = builtin_poly("Eq", vec![TyParam::t(inner_t.clone())]);
+        // check if elem_t is Eq
+        if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
+            self.errs.extend(errs.into_iter());
+        }
+        Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
     }
 
+    /// This (e.g. {"a"; 3}) is meaningless as an object, but makes sense as a type (e.g. {Int; 3}).
     fn lower_set_with_length(
         &mut self,
         set: ast::SetWithLength,
