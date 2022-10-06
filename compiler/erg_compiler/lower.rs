@@ -397,9 +397,9 @@ impl ASTLowerer {
                 AtomicStr::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
-                    "simplified_chinese" => "TODO",
-                    "traditional_chinese" => "TODO",
-                    "english" => "Duplicate elements",
+                    "simplified_chinese" => "元素重复",
+                    "traditional_chinese" => "元素重複",
+                    "english" => "Elements are duplicated",
                 ),
                 None,
             ));
