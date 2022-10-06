@@ -126,25 +126,20 @@ impl Context {
                 }
             }
             for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(types) = self.method_to_types.get_mut(trait_method.inspect()) {
+                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
                     types.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_to_types.insert(
+                    self.method_to_traits.insert(
                         trait_method.inspect().clone(),
                         vec![MethodType::new(t.clone(), vi.t.clone())],
                     );
                 }
             }
             for (class_method, vi) in ctx.locals.iter() {
-                if let Some(mut types) = self.method_to_types.remove(class_method.inspect()) {
-                    // doesn't register if it's declared as a trait
-                    if self.is_class(&types.first().unwrap().definition_type) {
-                        types.push(MethodType::new(t.clone(), vi.t.clone()));
-                    }
-                    self.method_to_types
-                        .insert(class_method.inspect().clone(), types);
+                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_to_types.insert(
+                    self.method_to_classes.insert(
                         class_method.inspect().clone(),
                         vec![MethodType::new(t.clone(), vi.t.clone())],
                     );
@@ -182,25 +177,20 @@ impl Context {
                 }
             }
             for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(traits) = self.method_to_types.get_mut(trait_method.inspect()) {
+                if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
                     traits.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_to_types.insert(
+                    self.method_to_traits.insert(
                         trait_method.inspect().clone(),
                         vec![MethodType::new(t.clone(), vi.t.clone())],
                     );
                 }
             }
             for (class_method, vi) in ctx.locals.iter() {
-                if let Some(mut types) = self.method_to_types.remove(class_method.inspect()) {
-                    // doesn't register if it's declared as a trait
-                    if self.is_class(&types.first().unwrap().definition_type) {
-                        types.push(MethodType::new(t.clone(), vi.t.clone()));
-                    }
-                    self.method_to_types
-                        .insert(class_method.inspect().clone(), types);
+                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_to_types.insert(
+                    self.method_to_classes.insert(
                         class_method.inspect().clone(),
                         vec![MethodType::new(t.clone(), vi.t.clone())],
                     );

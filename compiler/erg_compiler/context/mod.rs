@@ -347,7 +347,8 @@ pub struct Context {
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     // K: method name, V: types defines the method
     // If it is declared in a trait, it takes precedence over the class.
-    pub(crate) method_to_types: Dict<Str, Vec<MethodType>>,
+    pub(crate) method_to_traits: Dict<Str, Vec<MethodType>>,
+    pub(crate) method_to_classes: Dict<Str, Vec<MethodType>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -485,7 +486,8 @@ impl Context {
             super_traits: vec![],
             methods_list: vec![],
             const_param_defaults: Dict::default(),
-            method_to_types: Dict::default(),
+            method_to_traits: Dict::default(),
+            method_to_classes: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
             params: params_,

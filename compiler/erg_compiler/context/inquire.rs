@@ -1764,16 +1764,17 @@ impl Context {
     }
 
     fn get_method_type_by_name(&self, name: &Identifier) -> SingleTyCheckResult<&MethodType> {
-        if let Some(candidates) = self.method_to_types.get(name.inspect()) {
+        // TODO: min_by
+        if let Some(candidates) = self.method_to_traits.get(name.inspect()) {
             let first_method_type = &candidates.first().unwrap().method_type;
             if candidates
                 .iter()
                 .skip(1)
                 .all(|t| &t.method_type == first_method_type)
             {
-                Ok(&candidates[0])
+                return Ok(&candidates[0]);
             } else {
-                Err(TyCheckError::ambiguous_type_error(
+                return Err(TyCheckError::ambiguous_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
@@ -1782,9 +1783,31 @@ impl Context {
                         .map(|t| t.definition_type.clone())
                         .collect::<Vec<_>>(),
                     self.caused_by(),
-                ))
+                ));
             }
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        }
+        if let Some(candidates) = self.method_to_classes.get(name.inspect()) {
+            let first_method_type = &candidates.first().unwrap().method_type;
+            if candidates
+                .iter()
+                .skip(1)
+                .all(|t| &t.method_type == first_method_type)
+            {
+                return Ok(&candidates[0]);
+            } else {
+                return Err(TyCheckError::ambiguous_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    name,
+                    &candidates
+                        .iter()
+                        .map(|t| t.definition_type.clone())
+                        .collect::<Vec<_>>(),
+                    self.caused_by(),
+                ));
+            }
+        }
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.get_method_type_by_name(name)
         } else {
             Err(TyCheckError::no_attr_error(
