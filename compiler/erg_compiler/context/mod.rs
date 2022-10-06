@@ -909,8 +909,8 @@ impl Context {
             .collect();
         if let Some(outer) = self.get_outer() {
             vars.extend(outer.dir());
-        } else {
-            vars.extend(self.get_builtins().unwrap().locals.iter());
+        } else if let Some(builtins) = self.get_builtins() {
+            vars.extend(builtins.locals.iter());
         }
         vars
     }
