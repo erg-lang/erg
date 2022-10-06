@@ -23,7 +23,9 @@ use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate::{ConstTemplate, TyVarContext};
-use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, ParamSpec, TraitInstance};
+use crate::context::{
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodType, ParamSpec, TraitInstance,
+};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use DefaultInfo::*;
@@ -77,6 +79,7 @@ impl Context {
         }
     }
 
+    /// FIXME: トレイトの汎化型を指定するのにも使っているので、この名前は適当でない
     pub(crate) fn register_superclass(&mut self, sup: Type, sup_ctx: &Context) {
         self.super_classes.push(sup);
         self.super_classes.extend(sup_ctx.super_classes.clone());
@@ -114,22 +117,32 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
-            if ctx.kind == ContextKind::Trait {
-                for method in ctx.decls.keys() {
-                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
-                        traits.push(t.clone());
-                    } else {
-                        self.method_traits
-                            .insert(method.inspect().clone(), vec![t.clone()]);
-                    }
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_traits.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_classes.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.mono_types.insert(name, (t, ctx));
@@ -155,22 +168,32 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
-            if ctx.kind == ContextKind::Trait {
-                for method in ctx.decls.keys() {
-                    if let Some(traits) = self.method_traits.get_mut(method.inspect()) {
-                        traits.push(t.clone());
-                    } else {
-                        self.method_traits
-                            .insert(method.inspect().clone(), vec![t.clone()]);
-                    }
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
+                    traits.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_traits.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_classes.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.poly_types.insert(name, (t, ctx));
@@ -209,7 +232,7 @@ impl Context {
         let named = Self::builtin_mono_trait("Named", 2);
         let mut mutable = Self::builtin_mono_trait("Mutable", 2);
         let proj = mono_proj(mono_q("Self"), "ImmutType");
-        let f_t = func(vec![param_t("old", proj.clone())], None, vec![], proj);
+        let f_t = func(vec![kw("old", proj.clone())], None, vec![], proj);
         let t = pr1_met(ref_mut(mono_q("Self"), None), f_t, NoneType);
         let t = quant(
             t,
@@ -229,7 +252,7 @@ impl Context {
             ref_mut(mono_q("Self"), None),
             vec![],
             None,
-            vec![param_t("n", Int)],
+            vec![kw("n", Int)],
             Str,
         );
         let t_read = quant(
@@ -540,7 +563,6 @@ impl Context {
         ratio.register_trait(Ratio, builtin_mono("Show"), ratio_show);
         let mut int = Self::builtin_mono_class("Int", 2);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
-        int.register_superclass(Obj, &obj);
         int.register_marker_trait(builtin_mono("Num"));
         int.register_marker_trait(builtin_mono("Ord"));
         int.register_marker_trait(builtin_poly("Eq", vec![ty_tp(Int)]));
@@ -588,15 +610,13 @@ impl Context {
         int.register_builtin_impl("Imag", Int, Const, Public);
         let mut nat = Self::builtin_mono_class("Nat", 10);
         nat.register_superclass(Int, &int);
-        nat.register_superclass(Float, &float); // TODO: Float -> Ratio
-        nat.register_superclass(Obj, &obj);
         // class("Rational"),
         // class("Integral"),
         nat.register_builtin_impl(
             "times!",
             pr_met(
                 Nat,
-                vec![param_t("p", nd_proc(vec![], None, NoneType))],
+                vec![kw("p", nd_proc(vec![], None, NoneType))],
                 None,
                 vec![],
                 NoneType,
@@ -638,9 +658,6 @@ impl Context {
         nat.register_builtin_impl("Imag", Nat, Const, Public);
         let mut bool_ = Self::builtin_mono_class("Bool", 10);
         bool_.register_superclass(Nat, &nat);
-        bool_.register_superclass(Int, &int);
-        bool_.register_superclass(Float, &float); // TODO: Float -> Ratio
-        bool_.register_superclass(Obj, &obj);
         // class("Rational"),
         // class("Integral"),
         // TODO: And, Or trait
@@ -671,6 +688,9 @@ impl Context {
         bool_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Bool!")));
         bool_.register_trait(Bool, builtin_mono("Mutizable"), bool_mutizable);
+        let mut bool_show = Self::builtin_methods("Show", 1);
+        bool_show.register_builtin_impl("to_str", fn0_met(Bool, Str), Immutable, Public);
+        bool_.register_trait(Bool, builtin_mono("Show"), bool_show);
         let mut str_ = Self::builtin_mono_class("Str", 10);
         str_.register_superclass(Obj, &obj);
         str_.register_marker_trait(builtin_mono("Ord"));
@@ -679,7 +699,7 @@ impl Context {
             "replace",
             fn_met(
                 Str,
-                vec![param_t("pat", Str), param_t("into", Str)],
+                vec![kw("pat", Str), kw("into", Str)],
                 None,
                 vec![],
                 Str,
@@ -693,7 +713,7 @@ impl Context {
                 Str,
                 vec![],
                 None,
-                vec![param_t("encoding", Str), param_t("errors", Str)],
+                vec![kw("encoding", Str), kw("errors", Str)],
                 builtin_mono("Bytes"),
             ),
             Immutable,
@@ -717,6 +737,9 @@ impl Context {
         let mut str_mutizable = Self::builtin_methods("Mutizable", 2);
         str_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Str!")));
         str_.register_trait(Str, builtin_mono("Mutizable"), str_mutizable);
+        let mut str_show = Self::builtin_methods("Show", 1);
+        str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
+        str_.register_trait(Str, builtin_mono("Show"), str_show);
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
@@ -726,7 +749,6 @@ impl Context {
         type_.register_trait(Type, builtin_poly("Eq", vec![ty_tp(Type)]), type_eq);
         let mut class_type = Self::builtin_mono_class("ClassType", 2);
         class_type.register_superclass(Type, &type_);
-        class_type.register_superclass(Obj, &obj);
         class_type.register_marker_trait(builtin_mono("Named"));
         let mut class_eq = Self::builtin_methods("Eq", 2);
         class_eq.register_builtin_impl("__eq__", fn1_met(Class, Class, Bool), Const, Public);
@@ -759,7 +781,7 @@ impl Context {
         let array_t = array(mono_q("T"), n.clone());
         let t = fn_met(
             array_t.clone(),
-            vec![param_t("rhs", array(mono_q("T"), m.clone()))],
+            vec![kw("rhs", array(mono_q("T"), m.clone()))],
             None,
             vec![],
             array(mono_q("T"), n + m),
@@ -784,14 +806,22 @@ impl Context {
         );
         array_.register_trait(
             array_t.clone(),
-            builtin_poly("Eq", vec![ty_tp(array_t)]),
+            builtin_poly("Eq", vec![ty_tp(array_t.clone())]),
             array_eq,
         );
         array_.register_marker_trait(builtin_mono("Mutizable"));
         array_.register_marker_trait(builtin_poly("Seq", vec![ty_tp(mono_q("T"))]));
+        let mut array_show = Self::builtin_methods("Show", 1);
+        array_show.register_builtin_impl(
+            "to_str",
+            fn0_met(array_t.clone(), Str),
+            Immutable,
+            Public,
+        );
+        array_.register_trait(array_t, builtin_mono("Show"), array_show);
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
-        // TODO: make Tuple6, Tuple7, ... etc.
+        // FIXME: replace to Tuple Ts (e.g. Tuple [Int, Str])
         let mut tuple_ = Self::builtin_mono_class("Tuple", 2);
         tuple_.register_superclass(Obj, &obj);
         let mut tuple_eq = Self::builtin_methods("Eq", 2);
@@ -808,7 +838,6 @@ impl Context {
         );
         let mut tuple1 = Self::builtin_poly_class("Tuple1", vec![PS::t_nd("A")], 2);
         tuple1.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple1.register_superclass(Obj, &obj);
         let mut tuple1_eq = Self::builtin_methods("Eq", 2);
         tuple1_eq.register_builtin_impl(
             "__eq__",
@@ -830,7 +859,6 @@ impl Context {
         );
         let mut tuple2 = Self::builtin_poly_class("Tuple2", vec![PS::t_nd("A"), PS::t_nd("B")], 2);
         tuple2.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple2.register_superclass(Obj, &obj);
         let mut tuple2_eq = Self::builtin_methods("Eq", 2);
         tuple2_eq.register_builtin_impl(
             "__eq__",
@@ -859,7 +887,6 @@ impl Context {
             2,
         );
         tuple3.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple3.register_superclass(Obj, &obj);
         let mut tuple3_eq = Self::builtin_methods("Eq", 2);
         tuple3_eq.register_builtin_impl(
             "__eq__",
@@ -897,7 +924,6 @@ impl Context {
             2,
         );
         tuple4.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple4.register_superclass(Obj, &obj);
         let mut tuple4_eq = Self::builtin_methods("Eq", 2);
         tuple4_eq.register_builtin_impl(
             "__eq__",
@@ -961,7 +987,6 @@ impl Context {
             2,
         );
         tuple5.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple5.register_superclass(Obj, &obj);
         let mut tuple5_eq = Self::builtin_methods("Eq", 2);
         tuple5_eq.register_builtin_impl(
             "__eq__",
@@ -1030,7 +1055,6 @@ impl Context {
             2,
         );
         tuple6.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple6.register_superclass(Obj, &obj);
         let mut tuple6_eq = Self::builtin_methods("Eq", 2);
         tuple6_eq.register_builtin_impl(
             "__eq__",
@@ -1104,7 +1128,6 @@ impl Context {
             2,
         );
         tuple7.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple7.register_superclass(Obj, &obj);
         let mut tuple7_eq = Self::builtin_methods("Eq", 2);
         tuple7_eq.register_builtin_impl(
             "__eq__",
@@ -1183,7 +1206,6 @@ impl Context {
             2,
         );
         tuple8.register_superclass(builtin_mono("Tuple"), &tuple_);
-        tuple8.register_superclass(Obj, &obj);
         let mut tuple8_eq = Self::builtin_methods("Eq", 2);
         tuple8_eq.register_builtin_impl(
             "__eq__",
@@ -1256,13 +1278,11 @@ impl Context {
         let mut record_type = Self::builtin_mono_class("RecordType", 2);
         record_type.register_superclass(builtin_mono("Record"), &record);
         record_type.register_superclass(builtin_mono("Type"), &type_);
-        record_type.register_superclass(Obj, &obj);
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
-        float_mut.register_superclass(Obj, &obj);
         let mut float_mut_mutable = Self::builtin_methods("Mutable", 2);
         float_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Float));
-        let f_t = param_t("f", func(vec![param_t("old", Float)], None, vec![], Float));
+        let f_t = kw("f", func(vec![kw("old", Float)], None, vec![], Float));
         let t = pr_met(
             ref_mut(builtin_mono("Float!"), None),
             vec![f_t],
@@ -1278,13 +1298,12 @@ impl Context {
         );
         let mut ratio_mut = Self::builtin_mono_class("Ratio!", 2);
         ratio_mut.register_superclass(Ratio, &ratio);
-        ratio_mut.register_superclass(Obj, &obj);
         let mut ratio_mut_mutable = Self::builtin_methods("Mutable", 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Ratio));
-        let f_t = param_t(
+        let f_t = kw(
             "f",
             func(
-                vec![param_t("old", builtin_mono("Ratio"))],
+                vec![kw("old", builtin_mono("Ratio"))],
                 None,
                 vec![],
                 builtin_mono("Ratio"),
@@ -1306,10 +1325,9 @@ impl Context {
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(builtin_mono("Float!"), &float_mut);
-        int_mut.register_superclass(Obj, &obj);
         let mut int_mut_mutable = Self::builtin_methods("Mutable", 2);
         int_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Int));
-        let f_t = param_t("f", func(vec![param_t("old", Int)], None, vec![], Int));
+        let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
         let t = pr_met(
             ref_mut(builtin_mono("Int!"), None),
             vec![f_t],
@@ -1326,11 +1344,9 @@ impl Context {
         let mut nat_mut = Self::builtin_mono_class("Nat!", 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(builtin_mono("Int!"), &int_mut);
-        nat_mut.register_superclass(builtin_mono("Float!"), &float_mut);
-        nat_mut.register_superclass(Obj, &obj);
         let mut nat_mut_mutable = Self::builtin_methods("Mutable", 2);
         nat_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Nat));
-        let f_t = param_t("f", func(vec![param_t("old", Nat)], None, vec![], Nat));
+        let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
         let t = pr_met(
             ref_mut(builtin_mono("Nat!"), None),
             vec![f_t],
@@ -1347,12 +1363,9 @@ impl Context {
         let mut bool_mut = Self::builtin_mono_class("Bool!", 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(builtin_mono("Nat!"), &nat_mut);
-        bool_mut.register_superclass(builtin_mono("Int!"), &int_mut);
-        bool_mut.register_superclass(builtin_mono("Float!"), &float_mut);
-        bool_mut.register_superclass(Obj, &obj);
         let mut bool_mut_mutable = Self::builtin_methods("Mutable", 2);
         bool_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Bool));
-        let f_t = param_t("f", func(vec![param_t("old", Bool)], None, vec![], Bool));
+        let f_t = kw("f", func(vec![kw("old", Bool)], None, vec![], Bool));
         let t = pr_met(
             ref_mut(builtin_mono("Bool!"), None),
             vec![f_t],
@@ -1368,10 +1381,9 @@ impl Context {
         );
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
         str_mut.register_superclass(Str, &str_);
-        str_mut.register_superclass(Obj, &obj);
         let mut str_mut_mutable = Self::builtin_methods("Mutable", 2);
         str_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Str));
-        let f_t = param_t("f", func(vec![param_t("old", Str)], None, vec![], Str));
+        let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
         let t = pr_met(
             ref_mut(builtin_mono("Str!"), None),
             vec![f_t],
@@ -1393,7 +1405,7 @@ impl Context {
                 ref_mut(builtin_mono("File!"), None),
                 vec![],
                 None,
-                vec![param_t("n", Int)],
+                vec![kw("n", Int)],
                 Str,
             ),
             Immutable,
@@ -1412,7 +1424,6 @@ impl Context {
             2,
         );
         array_mut_.register_superclass(array_t.clone(), &array_);
-        array_mut_.register_superclass(Obj, &obj);
         let t = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1421,7 +1432,7 @@ impl Context {
                     vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
                 )),
             ),
-            vec![param_t("elem", mono_q("T"))],
+            vec![kw("elem", mono_q("T"))],
             None,
             vec![],
             NoneType,
@@ -1433,10 +1444,7 @@ impl Context {
         array_mut_.register_builtin_impl("push!", t, Immutable, Public);
         let t = pr_met(
             array_mut_t.clone(),
-            vec![param_t(
-                "f",
-                nd_func(vec![anon(mono_q("T"))], None, mono_q("T")),
-            )],
+            vec![kw("f", nd_func(vec![anon(mono_q("T"))], None, mono_q("T")))],
             None,
             vec![],
             NoneType,
@@ -1446,10 +1454,10 @@ impl Context {
             set! {static_instance("T", Type), static_instance("N", builtin_mono("Nat!"))},
         );
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
-        let f_t = param_t(
+        let f_t = kw(
             "f",
             func(
-                vec![param_t("old", array_t.clone())],
+                vec![kw("old", array_t.clone())],
                 None,
                 vec![],
                 array_t.clone(),
@@ -1487,16 +1495,16 @@ impl Context {
         );
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);
-        // TODO: lambda
-        proc.register_marker_trait(builtin_mono("Named"));
+        let mut named_proc = Self::builtin_mono_class("NamedProc", 2);
+        named_proc.register_superclass(Obj, &obj);
+        named_proc.register_marker_trait(builtin_mono("Named"));
         let mut func = Self::builtin_mono_class("Func", 2);
         func.register_superclass(builtin_mono("Proc"), &proc);
-        func.register_superclass(Obj, &obj);
-        // TODO: lambda
-        func.register_marker_trait(builtin_mono("Named"));
+        let mut named_func = Self::builtin_mono_class("NamedFunc", 2);
+        named_func.register_superclass(builtin_mono("Func"), &func);
+        named_func.register_marker_trait(builtin_mono("Named"));
         let mut qfunc = Self::builtin_mono_class("QuantifiedFunc", 2);
         qfunc.register_superclass(builtin_mono("Func"), &func);
-        qfunc.register_superclass(Obj, &obj);
         self.register_builtin_type(Obj, obj, Const);
         // self.register_type(mono("Record"), vec![], record, Const);
         self.register_builtin_type(Int, int, Const);
@@ -1586,42 +1594,50 @@ impl Context {
         self.register_builtin_type(range_t, range, Const);
         self.register_builtin_type(builtin_mono("Tuple"), tuple_, Const);
         self.register_builtin_type(builtin_mono("Proc"), proc, Const);
+        self.register_builtin_type(builtin_mono("NamedProc"), named_proc, Const);
         self.register_builtin_type(builtin_mono("Func"), func, Const);
+        self.register_builtin_type(builtin_mono("NamedFunc"), named_func, Const);
         self.register_builtin_type(builtin_mono("QuantifiedFunc"), qfunc, Const);
     }
 
     fn init_builtin_funcs(&mut self) {
-        let t_abs = nd_func(vec![param_t("n", builtin_mono("Num"))], None, Nat);
+        let t_abs = nd_func(vec![kw("n", builtin_mono("Num"))], None, Nat);
         let t_assert = func(
-            vec![param_t("condition", Bool)],
+            vec![kw("condition", Bool)],
             None,
-            vec![param_t("err_message", Str)],
+            vec![kw("err_message", Str)],
             NoneType,
         );
-        let t_classof = nd_func(vec![param_t("old", Obj)], None, Class);
-        let t_compile = nd_func(vec![param_t("src", Str)], None, Code);
+        let t_classof = nd_func(vec![kw("old", Obj)], None, Class);
+        let t_compile = nd_func(vec![kw("src", Str)], None, Code);
         let t_cond = nd_func(
             vec![
-                param_t("condition", Bool),
-                param_t("then", mono_q("T")),
-                param_t("else", mono_q("T")),
+                kw("condition", Bool),
+                kw("then", mono_q("T")),
+                kw("else", mono_q("T")),
             ],
             None,
             mono_q("T"),
         );
         let t_cond = quant(t_cond, set! {static_instance("T", Type)});
-        let t_discard = nd_func(vec![param_t("old", Obj)], None, NoneType);
-        // FIXME: quantify
+        let t_discard = nd_func(vec![kw("obj", Obj)], None, NoneType);
         let t_if = func(
             vec![
-                param_t("cond", Bool),
-                param_t("then", nd_func(vec![], None, mono_q("T"))),
+                kw("cond", Bool),
+                kw("then", nd_func(vec![], None, mono_q("T"))),
             ],
             None,
-            vec![param_t("else", nd_func(vec![], None, mono_q("T")))],
-            or(mono_q("T"), NoneType),
+            vec![kw_default(
+                "else",
+                nd_func(vec![], None, mono_q("U")),
+                nd_func(vec![], None, NoneType),
+            )],
+            or(mono_q("T"), mono_q("U")),
         );
-        let t_if = quant(t_if, set! {static_instance("T", Type)});
+        let t_if = quant(
+            t_if,
+            set! {static_instance("T", Type), static_instance("U", Type)},
+        );
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
             None,
@@ -1630,12 +1646,12 @@ impl Context {
         let t_import = quant(t_import, set! {static_instance("Path", Str)});
         let t_log = func(
             vec![],
-            Some(param_t("objects", ref_(Obj))),
+            Some(kw("objects", ref_(Obj))),
             vec![
-                param_t("sep", Str),
-                param_t("end", Str),
-                param_t("file", builtin_mono("Write")),
-                param_t("flush", Bool),
+                kw("sep", Str),
+                kw("end", Str),
+                kw("file", builtin_mono("Write")),
+                kw("flush", Bool),
             ],
             NoneType,
         );
@@ -1644,9 +1660,9 @@ impl Context {
             None,
             module(mono_q_tp("Path")),
         );
-        let t_panic = nd_func(vec![param_t("err_message", Str)], None, NoneType);
+        let t_panic = nd_func(vec![kw("err_message", Str)], None, NoneType);
         let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
-        let t_quit = func(vec![], None, vec![param_t("code", Int)], NoneType);
+        let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
         self.register_builtin_impl("abs", t_abs, Immutable, Private);
         self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
@@ -1668,17 +1684,17 @@ impl Context {
 
     fn init_builtin_const_funcs(&mut self) {
         let class_t = func(
-            vec![param_t("Requirement", Type)],
+            vec![kw("Requirement", Type)],
             None,
-            vec![param_t("Impl", Type)],
+            vec![kw("Impl", Type)],
             Class,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));
         self.register_builtin_const("Class", ValueObj::Subr(class));
         let inherit_t = func(
-            vec![param_t("Super", Class)],
+            vec![kw("Super", Class)],
             None,
-            vec![param_t("Impl", Type), param_t("Additional", Type)],
+            vec![kw("Impl", Type), kw("Additional", Type)],
             Class,
         );
         let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1689,17 +1705,17 @@ impl Context {
         ));
         self.register_builtin_const("Inherit", ValueObj::Subr(inherit));
         let trait_t = func(
-            vec![param_t("Requirement", Type)],
+            vec![kw("Requirement", Type)],
             None,
-            vec![param_t("Impl", Type)],
+            vec![kw("Impl", Type)],
             Trait,
         );
         let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t, None));
         self.register_builtin_const("Trait", ValueObj::Subr(trait_));
         let subsume_t = func(
-            vec![param_t("Super", Trait)],
+            vec![kw("Super", Trait)],
             None,
-            vec![param_t("Impl", Type), param_t("Additional", Type)],
+            vec![kw("Impl", Type), kw("Additional", Type)],
             Trait,
         );
         let subsume = ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1718,42 +1734,45 @@ impl Context {
             None,
         ));
         self.register_builtin_const("Inheritable", ValueObj::Subr(inheritable));
+        // TODO: register Del function object
+        let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
+        self.register_builtin_impl("Del", t_del, Immutable, Private);
     }
 
     fn init_builtin_procs(&mut self) {
         let t_dir = proc(
-            vec![param_t("obj", ref_(Obj))],
+            vec![kw("obj", ref_(Obj))],
             None,
             vec![],
             array(Str, TyParam::erased(Nat)),
         );
         let t_print = proc(
             vec![],
-            Some(param_t("objects", ref_(Obj))),
+            Some(kw("objects", ref_(Obj))),
             vec![
-                param_t("sep", Str),
-                param_t("end", Str),
-                param_t("file", builtin_mono("Write")),
-                param_t("flush", Bool),
+                kw("sep", Str),
+                kw("end", Str),
+                kw("file", builtin_mono("Write")),
+                kw("flush", Bool),
             ],
             NoneType,
         );
-        let t_id = nd_func(vec![param_t("old", Obj)], None, Nat);
-        let t_input = proc(vec![], None, vec![param_t("msg", Str)], Str);
+        let t_id = nd_func(vec![kw("old", Obj)], None, Nat);
+        let t_input = proc(vec![], None, vec![kw("msg", Str)], Str);
         let t_if = proc(
             vec![
-                param_t("cond", Bool),
-                param_t("then", nd_proc(vec![], None, mono_q("T"))),
+                kw("cond", Bool),
+                kw("then", nd_proc(vec![], None, mono_q("T"))),
             ],
             None,
-            vec![param_t("else", nd_proc(vec![], None, mono_q("T")))],
+            vec![kw("else", nd_proc(vec![], None, mono_q("T")))],
             or(mono_q("T"), NoneType),
         );
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_for = nd_proc(
             vec![
-                param_t("iter", iter(mono_q("T"))),
-                param_t("p", nd_proc(vec![anon(mono_q("T"))], None, NoneType)),
+                kw("iter", iter(mono_q("T"))),
+                kw("p", nd_proc(vec![anon(mono_q("T"))], None, NoneType)),
             ],
             None,
             NoneType,
@@ -1761,22 +1780,22 @@ impl Context {
         let t_for = quant(t_for, set! {static_instance("T", Type)});
         let t_while = nd_proc(
             vec![
-                param_t("cond", builtin_mono("Bool!")),
-                param_t("p", nd_proc(vec![], None, NoneType)),
+                kw("cond", builtin_mono("Bool!")),
+                kw("p", nd_proc(vec![], None, NoneType)),
             ],
             None,
             NoneType,
         );
         let t_open = proc(
-            vec![param_t("file", mono_q("P"))],
+            vec![kw("file", mono_q("P"))],
             None,
             vec![
-                param_t("mode", Str),
-                param_t("buffering", Int),
-                param_t("encoding", or(Str, NoneType)),
-                param_t("errors", or(Str, NoneType)),
-                param_t("newline", or(Str, NoneType)),
-                param_t("closefd", Bool),
+                kw("mode", Str),
+                kw("buffering", Int),
+                kw("encoding", or(Str, NoneType)),
+                kw("errors", or(Str, NoneType)),
+                kw("newline", or(Str, NoneType)),
+                kw("closefd", Bool),
                 // param_t("opener", option),
             ],
             builtin_mono("File!"),
@@ -1788,8 +1807,8 @@ impl Context {
         // TODO: T <: With
         let t_with = nd_proc(
             vec![
-                param_t("obj", mono_q("T")),
-                param_t("p!", nd_proc(vec![anon(mono_q("T"))], None, mono_q("U"))),
+                kw("obj", mono_q("T")),
+                kw("p!", nd_proc(vec![anon(mono_q("T"))], None, mono_q("U"))),
             ],
             None,
             mono_q("U"),
@@ -1815,7 +1834,7 @@ impl Context {
         let r = mono_q("R");
         let params = vec![ty_tp(mono_q("R"))];
         let op_t = nd_func(
-            vec![param_t("lhs", l.clone()), param_t("rhs", r.clone())],
+            vec![kw("lhs", l.clone()), kw("rhs", r.clone())],
             None,
             mono_proj(mono_q("L"), "Output"),
         );

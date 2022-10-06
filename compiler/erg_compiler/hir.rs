@@ -20,7 +20,7 @@ use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
-use crate::context::ImportKind;
+use crate::context::OperationKind;
 use crate::error::readable_name;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1085,10 +1085,11 @@ impl Call {
         }
     }
 
-    pub fn import_kind(&self) -> Option<ImportKind> {
+    pub fn additional_operation(&self) -> Option<OperationKind> {
         self.obj.show_acc().and_then(|s| match &s[..] {
-            "import" => Some(ImportKind::ErgImport),
-            "pyimport" | "py" => Some(ImportKind::PyImport),
+            "import" => Some(OperationKind::Import),
+            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "Del" => Some(OperationKind::Del),
             _ => None,
         })
     }

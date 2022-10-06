@@ -2,6 +2,7 @@ use std::fmt;
 use std::mem;
 
 use erg_common::dict::Dict;
+use erg_common::enum_unwrap;
 use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
@@ -15,18 +16,17 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    and, builtin_mono, builtin_poly, mono_proj, not, or, poly, ref_, ref_mut, refinement, subr_t,
-    v_enum,
+    builtin_mono, builtin_poly, mono_proj, not, poly, ref_, ref_mut, refinement, subr_t, v_enum,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
-use erg_type::{
-    ConstSubr, HasType, ParamTy, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs,
-};
+use erg_type::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult, TyCheckResult};
+
+use super::Variance;
 
 #[inline]
 pub fn type_from_token_kind(kind: TokenKind) -> Type {
@@ -72,6 +72,34 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
     }
 }
 
+fn op_to_name(op: OpKind) -> &'static str {
+    match op {
+        OpKind::Add => "__add__",
+        OpKind::Sub => "__sub__",
+        OpKind::Mul => "__mul__",
+        OpKind::Div => "__div__",
+        OpKind::Mod => "__mod__",
+        OpKind::Pow => "__pow__",
+        OpKind::Pos => "__pos__",
+        OpKind::Neg => "__neg__",
+        OpKind::Eq => "__eq__",
+        OpKind::Ne => "__ne__",
+        OpKind::Lt => "__lt__",
+        OpKind::Le => "__le__",
+        OpKind::Gt => "__gt__",
+        OpKind::Ge => "__ge__",
+        OpKind::And => "__and__",
+        OpKind::Or => "__or__",
+        OpKind::Invert => "__invert__",
+        OpKind::BitAnd => "__bitand__",
+        OpKind::BitOr => "__bitor__",
+        OpKind::BitXor => "__bitxor__",
+        OpKind::Shl => "__shl__",
+        OpKind::Shr => "__shr__",
+        OpKind::Mutate => "__mutate__",
+    }
+}
+
 #[inline]
 pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     let t = type_from_token_kind(lit.token.kind);
@@ -104,7 +132,13 @@ impl SubstContext {
                 .as_ref()
                 .map_or_else(|| Str::ever("_"), |n| n.inspect().clone())
         });
-        assert_eq!(param_names.len(), substituted.typarams().len());
+        if param_names.len() != substituted.typarams().len() {
+            let param_names = param_names.collect::<Vec<_>>();
+            panic!(
+                "{param_names:?} != {}",
+                erg_common::fmt_vec(&substituted.typarams())
+            );
+        }
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
         SubstContext {
             bounds,
@@ -464,36 +498,20 @@ impl Context {
         let tv_ctx = TyVarContext::new(self.level, bounds, self);
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
-            let t =
-                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = sig.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt =
+                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             non_default_params.push(pt);
         }
         let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
-            let t =
-                self.instantiate_param_sig_t(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = p.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt = self.instantiate_param_ty(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             Some(pt)
         } else {
             None
         };
         let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
         for sig in lambda.sig.params.defaults.iter() {
-            let t =
-                self.instantiate_param_sig_t(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
-            let pt = if let Some(name) = sig.inspect() {
-                ParamTy::kw(name.clone(), t)
-            } else {
-                ParamTy::anonymous(t)
-            };
+            let pt =
+                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             default_params.push(pt);
         }
         // HACK: should avoid cloning
@@ -661,28 +679,10 @@ impl Context {
             (TyParam::Value(lhs), TyParam::Value(rhs)) => self
                 .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
-            (TyParam::FreeVar(fv), r) => {
-                if fv.is_linked() {
-                    self.eval_bin_tp(op, &*fv.crack(), r)
-                } else {
-                    Err(EvalErrors::from(EvalError::unreachable(
-                        self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
-                    )))
-                }
-            }
-            (l, TyParam::FreeVar(fv)) => {
-                if fv.is_linked() {
-                    self.eval_bin_tp(op, l, &*fv.crack())
-                } else {
-                    Err(EvalErrors::from(EvalError::unreachable(
-                        self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
-                    )))
-                }
-            }
+            (TyParam::FreeVar(fv), r) if fv.is_linked() => self.eval_bin_tp(op, &*fv.crack(), r),
+            (TyParam::FreeVar(_), _) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
+            (l, TyParam::FreeVar(fv)) if fv.is_linked() => self.eval_bin_tp(op, l, &*fv.crack()),
+            (_, TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
             (l, r) => todo!("{l} {op} {r}"),
         }
@@ -845,15 +845,42 @@ impl Context {
                         }
                     }
                 }
-                let proj = mono_proj(*lhs, rhs);
-                Err(EvalErrors::from(EvalError::no_candidate_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    &proj,
-                    t_loc,
-                    self.caused_by(),
-                    self.get_no_candidate_hint(&proj),
-                )))
+                if lhs.is_unbound_var() {
+                    let (sub, sup) = enum_unwrap!(lhs.as_ref(), Type::FreeVar)
+                        .get_bound_types()
+                        .unwrap();
+                    if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                        return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            &sub,
+                            &sup,
+                            t_loc,
+                            self.caused_by(),
+                            None,
+                        )));
+                    }
+                }
+                // if the target can't be found in the supertype, the type will be dereferenced.
+                // In many cases, it is still better to determine the type variable than if the target is not found.
+                let coerced = self.deref_tyvar(*lhs.clone(), Variance::Covariant, t_loc)?;
+                if lhs.as_ref() != &coerced {
+                    let proj = mono_proj(coerced, rhs);
+                    self.eval_t_params(proj, level, t_loc).map(|t| {
+                        self.coerce(&lhs);
+                        t
+                    })
+                } else {
+                    let proj = mono_proj(*lhs, rhs);
+                    Err(EvalErrors::from(EvalError::no_candidate_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &proj,
+                        t_loc,
+                        self.caused_by(),
+                        self.get_no_candidate_hint(&proj),
+                    )))
+                }
             }
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
@@ -884,12 +911,12 @@ impl Context {
             Type::And(l, r) => {
                 let l = self.eval_t_params(*l, level, t_loc)?;
                 let r = self.eval_t_params(*r, level, t_loc)?;
-                Ok(and(l, r))
+                Ok(self.intersection(&l, &r))
             }
             Type::Or(l, r) => {
                 let l = self.eval_t_params(*l, level, t_loc)?;
                 let r = self.eval_t_params(*r, level, t_loc)?;
-                Ok(or(l, r))
+                Ok(self.union(&l, &r))
             }
             Type::Not(l, r) => {
                 let l = self.eval_t_params(*l, level, t_loc)?;
@@ -971,6 +998,10 @@ impl Context {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
                 _ => todo!(),
             },
+            TyParam::BinOp { op, lhs, rhs } => {
+                let op_name = op_to_name(op);
+                todo!("get type: {op_name}({lhs}, {rhs})")
+            }
             other => todo!("{other}"),
         }
     }

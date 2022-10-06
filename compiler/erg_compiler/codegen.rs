@@ -207,7 +207,7 @@ fn is_fake_method(class: &str, name: &str) -> bool {
     matches!(
         (class, name),
         (
-            "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
+            _, // "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
             "abs"
         ) | (_, "iter")
             | (_, "map")
@@ -1205,6 +1205,17 @@ impl CodeGenerator {
         }
     }
 
+    fn emit_del_instr(&mut self, mut args: Args) {
+        let ident = enum_unwrap!(args.remove_left_or_key("obj").unwrap(), Expr::Accessor:(Accessor::Ident:(_)));
+        log!(info "entered {} ({ident})", fn_name!());
+        let escaped = escape_name(ident);
+        let name = self
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
+        self.write_instr(DELETE_NAME);
+        self.write_arg(name.idx as u8);
+    }
+
     fn emit_discard_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
@@ -1448,6 +1459,7 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
+            "Del" => self.emit_del_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
             "if" | "if!" => self.emit_if_instr(args),

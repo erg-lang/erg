@@ -120,15 +120,31 @@ impl Context {
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => match &*fv.borrow() {
                 FreeKind::Unbound { id, constraint, .. } => {
-                    let name = format!("%{id}");
-                    self.generalize_constraint(&name, constraint, bounds, lazy_inits);
-                    mono_q(name)
+                    // |Int <: T <: Int| T -> T ==> Int -> Int
+                    let (l, r) = constraint.get_sub_sup().unwrap();
+                    if l == r {
+                        fv.forced_link(&l.clone());
+                        FreeVar(fv.clone())
+                    } else if r != &Obj && self.is_class(r) {
+                        // x: T <: Bool ==> x: Bool
+                        r.clone()
+                    } else {
+                        let name = format!("%{id}");
+                        self.generalize_constraint(&name, constraint, bounds, lazy_inits);
+                        mono_q(name)
+                    }
                 }
                 FreeKind::NamedUnbound {
                     name, constraint, ..
                 } => {
-                    self.generalize_constraint(name, constraint, bounds, lazy_inits);
-                    mono_q(name)
+                    let (l, r) = constraint.get_sub_sup().unwrap();
+                    if l == r {
+                        fv.forced_link(l);
+                        FreeVar(fv.clone())
+                    } else {
+                        self.generalize_constraint(name, constraint, bounds, lazy_inits);
+                        mono_q(name)
+                    }
                 }
                 _ => assume_unreachable!(),
             },
@@ -181,6 +197,23 @@ impl Context {
             MonoProj { lhs, rhs } => {
                 let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
                 mono_proj(lhs, rhs)
+            }
+            And(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                // not `self.intersection` because types are generalized
+                and(l, r)
+            }
+            Or(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                // not `self.union` because types are generalized
+                or(l, r)
+            }
+            Not(l, r) => {
+                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                not(l, r)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
@@ -312,6 +345,12 @@ impl Context {
                 let constraint = fv.crack_constraint();
                 let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
                 if self.level <= fv.level().unwrap() {
+                    /*if self.is_trait(sub_t) {
+                        self.check_trait_exists(sub_t, loc)?;
+                    }*/
+                    if self.is_trait(super_t) {
+                        self.check_trait_impl(sub_t, super_t, loc)?;
+                    }
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
                     if self.subtype_of(sub_t, super_t) {
                         match variance {
@@ -472,6 +511,58 @@ impl Context {
         }
     }
 
+    pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let mut super_exists = false;
+        for inst in self.get_trait_impls(trait_).into_iter() {
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
+            {
+                super_exists = true;
+                break;
+            }
+        }
+        super_exists
+    }
+
+    fn check_trait_impl(
+        &self,
+        class: &Type,
+        trait_: &Type,
+        loc: Location,
+    ) -> SingleTyCheckResult<()> {
+        if !self.trait_impl_exists(class, trait_) {
+            Err(TyCheckError::no_trait_impl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                class,
+                trait_,
+                loc,
+                self.caused_by(),
+                None,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Fix type variables at their lower bound
+    pub(crate) fn coerce(&self, t: &Type) {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.coerce(&fv.crack());
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, _sup) = fv.get_bound_types().unwrap();
+                fv.link(&sub);
+            }
+            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+                self.coerce(l);
+                self.coerce(r);
+            }
+            _ => {}
+        }
+    }
+
     /// Check if all types are resolvable (if traits, check if an implementation exists)
     /// And replace them if resolvable
     pub(crate) fn resolve(
@@ -602,16 +693,22 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Def(def) => {
-                match &mut def.sig {
-                    hir::Signature::Var(var) => {
-                        var.t = self.deref_tyvar(mem::take(&mut var.t), Covariant, var.loc())?;
+                // It is not possible to further dereference the quantified type.
+                // TODO: However, it is possible that there are external type variables within the quantified type.
+                if !def.sig.ref_t().is_quantified() {
+                    match &mut def.sig {
+                        hir::Signature::Var(var) => {
+                            var.t =
+                                self.deref_tyvar(mem::take(&mut var.t), Covariant, var.loc())?;
+                        }
+                        hir::Signature::Subr(subr) => {
+                            subr.t =
+                                self.deref_tyvar(mem::take(&mut subr.t), Covariant, subr.loc())?;
+                        }
                     }
-                    hir::Signature::Subr(subr) => {
-                        subr.t = self.deref_tyvar(mem::take(&mut subr.t), Covariant, subr.loc())?;
+                    for chunk in def.body.block.iter_mut() {
+                        self.resolve_expr_t(chunk)?;
                     }
-                }
-                for chunk in def.body.block.iter_mut() {
-                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
@@ -1158,29 +1255,15 @@ impl Context {
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                         Constraint::Sandwiched { sub, sup, cyclicity } => {
-                            /*let judge = match cyclicity {
-                                Cyclicity::Super => self.cyclic_supertype_of(rfv, maybe_sub),
-                                Cyclicity::Not => self.supertype_of(sup, maybe_sub),
-                                _ => todo!(),
-                            };
-                            if !judge {
-                                return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    maybe_sub,
-                                    sup, // TODO: this?
-                                    sub_loc,
-                                    sup_loc,
-                                    self.caused_by(),
-                                )));
-                            }*/
-                            if let Some(new_sub) = self.max(maybe_sub, sub) {
+                            /*if let Some(new_sub) = self.max(maybe_sub, sub) {
                                 *constraint =
                                     Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
-                            } else {
-                                let new_sub = self.union(maybe_sub, sub);
-                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
-                            }
+                            } else {*/
+                            erg_common::log!(err "{maybe_sub}, {sub}");
+                            let new_sub = self.union(maybe_sub, sub);
+                            erg_common::log!(err "{new_sub}");
+                            *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
+                            // }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
@@ -1212,18 +1295,7 @@ impl Context {
                         // sup = union(sup, r) if min does not exist
                         // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
                         Constraint::Sandwiched { sub, sup, cyclicity } => {
-                            // maybe_sup: Ref(Obj), sub: Never, sup: Show and Obj
-                            /*if !self.subtype_of(sub, maybe_sup) || !self.supertype_of(sup, maybe_sup) {
-                                return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    sub,
-                                    maybe_sup,
-                                    sub_loc,
-                                    sup_loc,
-                                    self.caused_by(),
-                                )));
-                            }*/
+                            // REVIEW: correct?
                             if let Some(new_sup) = self.min(sup, maybe_sup) {
                                 *constraint =
                                     Constraint::new_sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
@@ -1329,6 +1401,20 @@ impl Context {
                 for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
                 }
+                Ok(())
+            }
+            (Type::And(l, r), _)
+            | (Type::Or(l, r), _)
+            | (Type::Not(l, r), _) => {
+                self.sub_unify(l, maybe_sup, loc, param_name)?;
+                self.sub_unify(r, maybe_sup, loc, param_name)?;
+                Ok(())
+            }
+            (_, Type::And(l, r))
+            | (_, Type::Or(l, r))
+            | (_, Type::Not(l, r)) => {
+                self.sub_unify(maybe_sub, l, loc, param_name)?;
+                self.sub_unify(maybe_sub, r, loc, param_name)?;
                 Ok(())
             }
             (_, Type::Ref(t)) => {

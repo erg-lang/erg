@@ -1,0 +1,6 @@
+f(x: Nat): Int = x
+y: Ratio = f 1
+# Erg's type checking does not necessarily enlarge the type. So this is OK.
+z: Int = y
+# But this is invalid.
+invalid: 10..<20 = z

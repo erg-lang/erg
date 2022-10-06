@@ -14,7 +14,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Type};
 
-use crate::context::ImportKind;
+use crate::context::OperationKind;
 use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;
 
@@ -94,14 +94,14 @@ impl<'a> Linker<'a> {
             Expr::UnaryOp(unaryop) => {
                 self.replace_import(&mut unaryop.expr);
             }
-            Expr::Call(call) => match call.import_kind() {
-                Some(ImportKind::ErgImport) => {
+            Expr::Call(call) => match call.additional_operation() {
+                Some(OperationKind::Import) => {
                     self.replace_erg_import(expr);
                 }
-                Some(ImportKind::PyImport) => {
+                Some(OperationKind::PyImport) => {
                     self.replace_py_import(expr);
                 }
-                None => {
+                _ => {
                     for arg in call.args.pos_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }

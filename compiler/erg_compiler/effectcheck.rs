@@ -9,8 +9,10 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
+use erg_type::HasType;
+
 use crate::error::{EffectError, EffectErrors};
-use crate::hir::{Accessor, Array, Def, Expr, Signature, Tuple, HIR};
+use crate::hir::{Array, Def, Expr, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -208,8 +210,22 @@ impl SideEffectChecker {
                 self.block_stack.push(ConstInstant);
             }
         }
-        for chunk in def.body.block.iter() {
+        let last_idx = def.body.block.len() - 1;
+        for (i, chunk) in def.body.block.iter().enumerate() {
             self.check_expr(chunk);
+            // e.g. `echo = print!`
+            if i == last_idx
+                && self.block_stack.last().unwrap() == &Instant
+                && !def.sig.is_procedural()
+                && chunk.t().is_procedural()
+            {
+                self.errs.push(EffectError::proc_assign_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &def.sig,
+                    self.full_path(),
+                ));
+            }
         }
         self.path_stack.pop();
         self.block_stack.pop();
@@ -290,7 +306,7 @@ impl SideEffectChecker {
             },
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
-                if (self.is_procedural(&call.obj)
+                if (call.obj.t().is_procedural()
                     || call
                         .method_name
                         .as_ref()
@@ -338,21 +354,6 @@ impl SideEffectChecker {
                 self.check_expr(&type_asc.expr);
             }
             _ => {}
-        }
-    }
-
-    fn is_procedural(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Lambda(lambda) => lambda.is_procedural(),
-            // 引数がproceduralでも関数呼び出しなら副作用なし
-            Expr::Call(call) => self.is_procedural(&call.obj),
-            Expr::Accessor(Accessor::Ident(ident)) => ident.name.is_procedural(),
-            // procedural: x.y! (e.g. Array.sample!)
-            // !procedural: !x.y
-            Expr::Accessor(Accessor::Attr(attr)) => attr.ident.is_procedural(),
-            Expr::Accessor(_) => todo!(),
-            Expr::TypeAsc(tasc) => self.is_procedural(&tasc.expr),
-            _ => false,
         }
     }
 }

@@ -7,3 +7,8 @@ if True, do:
 
 f x: Int = log x
 g x: Int = print! x # this should cause an effect error
+
+echo = print! # this should be an effect error
+_echo = # this is OK
+    print! 1
+    log

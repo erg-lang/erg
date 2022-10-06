@@ -5,6 +5,7 @@
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::vis::Visibility;
@@ -24,7 +25,9 @@ use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarContext;
-use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
+use crate::context::{
+    ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
+};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
     SingleLowerResult,
@@ -252,7 +255,7 @@ impl ASTLowerer {
         let maybe_len = self.ctx.eval_const_expr(len, None);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
@@ -262,7 +265,7 @@ impl ASTLowerer {
                 }
             }
             Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
@@ -274,7 +277,7 @@ impl ASTLowerer {
             Ok(other) => todo!("{other} is not a Nat object"),
             // REVIEW: is it ok to ignore the error?
             Err(_e) => {
-                if elem.ref_t().is_mut() {
+                if elem.ref_t().is_mut_type() {
                     builtin_poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
@@ -508,7 +511,7 @@ impl ASTLowerer {
                 self.ctx
                     .rec_get_var_t(&ident, &self.cfg.input, &self.ctx.name)?,
                 self.ctx
-                    .get_singular_ctx_from_ident(&ident, &self.ctx.name)
+                    .get_singular_ctx_by_ident(&ident, &self.ctx.name)
                     .ok()
                     .map(|ctx| ctx.name.clone()),
             )
@@ -581,11 +584,30 @@ impl ASTLowerer {
             None
         };
         let call = hir::Call::new(obj, method_name, hir_args, sig_t);
-        if let Some(kind) = call.import_kind() {
-            let mod_name = enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
-            if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
-                self.errs.extend(errs.into_iter());
-            };
+        match call.additional_operation() {
+            Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
+                let mod_name =
+                    enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
+                if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
+                    self.errs.extend(errs.into_iter());
+                };
+            }
+            Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
+                hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
+                    self.ctx.del(ident)?;
+                }
+                other => {
+                    return Err(LowerErrors::from(LowerError::syntax_error(
+                        self.input().clone(),
+                        line!() as usize,
+                        other.loc(),
+                        self.ctx.caused_by(),
+                        "",
+                        None,
+                    )))
+                }
+            },
+            _ => {}
         }
         Ok(call)
     }
@@ -824,13 +846,14 @@ impl ASTLowerer {
                     }
                 }
                 let id = body.id;
-                self.ctx
+                let t = self
+                    .ctx
                     .outer
                     .as_mut()
                     .unwrap()
                     .assign_subr(&sig, id, found_body_t)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, sig.params, Type::Subr(t));
+                let sig = hir::SubrSignature::new(ident, sig.params, t);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
@@ -939,6 +962,9 @@ impl ASTLowerer {
             match self.ctx.check_decls_and_pop() {
                 Ok(methods) => {
                     self.check_override(&class, &methods);
+                    if let Some((trait_, _)) = &impl_trait {
+                        self.register_trait_impl(&class, trait_);
+                    }
                     self.check_trait_impl(impl_trait, &class, &methods)?;
                     self.push_methods(class, methods);
                 }
@@ -1033,6 +1059,8 @@ impl ASTLowerer {
         }
     }
 
+    /// Inspect the Trait implementation for correctness,
+    /// i.e., check that all required attributes are defined and that no extra attributes are defined
     fn check_trait_impl(
         &mut self,
         impl_trait: Option<(Type, Location)>,
@@ -1125,6 +1153,18 @@ impl ASTLowerer {
             }
         }
         Ok(())
+    }
+
+    fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
+        // TODO: polymorphic trait
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.name()) {
+            impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
+        } else {
+            self.ctx.trait_impls.insert(
+                trait_.name(),
+                set! {TraitInstance::new(class.clone(), trait_.clone())},
+            );
+        }
     }
 
     fn push_methods(&mut self, class: Type, methods: Context) {

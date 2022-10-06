@@ -16,7 +16,10 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{builtin_mono, func, module, mono, mono_proj, v_enum};
+use erg_type::constructors::{
+    anon, builtin_mono, free_var, func, module, mono, mono_proj, subr_t, v_enum,
+};
+use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
 use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
 use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
@@ -31,6 +34,8 @@ use crate::hir;
 use crate::varinfo::VarInfo;
 use RegistrationMode::*;
 use Visibility::*;
+
+use super::MethodType;
 
 impl Context {
     pub(crate) fn validate_var_sig_t(
@@ -93,7 +98,7 @@ impl Context {
     ) -> SingleTyCheckResult<&Context> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_from_ident(&ident.clone().downcast(), namespace)
+                self.get_singular_ctx_by_ident(&ident.clone().downcast(), namespace)
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -113,12 +118,12 @@ impl Context {
         }
     }
 
-    pub fn get_singular_ctx_from_ident(
+    pub fn get_singular_ctx_by_ident(
         &self,
         ident: &ast::Identifier,
         namespace: &Str,
     ) -> SingleTyCheckResult<&Context> {
-        self.get_mod(ident)
+        self.get_mod(ident.inspect())
             .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
             .ok_or_else(|| {
                 TyCheckError::no_var_error(
@@ -132,7 +137,7 @@ impl Context {
             })
     }
 
-    pub fn get_mut_singular_ctx_from_ident(
+    pub fn get_mut_singular_ctx_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -157,7 +162,7 @@ impl Context {
     ) -> SingleTyCheckResult<&mut Context> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_mut_singular_ctx_from_ident(ident, namespace)
+                self.get_mut_singular_ctx_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -323,6 +328,30 @@ impl Context {
         } else {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.rec_get_var_t(ident, input, namespace);
+            }
+            Err(TyCheckError::no_var_error(
+                input.clone(),
+                line!() as usize,
+                ident.loc(),
+                namespace.into(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            ))
+        }
+    }
+
+    pub(crate) fn rec_get_decl_t(
+        &self,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<Type> {
+        if let Some(vi) = self.decls.get(&ident.inspect()[..]) {
+            self.validate_visibility(ident, vi, input, namespace)?;
+            Ok(vi.t())
+        } else {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.rec_get_decl_t(ident, input, namespace);
             }
             Err(TyCheckError::no_var_error(
                 input.clone(),
@@ -540,10 +569,12 @@ impl Context {
                     self.get_similar_attr_from_singular(obj, method_name.inspect()),
                 ));
             }
-            match self.rec_get_method_traits(method_name) {
-                Ok(trait_) => {
-                    let (_, ctx) = self.get_nominal_type_ctx(trait_).unwrap();
-                    return ctx.rec_get_var_t(method_name, input, namespace);
+            match self.get_method_type_by_name(method_name) {
+                Ok(t) => {
+                    self.sub_unify(obj.ref_t(), &t.definition_type, obj.loc(), None)
+                        // HACK: change this func's return type to TyCheckResult<Type>
+                        .map_err(|mut errs| errs.remove(0))?;
+                    return Ok(t.method_type.clone());
                 }
                 Err(err) if err.core.kind == ErrorKind::TypeError => {
                     return Err(err);
@@ -700,6 +731,7 @@ impl Context {
     /// substitute_call(instance: ((?T, Int) -> ?T), [Int, Nat], []) => instance: (Int, Int) -> Str
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
     /// substitute_call(instance: ((?L(: Add(?R, ?O)), ?R) -> ?O), [1, 2], []) => instance: (Nat, Nat) -> Nat
+    /// substitute_call(instance: ?T, [Int, Str], []) => instance: (Int, Str) -> Int
     /// ```
     fn substitute_call(
         &self,
@@ -712,6 +744,26 @@ impl Context {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.substitute_call(obj, method_name, &fv.crack(), pos_args, kw_args)
+            }
+            Type::FreeVar(fv) => {
+                if let Some(_method_name) = method_name {
+                    todo!()
+                } else {
+                    let is_procedural = obj
+                        .show_acc()
+                        .map(|acc| acc.ends_with('!'))
+                        .unwrap_or(false);
+                    let kind = if is_procedural {
+                        SubrKind::Proc
+                    } else {
+                        SubrKind::Func
+                    };
+                    let ret_t = free_var(self.level, Constraint::new_type_of(Type));
+                    let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
+                    let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
+                    fv.link(&subr_t);
+                    Ok(())
+                }
             }
             Type::Refinement(refine) => {
                 self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
@@ -787,6 +839,15 @@ impl Context {
                             &subr.default_params,
                             &mut passed_params,
                         )?;
+                    }
+                    for not_passed in subr
+                        .default_params
+                        .iter()
+                        .filter(|pt| !passed_params.contains(pt.name().unwrap()))
+                    {
+                        if let ParamTy::KwWithDefault { ty, default, .. } = not_passed {
+                            self.sub_unify(default, ty, obj.loc(), not_passed.name())?;
+                        }
                     }
                 } else {
                     let missing_len = subr.non_default_params.len() - pos_args.len();
@@ -1152,13 +1213,19 @@ impl Context {
             .iter()
             .map(|(opt_name, _)| {
                 if let Some(name) = opt_name {
-                    if let Some(t) = self.super_traits.iter().find(|t| {
-                        (&t.name()[..] == "Input" || &t.name()[..] == "Output")
-                            && t.inner_ts()
-                                .first()
-                                .map(|t| &t.name() == name.inspect())
-                                .unwrap_or(false)
-                    }) {
+                    // トレイトの変性を調べるときはsuper_classesも見る必要がある
+                    if let Some(t) = self
+                        .super_traits
+                        .iter()
+                        .chain(self.super_classes.iter())
+                        .find(|t| {
+                            (&t.name()[..] == "Input" || &t.name()[..] == "Output")
+                                && t.inner_ts()
+                                    .first()
+                                    .map(|t| &t.name() == name.inspect())
+                                    .unwrap_or(false)
+                        })
+                    {
                         match &t.name()[..] {
                             "Output" => Variance::Covariant,
                             "Input" => Variance::Contravariant,
@@ -1280,7 +1347,17 @@ impl Context {
                 }
             }
             // TODO
-            Type::Or(_l, _r) => None,
+            Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
+                (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
+                    let (_lsub, lsup) = l.get_bound_types().unwrap();
+                    let (_rsub, rsup) = r.get_bound_types().unwrap();
+                    self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
+                }
+                (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
+                    self.get_nominal_super_type_ctxs(&l.t)
+                }
+                _ => None,
+            },
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)
                 .map(|ctxs| ctxs.collect()),
@@ -1417,6 +1494,17 @@ impl Context {
                     return Some(res);
                 }
             }
+            Type::Or(l, r) => {
+                let (lt, lctx) = self.get_nominal_type_ctx(l)?;
+                let (rt, rctx) = self.get_nominal_type_ctx(r)?;
+                // use smaller context
+                return match (self.supertype_of(lt, rt), self.supertype_of(rt, lt)) {
+                    (true, true) => Some((rt, lctx)),
+                    (true, false) => Some((rt, lctx)),
+                    (false, true) => Some((lt, rctx)),
+                    (false, false) => None,
+                };
+            }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
                 if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
@@ -1491,14 +1579,43 @@ impl Context {
         None
     }
 
-    pub(crate) fn rec_get_trait_impls(&self, name: &Str) -> Vec<TraitInstance> {
-        let current = if let Some(impls) = self.trait_impls.get(name) {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+        match t {
+            // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
+            // == {Int <: Add(Int) and Sub(Int), ...}
+            Type::And(l, r) => {
+                let l_impls = self.get_trait_impls(l);
+                let l_base = Set::from_iter(l_impls.iter().map(|ti| &ti.sub_type));
+                let r_impls = self.get_trait_impls(r);
+                let r_base = Set::from_iter(r_impls.iter().map(|ti| &ti.sub_type));
+                let bases = l_base.intersection(&r_base);
+                let mut isec = set! {};
+                for base in bases.into_iter() {
+                    let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
+                    let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
+                    let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
+                    isec.insert(TraitInstance::new(lti.sub_type.clone(), sup_trait));
+                }
+                isec
+            }
+            Type::Or(l, r) => {
+                let l_impls = self.get_trait_impls(l);
+                let r_impls = self.get_trait_impls(r);
+                // FIXME:
+                l_impls.union(&r_impls)
+            }
+            _ => self.get_simple_trait_impls(t),
+        }
+    }
+
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+        let current = if let Some(impls) = self.trait_impls.get(&t.name()) {
             impls.clone()
         } else {
-            vec![]
+            set! {}
         };
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            [current, outer.rec_get_trait_impls(name)].concat()
+            current.union(&outer.get_simple_trait_impls(t))
         } else {
             current
         }
@@ -1515,10 +1632,8 @@ impl Context {
     }
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
-    fn get_mod(&self, ident: &ast::Identifier) -> Option<&Context> {
-        let t = self
-            .rec_get_var_t(ident, &self.cfg.input, &self.name)
-            .ok()?;
+    pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
+        let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
         match t {
             Type::BuiltinPoly { name, mut params } if &name[..] == "Module" => {
                 let path =
@@ -1624,7 +1739,7 @@ impl Context {
         }
     }
 
-    fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
@@ -1646,22 +1761,52 @@ impl Context {
         }
     }
 
-    fn rec_get_method_traits(&self, name: &Identifier) -> SingleTyCheckResult<&Type> {
-        if let Some(candidates) = self.method_traits.get(name.inspect()) {
-            let first_t = candidates.first().unwrap();
-            if candidates.iter().skip(1).all(|t| t == first_t) {
-                Ok(&candidates[0])
+    fn get_method_type_by_name(&self, name: &Identifier) -> SingleTyCheckResult<&MethodType> {
+        // TODO: min_by
+        if let Some(candidates) = self.method_to_traits.get(name.inspect()) {
+            let first_method_type = &candidates.first().unwrap().method_type;
+            if candidates
+                .iter()
+                .skip(1)
+                .all(|t| &t.method_type == first_method_type)
+            {
+                return Ok(&candidates[0]);
             } else {
-                Err(TyCheckError::ambiguous_type_error(
+                return Err(TyCheckError::ambiguous_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
-                    candidates,
+                    &candidates
+                        .iter()
+                        .map(|t| t.definition_type.clone())
+                        .collect::<Vec<_>>(),
                     self.caused_by(),
-                ))
+                ));
             }
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_method_traits(name)
+        }
+        if let Some(candidates) = self.method_to_classes.get(name.inspect()) {
+            let first_method_type = &candidates.first().unwrap().method_type;
+            if candidates
+                .iter()
+                .skip(1)
+                .all(|t| &t.method_type == first_method_type)
+            {
+                return Ok(&candidates[0]);
+            } else {
+                return Err(TyCheckError::ambiguous_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    name,
+                    &candidates
+                        .iter()
+                        .map(|t| t.definition_type.clone())
+                        .collect::<Vec<_>>(),
+                    self.caused_by(),
+                ));
+            }
+        }
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            outer.get_method_type_by_name(name)
         } else {
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
@@ -1731,7 +1876,7 @@ impl Context {
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_sup() {
-                    let insts = self.rec_get_trait_impls(&sup.name());
+                    let insts = self.get_trait_impls(&sup);
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
                             self.eval_t_params(

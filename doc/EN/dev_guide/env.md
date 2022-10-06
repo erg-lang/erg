@@ -9,6 +9,9 @@
 
 * [pre-commit](https://pre-commit.com/)
 
+We use pre-commit to have clippy check and test automatically.
+The checks may fail on the first run even if there are no bugs, in which case you should try committing again.
+
 * Python3 interpreter
 
 ## Recommendation

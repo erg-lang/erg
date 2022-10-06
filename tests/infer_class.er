@@ -1,0 +1,14 @@
+_abs x =
+    x.abs() # currently this method only implemented for integers
+
+assert _abs(-1) == 1
+
+#[
+push! a, elem =
+    a.push!(elem)
+    a
+
+a = ![]
+b = push! a, 1
+print! b
+]#

@@ -16,7 +16,7 @@ use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use erg_type::{Predicate, Type};
 
-use crate::hir::Expr;
+use crate::hir::{Expr, Identifier, Signature};
 
 /// dname is for "double under name"
 pub fn binop_to_dname(op: &str) -> &str {
@@ -755,6 +755,33 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         )
     }
 
+    pub fn no_trait_impl_error(
+        input: Input,
+        errno: usize,
+        class: &Type,
+        trait_: &Type,
+        loc: Location,
+        caused_by: AtomicStr,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{class}は{trait_}を実装していません"),
+                    "simplified_chinese" => format!("{class}没有实现{trait_}"),
+                    "traditional_chinese" => format!("{class}沒有實現{trait_}"),
+                    "english" => format!("{class} does not implement {trait_}"),
+                ),
+                hint,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn method_definition_error(
         input: Input,
         errno: usize,
@@ -987,6 +1014,38 @@ impl EffectError {
                     "english" => "this expression causes a side-effect",
                 ),
                 None,
+            ),
+            input,
+            caused_by.into(),
+        )
+    }
+
+    pub fn proc_assign_error<S: Into<AtomicStr>>(
+        input: Input,
+        errno: usize,
+        sig: &Signature,
+        caused_by: S,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                HasEffect,
+                sig.loc(),
+                switch_lang!(
+                    "japanese" => "プロシージャを通常の変数に代入することはできません",
+                    "simplified_chinese" => "不能将过程赋值给普通变量",
+                    "traditional_chinese" => "不能將過程賦值給普通變量",
+                    "english" => "cannot assign a procedure to a normal variable",
+                ),
+                Some(
+                    switch_lang!(
+                        "japanese" => "変数の末尾に`!`をつけてください",
+                        "simplified_chinese" => "请在变量名后加上`!`",
+                        "traditional_chinese" => "請在變量名後加上`!`",
+                        "english" => "add `!` to the end of the variable name",
+                    )
+                    .into(),
+                ),
             ),
             input,
             caused_by.into(),
@@ -1297,6 +1356,26 @@ impl LowerError {
                     "simplified_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
                     "traditional_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
                     "english" => format!("{YELLOW}{name}{RESET} is not used"),
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
+        let name = readable_name(ident.inspect());
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                ident.loc(),
+                switch_lang!(
+                    "japanese" => format!("{YELLOW}{name}{RESET}は削除できません"),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}不能删除"),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}不能刪除"),
+                    "english" => format!("{YELLOW}{name}{RESET} cannot be deleted"),
                 ),
                 None,
             ),

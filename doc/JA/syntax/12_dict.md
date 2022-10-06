@@ -5,7 +5,7 @@
 Dictはキーと値のペアを持つコレクションです。
 
 ```python
-ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
+ids = {"Alice" >: 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 

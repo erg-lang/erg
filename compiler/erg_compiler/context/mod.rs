@@ -23,6 +23,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -274,15 +275,17 @@ pub enum RegistrationMode {
     Normal,
 }
 
+/// Some Erg functions require additional operation by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ImportKind {
-    ErgImport,
+pub enum OperationKind {
+    Import,
     PyImport,
+    Del,
 }
 
-impl ImportKind {
+impl OperationKind {
     pub const fn is_erg_import(&self) -> bool {
-        matches!(self, Self::ErgImport)
+        matches!(self, Self::Import)
     }
     pub const fn is_py_import(&self) -> bool {
         matches!(self, Self::PyImport)
@@ -292,6 +295,31 @@ impl ImportKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ContextInfo {
     mod_id: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MethodType {
+    definition_type: Type,
+    method_type: Type,
+}
+
+impl fmt::Display for MethodType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ def: {} t: {} }}",
+            self.definition_type, self.method_type
+        )
+    }
+}
+
+impl MethodType {
+    pub const fn new(definition_type: Type, method_type: Type) -> Self {
+        Self {
+            definition_type,
+            method_type,
+        }
+    }
 }
 
 /// Represents the context of the current scope
@@ -317,8 +345,10 @@ pub struct Context {
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
-    // K: method name, V: trait defines the method
-    pub(crate) method_traits: Dict<Str, Vec<Type>>,
+    // K: method name, V: types defines the method
+    // If it is declared in a trait, it takes precedence over the class.
+    pub(crate) method_to_traits: Dict<Str, Vec<MethodType>>,
+    pub(crate) method_to_classes: Dict<Str, Vec<MethodType>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -327,7 +357,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Vec<TraitInstance>>,
+    pub(crate) trait_impls: Dict<Str, Set<TraitInstance>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names
@@ -456,7 +486,8 @@ impl Context {
             super_traits: vec![],
             methods_list: vec![],
             const_param_defaults: Dict::default(),
-            method_traits: Dict::default(),
+            method_to_traits: Dict::default(),
+            method_to_classes: Dict::default(),
             method_impl_patches: Dict::default(),
             trait_impls: Dict::default(),
             params: params_,
@@ -871,13 +902,26 @@ impl Context {
 /// for language server
 impl Context {
     pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self.locals.iter().collect();
+        let mut vars: Vec<_> = self
+            .locals
+            .iter()
+            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
+            .collect();
         if let Some(outer) = self.get_outer() {
             vars.extend(outer.dir());
-        } else {
-            vars.extend(self.get_builtins().unwrap().locals.iter());
+        } else if let Some(builtins) = self.get_builtins() {
+            vars.extend(builtins.locals.iter());
         }
         vars
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.get_mod(receiver_name)
+            .or_else(|| {
+                let (_, vi) = self.get_var_info(receiver_name).ok()?;
+                self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
+            })
+            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
     }
 
     pub fn get_var_info(&self, name: &str) -> SingleTyCheckResult<(&VarName, &VarInfo)> {

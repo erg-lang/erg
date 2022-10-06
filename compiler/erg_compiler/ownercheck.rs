@@ -212,7 +212,7 @@ impl OwnershipChecker {
                     self.errs.push(e);
                     return;
                 }
-                if acc.ref_t().is_mut() && ownership.is_owned() && !chunk {
+                if acc.ref_t().is_mut_type() && ownership.is_owned() && !chunk {
                     self.drop(ident);
                 }
             }

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{builtin_mono, module_from_path, mono, or, param_t, proc};
+use erg_type::constructors::{builtin_mono, kw, module_from_path, mono, or, proc};
 use erg_type::Type;
 use Type::*;
 
@@ -22,11 +22,11 @@ impl Context {
         urllib.register_builtin_impl("request", module_from_path("request"), Immutable, Public);
         let mut request = Context::builtin_module("urllib.request", 15);
         let t = proc(
-            vec![param_t("url", or(Str, mono("urllib.request", "Request")))],
+            vec![kw("url", or(Str, mono("urllib.request", "Request")))],
             None,
             vec![
-                param_t("data", or(builtin_mono("Bytes"), NoneType)),
-                param_t("timeout", or(Nat, NoneType)),
+                kw("data", or(builtin_mono("Bytes"), NoneType)),
+                kw("timeout", or(Nat, NoneType)),
             ],
             mono("http.client", "HTTPResponse"),
         );

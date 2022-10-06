@@ -724,6 +724,7 @@ impl Predicate {
 pub enum ParamTy {
     Pos { name: Option<Str>, ty: Type },
     Kw { name: Str, ty: Type },
+    KwWithDefault { name: Str, ty: Type, default: Type },
 }
 
 impl fmt::Display for ParamTy {
@@ -736,6 +737,9 @@ impl fmt::Display for ParamTy {
                 write!(f, ": {}", ty)
             }
             Self::Kw { name, ty } => write!(f, "{}: {}", name, ty),
+            Self::KwWithDefault { name, ty, default } => {
+                write!(f, "{}: {} := {}", name, ty, default)
+            }
         }
     }
 }
@@ -749,6 +753,10 @@ impl ParamTy {
         Self::Kw { name, ty }
     }
 
+    pub const fn kw_default(name: Str, ty: Type, default: Type) -> Self {
+        Self::KwWithDefault { name, ty, default }
+    }
+
     pub const fn anonymous(ty: Type) -> Self {
         Self::pos(None, ty)
     }
@@ -756,26 +764,27 @@ impl ParamTy {
     pub fn name(&self) -> Option<&Str> {
         match self {
             Self::Pos { name, .. } => name.as_ref(),
-            Self::Kw { name, .. } => Some(name),
+            Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
         }
     }
 
     pub const fn typ(&self) -> &Type {
         match self {
-            Self::Pos { ty, .. } | Self::Kw { ty, .. } => ty,
+            Self::Pos { ty, .. } | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
         }
     }
 
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
-            Self::Pos { ty, .. } | Self::Kw { ty, .. } => ty,
+            Self::Pos { ty, .. } | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
         }
     }
 
-    pub fn deconstruct(self) -> (Option<Str>, Type) {
+    pub fn deconstruct(self) -> (Option<Str>, Type, Option<Type>) {
         match self {
-            Self::Pos { name, ty } => (name, ty),
-            Self::Kw { name, ty } => (Some(name), ty),
+            Self::Pos { name, ty } => (name, ty, None),
+            Self::Kw { name, ty } => (Some(name), ty, None),
+            Self::KwWithDefault { name, ty, default } => (Some(name), ty, Some(default)),
         }
     }
 }
@@ -931,11 +940,12 @@ impl LimitedDisplay for RefinementType {
             return write!(f, "...");
         }
         let first_subj = self.preds.iter().next().and_then(|p| p.subject());
-        if self
+        let is_simple_type = self.t.is_simple_class();
+        let is_simple_preds = self
             .preds
             .iter()
-            .all(|p| p.is_equal() && p.subject() == first_subj)
-        {
+            .all(|p| p.is_equal() && p.subject() == first_subj);
+        if is_simple_type && is_simple_preds {
             write!(f, "{{")?;
             for pred in self.preds.iter() {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
@@ -1684,11 +1694,25 @@ impl Type {
         }
     }
 
-    pub fn is_mut(&self) -> bool {
+    /// Procedure or MutType?
+    pub fn is_procedural(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_procedural(),
+            Self::Callable { .. } => true,
+            Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
+            Self::Refinement(refine) =>
+                refine.t.is_procedural() || refine.preds.iter().any(|pred|
+                    matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.name().map(|n| n.ends_with('!')).unwrap_or(false))
+                ),
+            _ => false,
+        }
+    }
+
+    pub fn is_mut_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) => {
                 if fv.is_linked() {
-                    fv.crack().is_mut()
+                    fv.crack().is_mut_type()
                 } else {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
@@ -1700,7 +1724,7 @@ impl Type {
             | Self::BuiltinPoly { name, .. }
             | Self::PolyQVar { name, .. }
             | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
-            Self::Refinement(refine) => refine.t.is_mut(),
+            Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
     }
@@ -1726,6 +1750,14 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
             Self::Type | Self::Class | Self::Trait => true,
             Self::Refinement(refine) => refine.t.is_type(),
+            _ => false,
+        }
+    }
+
+    pub fn is_quantified(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),
+            Self::Quantified(_) => true,
             _ => false,
         }
     }

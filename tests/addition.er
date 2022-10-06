@@ -1,0 +1,7 @@
+add x, y =
+    x + y
+
+print! add(1, 1)
+print! add(1.0, 1)
+print! add("a", "b")
+print! add("a", 1) # this will be an error

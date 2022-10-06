@@ -15,16 +15,17 @@ use erg_parser::ast;
 
 use erg_type::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
 use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{ParamTy, SubrType, TyBound, Type};
+use erg_type::{ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode, TraitInstance,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodType, RegistrationMode, TraitInstance,
 };
 use crate::error::readable_name;
 use crate::error::{
     CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
+use crate::hir;
 use crate::hir::Literal;
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -33,7 +34,7 @@ use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::TyVarContext;
-use super::ImportKind;
+use super::OperationKind;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
@@ -347,12 +348,13 @@ impl Context {
         sig: &ast::SubrSignature,
         id: DefId,
         body_t: &Type,
-    ) -> TyCheckResult<()> {
+    ) -> TyCheckResult<Type> {
         // already defined as const
         if sig.is_const() {
             let vi = self.decls.remove(sig.ident.inspect()).unwrap();
+            let t = vi.t.clone();
             self.locals.insert(sig.ident.name.clone(), vi);
-            return Ok(());
+            return Ok(t);
         }
         let muty = if sig.ident.is_const() {
             Mutability::Const
@@ -442,9 +444,10 @@ impl Context {
             VarKind::Defined(id),
             Some(comptime_decos),
         );
-        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        let t = vi.t.clone();
+        log!(info "Registered {}::{name}: {}", self.name, t);
         self.locals.insert(name.clone(), vi);
-        Ok(())
+        Ok(t)
     }
 
     pub(crate) fn fake_subr_assign(&mut self, sig: &ast::SubrSignature, failure_t: Type) {
@@ -632,10 +635,12 @@ impl Context {
             ))
         } else {
             match obj {
-                ValueObj::Type(t) => {
-                    let gen = enum_unwrap!(t, TypeObj::Generated);
-                    self.register_gen_type(ident, gen);
-                }
+                ValueObj::Type(t) => match t {
+                    TypeObj::Generated(gen) => {
+                        self.register_gen_type(ident, gen);
+                    }
+                    TypeObj::Builtin(_t) => panic!("aliasing bug"),
+                },
                 // TODO: not all value objects are comparable
                 other => {
                     let id = DefId(get_hash(ident));
@@ -834,20 +839,32 @@ impl Context {
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
-                    impls.push(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.name(),
-                        vec![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
-            for method in ctx.decls.keys() {
-                if let Some(impls) = self.method_traits.get_mut(method.inspect()) {
-                    impls.push(t.clone());
+            for (trait_method, vi) in ctx.decls.iter() {
+                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
                 } else {
-                    self.method_traits
-                        .insert(method.inspect().clone(), vec![t.clone()]);
+                    self.method_to_traits.insert(
+                        trait_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
+                }
+            }
+            for (class_method, vi) in ctx.locals.iter() {
+                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                } else {
+                    self.method_to_classes.insert(
+                        class_method.inspect().clone(),
+                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                    );
                 }
             }
             self.mono_types.insert(name.clone(), (t, ctx));
@@ -856,7 +873,7 @@ impl Context {
 
     pub(crate) fn import_mod(
         &mut self,
-        kind: ImportKind,
+        kind: OperationKind,
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
         if kind.is_erg_import() {
@@ -1031,11 +1048,32 @@ impl Context {
         Ok(path)
     }
 
-    pub(crate) fn _push_subtype_bound(&mut self, sub: Type, sup: Type) {
-        self.bounds.push(TyBound::subtype_of(sub, sup));
-    }
-
-    pub(crate) fn _push_instance_bound(&mut self, name: Str, t: Type) {
-        self.bounds.push(TyBound::instance(name, t));
+    pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
+        if self.rec_get_const_obj(ident.inspect()).is_some()
+            || self
+                .get_builtins()
+                .unwrap()
+                .get_local_kv(ident.inspect())
+                .is_some()
+        {
+            Err(TyCheckErrors::from(TyCheckError::del_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident,
+                self.caused_by(),
+            )))
+        } else if self.locals.get(ident.inspect()).is_some() {
+            self.locals.remove(ident.inspect());
+            Ok(())
+        } else {
+            Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            )))
+        }
     }
 }

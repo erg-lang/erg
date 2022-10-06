@@ -278,6 +278,11 @@ impl Context {
         if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
+                    let rhs = match rhs {
+                        Type::Ref(t) => t,
+                        Type::RefMut { before, .. } => before,
+                        other => other,
+                    };
                     let subst_ctx = SubstContext::new(rhs, ty_ctx);
                     subst_ctx
                         .substitute(rhs_sup.clone(), self, Location::Unknown)
@@ -311,6 +316,11 @@ impl Context {
         if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
+                    let rhs = match rhs {
+                        Type::Ref(t) => t,
+                        Type::RefMut { before, .. } => before,
+                        other => other,
+                    };
                     let subst_ctx = SubstContext::new(rhs, rhs_ctx);
                     subst_ctx
                         .substitute(rhs_sup.clone(), self, Location::Unknown)
@@ -638,8 +648,26 @@ impl Context {
             (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
                 panic!("internal error: not instantiated type variable: '{name}, l: {l}")
             }
-            (MonoProj { .. }, _) => todo!(),
-            (_, MonoProj { .. }) => todo!(),
+            (MonoProj { .. }, _) => {
+                if let Some(cands) = self.get_candidates(lhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(&cand, rhs) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            (_, MonoProj { .. }) => {
+                if let Some(cands) = self.get_candidates(rhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(lhs, &cand) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
             (_l, _r) => false,
         }
     }
@@ -810,13 +838,19 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) => return lhs.clone(),  // lhs = rhs
-            (true, false) => return lhs.clone(), // lhs :> rhs
-            (false, true) => return rhs.clone(),
-            (false, false) => {}
+        // ?T or ?U will not be unified
+        if lhs.has_no_unbound_var() && rhs.has_no_unbound_var() {
+            match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+                (true, true) => return lhs.clone(),  // lhs = rhs
+                (true, false) => return lhs.clone(), // lhs :> rhs
+                (false, true) => return rhs.clone(),
+                (false, false) => {}
+            }
         }
         match (lhs, rhs) {
+            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
+                self.union(&lfv.crack(), &rfv.crack())
+            }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             (t, Refinement(r)) | (Refinement(r), t) => {
@@ -842,16 +876,19 @@ impl Context {
 
     /// returns intersection of two types (A and B)
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
-        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) => return lhs.clone(),  // lhs = rhs
-            (true, false) => return rhs.clone(), // lhs :> rhs
-            (false, true) => return lhs.clone(),
-            (false, false) => {}
+        // ?T and ?U will not be unified
+        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
+            match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+                (true, true) => return lhs.clone(),  // lhs = rhs
+                (true, false) => return rhs.clone(), // lhs :> rhs
+                (false, true) => return lhs.clone(),
+                (false, false) => {}
+            }
         }
         match (lhs, rhs) {
-            /*(Type::FreeVar(_), _) | (_, Type::FreeVar(_)) => {
-                todo!()
-            }*/
+            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
+                self.intersection(&lfv.crack(), &rfv.crack())
+            }
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Type::Record(l), Type::Record(r)) => Type::Record(l.clone().concat(r.clone())),
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),
@@ -1008,7 +1045,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // 同じならどちらを返しても良い
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),

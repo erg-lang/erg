@@ -1,6 +1,6 @@
 [package]
 name = "erg_compiler"
-version = "0.5.6"
+version = "0.5.7-nightly.1"
 description = "Centimetre: the Erg compiler"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -17,9 +17,9 @@ simplified_chinese = [ "erg_common/simplified_chinese", "erg_parser/simplified_c
 traditional_chinese = [ "erg_common/traditional_chinese", "erg_parser/traditional_chinese", "erg_type/traditional_chinese" ]
 
 [dependencies]
-erg_common = { version = "0.5.6", path = "../erg_common" }
-erg_parser = { version = "0.5.6", path = "../erg_parser" }
-erg_type = { version = "0.5.6", path = "../erg_type" }
+erg_common = { version = "0.5.7-nightly.1", path = "../erg_common" }
+erg_parser = { version = "0.5.7-nightly.1", path = "../erg_parser" }
+erg_type = { version = "0.5.7-nightly.1", path = "../erg_type" }
 
 [lib]
 path = "lib.rs"

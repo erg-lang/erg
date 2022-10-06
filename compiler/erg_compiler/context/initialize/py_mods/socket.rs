@@ -1,6 +1,6 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{builtin_mono, func, or, param_t};
+use erg_type::constructors::{builtin_mono, func, kw, or};
 use erg_type::Type;
 use Type::*;
 
@@ -21,10 +21,10 @@ impl Context {
                 vec![],
                 None,
                 vec![
-                    param_t("family", Int),
-                    param_t("type", Int),
-                    param_t("proto", Int),
-                    param_t("fileno", or(Int, NoneType)),
+                    kw("family", Int),
+                    kw("type", Int),
+                    kw("proto", Int),
+                    kw("fileno", or(Int, NoneType)),
                 ],
                 builtin_mono("Socket!"),
             ),

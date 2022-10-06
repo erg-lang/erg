@@ -114,6 +114,20 @@ use ErrorKind::*;
 
 impl_display_from_debug!(ErrorKind);
 
+impl ErrorKind {
+    pub fn is_warning(&self) -> bool {
+        (60..=100).contains(&(*self as u8)) || (180..=200).contains(&(*self as u8))
+    }
+
+    pub fn is_error(&self) -> bool {
+        (0..=59).contains(&(*self as u8)) || (100..=179).contains(&(*self as u8))
+    }
+
+    pub fn is_exception(&self) -> bool {
+        (200..=255).contains(&(*self as u8))
+    }
+}
+
 impl From<&str> for ErrorKind {
     fn from(s: &str) -> ErrorKind {
         match s {
@@ -467,10 +481,9 @@ pub trait ErrorDisplay {
     }
 
     fn format_header(&self) -> String {
-        let kind = self.core().kind as u8;
-        let (color, err_or_warn) = if (60..=100).contains(&kind) || (180..=200).contains(&kind) {
+        let (color, err_or_warn) = if self.core().kind.is_warning() {
             (YELLOW, "Warning")
-        } else if kind >= 200 {
+        } else if self.core().kind.is_exception() {
             ("", "Exception")
         } else {
             (RED, "Error")
