@@ -424,6 +424,10 @@ impl Desugarer {
             Expr::Set(set) => match set {
                 astSet::Normal(set) => {
                     let (elems, _, _) = set.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
+                        .collect();
                     let elems = Args::new(elems, vec![], None);
                     let set = NormalSet::new(set.l_brace, set.r_brace, elems);
                     Expr::Set(astSet::Normal(set))
