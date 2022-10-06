@@ -98,7 +98,7 @@ impl Context {
     ) -> SingleTyCheckResult<&Context> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_from_ident(&ident.clone().downcast(), namespace)
+                self.get_singular_ctx_by_ident(&ident.clone().downcast(), namespace)
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -118,12 +118,12 @@ impl Context {
         }
     }
 
-    pub fn get_singular_ctx_from_ident(
+    pub fn get_singular_ctx_by_ident(
         &self,
         ident: &ast::Identifier,
         namespace: &Str,
     ) -> SingleTyCheckResult<&Context> {
-        self.get_mod(ident)
+        self.get_mod(ident.inspect())
             .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
             .ok_or_else(|| {
                 TyCheckError::no_var_error(
@@ -137,7 +137,7 @@ impl Context {
             })
     }
 
-    pub fn get_mut_singular_ctx_from_ident(
+    pub fn get_mut_singular_ctx_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -162,7 +162,7 @@ impl Context {
     ) -> SingleTyCheckResult<&mut Context> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_mut_singular_ctx_from_ident(ident, namespace)
+                self.get_mut_singular_ctx_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -1632,10 +1632,8 @@ impl Context {
     }
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
-    fn get_mod(&self, ident: &ast::Identifier) -> Option<&Context> {
-        let t = self
-            .rec_get_var_t(ident, &self.cfg.input, &self.name)
-            .ok()?;
+    pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
+        let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
         match t {
             Type::BuiltinPoly { name, mut params } if &name[..] == "Module" => {
                 let path =
@@ -1741,7 +1739,7 @@ impl Context {
         }
     }
 
-    fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {

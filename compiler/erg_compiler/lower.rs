@@ -387,7 +387,7 @@ impl ASTLowerer {
                 self.ctx
                     .rec_get_var_t(&ident, &self.cfg.input, &self.ctx.name)?,
                 self.ctx
-                    .get_singular_ctx_from_ident(&ident, &self.ctx.name)
+                    .get_singular_ctx_by_ident(&ident, &self.ctx.name)
                     .ok()
                     .map(|ctx| ctx.name.clone()),
             )

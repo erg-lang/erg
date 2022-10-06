@@ -911,6 +911,15 @@ impl Context {
         vars
     }
 
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.get_mod(receiver_name)
+            .or_else(|| {
+                let (_, vi) = self.get_var_info(receiver_name).ok()?;
+                self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
+            })
+            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
+    }
+
     pub fn get_var_info(&self, name: &str) -> SingleTyCheckResult<(&VarName, &VarInfo)> {
         if let Some(info) = self.get_local_kv(name) {
             Ok(info)
