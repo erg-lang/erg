@@ -68,6 +68,11 @@ fn exec_record() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_set() -> Result<(), ()> {
+    expect_failure("examples/set.er")
+}
+
+#[test]
 fn exec_side_effect() -> Result<(), ()> {
     expect_failure("examples/side_effect.er")
 }
