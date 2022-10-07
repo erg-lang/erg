@@ -278,9 +278,13 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
         }
         match self {
             Self::Linked(t) | Self::UndoableLinked { t, .. } => {
-                write!(f, "(")?;
-                t.limited_fmt(f, limit)?;
-                write!(f, ")")
+                if cfg!(feature = "debug") {
+                    write!(f, "(")?;
+                    t.limited_fmt(f, limit)?;
+                    write!(f, ")")
+                } else {
+                    t.limited_fmt(f, limit)
+                }
             }
             Self::NamedUnbound {
                 name,
