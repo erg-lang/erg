@@ -1071,6 +1071,8 @@ impl Context {
                     true
                 }
             }
+            (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
+            (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
             (TyParam::MonoQVar(_), _) | (_, TyParam::MonoQVar(_)) => false,
             (l, r) => todo!("l: {l}, r: {r}"),
         }

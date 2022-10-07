@@ -1922,6 +1922,7 @@ impl Type {
         matches!(self, Self::FreeVar(_))
     }
 
+    /// FIXME: `Int or Str` should be monomorphic
     pub fn is_monomorphic(&self) -> bool {
         matches!(self.typarams_len(), Some(0) | None)
     }

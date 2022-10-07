@@ -870,8 +870,9 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
-        // ?T or ?U will not be unified
-        if lhs.has_no_unbound_var() && rhs.has_no_unbound_var() {
+        // `?T or ?U` will not be unified
+        // `Set!(?T, 3) or Set(?T, 3)` wii be unified to Set(?T, 3)
+        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
                 (true, true) => return lhs.clone(),  // lhs = rhs
                 (true, false) => return lhs.clone(), // lhs :> rhs

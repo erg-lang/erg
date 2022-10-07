@@ -946,7 +946,10 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_tp(fv.crack().clone(), tmp_tv_ctx, loc)
             }
-            p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
+            p @ (TyParam::Value(_)
+            | TyParam::Mono(_)
+            | TyParam::FreeVar(_)
+            | TyParam::Erased(_)) => Ok(p),
             other => todo!("{other}"),
         }
     }

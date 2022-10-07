@@ -882,7 +882,7 @@ impl Context {
         set_.register_marker_trait(builtin_poly("Seq", vec![ty_tp(mono_q("T"))]));
         let mut set_show = Self::builtin_methods("Show", 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
-        set_.register_trait(set_t, builtin_mono("Show"), set_show);
+        set_.register_trait(set_t.clone(), builtin_mono("Show"), set_show);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
@@ -1553,7 +1553,6 @@ impl Context {
             array_mut_mutable,
         );
         /* Set_mut */
-        let set_t = builtin_poly("Set", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let set_mut_t = builtin_poly("Set!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut set_mut_ = Self::builtin_poly_class(
             "Set!",
@@ -1567,7 +1566,7 @@ impl Context {
                 set_mut_t.clone(),
                 Some(builtin_poly(
                     "Set!",
-                    vec![ty_tp(mono_q("T")), TyParam::erased(Nat)],
+                    vec![ty_tp(mono_q("T")), TyParam::erased(builtin_mono("Nat!"))],
                 )),
             ),
             vec![kw("elem", mono_q("T"))],
