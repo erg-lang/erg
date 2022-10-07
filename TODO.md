@@ -34,7 +34,7 @@
     * [x] Variable length arguments
   * [x] Array literal
   * [x] Record literal
-  * [ ] Set literal
+  * [x] Set literal
   * [ ] Dict literal
   * [x] Tuple literal
   * [x] Variable visibility
