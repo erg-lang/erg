@@ -347,12 +347,12 @@ impl Context {
     }
 
     /// ```python
-    /// assert sup_conforms(?E(<: Eq(?E)), base: Nat, sup_trait: Eq(Nat))
-    /// assert sup_conforms(?E(<: Eq(?R)), base: T, sup_trait: Eq(U))
+    /// assert sup_conforms(?E(<: Eq(?E)), arg: Nat, sup_trait: Eq(Nat))
+    /// assert sup_conforms(?E(<: Eq(?R)), arg: T, sup_trait: Eq(U))
     /// ```
-    fn sup_conforms(&self, free: &FreeTyVar, base: &Type, sup_trait: &Type) -> bool {
+    fn sup_conforms(&self, free: &FreeTyVar, arg: &Type, sup_trait: &Type) -> bool {
         let (_sub, sup) = free.get_bound_types().unwrap();
-        free.forced_undoable_link(base);
+        free.forced_undoable_link(arg);
         let judge = self.supertype_of(&sup, sup_trait);
         free.undo();
         judge

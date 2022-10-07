@@ -14,6 +14,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type};
 
+use crate::context::eval::SubstContext;
 use crate::context::{Context, Variance};
 // use crate::context::instantiate::TyVarContext;
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
@@ -342,29 +343,28 @@ impl Context {
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let constraint = fv.crack_constraint();
-                let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
+                let (sub_t, super_t) = fv.get_bound_types().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    /*if self.is_trait(sub_t) {
-                        self.check_trait_exists(sub_t, loc)?;
-                    }*/
-                    if self.is_trait(super_t) {
-                        self.check_trait_impl(sub_t, super_t, loc)?;
+                    if fv.cyclicity().is_super_cyclic() {
+                        fv.forced_link(&sub_t);
+                    }
+                    if self.is_trait(&super_t) {
+                        self.check_trait_impl(&sub_t, &super_t, loc)?;
                     }
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-                    if self.subtype_of(sub_t, super_t) {
+                    if self.subtype_of(&sub_t, &super_t) {
                         match variance {
-                            Variance::Covariant => Ok(sub_t.clone()),
-                            Variance::Contravariant => Ok(super_t.clone()),
+                            Variance::Covariant => Ok(sub_t),
+                            Variance::Contravariant => Ok(super_t),
                             Variance::Invariant => {
-                                if self.supertype_of(sub_t, super_t) {
-                                    Ok(sub_t.clone())
+                                if self.supertype_of(&sub_t, &super_t) {
+                                    Ok(sub_t)
                                 } else {
                                     Err(TyCheckError::subtyping_error(
                                         self.cfg.input.clone(),
                                         line!() as usize,
-                                        &self.deref_tyvar(sub_t.clone(), variance, loc)?,
-                                        &self.deref_tyvar(super_t.clone(), variance, loc)?,
+                                        &self.deref_tyvar(sub_t, variance, loc)?,
+                                        &self.deref_tyvar(super_t, variance, loc)?,
                                         loc,
                                         self.caused_by(),
                                     ))
@@ -375,15 +375,15 @@ impl Context {
                         Err(TyCheckError::subtyping_error(
                             self.cfg.input.clone(),
                             line!() as usize,
-                            &self.deref_tyvar(sub_t.clone(), variance, loc)?,
-                            &self.deref_tyvar(super_t.clone(), variance, loc)?,
+                            &self.deref_tyvar(sub_t, variance, loc)?,
+                            &self.deref_tyvar(super_t, variance, loc)?,
                             loc,
                             self.caused_by(),
                         ))
                     }
                 } else {
                     // no dereference at this point
-                    drop(constraint);
+                    // drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
@@ -514,9 +514,25 @@ impl Context {
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
-            {
+            let sup_trait = if inst.sup_trait.has_qvar() {
+                if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(class) {
+                    let subst_ctx = SubstContext::new(class, ty_ctx);
+                    if let Ok(t) =
+                        subst_ctx.substitute(inst.sup_trait.clone(), self, Location::Unknown)
+                    {
+                        t
+                    } else {
+                        // no relation
+                        continue;
+                    }
+                } else {
+                    // class does not exist
+                    return false;
+                }
+            } else {
+                inst.sup_trait
+            };
+            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
             }
@@ -1259,9 +1275,7 @@ impl Context {
                                 *constraint =
                                     Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
                             } else {*/
-                            erg_common::log!(err "{maybe_sub}, {sub}");
                             let new_sub = self.union(maybe_sub, sub);
-                            erg_common::log!(err "{new_sub}");
                             *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
                             // }
                         }
