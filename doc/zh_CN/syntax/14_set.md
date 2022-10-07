@@ -10,6 +10,33 @@ assert {1, 2} == {1, 1, 2} # 重复的被自动删除
 assert {1, 2} == {2, 1}
 ```
 
+它也可以用类型和长度来声明
+
+```python
+a: {Int; 3} = {0, 1, 2} # OK
+b: {Int; 3} = {0, 0, 0} # NG，重复的内容被删除，长度也会改变。
+#[
+TypeError: the type of b is mismatched
+expected:  Set(Int, 3)
+but found: Set({0, }, 1)
+]#
+```
+
+此外，只有实现`Eq`跟踪的对象才能成为集合的元素。
+
+因此，不可能使用Floats等作为集合元素。
+
+```python
+d = {0.0, 1.0} # NG
+#[
+1│ d = {0.0, 1.0}
+        ^^^^^^^^
+TypeError: the type of _ is mismatched:
+expected:  Eq(Float)
+but found: {0.0, 1.0, }
+]#
+```
+
 Set可以执行集合操作。
 
 ```python

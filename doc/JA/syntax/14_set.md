@@ -10,6 +10,33 @@ assert {1, 2} == {1, 1, 2} # 重複は自動で削除される
 assert {1, 2} == {2, 1}
 ```
 
+型や長さを指定して宣言することもできます
+
+```python
+a: {Int; 3} = {0, 1, 2} # OK
+b: {Int; 3} = {0, 0, 0} # NG、重複が削除されて長さが変わる
+#[
+TypeError: the type of b is mismatched
+expected:  Set(Int, 3)
+but found: Set({0, }, 1)
+]#
+```
+
+また、`Eq`トレイトが実装されているオブジェクトのみが集合の要素になれます
+
+そのため、Floatなどを集合の要素として使用することはできません
+
+```python
+d = {0.0, 1.0} # NG
+#[
+1│ d = {0.0, 1.0}
+        ^^^^^^^^
+TypeError: the type of _ is mismatched:
+expected:  Eq(Float)
+but found: {0.0, 1.0, }
+]#
+```
+
 セットは集合演算を行えます。
 
 ```python
