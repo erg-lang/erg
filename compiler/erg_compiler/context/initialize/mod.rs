@@ -838,7 +838,7 @@ impl Context {
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
-        let set_t = array(mono_q("T"), n.clone());
+        let set_t = set(mono_q("T"), n.clone());
         set_.register_superclass(Obj, &obj);
         set_.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("T"))]));
         let t = fn_met(
@@ -1564,13 +1564,14 @@ impl Context {
             vec![PS::t_nd("T"), PS::named_nd("N", builtin_mono("Nat!"))],
             2,
         );
-        set_mut_.register_superclass(set_t.clone(), &array_);
+        set_mut_.register_superclass(set_t.clone(), &set_);
+        // `add!` will erase N
         let t = pr_met(
             ref_mut(
                 set_mut_t.clone(),
                 Some(builtin_poly(
                     "Set!",
-                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
+                    vec![ty_tp(mono_q("T")), TyParam::erased(Nat)],
                 )),
             ),
             vec![kw("elem", mono_q("T"))],

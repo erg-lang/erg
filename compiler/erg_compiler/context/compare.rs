@@ -542,9 +542,16 @@ impl Context {
                 self.structural_supertype_of(re, &nat)
             }
             // Int :> {I: Int | ...} == true
-            // Real :> {I: Int | ...} == false
             // Int :> {I: Str| ...} == false
-            (l, Refinement(r)) => self.supertype_of(l, &r.t),
+            // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
+            // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
+            // => true
+            (l, Refinement(r)) => {
+                if self.supertype_of(l, &r.t) {
+                    return true;
+                }
+                self.supertype_of(&l.derefine(), &r.t)
+            }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
                 if l.preds.is_empty() {

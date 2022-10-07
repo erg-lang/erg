@@ -399,11 +399,7 @@ impl ASTLowerer {
         Ok(normal_set)
         */
         let elems = hir::Args::from(new_set);
-        let inner_t = match &elem_t {
-            Type::Refinement(refine) => refine.t.as_ref(),
-            other => other,
-        };
-        let sup = builtin_poly("Eq", vec![TyParam::t(inner_t.clone())]);
+        let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
             self.errs.extend(errs.into_iter());

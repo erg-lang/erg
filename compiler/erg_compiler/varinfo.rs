@@ -47,6 +47,15 @@ pub enum ParamIdx {
     Nested(Box<ParamIdx>, usize),
 }
 
+impl fmt::Display for ParamIdx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Nth(n) => write!(f, "{}", n),
+            Self::Nested(idx, n) => write!(f, "{}.{}", idx, n),
+        }
+    }
+}
+
 impl ParamIdx {
     pub fn nested(outer: ParamIdx, nth: usize) -> Self {
         Self::Nested(Box::new(outer), nth)

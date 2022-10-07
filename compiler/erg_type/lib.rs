@@ -2199,6 +2199,70 @@ impl Type {
             fv.update_cyclicity(new_cyclicity);
         }
     }
+
+    pub fn derefine(&self) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().derefine(),
+            Self::FreeVar(fv) => {
+                let name = fv.get_unbound_name().unwrap();
+                let level = fv.level().unwrap();
+                let (sub, sup) = fv.get_bound_types().unwrap();
+                let cyclicity = fv.cyclicity();
+                let constraint =
+                    Constraint::new_sandwiched(sub.derefine(), sup.derefine(), cyclicity);
+                Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+            }
+            Self::Refinement(refine) => refine.t.as_ref().clone(),
+            Self::Poly { path, name, params } => {
+                let params = params
+                    .iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.derefine()),
+                        other => other.clone(),
+                    })
+                    .collect();
+                Self::Poly {
+                    path: path.clone(),
+                    name: name.clone(),
+                    params,
+                }
+            }
+            Self::BuiltinPoly { name, params } => {
+                let params = params
+                    .iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.derefine()),
+                        other => other.clone(),
+                    })
+                    .collect();
+                Self::BuiltinPoly {
+                    name: name.clone(),
+                    params,
+                }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.derefine())),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.derefine()),
+                after: after.as_ref().map(|t| Box::new(t.derefine())),
+            },
+            Self::And(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::And(Box::new(l), Box::new(r))
+            }
+            Self::Or(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::Or(Box::new(l), Box::new(r))
+            }
+            Self::Not(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::Not(Box::new(l), Box::new(r))
+            }
+            other => other.clone(),
+        }
+    }
 }
 
 /// バイトコード命令で、in-place型付けをするオブジェクト
