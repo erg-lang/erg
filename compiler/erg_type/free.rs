@@ -436,6 +436,9 @@ impl<T: Clone + HasLevel> Free<T> {
         *self.borrow_mut() = FreeKind::Linked(to.clone());
     }
 
+    /// NOTE: Do not use this except to rewrite circular references.
+    /// No reference to any type variable may be left behind when rewriting.
+    /// However, `get_bound_types` is safe because it does not return references.
     pub fn forced_link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
@@ -458,6 +461,9 @@ impl<T: Clone + HasLevel> Free<T> {
         *self.borrow_mut() = new;
     }
 
+    /// NOTE: Do not use this except to rewrite circular references.
+    /// No reference to any type variable may be left behind when rewriting.
+    /// However, `get_bound_types` is safe because it does not return references.
     pub fn forced_undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
