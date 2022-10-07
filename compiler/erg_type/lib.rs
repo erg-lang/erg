@@ -1745,6 +1745,15 @@ impl Type {
         }
     }
 
+    pub fn is_intersection_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_intersection_type(),
+            Self::Or(_, _) => true,
+            Self::Refinement(refine) => refine.t.is_intersection_type(),
+            _ => false,
+        }
+    }
+
     pub fn is_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
@@ -1913,6 +1922,7 @@ impl Type {
         matches!(self, Self::FreeVar(_))
     }
 
+    /// FIXME: `Int or Str` should be monomorphic
     pub fn is_monomorphic(&self) -> bool {
         matches!(self.typarams_len(), Some(0) | None)
     }
@@ -2190,6 +2200,70 @@ impl Type {
             fv.update_cyclicity(new_cyclicity);
         }
     }
+
+    pub fn derefine(&self) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().derefine(),
+            Self::FreeVar(fv) => {
+                let name = fv.get_unbound_name().unwrap();
+                let level = fv.level().unwrap();
+                let (sub, sup) = fv.get_bound_types().unwrap();
+                let cyclicity = fv.cyclicity();
+                let constraint =
+                    Constraint::new_sandwiched(sub.derefine(), sup.derefine(), cyclicity);
+                Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+            }
+            Self::Refinement(refine) => refine.t.as_ref().clone(),
+            Self::Poly { path, name, params } => {
+                let params = params
+                    .iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.derefine()),
+                        other => other.clone(),
+                    })
+                    .collect();
+                Self::Poly {
+                    path: path.clone(),
+                    name: name.clone(),
+                    params,
+                }
+            }
+            Self::BuiltinPoly { name, params } => {
+                let params = params
+                    .iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.derefine()),
+                        other => other.clone(),
+                    })
+                    .collect();
+                Self::BuiltinPoly {
+                    name: name.clone(),
+                    params,
+                }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.derefine())),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.derefine()),
+                after: after.as_ref().map(|t| Box::new(t.derefine())),
+            },
+            Self::And(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::And(Box::new(l), Box::new(r))
+            }
+            Self::Or(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::Or(Box::new(l), Box::new(r))
+            }
+            Self::Not(l, r) => {
+                let l = l.derefine();
+                let r = r.derefine();
+                Self::Not(Box::new(l), Box::new(r))
+            }
+            other => other.clone(),
+        }
+    }
 }
 
 /// バイトコード命令で、in-place型付けをするオブジェクト
@@ -2206,6 +2280,8 @@ pub enum TypeCode {
     Array, // 要素数は検査済みなので、気にする必要はない
     ArrayMut,
     // Dict,
+    Set,
+    SetMut,
     Func,
     Proc,
     MaybeBigInt,
@@ -2235,6 +2311,7 @@ impl From<&Type> for TypeCode {
             },
             Type::Poly { name, .. } => match &name[..] {
                 "Array" | "Array!" => Self::Array,
+                "Set" | "Set!" => Self::Set,
                 "Func" => Self::Func,
                 "Proc" => Self::Proc,
                 _ => Self::Other,

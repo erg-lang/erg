@@ -107,7 +107,7 @@ impl TyVarContext {
         ctx: &Context,
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(name) {
-            let (_, ctx) = ctx
+            let ctx = ctx
                 .get_nominal_type_ctx(&builtin_poly(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = ctx.params.len();
@@ -692,9 +692,8 @@ impl Context {
                 if let Some(decl_t) = opt_decl_t {
                     return Ok(decl_t.typ().clone());
                 }
-                let typ = mono(self.path(), Str::rc(other));
-                if let Some((defined_t, _)) = self.get_nominal_type_ctx(&typ) {
-                    Ok(defined_t.clone())
+                if let Some((typ, _)) = self.rec_get_type(other) {
+                    Ok(typ.clone())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_var_error(
                         self.cfg.input.clone(),
@@ -783,6 +782,11 @@ impl Context {
                 let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&arr.len);
                 Ok(array(elem_t, len))
+            }
+            TypeSpec::Set(set) => {
+                let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
+                let len = self.instantiate_const_expr(&set.len);
+                Ok(erg_type::constructors::set(elem_t, len))
             }
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(tuple(
@@ -941,7 +945,10 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_tp(fv.crack().clone(), tmp_tv_ctx, loc)
             }
-            p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
+            p @ (TyParam::Value(_)
+            | TyParam::Mono(_)
+            | TyParam::FreeVar(_)
+            | TyParam::Erased(_)) => Ok(p),
             other => todo!("{other}"),
         }
     }

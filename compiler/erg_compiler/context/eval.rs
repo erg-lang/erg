@@ -106,8 +106,13 @@ pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     ValueObj::from_str(t, lit.token.content.clone())
 }
 
+/// Instantiate the polymorphic type from the quantified state.
+///
+/// e.g.
+/// ```
 /// SubstContext::new(Array(?T, 0), Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
 /// ctx.substitute(Array!('T; !'N)): Array(?T, !0)
+/// ```
 #[derive(Debug)]
 pub struct SubstContext {
     bounds: Set<TyBound>,
@@ -125,6 +130,9 @@ impl fmt::Display for SubstContext {
 }
 
 impl SubstContext {
+    /// `substituted` is used to obtain real argument information. So it must be instantiated as `Array(?T, 0)` and so on.
+    ///
+    /// `ty_ctx` is used to obtain information on the names and variance of the parameters.
     pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
         let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
@@ -135,17 +143,22 @@ impl SubstContext {
         if param_names.len() != substituted.typarams().len() {
             let param_names = param_names.collect::<Vec<_>>();
             panic!(
-                "{param_names:?} != {}",
+                "{param_names:?} != [{}]",
                 erg_common::fmt_vec(&substituted.typarams())
             );
         }
-        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
-        SubstContext {
-            bounds,
-            params: param_names
-                .zip(substituted.typarams().into_iter())
-                .collect(),
+        let params = param_names
+            .zip(substituted.typarams().into_iter())
+            .collect::<Dict<_, _>>();
+        if cfg!(feature = "debug") {
+            for v in params.values() {
+                if v.has_qvar() {
+                    panic!("{} has qvar", v);
+                }
+            }
         }
+        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
+        SubstContext { bounds, params }
     }
 
     pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {
@@ -294,7 +307,7 @@ impl Context {
         }
         if let ValueObj::Type(t) = &obj {
             if let Some(sups) = self.get_nominal_super_type_ctxs(t.typ()) {
-                for (_, ctx) in sups {
+                for ctx in sups {
                     if let Some(val) = ctx.consts.get(ident.inspect()) {
                         return Ok(val.clone());
                     }
@@ -799,7 +812,7 @@ impl Context {
                 if sub == Type::Never {
                     return Ok(mono_proj(*lhs, rhs));
                 }
-                for (_ty, ty_ctx) in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
+                for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
                     EvalError::no_var_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -1063,6 +1076,8 @@ impl Context {
                     true
                 }
             }
+            (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
+            (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
             (TyParam::MonoQVar(_), _) | (_, TyParam::MonoQVar(_)) => false,
             (l, r) => todo!("l: {l}, r: {r}"),
         }

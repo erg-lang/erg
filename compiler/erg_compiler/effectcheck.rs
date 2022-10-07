@@ -142,6 +142,17 @@ impl SideEffectChecker {
                     self.path_stack.pop();
                     self.block_stack.pop();
                 }
+                Expr::Set(set) => match set {
+                    crate::hir::Set::Normal(set) => {
+                        for elem in set.elems.pos_args.iter() {
+                            self.check_expr(&elem.expr);
+                        }
+                    }
+                    crate::hir::Set::WithLength(set) => {
+                        self.check_expr(&set.elem);
+                        self.check_expr(&set.len);
+                    }
+                },
                 Expr::TypeAsc(tasc) => {
                     self.check_expr(&tasc.expr);
                 }
@@ -282,6 +293,17 @@ impl SideEffectChecker {
                 self.path_stack.pop();
                 self.block_stack.pop();
             }
+            Expr::Set(set) => match set {
+                crate::hir::Set::Normal(set) => {
+                    for elem in set.elems.pos_args.iter() {
+                        self.check_expr(&elem.expr);
+                    }
+                }
+                crate::hir::Set::WithLength(set) => {
+                    self.check_expr(&set.elem);
+                    self.check_expr(&set.len);
+                }
+            },
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
                 if (call.obj.t().is_procedural()

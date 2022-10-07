@@ -14,6 +14,7 @@ use erg_type::typaram::TyParam;
 use erg_type::value::ValueObj;
 use erg_type::{HasType, Predicate, TyBound, Type};
 
+use crate::context::eval::SubstContext;
 use crate::context::{Context, Variance};
 // use crate::context::instantiate::TyVarContext;
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
@@ -342,29 +343,28 @@ impl Context {
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let constraint = fv.crack_constraint();
-                let (sub_t, super_t) = constraint.get_sub_sup().unwrap();
+                let (sub_t, super_t) = fv.get_bound_types().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    /*if self.is_trait(sub_t) {
-                        self.check_trait_exists(sub_t, loc)?;
-                    }*/
-                    if self.is_trait(super_t) {
-                        self.check_trait_impl(sub_t, super_t, loc)?;
+                    if fv.cyclicity().is_super_cyclic() {
+                        fv.forced_link(&sub_t);
+                    }
+                    if self.is_trait(&super_t) {
+                        self.check_trait_impl(&sub_t, &super_t, loc)?;
                     }
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-                    if self.subtype_of(sub_t, super_t) {
+                    if self.subtype_of(&sub_t, &super_t) {
                         match variance {
-                            Variance::Covariant => Ok(sub_t.clone()),
-                            Variance::Contravariant => Ok(super_t.clone()),
+                            Variance::Covariant => Ok(sub_t),
+                            Variance::Contravariant => Ok(super_t),
                             Variance::Invariant => {
-                                if self.supertype_of(sub_t, super_t) {
-                                    Ok(sub_t.clone())
+                                if self.supertype_of(&sub_t, &super_t) {
+                                    Ok(sub_t)
                                 } else {
                                     Err(TyCheckError::subtyping_error(
                                         self.cfg.input.clone(),
                                         line!() as usize,
-                                        &self.deref_tyvar(sub_t.clone(), variance, loc)?,
-                                        &self.deref_tyvar(super_t.clone(), variance, loc)?,
+                                        &self.deref_tyvar(sub_t, variance, loc)?,
+                                        &self.deref_tyvar(super_t, variance, loc)?,
                                         loc,
                                         self.caused_by(),
                                     ))
@@ -372,18 +372,28 @@ impl Context {
                             }
                         }
                     } else {
+                        let sub_t = if cfg!(feature = "debug") {
+                            sub_t
+                        } else {
+                            self.deref_tyvar(sub_t, variance, loc)?
+                        };
+                        let super_t = if cfg!(feature = "debug") {
+                            super_t
+                        } else {
+                            self.deref_tyvar(super_t, variance, loc)?
+                        };
                         Err(TyCheckError::subtyping_error(
                             self.cfg.input.clone(),
                             line!() as usize,
-                            &self.deref_tyvar(sub_t.clone(), variance, loc)?,
-                            &self.deref_tyvar(super_t.clone(), variance, loc)?,
+                            &sub_t,
+                            &super_t,
                             loc,
                             self.caused_by(),
                         ))
                     }
                 } else {
                     // no dereference at this point
-                    drop(constraint);
+                    // drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
@@ -410,7 +420,7 @@ impl Context {
             }
             Type::BuiltinPoly { name, mut params } => {
                 let typ = builtin_poly(&name, params.clone());
-                let (_, ctx) = self
+                let ctx = self
                     .get_nominal_type_ctx(&typ)
                     .unwrap_or_else(|| todo!("{typ} not found"));
                 let variances = ctx.type_params_variance();
@@ -425,7 +435,7 @@ impl Context {
                 mut params,
             } => {
                 let typ = poly(path.clone(), &name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
+                let ctx = self.get_nominal_type_ctx(&typ).unwrap();
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;
@@ -512,11 +522,60 @@ impl Context {
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        if class.is_monomorphic() {
+            self.mono_class_trait_impl_exist(class, trait_)
+        } else {
+            self.poly_class_trait_impl_exists(class, trait_)
+        }
+    }
+
+    fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
             if self.supertype_of(&inst.sub_type, class)
                 && self.supertype_of(&inst.sup_trait, trait_)
             {
+                super_exists = true;
+                break;
+            }
+        }
+        super_exists
+    }
+
+    fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let mut super_exists = false;
+        log!(err "{class}/{trait_}");
+        let subst_ctx = if let Some(ty_ctx) = self.get_nominal_type_ctx(class) {
+            SubstContext::new(class, ty_ctx)
+        } else {
+            return false;
+        };
+        for inst in self.get_trait_impls(trait_).into_iter() {
+            let sub_type = if inst.sub_type.has_qvar() {
+                if let Ok(t) = subst_ctx.substitute(inst.sub_type.clone(), self, Location::Unknown)
+                {
+                    t
+                } else {
+                    // no relation
+                    continue;
+                }
+            } else {
+                inst.sub_type
+            };
+            let sup_trait = if inst.sup_trait.has_qvar() {
+                if let Ok(t) = subst_ctx.substitute(inst.sup_trait.clone(), self, Location::Unknown)
+                {
+                    t
+                } else {
+                    // no relation
+                    continue;
+                }
+            } else {
+                inst.sup_trait
+            };
+            log!(err "{sub_type}, {class}");
+            log!(err "{sup_trait}, {trait_}");
+            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
             }
@@ -626,6 +685,15 @@ impl Context {
                     }
                     Ok(())
                 }
+            },
+            hir::Expr::Set(set) => match set {
+                hir::Set::Normal(st) => {
+                    for elem in st.elems.pos_args.iter_mut() {
+                        self.resolve_expr_t(&mut elem.expr)?;
+                    }
+                    Ok(())
+                }
+                hir::Set::WithLength(_) => todo!(),
             },
             hir::Expr::Dict(_dict) => {
                 todo!()
@@ -845,8 +913,52 @@ impl Context {
                 }
                 Ok(())
             }
-            // REVIEW: 反転しても同じ？
-            (TyParam::FreeVar(fv), tp) | (tp, TyParam::FreeVar(fv)) => {
+            (TyParam::FreeVar(fv), tp) => {
+                match &*fv.borrow() {
+                    FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
+                        return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);
+                    }
+                    FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
+                } // &fv is dropped
+                let fv_t = fv
+                    .borrow()
+                    .constraint()
+                    .unwrap()
+                    .get_type()
+                    .unwrap()
+                    .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let tp_t = self.get_tp_t(tp)?;
+                if self.supertype_of(&fv_t, &tp_t) {
+                    // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
+                    if fv.level() < Some(self.level) {
+                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
+                        if self.is_sub_constraint_of(
+                            fv.borrow().constraint().unwrap(),
+                            &new_constraint,
+                        ) || fv.borrow().constraint().unwrap().get_type() == Some(&Type)
+                        {
+                            fv.update_constraint(new_constraint);
+                        }
+                    } else {
+                        fv.link(tp);
+                    }
+                    Ok(())
+                } else if allow_divergence
+                    && (self.eq_tp(tp, &TyParam::value(Inf))
+                        || self.eq_tp(tp, &TyParam::value(NegInf)))
+                    && self.subtype_of(&fv_t, &builtin_mono("Num"))
+                {
+                    fv.link(tp);
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
+                }
+            }
+            (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
                         return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);
@@ -1250,9 +1362,7 @@ impl Context {
                                 *constraint =
                                     Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
                             } else {*/
-                            erg_common::log!(err "{maybe_sub}, {sub}");
                             let new_sub = self.union(maybe_sub, sub);
-                            erg_common::log!(err "{new_sub}");
                             *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
                             // }
                         }

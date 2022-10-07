@@ -59,6 +59,7 @@ impl Context {
                 }
             }
             (TyParam::MonoQVar(name), _other) | (_other, TyParam::MonoQVar(name)) => {
+                log!(err "comparing '{name} and {_other}");
                 panic!("Not instantiated type parameter: {name}")
             }
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval }) => {
@@ -275,7 +276,7 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some(ty_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -313,7 +314,7 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -346,12 +347,12 @@ impl Context {
     }
 
     /// ```python
-    /// assert sup_conforms(?E(<: Eq(?E)), base: Nat, sup_trait: Eq(Nat))
-    /// assert sup_conforms(?E(<: Eq(?R)), base: T, sup_trait: Eq(U))
+    /// assert sup_conforms(?E(<: Eq(?E)), arg: Nat, sup_trait: Eq(Nat))
+    /// assert sup_conforms(?E(<: Eq(?R)), arg: T, sup_trait: Eq(U))
     /// ```
-    fn sup_conforms(&self, free: &FreeTyVar, base: &Type, sup_trait: &Type) -> bool {
+    fn sup_conforms(&self, free: &FreeTyVar, arg: &Type, sup_trait: &Type) -> bool {
         let (_sub, sup) = free.get_bound_types().unwrap();
-        free.forced_undoable_link(base);
+        free.forced_undoable_link(arg);
         let judge = self.supertype_of(&sup, sup_trait);
         free.undo();
         judge
@@ -541,9 +542,17 @@ impl Context {
                 self.structural_supertype_of(re, &nat)
             }
             // Int :> {I: Int | ...} == true
-            // Real :> {I: Int | ...} == false
             // Int :> {I: Str| ...} == false
-            (l, Refinement(r)) => self.supertype_of(l, &r.t),
+            // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
+            // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
+            // => true
+            (l, Refinement(r)) => {
+                if self.supertype_of(l, &r.t) {
+                    return true;
+                }
+                let l = l.derefine();
+                self.supertype_of(&l, &r.t)
+            }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
                 if l.preds.is_empty() {
@@ -625,6 +634,7 @@ impl Context {
                 }
                 self.poly_supertype_of(lhs, lparams, rparams)
             }
+            // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
             (
                 Poly {
                     path: lp,
@@ -673,22 +683,44 @@ impl Context {
     }
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
+        let ty_ctx = self.get_nominal_type_ctx(rhs).unwrap();
+        let subst_ctx = SubstContext::new(rhs, ty_ctx);
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let defined_rhs = if let Some((defined_rhs, _)) = self.get_nominal_type_ctx(rhs) {
-            defined_rhs
+        /*let defined_rhs = if let Some((defined_rhs, _ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+            if defined_rhs.has_qvar() {
+                subst_ctx
+                    .substitute(defined_rhs.clone(), self, Location::Unknown)
+                    .unwrap()
+            } else {
+                defined_rhs.clone()
+            }
         } else {
             return false;
-        };
-        if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
-            for (sup_trait, _) in super_traits {
-                if self.sup_conforms(lhs, defined_rhs, sup_trait) {
+        };*/
+        if let Some(super_traits) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_traits) {
+            for sup_trait in super_traits {
+                let sup_trait = if sup_trait.has_qvar() {
+                    subst_ctx
+                        .substitute(sup_trait.clone(), self, Location::Unknown)
+                        .unwrap()
+                } else {
+                    sup_trait.clone()
+                };
+                if self.sup_conforms(lhs, rhs, &sup_trait) {
                     return true;
                 }
             }
         }
-        if let Some(sup_classes) = self.get_nominal_super_class_ctxs(rhs) {
-            for (sup_class, _) in sup_classes {
-                if self.cyclic_supertype_of(lhs, sup_class) {
+        if let Some(sup_classes) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_classes) {
+            for sup_class in sup_classes {
+                let sup_class = if sup_class.has_qvar() {
+                    subst_ctx
+                        .substitute(sup_class.clone(), self, Location::Unknown)
+                        .unwrap()
+                } else {
+                    sup_class.clone()
+                };
+                if self.cyclic_supertype_of(lhs, &sup_class) {
                     return true;
                 }
             }
@@ -702,7 +734,7 @@ impl Context {
         lparams: &[TyParam],
         rparams: &[TyParam],
     ) -> bool {
-        let (_, ctx) = self
+        let ctx = self
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
@@ -838,8 +870,9 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
-        // ?T or ?U will not be unified
-        if lhs.has_no_unbound_var() && rhs.has_no_unbound_var() {
+        // `?T or ?U` will not be unified
+        // `Set!(?T, 3) or Set(?T, 3)` wii be unified to Set(?T, 3)
+        if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
                 (true, true) => return lhs.clone(),  // lhs = rhs
                 (true, false) => return lhs.clone(), // lhs :> rhs

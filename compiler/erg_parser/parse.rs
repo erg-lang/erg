@@ -1601,6 +1601,41 @@ impl Parser {
                 return Err(());
             }
         }
+
+        // Empty brace literals
+        if let Some(first) = self.peek() {
+            if first.is(RBrace) {
+                let r_brace = self.lpop();
+                let arg = Args::empty();
+                let set = NormalSet::new(l_brace, r_brace, arg);
+                return Ok(BraceContainer::Set(Set::Normal(set)));
+            }
+            if first.is(Equal) {
+                let _eq = self.lpop();
+                if let Some(t) = self.peek() {
+                    if t.is(RBrace) {
+                        let r_brace = self.lpop();
+                        let attr = RecordAttrs::from(vec![]);
+                        let rec = NormalRecord::new(l_brace, r_brace, attr);
+                        return Ok(BraceContainer::Record(Record::Normal(rec)));
+                    }
+                }
+                return Err(());
+            }
+            if first.is(Colon) {
+                let _colon = self.lpop();
+                if let Some(t) = self.peek() {
+                    if t.is(RBrace) {
+                        let r_brace = self.lpop();
+                        let arg = Args::empty();
+                        let dict = NormalDict::new(l_brace, r_brace, arg);
+                        return Ok(BraceContainer::Dict(Dict::Normal(dict)));
+                    }
+                }
+                return Err(());
+            }
+        }
+
         let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
@@ -1612,7 +1647,12 @@ impl Parser {
             }
             // Dict
             Expr::TypeAsc(_) => todo!(),
-            Expr::Accessor(acc) if self.cur_is(Semi) => {
+            // TODO: {X; Y} will conflict with Set
+            Expr::Accessor(acc)
+                if self.cur_is(Semi)
+                    && !self.nth_is(1, TokenKind::NatLit)
+                    && !self.nth_is(1, UBar) =>
+            {
                 let record = self
                     .try_reduce_shortened_record(l_brace, acc)
                     .map_err(|_| self.stack_dec())?;
@@ -1755,8 +1795,67 @@ impl Parser {
         todo!()
     }
 
-    fn try_reduce_set(&mut self, _l_brace: Token, _first: Expr) -> ParseResult<Set> {
-        todo!()
+    fn try_reduce_set(&mut self, l_brace: Token, first_elem: Expr) -> ParseResult<Set> {
+        debug_call_info!(self);
+        if self.cur_is(Semi) {
+            self.skip();
+            let len = self
+                .try_reduce_expr(false, false)
+                .map_err(|_| self.stack_dec())?;
+            let r_brace = self.lpop();
+            return Ok(Set::WithLength(SetWithLength::new(
+                l_brace,
+                r_brace,
+                PosArg::new(first_elem),
+                len,
+            )));
+        }
+        let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
+        loop {
+            match self.peek() {
+                Some(t) if t.is(Comma) => {
+                    self.skip();
+                    if self.cur_is(Comma) {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    } else if self.cur_is(RBrace) {
+                        let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
+                        self.level -= 1;
+                        return Ok(set);
+                    }
+                    match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
+                        PosOrKwArg::Pos(arg) => match arg.expr {
+                            Expr::Set(Set::Normal(set)) if set.elems.paren.is_none() => {
+                                args.extend_pos(set.elems.into_iters().0);
+                            }
+                            other => {
+                                let pos = PosArg::new(other);
+                                if !args.has_pos_arg(&pos) {
+                                    args.push_pos(pos);
+                                }
+                            }
+                        },
+                        PosOrKwArg::Kw(arg) => {
+                            self.level -= 1;
+                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(RBrace) => {
+                    let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
+                    self.level -= 1;
+                    return Ok(set);
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Err(())
     }
 
     fn try_reduce_tuple(&mut self, first_elem: Expr) -> ParseResult<Tuple> {
@@ -2517,6 +2616,13 @@ impl Parser {
                 self.level -= 1;
                 Ok(TypeSpec::Array(array))
             }
+            Expr::Set(set) => {
+                let set = self
+                    .convert_set_to_set_type_spec(set)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::Set(set))
+            }
             Expr::BinOp(bin) => {
                 if bin.op.kind.is_range_op() {
                     let op = bin.op;
@@ -2677,6 +2783,24 @@ impl Parser {
                 self.errs
                     .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
                 Err(())
+            }
+        }
+    }
+
+    fn convert_set_to_set_type_spec(&mut self, set: Set) -> ParseResult<SetTypeSpec> {
+        debug_call_info!(self);
+        match set {
+            Set::Normal(arr) => {
+                // TODO: add hint
+                self.errs
+                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
+                Err(())
+            }
+            Set::WithLength(set) => {
+                let t_spec = self.convert_rhs_to_type_spec(set.elem.expr)?;
+                let len = self.validate_const_expr(*set.len)?;
+                self.level -= 1;
+                Ok(SetTypeSpec::new(t_spec, len))
             }
         }
     }

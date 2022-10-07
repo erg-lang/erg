@@ -17,7 +17,7 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 
 use erg_type::constructors::{
-    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant,
+    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -216,8 +216,8 @@ impl ASTLowerer {
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "simplified_chinese" => "请明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "請明確指定類型，例如：Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
                         .into(),
@@ -330,6 +330,131 @@ impl ASTLowerer {
         }
         self.pop_append_errs();
         Ok(hir_record)
+    }
+
+    fn lower_set(&mut self, set: ast::Set) -> LowerResult<hir::Set> {
+        log!(info "enter {}({set})", fn_name!());
+        match set {
+            ast::Set::Normal(set) => Ok(hir::Set::Normal(self.lower_normal_set(set)?)),
+            ast::Set::WithLength(set) => Ok(hir::Set::WithLength(self.lower_set_with_length(set)?)),
+        }
+    }
+
+    fn lower_normal_set(&mut self, set: ast::NormalSet) -> LowerResult<hir::NormalSet> {
+        log!(info "entered {}({set})", fn_name!());
+        let (elems, _) = set.elems.into_iters();
+        let mut union = Type::Never;
+        let mut new_set = vec![];
+        for elem in elems {
+            // TODO: Check if the object's type implements Eq
+            let elem = self.lower_expr(elem.expr)?;
+            union = self.ctx.union(&union, elem.ref_t());
+            if union.is_intersection_type() {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    elem.loc(),
+                    AtomicStr::arc(&self.ctx.name[..]),
+                    switch_lang!(
+                        "japanese" => "集合の要素は全て同じ型である必要があります",
+                        "simplified_chinese" => "集合元素必须全部是相同类型",
+                        "traditional_chinese" => "集合元素必須全部是相同類型",
+                        "english" => "all elements of a set must be of the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                )));
+            }
+            new_set.push(elem);
+        }
+        let elem_t = if union == Type::Never {
+            free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
+        } else {
+            union
+        };
+        // TODO: lint
+        /*
+        if is_duplicated {
+            self.warns.push(LowerWarning::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                normal_set.loc(),
+                AtomicStr::arc(&self.ctx.name[..]),
+                switch_lang!(
+                    "japanese" => "要素が重複しています",
+                    "simplified_chinese" => "元素重复",
+                    "traditional_chinese" => "元素重複",
+                    "english" => "Elements are duplicated",
+                ),
+                None,
+            ));
+        }
+        Ok(normal_set)
+        */
+        let elems = hir::Args::from(new_set);
+        let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
+        // check if elem_t is Eq
+        if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
+            self.errs.extend(errs.into_iter());
+        }
+        Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
+    }
+
+    /// This (e.g. {"a"; 3}) is meaningless as an object, but makes sense as a type (e.g. {Int; 3}).
+    fn lower_set_with_length(
+        &mut self,
+        set: ast::SetWithLength,
+    ) -> LowerResult<hir::SetWithLength> {
+        log!("entered {}({set})", fn_name!());
+        let elem = self.lower_expr(set.elem.expr)?;
+        let set_t = self.gen_set_with_length_type(&elem, &set.len);
+        let len = self.lower_expr(*set.len)?;
+        let hir_set = hir::SetWithLength::new(set.l_brace, set.r_brace, set_t, elem, len);
+        Ok(hir_set)
+    }
+
+    fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+        let maybe_len = self.ctx.eval_const_expr(len, None);
+        match maybe_len {
+            Ok(v @ ValueObj::Nat(_)) => {
+                if elem.ref_t().is_mut_type() {
+                    builtin_poly(
+                        "SetWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    set(elem.t(), TyParam::Value(v))
+                }
+            }
+            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+                if elem.ref_t().is_mut_type() {
+                    builtin_poly(
+                        "SetWithMutTypeAndLength!",
+                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
+                    )
+                } else {
+                    set_mut(elem.t(), TyParam::Value(v))
+                }
+            }
+            Ok(other) => todo!("{other} is not a Nat object"),
+            Err(_e) => {
+                if elem.ref_t().is_mut_type() {
+                    builtin_poly(
+                        "SetWithMutType!",
+                        vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
+                    )
+                } else {
+                    set(elem.t(), TyParam::erased(Type::Nat))
+                }
+            }
+        }
     }
 
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
@@ -794,7 +919,7 @@ impl ASTLowerer {
                     None,
                 ),
             };
-            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
+            if let Some(class_root) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
                         self.cfg.input.clone(),
@@ -849,7 +974,7 @@ impl ASTLowerer {
                 }
             }
         }
-        let (_, ctx) = self
+        let ctx = self
             .ctx
             .get_nominal_type_ctx(&mono(self.ctx.path(), hir_def.sig.ident().inspect()))
             .unwrap();
@@ -912,7 +1037,7 @@ impl ASTLowerer {
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
         if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
-            for (sup_t, sup) in sups.into_iter().skip(1) {
+            for sup in sups.into_iter().skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
@@ -926,7 +1051,7 @@ impl ASTLowerer {
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
-                            sup_t,
+                            &builtin_mono(&sup.name), // TODO: get super type
                             ctx.caused_by(),
                         ));
                     }
@@ -945,12 +1070,7 @@ impl ASTLowerer {
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
             // assume the class has implemented the trait, regardless of whether the implementation is correct
-            let trait_ctx = self
-                .ctx
-                .get_nominal_type_ctx(&impl_trait)
-                .unwrap()
-                .1
-                .clone();
+            let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {
@@ -1112,6 +1232,7 @@ impl ASTLowerer {
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
+            ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),

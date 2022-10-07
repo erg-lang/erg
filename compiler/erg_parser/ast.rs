@@ -194,6 +194,10 @@ impl Args {
         &self.kw_args[..]
     }
 
+    pub fn has_pos_arg(&self, pa: &PosArg) -> bool {
+        self.pos_args.contains(pa)
+    }
+
     pub fn into_iters(
         self,
     ) -> (
@@ -765,14 +769,16 @@ impl_locational_for_enum!(Record; Normal, Shortened);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
-    l_brace: Token,
-    r_brace: Token,
+    pub l_brace: Token,
+    pub r_brace: Token,
     pub elems: Args,
 }
 
 impl NestedDisplay for NormalSet {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.elems)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "{{")?;
+        self.elems.fmt_nest(f, level + 1)?;
+        write!(f, "{}}}", "    ".repeat(level))
     }
 }
 
@@ -790,14 +796,43 @@ impl NormalSet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetWithLength {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub elem: Box<PosArg>,
+    pub len: Box<Expr>,
+}
+
+impl NestedDisplay for SetWithLength {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}; {}}}", self.elem, self.len)
+    }
+}
+
+impl_display_from_nested!(SetWithLength);
+impl_locational!(SetWithLength, l_brace, r_brace);
+
+impl SetWithLength {
+    pub fn new(l_brace: Token, r_brace: Token, elem: PosArg, len: Expr) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            elem: Box::new(elem),
+            len: Box::new(len),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Set {
     Normal(NormalSet),
+    WithLength(SetWithLength),
     // Comprehension(SetComprehension),
 }
 
-impl_nested_display_for_enum!(Set; Normal);
-impl_display_for_enum!(Set; Normal);
-impl_locational_for_enum!(Set; Normal);
+impl_nested_display_for_enum!(Set; Normal, WithLength);
+impl_display_for_enum!(Set; Normal, WithLength);
+impl_locational_for_enum!(Set; Normal, WithLength);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -1252,15 +1287,15 @@ pub enum ConstExpr {
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
-    // Set(Set),
+    Set(Set),
     Dict(ConstDict),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
@@ -1595,6 +1630,29 @@ impl ArrayTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetTypeSpec {
+    pub ty: Box<TypeSpec>,
+    pub len: ConstExpr,
+}
+
+impl fmt::Display for SetTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{}; {}}}", self.ty, self.len)
+    }
+}
+
+impl_locational!(SetTypeSpec, ty, len);
+
+impl SetTypeSpec {
+    pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
+        Self {
+            ty: Box::new(ty),
+            len,
+        }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -1610,6 +1668,7 @@ pub enum TypeSpec {
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
     Array(ArrayTypeSpec),
+    Set(SetTypeSpec),
     Tuple(Vec<TypeSpec>),
     // Dict(),
     // Option(),
@@ -1638,6 +1697,7 @@ impl fmt::Display for TypeSpec {
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
+            Self::Set(set) => write!(f, "{set}"),
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Enum(elems) => write!(f, "{{{elems}}}"),
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
@@ -1655,6 +1715,7 @@ impl Locational for TypeSpec {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
             Self::Array(arr) => arr.loc(),
+            Self::Set(set) => set.loc(),
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
             Self::Enum(set) => set.loc(),

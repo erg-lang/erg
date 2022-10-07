@@ -181,6 +181,14 @@ impl OwnershipChecker {
                     }
                 }
             }
+            Expr::Set(set) => match set {
+                hir::Set::Normal(set) => {
+                    for a in set.elems.pos_args.iter() {
+                        self.check_expr(&a.expr, ownership, false);
+                    }
+                }
+                hir::Set::WithLength(_) => todo!(),
+            },
             // TODO: capturing
             Expr::Lambda(lambda) => {
                 let name_and_vis = (Str::from(format!("<lambda_{}>", lambda.id)), Private);
