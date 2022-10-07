@@ -106,8 +106,13 @@ pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
     ValueObj::from_str(t, lit.token.content.clone())
 }
 
+/// Instantiate the polymorphic type from the quantified state.
+///
+/// e.g.
+/// ```
 /// SubstContext::new(Array(?T, 0), Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
 /// ctx.substitute(Array!('T; !'N)): Array(?T, !0)
+/// ```
 #[derive(Debug)]
 pub struct SubstContext {
     bounds: Set<TyBound>,
@@ -125,6 +130,9 @@ impl fmt::Display for SubstContext {
 }
 
 impl SubstContext {
+    /// `substituted` is used to obtain real argument information. So it must be instantiated as `Array(?T, 0)` and so on.
+    ///
+    /// `ty_ctx` is used to obtain information on the names and variance of the parameters.
     pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
         let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
@@ -135,7 +143,7 @@ impl SubstContext {
         if param_names.len() != substituted.typarams().len() {
             let param_names = param_names.collect::<Vec<_>>();
             panic!(
-                "{param_names:?} != {}",
+                "{param_names:?} != [{}]",
                 erg_common::fmt_vec(&substituted.typarams())
             );
         }

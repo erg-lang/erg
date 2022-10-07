@@ -59,6 +59,7 @@ impl Context {
                 }
             }
             (TyParam::MonoQVar(name), _other) | (_other, TyParam::MonoQVar(name)) => {
+                log!(err "comparing '{name} and {_other}");
                 panic!("Not instantiated type parameter: {name}")
             }
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval }) => {
@@ -673,22 +674,44 @@ impl Context {
     }
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
+        let (_, ty_ctx) = self.get_nominal_type_ctx(rhs).unwrap();
+        let subst_ctx = SubstContext::new(rhs, ty_ctx);
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let defined_rhs = if let Some((defined_rhs, _)) = self.get_nominal_type_ctx(rhs) {
-            defined_rhs
+        let defined_rhs = if let Some((defined_rhs, _ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+            if defined_rhs.has_qvar() {
+                subst_ctx
+                    .substitute(defined_rhs.clone(), self, Location::Unknown)
+                    .unwrap()
+            } else {
+                defined_rhs.clone()
+            }
         } else {
             return false;
         };
         if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
-            for (sup_trait, _) in super_traits {
-                if self.sup_conforms(lhs, defined_rhs, sup_trait) {
+            for (sup_trait, _ty_ctx) in super_traits {
+                let sup_trait = if sup_trait.has_qvar() {
+                    subst_ctx
+                        .substitute(sup_trait.clone(), self, Location::Unknown)
+                        .unwrap()
+                } else {
+                    sup_trait.clone()
+                };
+                if self.sup_conforms(lhs, &defined_rhs, &sup_trait) {
                     return true;
                 }
             }
         }
         if let Some(sup_classes) = self.get_nominal_super_class_ctxs(rhs) {
-            for (sup_class, _) in sup_classes {
-                if self.cyclic_supertype_of(lhs, sup_class) {
+            for (sup_class, _ty_ctx) in sup_classes {
+                let sup_class = if sup_class.has_qvar() {
+                    subst_ctx
+                        .substitute(sup_class.clone(), self, Location::Unknown)
+                        .unwrap()
+                } else {
+                    sup_class.clone()
+                };
+                if self.cyclic_supertype_of(lhs, &sup_class) {
                     return true;
                 }
             }
