@@ -908,7 +908,7 @@ impl Context {
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect();
         for sup in self.super_classes.iter() {
-            let (_, sup_ctx) = self.get_nominal_type_ctx(sup).unwrap();
+            let sup_ctx = self.get_nominal_type_ctx(sup).unwrap();
             vars.extend(sup_ctx.type_dir());
         }
         if let Some(outer) = self.get_outer() {
