@@ -144,14 +144,14 @@ pub enum ValueObj {
 impl fmt::Debug for ValueObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(i) => write!(f, "{i}"),
-            Self::Nat(n) => write!(f, "{n}"),
+            Self::Int(i) => write!(f, "{i}i"),
+            Self::Nat(n) => write!(f, "{n}n"),
             Self::Float(fl) => {
                 // In Rust, .0 is shown omitted.
                 if fl.fract() < 1e-10 {
-                    write!(f, "{fl:.1}")
+                    write!(f, "{fl:.1}f")
                 } else {
-                    write!(f, "{fl}")
+                    write!(f, "{fl}f")
                 }
             }
             Self::Str(s) => write!(f, "\"{s}\""),

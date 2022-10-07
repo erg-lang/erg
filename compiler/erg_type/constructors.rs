@@ -440,6 +440,7 @@ pub fn ty_tp(t: Type) -> TyParam {
     TyParam::t(t)
 }
 
+/// NOTE: Always add postfix when entering numbers. For example, `value(1)` will be of type Int.
 #[inline]
 pub fn value<V: Into<ValueObj>>(v: V) -> TyParam {
     TyParam::value(v)

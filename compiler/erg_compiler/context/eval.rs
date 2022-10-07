@@ -147,13 +147,18 @@ impl SubstContext {
                 erg_common::fmt_vec(&substituted.typarams())
             );
         }
-        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
-        SubstContext {
-            bounds,
-            params: param_names
-                .zip(substituted.typarams().into_iter())
-                .collect(),
+        let params = param_names
+            .zip(substituted.typarams().into_iter())
+            .collect::<Dict<_, _>>();
+        if cfg!(feature = "debug") {
+            for v in params.values() {
+                if v.has_qvar() {
+                    panic!("{} has qvar", v);
+                }
+            }
         }
+        // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
+        SubstContext { bounds, params }
     }
 
     pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {

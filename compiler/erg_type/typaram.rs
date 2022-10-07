@@ -468,6 +468,7 @@ impl TyParam {
         Self::FreeVar(FreeTyParam::new_named_unbound(name, level, constraint))
     }
 
+    /// NOTE: Always add postfix when entering numbers. For example, `value(1)` will be of type Int.
     #[inline]
     pub fn value<V: Into<ValueObj>>(v: V) -> Self {
         Self::Value(v.into())
