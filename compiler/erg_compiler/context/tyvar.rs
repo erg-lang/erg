@@ -372,11 +372,21 @@ impl Context {
                             }
                         }
                     } else {
+                        let sub_t = if cfg!(feature = "debug") {
+                            sub_t
+                        } else {
+                            self.deref_tyvar(sub_t, variance, loc)?
+                        };
+                        let super_t = if cfg!(feature = "debug") {
+                            super_t
+                        } else {
+                            self.deref_tyvar(super_t, variance, loc)?
+                        };
                         Err(TyCheckError::subtyping_error(
                             self.cfg.input.clone(),
                             line!() as usize,
-                            &self.deref_tyvar(sub_t, variance, loc)?,
-                            &self.deref_tyvar(super_t, variance, loc)?,
+                            &sub_t,
+                            &super_t,
                             loc,
                             self.caused_by(),
                         ))
