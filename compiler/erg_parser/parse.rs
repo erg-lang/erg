@@ -1647,7 +1647,12 @@ impl Parser {
             }
             // Dict
             Expr::TypeAsc(_) => todo!(),
-            Expr::Accessor(acc) if self.cur_is(Semi) => {
+            // TODO: {X; Y} will conflict with Set
+            Expr::Accessor(acc)
+                if self.cur_is(Semi)
+                    && !self.nth_is(1, TokenKind::NatLit)
+                    && !self.nth_is(1, UBar) =>
+            {
                 let record = self
                     .try_reduce_shortened_record(l_brace, acc)
                     .map_err(|_| self.stack_dec())?;
@@ -1792,6 +1797,19 @@ impl Parser {
 
     fn try_reduce_set(&mut self, l_brace: Token, first_elem: Expr) -> ParseResult<Set> {
         debug_call_info!(self);
+        if self.cur_is(Semi) {
+            self.skip();
+            let len = self
+                .try_reduce_expr(false, false)
+                .map_err(|_| self.stack_dec())?;
+            let r_brace = self.lpop();
+            return Ok(Set::WithLength(SetWithLength::new(
+                l_brace,
+                r_brace,
+                PosArg::new(first_elem),
+                len,
+            )));
+        }
         let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
         loop {
             match self.peek() {
@@ -2598,6 +2616,13 @@ impl Parser {
                 self.level -= 1;
                 Ok(TypeSpec::Array(array))
             }
+            Expr::Set(set) => {
+                let set = self
+                    .convert_set_to_set_type_spec(set)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(TypeSpec::Set(set))
+            }
             Expr::BinOp(bin) => {
                 if bin.op.kind.is_range_op() {
                     let op = bin.op;
@@ -2758,6 +2783,24 @@ impl Parser {
                 self.errs
                     .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
                 Err(())
+            }
+        }
+    }
+
+    fn convert_set_to_set_type_spec(&mut self, set: Set) -> ParseResult<SetTypeSpec> {
+        debug_call_info!(self);
+        match set {
+            Set::Normal(arr) => {
+                // TODO: add hint
+                self.errs
+                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
+                Err(())
+            }
+            Set::WithLength(set) => {
+                let t_spec = self.convert_rhs_to_type_spec(set.elem.expr)?;
+                let len = self.validate_const_expr(*set.len)?;
+                self.level -= 1;
+                Ok(SetTypeSpec::new(t_spec, len))
             }
         }
     }

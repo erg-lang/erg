@@ -1304,7 +1304,9 @@ impl Context {
     ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
         let (_ctx_t, ctx) = self.get_nominal_type_ctx(t)?;
         Some(ctx.super_traits.iter().map(|sup| {
-            let (_t, sup_ctx) = self.get_nominal_type_ctx(sup).unwrap();
+            let (_t, sup_ctx) = self
+                .get_nominal_type_ctx(sup)
+                .unwrap_or_else(|| todo!("{} not found", sup));
             (sup, sup_ctx)
         }))
     }

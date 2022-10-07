@@ -1630,6 +1630,29 @@ impl ArrayTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetTypeSpec {
+    pub ty: Box<TypeSpec>,
+    pub len: ConstExpr,
+}
+
+impl fmt::Display for SetTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{}; {}}}", self.ty, self.len)
+    }
+}
+
+impl_locational!(SetTypeSpec, ty, len);
+
+impl SetTypeSpec {
+    pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
+        Self {
+            ty: Box::new(ty),
+            len,
+        }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -1645,6 +1668,7 @@ pub enum TypeSpec {
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
     Array(ArrayTypeSpec),
+    Set(SetTypeSpec),
     Tuple(Vec<TypeSpec>),
     // Dict(),
     // Option(),
@@ -1673,6 +1697,7 @@ impl fmt::Display for TypeSpec {
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
+            Self::Set(set) => write!(f, "{set}"),
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Enum(elems) => write!(f, "{{{elems}}}"),
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
@@ -1690,6 +1715,7 @@ impl Locational for TypeSpec {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
             Self::Array(arr) => arr.loc(),
+            Self::Set(set) => set.loc(),
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
             Self::Enum(set) => set.loc(),

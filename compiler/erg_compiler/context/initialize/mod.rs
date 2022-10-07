@@ -785,7 +785,7 @@ impl Context {
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
 
-        // *** Array *** //
+        /* Array */
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
         array_.register_superclass(Obj, &obj);
@@ -833,15 +833,14 @@ impl Context {
             Public,
         );
         array_.register_trait(array_t, builtin_mono("Show"), array_show);
-
-        // *** Set *** //
+        /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
-        set_.register_superclass(Obj, &obj);
-        set_.register_marker_trait(builtin_poly("output", vec![ty_tp(mono_q("T"))]));
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
         let set_t = array(mono_q("T"), n.clone());
+        set_.register_superclass(Obj, &obj);
+        set_.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("T"))]));
         let t = fn_met(
             set_t.clone(),
             vec![kw("rhs", array(mono_q("T"), m.clone()))],
@@ -866,7 +865,7 @@ impl Context {
             Const,
             Public,
         );
-        array_.register_trait(
+        set_.register_trait(
             set_t.clone(),
             builtin_poly("Eq", vec![ty_tp(set_t.clone())]),
             set_eq,
