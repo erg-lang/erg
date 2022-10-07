@@ -307,7 +307,7 @@ impl Context {
         }
         if let ValueObj::Type(t) = &obj {
             if let Some(sups) = self.get_nominal_super_type_ctxs(t.typ()) {
-                for (_, ctx) in sups {
+                for ctx in sups {
                     if let Some(val) = ctx.consts.get(ident.inspect()) {
                         return Ok(val.clone());
                     }
@@ -812,7 +812,7 @@ impl Context {
                 if sub == Type::Never {
                     return Ok(mono_proj(*lhs, rhs));
                 }
-                for (_ty, ty_ctx) in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
+                for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
                     EvalError::no_var_error(
                         self.cfg.input.clone(),
                         line!() as usize,

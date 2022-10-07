@@ -919,7 +919,7 @@ impl Context {
         self.get_mod(receiver_name)
             .or_else(|| {
                 let (_, vi) = self.get_var_info(receiver_name).ok()?;
-                self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
+                self.get_nominal_type_ctx(&vi.t)
             })
             .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
     }

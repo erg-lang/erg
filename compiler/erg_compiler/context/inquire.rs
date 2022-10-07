@@ -17,7 +17,7 @@ use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
 use erg_type::constructors::{
-    anon, builtin_mono, free_var, func, module, mono, mono_proj, subr_t, v_enum,
+    anon, builtin_mono, free_var, func, module, mono_proj, subr_t, v_enum,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -393,7 +393,7 @@ impl Context {
                 }
             }
         }
-        for (_, ctx) in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
+        for ctx in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
             TyCheckError::no_var_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -507,7 +507,7 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         if let Some(method_name) = method_name.as_ref() {
-            for (_, ctx) in self
+            for ctx in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| {
                     TyCheckError::no_var_error(
@@ -1129,7 +1129,7 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
-        for (_, ctx) in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
+        for ctx in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
             TyCheckError::no_var_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1185,7 +1185,7 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a str> {
-        for (_, ctx) in self.get_nominal_super_type_ctxs(self_t)? {
+        for ctx in self.get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -1298,38 +1298,36 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn get_nominal_super_trait_ctxs<'a>(
+    pub(crate) fn _get_nominal_super_trait_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
-        let (_ctx_t, ctx) = self.get_nominal_type_ctx(t)?;
+    ) -> Option<impl Iterator<Item = &'a Context>> {
+        let ctx = self.get_nominal_type_ctx(t)?;
         Some(ctx.super_traits.iter().map(|sup| {
-            let (_t, sup_ctx) = self
+            let sup_ctx = self
                 .get_nominal_type_ctx(sup)
                 .unwrap_or_else(|| todo!("{} not found", sup));
-            (sup, sup_ctx)
+            sup_ctx
         }))
     }
 
-    pub(crate) fn get_nominal_super_class_ctxs<'a>(
+    pub(crate) fn _get_nominal_super_class_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
+    ) -> Option<impl Iterator<Item = &'a Context>> {
         // if `t` is {S: Str | ...}, `ctx_t` will be Str
         // else if `t` is Array(Int, 10), `ctx_t` will be Array(T, N) (if Array(Int, 10) is not specialized)
-        let (_ctx_t, ctx) = self.get_nominal_type_ctx(t)?;
+        let ctx = self.get_nominal_type_ctx(t)?;
         // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
         // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
-        Some(ctx.super_classes.iter().map(|sup| {
-            let (_t, sup_ctx) = self.get_nominal_type_ctx(sup).unwrap();
-            (sup, sup_ctx)
-        }))
+        Some(
+            ctx.super_classes
+                .iter()
+                .map(|sup| self.get_nominal_type_ctx(sup).unwrap()),
+        )
     }
 
-    pub(crate) fn get_nominal_super_type_ctxs<'a>(
-        &'a self,
-        t: &Type,
-    ) -> Option<Vec<(&'a Type, &'a Context)>> {
+    pub(crate) fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {
@@ -1369,21 +1367,18 @@ impl Context {
     fn get_simple_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> Option<impl Iterator<Item = (&'a Type, &'a Context)>> {
-        let (t, ctx) = self.get_nominal_type_ctx(t)?;
+    ) -> Option<impl Iterator<Item = &'a Context>> {
+        let ctx = self.get_nominal_type_ctx(t)?;
         let sups = ctx
             .super_classes
             .iter()
             .chain(ctx.super_traits.iter())
             .map(|sup| self.get_nominal_type_ctx(sup).unwrap());
-        Some(vec![(t, ctx)].into_iter().chain(sups))
+        Some(vec![ctx].into_iter().chain(sups))
     }
 
     // TODO: Never
-    pub(crate) fn get_nominal_type_ctx<'a>(
-        &'a self,
-        typ: &Type,
-    ) -> Option<(&'a Type, &'a Context)> {
+    pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a Context> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
@@ -1402,43 +1397,44 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self
+                if let Some((_t, ctx)) = self
                     .get_builtins()
                     .unwrap_or(self)
                     .rec_get_mono_type("QuantifiedFunc")
                 {
-                    return Some(res);
+                    return Some(ctx);
                 }
             }
-            Type::Subr(_subr) => match _subr.kind {
+            Type::Subr(subr) => match subr.kind {
                 SubrKind::Func => {
-                    if let Some(res) = self
+                    if let Some((_, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_get_mono_type("Func")
                     {
-                        return Some(res);
+                        return Some(ctx);
                     }
                 }
                 SubrKind::Proc => {
-                    if let Some(res) = self
+                    if let Some((_, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_get_mono_type("Proc")
                     {
-                        return Some(res);
+                        return Some(ctx);
                     }
                 }
             },
             Type::BuiltinPoly { name, .. } => {
-                if let Some(res) = self.get_builtins().unwrap_or(self).rec_get_poly_type(name) {
-                    return Some(res);
+                if let Some((_, ctx)) = self.get_builtins().unwrap_or(self).rec_get_poly_type(name)
+                {
+                    return Some(ctx);
                 }
             }
             Type::Poly { path, name, .. } => {
                 if self.path() == path {
-                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
-                        return Some((t, ctx));
+                    if let Some((_, ctx)) = self.rec_get_mono_type(name) {
+                        return Some(ctx);
                     }
                 }
                 let path = self.cfg.input.resolve(path.as_path()).ok()?;
@@ -1452,8 +1448,8 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
-                        return Some((t, ctx));
+                    if let Some((_, ctx)) = ctx.rec_get_mono_type(name) {
+                        return Some(ctx);
                     }
                 }
             }
@@ -1461,18 +1457,20 @@ impl Context {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("RecordType");
+                    .rec_get_mono_type("RecordType")
+                    .map(|(_, ctx)| ctx);
             }
             Type::Record(_) => {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("Record");
+                    .rec_get_mono_type("Record")
+                    .map(|(_, ctx)| ctx);
             }
             Type::Mono { path, name } => {
                 if self.path() == path {
-                    if let Some((t, ctx)) = self.rec_get_mono_type(name) {
-                        return Some((t, ctx));
+                    if let Some((_, ctx)) = self.rec_get_mono_type(name) {
+                        return Some(ctx);
                     }
                 }
                 let path = self.cfg.input.resolve(path.as_path()).ok()?;
@@ -1486,31 +1484,32 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((t, ctx)) = ctx.rec_get_mono_type(name) {
-                        return Some((t, ctx));
+                    if let Some((_, ctx)) = ctx.rec_get_mono_type(name) {
+                        return Some(ctx);
                     }
                 }
             }
             Type::BuiltinMono(name) => {
-                if let Some(res) = self.get_builtins().unwrap_or(self).rec_get_mono_type(name) {
+                if let Some((_, res)) = self.get_builtins().unwrap_or(self).rec_get_mono_type(name)
+                {
                     return Some(res);
                 }
             }
             Type::Or(l, r) => {
-                let (lt, lctx) = self.get_nominal_type_ctx(l)?;
-                let (rt, rctx) = self.get_nominal_type_ctx(r)?;
+                let lctx = self.get_nominal_type_ctx(l)?;
+                let rctx = self.get_nominal_type_ctx(r)?;
                 // use smaller context
-                return match (self.supertype_of(lt, rt), self.supertype_of(rt, lt)) {
-                    (true, true) => Some((rt, lctx)),
-                    (true, false) => Some((rt, lctx)),
-                    (false, true) => Some((lt, rctx)),
+                return match (self.supertype_of(l, r), self.supertype_of(r, l)) {
+                    (true, true) => Some(lctx),
+                    (true, false) => Some(rctx),
+                    (false, true) => Some(lctx),
                     (false, false) => None,
                 };
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.rec_get_mono_type(&other.name()) {
-                    return Some((t, ctx));
+                if let Some((_t, ctx)) = self.rec_get_mono_type(&other.name()) {
+                    return Some(ctx);
                 }
             }
             Type::Ref(t) | Type::RefMut { before: t, .. } => {
@@ -1687,8 +1686,8 @@ impl Context {
         if self.kind.is_method_def() || self.kind.is_type() {
             // TODO: poly type
             let name = self.name.split(&[':', '.']).last().unwrap();
-            let mono_t = mono(self.path(), Str::rc(name));
-            if let Some((t, _)) = self.get_nominal_type_ctx(&mono_t) {
+            // let mono_t = mono(self.path(), Str::rc(name));
+            if let Some((t, _)) = self.rec_get_type(name) {
                 Some(t.clone())
             } else {
                 None
@@ -1913,7 +1912,7 @@ impl Context {
             Type::Refinement(refine) => self.is_class(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_class(t),
             _ => {
-                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
                 } else {
                     // TODO: unknown types
@@ -1936,7 +1935,7 @@ impl Context {
             Type::Refinement(refine) => self.is_trait(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_trait(t),
             _ => {
-                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()
                 } else {
                     false

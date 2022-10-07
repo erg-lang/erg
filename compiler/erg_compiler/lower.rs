@@ -919,7 +919,7 @@ impl ASTLowerer {
                     None,
                 ),
             };
-            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
+            if let Some(class_root) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
                         self.cfg.input.clone(),
@@ -974,7 +974,7 @@ impl ASTLowerer {
                 }
             }
         }
-        let (_, ctx) = self
+        let ctx = self
             .ctx
             .get_nominal_type_ctx(&mono(self.ctx.path(), hir_def.sig.ident().inspect()))
             .unwrap();
@@ -1037,7 +1037,7 @@ impl ASTLowerer {
 
     fn check_override(&mut self, class: &Type, ctx: &Context) {
         if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
-            for (sup_t, sup) in sups.into_iter().skip(1) {
+            for sup in sups.into_iter().skip(1) {
                 for (method_name, vi) in ctx.locals.iter() {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
@@ -1051,7 +1051,7 @@ impl ASTLowerer {
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
-                            sup_t,
+                            &builtin_mono(&sup.name), // TODO: get super type
                             ctx.caused_by(),
                         ));
                     }
@@ -1070,12 +1070,7 @@ impl ASTLowerer {
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
             // assume the class has implemented the trait, regardless of whether the implementation is correct
-            let trait_ctx = self
-                .ctx
-                .get_nominal_type_ctx(&impl_trait)
-                .unwrap()
-                .1
-                .clone();
+            let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {

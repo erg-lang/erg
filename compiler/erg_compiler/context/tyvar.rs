@@ -410,7 +410,7 @@ impl Context {
             }
             Type::BuiltinPoly { name, mut params } => {
                 let typ = builtin_poly(&name, params.clone());
-                let (_, ctx) = self
+                let ctx = self
                     .get_nominal_type_ctx(&typ)
                     .unwrap_or_else(|| todo!("{typ} not found"));
                 let variances = ctx.type_params_variance();
@@ -425,7 +425,7 @@ impl Context {
                 mut params,
             } => {
                 let typ = poly(path.clone(), &name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
+                let ctx = self.get_nominal_type_ctx(&typ).unwrap();
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;
@@ -534,7 +534,8 @@ impl Context {
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        let subst_ctx = if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(class) {
+        log!(err "{class}/{trait_}");
+        let subst_ctx = if let Some(ty_ctx) = self.get_nominal_type_ctx(class) {
             SubstContext::new(class, ty_ctx)
         } else {
             return false;
@@ -562,6 +563,8 @@ impl Context {
             } else {
                 inst.sup_trait
             };
+            log!(err "{sub_type}, {class}");
+            log!(err "{sup_trait}, {trait_}");
             if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
@@ -900,8 +903,52 @@ impl Context {
                 }
                 Ok(())
             }
-            // REVIEW: 反転しても同じ？
-            (TyParam::FreeVar(fv), tp) | (tp, TyParam::FreeVar(fv)) => {
+            (TyParam::FreeVar(fv), tp) => {
+                match &*fv.borrow() {
+                    FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
+                        return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);
+                    }
+                    FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
+                } // &fv is dropped
+                let fv_t = fv
+                    .borrow()
+                    .constraint()
+                    .unwrap()
+                    .get_type()
+                    .unwrap()
+                    .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let tp_t = self.get_tp_t(tp)?;
+                if self.supertype_of(&fv_t, &tp_t) {
+                    // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
+                    if fv.level() < Some(self.level) {
+                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
+                        if self.is_sub_constraint_of(
+                            fv.borrow().constraint().unwrap(),
+                            &new_constraint,
+                        ) || fv.borrow().constraint().unwrap().get_type() == Some(&Type)
+                        {
+                            fv.update_constraint(new_constraint);
+                        }
+                    } else {
+                        fv.link(tp);
+                    }
+                    Ok(())
+                } else if allow_divergence
+                    && (self.eq_tp(tp, &TyParam::value(Inf))
+                        || self.eq_tp(tp, &TyParam::value(NegInf)))
+                    && self.subtype_of(&fv_t, &builtin_mono("Num"))
+                {
+                    fv.link(tp);
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
+                }
+            }
+            (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
                         return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);

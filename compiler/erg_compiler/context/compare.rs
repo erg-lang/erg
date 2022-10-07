@@ -276,7 +276,7 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some(ty_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -314,7 +314,7 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -683,10 +683,10 @@ impl Context {
     }
 
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
-        let (_, ty_ctx) = self.get_nominal_type_ctx(rhs).unwrap();
+        let ty_ctx = self.get_nominal_type_ctx(rhs).unwrap();
         let subst_ctx = SubstContext::new(rhs, ty_ctx);
         // if `rhs` is {S: Str | ... }, `defined_rhs` will be Str
-        let defined_rhs = if let Some((defined_rhs, _ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+        /*let defined_rhs = if let Some((defined_rhs, _ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             if defined_rhs.has_qvar() {
                 subst_ctx
                     .substitute(defined_rhs.clone(), self, Location::Unknown)
@@ -696,9 +696,9 @@ impl Context {
             }
         } else {
             return false;
-        };
-        if let Some(super_traits) = self.get_nominal_super_trait_ctxs(rhs) {
-            for (sup_trait, _ty_ctx) in super_traits {
+        };*/
+        if let Some(super_traits) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_traits) {
+            for sup_trait in super_traits {
                 let sup_trait = if sup_trait.has_qvar() {
                     subst_ctx
                         .substitute(sup_trait.clone(), self, Location::Unknown)
@@ -706,13 +706,13 @@ impl Context {
                 } else {
                     sup_trait.clone()
                 };
-                if self.sup_conforms(lhs, &defined_rhs, &sup_trait) {
+                if self.sup_conforms(lhs, rhs, &sup_trait) {
                     return true;
                 }
             }
         }
-        if let Some(sup_classes) = self.get_nominal_super_class_ctxs(rhs) {
-            for (sup_class, _ty_ctx) in sup_classes {
+        if let Some(sup_classes) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_classes) {
+            for sup_class in sup_classes {
                 let sup_class = if sup_class.has_qvar() {
                     subst_ctx
                         .substitute(sup_class.clone(), self, Location::Unknown)
@@ -734,7 +734,7 @@ impl Context {
         lparams: &[TyParam],
         rparams: &[TyParam],
     ) -> bool {
-        let (_, ctx) = self
+        let ctx = self
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
