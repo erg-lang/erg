@@ -10,7 +10,7 @@
     * [ ] while!
       * [x] code generation
       * [ ] type checking
-  * [ ] operator
+  * [x] operator
     * [x] + (binary/unary)
     * [x] - (binary/unary)
     * [x] *
