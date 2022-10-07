@@ -1,16 +1,55 @@
 # 快速浏览
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D51016775279ecd28b87178dab6a493a645abb171)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=51016775279ecd28b87178dab6a493a645abb171)
 
-`syntax` 下面的文档是为了让编程初学者也能理解而编写的。
-对于已经掌握 Python、Rust、Haskell 等语言的人来说，可能有点啰嗦。
+`syntax` 下面的文档是为了让编程初学者也能理解而编写的
+对于已经掌握 Python、Rust、Haskell 等语言的人来说，可能有点啰嗦
 
-所以，这里是 Erg 语法的概述。
-请认为未提及的部分与 Python 相同。
+所以，这里是 Erg 语法的概述
+请认为未提及的部分与 Python 相同
+
+## 基本计算
+
+Erg 有一个严格的类型。但是, 由于类和特征提供的灵活性, 类型会自动转换为子类型(有关详细信息，请参阅 [API])
+
+另外，不同的类型可以相互计算，只要类型是数值类型即可
+
+```python
+a = 1 # 1: Nat
+b = a - 10 # -9: Int
+c = b / 2 # -4.5: Float
+d = c * 0 # -0.0: Float
+e = f // 2 # 0: Nat
+```
+
+如果您不想允许这些隐式类型转换，您可以在声明时指定类型以在编译时将它们检测为错误
+
+```python
+a = 1
+b: Int = a / 2
+# 错误信息
+Error[#0047]: File <stdin>, line 1, in <module>
+2│ b: Int = int / 2
+   ^
+类型错误：ratio的类型不匹配：
+期待:  Int
+但找到: Float
+```
+## 布尔类型
+`True` 和 `False` 是 Boolean 类型的单例，但它们也可以转换为 Int 类型
+因此，如果它们是 Int 类型，则可以进行比较，但与其他类型比较会导致错误
+
+```python
+True == 1 # OK
+False == 0 # OK
+True == 1.0 # NG
+False == 0.0 # NG
+True == "a" # NG
+```
 
 ## 变量，常量
 
-变量用 `=` 定义。 与 Haskell 一样，变量一旦定义就不能更改。 但是，它可以在另一个范围内被遮蔽。
+变量用 `=` 定义。 与 Haskell 一样，变量一旦定义就不能更改。 但是，它可以在另一个范围内被遮蔽
 
 ```python
 i = 0
@@ -19,8 +58,8 @@ if True:
 assert i == 0
 ```
 
-任何以大写字母开头的都是常数。 只有可以在编译时计算的东西才能是常量。
-此外，自定义以来，常量在所有范围内都是相同的。
+任何以大写字母开头的都是常数。 只有可以在编译时计算的东西才能是常量
+此外，自定义以来，常量在所有范围内都是相同的
 
 ```python
 PI = 3.141592653589793
@@ -31,8 +70,8 @@ match random.random!(0..10):
 
 ## 类型声明
 
-与 Python 不同的是，只能先声明变量类型。
-当然，声明的类型和实际分配的对象的类型必须兼容。
+与 Python 不同的是，只能先声明变量类型
+当然，声明的类型和实际分配的对象的类型必须兼容
 
 ```python
 i: Int
@@ -41,7 +80,7 @@ i = 10
 
 ## 函数
 
-你可以像在 Haskell 中一样定义它。
+你可以像在 Haskell 中一样定义它
 
 ```python
 fib0 = 0
@@ -62,7 +101,7 @@ assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 
 ### 变异运算符 (!)
 
-这就像 Ocaml 中的`ref`。
+这就像 Ocaml 中的`ref`
 
 ```python
 i = !0
@@ -72,7 +111,9 @@ assert i == 1
 
 ## 程序
 
-具有副作用的子例程称为过程，并标有`!`。
+具有副作用的子例程称为过程，并标有`!`
+
+您不能在函数中调用过程
 
 ```python
 print! 1 # 1
@@ -92,6 +133,7 @@ id("a"): Str
 
 ```python
 p = {x = 1; y = 2}
+assert p.x == 1
 ```
 
 ## 所有权
@@ -227,14 +269,14 @@ Point::{x; y} = p
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
-## 班级
+## Class
 
-Erg 不支持多级/多级继承。
+Erg 不支持多重继承
 
 ## 特质
 
-它们类似于 Rust 特征，但在更字面意义上，允许组合和解耦，并将属性和方法视为平等。
-此外，它不涉及实施。
+它们类似于 Rust 特征，但在更字面意义上，允许组合和解耦，并将属性和方法视为平等
+此外，它不涉及实施
 
 ```python
 XY = Trait {x = Int; y = Int}
@@ -250,11 +292,11 @@ Point.
 
 ## 修补
 
-您可以为类和特征提供实现。
+您可以为类和特征提供实现
 
 ## 筛子类型
 
-谓词表达式可以是类型限制的。
+谓词表达式可以是类型限制的
 
 ```python
 Nat = {I: Int | I >= 0}

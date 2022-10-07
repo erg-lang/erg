@@ -327,9 +327,9 @@ impl MethodType {
 /// Recursive functions/methods are highlighted with the prefix `rec_`, as performance may be significantly degraded.
 #[derive(Debug, Clone)]
 pub struct Context {
-    pub(crate) name: Str,
+    pub name: Str,
+    pub kind: ContextKind,
     pub(crate) cfg: ErgConfig,
-    pub(crate) kind: ContextKind,
     // Type bounds & Predicates (if the context kind is Subroutine)
     // ユーザー定義APIでのみ使う
     pub(crate) bounds: Vec<TyBound>,
@@ -907,12 +907,23 @@ impl Context {
             .iter()
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect();
+        for sup in self.super_classes.iter() {
+            let (_, sup_ctx) = self.get_nominal_type_ctx(sup).unwrap();
+            vars.extend(sup_ctx.type_dir());
+        }
         if let Some(outer) = self.get_outer() {
             vars.extend(outer.dir());
         } else if let Some(builtins) = self.get_builtins() {
             vars.extend(builtins.locals.iter());
         }
         vars
+    }
+
+    fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.locals
+            .iter()
+            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
+            .collect()
     }
 
     pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {

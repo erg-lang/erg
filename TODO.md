@@ -10,7 +10,7 @@
     * [ ] while!
       * [x] code generation
       * [ ] type checking
-  * [ ] operator
+  * [x] operator
     * [x] + (binary/unary)
     * [x] - (binary/unary)
     * [x] *
@@ -134,5 +134,5 @@
   * [x] I18n
   * [ ] Write educational materials to learn Erg while creating applications (e.g. CLI chess game -> GUI chess game, calculator -> toy language)
 * [ ] Develop Dyne (CPython compatible VM)
-* [ ] Develop Kayser (WebAssembly backend)
+* [ ] __Undetermined__ Develop Kayser (WebAssembly backend)
 * [ ] Develop Gal (LLVM backend)

@@ -91,7 +91,7 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    pub fn get_singular_ctx(
+    pub(crate) fn get_singular_ctx(
         &self,
         obj: &hir::Expr,
         namespace: &Str,
@@ -118,7 +118,7 @@ impl Context {
         }
     }
 
-    pub fn get_singular_ctx_by_ident(
+    pub(crate) fn get_singular_ctx_by_ident(
         &self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -137,7 +137,7 @@ impl Context {
             })
     }
 
-    pub fn get_mut_singular_ctx_by_ident(
+    pub(crate) fn get_mut_singular_ctx_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -155,7 +155,7 @@ impl Context {
             .ok_or(err)
     }
 
-    pub fn get_mut_singular_ctx(
+    pub(crate) fn get_mut_singular_ctx(
         &mut self,
         obj: &ast::Expr,
         namespace: &Str,
