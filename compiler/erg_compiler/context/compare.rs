@@ -550,7 +550,8 @@ impl Context {
                 if self.supertype_of(l, &r.t) {
                     return true;
                 }
-                self.supertype_of(&l.derefine(), &r.t)
+                let l = l.derefine();
+                self.supertype_of(&l, &r.t)
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
@@ -633,6 +634,7 @@ impl Context {
                 }
                 self.poly_supertype_of(lhs, lparams, rparams)
             }
+            // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
             (
                 Poly {
                     path: lp,

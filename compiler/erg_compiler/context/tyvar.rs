@@ -512,27 +512,57 @@ impl Context {
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        if class.is_monomorphic() {
+            self.mono_class_trait_impl_exist(class, trait_)
+        } else {
+            self.poly_class_trait_impl_exists(class, trait_)
+        }
+    }
+
+    fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            let sup_trait = if inst.sup_trait.has_qvar() {
-                if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(class) {
-                    let subst_ctx = SubstContext::new(class, ty_ctx);
-                    if let Ok(t) =
-                        subst_ctx.substitute(inst.sup_trait.clone(), self, Location::Unknown)
-                    {
-                        t
-                    } else {
-                        // no relation
-                        continue;
-                    }
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
+            {
+                super_exists = true;
+                break;
+            }
+        }
+        super_exists
+    }
+
+    fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let mut super_exists = false;
+        let subst_ctx = if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(class) {
+            SubstContext::new(class, ty_ctx)
+        } else {
+            return false;
+        };
+        for inst in self.get_trait_impls(trait_).into_iter() {
+            let sub_type = if inst.sub_type.has_qvar() {
+                if let Ok(t) = subst_ctx.substitute(inst.sub_type.clone(), self, Location::Unknown)
+                {
+                    t
                 } else {
-                    // class does not exist
-                    return false;
+                    // no relation
+                    continue;
+                }
+            } else {
+                inst.sub_type
+            };
+            let sup_trait = if inst.sup_trait.has_qvar() {
+                if let Ok(t) = subst_ctx.substitute(inst.sup_trait.clone(), self, Location::Unknown)
+                {
+                    t
+                } else {
+                    // no relation
+                    continue;
                 }
             } else {
                 inst.sup_trait
             };
-            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&sup_trait, trait_) {
+            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
             }

@@ -7,7 +7,7 @@ pub mod py_mods;
 use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
-use erg_common::error::Location;
+// use erg_common::error::Location;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
@@ -22,7 +22,7 @@ use Type::*;
 use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
-use crate::context::instantiate::{ConstTemplate, TyVarContext};
+use crate::context::instantiate::ConstTemplate;
 use crate::context::{
     ClassDefType, Context, ContextKind, DefaultInfo, MethodType, ParamSpec, TraitInstance,
 };
@@ -151,10 +151,6 @@ impl Context {
 
     // FIXME: MethodDefsと再代入は違う
     fn register_poly_type(&mut self, t: Type, ctx: Self, muty: Mutability) {
-        let tmp_tv_ctx = TyVarContext::new(self.level, ctx.type_params_bounds(), self);
-        let t = self
-            .instantiate_t(t, &tmp_tv_ctx, Location::Unknown)
-            .unwrap();
         // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
