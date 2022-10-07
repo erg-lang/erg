@@ -1504,7 +1504,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(builtin_poly(
                     "Array!",
-                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1)],
+                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1usize)],
                 )),
             ),
             vec![kw("elem", mono_q("T"))],
