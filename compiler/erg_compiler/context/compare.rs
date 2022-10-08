@@ -163,7 +163,7 @@ impl Context {
             | (Float | Ratio | Int, Int)
             | (Float | Ratio, Ratio)
             | (Float, Float) => (Absolutely, true),
-            (Type, Class | Trait) => (Absolutely, true),
+            (Type, ClassType | TraitType) => (Absolutely, true),
             (Type, Record(rec)) => (
                 Absolutely,
                 rec.iter().all(|(_, attr)| self.supertype_of(&Type, attr)),

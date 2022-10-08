@@ -1131,7 +1131,7 @@ impl ASTLowerer {
                         loc,
                         self.ctx.caused_by(),
                         &impl_trait.name(),
-                        &Type::Trait,
+                        &Type::TraitType,
                         &trait_obj.t(),
                         None,
                         None,
@@ -1359,7 +1359,7 @@ impl ASTLowerer {
                     ast::DefId(0),
                 )?;
                 match t {
-                    Type::Class => {
+                    Type::ClassType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Class,
                             mono(self.ctx.path(), ident.inspect()),
@@ -1369,7 +1369,7 @@ impl ASTLowerer {
                         );
                         self.ctx.register_gen_type(&ident, ty_obj);
                     }
-                    Type::Trait => {
+                    Type::TraitType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Trait,
                             mono(self.ctx.path(), ident.inspect()),

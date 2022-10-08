@@ -70,8 +70,8 @@ impl GenTypeObj {
 
     pub fn meta_type(&self) -> Type {
         match self.kind {
-            TypeKind::Class | TypeKind::Subclass => Type::Class,
-            TypeKind::Trait | TypeKind::Subtrait | TypeKind::StructuralTrait => Type::Trait,
+            TypeKind::Class | TypeKind::Subclass => Type::ClassType,
+            TypeKind::Trait | TypeKind::Subtrait | TypeKind::StructuralTrait => Type::TraitType,
         }
     }
 }

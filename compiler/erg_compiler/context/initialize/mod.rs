@@ -772,8 +772,17 @@ impl Context {
         class_type.register_superclass(Type, &type_);
         class_type.register_marker_trait(builtin_mono("Named"));
         let mut class_eq = Self::builtin_methods("Eq", 2);
-        class_eq.register_builtin_impl("__eq__", fn1_met(Class, Class, Bool), Const, Public);
-        class_type.register_trait(Class, builtin_poly("Eq", vec![ty_tp(Class)]), class_eq);
+        class_eq.register_builtin_impl(
+            "__eq__",
+            fn1_met(ClassType, ClassType, Bool),
+            Const,
+            Public,
+        );
+        class_type.register_trait(
+            ClassType,
+            builtin_poly("Eq", vec![ty_tp(ClassType)]),
+            class_eq,
+        );
         let g_module_t = builtin_mono("GenericModule");
         let mut generic_module = Self::builtin_mono_class("GenericModule", 2);
         generic_module.register_superclass(Obj, &obj);
@@ -1645,7 +1654,7 @@ impl Context {
         self.register_builtin_type(Bool, bool_, Const);
         self.register_builtin_type(Str, str_, Const);
         self.register_builtin_type(Type, type_, Const);
-        self.register_builtin_type(Class, class_type, Const);
+        self.register_builtin_type(ClassType, class_type, Const);
         self.register_builtin_type(g_module_t, generic_module, Const);
         self.register_builtin_type(module_t, module, Const);
         self.register_builtin_type(array_t, array_, Const);
@@ -1741,7 +1750,7 @@ impl Context {
             vec![kw("err_message", Str)],
             NoneType,
         );
-        let t_classof = nd_func(vec![kw("old", Obj)], None, Class);
+        let t_classof = nd_func(vec![kw("old", Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw("src", Str)], None, Code);
         let t_cond = nd_func(
             vec![
@@ -1820,15 +1829,15 @@ impl Context {
             vec![kw("Requirement", Type)],
             None,
             vec![kw("Impl", Type)],
-            Class,
+            ClassType,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));
         self.register_builtin_const("Class", ValueObj::Subr(class));
         let inherit_t = func(
-            vec![kw("Super", Class)],
+            vec![kw("Super", ClassType)],
             None,
             vec![kw("Impl", Type), kw("Additional", Type)],
-            Class,
+            ClassType,
         );
         let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(
             "Inherit",
@@ -1841,15 +1850,15 @@ impl Context {
             vec![kw("Requirement", Type)],
             None,
             vec![kw("Impl", Type)],
-            Trait,
+            TraitType,
         );
         let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t, None));
         self.register_builtin_const("Trait", ValueObj::Subr(trait_));
         let subsume_t = func(
-            vec![kw("Super", Trait)],
+            vec![kw("Super", TraitType)],
             None,
             vec![kw("Impl", Type), kw("Additional", Type)],
-            Trait,
+            TraitType,
         );
         let subsume = ConstSubr::Builtin(BuiltinConstSubr::new(
             "Subsume",
@@ -1859,7 +1868,7 @@ impl Context {
         ));
         self.register_builtin_const("Subsume", ValueObj::Subr(subsume));
         // decorators
-        let inheritable_t = func1(Class, Class);
+        let inheritable_t = func1(ClassType, ClassType);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
             "Inheritable",
             inheritable_func,

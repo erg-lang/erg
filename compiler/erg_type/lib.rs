@@ -1119,8 +1119,8 @@ pub enum Type {
     NegInf, // {-∞}
     // TODO: PolyType/Class
     Type,
-    Class,
-    Trait,
+    ClassType,
+    TraitType,
     Patch,
     NotImplemented,
     Ellipsis, // これはクラスのほうで型推論用のマーカーではない
@@ -1197,8 +1197,8 @@ impl PartialEq for Type {
             | (Self::Inf, Self::Inf)
             | (Self::NegInf, Self::NegInf)
             | (Self::Type, Self::Type)
-            | (Self::Class, Self::Class)
-            | (Self::Trait, Self::Trait)
+            | (Self::ClassType, Self::ClassType)
+            | (Self::TraitType, Self::TraitType)
             | (Self::Patch, Self::Patch)
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
@@ -1684,8 +1684,8 @@ impl Type {
             | Self::Inf
             | Self::NegInf
             | Self::Type
-            | Self::Class
-            | Self::Trait
+            | Self::ClassType
+            | Self::TraitType
             | Self::Patch
             | Self::NotImplemented
             | Self::Ellipsis
@@ -1757,7 +1757,7 @@ impl Type {
     pub fn is_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
-            Self::Type | Self::Class | Self::Trait => true,
+            Self::Type | Self::ClassType | Self::TraitType => true,
             Self::Refinement(refine) => refine.t.is_type(),
             _ => false,
         }
@@ -1855,8 +1855,8 @@ impl Type {
             Self::Str => Str::ever("Str"),
             Self::NoneType => Str::ever("NoneType"),
             Self::Type => Str::ever("Type"),
-            Self::Class => Str::ever("ClassType"),
-            Self::Trait => Str::ever("TraitType"),
+            Self::ClassType => Str::ever("ClassType"),
+            Self::TraitType => Str::ever("TraitType"),
             Self::Patch => Str::ever("Patch"),
             Self::Code => Str::ever("Code"),
             Self::Frame => Str::ever("Frame"),
