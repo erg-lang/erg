@@ -660,7 +660,8 @@ pub struct RecordAttrs(Vec<Def>);
 
 impl NestedDisplay for RecordAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        fmt_lines(self.0.iter(), f, level)
+        fmt_lines(self.0.iter(), f, level)?;
+        writeln!(f)
     }
 }
 
