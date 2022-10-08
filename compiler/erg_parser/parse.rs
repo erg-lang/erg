@@ -508,52 +508,6 @@ impl Parser {
         Ok(acc)
     }
 
-    fn validate_const_expr(&mut self, expr: Expr) -> ParseResult<ConstExpr> {
-        match expr {
-            Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
-            Expr::Accessor(Accessor::Ident(local)) => {
-                let local = ConstLocal::new(local.name.into_token());
-                Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
-            }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    let (elems, _, _) = arr.elems.deconstruct();
-                    let mut const_elems = vec![];
-                    for elem in elems.into_iter() {
-                        let const_expr = self.validate_const_expr(elem.expr)?;
-                        const_elems.push(ConstPosArg::new(const_expr));
-                    }
-                    let elems = ConstArgs::new(const_elems, vec![], None);
-                    let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
-                    Ok(ConstExpr::Array(const_arr))
-                }
-                other => {
-                    self.errs.push(ParseError::feature_error(
-                        line!() as usize,
-                        other.loc(),
-                        "???",
-                    ));
-                    Err(())
-                }
-            },
-            // TODO: App, Record, BinOp, UnaryOp,
-            other => {
-                self.errs.push(ParseError::syntax_error(
-                0,
-                other.loc(),
-                switch_lang!(
-                    "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
-                    "simplified_chinese" => "此表达式在编译时不可计算，因此不能用作类型参数",
-                    "traditional_chinese" => "此表達式在編譯時不可計算，因此不能用作類型參數",
-                    "english" => "this expression is not computable at the compile-time, so cannot used as a type-argument",
-                ),
-                None,
-            ));
-                Err(())
-            }
-        }
-    }
-
     /// For parsing elements of arrays and tuples
     fn try_reduce_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
@@ -944,9 +898,7 @@ impl Parser {
             }
         }
         let defs = RecordAttrs::from(defs);
-        let class = self
-            .convert_rhs_to_type_spec(class)
-            .map_err(|_| self.stack_dec())?;
+        let class = Self::expr_to_type_spec(class).map_err(|e| self.errs.push(e))?;
         self.level -= 1;
         Ok(Methods::new(class, vis, defs))
     }
@@ -1025,9 +977,7 @@ impl Parser {
                     let t_spec = self
                         .try_reduce_expr(false, false)
                         .map_err(|_| self.stack_dec())?;
-                    let t_spec = self
-                        .convert_rhs_to_type_spec(t_spec)
-                        .map_err(|_| self.stack_dec())?;
+                    let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
                     stack.push(ExprOrOp::Expr(expr));
                 }
@@ -1258,9 +1208,7 @@ impl Parser {
                     let t_spec = self
                         .try_reduce_expr(false, in_type_args)
                         .map_err(|_| self.stack_dec())?;
-                    let t_spec = self
-                        .convert_rhs_to_type_spec(t_spec)
-                        .map_err(|_| self.stack_dec())?;
+                    let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
                     stack.push(ExprOrOp::Expr(expr));
                 }
@@ -2085,9 +2033,7 @@ impl Parser {
         pack: DataPack,
     ) -> ParseResult<VarDataPackPattern> {
         debug_call_info!(self);
-        let class = self
-            .convert_rhs_to_type_spec(*pack.class)
-            .map_err(|_| self.stack_dec())?;
+        let class = Self::expr_to_type_spec(*pack.class).map_err(|e| self.errs.push(e))?;
         let args = self
             .convert_record_to_record_pat(pack.args)
             .map_err(|_| self.stack_dec())?;
@@ -2375,7 +2321,7 @@ impl Parser {
     fn convert_kw_arg_to_default_param(&mut self, arg: KwArg) -> ParseResult<ParamSignature> {
         debug_call_info!(self);
         let pat = ParamPattern::VarName(VarName::new(arg.keyword));
-        let expr = self.validate_const_expr(arg.expr)?;
+        let expr = Self::validate_const_expr(arg.expr).map_err(|e| self.errs.push(e))?;
         let param = ParamSignature::new(pat, arg.t_spec, Some(expr));
         self.level -= 1;
         Ok(param)
@@ -2584,95 +2530,51 @@ impl Parser {
             TypeBoundSpecs::empty(),
         ))
     }
+}
 
-    fn convert_rhs_to_type_spec(&mut self, rhs: Expr) -> ParseResult<TypeSpec> {
-        debug_call_info!(self);
-        match rhs {
-            Expr::Accessor(acc) => {
-                let t_spec = self
-                    .convert_accessor_to_type_spec(acc)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(t_spec)
+// The APIs defined below are also used by `ASTLowerer` to interpret expressions as types.
+impl Parser {
+    fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
+        match expr {
+            Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
+            Expr::Accessor(Accessor::Ident(local)) => {
+                let local = ConstLocal::new(local.name.into_token());
+                Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
-            Expr::Call(call) => {
-                let predecl = self
-                    .convert_call_to_predecl_type_spec(call)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(TypeSpec::PreDeclTy(predecl))
-            }
-            Expr::Lambda(lambda) => {
-                let lambda = self
-                    .convert_lambda_to_subr_type_spec(lambda)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(TypeSpec::Subr(lambda))
-            }
-            Expr::Array(array) => {
-                let array = self
-                    .convert_array_to_array_type_spec(array)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(TypeSpec::Array(array))
-            }
-            Expr::Set(set) => {
-                let set = self
-                    .convert_set_to_set_type_spec(set)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
-                Ok(TypeSpec::Set(set))
-            }
-            Expr::BinOp(bin) => {
-                if bin.op.kind.is_range_op() {
-                    let op = bin.op;
-                    let mut args = bin.args.into_iter();
-                    let lhs = self
-                        .validate_const_expr(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    let rhs = self
-                        .validate_const_expr(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    Ok(TypeSpec::Interval { op, lhs, rhs })
-                } else if bin.op.kind == TokenKind::AndOp {
-                    let mut args = bin.args.into_iter();
-                    let lhs = self
-                        .convert_rhs_to_type_spec(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    let rhs = self
-                        .convert_rhs_to_type_spec(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    Ok(TypeSpec::and(lhs, rhs))
-                } else if bin.op.kind == TokenKind::OrOp {
-                    let mut args = bin.args.into_iter();
-                    let lhs = self
-                        .convert_rhs_to_type_spec(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    let rhs = self
-                        .convert_rhs_to_type_spec(*args.next().unwrap())
-                        .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    Ok(TypeSpec::or(lhs, rhs))
-                } else {
-                    self.level -= 1;
-                    let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());
-                    self.errs.push(err);
-                    Err(())
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let (elems, _, _) = arr.elems.deconstruct();
+                    let mut const_elems = vec![];
+                    for elem in elems.into_iter() {
+                        let const_expr = Self::validate_const_expr(elem.expr)?;
+                        const_elems.push(ConstPosArg::new(const_expr));
+                    }
+                    let elems = ConstArgs::new(const_elems, vec![], None);
+                    let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
+                    Ok(ConstExpr::Array(const_arr))
                 }
-            }
-            other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
-                self.errs.push(err);
-                Err(())
-            }
+                other => Err(ParseError::feature_error(
+                    line!() as usize,
+                    other.loc(),
+                    "???",
+                )),
+            },
+            // TODO: App, Record, BinOp, UnaryOp,
+            other => Err(ParseError::syntax_error(
+                line!() as usize,
+                other.loc(),
+                switch_lang!(
+                    "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
+                    "simplified_chinese" => "此表达式在编译时不可计算，因此不能用作类型参数",
+                    "traditional_chinese" => "此表達式在編譯時不可計算，因此不能用作類型參數",
+                    "english" => "this expression is not computable at the compile-time, so cannot used as a type-argument",
+                ),
+                None,
+            )),
         }
     }
 
-    fn convert_accessor_to_type_spec(&mut self, accessor: Accessor) -> ParseResult<TypeSpec> {
-        debug_call_info!(self);
+    fn accessor_to_type_spec(accessor: Accessor) -> Result<TypeSpec, ParseError> {
         let t_spec = match accessor {
             Accessor::Ident(ident) => {
                 let predecl =
@@ -2680,32 +2582,22 @@ impl Parser {
                 TypeSpec::PreDeclTy(predecl)
             }
             Accessor::TypeApp(tapp) => {
-                let spec = self
-                    .convert_rhs_to_type_spec(*tapp.obj)
-                    .map_err(|_| self.stack_dec())?;
+                let spec = Self::expr_to_type_spec(*tapp.obj)?;
                 TypeSpec::type_app(spec, tapp.type_args)
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
-                self.errs.push(err);
-                return Err(());
+                return Err(err);
             }
         };
-        self.level -= 1;
         Ok(t_spec)
     }
 
-    fn convert_call_to_predecl_type_spec(&mut self, _call: Call) -> ParseResult<PreDeclTypeSpec> {
-        debug_call_info!(self);
+    fn call_to_predecl_type_spec(_call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         todo!()
     }
 
-    fn convert_lambda_to_subr_type_spec(
-        &mut self,
-        mut lambda: Lambda,
-    ) -> ParseResult<SubrTypeSpec> {
-        debug_call_info!(self);
+    fn lambda_to_subr_type_spec(mut lambda: Lambda) -> Result<SubrTypeSpec, ParseError> {
         let bounds = lambda.sig.bounds;
         let lparen = lambda.sig.params.parens.map(|(l, _)| l);
         let mut non_defaults = vec![];
@@ -2750,8 +2642,7 @@ impl Parser {
             };
             defaults.push(param);
         }
-        let return_t = self.convert_rhs_to_type_spec(lambda.body.remove(0))?;
-        self.level -= 1;
+        let return_t = Self::expr_to_type_spec(lambda.body.remove(0))?;
         Ok(SubrTypeSpec::new(
             bounds,
             lparen,
@@ -2763,44 +2654,85 @@ impl Parser {
         ))
     }
 
-    fn convert_array_to_array_type_spec(&mut self, array: Array) -> ParseResult<ArrayTypeSpec> {
-        debug_call_info!(self);
+    fn array_to_array_type_spec(array: Array) -> Result<ArrayTypeSpec, ParseError> {
         match array {
             Array::Normal(arr) => {
                 // TODO: add hint
-                self.errs
-                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
-                Err(())
+                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                Err(err)
             }
             Array::WithLength(arr) => {
-                let t_spec = self.convert_rhs_to_type_spec(arr.elem.expr)?;
-                let len = self.validate_const_expr(*arr.len)?;
-                self.level -= 1;
+                let t_spec = Self::expr_to_type_spec(arr.elem.expr)?;
+                let len = Self::validate_const_expr(*arr.len)?;
                 Ok(ArrayTypeSpec::new(t_spec, len))
             }
             Array::Comprehension(arr) => {
                 // TODO: add hint
-                self.errs
-                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
-                Err(())
+                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                Err(err)
             }
         }
     }
 
-    fn convert_set_to_set_type_spec(&mut self, set: Set) -> ParseResult<SetTypeSpec> {
-        debug_call_info!(self);
+    fn set_to_set_type_spec(set: Set) -> Result<SetTypeSpec, ParseError> {
         match set {
             Set::Normal(arr) => {
                 // TODO: add hint
-                self.errs
-                    .push(ParseError::simple_syntax_error(line!() as usize, arr.loc()));
-                Err(())
+                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                Err(err)
             }
             Set::WithLength(set) => {
-                let t_spec = self.convert_rhs_to_type_spec(set.elem.expr)?;
-                let len = self.validate_const_expr(*set.len)?;
-                self.level -= 1;
+                let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
+                let len = Self::validate_const_expr(*set.len)?;
                 Ok(SetTypeSpec::new(t_spec, len))
+            }
+        }
+    }
+
+    pub fn expr_to_type_spec(rhs: Expr) -> Result<TypeSpec, ParseError> {
+        match rhs {
+            Expr::Accessor(acc) => Self::accessor_to_type_spec(acc),
+            Expr::Call(call) => {
+                let predecl = Self::call_to_predecl_type_spec(call)?;
+                Ok(TypeSpec::PreDeclTy(predecl))
+            }
+            Expr::Lambda(lambda) => {
+                let lambda = Self::lambda_to_subr_type_spec(lambda)?;
+                Ok(TypeSpec::Subr(lambda))
+            }
+            Expr::Array(array) => {
+                let array = Self::array_to_array_type_spec(array)?;
+                Ok(TypeSpec::Array(array))
+            }
+            Expr::Set(set) => {
+                let set = Self::set_to_set_type_spec(set)?;
+                Ok(TypeSpec::Set(set))
+            }
+            Expr::BinOp(bin) => {
+                if bin.op.kind.is_range_op() {
+                    let op = bin.op;
+                    let mut args = bin.args.into_iter();
+                    let lhs = Self::validate_const_expr(*args.next().unwrap())?;
+                    let rhs = Self::validate_const_expr(*args.next().unwrap())?;
+                    Ok(TypeSpec::Interval { op, lhs, rhs })
+                } else if bin.op.kind == TokenKind::AndOp {
+                    let mut args = bin.args.into_iter();
+                    let lhs = Self::expr_to_type_spec(*args.next().unwrap())?;
+                    let rhs = Self::expr_to_type_spec(*args.next().unwrap())?;
+                    Ok(TypeSpec::and(lhs, rhs))
+                } else if bin.op.kind == TokenKind::OrOp {
+                    let mut args = bin.args.into_iter();
+                    let lhs = Self::expr_to_type_spec(*args.next().unwrap())?;
+                    let rhs = Self::expr_to_type_spec(*args.next().unwrap())?;
+                    Ok(TypeSpec::or(lhs, rhs))
+                } else {
+                    let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());
+                    Err(err)
+                }
+            }
+            other => {
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                Err(err)
             }
         }
     }
