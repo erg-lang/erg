@@ -445,8 +445,8 @@ impl Desugarer {
                         .kvs
                         .into_iter()
                         .map(|elem| {
-                            let key = self.rec_desugar_shortened_record(*elem.key);
-                            let value = self.rec_desugar_shortened_record(*elem.value);
+                            let key = self.rec_desugar_shortened_record(elem.key);
+                            let value = self.rec_desugar_shortened_record(elem.value);
                             KeyValue::new(key, value)
                         })
                         .collect();

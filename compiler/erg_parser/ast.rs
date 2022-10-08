@@ -592,8 +592,8 @@ impl Tuple {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyValue {
-    pub key: Box<Expr>,
-    pub value: Box<Expr>,
+    pub key: Expr,
+    pub value: Expr,
 }
 
 impl NestedDisplay for KeyValue {
@@ -606,11 +606,8 @@ impl_display_from_nested!(KeyValue);
 impl_locational!(KeyValue, key, value);
 
 impl KeyValue {
-    pub fn new(key: Expr, value: Expr) -> Self {
-        Self {
-            key: Box::new(key),
-            value: Box::new(value),
-        }
+    pub const fn new(key: Expr, value: Expr) -> Self {
+        Self { key, value }
     }
 }
 

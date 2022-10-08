@@ -457,6 +457,19 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_dict(&mut self, dict: ast::Dict) -> LowerResult<hir::Dict> {
+        log!(info "enter {}({dict})", fn_name!());
+        match dict {
+            ast::Dict::Normal(set) => Ok(hir::Dict::Normal(self.lower_normal_dict(set)?)),
+            other => todo!("{other}"),
+            // ast::Dict::WithLength(set) => Ok(hir::Dict::WithLength(self.lower_dict_with_length(set)?)),
+        }
+    }
+
+    fn lower_normal_dict(&mut self, _dict: ast::NormalDict) -> LowerResult<hir::NormalDict> {
+        todo!()
+    }
+
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
@@ -1233,6 +1246,7 @@ impl ASTLowerer {
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
             ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
+            ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.lower_dict(dict)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),

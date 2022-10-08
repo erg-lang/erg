@@ -6,9 +6,9 @@ use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
-    enum_unwrap, fmt_option, impl_display_for_enum, impl_display_from_nested, impl_locational,
-    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream_for_wrapper,
+    enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
+    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
+    impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
@@ -678,18 +678,39 @@ impl_locational_for_enum!(Tuple; Normal);
 impl_t_for_enum!(Tuple; Normal);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyValue {
+    pub key: Expr,
+    pub value: Expr,
+}
+
+impl NestedDisplay for KeyValue {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl_display_from_nested!(KeyValue);
+impl_locational!(KeyValue, key, value);
+
+impl KeyValue {
+    pub const fn new(key: Expr, value: Expr) -> Self {
+        Self { key, value }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
     pub r_brace: Token,
     pub t: Type,
-    pub attrs: Args, // TODO: keyをTokenではなくExprにする
+    pub kvs: Vec<KeyValue>,
 }
 
 impl_t!(NormalDict);
 
 impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}(: {})", self.attrs, self.t)
+        write!(f, "{{{}}}(: {})", fmt_vec(&self.kvs), self.t)
     }
 }
 
@@ -697,12 +718,12 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub const fn new(l_brace: Token, r_brace: Token, t: Type, attrs: Args) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, t: Type, kvs: Vec<KeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
             t,
-            attrs,
+            kvs,
         }
     }
 }
