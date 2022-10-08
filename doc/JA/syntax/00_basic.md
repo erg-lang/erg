@@ -9,7 +9,6 @@
 既にpythonなどの言語に触れた経験がある方は、概説的な[quick&nbsp;tour](./quick_tour.md)もあるためそちらを参照してください。
 また、[標準API](../API/index.md)や[Ergコントリビューター向けの内部資料](../dev_guide/index.md)は別途存在します。文法やErg本体についての詳細な説明が必要な場合はそちらを参照してください。
 
-
 ## Hello, World&excl;
 
 まずは恒例の、Hello Worldを行いましょう。

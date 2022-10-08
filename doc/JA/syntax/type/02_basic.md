@@ -1,6 +1,6 @@
 # 型に関する基本的な文法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
 
 ## 型指定
 
@@ -45,6 +45,17 @@ g v: [T; _] = ...
 
 ```python
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
+```
+
+## 型表示
+
+Ergでは変数だけでなく任意の式に対して明示的に型を表示することができます。この構文を型表示(type ascription)と呼びます。
+
+```python
+x = (1: Nat)
+f("a": Str)
+f("a"): Int
+"a": Nat # TypeError:
 ```
 
 ## 部分型指定

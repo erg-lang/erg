@@ -1,15 +1,15 @@
 # 辞書
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/12_dict.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/12_dict.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/12_dict.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/12_dict.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
 
 Dictはキーと値のペアを持つコレクションです。
 
 ```python
-ids = {"Alice" >: 145, "Bob": 214, "Charlie": 301}
+ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-キーはHashであるならば文字列でなくても構いません。
+キーはHashableであるならば文字列でなくても構いません。
 
 ```python
 # rangeオブジェクトをキーにするのは非推奨(スライスと混同される)
@@ -17,6 +17,7 @@ r = {1..3: "1~3", 4..6: "4~6", 7..9: "7~9"}
 assert r[1..3] == "1~3"
 l = {[]: "empty", [1]: "1"}
 assert l[[]] == "empty"
+l = {0.0: "a", 1.0: "b"} # TypeError: Float is not Hashable
 ```
 
 Dictに順番は関係ありません。また、重複する要素を持つことも出来ません。この点でDictは[Set](./14_set.md)と似ています。
@@ -27,10 +28,12 @@ Dictは値付きのSetと言うこともできるでしょう。
 ```
 
 DictリテラルからDictを生成する場合、キーの重複がないかチェックされます。
-重複がある場合コンパイルエラーとなります。
+重複がある場合コンパイルエラーとなりますが、自明でない場合もあり、その場合は後に登録された方が残ります(左から順番に登録されます)。
 
 ```python
 {"Alice": 145, "Alice": 1} # KeyError: Duplicate key "Alice"
+x = f(...) # x == 2
+{2x+2: 1, 2(x+1): 2} # {6: 2}
 ```
 
 空のDictは`{:}`で生成します。`{}`は空の配列を表すことに注意してください。
@@ -62,6 +65,16 @@ invalid2 = {1: "a", 2: 2}
 # Ergの型推論はOr型を推論しないため、型指定が必要となる
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
+```
+
+## 型表示との併用
+
+`{}`の中での`x: y`という形式は、辞書のキーと値のペアとして優先的に解釈されます。
+型表示として使いたい場合は、`()`で囲む必要があります。
+
+```python
+x = "a"
+{(x: Str): 1}
 ```
 
 <p align='center'>
