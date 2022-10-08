@@ -12,11 +12,11 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
-    DefBody, DefId, Expr, Identifier, KwArg, Lambda, LambdaSignature, Literal, Methods, Module,
-    NormalArray, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamSignature, Params,
-    PosArg, Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature,
-    SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
+    Methods, Module, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern,
+    ParamSignature, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
+    ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
+    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -439,9 +439,22 @@ impl Desugarer {
                     Expr::Set(astSet::WithLength(set))
                 }
             },
-            Expr::Dict(dict) => {
-                todo!("{dict}")
-            }
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dic) => {
+                    let new_kvs = dic
+                        .kvs
+                        .into_iter()
+                        .map(|elem| {
+                            let key = self.rec_desugar_shortened_record(*elem.key);
+                            let value = self.rec_desugar_shortened_record(*elem.value);
+                            KeyValue::new(key, value)
+                        })
+                        .collect();
+                    let tup = NormalDict::new(dic.l_brace, dic.r_brace, new_kvs);
+                    Expr::Dict(Dict::Normal(tup))
+                }
+                _ => todo!("dict comprehension"),
+            },
             Expr::BinOp(binop) => {
                 let mut args = binop.args.into_iter();
                 let lhs = self.rec_desugar_shortened_record(*args.next().unwrap());

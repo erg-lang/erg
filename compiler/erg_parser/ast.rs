@@ -590,16 +590,40 @@ impl Tuple {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyValue {
+    pub key: Box<Expr>,
+    pub value: Box<Expr>,
+}
+
+impl NestedDisplay for KeyValue {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl_display_from_nested!(KeyValue);
+impl_locational!(KeyValue, key, value);
+
+impl KeyValue {
+    pub fn new(key: Expr, value: Expr) -> Self {
+        Self {
+            key: Box::new(key),
+            value: Box::new(value),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
-    l_brace: Token,
-    r_brace: Token,
-    pub attrs: Args, // TODO: Impl K: V Pair
+    pub(crate) l_brace: Token,
+    pub(crate) r_brace: Token,
+    pub kvs: Vec<KeyValue>,
 }
 
 impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.attrs)
+        write!(f, "{{{}}}", fmt_vec(&self.kvs))
     }
 }
 
@@ -607,11 +631,11 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Args) -> Self {
+    pub fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
-            attrs,
+            kvs,
         }
     }
 }
