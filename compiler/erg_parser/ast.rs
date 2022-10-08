@@ -448,7 +448,7 @@ impl NestedDisplay for NormalArray {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "[")?;
         self.elems.fmt_nest(f, level + 1)?;
-        write!(f, "\n{}]", "    ".repeat(level))
+        write!(f, "{}]", "    ".repeat(level))
     }
 }
 
@@ -559,7 +559,7 @@ impl NestedDisplay for NormalTuple {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "(")?;
         self.elems.fmt_nest(f, level + 1)?;
-        write!(f, "\n{})", "    ".repeat(level))
+        write!(f, "{})", "    ".repeat(level))
     }
 }
 
@@ -681,7 +681,8 @@ pub struct RecordAttrs(Vec<Def>);
 
 impl NestedDisplay for RecordAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        fmt_lines(self.0.iter(), f, level)
+        fmt_lines(self.0.iter(), f, level)?;
+        writeln!(f)
     }
 }
 
@@ -730,7 +731,7 @@ impl NestedDisplay for NormalRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{{")?;
         self.attrs.fmt_nest(f, level + 1)?;
-        writeln!(f, "\n{}}}", "    ".repeat(level))
+        writeln!(f, "{}}}", "    ".repeat(level))
     }
 }
 
