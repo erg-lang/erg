@@ -45,6 +45,17 @@ Note, however, `_` at a type specification implies `Object`.
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 
+## Type ascription
+
+Erg can explicitly indicate the type of any expression as well as variables. This syntax is called type ascription.
+
+```python
+x = 1: Nat
+f("a": Str)
+f("a"): Int
+"a": Nat # TypeError:
+```
+
 ## Subtype specification
 
 In addition to the `:` (type declaration operator), Erg also allows you to specify the relationship between types by using `<:` (partial type declaration operator).

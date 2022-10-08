@@ -7,7 +7,7 @@ ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-The key does not have to be a string if it is a `Hash` object.
+The key does not have to be a string if it is a `Hashable` object.
 
 ```python
 # deprecated to use a range object as a key (confused with slice)
@@ -60,6 +60,16 @@ invalid2 = {1: "a", 2: 2}
 # Erg type inference does not infer Or type, so type specification is required
 valid1: {Int or Str: Str} = {1: "a", "a": "b"}
 valid2: {Int: Int or Str} = {1: "a", 2: 2}
+```
+
+## Use with type ascription
+
+The format `x: y` in `{}` is preferentially interpreted as a dictionary key/value pair.
+If you want to use it as a type ascription, you must enclose it in `()`.
+
+```python
+x = "a"
+{(x: Str): 1}
 ```
 
 <p align='center'>
