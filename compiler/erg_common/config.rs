@@ -211,10 +211,9 @@ impl ErgConfig {
         let mut cfg = Self::default();
         // ループ内でnextするのでforにしないこと
         while let Some(arg) = args.next() {
-            let next_arg = args.next();
             match &arg[..] {
-                "-c" if next_arg.is_some() => {
-                    cfg.input = Input::Str(next_arg.unwrap());
+                "-c" | "--code" => {
+                    cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
                 "--dump-as-pyc" => {
                     cfg.dump_as_pyc = true;
@@ -224,35 +223,56 @@ impl ErgConfig {
                     println!("{}", command_message());
                     process::exit(0);
                 }
-                "-m" if next_arg.is_some() => {
-                    cfg.module = Box::leak(next_arg.unwrap().into_boxed_str());
+                "-m" | "--module" => {
+                    let module = args
+                        .next()
+                        .expect("the value of `-m` is not passed")
+                        .into_boxed_str();
+                    cfg.module = Box::leak(module);
                 }
-                "--mode" if next_arg.is_some() => {
-                    let mode = next_arg.unwrap();
+                "--mode" => {
+                    let mode = args.next().expect("the value of `--mode` is not passed");
                     if let "-?" | "-h" | "--help" = &mode[..] {
                         println!("{}", mode_message());
                         process::exit(0);
                     }
                     cfg.mode = Box::leak(mode.into_boxed_str());
                 }
-                "--ps1" if next_arg.is_some() => {
-                    cfg.ps1 = Box::leak(next_arg.unwrap().into_boxed_str());
+                "--ps1" => {
+                    let ps1 = args
+                        .next()
+                        .expect("the value of `--ps1` is not passed")
+                        .into_boxed_str();
+                    cfg.ps1 = Box::leak(ps1);
                 }
-                "--ps2" if next_arg.is_some() => {
-                    cfg.ps2 = Box::leak(next_arg.unwrap().into_boxed_str());
+                "--ps2" => {
+                    let ps2 = args
+                        .next()
+                        .expect("the value of `--ps2` is not passed")
+                        .into_boxed_str();
+                    cfg.ps2 = Box::leak(ps2);
                 }
-                "-o" | "--opt-level" | "--optimization-level" if next_arg.is_some() => {
-                    cfg.opt_level = next_arg.unwrap().parse::<u8>().unwrap();
+                "-o" | "--opt-level" | "--optimization-level" => {
+                    cfg.opt_level = args
+                        .next()
+                        .expect("the value of `-o` is not passed")
+                        .parse::<u8>()
+                        .expect("the value of `-o` is not a number");
                 }
-                "-p" | "--py-ver" | "--python-version" if next_arg.is_some() => {
-                    if let Ok(ver) = next_arg.unwrap().parse::<u32>() {
-                        cfg.python_ver = Some(ver)
-                    }
+                "-p" | "--py-ver" | "--python-version" => {
+                    let py_ver = args
+                        .next()
+                        .expect("the value of `-p` is not passed")
+                        .parse::<u32>()
+                        .expect("the value of `-p` is not a number");
+                    cfg.python_ver = Some(py_ver);
                 }
-                "--py-server-timeout" if next_arg.is_some() => {
-                    if let Ok(time) = next_arg.unwrap().parse::<u64>() {
-                        cfg.py_server_timeout = time;
-                    }
+                "--py-server-timeout" => {
+                    cfg.py_server_timeout = args
+                        .next()
+                        .expect("the value of `--py-server-timeout` is not passed")
+                        .parse::<u64>()
+                        .expect("the value of `--py-server-timeout` is not a number");
                 }
                 "--quiet-startup" => {
                     cfg.quiet_startup = true;
@@ -260,10 +280,12 @@ impl ErgConfig {
                 "-t" | "--show-type" => {
                     cfg.show_type = true;
                 }
-                "--verbose" if next_arg.is_some() => {
-                    if let Ok(vr) = next_arg.unwrap().parse::<u8>() {
-                        cfg.verbose = vr;
-                    }
+                "--verbose" => {
+                    cfg.verbose = args
+                        .next()
+                        .expect("the value of `--verbose` is not passed")
+                        .parse::<u8>()
+                        .expect("the value of `--verbose` is not a number");
                 }
                 "-V" | "--version" => {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
