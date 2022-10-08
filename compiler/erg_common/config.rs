@@ -282,7 +282,8 @@ impl ErgConfig {
             }
         }
         if cfg.input == Input::REPL {
-            let is_stdin_piped = atty::isnt(atty::Stream::Stdin);
+            use crate::tty::IsTty;
+            let is_stdin_piped = !stdin().is_tty();
             let input = if is_stdin_piped {
                 let mut buffer = String::new();
                 stdin().read_to_string(&mut buffer).unwrap();
