@@ -12,6 +12,12 @@ fn exec_addition() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_assert_cast() -> Result<(), ()> {
+    // runtime `in` is not implemented
+    expect_end_with("examples/assert_cast.er", 1)
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
 }

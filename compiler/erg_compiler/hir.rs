@@ -282,6 +282,20 @@ impl Args {
         }
     }
 
+    pub fn get_mut_left_or_key(&mut self, key: &str) -> Option<&mut Expr> {
+        if !self.pos_args.is_empty() {
+            Some(&mut self.pos_args.get_mut(0)?.expr)
+        } else if let Some(pos) = self
+            .kw_args
+            .iter()
+            .position(|arg| &arg.keyword.inspect()[..] == key)
+        {
+            Some(&mut self.kw_args.get_mut(pos)?.expr)
+        } else {
+            None
+        }
+    }
+
     pub fn insert_pos(&mut self, idx: usize, pos: PosArg) {
         self.pos_args.insert(idx, pos);
     }

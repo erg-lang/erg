@@ -11,6 +11,18 @@ use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 #[derive(Debug)]
 pub struct LexError(ErrorCore);
 
+impl From<ErrorCore> for LexError {
+    fn from(core: ErrorCore) -> Self {
+        Self(core)
+    }
+}
+
+impl From<LexError> for ErrorCore {
+    fn from(err: LexError) -> Self {
+        err.0
+    }
+}
+
 #[derive(Debug)]
 pub struct LexErrors(Vec<LexError>);
 

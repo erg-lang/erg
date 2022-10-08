@@ -1129,7 +1129,7 @@ impl CodeGenerator {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
                     unary.op.loc(),
-                    "",
+                    &unary.op.inspect().clone(),
                     AtomicStr::from(unary.op.content),
                 )
                 .write_to_stderr();
@@ -1177,7 +1177,7 @@ impl CodeGenerator {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
                     bin.op.loc(),
-                    "",
+                    &bin.op.inspect().clone(),
                     AtomicStr::from(bin.op.content),
                 )
                 .write_to_stderr();
@@ -1739,7 +1739,7 @@ impl CodeGenerator {
             }
             // Dict,
             other => {
-                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "???", "".into())
+                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "Dict", "".into())
                     .write_to_stderr();
                 self.crash("cannot compile this expression at this time");
             }

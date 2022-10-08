@@ -11,7 +11,7 @@ use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream, impl_stream_for_wrapper,
+    impl_stream, impl_stream_for_wrapper, option_enum_unwrap,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -938,6 +938,32 @@ impl Call {
             method_name,
             args,
         }
+    }
+
+    pub fn is_match(&self) -> bool {
+        self.obj
+            .get_name()
+            .map(|s| &s[..] == "match")
+            .unwrap_or(false)
+    }
+
+    pub fn is_assert_cast(&self) -> bool {
+        self.obj
+            .get_name()
+            .map(|s| &s[..] == "assert")
+            .unwrap_or(false)
+            && self
+                .args
+                .get_left_or_key("pred")
+                .map(|pred| pred.is_bin_in())
+                .unwrap_or(false)
+    }
+
+    pub fn assert_cast_target_type(&self) -> Option<&Expr> {
+        self.args
+            .get_left_or_key("pred")
+            .and_then(|pred| option_enum_unwrap!(pred, Expr::BinOp))
+            .map(|bin| bin.args[1].as_ref())
     }
 }
 
@@ -3111,7 +3137,11 @@ impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, 
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
-        matches!(self, Expr::Call(Call{ obj, .. }) if obj.get_name().map(|s| &s[..] == "match").unwrap_or(false))
+        matches!(self, Expr::Call(call) if call.is_match())
+    }
+
+    pub fn is_bin_in(&self) -> bool {
+        matches!(self, Expr::BinOp(bin) if bin.op.is(TokenKind::InOp))
     }
 
     pub fn is_const_acc(&self) -> bool {
