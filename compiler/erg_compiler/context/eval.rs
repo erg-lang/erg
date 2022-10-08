@@ -110,16 +110,18 @@ pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
 ///
 /// e.g.
 /// ```
-/// SubstContext::new(Array(?T, 0), Context(Array('T, 'N))) => SubstContext{ params: { 'T: ?T; 'N: 0 } } => ctx
-/// ctx.substitute(Array!('T; !'N)): Array(?T, !0)
+/// SubstContext::new(Array(?T, 0), ...) => SubstContext{ params: { 'T: ?T; 'N: 0 }, ... }
+/// self.substitute(Array!('T; !'N)): Array(?T, !0)
 /// ```
 #[derive(Debug)]
-pub struct SubstContext {
+pub struct SubstContext<'c> {
+    ctx: &'c Context,
     bounds: Set<TyBound>,
     params: Dict<Str, TyParam>,
+    loc: Location,
 }
 
-impl fmt::Display for SubstContext {
+impl fmt::Display for SubstContext<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -129,11 +131,12 @@ impl fmt::Display for SubstContext {
     }
 }
 
-impl SubstContext {
+impl<'c> SubstContext<'c> {
     /// `substituted` is used to obtain real argument information. So it must be instantiated as `Array(?T, 0)` and so on.
     ///
-    /// `ty_ctx` is used to obtain information on the names and variance of the parameters.
-    pub fn new(substituted: &Type, ty_ctx: &Context) -> Self {
+    /// `ctx` is used to obtain information on the names and variance of the parameters.
+    pub fn new(substituted: &Type, ctx: &'c Context, loc: Location) -> Self {
+        let ty_ctx = ctx.get_nominal_type_ctx(substituted).unwrap();
         let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
             opt_name
@@ -143,7 +146,9 @@ impl SubstContext {
         if param_names.len() != substituted.typarams().len() {
             let param_names = param_names.collect::<Vec<_>>();
             panic!(
-                "{param_names:?} != [{}]",
+                "{} param_names: {param_names:?} != {} substituted_params: [{}]",
+                ty_ctx.name,
+                substituted.name(),
                 erg_common::fmt_vec(&substituted.typarams())
             );
         }
@@ -158,62 +163,67 @@ impl SubstContext {
             }
         }
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
-        SubstContext { bounds, params }
+        SubstContext {
+            ctx,
+            bounds,
+            params,
+            loc,
+        }
     }
 
-    pub fn substitute(&self, quant_t: Type, ctx: &Context, loc: Location) -> TyCheckResult<Type> {
-        let tv_ctx = TyVarContext::new(ctx.level, self.bounds.clone(), ctx);
-        let inst = ctx.instantiate_t(quant_t, &tv_ctx, loc)?;
+    pub fn substitute(&self, quant_t: Type) -> TyCheckResult<Type> {
+        let tv_ctx = TyVarContext::new(self.ctx.level, self.bounds.clone(), self.ctx);
+        let inst = self.ctx.instantiate_t(quant_t, &tv_ctx, self.loc)?;
         for param in inst.typarams() {
-            self.substitute_tp(&param, ctx)?;
+            self.substitute_tp(&param)?;
         }
         Ok(inst)
     }
 
-    fn substitute_tp(&self, param: &TyParam, ctx: &Context) -> TyCheckResult<()> {
+    fn substitute_tp(&self, param: &TyParam) -> TyCheckResult<()> {
         match param {
             TyParam::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(tp) = self.params.get(&name) {
-                        ctx.sub_unify_tp(param, tp, None, Location::Unknown, false)?;
+                        self.ctx.sub_unify_tp(param, tp, None, self.loc, false)?;
                     }
                 } else if fv.is_unbound() {
                     panic!()
                 }
             }
             TyParam::BinOp { lhs, rhs, .. } => {
-                self.substitute_tp(lhs, ctx)?;
-                self.substitute_tp(rhs, ctx)?;
+                self.substitute_tp(lhs)?;
+                self.substitute_tp(rhs)?;
             }
             TyParam::UnaryOp { val, .. } => {
-                self.substitute_tp(val, ctx)?;
+                self.substitute_tp(val)?;
             }
             TyParam::Array(args)
             | TyParam::Tuple(args)
             | TyParam::App { args, .. }
             | TyParam::PolyQVar { args, .. } => {
                 for arg in args.iter() {
-                    self.substitute_tp(arg, ctx)?;
+                    self.substitute_tp(arg)?;
                 }
             }
             TyParam::Type(t) => {
-                self.substitute_t(t, ctx)?;
+                self.substitute_t(t)?;
             }
             TyParam::MonoProj { obj, .. } => {
-                self.substitute_tp(obj, ctx)?;
+                self.substitute_tp(obj)?;
             }
             _ => {}
         }
         Ok(())
     }
 
-    fn substitute_t(&self, param_t: &Type, ctx: &Context) -> TyCheckResult<()> {
+    fn substitute_t(&self, param_t: &Type) -> TyCheckResult<()> {
         match param_t {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(tp) = self.params.get(&name) {
                         if let TyParam::Type(t) = tp {
-                            ctx.sub_unify(param_t, t, Location::Unknown, None)?;
+                            self.ctx.sub_unify(param_t, t, Location::Unknown, None)?;
                         } else {
                             panic!()
                         }
@@ -222,45 +232,45 @@ impl SubstContext {
             }
             Type::Subr(subr) => {
                 for nd_param in subr.non_default_params.iter() {
-                    self.substitute_t(nd_param.typ(), ctx)?;
+                    self.substitute_t(nd_param.typ())?;
                 }
                 if let Some(var_params) = &subr.var_params {
-                    self.substitute_t(var_params.typ(), ctx)?;
+                    self.substitute_t(var_params.typ())?;
                 }
                 for d_param in subr.default_params.iter() {
-                    self.substitute_t(d_param.typ(), ctx)?;
+                    self.substitute_t(d_param.typ())?;
                 }
-                self.substitute_t(&subr.return_t, ctx)?;
+                self.substitute_t(&subr.return_t)?;
             }
             Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
-                self.substitute_t(l, ctx)?;
-                self.substitute_t(r, ctx)?;
+                self.substitute_t(l)?;
+                self.substitute_t(r)?;
             }
             Type::MonoProj { lhs, .. } => {
-                self.substitute_t(lhs, ctx)?;
+                self.substitute_t(lhs)?;
             }
             Type::Record(rec) => {
                 for (_, t) in rec.iter() {
-                    self.substitute_t(t, ctx)?;
+                    self.substitute_t(t)?;
                 }
             }
             Type::Ref(t) => {
-                self.substitute_t(t, ctx)?;
+                self.substitute_t(t)?;
             }
             Type::RefMut { before, after } => {
-                self.substitute_t(before, ctx)?;
+                self.substitute_t(before)?;
                 if let Some(aft) = after {
-                    self.substitute_t(aft, ctx)?;
+                    self.substitute_t(aft)?;
                 }
             }
             Type::Refinement(refine) => {
-                self.substitute_t(&refine.t, ctx)?;
+                self.substitute_t(&refine.t)?;
             }
             Type::Poly { params, .. }
             | Type::BuiltinPoly { params, .. }
             | Type::PolyQVar { params, .. } => {
                 for param in params.iter() {
-                    self.substitute_tp(param, ctx)?;
+                    self.substitute_tp(param)?;
                 }
             }
             t => todo!("{t:?}"),
@@ -716,6 +726,7 @@ impl Context {
             TyParam::Value(c) => self.eval_unary(op, c.clone()).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
             e @ TyParam::Erased(_) => Ok(e.clone()),
+            TyParam::MonoQVar(n) => todo!("not instantiated variable: {n}"),
             other => todo!("{op} {other}"),
         }
     }
@@ -824,8 +835,8 @@ impl Context {
                 })? {
                     if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
                         if let ValueObj::Type(quant_t) = obj {
-                            let subst_ctx = SubstContext::new(&sub, ty_ctx);
-                            let t = subst_ctx.substitute(quant_t.typ().clone(), self, t_loc)?;
+                            let subst_ctx = SubstContext::new(&sub, self, t_loc);
+                            let t = subst_ctx.substitute(quant_t.typ().clone())?;
                             let t = self.eval_t_params(t, level, t_loc)?;
                             return Ok(t);
                         } else {
@@ -848,8 +859,8 @@ impl Context {
                         }
                         if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
                             if let ValueObj::Type(quant_t) = obj {
-                                let subst_ctx = SubstContext::new(&lhs, ty_ctx);
-                                let t = subst_ctx.substitute(quant_t.typ().clone(), self, t_loc)?;
+                                let subst_ctx = SubstContext::new(&sub, self, t_loc);
+                                let t = subst_ctx.substitute(quant_t.typ().clone())?;
                                 let t = self.eval_t_params(t, level, t_loc)?;
                                 return Ok(t);
                             } else {

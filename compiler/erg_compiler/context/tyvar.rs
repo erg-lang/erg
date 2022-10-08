@@ -544,16 +544,14 @@ impl Context {
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        log!(err "{class}/{trait_}");
-        let subst_ctx = if let Some(ty_ctx) = self.get_nominal_type_ctx(class) {
-            SubstContext::new(class, ty_ctx)
+        let subst_ctx = if self.get_nominal_type_ctx(class).is_some() {
+            SubstContext::new(class, self, Location::Unknown)
         } else {
             return false;
         };
         for inst in self.get_trait_impls(trait_).into_iter() {
             let sub_type = if inst.sub_type.has_qvar() {
-                if let Ok(t) = subst_ctx.substitute(inst.sub_type.clone(), self, Location::Unknown)
-                {
+                if let Ok(t) = subst_ctx.substitute(inst.sub_type.clone()) {
                     t
                 } else {
                     // no relation
@@ -563,8 +561,7 @@ impl Context {
                 inst.sub_type
             };
             let sup_trait = if inst.sup_trait.has_qvar() {
-                if let Ok(t) = subst_ctx.substitute(inst.sup_trait.clone(), self, Location::Unknown)
-                {
+                if let Ok(t) = subst_ctx.substitute(inst.sup_trait.clone()) {
                     t
                 } else {
                     // no relation
@@ -573,8 +570,6 @@ impl Context {
             } else {
                 inst.sup_trait
             };
-            log!(err "{sub_type}, {class}");
-            log!(err "{sup_trait}, {trait_}");
             if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
