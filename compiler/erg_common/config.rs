@@ -219,8 +219,10 @@ impl ErgConfig {
                     cfg.dump_as_pyc = true;
                 }
                 "-?" | "-h" | "--help" => {
-                    // TODO:
                     println!("{}", command_message());
+                    if let "--mode" = args.next().as_ref().map(|s| &s[..]).unwrap_or("") {
+                        println!("{}", mode_message());
+                    }
                     process::exit(0);
                 }
                 "-m" | "--module" => {
