@@ -18,8 +18,8 @@ simplified_chinese = ["erg_common/simplified_chinese"]
 traditional_chinese = ["erg_common/traditional_chinese"]
 
 [dependencies]
-erg_common = { version = "0.5.8", path = "../erg_common" }
-erg_parser = { version = "0.5.8", path = "../erg_parser" }
+erg_common = { version = "0.5.9-nightly.0", path = "../erg_common" }
+erg_parser = { version = "0.5.9-nightly.0", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"
