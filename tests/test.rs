@@ -53,7 +53,7 @@ fn exec_move_check() -> Result<(), ()> {
 
 #[test]
 fn exec_prelude() -> Result<(), ()> {
-    expect_success("library/std/prelude.er")
+    expect_success("std/prelude.er")
 }
 
 #[test]

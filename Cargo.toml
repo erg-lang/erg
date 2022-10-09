@@ -9,6 +9,7 @@ repository = "https://github.com/erg-lang/erg"
 documentation = "https://docs.rs/erg"
 homepage = "https://erg-lang.org/"
 keywords = ["erg", "programming-language"]
+build = "build.rs"
 
 [workspace]
 members = [
