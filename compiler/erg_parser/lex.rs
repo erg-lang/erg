@@ -851,6 +851,10 @@ impl Iterator for Lexer /*<'a>*/ {
                         )))
                     }
                 }
+                Some('-') => {
+                    self.consume();
+                    self.accept(Inclusion, "<-")
+                }
                 Some('=') => {
                     self.consume();
                     self.accept(LessEq, "<=")

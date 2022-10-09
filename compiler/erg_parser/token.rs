@@ -109,6 +109,8 @@ pub enum TokenKind {
     RefMutOp,
     /// =
     Equal,
+    /// <-
+    Inclusion,
     /// :=
     Walrus,
     /// ->
@@ -214,9 +216,8 @@ impl TokenKind {
             | InfLit => TokenCategory::Literal,
             PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
-            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus => {
-                TokenCategory::SpecialBinOp
-            }
+            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
+            | Inclusion => TokenCategory::SpecialBinOp,
             Equal => TokenCategory::DefOp,
             FuncArrow | ProcArrow => TokenCategory::LambdaOp,
             Semi | Newline => TokenCategory::Separator,
@@ -246,14 +247,14 @@ impl TokenKind {
             BitOr => 120,                                             // ||
             Closed | LeftOpen | RightOpen | Open => 100,              // range operators
             Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
-            AndOp => 80,                           // and
-            OrOp => 70,                            // or
-            FuncArrow | ProcArrow => 60,           // -> =>
-            Colon | SupertypeOf | SubtypeOf => 50, // : :> <:
-            Comma => 40,                           // ,
-            Equal | Walrus => 20,                  // = :=
-            Newline | Semi => 10,                  // \n ;
-            LParen | LBrace | LSqBr | Indent => 0, // ( { [ Indent
+            AndOp => 80,                             // and
+            OrOp => 70,                              // or
+            FuncArrow | ProcArrow | Inclusion => 60, // -> => <-
+            Colon | SupertypeOf | SubtypeOf => 50,   // : :> <:
+            Comma => 40,                             // ,
+            Equal | Walrus => 20,                    // = :=
+            Newline | Semi => 10,                    // \n ;
+            LParen | LBrace | LSqBr | Indent => 0,   // ( { [ Indent
             _ => return None,
         };
         Some(prec)
