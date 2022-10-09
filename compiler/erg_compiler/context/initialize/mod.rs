@@ -1769,11 +1769,18 @@ impl Context {
 
     fn init_builtin_funcs(&mut self) {
         let t_abs = nd_func(vec![kw("n", builtin_mono("Num"))], None, Nat);
+        let t_ascii = nd_func(vec![kw("object", Obj)], None, Str);
         let t_assert = func(
             vec![kw("condition", Bool)],
             None,
             vec![kw("err_message", Str)],
             NoneType,
+        );
+        let t_bin = nd_func(vec![kw("n", Int)], None, Str);
+        let t_chr = nd_func(
+            vec![kw("i", Type::from(value(0usize)..=value(1_114_111usize)))],
+            None,
+            Str,
         );
         let t_classof = nd_func(vec![kw("old", Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw("src", Str)], None, Code);
@@ -1811,6 +1818,27 @@ impl Context {
             module(mono_q_tp("Path")),
         );
         let t_import = quant(t_import, set! {static_instance("Path", Str)});
+        let t_isinstance = nd_func(
+            vec![
+                kw("object", Obj),
+                kw("classinfo", ClassType), // TODO: => ClassInfo
+            ],
+            None,
+            Bool,
+        );
+        let t_issubclass = nd_func(
+            vec![
+                kw("subclass", ClassType),
+                kw("classinfo", ClassType), // TODO: => ClassInfo
+            ],
+            None,
+            Bool,
+        );
+        let t_len = nd_func(
+            vec![kw("s", builtin_poly("Seq", vec![TyParam::erased(Type)]))],
+            None,
+            Nat,
+        );
         let t_log = func(
             vec![],
             Some(kw("objects", ref_(Obj))),
@@ -1822,31 +1850,57 @@ impl Context {
             ],
             NoneType,
         );
+        let t_oct = nd_func(vec![kw("x", Int)], None, Str);
+        let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
+        let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
+        let m = mono_q("M");
+        // TODO: mod
+        let t_pow = nd_func(
+            vec![kw("base", m.clone()), kw("exp", m.clone())],
+            None,
+            m.clone(),
+        );
+        let t_pow = quant(
+            t_pow,
+            set! {static_instance("M", builtin_poly("Mul", vec![ty_tp(m)]))},
+        );
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
             None,
             module(mono_q_tp("Path")),
         );
-        let t_panic = nd_func(vec![kw("err_message", Str)], None, NoneType);
         let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
+        let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
+        let t_round = nd_func(vec![kw("number", Float)], None, Int);
         self.register_builtin_impl("abs", t_abs, Immutable, Private);
+        self.register_builtin_impl("ascii", t_ascii, Immutable, Private);
         self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        self.register_builtin_impl("bin", t_bin, Immutable, Private);
+        self.register_builtin_impl("chr", t_chr, Immutable, Private);
         self.register_builtin_impl("classof", t_classof, Immutable, Private);
         self.register_builtin_impl("compile", t_compile, Immutable, Private);
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
         self.register_builtin_impl("discard", t_discard, Immutable, Private);
         self.register_builtin_impl("exit", t_exit, Immutable, Private);
         self.register_builtin_impl("if", t_if, Immutable, Private);
-        self.register_builtin_impl("log", t_log, Immutable, Private);
         self.register_builtin_impl("import", t_import, Immutable, Private);
+        self.register_builtin_impl("isinstance", t_isinstance, Immutable, Private);
+        self.register_builtin_impl("issubclass", t_issubclass, Immutable, Private);
+        self.register_builtin_impl("len", t_len, Immutable, Private);
+        self.register_builtin_impl("log", t_log, Immutable, Private);
+        self.register_builtin_impl("oct", t_oct, Immutable, Private);
+        self.register_builtin_impl("ord", t_ord, Immutable, Private);
         self.register_builtin_impl("panic", t_panic, Immutable, Private);
+        self.register_builtin_impl("pow", t_pow, Immutable, Private);
         if cfg!(feature = "debug") {
             self.register_builtin_impl("py", t_pyimport.clone(), Immutable, Private);
         }
         self.register_builtin_impl("pyimport", t_pyimport, Immutable, Private);
         self.register_builtin_impl("quit", t_quit, Immutable, Private);
+        self.register_builtin_impl("repr", t_repr, Immutable, Private);
+        self.register_builtin_impl("round", t_round, Immutable, Private);
     }
 
     fn init_builtin_const_funcs(&mut self) {
