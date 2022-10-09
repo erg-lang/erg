@@ -850,6 +850,9 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
+        if lhs == rhs {
+            return lhs.clone();
+        }
         // `?T or ?U` will not be unified
         // `Set!(?T, 3) or Set(?T, 3)` wii be unified to Set(?T, 3)
         if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
@@ -889,6 +892,9 @@ impl Context {
 
     /// returns intersection of two types (A and B)
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
+        if lhs == rhs {
+            return lhs.clone();
+        }
         // ?T and ?U will not be unified
         if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {

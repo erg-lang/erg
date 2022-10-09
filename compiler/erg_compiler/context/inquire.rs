@@ -17,7 +17,7 @@ use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
 use erg_type::constructors::{
-    anon, builtin_mono, free_var, func, module, mono_proj, subr_t, v_enum,
+    anon, builtin_mono, builtin_poly, free_var, func, module, mono_proj, subr_t, v_enum,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -1454,7 +1454,7 @@ impl Context {
             }
             Type::Poly { path, name, .. } => {
                 if self.path() == path {
-                    if let Some((_, ctx)) = self.rec_get_mono_type(name) {
+                    if let Some((_, ctx)) = self.rec_get_poly_type(name) {
                         return Some(ctx);
                     }
                 }
@@ -1469,7 +1469,7 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_mono_type(name) {
+                    if let Some((_, ctx)) = ctx.rec_get_poly_type(name) {
                         return Some(ctx);
                     }
                 }
@@ -1516,16 +1516,10 @@ impl Context {
                     return Some(res);
                 }
             }
-            Type::Or(l, r) => {
-                let lctx = self.get_nominal_type_ctx(l)?;
-                let rctx = self.get_nominal_type_ctx(r)?;
-                // use smaller context
-                return match (self.supertype_of(l, r), self.supertype_of(r, l)) {
-                    (true, true) => Some(lctx),
-                    (true, false) => Some(rctx),
-                    (false, true) => Some(lctx),
-                    (false, false) => None,
-                };
+            Type::Or(_l, _r) => {
+                if let Some(ctx) = self.get_nominal_type_ctx(&builtin_poly("Or", vec![])) {
+                    return Some(ctx);
+                }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {

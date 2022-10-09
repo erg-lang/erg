@@ -2040,7 +2040,7 @@ impl CodeGenerator {
         self.stack_dec();
         self.emit_pop_top();
         self.emit_global_import_items(
-            Identifier::public("prelude"),
+            Identifier::public("_erg_std_prelude"),
             vec![(
                 Identifier::public("in_operator"),
                 Some(Identifier::private("#in_operator")),
