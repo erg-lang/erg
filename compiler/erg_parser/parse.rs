@@ -469,7 +469,8 @@ impl Parser {
                         }
                     }
                 }
-                Some(t) if t.is(LSqBr) => {
+                // x[...] (`x [...]` will interpreted as `x([...])`)
+                Some(t) if t.is(LSqBr) && acc.col_end().unwrap() == t.col_begin().unwrap() => {
                     self.skip();
                     let index = self
                         .try_reduce_expr(false, false)
