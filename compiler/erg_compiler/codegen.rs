@@ -1700,6 +1700,15 @@ impl CodeGenerator {
                         self.stack_dec_n(len - 1);
                     }
                 }
+                Array::WithLength(arr) => {
+                    self.emit_expr(*arr.elem);
+                    self.write_instr(BUILD_LIST);
+                    self.write_arg(1u8);
+                    self.emit_expr(*arr.len);
+                    self.write_instr(BINARY_MULTIPLY);
+                    self.write_arg(0);
+                    self.stack_dec();
+                }
                 other => todo!("{other}"),
             },
             // TODO: tuple comprehension
@@ -1733,7 +1742,11 @@ impl CodeGenerator {
                         self.stack_dec_n(len - 1);
                     }
                 }
-                crate::hir::Set::WithLength(_) => todo!(),
+                crate::hir::Set::WithLength(st) => {
+                    self.emit_expr(*st.elem);
+                    self.write_instr(BUILD_SET);
+                    self.write_arg(1u8);
+                }
             },
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {

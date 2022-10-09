@@ -156,6 +156,10 @@ impl OwnershipChecker {
                         self.check_expr(&a.expr, ownership, false);
                     }
                 }
+                Array::WithLength(arr) => {
+                    self.check_expr(&arr.elem, ownership, false);
+                    self.check_expr(&arr.len, ownership, false);
+                }
                 _ => todo!(),
             },
             Expr::Tuple(tuple) => match tuple {
@@ -182,12 +186,15 @@ impl OwnershipChecker {
                 }
             }
             Expr::Set(set) => match set {
-                hir::Set::Normal(set) => {
-                    for a in set.elems.pos_args.iter() {
+                hir::Set::Normal(st) => {
+                    for a in st.elems.pos_args.iter() {
                         self.check_expr(&a.expr, ownership, false);
                     }
                 }
-                hir::Set::WithLength(_) => todo!(),
+                hir::Set::WithLength(st) => {
+                    self.check_expr(&st.elem, ownership, false);
+                    self.check_expr(&st.len, ownership, false);
+                }
             },
             // TODO: capturing
             Expr::Lambda(lambda) => {

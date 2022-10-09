@@ -59,6 +59,10 @@ impl<'a> Linker<'a> {
                         self.replace_import(&mut elem.expr);
                     }
                 }
+                Array::WithLength(arr) => {
+                    self.replace_import(&mut arr.elem);
+                    self.replace_import(&mut arr.len);
+                }
                 _ => todo!(),
             },
             Expr::Tuple(tuple) => match tuple {
@@ -74,9 +78,11 @@ impl<'a> Linker<'a> {
                         self.replace_import(&mut elem.expr);
                     }
                 }
-                Set::WithLength(_) => todo!(),
+                Set::WithLength(st) => {
+                    self.replace_import(&mut st.elem);
+                    self.replace_import(&mut st.len);
+                }
             },
-
             Expr::Dict(_dict) => {
                 todo!()
             }
