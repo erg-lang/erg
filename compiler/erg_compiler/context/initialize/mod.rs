@@ -1354,6 +1354,10 @@ impl Context {
         let mut record_type = Self::builtin_mono_class("RecordType", 2);
         record_type.register_superclass(builtin_mono("Record"), &record);
         record_type.register_superclass(builtin_mono("Type"), &type_);
+        /* Or (true or type) */
+        let or_t = builtin_poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
+        let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
+        or.register_superclass(Obj, &obj);
         /* Float_mut */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
@@ -1724,6 +1728,7 @@ impl Context {
         );
         self.register_builtin_type(builtin_mono("Record"), record, Const);
         self.register_builtin_type(builtin_mono("RecordType"), record_type, Const);
+        self.register_builtin_type(or_t, or, Const);
         self.register_builtin_type(builtin_mono("Int!"), int_mut, Const);
         self.register_builtin_type(builtin_mono("Nat!"), nat_mut, Const);
         self.register_builtin_type(builtin_mono("Float!"), float_mut, Const);

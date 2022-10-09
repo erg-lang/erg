@@ -52,6 +52,11 @@ fn exec_move_check() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_prelude() -> Result<(), ()> {
+    expect_success("library/std/prelude.er")
+}
+
+#[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er")
 }
