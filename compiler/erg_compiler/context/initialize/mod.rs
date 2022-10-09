@@ -1856,6 +1856,15 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
+                subtypeof(l.clone(), builtin_poly("FloorDiv", params.clone()))
+            },
+        );
+        self.register_builtin_impl("__floordiv__", op_t, Const, Private);
+        let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "Output"));
+        let op_t = quant(
+            op_t,
+            set! {
+                static_instance("R", Type),
                 subtypeof(l.clone(), builtin_poly("Div", params.clone()))
             },
         );
