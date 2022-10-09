@@ -1185,6 +1185,17 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
+        match name {
+            "true" => return Some("True"),
+            "false" => return Some("False"),
+            "Null" | "Nil" | "null" | "nil" | "none" => return Some("None"),
+            "del" => return Some("Del"),
+            "int" => return Some("Int"),
+            "nat" => return Some("Nat"),
+            "str" => return Some("Str"),
+            "bool" => return Some("Bool"),
+            _ => {}
+        }
         let name = readable_name(name);
         // REVIEW: add decls?
         get_similar_name(

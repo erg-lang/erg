@@ -109,6 +109,9 @@ impl Runnable for DummyVM {
             .replace(".er", ".pyc");
         self.compiler
             .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
+        if self.cfg().dump_as_pyc {
+            return Ok(0);
+        }
         let code = exec_pyc(&filename);
         remove_file(&filename).unwrap();
         Ok(code.unwrap_or(1))
