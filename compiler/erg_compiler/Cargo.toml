@@ -1,20 +1,28 @@
 [package]
 name = "erg_compiler"
-version = "0.5.8"
 description = "Centimetre: the Erg compiler"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/src/compiler/erg_compiler"
-documentation = "https://docs.rs/erg_compiler"
-homepage = "https://erg-lang.github.io/"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
 
 [features]
 # when "debug" feature is turned on, that of parser will also be turned on.
-debug = [ "erg_common/debug", "erg_parser/debug", "erg_type/debug" ]
-japanese = [ "erg_common/japanese", "erg_parser/japanese", "erg_type/japanese" ]
-simplified_chinese = [ "erg_common/simplified_chinese", "erg_parser/simplified_chinese", "erg_type/simplified_chinese" ]
-traditional_chinese = [ "erg_common/traditional_chinese", "erg_parser/traditional_chinese", "erg_type/traditional_chinese" ]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_type/debug"]
+japanese = ["erg_common/japanese", "erg_parser/japanese", "erg_type/japanese"]
+simplified_chinese = [
+    "erg_common/simplified_chinese",
+    "erg_parser/simplified_chinese",
+    "erg_type/simplified_chinese",
+]
+traditional_chinese = [
+    "erg_common/traditional_chinese",
+    "erg_parser/traditional_chinese",
+    "erg_type/traditional_chinese",
+]
 
 [dependencies]
 erg_common = { version = "0.5.8", path = "../erg_common" }

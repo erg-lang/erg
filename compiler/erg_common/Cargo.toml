@@ -1,13 +1,13 @@
 [package]
 name = "erg_common"
-version = "0.5.8"
 description = "A common components library of Erg"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/src/erg_common"
-documentation = "https://docs.rs/erg_common"
-homepage = "https://erg-lang.github.io/"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

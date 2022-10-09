@@ -18,6 +18,15 @@ members = [
     "compiler/erg_type",
 ]
 
+[workspace.package]
+version = "0.5.8"
+authors = ["erg-lang team <moderation.erglang@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+repository = "https://github.com/erg-lang/erg"
+documentation = "https://docs.rs/erg"
+homepage = "https://erg-lang.org/"
+
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
 debug = [
