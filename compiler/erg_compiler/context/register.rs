@@ -1125,6 +1125,7 @@ impl Context {
     }
 
     fn change_var_type(&mut self, acc: &hir::Accessor, t: Type) -> TyCheckResult<()> {
+        #[allow(clippy::single_match)]
         match acc {
             hir::Accessor::Ident(ident) => {
                 if let Some(vi) = self.get_mut_current_scope_var(ident.inspect()) {
@@ -1133,7 +1134,9 @@ impl Context {
                     todo!()
                 }
             }
-            _ => todo!("type casting of {acc}"),
+            _ => {
+                // TODO: support other accessors
+            }
         }
         Ok(())
     }
