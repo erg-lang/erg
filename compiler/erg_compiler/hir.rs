@@ -365,8 +365,8 @@ impl Identifier {
         )
     }
 
-    pub fn private(name: Str) -> Self {
-        Self::bare(None, VarName::from_str(name))
+    pub fn private(name: &'static str) -> Self {
+        Self::bare(None, VarName::from_static(name))
     }
 
     pub fn private_with_line(name: Str, line: usize) -> Self {

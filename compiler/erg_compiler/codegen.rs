@@ -867,7 +867,7 @@ impl CodeGenerator {
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(def.sig.ident().inspect().clone());
-        self.emit_load_name_instr(Identifier::private(Str::ever("#ABCMeta")));
+        self.emit_load_name_instr(Identifier::private("#ABCMeta"));
         self.emit_load_const(vec![ValueObj::from("metaclass")]);
         let subclasses_len = 1;
         self.write_instr(Opcode::CALL_FUNCTION_KW);
@@ -917,7 +917,7 @@ impl CodeGenerator {
             self.emit_empty_func(
                 Some(sig.ident().inspect()),
                 def.sig.into_ident(),
-                Some(Identifier::private(Str::ever("#abstractmethod"))),
+                Some(Identifier::private("#abstractmethod")),
             );
         }
         self.emit_load_const(ValueObj::None);
@@ -1150,6 +1150,9 @@ impl CodeGenerator {
                 self.emit_load_name_instr(Identifier::public("range"));
             }
             TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
+            TokenKind::InOp => {
+                self.emit_load_name_instr(Identifier::private("#in_operator"));
+            }
             _ => {}
         }
         let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
@@ -1170,9 +1173,11 @@ impl CodeGenerator {
             | TokenKind::NotEq
             | TokenKind::Gre
             | TokenKind::GreEq => COMPARE_OP,
-            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => {
-                CALL_FUNCTION
-            } // ERG_BINARY_RANGE,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::InOp => CALL_FUNCTION, // ERG_BINARY_RANGE,
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1191,14 +1196,22 @@ impl CodeGenerator {
             TokenKind::NotEq => 3,
             TokenKind::Gre => 4,
             TokenKind::GreEq => 5,
-            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Closed | TokenKind::Open => 2,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::InOp => 2,
             _ => type_pair as u8,
         };
         self.write_instr(instr);
         self.write_arg(arg);
         self.stack_dec();
         match &bin.op.kind {
-            TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Open | TokenKind::Closed => {
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Open
+            | TokenKind::Closed
+            | TokenKind::InOp => {
                 self.stack_dec();
             }
             _ => {}
@@ -1597,7 +1610,7 @@ impl CodeGenerator {
         log!(info "entered {} ({rec})", fn_name!());
         let attrs_len = rec.attrs.len();
         // making record type
-        let ident = Identifier::private(Str::ever("#NamedTuple"));
+        let ident = Identifier::private("#NamedTuple");
         self.emit_load_name_instr(ident);
         // record name, let it be anonymous
         self.emit_load_const("Record");
@@ -1615,10 +1628,10 @@ impl CodeGenerator {
         self.write_arg(2);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + 2 + 0) - 1);
-        let ident = Identifier::private(Str::ever("#rec"));
+        let ident = Identifier::private("#rec");
         self.emit_store_instr(ident, Name);
         // making record instance
-        let ident = Identifier::private(Str::ever("#rec"));
+        let ident = Identifier::private("#rec");
         self.emit_load_name_instr(ident);
         for field in rec.attrs.into_iter() {
             self.emit_frameless_block(field.body.block, vec![]);
@@ -2007,7 +2020,32 @@ impl CodeGenerator {
 
     fn load_prelude(&mut self) {
         self.load_record_type();
+        self.load_prelude_py();
         self.record_type_loaded = true;
+    }
+
+    fn load_prelude_py(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("sys"),
+            vec![(
+                Identifier::public("path"),
+                Some(Identifier::private("#path")),
+            )],
+        );
+        self.emit_load_name_instr(Identifier::private("#path"));
+        self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
+        self.emit_load_const(env!("ERG_STD_PATH"));
+        self.write_instr(CALL_METHOD);
+        self.write_arg(1u8);
+        self.stack_dec();
+        self.emit_pop_top();
+        self.emit_global_import_items(
+            Identifier::public("prelude"),
+            vec![(
+                Identifier::public("in_operator"),
+                Some(Identifier::private("#in_operator")),
+            )],
+        );
     }
 
     fn load_record_type(&mut self) {
@@ -2015,7 +2053,7 @@ impl CodeGenerator {
             Identifier::public("collections"),
             vec![(
                 Identifier::public("namedtuple"),
-                Some(Identifier::private(Str::ever("#NamedTuple"))),
+                Some(Identifier::private("#NamedTuple")),
             )],
         );
     }
@@ -2026,11 +2064,11 @@ impl CodeGenerator {
             vec![
                 (
                     Identifier::public("ABCMeta"),
-                    Some(Identifier::private(Str::ever("#ABCMeta"))),
+                    Some(Identifier::private("#ABCMeta")),
                 ),
                 (
                     Identifier::public("abstractmethod"),
-                    Some(Identifier::private(Str::ever("#abstractmethod"))),
+                    Some(Identifier::private("#abstractmethod")),
                 ),
             ],
         );
@@ -2041,7 +2079,7 @@ impl CodeGenerator {
             Identifier::public("types"),
             vec![(
                 Identifier::public("ModuleType"),
-                Some(Identifier::private(Str::ever("#ModuleType"))),
+                Some(Identifier::private("#ModuleType")),
             )],
         );
     }
