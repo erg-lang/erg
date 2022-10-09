@@ -87,6 +87,31 @@ impl Context {
             })
     }
 
+    pub(crate) fn get_mut_current_scope_var(&mut self, name: &str) -> Option<&mut VarInfo> {
+        self.locals
+            .get_mut(name)
+            .or_else(|| self.decls.get_mut(name))
+            .or_else(|| {
+                self.params
+                    .iter_mut()
+                    .find(|(opt_name, _)| {
+                        opt_name
+                            .as_ref()
+                            .map(|n| &n.inspect()[..] == name)
+                            .unwrap_or(false)
+                    })
+                    .map(|(_, vi)| vi)
+            })
+            .or_else(|| {
+                for (_, methods) in self.methods_list.iter_mut() {
+                    if let Some(vi) = methods.get_mut_current_scope_var(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
+    }
+
     pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         self.locals.get_key_value(name)
     }
@@ -1172,7 +1197,7 @@ impl Context {
             _ => {}
         }
         let name = readable_name(name);
-        // TODO: add decls
+        // REVIEW: add decls?
         get_similar_name(
             self.params
                 .iter()
@@ -1309,35 +1334,6 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn _get_nominal_super_trait_ctxs<'a>(
-        &'a self,
-        t: &Type,
-    ) -> Option<impl Iterator<Item = &'a Context>> {
-        let ctx = self.get_nominal_type_ctx(t)?;
-        Some(ctx.super_traits.iter().map(|sup| {
-            let sup_ctx = self
-                .get_nominal_type_ctx(sup)
-                .unwrap_or_else(|| todo!("{} not found", sup));
-            sup_ctx
-        }))
-    }
-
-    pub(crate) fn _get_nominal_super_class_ctxs<'a>(
-        &'a self,
-        t: &Type,
-    ) -> Option<impl Iterator<Item = &'a Context>> {
-        // if `t` is {S: Str | ...}, `ctx_t` will be Str
-        // else if `t` is Array(Int, 10), `ctx_t` will be Array(T, N) (if Array(Int, 10) is not specialized)
-        let ctx = self.get_nominal_type_ctx(t)?;
-        // t: {S: Str | ...} => ctx.super_traits: [Eq(Str), Mul(Nat), ...]
-        // => return: [(Str, Eq(Str)), (Str, Mul(Nat)), ...] (the content of &'a Type isn't {S: Str | ...})
-        Some(
-            ctx.super_classes
-                .iter()
-                .map(|sup| self.get_nominal_type_ctx(sup).unwrap()),
-        )
-    }
-
     pub(crate) fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
@@ -1375,6 +1371,7 @@ impl Context {
         }
     }
 
+    /// include `t` itself
     fn get_simple_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
@@ -1386,6 +1383,19 @@ impl Context {
             .chain(ctx.super_traits.iter())
             .map(|sup| self.get_nominal_type_ctx(sup).unwrap());
         Some(vec![ctx].into_iter().chain(sups))
+    }
+
+    /// if `typ` is a refinement type, include the base type (refine.t)
+    pub(crate) fn get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+        self.get_nominal_type_ctx(typ).map(|ctx| {
+            let super_classes = ctx.super_classes.clone();
+            let derefined = typ.derefine();
+            if typ != &derefined {
+                vec![derefined].into_iter().chain(super_classes)
+            } else {
+                vec![].into_iter().chain(super_classes)
+            }
+        })
     }
 
     // TODO: Never

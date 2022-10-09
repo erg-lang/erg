@@ -469,10 +469,11 @@ impl Context {
         );
         let mut obj_in = Self::builtin_methods("In", 2);
         obj_in.register_builtin_impl("__in__", fn1_met(Obj, Type, Bool), Const, Public);
-        obj.register_trait(Obj, builtin_poly("Eq", vec![ty_tp(Type)]), obj_in);
+        obj.register_trait(Obj, builtin_poly("In", vec![ty_tp(Type)]), obj_in);
         let mut obj_mutizable = Self::builtin_methods("Mutizable", 1);
         obj_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Obj!")));
         obj.register_trait(Obj, builtin_mono("Mutizable"), obj_mutizable);
+        // Obj does not implement Eq
 
         /* Float */
         let mut float = Self::builtin_mono_class("Float", 2);
@@ -760,6 +761,24 @@ impl Context {
         let mut str_show = Self::builtin_methods("Show", 1);
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
         str_.register_trait(Str, builtin_mono("Show"), str_show);
+        /* NoneType */
+        let mut nonetype = Self::builtin_mono_class("NoneType", 10);
+        nonetype.register_superclass(Obj, &obj);
+        let mut nonetype_eq = Self::builtin_methods("Eq", 2);
+        nonetype_eq.register_builtin_impl(
+            "__eq__",
+            fn1_met(NoneType, NoneType, Bool),
+            Const,
+            Public,
+        );
+        nonetype.register_trait(
+            NoneType,
+            builtin_poly("Eq", vec![ty_tp(NoneType)]),
+            nonetype_eq,
+        );
+        let mut nonetype_show = Self::builtin_methods("Show", 1);
+        nonetype_show.register_builtin_impl("to_str", fn0_met(NoneType, Str), Immutable, Public);
+        nonetype.register_trait(NoneType, builtin_mono("Show"), nonetype_show);
         /* Type */
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
@@ -1466,7 +1485,7 @@ impl Context {
         );
         /* Str_mut */
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
-        str_mut.register_superclass(Str, &str_);
+        str_mut.register_superclass(Str, &nonetype);
         let mut str_mut_mutable = Self::builtin_methods("Mutable", 2);
         str_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Str));
         let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
@@ -1657,6 +1676,7 @@ impl Context {
         self.register_builtin_type(Ratio, ratio, Const);
         self.register_builtin_type(Bool, bool_, Const);
         self.register_builtin_type(Str, str_, Const);
+        self.register_builtin_type(NoneType, nonetype, Const);
         self.register_builtin_type(Type, type_, Const);
         self.register_builtin_type(ClassType, class_type, Const);
         self.register_builtin_type(g_module_t, generic_module, Const);
@@ -2056,7 +2076,7 @@ impl Context {
         self.register_builtin_decl("__rorng__", op_t.clone(), Private);
         self.register_builtin_decl("__orng__", op_t, Private);
         // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
-        let op_t = bin_op(mono_q("T"), mono_q("I"), Bool);
+        let op_t = bin_op(mono_q("I"), mono_q("T"), Bool);
         let op_t = quant(
             op_t,
             set! { static_instance("T", Type), subtypeof(mono_q("I"), builtin_poly("In", vec![ty_tp(mono_q("T"))])) },

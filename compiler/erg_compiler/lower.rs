@@ -15,6 +15,7 @@ use erg_parser::ast;
 use erg_parser::ast::AST;
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
+use erg_parser::Parser;
 
 use erg_type::constructors::{
     array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
@@ -549,9 +550,27 @@ impl ASTLowerer {
         Ok(hir::UnaryOp::new(unary.op, expr, t))
     }
 
-    // TODO: single `import`
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
+        let assert_cast_target_type = if call.is_assert_cast() {
+            if let Some(typ) = call.assert_cast_target_type() {
+                Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
+                    let e = LowerError::new(e.into(), self.input().clone(), self.ctx.caused_by());
+                    LowerErrors::from(e)
+                })?)
+            } else {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.input().clone(),
+                    line!() as usize,
+                    call.args.loc(),
+                    self.ctx.caused_by(),
+                    "invalid assert casting type",
+                    None,
+                )));
+            }
+        } else {
+            None
+        };
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
@@ -584,7 +603,7 @@ impl ASTLowerer {
         } else {
             None
         };
-        let call = hir::Call::new(obj, method_name, hir_args, sig_t);
+        let mut call = hir::Call::new(obj, method_name, hir_args, sig_t);
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
@@ -608,7 +627,12 @@ impl ASTLowerer {
                     )))
                 }
             },
-            _ => {}
+            _ => {
+                if let Some(type_spec) = assert_cast_target_type {
+                    log!(err "cast({type_spec}): {call}");
+                    self.ctx.cast(type_spec, &mut call)?;
+                }
+            }
         }
         Ok(call)
     }

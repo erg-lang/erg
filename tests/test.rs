@@ -12,6 +12,11 @@ fn exec_addition() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_assert_cast() -> Result<(), ()> {
+    expect_success("examples/assert_cast.er")
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
 }
@@ -53,7 +58,7 @@ fn exec_move_check() -> Result<(), ()> {
 
 #[test]
 fn exec_prelude() -> Result<(), ()> {
-    expect_success("std/prelude.er")
+    expect_success("compiler/erg_compiler/std/prelude.er")
 }
 
 #[test]

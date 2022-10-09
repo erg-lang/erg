@@ -17,6 +17,7 @@ fn main() -> std::io::Result<()> {
         fs::create_dir(format!("{erg_path}/std"))?;
     }
     println!("cargo:rustc-env=ERG_PATH={erg_path}");
+    println!("cargo:rustc-env=ERG_STD_PATH={erg_path}/std");
     // create a std library in ".erg"
     for res in fs::read_dir("std")? {
         let entry = res?;

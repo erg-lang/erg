@@ -1,6 +1,7 @@
 [package]
 name = "erg_compiler"
 description = "Centimetre: the Erg compiler"
+build = "build.rs"
 version.workspace = true
 authors.workspace = true
 license.workspace = true

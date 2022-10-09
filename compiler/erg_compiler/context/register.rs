@@ -14,8 +14,9 @@ use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
 
 use erg_type::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
+use erg_type::free::{Constraint, Cyclicity, FreeKind};
 use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{ParamTy, SubrType, Type};
+use erg_type::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -1075,5 +1076,65 @@ impl Context {
                 self.get_similar_name(ident.inspect()),
             )))
         }
+    }
+
+    pub(crate) fn cast(
+        &mut self,
+        type_spec: ast::TypeSpec,
+        call: &mut hir::Call,
+    ) -> TyCheckResult<()> {
+        let target_t =
+            self.instantiate_typespec(&type_spec, None, None, RegistrationMode::Normal)?;
+        let lhs = enum_unwrap!(
+            call.args.get_mut_left_or_key("pred").unwrap(),
+            hir::Expr::BinOp
+        )
+        .lhs
+        .as_mut();
+        match (
+            self.supertype_of(lhs.ref_t(), &target_t),
+            self.subtype_of(lhs.ref_t(), &target_t),
+        ) {
+            // assert 1 in {1}
+            (true, true) => {}
+            // assert x in Int (x: Nat)
+            (false, true) => {} // TODO: warn (needless)
+            // assert x in Nat (x: Int)
+            (true, false) => {
+                if let hir::Expr::Accessor(ref acc) = lhs {
+                    self.change_var_type(acc, target_t.clone())?;
+                }
+                match lhs.ref_t() {
+                    Type::FreeVar(fv) if fv.is_linked() => {
+                        let constraint = Constraint::new_subtype_of(target_t, Cyclicity::Not);
+                        fv.replace(FreeKind::new_unbound(self.level, constraint));
+                    }
+                    Type::FreeVar(fv) => {
+                        let new_constraint = Constraint::new_subtype_of(target_t, Cyclicity::Not);
+                        fv.update_constraint(new_constraint);
+                    }
+                    _ => {
+                        *lhs.ref_mut_t() = target_t;
+                    }
+                }
+            }
+            // assert x in Str (x: Int)
+            (false, false) => todo!(),
+        }
+        Ok(())
+    }
+
+    fn change_var_type(&mut self, acc: &hir::Accessor, t: Type) -> TyCheckResult<()> {
+        match acc {
+            hir::Accessor::Ident(ident) => {
+                if let Some(vi) = self.get_mut_current_scope_var(ident.inspect()) {
+                    vi.t = t;
+                } else {
+                    todo!()
+                }
+            }
+            _ => todo!("type casting of {acc}"),
+        }
+        Ok(())
     }
 }

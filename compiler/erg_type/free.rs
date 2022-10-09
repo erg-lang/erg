@@ -325,6 +325,17 @@ impl<T> FreeKind<T> {
         }
     }
 
+    pub fn new_unbound(lev: Level, constraint: Constraint) -> Self {
+        UNBOUND_ID.with(|id| {
+            *id.borrow_mut() += 1;
+            Self::Unbound {
+                id: *id.borrow(),
+                lev,
+                constraint,
+            }
+        })
+    }
+
     pub const fn named_unbound(name: Str, lev: Level, constraint: Constraint) -> Self {
         Self::NamedUnbound {
             name,
@@ -438,6 +449,14 @@ impl<T: Clone + HasLevel> Free<T> {
             return;
         }
         *self.borrow_mut() = FreeKind::Linked(to.clone());
+    }
+
+    pub fn replace(&self, to: FreeKind<T>) {
+        // prevent linking to self
+        if self.is_linked() && addr_eq!(*self.borrow(), to) {
+            return;
+        }
+        *self.borrow_mut() = to;
     }
 
     /// NOTE: Do not use this except to rewrite circular references.
