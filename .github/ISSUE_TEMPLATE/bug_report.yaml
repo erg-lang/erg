@@ -1,0 +1,59 @@
+name: 🐛 Bug report
+description: Create a report to help us improve
+title: '[]: '
+labels:
+  - bug
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproducible code
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Result
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: 'erg version:'
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: 'Python version:'
+    validations:
+      required: false
+
+  - type: dropdown
+      id: os
+      attributes:
+        label: Operating system
+        description: What operating system do you use?
+        options:
+          - Windows 10
+          - Windows 11
+          - Windows other (specify in comments)
+          - macOS 11 "Big Sur" (Apple silicon)
+          - macOS 11 "Big Sur" (Intel)
+          - macOS 10.15 "Catalina"
+          - macOS other (specify in comments)
+          - Linux (specify distro and version in comments)
+          - Other (aka none of the above, specify in the comments)
+      validations:
+        required: false
