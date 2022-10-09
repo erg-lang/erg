@@ -686,6 +686,30 @@ impl ValueObj {
         }
     }
 
+    pub fn try_floordiv(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l / r)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l / r)),
+            (Self::Float(l), Self::Float(r)) => Some(Self::Float((l / r).floor())),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l / r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 / r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::Float((l / r as f64).floor())),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
+            (Self::Float(l), Self::Int(r)) => Some(Self::Float((l / r as f64).floor())),
+            (Self::Int(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_div(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_floordiv(m.borrow().clone()),
+            // TODO: x//±Inf = 0
+            _ => None,
+        }
+    }
+
     pub fn try_gt(self, other: Self) -> Option<Self> {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l > r)),
