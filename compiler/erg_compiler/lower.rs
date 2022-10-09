@@ -261,6 +261,8 @@ impl ASTLowerer {
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
+                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
+                    builtin_poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     array(elem.t(), TyParam::Value(v))
                 }
@@ -430,6 +432,8 @@ impl ASTLowerer {
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
+                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
+                    builtin_poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set(elem.t(), TyParam::Value(v))
                 }
@@ -552,7 +556,7 @@ impl ASTLowerer {
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
-        let assert_cast_target_type = if call.is_assert_cast() {
+        let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
                     let e = LowerError::new(e.into(), self.input().clone(), self.ctx.caused_by());
@@ -628,7 +632,7 @@ impl ASTLowerer {
                 }
             },
             _ => {
-                if let Some(type_spec) = assert_cast_target_type {
+                if let Some(type_spec) = opt_cast_to {
                     log!(err "cast({type_spec}): {call}");
                     self.ctx.cast(type_spec, &mut call)?;
                 }

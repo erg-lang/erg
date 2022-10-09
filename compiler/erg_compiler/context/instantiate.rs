@@ -781,12 +781,12 @@ impl Context {
             TypeSpec::Array(arr) => {
                 let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&arr.len);
-                Ok(array(elem_t, len))
+                Ok(builtin_poly("ArrayType", vec![ty_tp(elem_t), len]))
             }
             TypeSpec::Set(set) => {
                 let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&set.len);
-                Ok(erg_type::constructors::set(elem_t, len))
+                Ok(builtin_poly("SetType", vec![ty_tp(elem_t), len]))
             }
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(tuple(

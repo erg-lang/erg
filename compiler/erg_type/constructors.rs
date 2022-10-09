@@ -330,7 +330,17 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 
 #[inline]
 pub fn builtin_mono<S: Into<Str>>(name: S) -> Type {
-    Type::BuiltinMono(name.into())
+    let name = name.into();
+    if cfg!(feature = "debug") {
+        // do not use for: `Int`, `Nat`, ...
+        match &name[..] {
+            "Obj" | "Int" | "Nat" | "Ratio" | "Float" | "Bool" | "Str" | "NoneType" | "Code"
+            | "Frame" | "Error" | "Inf" | "NegInf" | "Type" | "ClassType" | "TraitType"
+            | "Patch" | "NotImplemented" | "Ellipsis" | "Never" => todo!("{name}"),
+            _ => {}
+        }
+    }
+    Type::BuiltinMono(name)
 }
 
 #[inline]

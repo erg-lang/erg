@@ -464,7 +464,7 @@ impl Context {
         /* Obj */
         let mut obj = Self::builtin_mono_class("Obj", 2);
         let t = fn0_met(mono_q("Self"), mono_q("Self"));
-        let t = quant(t, set! {subtypeof(mono_q("Self"), builtin_mono("Obj"))});
+        let t = quant(t, set! {subtypeof(mono_q("Self"), Obj)});
         obj.register_builtin_impl("clone", t, Const, Public);
         obj.register_builtin_impl("__module__", Str, Const, Public);
         obj.register_builtin_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
@@ -893,7 +893,15 @@ impl Context {
             Immutable,
             Public,
         );
-        array_.register_trait(array_t, builtin_mono("Show"), array_show);
+        array_.register_trait(array_t.clone(), builtin_mono("Show"), array_show);
+        let array_type_t = builtin_poly("ArrayType", vec![mono_q_tp("T"), mono_q_tp("N")]);
+        let mut array_type = Self::builtin_poly_class(
+            "ArrayType",
+            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
+            2,
+        );
+        array_type.register_superclass(array_t.clone(), &array_);
+        array_type.register_superclass(Type, &type_);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -936,6 +944,14 @@ impl Context {
         let mut set_show = Self::builtin_methods("Show", 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
         set_.register_trait(set_t.clone(), builtin_mono("Show"), set_show);
+        let set_type_t = builtin_poly("SetType", vec![mono_q_tp("T"), mono_q_tp("N")]);
+        let mut set_type = Self::builtin_poly_class(
+            "SetType",
+            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
+            2,
+        );
+        set_type.register_superclass(set_t.clone(), &set_);
+        set_type.register_superclass(Type, &type_);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
@@ -1166,7 +1182,7 @@ impl Context {
         record.register_superclass(Obj, &obj);
         let mut record_type = Self::builtin_mono_class("RecordType", 2);
         record_type.register_superclass(builtin_mono("Record"), &record);
-        record_type.register_superclass(builtin_mono("Type"), &type_);
+        record_type.register_superclass(Type, &type_);
         /* Or (true or type) */
         let or_t = builtin_poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
         let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
@@ -1195,15 +1211,7 @@ impl Context {
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods("Mutable", 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Ratio));
-        let f_t = kw(
-            "f",
-            func(
-                vec![kw("old", builtin_mono("Ratio"))],
-                None,
-                vec![],
-                builtin_mono("Ratio"),
-            ),
-        );
+        let f_t = kw("f", func(vec![kw("old", Ratio)], None, vec![], Ratio));
         let t = pr_met(
             ref_mut(builtin_mono("Ratio!"), None),
             vec![f_t],
@@ -1317,7 +1325,6 @@ impl Context {
             file_mut_readable,
         );
         /* Array_mut */
-        let array_t = builtin_poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = builtin_poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
             "Array!",
@@ -1477,7 +1484,9 @@ impl Context {
         self.register_builtin_type(g_module_t, generic_module, Const);
         self.register_builtin_type(module_t, module, Const);
         self.register_builtin_type(array_t, array_, Const);
+        self.register_builtin_type(array_type_t, array_type, Const);
         self.register_builtin_type(set_t, set_, Const);
+        self.register_builtin_type(set_type_t, set_type, Const);
         self.register_builtin_type(builtin_mono("Bytes"), bytes, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
         self.register_builtin_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);
