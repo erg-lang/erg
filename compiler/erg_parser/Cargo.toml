@@ -1,12 +1,12 @@
 [package]
 name = "erg_parser"
 description = "The Erg parser"
+documentation = "http://docs.rs/erg_parser"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
 repository.workspace = true
-documentation.workspace = true
 homepage.workspace = true
 
 [features]

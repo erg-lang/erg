@@ -1,13 +1,13 @@
 [package]
 name = "erg_compiler"
 description = "Centimetre: the Erg compiler"
+documentation = "http://docs.rs/erg_compiler"
 build = "build.rs"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
 repository.workspace = true
-documentation.workspace = true
 homepage.workspace = true
 
 [features]

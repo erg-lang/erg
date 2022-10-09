@@ -1,12 +1,12 @@
 [package]
 name = "erg_common"
 description = "A common components library of Erg"
+documentation = "http://docs.rs/erg_common"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
 repository.workspace = true
-documentation.workspace = true
 homepage.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
