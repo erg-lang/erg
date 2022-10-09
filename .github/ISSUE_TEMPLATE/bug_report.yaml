@@ -17,7 +17,13 @@ body:
 
   - type: textarea
     attributes:
-      label: Result
+      label: Expected result
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Actual result
     validations:
       required: false
 
@@ -31,7 +37,7 @@ body:
     attributes:
       label: Erg version
     validations:
-      required: false
+      required: true
 
   - type: input
     attributes:
@@ -49,3 +55,4 @@ body:
         - MacOS 11 (Big Sur)
         - Ubuntu
         - Linux(other distro)
+        - Other (write in `Additional context`)
