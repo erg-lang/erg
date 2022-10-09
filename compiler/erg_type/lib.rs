@@ -1284,15 +1284,9 @@ impl PartialEq for Type {
                     rhs: rrhs,
                 },
             ) => lhs == rlhs && rhs == rrhs,
+            (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
+            (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
-            (Self::FreeVar(fv), other) => match &*fv.borrow() {
-                FreeKind::Linked(t) => t == other,
-                _ => false,
-            },
-            (self_, Self::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(t) => t == self_,
-                _ => false,
-            },
             (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
             _ => false,
         }
