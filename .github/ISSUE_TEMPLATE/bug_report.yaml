@@ -1,6 +1,6 @@
 name: 🐛 Bug report
 description: Create a report to help us improve
-title: '[]: '
+title: '[Bug]: '
 labels:
   - bug
 body:
@@ -30,30 +30,23 @@ body:
 
   - type: input
     attributes:
-      label: 'erg version:'
+      label: Erg version
     validations:
       required: false
 
   - type: input
     attributes:
-      label: 'Python version:'
+      label: Python version
     validations:
       required: false
 
   - type: dropdown
-      id: os
-      attributes:
-        label: Operating system
-        description: What operating system do you use?
-        options:
-          - Windows 10
-          - Windows 11
-          - Windows other (specify in comments)
-          - macOS 11 "Big Sur" (Apple silicon)
-          - macOS 11 "Big Sur" (Intel)
-          - macOS 10.15 "Catalina"
-          - macOS other (specify in comments)
-          - Linux (specify distro and version in comments)
-          - Other (aka none of the above, specify in the comments)
-      validations:
-        required: false
+    attributes:
+      label: os
+      options:
+        - Windows 10
+        - Windows 11
+        - MacOS 12 (Monterey)
+        - MacOS 11 (Big Sur)
+        - Ubuntu
+        - Linux(other distro)
