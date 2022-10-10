@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>This is the main source code repository for [Erg](https://erg-lang.github.io/). This contains the compiler and documentation.
+<br>This is the main source code repository for [Erg](https://erg-lang.org/). This contains the compiler and documentation.
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
