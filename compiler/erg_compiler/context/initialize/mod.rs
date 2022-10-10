@@ -1441,7 +1441,8 @@ impl Context {
         /* Range */
         let range_t = builtin_poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
-        range.register_superclass(Obj, &obj);
+        // range.register_superclass(Obj, &obj);
+        range.register_superclass(Type, &type_);
         range.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("T"))]));
         let mut range_eq = Self::builtin_methods("Eq", 2);
         range_eq.register_builtin_impl(
