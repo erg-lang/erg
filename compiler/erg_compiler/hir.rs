@@ -47,14 +47,16 @@ impl Locational for Literal {
     }
 }
 
-impl From<Token> for Literal {
-    fn from(token: Token) -> Self {
-        let data = ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone());
-        Self {
+impl TryFrom<Token> for Literal {
+    type Error = ();
+    fn try_from(token: Token) -> Result<Self, ()> {
+        let data =
+            ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone()).ok_or(())?;
+        Ok(Self {
             t: data.t(),
             value: data,
             token,
-        }
+        })
     }
 }
 

@@ -990,6 +990,30 @@ impl EvalError {
             caused_by,
         )
     }
+
+    pub fn invalid_literal(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                SyntaxError,
+                loc,
+                switch_lang!(
+                    "japanese" => "リテラルが不正です",
+                    "simplified_chinese" => "字面量不合法",
+                    "traditional_chinese" => "字面量不合法",
+                    "english" => "invalid literal",
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
 }
 
 pub type EffectError = TyCheckError;

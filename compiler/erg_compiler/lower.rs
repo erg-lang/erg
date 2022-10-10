@@ -183,6 +183,19 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
+        let loc = lit.loc();
+        let lit = hir::Literal::try_from(lit.token).map_err(|_| {
+            LowerError::invalid_literal(
+                self.cfg.input.clone(),
+                line!() as usize,
+                loc,
+                self.ctx.caused_by(),
+            )
+        })?;
+        Ok(lit)
+    }
+
     fn lower_array(&mut self, array: ast::Array) -> LowerResult<hir::Array> {
         log!(info "entered {}({array})", fn_name!());
         match array {
@@ -481,7 +494,7 @@ impl ASTLowerer {
             }
             ast::Accessor::TupleAttr(t_attr) => {
                 let obj = self.lower_expr(*t_attr.obj)?;
-                let index = hir::Literal::from(t_attr.index.token);
+                let index = self.lower_literal(t_attr.index)?;
                 let n = enum_unwrap!(index.value, ValueObj::Nat);
                 let t = enum_unwrap!(
                     obj.ref_t().typarams().get(n as usize).unwrap().clone(),
@@ -1256,7 +1269,7 @@ impl ASTLowerer {
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
+            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),

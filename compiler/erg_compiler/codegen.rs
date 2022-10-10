@@ -29,7 +29,7 @@ use erg_type::value::ValueObj;
 use erg_type::{HasType, Type, TypeCode, TypePair};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
-use crate::context::eval::eval_lit;
+use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
@@ -1352,7 +1352,11 @@ impl CodeGenerator {
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Lit(lit) => {
-                self.emit_load_const(eval_lit(&lit));
+                let value = {
+                    let t = type_from_token_kind(lit.token.kind);
+                    ValueObj::from_str(t, lit.token.content).unwrap()
+                };
+                self.emit_load_const(value);
                 self.write_instr(Opcode::COMPARE_OP);
                 self.write_arg(2); // ==
                 self.stack_dec();
@@ -1920,7 +1924,7 @@ impl CodeGenerator {
                     attrs.push(Expr::AttrDef(attr_def));
                 }
                 let none = Token::new(TokenKind::NoneLit, "None", line, 0);
-                attrs.push(Expr::Lit(Literal::from(none)));
+                attrs.push(Expr::Lit(Literal::try_from(none).unwrap()));
             }
             other => todo!("{other}"),
         }
