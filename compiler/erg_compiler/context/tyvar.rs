@@ -705,9 +705,18 @@ impl Context {
                     Ok(())
                 }
             },
-            hir::Expr::Dict(_dict) => {
-                todo!()
-            }
+            hir::Expr::Dict(dict) => match dict {
+                hir::Dict::Normal(dic) => {
+                    let loc = dic.loc();
+                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, loc)?;
+                    for kv in dic.kvs.iter_mut() {
+                        self.resolve_expr_t(&mut kv.key)?;
+                        self.resolve_expr_t(&mut kv.value)?;
+                    }
+                    Ok(())
+                }
+                other => todo!("{other}"),
+            },
             hir::Expr::Record(record) => {
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {

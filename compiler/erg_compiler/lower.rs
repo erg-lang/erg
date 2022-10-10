@@ -493,17 +493,17 @@ impl ASTLowerer {
             let loc = kv.loc();
             let key = self.lower_expr(kv.key)?;
             let value = self.lower_expr(kv.value)?;
-            if union.insert(key.t(), value.t()).is_none() {
+            if union.insert(key.t(), value.t()).is_some() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
                     AtomicStr::arc(&self.ctx.name[..]),
                     switch_lang!(
-                        "japanese" => "集合の要素は全て同じ型である必要があります",
-                        "simplified_chinese" => "集合元素必须全部是相同类型",
-                        "traditional_chinese" => "集合元素必須全部是相同類型",
-                        "english" => "all elements of a set must be of the same type",
+                        "japanese" => "Dictの値は全て同じ型である必要があります",
+                        "simplified_chinese" => "Dict的值必须是同一类型",
+                        "traditional_chinese" => "Dict的值必須是同一類型",
+                        "english" => "Values of Dict must be the same type",
                     ),
                     Some(
                         switch_lang!(
@@ -518,12 +518,14 @@ impl ASTLowerer {
             }
             new_kvs.push(hir::KeyValue::new(key, value));
         }
-        /*let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
-        let loc = Location::concat(&dict.l_brace, &dict.r_brace);
-        // check if elem_t is Eq
-        if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, loc, None) {
-            self.errs.extend(errs.into_iter());
-        }*/
+        for key_t in union.keys() {
+            let sup = builtin_poly("Eq", vec![TyParam::t(key_t.clone())]);
+            let loc = Location::concat(&dict.l_brace, &dict.r_brace);
+            // check if key_t is Eq
+            if let Err(errs) = self.ctx.sub_unify(key_t, &sup, loc, None) {
+                self.errs.extend(errs.into_iter());
+            }
+        }
         let kv_ts = if union.is_empty() {
             dict! {
                 ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type))) =>

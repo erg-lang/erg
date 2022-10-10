@@ -176,7 +176,7 @@ impl OwnershipChecker {
                         self.check_expr(&kv.value, ownership, false);
                     }
                 }
-                _ => todo!(),
+                other => todo!("{other}"),
             },
             Expr::Record(rec) => {
                 for def in rec.attrs.iter() {

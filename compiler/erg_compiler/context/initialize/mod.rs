@@ -958,6 +958,12 @@ impl Context {
         );
         set_type.register_superclass(set_t.clone(), &set_);
         set_type.register_superclass(Type, &type_);
+        let dict_t = builtin_poly("Dict", vec![mono_q_tp("D")]);
+        let mut dict_ =
+            // TODO: D <: GenericDict
+            Self::builtin_poly_class("Dict", vec![PS::named_nd("D", builtin_mono("GenericDict"))], 10);
+        dict_.register_superclass(Obj, &obj);
+        dict_.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("D"))]));
         /* Bytes */
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
@@ -1494,6 +1500,7 @@ impl Context {
         self.register_builtin_type(array_type_t, array_type, Const);
         self.register_builtin_type(set_t, set_, Const);
         self.register_builtin_type(set_type_t, set_type, Const);
+        self.register_builtin_type(dict_t, dict_, Const);
         self.register_builtin_type(builtin_mono("Bytes"), bytes, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
         self.register_builtin_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);

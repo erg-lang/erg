@@ -12,7 +12,7 @@ use Visibility::*;
 use erg_type::HasType;
 
 use crate::error::{EffectError, EffectErrors};
-use crate::hir::{Array, Def, Expr, Signature, Tuple, HIR};
+use crate::hir::{Array, Def, Dict, Expr, Set, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -143,15 +143,24 @@ impl SideEffectChecker {
                     self.block_stack.pop();
                 }
                 Expr::Set(set) => match set {
-                    crate::hir::Set::Normal(set) => {
+                    Set::Normal(set) => {
                         for elem in set.elems.pos_args.iter() {
                             self.check_expr(&elem.expr);
                         }
                     }
-                    crate::hir::Set::WithLength(set) => {
+                    Set::WithLength(set) => {
                         self.check_expr(&set.elem);
                         self.check_expr(&set.len);
                     }
+                },
+                Expr::Dict(dict) => match dict {
+                    Dict::Normal(dict) => {
+                        for kv in dict.kvs.iter() {
+                            self.check_expr(&kv.key);
+                            self.check_expr(&kv.value);
+                        }
+                    }
+                    other => todo!("{other}"),
                 },
                 Expr::TypeAsc(tasc) => {
                     self.check_expr(&tasc.expr);
@@ -294,15 +303,24 @@ impl SideEffectChecker {
                 self.block_stack.pop();
             }
             Expr::Set(set) => match set {
-                crate::hir::Set::Normal(set) => {
+                Set::Normal(set) => {
                     for elem in set.elems.pos_args.iter() {
                         self.check_expr(&elem.expr);
                     }
                 }
-                crate::hir::Set::WithLength(set) => {
+                Set::WithLength(set) => {
                     self.check_expr(&set.elem);
                     self.check_expr(&set.len);
                 }
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dict) => {
+                    for kv in dict.kvs.iter() {
+                        self.check_expr(&kv.key);
+                        self.check_expr(&kv.value);
+                    }
+                }
+                other => todo!("{other}"),
             },
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {

@@ -83,9 +83,15 @@ impl<'a> Linker<'a> {
                     self.replace_import(&mut st.len);
                 }
             },
-            Expr::Dict(_dict) => {
-                todo!()
-            }
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dic) => {
+                    for elem in dic.kvs.iter_mut() {
+                        self.replace_import(&mut elem.key);
+                        self.replace_import(&mut elem.value);
+                    }
+                }
+                other => todo!("{other}"),
+            },
             Expr::Record(record) => {
                 for attr in record.attrs.iter_mut() {
                     for chunk in attr.body.block.iter_mut() {

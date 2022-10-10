@@ -1752,6 +1752,23 @@ impl CodeGenerator {
                     self.write_arg(1u8);
                 }
             },
+            Expr::Dict(dict) => match dict {
+                crate::hir::Dict::Normal(dic) => {
+                    let len = dic.kvs.len();
+                    for kv in dic.kvs.into_iter() {
+                        self.emit_expr(kv.key);
+                        self.emit_expr(kv.value);
+                    }
+                    self.write_instr(BUILD_MAP);
+                    self.write_arg(len as u8);
+                    if len == 0 {
+                        self.stack_inc();
+                    } else {
+                        self.stack_dec_n(len - 1);
+                    }
+                }
+                other => todo!("{other}"),
+            },
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
                 let code = self.emit_block(code, None, vec![]);
@@ -1767,9 +1784,8 @@ impl CodeGenerator {
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
             }
-            // Dict,
             other => {
-                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "Dict", "".into())
+                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "??", "".into())
                     .write_to_stderr();
                 self.crash("cannot compile this expression at this time");
             }
