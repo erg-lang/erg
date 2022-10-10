@@ -461,15 +461,30 @@ impl Lexer /*<'a>*/ {
         let mut num = mantissa;
         debug_power_assert!(self.peek_cur_ch(), ==, Some('e'));
         num.push(self.consume().unwrap()); // e
-        num.push(self.consume().unwrap()); // + | -
-        while let Some(cur) = self.peek_cur_ch() {
-            if cur.is_ascii_digit() || cur == '_' {
-                num.push(self.consume().unwrap());
-            } else {
-                break;
+        if self.peek_cur_ch().is_some() {
+            num.push(self.consume().unwrap()); // + | -
+            while let Some(cur) = self.peek_cur_ch() {
+                if cur.is_ascii_digit() || cur == '_' {
+                    num.push(self.consume().unwrap());
+                } else {
+                    break;
+                }
             }
+            Ok(self.emit_token(RatioLit, &num))
+        } else {
+            let token = self.emit_token(RatioLit, &num);
+            Err(LexError::syntax_error(
+                0,
+                token.loc(),
+                switch_lang!(
+                    "japanese" => format!("`{}`は無効な十進数リテラルです", &token.content),
+                    "simplified_chinese" => format!("`{}`是无效的十进制字词", &token.content),
+                    "traditional_chinese" => format!("`{}`是無效的十進製文字", &token.content),
+                    "english" => format!("`{}` is invalid decimal literal", &token.content),
+                ),
+                None,
+            ))
         }
-        Ok(self.emit_token(RatioLit, &num))
     }
 
     /// `_` will be removed at compiletime
