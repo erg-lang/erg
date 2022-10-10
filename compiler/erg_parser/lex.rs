@@ -478,8 +478,8 @@ impl Lexer /*<'a>*/ {
                 token.loc(),
                 switch_lang!(
                     "japanese" => format!("`{}`は無効な十進数リテラルです", &token.content),
-                    "simplified_chinese" => format!("`{}`是无效的十进制字词", &token.content),
-                    "traditional_chinese" => format!("`{}`是無效的十進製文字", &token.content),
+                    "simplified_chinese" => format!("`{}`是无效的十进制字面量", &token.content),
+                    "traditional_chinese" => format!("`{}`是無效的十進位字面量", &token.content),
                     "english" => format!("`{}` is invalid decimal literal", &token.content),
                 ),
                 None,
