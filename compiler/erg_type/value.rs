@@ -406,27 +406,35 @@ impl ValueObj {
         matches!(self, Self::Mut(_))
     }
 
-    pub fn from_str(t: Type, content: Str) -> Self {
+    pub fn from_str(t: Type, content: Str) -> Option<Self> {
         match t {
-            Type::Int => Self::Int(content.replace('_', "").parse::<i32>().unwrap()),
-            Type::Nat => Self::Nat(content.replace('_', "").parse::<u64>().unwrap()),
-            Type::Float => Self::Float(content.replace('_', "").parse::<f64>().unwrap()),
+            Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),
+            Type::Nat => content.replace('_', "").parse::<u64>().ok().map(Self::Nat),
+            Type::Float => content
+                .replace('_', "")
+                .parse::<f64>()
+                .ok()
+                .map(Self::Float),
             // TODO:
-            Type::Ratio => Self::Float(content.replace('_', "").parse::<f64>().unwrap()),
+            Type::Ratio => content
+                .replace('_', "")
+                .parse::<f64>()
+                .ok()
+                .map(Self::Float),
             Type::Str => {
                 if &content[..] == "\"\"" {
-                    Self::Str(Str::from(""))
+                    Some(Self::Str(Str::from("")))
                 } else {
                     let replaced = content.trim_start_matches('\"').trim_end_matches('\"');
-                    Self::Str(Str::rc(replaced))
+                    Some(Self::Str(Str::rc(replaced)))
                 }
             }
-            Type::Bool => Self::Bool(&content[..] == "True"),
-            Type::NoneType => Self::None,
-            Type::Ellipsis => Self::Ellipsis,
-            Type::NotImplemented => Self::NotImplemented,
-            Type::Inf => Self::Inf,
-            Type::NegInf => Self::NegInf,
+            Type::Bool => Some(Self::Bool(&content[..] == "True")),
+            Type::NoneType => Some(Self::None),
+            Type::Ellipsis => Some(Self::Ellipsis),
+            Type::NotImplemented => Some(Self::NotImplemented),
+            Type::Inf => Some(Self::Inf),
+            Type::NegInf => Some(Self::NegInf),
             _ => todo!("{t} {content}"),
         }
     }
@@ -534,7 +542,7 @@ impl ValueObj {
                 Self::None => Type::NoneType,
                 other => panic!("{other} object cannot be mutated"),
             },
-            Self::Illegal => todo!(),
+            Self::Illegal => Type::Failure,
         }
     }
 

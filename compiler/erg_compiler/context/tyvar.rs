@@ -671,6 +671,13 @@ impl Context {
                     }
                     Ok(())
                 }
+                hir::Array::WithLength(arr) => {
+                    let loc = arr.loc();
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, loc)?;
+                    self.resolve_expr_t(&mut arr.elem)?;
+                    self.resolve_expr_t(&mut arr.len)?;
+                    Ok(())
+                }
                 _ => todo!(),
             },
             hir::Expr::Tuple(tuple) => match tuple {
@@ -683,12 +690,20 @@ impl Context {
             },
             hir::Expr::Set(set) => match set {
                 hir::Set::Normal(st) => {
+                    let loc = st.loc();
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, loc)?;
                     for elem in st.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
-                hir::Set::WithLength(_) => todo!(),
+                hir::Set::WithLength(st) => {
+                    let loc = st.loc();
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, loc)?;
+                    self.resolve_expr_t(&mut st.elem)?;
+                    self.resolve_expr_t(&mut st.len)?;
+                    Ok(())
+                }
             },
             hir::Expr::Dict(_dict) => {
                 todo!()

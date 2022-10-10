@@ -109,9 +109,14 @@ impl Context {
             panic!("{} has already been registered as const", t.name());
         } else {
             let name = VarName::from_str(t.name());
+            let meta_t = match ctx.kind {
+                ContextKind::Class => Type::ClassType,
+                ContextKind::Trait => Type::TraitType,
+                _ => Type::Type,
+            };
             self.locals.insert(
                 name.clone(),
-                VarInfo::new(Type, muty, Private, Builtin, None),
+                VarInfo::new(meta_t, muty, Private, Builtin, None),
             );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
@@ -156,9 +161,14 @@ impl Context {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
             let name = VarName::from_str(t.name());
+            let meta_t = match ctx.kind {
+                ContextKind::Class => Type::ClassType,
+                ContextKind::Trait => Type::TraitType,
+                _ => Type::Type,
+            };
             self.locals.insert(
                 name.clone(),
-                VarInfo::new(Type, muty, Private, Builtin, None),
+                VarInfo::new(meta_t, muty, Private, Builtin, None),
             );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
@@ -203,7 +213,7 @@ impl Context {
             let name = VarName::from_static(name);
             self.locals.insert(
                 name.clone(),
-                VarInfo::new(Type, muty, Private, Builtin, None),
+                VarInfo::new(Patch, muty, Private, Builtin, None),
             );
             for method_name in ctx.locals.keys() {
                 if let Some(patches) = self.method_impl_patches.get_mut(method_name) {
@@ -454,7 +464,7 @@ impl Context {
         /* Obj */
         let mut obj = Self::builtin_mono_class("Obj", 2);
         let t = fn0_met(mono_q("Self"), mono_q("Self"));
-        let t = quant(t, set! {subtypeof(mono_q("Self"), builtin_mono("Obj"))});
+        let t = quant(t, set! {subtypeof(mono_q("Self"), Obj)});
         obj.register_builtin_impl("clone", t, Const, Public);
         obj.register_builtin_impl("__module__", Str, Const, Public);
         obj.register_builtin_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
@@ -469,10 +479,11 @@ impl Context {
         );
         let mut obj_in = Self::builtin_methods("In", 2);
         obj_in.register_builtin_impl("__in__", fn1_met(Obj, Type, Bool), Const, Public);
-        obj.register_trait(Obj, builtin_poly("Eq", vec![ty_tp(Type)]), obj_in);
+        obj.register_trait(Obj, builtin_poly("In", vec![ty_tp(Type)]), obj_in);
         let mut obj_mutizable = Self::builtin_methods("Mutizable", 1);
         obj_mutizable.register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Obj!")));
         obj.register_trait(Obj, builtin_mono("Mutizable"), obj_mutizable);
+        // Obj does not implement Eq
 
         /* Float */
         let mut float = Self::builtin_mono_class("Float", 2);
@@ -760,6 +771,24 @@ impl Context {
         let mut str_show = Self::builtin_methods("Show", 1);
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
         str_.register_trait(Str, builtin_mono("Show"), str_show);
+        /* NoneType */
+        let mut nonetype = Self::builtin_mono_class("NoneType", 10);
+        nonetype.register_superclass(Obj, &obj);
+        let mut nonetype_eq = Self::builtin_methods("Eq", 2);
+        nonetype_eq.register_builtin_impl(
+            "__eq__",
+            fn1_met(NoneType, NoneType, Bool),
+            Const,
+            Public,
+        );
+        nonetype.register_trait(
+            NoneType,
+            builtin_poly("Eq", vec![ty_tp(NoneType)]),
+            nonetype_eq,
+        );
+        let mut nonetype_show = Self::builtin_methods("Show", 1);
+        nonetype_show.register_builtin_impl("to_str", fn0_met(NoneType, Str), Immutable, Public);
+        nonetype.register_trait(NoneType, builtin_mono("Show"), nonetype_show);
         /* Type */
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
@@ -782,6 +811,21 @@ impl Context {
             ClassType,
             builtin_poly("Eq", vec![ty_tp(ClassType)]),
             class_eq,
+        );
+        let mut trait_type = Self::builtin_mono_class("TraitType", 2);
+        trait_type.register_superclass(Type, &type_);
+        trait_type.register_marker_trait(builtin_mono("Named"));
+        let mut trait_eq = Self::builtin_methods("Eq", 2);
+        trait_eq.register_builtin_impl(
+            "__eq__",
+            fn1_met(TraitType, TraitType, Bool),
+            Const,
+            Public,
+        );
+        trait_type.register_trait(
+            TraitType,
+            builtin_poly("Eq", vec![ty_tp(TraitType)]),
+            trait_eq,
         );
         let g_module_t = builtin_mono("GenericModule");
         let mut generic_module = Self::builtin_mono_class("GenericModule", 2);
@@ -849,7 +893,15 @@ impl Context {
             Immutable,
             Public,
         );
-        array_.register_trait(array_t, builtin_mono("Show"), array_show);
+        array_.register_trait(array_t.clone(), builtin_mono("Show"), array_show);
+        let array_type_t = builtin_poly("ArrayType", vec![mono_q_tp("T"), mono_q_tp("N")]);
+        let mut array_type = Self::builtin_poly_class(
+            "ArrayType",
+            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
+            2,
+        );
+        array_type.register_superclass(array_t.clone(), &array_);
+        array_type.register_superclass(Type, &type_);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -892,6 +944,14 @@ impl Context {
         let mut set_show = Self::builtin_methods("Show", 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
         set_.register_trait(set_t.clone(), builtin_mono("Show"), set_show);
+        let set_type_t = builtin_poly("SetType", vec![mono_q_tp("T"), mono_q_tp("N")]);
+        let mut set_type = Self::builtin_poly_class(
+            "SetType",
+            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
+            2,
+        );
+        set_type.register_superclass(set_t.clone(), &set_);
+        set_type.register_superclass(Type, &type_);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
@@ -1117,243 +1177,16 @@ impl Context {
             ),
             tuple5_eq,
         );
-        let mut tuple6 = Self::builtin_poly_class(
-            "Tuple6",
-            vec![
-                PS::t_nd("A"),
-                PS::t_nd("B"),
-                PS::t_nd("C"),
-                PS::t_nd("D"),
-                PS::t_nd("E"),
-                PS::t_nd("F"),
-            ],
-            2,
-        );
-        tuple6.register_superclass(builtin_mono("Tuple"), &tuple_);
-        let mut tuple6_eq = Self::builtin_methods("Eq", 2);
-        tuple6_eq.register_builtin_impl(
-            "__eq__",
-            fn1_met(
-                builtin_poly(
-                    "Tuple6",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                    ],
-                ),
-                builtin_poly(
-                    "Tuple6",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                    ],
-                ),
-                Bool,
-            ),
-            Const,
-            Public,
-        );
-        tuple6.register_trait(
-            builtin_poly(
-                "Tuple6",
-                vec![
-                    ty_tp(mono_q("A")),
-                    ty_tp(mono_q("B")),
-                    ty_tp(mono_q("C")),
-                    ty_tp(mono_q("D")),
-                    ty_tp(mono_q("E")),
-                    ty_tp(mono_q("F")),
-                ],
-            ),
-            builtin_poly(
-                "Eq",
-                vec![ty_tp(builtin_poly(
-                    "Tuple6",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                    ],
-                ))],
-            ),
-            tuple6_eq,
-        );
-        let mut tuple7 = Self::builtin_poly_class(
-            "Tuple7",
-            vec![
-                PS::t_nd("A"),
-                PS::t_nd("B"),
-                PS::t_nd("C"),
-                PS::t_nd("D"),
-                PS::t_nd("E"),
-                PS::t_nd("F"),
-                PS::t_nd("G"),
-            ],
-            2,
-        );
-        tuple7.register_superclass(builtin_mono("Tuple"), &tuple_);
-        let mut tuple7_eq = Self::builtin_methods("Eq", 2);
-        tuple7_eq.register_builtin_impl(
-            "__eq__",
-            fn1_met(
-                builtin_poly(
-                    "Tuple7",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                    ],
-                ),
-                builtin_poly(
-                    "Tuple7",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                    ],
-                ),
-                Bool,
-            ),
-            Const,
-            Public,
-        );
-        tuple7.register_trait(
-            builtin_poly(
-                "Tuple7",
-                vec![
-                    ty_tp(mono_q("A")),
-                    ty_tp(mono_q("B")),
-                    ty_tp(mono_q("C")),
-                    ty_tp(mono_q("D")),
-                    ty_tp(mono_q("E")),
-                    ty_tp(mono_q("F")),
-                    ty_tp(mono_q("G")),
-                ],
-            ),
-            builtin_poly(
-                "Eq",
-                vec![ty_tp(builtin_poly(
-                    "Tuple7",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                    ],
-                ))],
-            ),
-            tuple7_eq,
-        );
-        let mut tuple8 = Self::builtin_poly_class(
-            "Tuple8",
-            vec![
-                PS::t_nd("A"),
-                PS::t_nd("B"),
-                PS::t_nd("C"),
-                PS::t_nd("D"),
-                PS::t_nd("E"),
-                PS::t_nd("F"),
-                PS::t_nd("G"),
-                PS::t_nd("H"),
-            ],
-            2,
-        );
-        tuple8.register_superclass(builtin_mono("Tuple"), &tuple_);
-        let mut tuple8_eq = Self::builtin_methods("Eq", 2);
-        tuple8_eq.register_builtin_impl(
-            "__eq__",
-            fn1_met(
-                builtin_poly(
-                    "Tuple8",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                        ty_tp(mono_q("H")),
-                    ],
-                ),
-                builtin_poly(
-                    "Tuple8",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                        ty_tp(mono_q("H")),
-                    ],
-                ),
-                Bool,
-            ),
-            Const,
-            Public,
-        );
-        tuple8.register_trait(
-            builtin_poly(
-                "Tuple8",
-                vec![
-                    ty_tp(mono_q("A")),
-                    ty_tp(mono_q("B")),
-                    ty_tp(mono_q("C")),
-                    ty_tp(mono_q("D")),
-                    ty_tp(mono_q("E")),
-                    ty_tp(mono_q("F")),
-                    ty_tp(mono_q("G")),
-                    ty_tp(mono_q("H")),
-                ],
-            ),
-            builtin_poly(
-                "Eq",
-                vec![ty_tp(builtin_poly(
-                    "Tuple8",
-                    vec![
-                        ty_tp(mono_q("A")),
-                        ty_tp(mono_q("B")),
-                        ty_tp(mono_q("C")),
-                        ty_tp(mono_q("D")),
-                        ty_tp(mono_q("E")),
-                        ty_tp(mono_q("F")),
-                        ty_tp(mono_q("G")),
-                        ty_tp(mono_q("H")),
-                    ],
-                ))],
-            ),
-            tuple8_eq,
-        );
         /* record */
         let mut record = Self::builtin_mono_class("Record", 2);
         record.register_superclass(Obj, &obj);
         let mut record_type = Self::builtin_mono_class("RecordType", 2);
         record_type.register_superclass(builtin_mono("Record"), &record);
-        record_type.register_superclass(builtin_mono("Type"), &type_);
+        record_type.register_superclass(Type, &type_);
+        /* Or (true or type) */
+        let or_t = builtin_poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
+        let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
+        or.register_superclass(Obj, &obj);
         /* Float_mut */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
@@ -1378,15 +1211,7 @@ impl Context {
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods("Mutable", 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Ratio));
-        let f_t = kw(
-            "f",
-            func(
-                vec![kw("old", builtin_mono("Ratio"))],
-                None,
-                vec![],
-                builtin_mono("Ratio"),
-            ),
-        );
+        let f_t = kw("f", func(vec![kw("old", Ratio)], None, vec![], Ratio));
         let t = pr_met(
             ref_mut(builtin_mono("Ratio!"), None),
             vec![f_t],
@@ -1462,7 +1287,7 @@ impl Context {
         );
         /* Str_mut */
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
-        str_mut.register_superclass(Str, &str_);
+        str_mut.register_superclass(Str, &nonetype);
         let mut str_mut_mutable = Self::builtin_methods("Mutable", 2);
         str_mut_mutable.register_builtin_const("ImmutType", ValueObj::builtin_t(Str));
         let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
@@ -1500,7 +1325,6 @@ impl Context {
             file_mut_readable,
         );
         /* Array_mut */
-        let array_t = builtin_poly("Array", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let array_mut_t = builtin_poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
             "Array!",
@@ -1617,7 +1441,8 @@ impl Context {
         /* Range */
         let range_t = builtin_poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
-        range.register_superclass(Obj, &obj);
+        // range.register_superclass(Obj, &obj);
+        range.register_superclass(Type, &type_);
         range.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("T"))]));
         let mut range_eq = Self::builtin_methods("Eq", 2);
         range_eq.register_builtin_impl(
@@ -1653,12 +1478,16 @@ impl Context {
         self.register_builtin_type(Ratio, ratio, Const);
         self.register_builtin_type(Bool, bool_, Const);
         self.register_builtin_type(Str, str_, Const);
+        self.register_builtin_type(NoneType, nonetype, Const);
         self.register_builtin_type(Type, type_, Const);
         self.register_builtin_type(ClassType, class_type, Const);
+        self.register_builtin_type(TraitType, trait_type, Const);
         self.register_builtin_type(g_module_t, generic_module, Const);
         self.register_builtin_type(module_t, module, Const);
         self.register_builtin_type(array_t, array_, Const);
+        self.register_builtin_type(array_type_t, array_type, Const);
         self.register_builtin_type(set_t, set_, Const);
+        self.register_builtin_type(set_type_t, set_type, Const);
         self.register_builtin_type(builtin_mono("Bytes"), bytes, Const);
         self.register_builtin_type(tuple(vec![mono_q("A")]), tuple1, Const);
         self.register_builtin_type(tuple(vec![mono_q("A"), mono_q("B")]), tuple2, Const);
@@ -1683,47 +1512,9 @@ impl Context {
             tuple5,
             Const,
         );
-        self.register_builtin_type(
-            tuple(vec![
-                mono_q("A"),
-                mono_q("B"),
-                mono_q("C"),
-                mono_q("D"),
-                mono_q("E"),
-                mono_q("F"),
-            ]),
-            tuple6,
-            Const,
-        );
-        self.register_builtin_type(
-            tuple(vec![
-                mono_q("A"),
-                mono_q("B"),
-                mono_q("C"),
-                mono_q("D"),
-                mono_q("E"),
-                mono_q("F"),
-                mono_q("G"),
-            ]),
-            tuple7,
-            Const,
-        );
-        self.register_builtin_type(
-            tuple(vec![
-                mono_q("A"),
-                mono_q("B"),
-                mono_q("C"),
-                mono_q("D"),
-                mono_q("E"),
-                mono_q("F"),
-                mono_q("G"),
-                mono_q("H"),
-            ]),
-            tuple8,
-            Const,
-        );
         self.register_builtin_type(builtin_mono("Record"), record, Const);
         self.register_builtin_type(builtin_mono("RecordType"), record_type, Const);
+        self.register_builtin_type(or_t, or, Const);
         self.register_builtin_type(builtin_mono("Int!"), int_mut, Const);
         self.register_builtin_type(builtin_mono("Nat!"), nat_mut, Const);
         self.register_builtin_type(builtin_mono("Float!"), float_mut, Const);
@@ -1744,11 +1535,18 @@ impl Context {
 
     fn init_builtin_funcs(&mut self) {
         let t_abs = nd_func(vec![kw("n", builtin_mono("Num"))], None, Nat);
+        let t_ascii = nd_func(vec![kw("object", Obj)], None, Str);
         let t_assert = func(
             vec![kw("condition", Bool)],
             None,
             vec![kw("err_message", Str)],
             NoneType,
+        );
+        let t_bin = nd_func(vec![kw("n", Int)], None, Str);
+        let t_chr = nd_func(
+            vec![kw("i", Type::from(value(0usize)..=value(1_114_111usize)))],
+            None,
+            Str,
         );
         let t_classof = nd_func(vec![kw("old", Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw("src", Str)], None, Code);
@@ -1786,6 +1584,27 @@ impl Context {
             module(mono_q_tp("Path")),
         );
         let t_import = quant(t_import, set! {static_instance("Path", Str)});
+        let t_isinstance = nd_func(
+            vec![
+                kw("object", Obj),
+                kw("classinfo", ClassType), // TODO: => ClassInfo
+            ],
+            None,
+            Bool,
+        );
+        let t_issubclass = nd_func(
+            vec![
+                kw("subclass", ClassType),
+                kw("classinfo", ClassType), // TODO: => ClassInfo
+            ],
+            None,
+            Bool,
+        );
+        let t_len = nd_func(
+            vec![kw("s", builtin_poly("Seq", vec![TyParam::erased(Type)]))],
+            None,
+            Nat,
+        );
         let t_log = func(
             vec![],
             Some(kw("objects", ref_(Obj))),
@@ -1797,31 +1616,57 @@ impl Context {
             ],
             NoneType,
         );
+        let t_oct = nd_func(vec![kw("x", Int)], None, Str);
+        let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
+        let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
+        let m = mono_q("M");
+        // TODO: mod
+        let t_pow = nd_func(
+            vec![kw("base", m.clone()), kw("exp", m.clone())],
+            None,
+            m.clone(),
+        );
+        let t_pow = quant(
+            t_pow,
+            set! {static_instance("M", builtin_poly("Mul", vec![ty_tp(m)]))},
+        );
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
             None,
             module(mono_q_tp("Path")),
         );
-        let t_panic = nd_func(vec![kw("err_message", Str)], None, NoneType);
         let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
+        let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
+        let t_round = nd_func(vec![kw("number", Float)], None, Int);
         self.register_builtin_impl("abs", t_abs, Immutable, Private);
+        self.register_builtin_impl("ascii", t_ascii, Immutable, Private);
         self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        self.register_builtin_impl("bin", t_bin, Immutable, Private);
+        self.register_builtin_impl("chr", t_chr, Immutable, Private);
         self.register_builtin_impl("classof", t_classof, Immutable, Private);
         self.register_builtin_impl("compile", t_compile, Immutable, Private);
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
         self.register_builtin_impl("discard", t_discard, Immutable, Private);
         self.register_builtin_impl("exit", t_exit, Immutable, Private);
         self.register_builtin_impl("if", t_if, Immutable, Private);
-        self.register_builtin_impl("log", t_log, Immutable, Private);
         self.register_builtin_impl("import", t_import, Immutable, Private);
+        self.register_builtin_impl("isinstance", t_isinstance, Immutable, Private);
+        self.register_builtin_impl("issubclass", t_issubclass, Immutable, Private);
+        self.register_builtin_impl("len", t_len, Immutable, Private);
+        self.register_builtin_impl("log", t_log, Immutable, Private);
+        self.register_builtin_impl("oct", t_oct, Immutable, Private);
+        self.register_builtin_impl("ord", t_ord, Immutable, Private);
         self.register_builtin_impl("panic", t_panic, Immutable, Private);
+        self.register_builtin_impl("pow", t_pow, Immutable, Private);
         if cfg!(feature = "debug") {
             self.register_builtin_impl("py", t_pyimport.clone(), Immutable, Private);
         }
         self.register_builtin_impl("pyimport", t_pyimport, Immutable, Private);
         self.register_builtin_impl("quit", t_quit, Immutable, Private);
+        self.register_builtin_impl("repr", t_repr, Immutable, Private);
+        self.register_builtin_impl("round", t_round, Immutable, Private);
     }
 
     fn init_builtin_const_funcs(&mut self) {
@@ -2051,7 +1896,7 @@ impl Context {
         self.register_builtin_decl("__rorng__", op_t.clone(), Private);
         self.register_builtin_decl("__orng__", op_t, Private);
         // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
-        let op_t = bin_op(mono_q("T"), mono_q("I"), Bool);
+        let op_t = bin_op(mono_q("I"), mono_q("T"), Bool);
         let op_t = quant(
             op_t,
             set! { static_instance("T", Type), subtypeof(mono_q("I"), builtin_poly("In", vec![ty_tp(mono_q("T"))])) },

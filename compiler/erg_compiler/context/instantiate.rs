@@ -26,7 +26,6 @@ use erg_type::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
 use TyParamOrdering::*;
 use Type::*;
 
-use crate::context::eval::eval_lit;
 use crate::context::{Context, RegistrationMode};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
@@ -577,7 +576,7 @@ impl Context {
             self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_ctx, mode)?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => v_enum(set![eval_lit(lit)]),
+                ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -613,7 +612,7 @@ impl Context {
         let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_ctx, mode)?;
         match (sig.inspect(), &sig.opt_default_val) {
             (Some(name), Some(default)) => {
-                let default = self.instantiate_const_expr(default);
+                let default = self.instantiate_const_expr(default)?;
                 Ok(ParamTy::kw_default(
                     name.clone(),
                     t,
@@ -665,7 +664,7 @@ impl Context {
                 if let Some(first) = args.next() {
                     let t = self.instantiate_const_expr_as_type(&first.expr)?;
                     let len = args.next().unwrap();
-                    let len = self.instantiate_const_expr(&len.expr);
+                    let len = self.instantiate_const_expr(&len.expr)?;
                     Ok(array(t, len))
                 } else {
                     Ok(builtin_mono("GenericArray"))
@@ -707,23 +706,28 @@ impl Context {
             }
             other => {
                 // FIXME: kw args
-                let params = simple.args.pos_args().map(|arg| match &arg.expr {
-                    ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(lit)),
-                    _ => {
-                        todo!()
+                let mut new_params = vec![];
+                for arg in simple.args.pos_args() {
+                    match &arg.expr {
+                        ast::ConstExpr::Lit(lit) => {
+                            new_params.push(TyParam::Value(self.eval_lit(lit)?));
+                        }
+                        _ => {
+                            todo!()
+                        }
                     }
-                });
+                }
                 // FIXME: non-builtin
-                Ok(builtin_poly(Str::rc(other), params.collect()))
+                Ok(builtin_poly(Str::rc(other), new_params))
             }
         }
     }
 
-    pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyParam {
+    pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyCheckResult<TyParam> {
         match expr {
-            ast::ConstExpr::Lit(lit) => TyParam::Value(eval_lit(lit)),
+            ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                TyParam::Mono(name.inspect().clone())
+                Ok(TyParam::Mono(name.inspect().clone()))
             }
             _ => todo!(),
         }
@@ -780,13 +784,13 @@ impl Context {
             )),
             TypeSpec::Array(arr) => {
                 let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
-                let len = self.instantiate_const_expr(&arr.len);
-                Ok(array(elem_t, len))
+                let len = self.instantiate_const_expr(&arr.len)?;
+                Ok(builtin_poly("ArrayType", vec![ty_tp(elem_t), len]))
             }
             TypeSpec::Set(set) => {
                 let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
-                let len = self.instantiate_const_expr(&set.len);
-                Ok(erg_type::constructors::set(elem_t, len))
+                let len = self.instantiate_const_expr(&set.len)?;
+                Ok(builtin_poly("SetType", vec![ty_tp(elem_t), len]))
             }
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(tuple(
@@ -797,18 +801,18 @@ impl Context {
                     })
                     .collect(),
             )),
-            // TODO: エラー処理(リテラルでない、ダブりがある)はパーサーにやらせる
-            TypeSpec::Enum(set) => Ok(v_enum(
-                set.pos_args()
-                    .map(|arg| {
-                        if let ast::ConstExpr::Lit(lit) = &arg.expr {
-                            eval_lit(lit)
-                        } else {
-                            todo!()
-                        }
-                    })
-                    .collect::<Set<_>>(),
-            )),
+            // TODO: エラー処理(リテラルでない)はパーサーにやらせる
+            TypeSpec::Enum(set) => {
+                let mut new_set = set! {};
+                for arg in set.pos_args() {
+                    if let ast::ConstExpr::Lit(lit) = &arg.expr {
+                        new_set.insert(self.eval_lit(lit)?);
+                    } else {
+                        todo!()
+                    }
+                }
+                Ok(v_enum(new_set))
+            }
             TypeSpec::Interval { op, lhs, rhs } => {
                 let op = match op.kind {
                     TokenKind::Closed => IntervalOp::Closed,
@@ -817,9 +821,9 @@ impl Context {
                     TokenKind::Open => IntervalOp::Open,
                     _ => assume_unreachable!(),
                 };
-                let l = self.instantiate_const_expr(lhs);
+                let l = self.instantiate_const_expr(lhs)?;
                 let l = self.eval_tp(&l)?;
-                let r = self.instantiate_const_expr(rhs);
+                let r = self.instantiate_const_expr(rhs)?;
                 let r = self.eval_tp(&r)?;
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")

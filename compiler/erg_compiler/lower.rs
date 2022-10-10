@@ -15,6 +15,7 @@ use erg_parser::ast;
 use erg_parser::ast::AST;
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
+use erg_parser::Parser;
 
 use erg_type::constructors::{
     array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
@@ -182,6 +183,19 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
+        let loc = lit.loc();
+        let lit = hir::Literal::try_from(lit.token).map_err(|_| {
+            LowerError::invalid_literal(
+                self.cfg.input.clone(),
+                line!() as usize,
+                loc,
+                self.ctx.caused_by(),
+            )
+        })?;
+        Ok(lit)
+    }
+
     fn lower_array(&mut self, array: ast::Array) -> LowerResult<hir::Array> {
         log!(info "entered {}({array})", fn_name!());
         match array {
@@ -260,6 +274,8 @@ impl ASTLowerer {
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
+                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
+                    builtin_poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     array(elem.t(), TyParam::Value(v))
                 }
@@ -429,6 +445,8 @@ impl ASTLowerer {
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
+                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
+                    builtin_poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set(elem.t(), TyParam::Value(v))
                 }
@@ -489,7 +507,7 @@ impl ASTLowerer {
             }
             ast::Accessor::TupleAttr(t_attr) => {
                 let obj = self.lower_expr(*t_attr.obj)?;
-                let index = hir::Literal::from(t_attr.index.token);
+                let index = self.lower_literal(t_attr.index)?;
                 let n = enum_unwrap!(index.value, ValueObj::Nat);
                 let t = enum_unwrap!(
                     obj.ref_t().typarams().get(n as usize).unwrap().clone(),
@@ -562,9 +580,27 @@ impl ASTLowerer {
         Ok(hir::UnaryOp::new(unary.op, expr, t))
     }
 
-    // TODO: single `import`
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
+        let opt_cast_to = if call.is_assert_cast() {
+            if let Some(typ) = call.assert_cast_target_type() {
+                Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
+                    let e = LowerError::new(e.into(), self.input().clone(), self.ctx.caused_by());
+                    LowerErrors::from(e)
+                })?)
+            } else {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.input().clone(),
+                    line!() as usize,
+                    call.args.loc(),
+                    self.ctx.caused_by(),
+                    "invalid assert casting type",
+                    None,
+                )));
+            }
+        } else {
+            None
+        };
         let (pos_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
@@ -597,7 +633,7 @@ impl ASTLowerer {
         } else {
             None
         };
-        let call = hir::Call::new(obj, method_name, hir_args, sig_t);
+        let mut call = hir::Call::new(obj, method_name, hir_args, sig_t);
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
@@ -621,7 +657,12 @@ impl ASTLowerer {
                     )))
                 }
             },
-            _ => {}
+            _ => {
+                if let Some(type_spec) = opt_cast_to {
+                    log!(err "cast({type_spec}): {call}");
+                    self.ctx.cast(type_spec, &mut call)?;
+                }
+            }
         }
         Ok(call)
     }
@@ -1241,7 +1282,7 @@ impl ASTLowerer {
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(hir::Literal::from(lit.token))),
+            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),

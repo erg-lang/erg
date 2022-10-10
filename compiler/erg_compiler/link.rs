@@ -59,6 +59,10 @@ impl<'a> Linker<'a> {
                         self.replace_import(&mut elem.expr);
                     }
                 }
+                Array::WithLength(arr) => {
+                    self.replace_import(&mut arr.elem);
+                    self.replace_import(&mut arr.len);
+                }
                 _ => todo!(),
             },
             Expr::Tuple(tuple) => match tuple {
@@ -74,9 +78,11 @@ impl<'a> Linker<'a> {
                         self.replace_import(&mut elem.expr);
                     }
                 }
-                Set::WithLength(_) => todo!(),
+                Set::WithLength(st) => {
+                    self.replace_import(&mut st.elem);
+                    self.replace_import(&mut st.len);
+                }
             },
-
             Expr::Dict(_dict) => {
                 todo!()
             }
@@ -241,7 +247,7 @@ impl<'a> Linker<'a> {
             mod_name_lit.ln_begin().unwrap(),
             mod_name_lit.col_begin().unwrap(),
         );
-        let mod_name = Expr::Lit(Literal::from(token));
+        let mod_name = Expr::Lit(Literal::try_from(token).unwrap());
         args.insert_pos(0, PosArg::new(mod_name));
         let line = expr.ln_begin().unwrap_or(0);
         for attr in comps {

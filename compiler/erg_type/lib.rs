@@ -1284,15 +1284,9 @@ impl PartialEq for Type {
                     rhs: rrhs,
                 },
             ) => lhs == rlhs && rhs == rrhs,
+            (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
+            (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
-            (Self::FreeVar(fv), other) => match &*fv.borrow() {
-                FreeKind::Linked(t) => t == other,
-                _ => false,
-            },
-            (self_, Self::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(t) => t == self_,
-                _ => false,
-            },
             (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
             _ => false,
         }
@@ -1922,11 +1916,6 @@ impl Type {
         matches!(self, Self::FreeVar(_))
     }
 
-    /// FIXME: `Int or Str` should be monomorphic
-    pub fn is_monomorphic(&self) -> bool {
-        matches!(self.typarams_len(), Some(0) | None)
-    }
-
     pub const fn is_callable(&self) -> bool {
         matches!(self, Self::Subr { .. } | Self::Callable { .. })
     }
@@ -1935,6 +1924,18 @@ impl Type {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }
 
+    /// See also: `is_monomorphized`
+    pub fn is_monomorphic(&self) -> bool {
+        matches!(self.typarams_len(), Some(0) | None)
+    }
+
+    /// `Set(Int, 3)` is not monomorphic but monomorphized
+    pub fn is_monomorphized(&self) -> bool {
+        matches!(self.typarams_len(), Some(0) | None)
+            || (self.has_no_qvar() && self.has_no_unbound_var())
+    }
+
+    /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {
             Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
@@ -1970,6 +1971,10 @@ impl Type {
             Self::MonoProj { lhs, .. } => lhs.has_qvar(),
             _ => false,
         }
+    }
+
+    pub fn has_no_qvar(&self) -> bool {
+        !self.has_qvar()
     }
 
     pub fn is_cachable(&self) -> bool {

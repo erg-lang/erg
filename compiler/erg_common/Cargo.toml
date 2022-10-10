@@ -1,13 +1,13 @@
 [package]
 name = "erg_common"
-version = "0.5.7"
 description = "A common components library of Erg"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/src/erg_common"
-documentation = "https://docs.rs/erg_common"
-homepage = "https://erg-lang.github.io/"
+documentation = "http://docs.rs/erg_common"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,8 +17,13 @@ japanese = []
 simplified_chinese = []
 traditional_chinese = []
 
-[dependencies]
-atty = "0.2.14"
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", default-features = false }
+[target.'cfg(target_os = "hermit")'.dependencies]
+hermit-abi = "0.1.6"
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3"
+features = ["consoleapi"]
 
 [lib]
 path = "lib.rs"

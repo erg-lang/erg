@@ -21,6 +21,7 @@ pub mod stdin;
 pub mod str;
 pub mod traits;
 pub mod tsort;
+pub mod tty;
 pub mod vis;
 
 use crate::set::Set;

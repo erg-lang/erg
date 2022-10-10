@@ -681,25 +681,26 @@ impl Context {
     pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
         let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
         if let Some(super_traits) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_traits) {
-            for sup_trait in super_traits {
-                let sup_trait = if sup_trait.has_qvar() {
-                    subst_ctx.substitute(sup_trait.clone()).unwrap()
+            for super_trait in super_traits {
+                let sup_trait = if super_trait.has_qvar() {
+                    subst_ctx.substitute(super_trait.clone()).unwrap()
                 } else {
-                    sup_trait.clone()
+                    super_trait.clone()
                 };
                 if self.sup_conforms(lhs, rhs, &sup_trait) {
                     return true;
                 }
             }
         }
-        if let Some(sup_classes) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_classes) {
-            for sup_class in sup_classes {
-                let sup_class = if sup_class.has_qvar() {
-                    subst_ctx.substitute(sup_class.clone()).unwrap()
+        if let Some(super_classes) = self.get_super_classes(rhs) {
+            for super_class in super_classes {
+                let sup_class = if super_class.has_qvar() {
+                    subst_ctx.substitute(super_class).unwrap()
                 } else {
-                    sup_class.clone()
+                    super_class
                 };
                 if self.cyclic_supertype_of(lhs, &sup_class) {
+                    log!(err "引っかかった: {lhs}, {sup_class}");
                     return true;
                 }
             }
@@ -849,6 +850,9 @@ impl Context {
 
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
+        if lhs == rhs {
+            return lhs.clone();
+        }
         // `?T or ?U` will not be unified
         // `Set!(?T, 3) or Set(?T, 3)` wii be unified to Set(?T, 3)
         if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
@@ -888,6 +892,9 @@ impl Context {
 
     /// returns intersection of two types (A and B)
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
+        if lhs == rhs {
+            return lhs.clone();
+        }
         // ?T and ?U will not be unified
         if !lhs.is_unbound_var() && !rhs.is_unbound_var() {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {

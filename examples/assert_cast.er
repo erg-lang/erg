@@ -1,0 +1,3 @@
+i: Int = 2 - 1
+assert i in Nat
+i: Nat

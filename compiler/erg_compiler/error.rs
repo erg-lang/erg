@@ -990,6 +990,30 @@ impl EvalError {
             caused_by,
         )
     }
+
+    pub fn invalid_literal(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                SyntaxError,
+                loc,
+                switch_lang!(
+                    "japanese" => "リテラルが不正です",
+                    "simplified_chinese" => "字面量不合法",
+                    "traditional_chinese" => "字面量不合法",
+                    "english" => "invalid literal",
+                ),
+                None,
+            ),
+            input,
+            caused_by,
+        )
+    }
 }
 
 pub type EffectError = TyCheckError;
@@ -1563,6 +1587,34 @@ impl LowerError {
                     "english" => format!("declarations and alias definitions are only allowed in d.er files"),
                 ),
                 None,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn invalid_type_cast_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        name: &str,
+        cast_to: &Type,
+        hint: Option<AtomicStr>,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                errno,
+                TypeError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{YELLOW}{name}{RESET}の型を{RED}{cast_to}{RESET}にキャストすることはできません"),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型无法转换为{RED}{cast_to}{RESET}"),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型無法轉換為{RED}{cast_to}{RESET}"),
+                    "english" => format!("the type of {YELLOW}{name}{RESET} cannot be cast to {RED}{cast_to}{RESET}"),
+                ),
+                hint,
             ),
             input,
             caused_by,

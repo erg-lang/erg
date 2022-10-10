@@ -1,25 +1,25 @@
 [package]
 name = "erg_type"
-version = "0.5.7"
 description = "APIs for Erg types"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg/tree/main/compiler/erg_type"
-documentation = "https://docs.rs/erg_type"
-homepage = "https://erg-lang.github.io/"
+documentation = "http://docs.rs/erg_type"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-debug = [ "erg_common/debug" ]
-japanese = [ "erg_common/japanese" ]
-simplified_chinese = [ "erg_common/simplified_chinese" ]
-traditional_chinese = [ "erg_common/traditional_chinese" ]
+debug = ["erg_common/debug"]
+japanese = ["erg_common/japanese"]
+simplified_chinese = ["erg_common/simplified_chinese"]
+traditional_chinese = ["erg_common/traditional_chinese"]
 
 [dependencies]
-erg_common = { version = "0.5.7", path = "../erg_common" }
-erg_parser = { version = "0.5.7", path = "../erg_parser" }
+erg_common = { version = "0.5.9-nightly.0", path = "../erg_common" }
+erg_parser = { version = "0.5.9-nightly.0", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"

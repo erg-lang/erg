@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>こちらは[Erg](https://mtshiba.github.io/TheErgBook)のメインリポジトリです。コンパイラとドキュメントが置かれています。
+<br>こちらは[Erg](https://erg-lang.org/)のメインリポジトリです。コンパイラとドキュメントが置かれています。
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
@@ -12,8 +12,8 @@
 <br>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Df2118ff45d9e46ca8fa44242363223be43b046dd)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=f2118ff45d9e46ca8fa44242363223be43b046dd)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D1a66848fd63479093d0d7995712571e3fdc6bd92)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=1a66848fd63479093d0d7995712571e3fdc6bd92)
 
 ## Ergはこんな人におすすめです&#58;
 

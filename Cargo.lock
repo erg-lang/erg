@@ -3,19 +3,8 @@
 version = 3
 
 [[package]]
-name = "atty"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
-dependencies = [
- "hermit-abi",
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "erg"
-version = "0.5.7"
+version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -25,14 +14,16 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.5.7"
+version = "0.5.9-nightly.0"
 dependencies = [
- "atty",
+ "hermit-abi",
+ "libc",
+ "winapi",
 ]
 
 [[package]]
 name = "erg_compiler"
-version = "0.5.7"
+version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -41,14 +32,14 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.5.7"
+version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
 ]
 
 [[package]]
 name = "erg_type"
-version = "0.5.7"
+version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",

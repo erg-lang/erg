@@ -47,14 +47,16 @@ impl Locational for Literal {
     }
 }
 
-impl From<Token> for Literal {
-    fn from(token: Token) -> Self {
-        let data = ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone());
-        Self {
+impl TryFrom<Token> for Literal {
+    type Error = ();
+    fn try_from(token: Token) -> Result<Self, ()> {
+        let data =
+            ValueObj::from_str(type_from_token_kind(token.kind), token.content.clone()).ok_or(())?;
+        Ok(Self {
             t: data.t(),
             value: data,
             token,
-        }
+        })
     }
 }
 
@@ -282,6 +284,20 @@ impl Args {
         }
     }
 
+    pub fn get_mut_left_or_key(&mut self, key: &str) -> Option<&mut Expr> {
+        if !self.pos_args.is_empty() {
+            Some(&mut self.pos_args.get_mut(0)?.expr)
+        } else if let Some(pos) = self
+            .kw_args
+            .iter()
+            .position(|arg| &arg.keyword.inspect()[..] == key)
+        {
+            Some(&mut self.kw_args.get_mut(pos)?.expr)
+        } else {
+            None
+        }
+    }
+
     pub fn insert_pos(&mut self, idx: usize, pos: PosArg) {
         self.pos_args.insert(idx, pos);
     }
@@ -351,8 +367,8 @@ impl Identifier {
         )
     }
 
-    pub fn private(name: Str) -> Self {
-        Self::bare(None, VarName::from_str(name))
+    pub fn private(name: &'static str) -> Self {
+        Self::bare(None, VarName::from_static(name))
     }
 
     pub fn private_with_line(name: Str, line: usize) -> Self {

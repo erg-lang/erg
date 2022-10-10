@@ -281,6 +281,7 @@ pub enum OperationKind {
     Import,
     PyImport,
     Del,
+    AssertCast,
 }
 
 impl OperationKind {

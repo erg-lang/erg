@@ -2,7 +2,8 @@ discard _x = None
 
 discard 1
 
-cond c, then, else =
+# if: |T, U|(Bool, T, U) -> T or U
+cond|T: Type|(c: Bool, then: T, else: T): T =
     if c:
         do then
         do else

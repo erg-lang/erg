@@ -100,12 +100,6 @@ fn op_to_name(op: OpKind) -> &'static str {
     }
 }
 
-#[inline]
-pub(crate) fn eval_lit(lit: &Literal) -> ValueObj {
-    let t = type_from_token_kind(lit.token.kind);
-    ValueObj::from_str(t, lit.token.content.clone())
-}
-
 /// Instantiate the polymorphic type from the quantified state.
 ///
 /// e.g.
@@ -577,13 +571,26 @@ impl Context {
         Ok(ValueObj::Subr(subr))
     }
 
+    pub(crate) fn eval_lit(&self, lit: &Literal) -> EvalResult<ValueObj> {
+        let t = type_from_token_kind(lit.token.kind);
+        ValueObj::from_str(t, lit.token.content.clone()).ok_or_else(|| {
+            EvalError::invalid_literal(
+                self.cfg.input.clone(),
+                line!() as usize,
+                lit.token.loc(),
+                self.caused_by(),
+            )
+            .into()
+        })
+    }
+
     pub(crate) fn eval_const_expr(
         &self,
         expr: &Expr,
         __name__: Option<&Str>,
     ) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Ok(eval_lit(lit)),
+            Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -603,7 +610,7 @@ impl Context {
         __name__: Option<&Str>,
     ) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => Ok(eval_lit(lit)),
+            Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),

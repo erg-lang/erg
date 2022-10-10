@@ -20,7 +20,7 @@ OPTIONS
     --python-version/-p (uint 32 number) Pythonバージョンを指定
     --py-server-timeout (uint 64 number) PythonのREPLサーバーのタイムアウト時間を指定
     --dump-as-pyc                        .pycファイルにダンプ
-    --mode lex|parse|compile|exec        指定モードで実行
+    --mode lex|parse|compile|exec        指定モードで実行(詳細は--mode --helpを参照)
 
 SUBCOMMAND
     -c cmd : 文字列をプログラムに譲渡
@@ -43,7 +43,7 @@ OPTIONS
     --python-version/-p (uint 32 number) Python 版本
     --py-server-timeout (uint 64 number) Python REPL 服务器超时
     --dump-as-pyc                        转储为 .pyc 文件
-    --mode lex|parse|compile|exec        执行模式
+    --mode lex|parse|compile|exec        执行模式 (更多信息见`--mode --help`)
 
 SUBCOMMAND
     -c cmd : 作为字符串传入程序
@@ -66,7 +66,7 @@ OPTIONS
     --python-version/-p (uint 32 number) Python 版本
     --py-server-timeout (uint 64 number) Python REPL 服務器超時
     --dump-as-pyc                        轉儲為 .pyc 文件
-    --mode lex|parse|compile|exec        執行模式
+    --mode lex|parse|compile|exec        執行模式 (更多信息見`--mode --help`)
 
 SUBCOMMAND
     -c cmd : 作為字串傳入程式
@@ -89,7 +89,7 @@ OPTIONS
     --python-version/-p (uint 32 number) Python version
     --py-server-timeout (uint 64 number) timeout for the Python REPL server
     --dump-as-pyc                        dump as .pyc file
-    --mode lex|parse|compile|exec        execution mode
+    --mode lex|parse|compile|exec        execution mode (See `--mode --help` for details)
 
 SUBCOMMAND
     -c cmd : program passed in as string
