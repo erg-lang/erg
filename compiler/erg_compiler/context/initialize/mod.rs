@@ -521,6 +521,15 @@ impl Context {
         float_mul.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, builtin_poly("Mul", vec![ty_tp(Float)]), float_mul);
+        let mut float_floordiv = Self::builtin_methods("FloorDiv", 2);
+        float_floordiv.register_builtin_impl("__floordiv__", op_t.clone(), Const, Public);
+        float_floordiv.register_builtin_const("Output", ValueObj::builtin_t(Float));
+        float_floordiv.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
+        float.register_trait(
+            Float,
+            builtin_poly("FloorDiv", vec![ty_tp(Float)]),
+            float_floordiv,
+        );
         let mut float_div = Self::builtin_methods("Div", 2);
         float_div.register_builtin_impl("__div__", op_t, Const, Public);
         float_div.register_builtin_const("Output", ValueObj::builtin_t(Float));
@@ -572,6 +581,15 @@ impl Context {
         ratio_mul.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, builtin_poly("Mul", vec![ty_tp(Ratio)]), ratio_mul);
+        let mut ratio_floordiv = Self::builtin_methods("FloorDiv", 2);
+        ratio_floordiv.register_builtin_impl("__floordiv__", op_t.clone(), Const, Public);
+        ratio_floordiv.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
+        ratio_floordiv.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
+        ratio.register_trait(
+            Float,
+            builtin_poly("FloorDiv", vec![ty_tp(Ratio)]),
+            ratio_floordiv,
+        );
         let mut ratio_div = Self::builtin_methods("Div", 2);
         ratio_div.register_builtin_impl("__div__", op_t, Const, Public);
         ratio_div.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
