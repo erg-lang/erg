@@ -1381,7 +1381,7 @@ impl Context {
             .super_classes
             .iter()
             .chain(ctx.super_traits.iter())
-            .map(|sup| self.get_nominal_type_ctx(sup).unwrap());
+            .filter_map(|sup| self.get_nominal_type_ctx(sup));
         Some(vec![ctx].into_iter().chain(sups))
     }
 
