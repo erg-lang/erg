@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 
+use erg_common::dict::Dict;
 use erg_common::traits::LimitedDisplay;
 
 use crate::constructors::int_interval;
@@ -127,6 +128,7 @@ pub enum TyParam {
     Array(Vec<TyParam>),
     Set(Vec<TyParam>),
     Tuple(Vec<TyParam>),
+    Dict(Dict<TyParam, TyParam>),
     Mono(Str),
     MonoProj {
         obj: Box<TyParam>,
@@ -300,6 +302,7 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, "}}")
             }
+            Self::Dict(dict) => write!(f, "{dict}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
                 for (i, t) in tuple.iter().enumerate() {

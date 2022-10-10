@@ -613,8 +613,8 @@ impl KeyValue {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
-    pub(crate) l_brace: Token,
-    pub(crate) r_brace: Token,
+    pub l_brace: Token,
+    pub r_brace: Token,
     pub kvs: Vec<KeyValue>,
 }
 

@@ -1,6 +1,7 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
+use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
@@ -14,7 +15,7 @@ use erg_common::{
 use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{array, set, tuple};
+use erg_type::constructors::{array, dict_t, set_t, tuple};
 use erg_type::typaram::TyParam;
 use erg_type::value::{TypeKind, ValueObj};
 use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
@@ -734,11 +735,16 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub const fn new(l_brace: Token, r_brace: Token, t: Type, kvs: Vec<KeyValue>) -> Self {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        kv_ts: HashMap<TyParam, TyParam>,
+        kvs: Vec<KeyValue>,
+    ) -> Self {
         Self {
             l_brace,
             r_brace,
-            t,
+            t: dict_t(TyParam::Dict(kv_ts)),
             kvs,
         }
     }
@@ -801,7 +807,7 @@ impl_t!(NormalSet);
 
 impl NormalSet {
     pub fn new(l_brace: Token, r_brace: Token, elem_t: Type, elems: Args) -> Self {
-        let t = set(elem_t, TyParam::value(elems.len()));
+        let t = set_t(elem_t, TyParam::value(elems.len()));
         Self {
             l_brace,
             r_brace,

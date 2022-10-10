@@ -14,6 +14,7 @@ use std::fmt;
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
+use constructors::dict_t;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
@@ -1443,6 +1444,16 @@ impl From<RangeInclusive<&TyParam>> for Type {
     fn from(r: RangeInclusive<&TyParam>) -> Self {
         let (start, end) = r.into_inner();
         int_interval(IntervalOp::Closed, start.clone(), end.clone())
+    }
+}
+
+impl From<Dict<Type, Type>> for Type {
+    fn from(d: Dict<Type, Type>) -> Self {
+        let d = d
+            .into_iter()
+            .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+            .collect();
+        dict_t(TyParam::Dict(d))
     }
 }
 

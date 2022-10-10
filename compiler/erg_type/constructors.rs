@@ -35,21 +35,22 @@ pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
     builtin_poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
-pub fn dict(k_t: Type, v_t: Type) -> Type {
-    builtin_poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
-}
-
+// FIXME
 pub fn tuple(args: Vec<Type>) -> Type {
     let name = format!("Tuple{}", args.len());
     builtin_poly(name, args.into_iter().map(TyParam::t).collect())
 }
 
-pub fn set(elem_t: Type, len: TyParam) -> Type {
+pub fn set_t(elem_t: Type, len: TyParam) -> Type {
     builtin_poly("Set", vec![TyParam::t(elem_t), len])
 }
 
 pub fn set_mut(elem_t: Type, len: TyParam) -> Type {
     builtin_poly("Set!", vec![TyParam::t(elem_t), len])
+}
+
+pub fn dict_t(dict: TyParam) -> Type {
+    builtin_poly("Dict", vec![dict])
 }
 
 #[inline]

@@ -12,13 +12,14 @@ use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
 use erg_common::serialize::*;
 use erg_common::set;
+use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::vis::Field;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use crate::codeobj::CodeObj;
-use crate::constructors::{array, builtin_mono, builtin_poly, refinement, set as const_set, tuple};
+use crate::constructors::{array, builtin_mono, builtin_poly, refinement, set_t, tuple};
 use crate::free::fresh_varname;
 use crate::typaram::TyParam;
 use crate::{ConstSubr, HasType, Predicate, Type};
@@ -124,8 +125,8 @@ pub enum ValueObj {
     Str(Str),
     Bool(bool),
     Array(Rc<[ValueObj]>),
-    Set(Rc<[ValueObj]>),
-    Dict(Rc<[(ValueObj, ValueObj)]>),
+    Set(Set<ValueObj>),
+    Dict(Dict<ValueObj, ValueObj>),
     Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
     Code(Box<CodeObj>),
@@ -508,7 +509,7 @@ impl ValueObj {
             ),
             Self::Dict(_dict) => todo!(),
             Self::Tuple(tup) => tuple(tup.iter().map(|v| v.class()).collect()),
-            Self::Set(st) => const_set(st.iter().next().unwrap().class(), TyParam::value(st.len())),
+            Self::Set(st) => set_t(st.iter().next().unwrap().class(), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())

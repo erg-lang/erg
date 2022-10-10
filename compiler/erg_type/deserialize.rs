@@ -5,6 +5,7 @@ use std::string::FromUtf8Error;
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
+use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::serialize::DataTypePrefix;
 use erg_common::{fn_name, switch_lang};
@@ -105,7 +106,7 @@ pub type DeserializeResult<T> = Result<T, DeserializeError>;
 pub struct Deserializer {
     str_cache: CacheSet<str>,
     arr_cache: CacheSet<[ValueObj]>,
-    dict_cache: CacheSet<[(ValueObj, ValueObj)]>,
+    _dict_cache: CacheSet<Dict<ValueObj, ValueObj>>,
 }
 
 impl Deserializer {
@@ -113,7 +114,7 @@ impl Deserializer {
         Self {
             str_cache: CacheSet::new(),
             arr_cache: CacheSet::new(),
-            dict_cache: CacheSet::new(),
+            _dict_cache: CacheSet::new(),
         }
     }
 
@@ -144,11 +145,6 @@ impl Deserializer {
 
     fn get_cached_arr(&mut self, arr: &[ValueObj]) -> ValueObj {
         ValueObj::Array(self.arr_cache.get(arr))
-    }
-
-    /// TODO: 使わない？
-    pub fn get_cached_dict(&mut self, dict: &[(ValueObj, ValueObj)]) -> ValueObj {
-        ValueObj::Dict(self.dict_cache.get(dict))
     }
 
     pub fn vec_to_bytes<const LEN: usize>(vector: Vec<u8>) -> [u8; LEN] {

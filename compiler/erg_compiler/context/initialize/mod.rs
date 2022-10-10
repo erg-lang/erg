@@ -7,6 +7,7 @@ pub mod py_mods;
 use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
+use erg_common::dict;
 // use erg_common::error::Location;
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -470,7 +471,12 @@ impl Context {
         obj.register_builtin_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
         obj.register_builtin_impl("__repr__", fn0_met(Obj, Str), Immutable, Public);
         obj.register_builtin_impl("__str__", fn0_met(Obj, Str), Immutable, Public);
-        obj.register_builtin_impl("__dict__", fn0_met(Obj, dict(Str, Obj)), Immutable, Public);
+        obj.register_builtin_impl(
+            "__dict__",
+            fn0_met(Obj, dict! {Str => Obj}.into()),
+            Immutable,
+            Public,
+        );
         obj.register_builtin_impl(
             "__bytes__",
             fn0_met(Obj, builtin_mono("Bytes")),
@@ -907,7 +913,7 @@ impl Context {
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
-        let set_t = set(mono_q("T"), n.clone());
+        let set_t = set_t(mono_q("T"), n.clone());
         set_.register_superclass(Obj, &obj);
         set_.register_marker_trait(builtin_poly("Output", vec![ty_tp(mono_q("T"))]));
         let t = fn_met(

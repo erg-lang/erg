@@ -4,6 +4,7 @@
 
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
+use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
@@ -18,7 +19,8 @@ use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
 use erg_type::constructors::{
-    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
+    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set_mut,
+    set_t, ty_tp,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -362,7 +364,6 @@ impl ASTLowerer {
         let mut union = Type::Never;
         let mut new_set = vec![];
         for elem in elems {
-            // TODO: Check if the object's type implements Eq
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
             if union.is_intersection_type() {
@@ -448,7 +449,7 @@ impl ASTLowerer {
                 } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
                     builtin_poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
-                    set(elem.t(), TyParam::Value(v))
+                    set_t(elem.t(), TyParam::Value(v))
                 }
             }
             Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
@@ -469,7 +470,7 @@ impl ASTLowerer {
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    set(elem.t(), TyParam::erased(Type::Nat))
+                    set_t(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }
@@ -484,8 +485,81 @@ impl ASTLowerer {
         }
     }
 
-    fn lower_normal_dict(&mut self, _dict: ast::NormalDict) -> LowerResult<hir::NormalDict> {
-        todo!()
+    fn lower_normal_dict(&mut self, dict: ast::NormalDict) -> LowerResult<hir::NormalDict> {
+        log!(info "enter {}({dict})", fn_name!());
+        let mut union = dict! {};
+        let mut new_kvs = vec![];
+        for kv in dict.kvs {
+            let loc = kv.loc();
+            let key = self.lower_expr(kv.key)?;
+            let value = self.lower_expr(kv.value)?;
+            if union.insert(key.t(), value.t()).is_none() {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    loc,
+                    AtomicStr::arc(&self.ctx.name[..]),
+                    switch_lang!(
+                        "japanese" => "集合の要素は全て同じ型である必要があります",
+                        "simplified_chinese" => "集合元素必须全部是相同类型",
+                        "traditional_chinese" => "集合元素必須全部是相同類型",
+                        "english" => "all elements of a set must be of the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                )));
+            }
+            new_kvs.push(hir::KeyValue::new(key, value));
+        }
+        /*let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
+        let loc = Location::concat(&dict.l_brace, &dict.r_brace);
+        // check if elem_t is Eq
+        if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, loc, None) {
+            self.errs.extend(errs.into_iter());
+        }*/
+        let kv_ts = if union.is_empty() {
+            dict! {
+                ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type))) =>
+                    ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type)))
+            }
+        } else {
+            union
+                .into_iter()
+                .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+                .collect()
+        };
+        // TODO: lint
+        /*
+        if is_duplicated {
+            self.warns.push(LowerWarning::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                normal_set.loc(),
+                AtomicStr::arc(&self.ctx.name[..]),
+                switch_lang!(
+                    "japanese" => "要素が重複しています",
+                    "simplified_chinese" => "元素重复",
+                    "traditional_chinese" => "元素重複",
+                    "english" => "Elements are duplicated",
+                ),
+                None,
+            ));
+        }
+        Ok(normal_set)
+        */
+        Ok(hir::NormalDict::new(
+            dict.l_brace,
+            dict.r_brace,
+            kv_ts,
+            new_kvs,
+        ))
     }
 
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
