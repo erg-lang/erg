@@ -538,8 +538,13 @@ impl Context {
         float_mul.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Float));
         float.register_trait(Float, builtin_poly("Mul", vec![ty_tp(Float)]), float_mul);
+        let mut float_div = Self::builtin_methods("Div", 2);
+        float_div.register_builtin_impl("__div__", op_t.clone(), Const, Public);
+        float_div.register_builtin_const("Output", ValueObj::builtin_t(Float));
+        float_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
+        float.register_trait(Float, builtin_poly("Div", vec![ty_tp(Float)]), float_div);
         let mut float_floordiv = Self::builtin_methods("FloorDiv", 2);
-        float_floordiv.register_builtin_impl("__floordiv__", op_t.clone(), Const, Public);
+        float_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         float_floordiv.register_builtin_const("Output", ValueObj::builtin_t(Float));
         float_floordiv.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
         float.register_trait(
@@ -547,11 +552,6 @@ impl Context {
             builtin_poly("FloorDiv", vec![ty_tp(Float)]),
             float_floordiv,
         );
-        let mut float_div = Self::builtin_methods("Div", 2);
-        float_div.register_builtin_impl("__div__", op_t, Const, Public);
-        float_div.register_builtin_const("Output", ValueObj::builtin_t(Float));
-        float_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Float));
-        float.register_trait(Float, builtin_poly("Div", vec![ty_tp(Float)]), float_div);
         let mut float_mutizable = Self::builtin_methods("Mutizable", 2);
         float_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Float!")));
@@ -598,8 +598,13 @@ impl Context {
         ratio_mul.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_mul.register_builtin_const("PowOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(Ratio, builtin_poly("Mul", vec![ty_tp(Ratio)]), ratio_mul);
+        let mut ratio_div = Self::builtin_methods("Div", 2);
+        ratio_div.register_builtin_impl("__div__", op_t.clone(), Const, Public);
+        ratio_div.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
+        ratio_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
+        ratio.register_trait(Ratio, builtin_poly("Div", vec![ty_tp(Ratio)]), ratio_div);
         let mut ratio_floordiv = Self::builtin_methods("FloorDiv", 2);
-        ratio_floordiv.register_builtin_impl("__floordiv__", op_t.clone(), Const, Public);
+        ratio_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         ratio_floordiv.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_floordiv.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(
@@ -607,11 +612,6 @@ impl Context {
             builtin_poly("FloorDiv", vec![ty_tp(Ratio)]),
             ratio_floordiv,
         );
-        let mut ratio_div = Self::builtin_methods("Div", 2);
-        ratio_div.register_builtin_impl("__div__", op_t, Const, Public);
-        ratio_div.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
-        ratio_div.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, builtin_poly("Div", vec![ty_tp(Ratio)]), ratio_div);
         let mut ratio_mutizable = Self::builtin_methods("Mutizable", 2);
         ratio_mutizable
             .register_builtin_const("MutType!", ValueObj::builtin_t(builtin_mono("Ratio!")));
@@ -1891,19 +1891,19 @@ impl Context {
             op_t,
             set! {
                 static_instance("R", Type),
-                subtypeof(l.clone(), builtin_poly("FloorDiv", params.clone()))
+                subtypeof(l.clone(), builtin_poly("Div", params.clone()))
             },
         );
-        self.register_builtin_impl("__floordiv__", op_t, Const, Private);
+        self.register_builtin_impl("__div__", op_t, Const, Private);
         let op_t = bin_op(l.clone(), r.clone(), mono_proj(mono_q("L"), "Output"));
         let op_t = quant(
             op_t,
             set! {
                 static_instance("R", Type),
-                subtypeof(l.clone(), builtin_poly("Div", params.clone()))
+                subtypeof(l.clone(), builtin_poly("FloorDiv", params.clone()))
             },
         );
-        self.register_builtin_impl("__div__", op_t, Const, Private);
+        self.register_builtin_impl("__floordiv__", op_t, Const, Private);
         let m = mono_q("M");
         let op_t = bin_op(m.clone(), m.clone(), mono_proj(m.clone(), "PowOutput"));
         let op_t = quant(op_t, set! {subtypeof(m, builtin_poly("Mul", vec![]))});
