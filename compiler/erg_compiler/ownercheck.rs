@@ -10,7 +10,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
-use erg_type::{HasType, Ownership};
+use crate::ty::{HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};

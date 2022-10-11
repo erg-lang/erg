@@ -18,11 +18,11 @@ use erg_common::vis::Field;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
-use crate::codeobj::CodeObj;
-use crate::constructors::{array, builtin_mono, builtin_poly, refinement, set_t, tuple};
-use crate::free::fresh_varname;
-use crate::typaram::TyParam;
-use crate::{ConstSubr, HasType, Predicate, Type};
+use super::codeobj::CodeObj;
+use super::constructors::{array, mono, poly, refinement, set_t, tuple};
+use super::free::fresh_varname;
+use super::typaram::TyParam;
+use super::{ConstSubr, HasType, Predicate, Type};
 
 pub type EvalValueError = ErrorCore;
 pub type EvalValueResult<T> = Result<T, EvalValueError>;
@@ -526,12 +526,12 @@ impl ValueObj {
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => builtin_mono("Int!"),
-                Self::Nat(_) => builtin_mono("Nat!"),
-                Self::Float(_) => builtin_mono("Float!"),
-                Self::Str(_) => builtin_mono("Str!"),
-                Self::Bool(_) => builtin_mono("Bool!"),
-                Self::Array(arr) => builtin_poly(
+                Self::Int(_) => mono("Int!"),
+                Self::Nat(_) => mono("Nat!"),
+                Self::Float(_) => mono("Float!"),
+                Self::Str(_) => mono("Str!"),
+                Self::Bool(_) => mono("Bool!"),
+                Self::Array(arr) => poly(
                     "Array!",
                     vec![
                         TyParam::t(arr.iter().next().unwrap().class()),
@@ -868,14 +868,15 @@ impl ValueObj {
 }
 
 pub mod value_set {
-    use crate::{Type, ValueObj};
+    use crate::ty::{Type, ValueObj};
     use erg_common::set::Set;
 
     // false -> SyntaxError
     pub fn is_homogeneous(set: &Set<ValueObj>) -> bool {
         if let Some(first) = set.iter().next() {
             let l_first = first.class();
-            set.iter().all(|c| c.class() == l_first)
+            // `Set` iteration order is guaranteed (if not changed)
+            set.iter().skip(1).all(|c| c.class() == l_first)
         } else {
             true
         }

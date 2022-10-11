@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{builtin_mono, pr0_met, ref_};
-use erg_type::Type;
+use crate::ty::constructors::{mono, pr0_met, ref_};
+use crate::ty::Type;
 use Type::*;
 
 use crate::context::Context;
@@ -17,11 +17,11 @@ impl Context {
         // string_io.register_superclass(Obj, obj);
         string_io.register_builtin_impl(
             "getvalue!",
-            pr0_met(ref_(builtin_mono("StringIO!")), Str),
+            pr0_met(ref_(mono("io.StringIO!")), Str),
             Immutable,
             Public,
         );
-        io.register_builtin_type(builtin_mono("StringIO!"), string_io, Const);
+        io.register_builtin_type(mono("io.StringIO!"), string_io, Public, Const);
         io
     }
 }

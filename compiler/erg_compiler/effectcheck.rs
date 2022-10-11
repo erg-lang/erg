@@ -9,7 +9,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
-use erg_type::HasType;
+use crate::ty::HasType;
 
 use crate::error::{EffectError, EffectErrors};
 use crate::hir::{Array, Def, Dict, Expr, Set, Signature, Tuple, HIR};

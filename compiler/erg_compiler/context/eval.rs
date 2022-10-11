@@ -15,13 +15,14 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::proj_method;
-use erg_type::constructors::{
-    array, builtin_mono, builtin_poly, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
+use crate::ty::constructors::dict_t;
+use crate::ty::constructors::proj_method;
+use crate::ty::constructors::{
+    array, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
-use erg_type::typaram::{OpKind, TyParam};
-use erg_type::value::ValueObj;
-use erg_type::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
+use crate::ty::typaram::{OpKind, TyParam};
+use crate::ty::value::ValueObj;
+use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
@@ -145,7 +146,7 @@ impl<'c> SubstContext<'c> {
             panic!(
                 "{} param_names: {param_names:?} != {} substituted_params: [{}]",
                 ty_ctx.name,
-                substituted.name(),
+                substituted.qual_name(),
                 erg_common::fmt_vec(&substituted.typarams())
             );
         }
@@ -263,9 +264,7 @@ impl<'c> SubstContext<'c> {
             Type::Refinement(refine) => {
                 self.substitute_t(&refine.t)?;
             }
-            Type::Poly { params, .. }
-            | Type::BuiltinPoly { params, .. }
-            | Type::PolyQVar { params, .. } => {
+            Type::Poly { params, .. } | Type::PolyQVar { params, .. } => {
                 for param in params.iter() {
                     self.substitute_tp(param)?;
                 }
@@ -301,7 +300,7 @@ impl Context {
                 }
             }
             Accessor::Attr(attr) => {
-                let obj = self.eval_const_expr(&attr.obj, None)?;
+                let obj = self.eval_const_expr(&attr.obj)?;
                 Ok(self.eval_attr(obj, &attr.ident)?)
             }
             _ => todo!(),
@@ -338,33 +337,33 @@ impl Context {
     }
 
     fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
-        let lhs = self.eval_const_expr(&bin.args[0], None)?;
-        let rhs = self.eval_const_expr(&bin.args[1], None)?;
+        let lhs = self.eval_const_expr(&bin.args[0])?;
+        let rhs = self.eval_const_expr(&bin.args[1])?;
         let op = try_get_op_kind_from_token(bin.op.kind)?;
         self.eval_bin(op, lhs, rhs)
     }
 
     fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
-        let val = self.eval_const_expr(&unary.args[0], None)?;
+        let val = self.eval_const_expr(&unary.args[0])?;
         let op = try_get_op_kind_from_token(unary.op.kind)?;
         self.eval_unary(op, val)
     }
 
-    fn eval_args(&self, args: &Args, __name__: Option<&Str>) -> EvalResult<ValueArgs> {
+    fn eval_args(&self, args: &Args) -> EvalResult<ValueArgs> {
         let mut evaluated_pos_args = vec![];
         for arg in args.pos_args().iter() {
-            let val = self.eval_const_expr(&arg.expr, __name__)?;
+            let val = self.eval_const_expr(&arg.expr)?;
             evaluated_pos_args.push(val);
         }
         let mut evaluated_kw_args = dict! {};
         for arg in args.kw_args().iter() {
-            let val = self.eval_const_expr(&arg.expr, __name__)?;
+            let val = self.eval_const_expr(&arg.expr)?;
             evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
         }
         Ok(ValueArgs::new(evaluated_pos_args, evaluated_kw_args))
     }
 
-    fn eval_const_call(&self, call: &Call, __name__: Option<&Str>) -> EvalResult<ValueObj> {
+    fn eval_const_call(&self, call: &Call) -> EvalResult<ValueObj> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Ident(ident) => {
@@ -386,15 +385,15 @@ impl Context {
                                 ident.loc(),
                                 self.caused_by(),
                                 ident.inspect(),
-                                &builtin_mono("Subroutine"),
+                                &mono("Subroutine"),
                                 &obj.t(),
                                 self.get_candidates(&obj.t()),
                                 None,
                             )
                         })?
                         .clone();
-                    let args = self.eval_args(&call.args, __name__)?;
-                    self.call(subr, args, __name__.cloned(), call.loc())
+                    let args = self.eval_args(&call.args)?;
+                    self.call(subr, args, call.loc())
                 }
                 Accessor::Attr(_attr) => todo!(),
                 Accessor::TupleAttr(_attr) => todo!(),
@@ -406,21 +405,13 @@ impl Context {
         }
     }
 
-    fn call(
-        &self,
-        subr: ConstSubr,
-        args: ValueArgs,
-        __name__: Option<Str>,
-        loc: Location,
-    ) -> EvalResult<ValueObj> {
+    fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
         match subr {
             ConstSubr::User(_user) => todo!(),
-            ConstSubr::Builtin(builtin) => builtin
-                .call(args, self.path().to_path_buf(), __name__)
-                .map_err(|mut e| {
-                    e.loc = loc;
-                    EvalErrors::from(EvalError::new(e, self.cfg.input.clone(), self.caused_by()))
-                }),
+            ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
+                e.loc = loc;
+                EvalErrors::from(EvalError::new(e, self.cfg.input.clone(), self.caused_by()))
+            }),
         }
     }
 
@@ -436,13 +427,12 @@ impl Context {
                 }
                 Signature::Var(_) => None,
             };
+            // TODO: set params
             self.grow(__name__, ContextKind::Instant, vis, tv_ctx)?;
-            let obj = self
-                .eval_const_block(&def.body.block, Some(__name__))
-                .map_err(|e| {
-                    self.pop();
-                    e
-                })?;
+            let obj = self.eval_const_block(&def.body.block).map_err(|e| {
+                self.pop();
+                e
+            })?;
             match self.check_decls_and_pop() {
                 Ok(_) => {
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -468,7 +458,7 @@ impl Context {
         match arr {
             Array::Normal(arr) => {
                 for elem in arr.elems.pos_args().iter() {
-                    let elem = self.eval_const_expr(&elem.expr, None)?;
+                    let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
             }
@@ -498,8 +488,8 @@ impl Context {
             self.clone(),
         );
         for attr in record.attrs.iter() {
-            let name = attr.sig.ident().map(|i| i.inspect());
-            let elem = record_ctx.eval_const_block(&attr.body.block, name)?;
+            // let name = attr.sig.ident().map(|i| i.inspect());
+            let elem = record_ctx.eval_const_block(&attr.body.block)?;
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
                     VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
@@ -543,7 +533,7 @@ impl Context {
             self.py_mod_cache.clone(),
             self.clone(),
         );
-        let return_t = lambda_ctx.eval_const_block(&lambda.body, None)?;
+        let return_t = lambda_ctx.eval_const_block(&lambda.body)?;
         // FIXME: lambda: i: Int -> Int
         // => sig_t: (i: Type) -> Type
         // => as_type: (i: Int) -> Int
@@ -587,17 +577,13 @@ impl Context {
         })
     }
 
-    pub(crate) fn eval_const_expr(
-        &self,
-        expr: &Expr,
-        __name__: Option<&Str>,
-    ) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_expr(&self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
             Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
-            Expr::Call(call) => self.eval_const_call(call, __name__),
+            Expr::Call(call) => self.eval_const_call(call),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
@@ -607,17 +593,13 @@ impl Context {
 
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
-    pub(crate) fn eval_const_chunk(
-        &mut self,
-        expr: &Expr,
-        __name__: Option<&Str>,
-    ) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
             Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
-            Expr::Call(call) => self.eval_const_call(call, __name__),
+            Expr::Call(call) => self.eval_const_call(call),
             Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Record(rec) => self.eval_const_record(rec),
@@ -626,15 +608,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn eval_const_block(
-        &mut self,
-        block: &Block,
-        __name__: Option<&Str>,
-    ) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_block(&mut self, block: &Block) -> EvalResult<ValueObj> {
         for chunk in block.iter().rev().skip(1).rev() {
-            self.eval_const_chunk(chunk, __name__)?;
+            self.eval_const_chunk(chunk)?;
         }
-        self.eval_const_chunk(block.last().unwrap(), __name__)
+        self.eval_const_chunk(block.last().unwrap())
     }
 
     fn eval_bin(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
@@ -792,6 +770,13 @@ impl Context {
                 }
                 Ok(TyParam::Tuple(new_tps))
             }
+            TyParam::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.iter() {
+                    new_dic.insert(self.eval_tp(k)?, self.eval_tp(v)?);
+                }
+                Ok(TyParam::Dict(new_dic))
+            }
             p @ (TyParam::Type(_)
             | TyParam::Erased(_)
             | TyParam::Value(_)
@@ -862,21 +847,11 @@ impl Context {
                 };
                 Ok(ref_mut(before, after))
             }
-            Type::BuiltinPoly { name, mut params } => {
+            Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
                     *p = self.eval_tp(&mem::take(p))?;
                 }
-                Ok(builtin_poly(name, params))
-            }
-            Type::Poly {
-                path,
-                name,
-                mut params,
-            } => {
-                for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p))?;
-                }
-                Ok(poly(path, name, params))
+                Ok(poly(name, params))
             }
             Type::And(l, r) => {
                 let l = self.eval_t_params(*l, level, t_loc)?;
@@ -1032,7 +1007,7 @@ impl Context {
                         pos_args.push(ValueObj::try_from(pos_arg).unwrap());
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
-                    let t = self.call(subr, args, None, t_loc)?;
+                    let t = self.call(subr, args, t_loc)?;
                     let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                     return Ok(t.into_typ());
                 } else {
@@ -1047,7 +1022,7 @@ impl Context {
                             pos_args.push(ValueObj::try_from(pos_arg).unwrap());
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
-                        let t = self.call(subr, args, None, t_loc)?;
+                        let t = self.call(subr, args, t_loc)?;
                         let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                         return Ok(t.into_typ());
                     } else {
@@ -1170,6 +1145,7 @@ impl Context {
                 let t = array(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }
+            dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
             TyParam::UnaryOp { op, val } => match op {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
                 _ => todo!(),
@@ -1216,6 +1192,10 @@ impl Context {
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::Value(l), TyParam::Value(r)) => l == r,
             (TyParam::Erased(l), TyParam::Erased(r)) => l == r,
+            (TyParam::Array(l), TyParam::Array(r)) => l == r,
+            (TyParam::Tuple(l), TyParam::Tuple(r)) => l == r,
+            (TyParam::Set(l), TyParam::Set(r)) => l == r, // FIXME:
+            (TyParam::Dict(l), TyParam::Dict(r)) => l == r,
             (TyParam::FreeVar { .. }, TyParam::FreeVar { .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if l == r {

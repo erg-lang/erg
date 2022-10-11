@@ -14,7 +14,7 @@ use erg_common::{
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
-use erg_type::{Predicate, Type};
+use crate::ty::{Predicate, Type};
 
 use crate::hir::{Expr, Identifier, Signature};
 

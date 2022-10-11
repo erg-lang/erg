@@ -18,14 +18,13 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
-use erg_type::constructors::{
-    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set_mut,
-    set_t, ty_tp,
+use crate::ty::constructors::{
+    array, array_mut, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
 };
-use erg_type::free::Constraint;
-use erg_type::typaram::TyParam;
-use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, Type};
+use crate::ty::free::Constraint;
+use crate::ty::typaram::TyParam;
+use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
+use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarContext;
 use crate::context::{
@@ -268,23 +267,23 @@ impl ASTLowerer {
     }
 
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len, None);
+        let maybe_len = self.ctx.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
-                    builtin_poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
+                    poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     array(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -296,7 +295,7 @@ impl ASTLowerer {
             // REVIEW: is it ok to ignore the error?
             Err(_e) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
@@ -416,7 +415,7 @@ impl ASTLowerer {
         Ok(normal_set)
         */
         let elems = hir::Args::from(new_set);
-        let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
+        let sup = poly("Eq", vec![TyParam::t(elem_t.clone())]);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
             self.errs.extend(errs.into_iter());
@@ -438,23 +437,23 @@ impl ASTLowerer {
     }
 
     fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len, None);
+        let maybe_len = self.ctx.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
-                    builtin_poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
+                    poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set_t(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -465,7 +464,7 @@ impl ASTLowerer {
             Ok(other) => todo!("{other} is not a Nat object"),
             Err(_e) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
@@ -519,7 +518,7 @@ impl ASTLowerer {
             new_kvs.push(hir::KeyValue::new(key, value));
         }
         for key_t in union.keys() {
-            let sup = builtin_poly("Eq", vec![TyParam::t(key_t.clone())]);
+            let sup = poly("Eq", vec![TyParam::t(key_t.clone())]);
             let loc = Location::concat(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
             if let Err(errs) = self.ctx.sub_unify(key_t, &sup, loc, None) {
@@ -1071,7 +1070,7 @@ impl ASTLowerer {
                         line!() as usize,
                         methods.loc(),
                         self.ctx.caused_by(),
-                        &class.name(),
+                        &class.qual_name(),
                         None,
                     )));
                 }
@@ -1081,12 +1080,12 @@ impl ASTLowerer {
                     line!() as usize,
                     methods.class.loc(),
                     self.ctx.caused_by(),
-                    &class.name(),
-                    self.ctx.get_similar_name(&class.name()),
+                    &class.qual_name(),
+                    self.ctx.get_similar_name(&class.local_name()),
                 )));
             }
             self.ctx
-                .grow(&class.name(), ContextKind::MethodDefs, Private, None)?;
+                .grow(&class.local_name(), ContextKind::MethodDefs, Private, None)?;
             for def in methods.defs.iter_mut() {
                 if methods.vis.is(TokenKind::Dot) {
                     def.sig.ident_mut().unwrap().dot = Some(Token::new(
@@ -1119,10 +1118,9 @@ impl ASTLowerer {
                 }
             }
         }
-        let ctx = self
-            .ctx
-            .get_nominal_type_ctx(&mono(self.ctx.path(), hir_def.sig.ident().inspect()))
-            .unwrap();
+        let class = mono(hir_def.sig.ident().inspect());
+        log!("{class}");
+        let class_ctx = self.ctx.get_nominal_type_ctx(&class).unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
@@ -1131,8 +1129,8 @@ impl ASTLowerer {
         Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            ctx.get_current_scope_var("__new__"),
-            ctx.get_current_scope_var("new"),
+            class_ctx.get_current_scope_var("__new__"),
+            class_ctx.get_current_scope_var("new"),
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
@@ -1159,7 +1157,7 @@ impl ASTLowerer {
     ) {
         if let TypeObj::Generated(gen) = type_obj.require_or_sup.as_ref() {
             if let Some(impls) = gen.impls.as_ref() {
-                if !impls.contains_intersec(&builtin_mono("InheritableType")) {
+                if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
                         cfg.input.clone(),
                         line!() as usize,
@@ -1196,7 +1194,7 @@ impl ASTLowerer {
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
-                            &builtin_mono(&sup.name), // TODO: get super type
+                            &mono(&sup.name), // TODO: get super type
                             ctx.caused_by(),
                         ));
                     }
@@ -1218,7 +1216,7 @@ impl ASTLowerer {
             let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
-            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {
+            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
@@ -1275,7 +1273,7 @@ impl ASTLowerer {
                         line!() as usize,
                         loc,
                         self.ctx.caused_by(),
-                        &impl_trait.name(),
+                        &impl_trait.qual_name(),
                         &Type::TraitType,
                         &trait_obj.t(),
                         None,
@@ -1288,8 +1286,8 @@ impl ASTLowerer {
                     line!() as usize,
                     loc,
                     self.ctx.caused_by(),
-                    &impl_trait.name(),
-                    self.ctx.get_similar_name(&impl_trait.name()),
+                    &impl_trait.qual_name(),
+                    self.ctx.get_similar_name(&impl_trait.local_name()),
                 ));
             }
         }
@@ -1298,18 +1296,21 @@ impl ASTLowerer {
 
     fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
         // TODO: polymorphic trait
-        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.name()) {
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
             impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
         } else {
             self.ctx.trait_impls.insert(
-                trait_.name(),
+                trait_.qual_name(),
                 set! {TraitInstance::new(class.clone(), trait_.clone())},
             );
         }
     }
 
     fn push_methods(&mut self, class: Type, methods: Context) {
-        let (_, class_root) = self.ctx.get_mut_nominal_type_ctx(&class).unwrap();
+        let (_, class_root) = self
+            .ctx
+            .get_mut_nominal_type_ctx(&class)
+            .unwrap_or_else(|| todo!("{class} not found"));
         for (newly_defined_name, _vi) in methods.locals.iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
@@ -1508,7 +1509,7 @@ impl ASTLowerer {
                     Type::ClassType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Class,
-                            mono(self.ctx.path(), ident.inspect()),
+                            mono(format!("{}{ident}", self.ctx.path())),
                             TypeObj::Builtin(Type::Uninited),
                             None,
                             None,
@@ -1518,7 +1519,7 @@ impl ASTLowerer {
                     Type::TraitType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Trait,
-                            mono(self.ctx.path(), ident.inspect()),
+                            mono(format!("{}{ident}", self.ctx.path())),
                             TypeObj::Builtin(Type::Uninited),
                             None,
                             None,

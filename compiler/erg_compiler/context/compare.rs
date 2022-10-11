@@ -3,13 +3,13 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::error::{Location, MultiErrorDisplay};
 
-use erg_type::constructors::{and, or};
-use erg_type::free::fresh_varname;
-use erg_type::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
-use erg_type::typaram::{OpKind, TyParam, TyParamOrdering};
-use erg_type::value::ValueObj;
-use erg_type::value::ValueObj::Inf;
-use erg_type::{Predicate, RefinementType, SubrKind, SubrType, Type};
+use crate::ty::constructors::{and, or};
+use crate::ty::free::fresh_varname;
+use crate::ty::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
+use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
+use crate::ty::value::ValueObj;
+use crate::ty::value::ValueObj::Inf;
+use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
 use erg_common::Str;
@@ -191,30 +191,30 @@ impl Context {
                     && self.supertype_of(&Type, &subr.return_t),
             ),
             (
-                Type::BuiltinMono(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Func,
                     ..
                 }),
             ) if &n[..] == "GenericFunc" => (Absolutely, true),
             (
-                Type::BuiltinMono(n),
+                Type::Mono(n),
                 Subr(SubrType {
                     kind: SubrKind::Proc,
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
-            (Type::BuiltinMono(l), Type::Poly { name: r, .. })
+            (Type::Mono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericArray" && &r[..] == "Array" =>
             {
                 (Absolutely, true)
             }
-            (Type::BuiltinMono(l), Type::Poly { name: r, .. })
+            (Type::Mono(l), Type::Poly { name: r, .. })
                 if &l[..] == "GenericDict" && &r[..] == "Dict" =>
             {
                 (Absolutely, true)
             }
-            (Type::BuiltinMono(l), Type::BuiltinMono(r))
+            (Type::Mono(l), Type::Mono(r))
                 if &l[..] == "GenericCallable"
                     && (&r[..] == "GenericFunc"
                         || &r[..] == "GenericProc"
@@ -227,7 +227,7 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Type::BuiltinMono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
             (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
             _ => (Maybe, false),
         }
@@ -621,12 +621,13 @@ impl Context {
             // REVIEW: RefMut is invariant, maybe
             (Ref(l), r) => self.supertype_of(l, r),
             (RefMut { before: l, .. }, r) => self.supertype_of(l, r),
+            // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
             (
-                BuiltinPoly {
+                Poly {
                     name: ln,
                     params: lparams,
                 },
-                BuiltinPoly {
+                Poly {
                     name: rn,
                     params: rparams,
                 },
@@ -651,24 +652,6 @@ impl Context {
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
                 }
-            }
-            // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
-            (
-                Poly {
-                    path: lp,
-                    name: ln,
-                    params: lparams,
-                },
-                Poly {
-                    path: rp,
-                    name: rn,
-                    params: rparams,
-                },
-            ) => {
-                if lp != rp || ln != rn || lparams.len() != rparams.len() {
-                    return false;
-                }
-                self.poly_supertype_of(lhs, lparams, rparams)
             }
             (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
                 panic!("internal error: not instantiated type variable: '{name}, r: {r}")
@@ -814,8 +797,11 @@ impl Context {
             // try_cmp((n: 0..2), 1) -> Some(Any)
             // try_cmp((n: 2.._), 1) -> Some(Greater)
             // try_cmp((n: -1.._), 1) -> Some(Any)
+            // try_cmp((n: ?K), "a") -> Some(Any)
+            // try_cmp((n: Int), "a") -> Some(NotEqual)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
                 let lt = self.get_tp_t(l).unwrap();
+                let pt = self.get_tp_t(p).unwrap();
                 let l_inf = self.inf(&lt);
                 let l_sup = self.sup(&lt);
                 if let (Some(inf), Some(sup)) = (l_inf, l_sup) {
@@ -856,7 +842,14 @@ impl Context {
                         (l, r) =>
                             todo!("cmp({inf}, {sup}) = {l:?}, cmp({inf}, {sup}) = {r:?}"),
                     }
-                } else { None }
+                } else {
+                    match (self.supertype_of(&lt, &pt), self.subtype_of(&lt, &pt)) {
+                        (true, true) => Some(Any),
+                        (true, false) => Some(Any),
+                        (false, true) => Some(NotEqual),
+                        (false, false) => Some(NoRelation),
+                    }
+                }
             }
             (l, r @ (TyParam::Erased(_) | TyParam::MonoQVar(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l).map(|ord| ord.reverse()),

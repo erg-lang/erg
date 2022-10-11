@@ -6,12 +6,12 @@ use std::rc::Rc;
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::traits::LimitedDisplay;
+use erg_common::Str;
 
-use crate::constructors::int_interval;
-use crate::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
-use crate::value::ValueObj;
-use crate::Str;
-use crate::Type;
+use super::constructors::int_interval;
+use super::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
+use super::value::ValueObj;
+use super::Type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -406,6 +406,16 @@ impl<V: Into<ValueObj>> From<V> for TyParam {
     }
 }
 
+impl From<Dict<Type, Type>> for TyParam {
+    fn from(v: Dict<Type, Type>) -> Self {
+        Self::Dict(
+            v.into_iter()
+                .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+                .collect(),
+        )
+    }
+}
+
 impl TryFrom<TyParam> for ValueObj {
     type Error = ();
     fn try_from(tp: TyParam) -> Result<Self, ()> {
@@ -573,10 +583,10 @@ impl TyParam {
         Self::app("Pred", vec![self])
     }
 
-    pub fn name(&self) -> Option<Str> {
+    pub fn qual_name(&self) -> Option<Str> {
         match self {
-            Self::Type(t) => Some(t.name()),
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().name(),
+            Self::Type(t) => Some(t.qual_name()),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
             Self::Mono(name) => Some(name.clone()),
             Self::MonoQVar(name) => Some(name.clone()),
             _ => None,

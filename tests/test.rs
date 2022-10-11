@@ -21,10 +21,10 @@ fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
 }
 
-/*#[test]
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er")
-}*/
+}
 
 #[test]
 fn exec_fib() -> Result<(), ()> {

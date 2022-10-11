@@ -9,10 +9,10 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::DefId;
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::free::fresh_varname;
-use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{HasType, Type};
+use crate::ty::free::fresh_varname;
+use crate::ty::typaram::TyParam;
+use crate::ty::value::ValueObj;
+use crate::ty::{HasType, Type};
 
 use crate::context::OperationKind;
 use crate::hir::*;

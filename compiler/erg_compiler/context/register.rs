@@ -1,6 +1,7 @@
 use std::option::Option;
 use std::path::PathBuf;
 
+use crate::ty::free::HasLevel;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
@@ -8,15 +9,14 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
-use erg_type::free::HasLevel;
 
 use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
 
-use erg_type::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
-use erg_type::free::{Constraint, Cyclicity, FreeKind};
-use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, SubrType, Type};
+use crate::ty::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
+use crate::ty::free::{Constraint, Cyclicity, FreeKind};
+use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
+use crate::ty::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -520,14 +520,13 @@ impl Context {
                     let tv_ctx = TyVarContext::new(self.level, bounds, self);
                     let vis = def.sig.vis();
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx))?;
-                    let (obj, const_t) =
-                        match self.eval_const_block(&def.body.block, Some(__name__)) {
-                            Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                            Err(e) => {
-                                self.pop();
-                                return Err(e);
-                            }
-                        };
+                    let (obj, const_t) = match self.eval_const_block(&def.body.block) {
+                        Ok(obj) => (obj.clone(), v_enum(set! {obj})),
+                        Err(e) => {
+                            self.pop();
+                            return Err(e);
+                        }
+                    };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
@@ -539,7 +538,8 @@ impl Context {
                 }
             }
             ast::Signature::Var(sig) if sig.is_const() => {
-                let (obj, const_t) = match self.eval_const_block(&def.body.block, Some(__name__)) {
+                self.grow(__name__, ContextKind::Instant, sig.vis(), None)?;
+                let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                     Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                     Err(e) => {
                         return Err(e);
@@ -549,6 +549,7 @@ impl Context {
                     let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
                     self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
+                self.pop();
                 self.register_gen_const(sig.ident().unwrap(), obj)?;
             }
             _ => {}
@@ -666,7 +667,7 @@ impl Context {
                 if gen.t.is_monomorphic() {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -674,7 +675,7 @@ impl Context {
                         self.level,
                     );
                     let mut methods = Self::methods(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -698,7 +699,7 @@ impl Context {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -706,18 +707,22 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let sup_ctx = self.get_nominal_type_ctx(&sup).unwrap();
+                        let sup_ctx = self
+                            .get_nominal_type_ctx(&sup)
+                            .unwrap_or_else(|| todo!("{sup} not found"));
                         ctx.register_superclass(sup, sup_ctx);
                     }
                     let mut methods = Self::methods(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
                         2,
                         self.level,
                     );
-                    if let Some(sup) = self.rec_get_const_obj(&gen.require_or_sup.typ().name()) {
+                    if let Some(sup) =
+                        self.rec_get_const_obj(&gen.require_or_sup.typ().local_name())
+                    {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
                         let param_t = match sup {
                             TypeObj::Builtin(t) => t,
@@ -752,7 +757,7 @@ impl Context {
             TypeKind::Trait => {
                 if gen.t.is_monomorphic() {
                     let mut ctx = Self::mono_trait(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -780,7 +785,7 @@ impl Context {
                     let super_classes = vec![gen.require_or_sup.typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
-                        gen.t.name(),
+                        gen.t.qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -823,10 +828,13 @@ impl Context {
     ) {
         // FIXME: not panic but error
         // FIXME: recursive search
-        if self.mono_types.contains_key(&gen.t.name()) {
-            panic!("{} has already been registered", gen.t.name());
-        } else if self.rec_get_const_obj(&gen.t.name()).is_some() {
-            panic!("{} has already been registered as const", gen.t.name());
+        if self.mono_types.contains_key(&gen.t.local_name()) {
+            panic!("{} has already been registered", gen.t.local_name());
+        } else if self.rec_get_const_obj(&gen.t.local_name()).is_some() {
+            panic!(
+                "{} has already been registered as const",
+                gen.t.local_name()
+            );
         } else {
             let t = gen.t.clone();
             let meta_t = gen.meta_type();
@@ -839,11 +847,11 @@ impl Context {
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.name()) {
+                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
-                        impl_trait.name(),
+                        impl_trait.qual_name(),
                         set![TraitInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }

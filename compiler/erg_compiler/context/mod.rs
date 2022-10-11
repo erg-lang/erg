@@ -29,10 +29,10 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
+use crate::ty::typaram::TyParam;
+use crate::ty::value::ValueObj;
+use crate::ty::{Predicate, TyBound, Type};
 use erg_parser::ast::DefKind;
-use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{Predicate, TyBound, Type};
 use Type::*;
 
 use ast::{DefId, VarName};
@@ -816,13 +816,14 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
-    pub(crate) fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> Str {
+        // NOTE: this need to be changed if we want to support nested classes/traits
         if let Some(outer) = self.get_outer() {
             outer.path()
         } else if self.kind == ContextKind::Module {
-            Path::new(&self.name[..])
+            self.name.clone()
         } else {
-            Path::new(&BUILTINS[..])
+            BUILTINS.clone()
         }
     }
 
@@ -830,7 +831,7 @@ impl Context {
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if self.path().to_string_lossy() != "<builtins>" {
+        if &self.path()[..] != "<builtins>" {
             self.mod_cache
                 .as_ref()
                 .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())

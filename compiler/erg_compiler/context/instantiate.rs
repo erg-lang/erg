@@ -1,7 +1,6 @@
 use std::fmt;
 use std::mem;
-use std::option::Option;
-use std::path::PathBuf; // conflicting to Type::Option
+use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
@@ -18,11 +17,11 @@ use ast::{
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
 
-use erg_type::constructors::*;
-use erg_type::free::{Constraint, Cyclicity, FreeTyVar};
-use erg_type::typaram::{IntervalOp, TyParam, TyParamOrdering};
-use erg_type::value::ValueObj;
-use erg_type::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
+use crate::ty::constructors::*;
+use crate::ty::free::{Constraint, Cyclicity, FreeTyVar};
+use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
+use crate::ty::value::ValueObj;
+use crate::ty::{HasType, ParamTy, Predicate, SubrKind, TyBound, Type};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -80,7 +79,7 @@ impl TyVarContext {
         match ct {
             ConstTemplate::Obj(o) => match o {
                 ValueObj::Type(t) if t.typ().is_mono_q() => {
-                    if &t.typ().name()[..] == "Self" {
+                    if &t.typ().qual_name()[..] == "Self" {
                         let constraint = Constraint::new_type_of(Type);
                         let t = named_free_var(Str::rc(var_name), self.level, constraint);
                         TyParam::t(t)
@@ -99,7 +98,6 @@ impl TyVarContext {
 
     fn instantiate_poly(
         &mut self,
-        path: Option<PathBuf>,
         tvar_name: Str,
         name: &Str,
         params: Vec<TyParam>,
@@ -107,7 +105,7 @@ impl TyVarContext {
     ) -> Type {
         if let Some(temp_defaults) = ctx.rec_get_const_param_defaults(name) {
             let ctx = ctx
-                .get_nominal_type_ctx(&builtin_poly(name.clone(), params.clone()))
+                .get_nominal_type_ctx(&poly(name.clone(), params.clone()))
                 .unwrap_or_else(|| panic!("{} not found", name));
             let defined_params_len = ctx.params.len();
             let given_params_len = params.len();
@@ -124,15 +122,9 @@ impl TyVarContext {
                 self.push_or_init_typaram(&tp.tvar_name().unwrap(), &tp);
                 inst_defaults.push(tp);
             }
-            if let Some(path) = path {
-                poly(path, name, [inst_non_defaults, inst_defaults].concat())
-            } else {
-                builtin_poly(name, [inst_non_defaults, inst_defaults].concat())
-            }
-        } else if let Some(path) = path {
-            poly(path, name, self.instantiate_params(params))
+            poly(name, [inst_non_defaults, inst_defaults].concat())
         } else {
-            builtin_poly(name, self.instantiate_params(params))
+            poly(name, self.instantiate_params(params))
         }
     }
 
@@ -153,11 +145,8 @@ impl TyVarContext {
 
     fn instantiate_bound_type(&mut self, mid: &Type, sub_or_sup: Type, ctx: &Context) -> Type {
         match sub_or_sup {
-            Type::Poly { path, name, params } => {
-                self.instantiate_poly(Some(path), mid.name(), &name, params, ctx)
-            }
-            Type::BuiltinPoly { name, params } => {
-                self.instantiate_poly(None, mid.name(), &name, params, ctx)
+            Type::Poly { name, params } => {
+                self.instantiate_poly(mid.qual_name(), &name, params, ctx)
             }
             Type::Proj { lhs, rhs } => {
                 let lhs = if lhs.has_qvar() {
@@ -232,7 +221,7 @@ impl TyVarContext {
             TyBound::Sandwiched { sub, mid, sup } => {
                 let sub_instance = self.instantiate_bound_type(&mid, sub, ctx);
                 let sup_instance = self.instantiate_bound_type(&mid, sup, ctx);
-                let name = mid.name();
+                let name = mid.qual_name();
                 let constraint =
                     Constraint::new_sandwiched(sub_instance, sup_instance, Cyclicity::Not);
                 self.push_or_init_tyvar(
@@ -243,11 +232,8 @@ impl TyVarContext {
             TyBound::Instance { name, t } => {
                 let t = match t {
                     Type::FreeVar(fv) if fv.is_linked() => todo!(),
-                    Type::BuiltinPoly { name, params } => {
-                        self.instantiate_poly(None, name.clone(), &name, params, ctx)
-                    }
-                    Type::Poly { path, name, params } => {
-                        self.instantiate_poly(Some(path), name.clone(), &name, params, ctx)
+                    Type::Poly { name, params } => {
+                        self.instantiate_poly(name.clone(), &name, params, ctx)
                     }
                     t => t,
                 };
@@ -670,7 +656,7 @@ impl Context {
                     let len = self.instantiate_const_expr(&len.expr)?;
                     Ok(array(t, len))
                 } else {
-                    Ok(builtin_mono("GenericArray"))
+                    Ok(mono("GenericArray"))
                 }
             }
             other if simple.args.is_empty() => {
@@ -721,7 +707,7 @@ impl Context {
                     }
                 }
                 // FIXME: non-builtin
-                Ok(builtin_poly(Str::rc(other), new_params))
+                Ok(poly(Str::rc(other), new_params))
             }
         }
     }
@@ -741,9 +727,7 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> SingleTyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                Ok(mono(self.path(), name.inspect()))
-            }
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
             _ => todo!(),
         }
     }
@@ -788,12 +772,12 @@ impl Context {
             TypeSpec::Array(arr) => {
                 let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&arr.len)?;
-                Ok(builtin_poly("ArrayType", vec![ty_tp(elem_t), len]))
+                Ok(poly("ArrayType", vec![ty_tp(elem_t), len]))
             }
             TypeSpec::Set(set) => {
                 let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
                 let len = self.instantiate_const_expr(&set.len)?;
-                Ok(builtin_poly("SetType", vec![ty_tp(elem_t), len]))
+                Ok(poly("SetType", vec![ty_tp(elem_t), len]))
             }
             // FIXME: unwrap
             TypeSpec::Tuple(tys) => Ok(tuple(
@@ -1008,6 +992,7 @@ impl Context {
                 Ok(poly_q(name, params))
             }
             Refinement(mut refine) => {
+                refine.t = Box::new(self.instantiate_t(*refine.t, tmp_tv_ctx, loc)?);
                 let mut new_preds = set! {};
                 for mut pred in refine.preds.into_iter() {
                     for tp in pred.typarams_mut() {
@@ -1071,21 +1056,11 @@ impl Context {
                 }
                 Ok(proj_method(lhs, method_name, args))
             }
-            BuiltinPoly { name, mut params } => {
+            Poly { name, mut params } => {
                 for param in params.iter_mut() {
                     *param = self.instantiate_tp(mem::take(param), tmp_tv_ctx, loc)?;
                 }
-                Ok(builtin_poly(name, params))
-            }
-            Poly {
-                path,
-                name,
-                mut params,
-            } => {
-                for param in params.iter_mut() {
-                    *param = self.instantiate_tp(mem::take(param), tmp_tv_ctx, loc)?;
-                }
-                Ok(poly(path, name, params))
+                Ok(poly(name, params))
             }
             Quantified(_) => {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
@@ -1124,6 +1099,27 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
+                let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
+                let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
+                match &t {
+                    Type::Subr(subr) => {
+                        if let Some(self_t) = subr.self_t() {
+                            self.sub_unify(
+                                callee.ref_t(),
+                                self_t,
+                                callee.loc(),
+                                Some(&Str::ever("self")),
+                            )?;
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                Ok(t)
+            }
+            // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
+            Refinement(refine) if refine.t.is_quantified() => {
+                erg_common::log!(err "{refine}");
+                let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
                 let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {

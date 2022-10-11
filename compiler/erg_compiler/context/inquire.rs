@@ -16,13 +16,11 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use erg_type::constructors::{
-    anon, builtin_mono, builtin_poly, free_var, func, module, proj, subr_t, v_enum,
-};
-use erg_type::free::Constraint;
-use erg_type::typaram::TyParam;
-use erg_type::value::{GenTypeObj, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
+use crate::ty::constructors::{anon, free_var, func, module, mono, poly, proj, subr_t, v_enum};
+use crate::ty::free::Constraint;
+use crate::ty::typaram::TyParam;
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
+use crate::ty::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
@@ -224,10 +222,10 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
-                    &builtin_mono("LambdaFunc"),
+                    &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    self.get_type_mismatch_hint(&builtin_mono("LambdaFunc"), t),
+                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
                 )));
             }
         }
@@ -496,7 +494,7 @@ impl Context {
                 }
             }
             other => {
-                if let Some(v) = self.rec_get_const_obj(&other.name()) {
+                if let Some(v) = self.rec_get_const_obj(&other.local_name()) {
                     match v {
                         ValueObj::Type(TypeObj::Generated(gen)) => self
                             .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
@@ -588,7 +586,7 @@ impl Context {
                     line!() as usize,
                     method_name.loc(),
                     namespace.into(),
-                    obj.__name__().unwrap_or("?"),
+                    obj.qual_name().unwrap_or("?"),
                     obj.ref_t(),
                     method_name.inspect(),
                     self.get_similar_attr_from_singular(obj, method_name.inspect()),
@@ -904,7 +902,7 @@ impl Context {
                         Location::concat(obj, method_name),
                         self.caused_by(),
                         &(obj.to_string() + &method_name.to_string()),
-                        &builtin_mono("Callable"),
+                        &mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -916,7 +914,7 @@ impl Context {
                         obj.loc(),
                         self.caused_by(),
                         &obj.to_string(),
-                        &builtin_mono("Callable"),
+                        &mono("Callable"),
                         other,
                         self.get_candidates(other),
                         None,
@@ -1255,14 +1253,14 @@ impl Context {
                         .iter()
                         .chain(self.super_classes.iter())
                         .find(|t| {
-                            (&t.name()[..] == "Input" || &t.name()[..] == "Output")
+                            (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
                                 && t.inner_ts()
                                     .first()
-                                    .map(|t| &t.name() == name.inspect())
+                                    .map(|t| &t.qual_name() == name.inspect())
                                     .unwrap_or(false)
                         })
                     {
-                        match &t.name()[..] {
+                        match &t.qual_name()[..] {
                             "Output" => Variance::Covariant,
                             "Input" => Variance::Contravariant,
                             _ => unreachable!(),
@@ -1446,19 +1444,13 @@ impl Context {
                     }
                 }
             },
-            Type::BuiltinPoly { name, .. } => {
-                if let Some((_, ctx)) = self.get_builtins().unwrap_or(self).rec_get_poly_type(name)
-                {
+            Type::Mono(name) => {
+                if let Some((_, ctx)) = self.rec_get_mono_type(&typ.local_name()) {
                     return Some(ctx);
                 }
-            }
-            Type::Poly { path, name, .. } => {
-                if self.path() == path {
-                    if let Some((_, ctx)) = self.rec_get_poly_type(name) {
-                        return Some(ctx);
-                    }
-                }
-                let path = self.cfg.input.resolve(path.as_path()).ok()?;
+                let path = name.split("::").next().unwrap_or(name);
+                let path = path.split('.').next().unwrap_or(path);
+                let path = self.cfg.input.resolve(Path::new(path)).ok()?;
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
@@ -1469,7 +1461,30 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_poly_type(name) {
+                    if let Some((_, ctx)) = ctx.rec_get_mono_type(&typ.local_name()) {
+                        return Some(ctx);
+                    }
+                }
+            }
+            Type::Poly { name, .. } => {
+                if let Some((_, ctx)) = self.rec_get_poly_type(&typ.local_name()) {
+                    return Some(ctx);
+                }
+                // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
+                let path = name.split("::").next().unwrap_or(name);
+                let path = path.split('.').next().unwrap_or(path);
+                let path = self.cfg.input.resolve(Path::new(path)).ok()?;
+                if let Some(ctx) = self
+                    .mod_cache
+                    .as_ref()
+                    .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    .or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .and_then(|cache| cache.ref_ctx(path.as_path()))
+                    })
+                {
+                    if let Some((_, ctx)) = ctx.rec_get_poly_type(&typ.local_name()) {
                         return Some(ctx);
                     }
                 }
@@ -1488,42 +1503,14 @@ impl Context {
                     .rec_get_mono_type("Record")
                     .map(|(_, ctx)| ctx);
             }
-            Type::Mono { path, name } => {
-                if self.path() == path {
-                    if let Some((_, ctx)) = self.rec_get_mono_type(name) {
-                        return Some(ctx);
-                    }
-                }
-                let path = self.cfg.input.resolve(path.as_path()).ok()?;
-                if let Some(ctx) = self
-                    .mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    })
-                {
-                    if let Some((_, ctx)) = ctx.rec_get_mono_type(name) {
-                        return Some(ctx);
-                    }
-                }
-            }
-            Type::BuiltinMono(name) => {
-                if let Some((_, res)) = self.get_builtins().unwrap_or(self).rec_get_mono_type(name)
-                {
-                    return Some(res);
-                }
-            }
             Type::Or(_l, _r) => {
-                if let Some(ctx) = self.get_nominal_type_ctx(&builtin_poly("Or", vec![])) {
+                if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
                     return Some(ctx);
                 }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((_t, ctx)) = self.rec_get_mono_type(&other.name()) {
+                if let Some((_t, ctx)) = self.rec_get_mono_type(&other.local_name()) {
                     return Some(ctx);
                 }
             }
@@ -1562,24 +1549,23 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&builtin_mono("QuantifiedFunc")) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(&mono("QuantifiedFunc")) {
                     return Some(res);
                 }
             }
-            Type::BuiltinPoly { name, params: _ } => {
-                if let Some((t, ctx)) = self.rec_get_mut_poly_type(name) {
+            Type::Mono(_) => {
+                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&typ.local_name()) {
                     return Some((t, ctx));
                 }
             }
-            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                // TODO: reference RecordType (inherits Type)
-                if let Some(res) = self.rec_get_nominal_type_ctx(&Type) {
-                    return Some(res);
+            Type::Poly { .. } => {
+                if let Some((t, ctx)) = self.rec_get_mut_poly_type(&typ.local_name()) {
+                    return Some((t, ctx));
                 }
-            }*/
+            }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&other.name()) {
+                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&other.local_name()) {
                     return Some((t, ctx));
                 }
             }
@@ -1625,7 +1611,7 @@ impl Context {
     }
 
     pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
-        let current = if let Some(impls) = self.trait_impls.get(&t.name()) {
+        let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
             impls.clone()
         } else {
             set! {}
@@ -1651,7 +1637,7 @@ impl Context {
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
         match t {
-            Type::BuiltinPoly { name, mut params } if &name[..] == "Module" => {
+            Type::Poly { name, mut params } if &name[..] == "Module" => {
                 let path =
                     option_enum_unwrap!(params.remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
                 let path = Path::new(&path[..]);
@@ -1844,7 +1830,7 @@ impl Context {
                 }
             }
             other => {
-                let obj = self.rec_get_const_obj(&other.name());
+                let obj = self.rec_get_const_obj(&other.local_name());
                 let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
                 if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
                     return Some(t);

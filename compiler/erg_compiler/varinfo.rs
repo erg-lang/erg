@@ -7,7 +7,7 @@ use Visibility::*;
 
 use erg_parser::ast::DefId;
 
-use erg_type::{HasType, Type};
+use crate::ty::{HasType, Type};
 
 use crate::context::DefaultInfo;
 

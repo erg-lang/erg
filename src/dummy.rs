@@ -9,7 +9,7 @@ use erg_common::python_util::{exec_pyc, spawn_py};
 use erg_common::traits::Runnable;
 
 use erg_compiler::hir::Expr;
-use erg_type::HasType;
+use erg_compiler::ty::HasType;
 
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;

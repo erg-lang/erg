@@ -11,11 +11,11 @@ use erg_common::serialize::DataTypePrefix;
 use erg_common::{fn_name, switch_lang};
 use erg_common::{RcArray, Str};
 
-use crate::codeobj::CodeObj;
-use crate::constructors::array;
-use crate::typaram::TyParam;
-use crate::value::ValueObj;
-use crate::{HasType, Type};
+use super::codeobj::CodeObj;
+use super::constructors::array;
+use super::typaram::TyParam;
+use super::value::ValueObj;
+use super::{HasType, Type};
 
 #[derive(Debug)]
 pub struct DeserializeError {

@@ -5,10 +5,10 @@ use std::mem;
 use erg_common::addr_eq;
 use erg_common::shared::Shared;
 use erg_common::traits::LimitedDisplay;
+use erg_common::Str;
 
-use crate::typaram::TyParam;
-use crate::Str;
-use crate::Type;
+use super::typaram::TyParam;
+use super::Type;
 
 pub type Level = usize;
 pub type Id = usize;

@@ -1,10 +1,10 @@
 use erg_common::set;
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{
-    builtin_mono, builtin_poly, kw, mono_q, nd_proc, proc, quant, static_instance, ty_tp,
+use crate::ty::constructors::{
+    kw, mono, mono_q, nd_proc, poly, proc, quant, static_instance, ty_tp,
 };
-use erg_type::Type;
+use crate::ty::Type;
 use Type::*;
 
 use crate::context::Context;
@@ -21,7 +21,7 @@ impl Context {
                 vec![],
                 None,
                 vec![
-                    kw("a", builtin_mono("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
+                    kw("a", mono("Num")), // TODO: NoneType, int, float, str, bytes, bytearray
                     kw("version", Int),
                 ],
                 NoneType,
@@ -36,7 +36,7 @@ impl Context {
             Public,
         );
         let t = nd_proc(
-            vec![kw("seq", builtin_poly("Seq", vec![ty_tp(mono_q("T"))]))],
+            vec![kw("seq", poly("Seq", vec![ty_tp(mono_q("T"))]))],
             None,
             mono_q("T"),
         );
