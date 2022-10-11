@@ -394,13 +394,25 @@ impl Context {
         mul.register_builtin_decl("__mul__", op_t, Public);
         mul.register_builtin_decl("Output", Type, Public);
         /* Div */
-        let mut div = Self::builtin_poly_trait("Div", params, 2);
+        let mut div = Self::builtin_poly_trait("Div", params.clone(), 2);
         div.register_superclass(builtin_poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let op_t = fn1_met(mono_q("Self"), r, mono_proj(mono_q("Self"), "Output"));
+        let op_t = fn1_met(
+            mono_q("Self"),
+            r.clone(),
+            mono_proj(mono_q("Self"), "Output"),
+        );
         let self_bound = subtypeof(mono_q("Self"), builtin_poly("Div", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound, self_bound});
+        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
         div.register_builtin_decl("__div__", op_t, Public);
         div.register_builtin_decl("Output", Type, Public);
+        /* FloorDiv */
+        let mut floor_div = Self::builtin_poly_trait("FloorDiv", params, 2);
+        floor_div.register_superclass(builtin_poly("Output", vec![ty_tp(mono_q("R"))]), &output);
+        let op_t = fn1_met(mono_q("Self"), r, mono_proj(mono_q("Self"), "Output"));
+        let self_bound = subtypeof(mono_q("Self"), builtin_poly("FloorDiv", ty_params.clone()));
+        let op_t = quant(op_t, set! {r_bound, self_bound});
+        floor_div.register_builtin_decl("__floordiv__", op_t, Public);
+        floor_div.register_builtin_decl("Output", Type, Public);
         self.register_builtin_type(builtin_mono("Unpack"), unpack, Const);
         self.register_builtin_type(builtin_mono("InheritableType"), inheritable_type, Const);
         self.register_builtin_type(builtin_mono("Named"), named, Const);
@@ -433,7 +445,8 @@ impl Context {
         self.register_builtin_type(builtin_poly("Add", ty_params.clone()), add, Const);
         self.register_builtin_type(builtin_poly("Sub", ty_params.clone()), sub, Const);
         self.register_builtin_type(builtin_poly("Mul", ty_params.clone()), mul, Const);
-        self.register_builtin_type(builtin_poly("Div", ty_params), div, Const);
+        self.register_builtin_type(builtin_poly("Div", ty_params.clone()), div, Const);
+        self.register_builtin_type(builtin_poly("FloorDiv", ty_params), floor_div, Const);
         self.register_const_param_defaults(
             "Eq",
             vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
@@ -456,6 +469,10 @@ impl Context {
         );
         self.register_const_param_defaults(
             "Div",
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+        );
+        self.register_const_param_defaults(
+            "FloorDiv",
             vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
         );
     }
@@ -586,7 +603,7 @@ impl Context {
         ratio_floordiv.register_builtin_const("Output", ValueObj::builtin_t(Ratio));
         ratio_floordiv.register_builtin_const("ModOutput", ValueObj::builtin_t(Ratio));
         ratio.register_trait(
-            Float,
+            Ratio,
             builtin_poly("FloorDiv", vec![ty_tp(Ratio)]),
             ratio_floordiv,
         );
