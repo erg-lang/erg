@@ -195,9 +195,20 @@ impl Context {
                     .collect::<Vec<_>>();
                 poly(path, name, params)
             }
-            MonoProj { lhs, rhs } => {
+            Proj { lhs, rhs } => {
                 let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
-                mono_proj(lhs, rhs)
+                proj(lhs, rhs)
+            }
+            ProjMethod {
+                lhs,
+                method_name,
+                mut args,
+            } => {
+                let lhs = self.generalize_tp(*lhs, bounds, lazy_inits);
+                for arg in args.iter_mut() {
+                    *arg = self.generalize_tp(mem::take(arg), bounds, lazy_inits);
+                }
+                proj_method(lhs, method_name, args)
             }
             And(l, r) => {
                 let l = self.generalize_t_inner(*l, bounds, lazy_inits);
@@ -249,7 +260,7 @@ impl Context {
         }
     }
 
-    fn deref_tp(
+    pub(crate) fn deref_tp(
         &self,
         tp: TyParam,
         variance: Variance,
@@ -274,8 +285,21 @@ impl Context {
             }
             TyParam::BinOp { .. } => todo!(),
             TyParam::UnaryOp { .. } => todo!(),
-            TyParam::Array(_) | TyParam::Tuple(_) => todo!(),
-            TyParam::MonoProj { .. }
+            TyParam::Array(tps) => {
+                let mut new_tps = vec![];
+                for tp in tps {
+                    new_tps.push(self.deref_tp(tp, variance, loc)?);
+                }
+                Ok(TyParam::Array(new_tps))
+            }
+            TyParam::Tuple(tps) => {
+                let mut new_tps = vec![];
+                for tp in tps {
+                    new_tps.push(self.deref_tp(tp, variance, loc)?);
+                }
+                Ok(TyParam::Tuple(new_tps))
+            }
+            TyParam::Proj { .. }
             | TyParam::MonoQVar(_)
             | TyParam::PolyQVar { .. }
             | TyParam::Failure
@@ -613,6 +637,16 @@ impl Context {
                 self.coerce(l);
                 self.coerce(r);
             }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn coerce_tp(&self, tp: &TyParam) {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                self.coerce_tp(&fv.crack());
+            }
+            TyParam::Type(t) => self.coerce(t),
             _ => {}
         }
     }
@@ -1080,7 +1114,7 @@ impl Context {
     }
 
     /// predは正規化されているとする
-    fn _sub_unify_pred(
+    fn sub_unify_pred(
         &self,
         l_pred: &Predicate,
         r_pred: &Predicate,
@@ -1098,8 +1132,8 @@ impl Context {
             | (Pred::Or(l1, r1), Pred::Or(l2, r2))
             | (Pred::Not(l1, r1), Pred::Not(l2, r2)) => {
                 match (
-                    self._sub_unify_pred(l1, l2, loc),
-                    self._sub_unify_pred(r1, r2, loc),
+                    self.sub_unify_pred(l1, l2, loc),
+                    self.sub_unify_pred(r1, r2, loc),
                 ) {
                     (Ok(()), Ok(())) => Ok(()),
                     (Ok(()), Err(e)) | (Err(e), Ok(())) | (Err(e), Err(_)) => Err(e),
@@ -1304,6 +1338,7 @@ impl Context {
             return Ok(());
         }
         if !maybe_sub_is_sub {
+            log!(err "{maybe_sub} !<: {maybe_sup}");
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1545,9 +1580,19 @@ impl Context {
                 self.sub_unify(maybe_sub, before, loc, param_name)?;
                 Ok(())
             }
-            (Type::MonoProj { .. }, _) => todo!(),
-            (_, Type::MonoProj { .. }) => todo!(),
-            (Refinement(_), Refinement(_)) => todo!(),
+            (Type::Proj { .. }, _) => todo!(),
+            (_, Type::Proj { .. }) => todo!(),
+            (Refinement(l), Refinement(r)) => {
+                log!(err "{l}, {r}");
+                if l.preds.len() == 1 && r.preds.len() == 1 {
+                    let l_first = l.preds.iter().next().unwrap();
+                    let r_first = r.preds.iter().next().unwrap();
+                    self.sub_unify_pred(l_first, r_first, loc)?;
+                    log!("{l}, {r}");
+                    return Ok(());
+                }
+                todo!("{l}, {r}")
+            },
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
             // TODO Tuple2, ...
             (Type::BuiltinPoly{ name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),

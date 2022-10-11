@@ -99,7 +99,7 @@ impl HIRBuilder {
         Ok(hir)
     }
 
-    pub fn pop_ctx(&mut self) -> Context {
-        self.lowerer.ctx.pop()
+    pub fn pop_mod_ctx(&mut self) -> Context {
+        self.lowerer.ctx.pop_mod()
     }
 }

@@ -1,7 +1,7 @@
 use std::mem;
 use std::path::PathBuf;
 
-use erg_common::Str;
+use erg_common::{enum_unwrap, Str};
 
 use erg_common::astr::AtomicStr;
 use erg_common::color::{RED, RESET, YELLOW};
@@ -196,4 +196,26 @@ pub fn subsume_func(
         impls,
         additional,
     ))
+}
+
+pub fn __array_getitem__(
+    mut args: ValueArgs,
+    _path: PathBuf,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
+    let _self = enum_unwrap!(args.remove_left_or_key("Self").unwrap(), ValueObj::Array);
+    let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
+    let res = _self[index as usize].clone();
+    Ok(res)
+}
+
+pub fn __dict_getitem__(
+    mut args: ValueArgs,
+    _path: PathBuf,
+    __name__: Option<Str>,
+) -> EvalValueResult<ValueObj> {
+    let _self = enum_unwrap!(args.remove_left_or_key("Self").unwrap(), ValueObj::Dict);
+    let index = args.remove_left_or_key("Index").unwrap();
+    let res = _self.get(&index).unwrap().clone();
+    Ok(res)
 }

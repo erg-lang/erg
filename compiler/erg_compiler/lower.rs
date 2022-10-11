@@ -735,7 +735,6 @@ impl ASTLowerer {
             },
             _ => {
                 if let Some(type_spec) = opt_cast_to {
-                    log!(err "cast({type_spec}): {call}");
                     self.ctx.cast(type_spec, &mut call)?;
                 }
             }
@@ -898,43 +897,54 @@ impl ASTLowerer {
         if let Err(errs) = self.ctx.preregister(&body.block) {
             self.errs.extend(errs.into_iter());
         }
-        let block = self.lower_block(body.block).map_err(|e| {
-            self.pop_append_errs();
-            e
-        })?;
-        let found_body_t = block.ref_t();
-        let opt_expect_body_t = self
-            .ctx
-            .outer
-            .as_ref()
-            .unwrap()
-            .get_current_scope_var(sig.inspect().unwrap())
-            .map(|vi| vi.t.clone());
-        let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
-            _ => unreachable!(),
-        };
-        if let Some(expect_body_t) = opt_expect_body_t {
-            // TODO: expect_body_t is smaller for constants
-            // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
-            if !sig.is_const() {
-                if let Err(e) =
-                    self.return_t_check(sig.loc(), ident.inspect(), &expect_body_t, found_body_t)
-                {
-                    self.errs.push(e);
+        match self.lower_block(body.block) {
+            Ok(block) => {
+                let found_body_t = block.ref_t();
+                let opt_expect_body_t = self
+                    .ctx
+                    .outer
+                    .as_ref()
+                    .unwrap()
+                    .get_current_scope_var(sig.inspect().unwrap())
+                    .map(|vi| vi.t.clone());
+                let ident = match &sig.pat {
+                    ast::VarPattern::Ident(ident) => ident,
+                    _ => unreachable!(),
+                };
+                if let Some(expect_body_t) = opt_expect_body_t {
+                    // TODO: expect_body_t is smaller for constants
+                    // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
+                    if !sig.is_const() {
+                        if let Err(e) = self.return_t_check(
+                            sig.loc(),
+                            ident.inspect(),
+                            &expect_body_t,
+                            found_body_t,
+                        ) {
+                            self.errs.push(e);
+                        }
+                    }
                 }
+                let id = body.id;
+                self.ctx
+                    .outer
+                    .as_mut()
+                    .unwrap()
+                    .assign_var_sig(&sig, found_body_t, id)?;
+                let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+                let sig = hir::VarSignature::new(ident, found_body_t.clone());
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Var(sig), body))
+            }
+            Err(errs) => {
+                self.ctx.outer.as_mut().unwrap().assign_var_sig(
+                    &sig,
+                    &Type::Never,
+                    ast::DefId(0),
+                )?;
+                Err(errs)
             }
         }
-        let id = body.id;
-        self.ctx
-            .outer
-            .as_mut()
-            .unwrap()
-            .assign_var_sig(&sig, found_body_t, id)?;
-        let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-        let sig = hir::VarSignature::new(ident, found_body_t.clone());
-        let body = hir::DefBody::new(body.op, block, body.id);
-        Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
     // NOTE: 呼ばれている間はinner scopeなので注意
@@ -960,33 +970,41 @@ impl ASTLowerer {
                 if let Err(errs) = self.ctx.preregister(&body.block) {
                     self.errs.extend(errs.into_iter());
                 }
-                let block = self.lower_block(body.block).map_err(|e| {
-                    self.pop_append_errs();
-                    e
-                })?;
-                let found_body_t = block.ref_t();
-                let expect_body_t = t.return_t.as_ref();
-                if !sig.is_const() {
-                    if let Err(e) = self.return_t_check(
-                        sig.loc(),
-                        sig.ident.inspect(),
-                        expect_body_t,
-                        found_body_t,
-                    ) {
-                        self.errs.push(e);
+                match self.lower_block(body.block) {
+                    Ok(block) => {
+                        let found_body_t = block.ref_t();
+                        let expect_body_t = t.return_t.as_ref();
+                        if !sig.is_const() {
+                            if let Err(e) = self.return_t_check(
+                                sig.loc(),
+                                sig.ident.inspect(),
+                                expect_body_t,
+                                found_body_t,
+                            ) {
+                                self.errs.push(e);
+                            }
+                        }
+                        let id = body.id;
+                        let t =
+                            self.ctx
+                                .outer
+                                .as_mut()
+                                .unwrap()
+                                .assign_subr(&sig, id, found_body_t)?;
+                        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                        let sig = hir::SubrSignature::new(ident, sig.params, t);
+                        let body = hir::DefBody::new(body.op, block, body.id);
+                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
+                    }
+                    Err(errs) => {
+                        self.ctx.outer.as_mut().unwrap().assign_subr(
+                            &sig,
+                            ast::DefId(0),
+                            &Type::Failure,
+                        )?;
+                        Err(errs)
                     }
                 }
-                let id = body.id;
-                let t = self
-                    .ctx
-                    .outer
-                    .as_mut()
-                    .unwrap()
-                    .assign_subr(&sig, id, found_body_t)?;
-                let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, sig.params, t);
-                let body = hir::DefBody::new(body.op, block, body.id);
-                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
             Type::Failure => {
                 if let Err(errs) = self.ctx.assign_params(&sig.params, None) {
@@ -995,15 +1013,12 @@ impl ASTLowerer {
                 if let Err(errs) = self.ctx.preregister(&body.block) {
                     self.errs.extend(errs.into_iter());
                 }
-                let block = self.lower_block(body.block).map_err(|e| {
-                    self.pop_append_errs();
-                    e
-                })?;
                 self.ctx
                     .outer
                     .as_mut()
                     .unwrap()
-                    .fake_subr_assign(&sig, Type::Failure);
+                    .fake_subr_assign(&sig, Type::Never);
+                let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                 let sig = hir::SubrSignature::new(ident, sig.params, Type::Failure);
                 let body = hir::DefBody::new(body.op, block, body.id);

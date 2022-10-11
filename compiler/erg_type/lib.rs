@@ -1171,10 +1171,15 @@ pub enum Type {
         name: Str,
         params: Vec<TyParam>,
     },
-    MonoProj {
+    Proj {
         lhs: Box<Type>,
         rhs: Str,
     }, // e.g. T.U
+    ProjMethod {
+        lhs: Box<TyParam>,
+        method_name: Str,
+        args: Vec<TyParam>,
+    }, // e.g. Ts.__getitem__(N)
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     Failure,            // when failed to infer (e.g. get the type of `match`)
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
@@ -1279,12 +1284,24 @@ impl PartialEq for Type {
                 },
             ) => ln == rn && lps == rps,
             (
-                Self::MonoProj { lhs, rhs },
-                Self::MonoProj {
+                Self::Proj { lhs, rhs },
+                Self::Proj {
                     lhs: rlhs,
                     rhs: rrhs,
                 },
             ) => lhs == rlhs && rhs == rrhs,
+            (
+                Self::ProjMethod {
+                    lhs,
+                    method_name,
+                    args,
+                },
+                Self::ProjMethod {
+                    lhs: r,
+                    method_name: rm,
+                    args: ra,
+                },
+            ) => lhs == r && method_name == rm && args == ra,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
@@ -1406,9 +1423,24 @@ impl LimitedDisplay for Type {
                 write!(f, "{name}")
             }
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
-            Self::MonoProj { lhs, rhs } => {
+            Self::Proj { lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, ".{rhs}")
+            }
+            Self::ProjMethod {
+                lhs,
+                method_name,
+                args,
+            } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, ".{method_name}(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
             }
             _ => write!(f, "{}", self.name()),
         }
@@ -1553,7 +1585,7 @@ impl HasLevel for Type {
                     p.update_level(level);
                 }
             }
-            Self::MonoProj { lhs, .. } => {
+            Self::Proj { lhs, .. } => {
                 lhs.update_level(level);
             }
             Self::Refinement(refine) => {
@@ -1616,7 +1648,7 @@ impl HasLevel for Type {
                     p.lift();
                 }
             }
-            Self::MonoProj { lhs, .. } => {
+            Self::Proj { lhs, .. } => {
                 lhs.lift();
             }
             Self::Refinement(refine) => {
@@ -1728,7 +1760,7 @@ impl Type {
             | Self::Poly { name, .. }
             | Self::BuiltinPoly { name, .. }
             | Self::PolyQVar { name, .. }
-            | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
+            | Self::Proj { rhs: name, .. } => name.ends_with('!'),
             Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
@@ -1899,8 +1931,9 @@ impl Type {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.name(),
                 FreeKind::NamedUnbound { name, .. } => name.clone(),
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
-            }, // TODO: 中身がSomeなら表示したい
-            Self::MonoProj { .. } => Str::ever("MonoProj"),
+            },
+            Self::Proj { .. } => Str::ever("MonoProj"),
+            Self::ProjMethod { .. } => Str::ever("MonoProjMethod"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
         }
@@ -1979,7 +2012,7 @@ impl Type {
             Self::Poly { params, .. } | Self::BuiltinPoly { params, .. } => {
                 params.iter().any(|tp| tp.has_qvar())
             }
-            Self::MonoProj { lhs, .. } => lhs.has_qvar(),
+            Self::Proj { lhs, .. } => lhs.has_qvar(),
             _ => false,
         }
     }
@@ -2023,7 +2056,7 @@ impl Type {
             Self::Poly { params, .. }
             | Self::BuiltinPoly { params, .. }
             | Self::PolyQVar { params, .. } => params.iter().all(|p| p.is_cachable()),
-            Self::MonoProj { lhs, .. } => lhs.is_cachable(),
+            Self::Proj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
     }
@@ -2074,7 +2107,7 @@ impl Type {
             Self::Poly { params, .. }
             | Self::BuiltinPoly { params, .. }
             | Self::PolyQVar { params, .. } => params.iter().any(|p| p.has_unbound_var()),
-            Self::MonoProj { lhs, .. } => lhs.has_no_unbound_var(),
+            Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
     }

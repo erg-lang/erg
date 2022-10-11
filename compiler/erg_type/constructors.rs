@@ -35,10 +35,11 @@ pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
     builtin_poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
-// FIXME
 pub fn tuple(args: Vec<Type>) -> Type {
-    let name = format!("Tuple{}", args.len());
-    builtin_poly(name, args.into_iter().map(TyParam::t).collect())
+    builtin_poly(
+        "Tuple",
+        vec![TyParam::Array(args.into_iter().map(TyParam::t).collect())],
+    )
 }
 
 pub fn set_t(elem_t: Type, len: TyParam) -> Type {
@@ -280,6 +281,10 @@ pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
     )
 }
 
+pub fn fn1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
+    fn_met(self_t, vec![input], None, vec![], return_t)
+}
+
 pub fn pr_met(
     self_t: Type,
     mut non_default_params: Vec<ParamTy>,
@@ -383,10 +388,19 @@ pub fn poly<P: Into<PathBuf>, T: Into<Str>>(path: P, name: T, params: Vec<TyPara
 }
 
 #[inline]
-pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
-    Type::MonoProj {
+pub fn proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
+    Type::Proj {
         lhs: Box::new(lhs),
         rhs: rhs.into(),
+    }
+}
+
+#[inline]
+pub fn proj_method<S: Into<Str>>(lhs: TyParam, method_name: S, args: Vec<TyParam>) -> Type {
+    Type::ProjMethod {
+        lhs: Box::new(lhs),
+        method_name: method_name.into(),
+        args,
     }
 }
 

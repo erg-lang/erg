@@ -145,6 +145,7 @@ impl Locational for Args {
         if let Some((l, r)) = &self.paren {
             Location::concat(l, r)
         } else {
+            // TODO: kw, var_args
             Location::concat(&self.pos_args[0], self.pos_args.last().unwrap())
         }
     }
@@ -306,6 +307,7 @@ impl TupleAttribute {
 pub struct Subscript {
     pub obj: Box<Expr>,
     pub index: Box<Expr>,
+    pub r_sqbr: Token,
 }
 
 impl NestedDisplay for Subscript {
@@ -319,13 +321,14 @@ impl NestedDisplay for Subscript {
 }
 
 impl_display_from_nested!(Subscript);
-impl_locational!(Subscript, obj, index);
+impl_locational!(Subscript, obj, r_sqbr);
 
 impl Subscript {
-    pub fn new(obj: Expr, index: Expr) -> Self {
+    pub fn new(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
         Self {
             obj: Box::new(obj),
             index: Box::new(index),
+            r_sqbr,
         }
     }
 }
@@ -415,8 +418,8 @@ impl Accessor {
         Self::TupleAttr(TupleAttribute::new(obj, index))
     }
 
-    pub fn subscr(obj: Expr, index: Expr) -> Self {
-        Self::Subscr(Subscript::new(obj, index))
+    pub fn subscr(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
+        Self::Subscr(Subscript::new(obj, index, r_sqbr))
     }
 
     pub const fn name(&self) -> Option<&Str> {
@@ -944,11 +947,7 @@ impl_display_from_nested!(Call);
 
 impl Locational for Call {
     fn loc(&self) -> Location {
-        if self.args.is_empty() {
-            self.obj.loc()
-        } else {
-            Location::concat(self.obj.as_ref(), &self.args)
-        }
+        Location::concat(self.obj.as_ref(), &self.args)
     }
 }
 

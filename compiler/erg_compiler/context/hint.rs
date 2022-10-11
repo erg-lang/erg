@@ -49,7 +49,7 @@ impl Context {
 
     pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<AtomicStr> {
         match proj {
-            Type::MonoProj { lhs, rhs: _ } => {
+            Type::Proj { lhs, rhs: _ } => {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
                     let (sub, sup) = fv.get_bound_types()?;
                     // TODO: automating

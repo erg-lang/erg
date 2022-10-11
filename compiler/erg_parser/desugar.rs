@@ -52,6 +52,7 @@ impl Desugarer {
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);
         let module = Self::desugar_shortened_record(module);
+        let module = Self::desugar_acc(module);
         log!(info "AST (desugared):\n{module}");
         log!(info "the desugaring process has completed.");
         module
@@ -442,7 +443,17 @@ impl Desugarer {
                 Accessor::tuple_attr(obj, Literal::nat(n, sig.ln_begin().unwrap()))
             }
             BufIndex::Array(n) => {
-                Accessor::subscr(obj, Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())))
+                let r_brace = Token::new(
+                    TokenKind::RBrace,
+                    "]",
+                    sig.ln_begin().unwrap(),
+                    sig.col_begin().unwrap(),
+                );
+                Accessor::subscr(
+                    obj,
+                    Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => Accessor::attr(obj, attr.clone()),
         };
@@ -584,13 +595,61 @@ impl Desugarer {
     fn desugar_acc(mut module: Module) -> Module {
         let mut new = Module::with_capacity(module.len());
         while let Some(chunk) = module.lpop() {
-            new.push(Self::desugar_acc_inner(chunk));
+            new.push(Self::rec_desugar_acc(chunk));
         }
         new
     }
 
-    fn desugar_acc_inner(_expr: Expr) -> Expr {
-        todo!()
+    fn rec_desugar_acc(expr: Expr) -> Expr {
+        match expr {
+            Expr::Accessor(acc) => Self::desugar_acc_inner(acc),
+            expr => Self::perform_desugar(Self::rec_desugar_acc, expr),
+        }
+    }
+
+    fn desugar_acc_inner(acc: Accessor) -> Expr {
+        match acc {
+            // x[y] => x.__getitem__(y)
+            Accessor::Subscr(subscr) => {
+                let args = Args::new(vec![PosArg::new(*subscr.index)], vec![], None);
+                let line = subscr.obj.ln_begin().unwrap();
+                let call = Call::new(
+                    Self::rec_desugar_acc(*subscr.obj),
+                    Some(Identifier::public_with_line(
+                        Token::dummy(),
+                        Str::ever("__getitem__"),
+                        line,
+                    )),
+                    args,
+                );
+                Expr::Call(call)
+            }
+            // x.0 => x.__Tuple_getitem__(0)
+            Accessor::TupleAttr(tattr) => {
+                let args = Args::new(vec![PosArg::new(Expr::Lit(tattr.index))], vec![], None);
+                let line = tattr.obj.ln_begin().unwrap();
+                let call = Call::new(
+                    Self::rec_desugar_acc(*tattr.obj),
+                    Some(Identifier::public_with_line(
+                        Token::dummy(),
+                        Str::ever("__Tuple_getitem__"),
+                        line,
+                    )),
+                    args,
+                );
+                Expr::Call(call)
+            }
+            Accessor::TypeApp(mut tapp) => {
+                tapp.obj = Box::new(Self::rec_desugar_acc(*tapp.obj));
+                // REVIEW: tapp.type_args
+                Expr::Accessor(Accessor::TypeApp(tapp))
+            }
+            Accessor::Attr(mut attr) => {
+                attr.obj = Box::new(Self::rec_desugar_acc(*attr.obj));
+                Expr::Accessor(Accessor::Attr(attr))
+            }
+            other => Expr::Accessor(other),
+        }
     }
 }
 

@@ -938,11 +938,11 @@ impl Context {
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
             Ok(hir) => {
-                mod_cache.register(path.clone(), Some(hir), builder.pop_ctx());
+                mod_cache.register(path.clone(), Some(hir), builder.pop_mod_ctx());
             }
             Err((maybe_hir, errs)) => {
                 if let Some(hir) = maybe_hir {
-                    mod_cache.register(path, Some(hir), builder.pop_ctx());
+                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
                 return Err(errs);
             }
@@ -1037,11 +1037,11 @@ impl Context {
             HIRBuilder::new_with_cache(cfg, __name__, py_mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "declare") {
             Ok(hir) => {
-                py_mod_cache.register(path.clone(), Some(hir), builder.pop_ctx());
+                py_mod_cache.register(path.clone(), Some(hir), builder.pop_mod_ctx());
             }
             Err((maybe_hir, errs)) => {
                 if let Some(hir) = maybe_hir {
-                    py_mod_cache.register(path, Some(hir), builder.pop_ctx());
+                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
                 return Err(errs);
             }

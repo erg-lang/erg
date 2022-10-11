@@ -502,7 +502,7 @@ impl ValueObj {
             Self::Float(_) => Type::Float,
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
-            // TODO:
+            // TODO: Zero
             Self::Array(arr) => array(
                 arr.iter().next().unwrap().class(),
                 TyParam::value(arr.len()),
@@ -729,6 +729,52 @@ impl ValueObj {
                 Some(Self::Mut(m))
             }
             (self_, Self::Mut(m)) => self_.try_ge(m.borrow().clone()),
+            _ => None,
+        }
+    }
+
+    pub fn try_lt(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Int(l), Self::Int(r)) => Some(Self::from(l < r)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l < r)),
+            (Self::Float(l), Self::Float(r)) => Some(Self::from(l < r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::from(l < r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::from((l as i32) < r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l < r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l < r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_lt(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_lt(m.borrow().clone()),
+            _ => None,
+        }
+    }
+
+    pub fn try_le(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Int(l), Self::Int(r)) => Some(Self::from(l <= r)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l <= r)),
+            (Self::Float(l), Self::Float(r)) => Some(Self::from(l <= r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::from(l <= r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::from((l as i32) <= r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l <= r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l <= r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
+            (Self::Mut(m), other) => {
+                {
+                    let ref_m = &mut *m.borrow_mut();
+                    *ref_m = mem::take(ref_m).try_le(other)?;
+                }
+                Some(Self::Mut(m))
+            }
+            (self_, Self::Mut(m)) => self_.try_le(m.borrow().clone()),
             _ => None,
         }
     }

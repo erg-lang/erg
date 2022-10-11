@@ -870,6 +870,15 @@ impl Context {
             log!(info "{}: current namespace: {}", fn_name!(), self.name);
             ctx
         } else {
+            panic!("cannot pop the top-level context (or use `pop_mod`)");
+        }
+    }
+
+    pub fn pop_mod(&mut self) -> Context {
+        if self.outer.is_some() {
+            panic!("not in the top-level context");
+        } else {
+            log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel
             mem::take(self)
         }

@@ -223,6 +223,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("File!", _, "read!") => Str::ever("read"),
         (_, _, "__new__") => Str::ever("__call__"),
         (_, _, "to_str") => Str::ever("__str__"),
+        (_, _, "__Tuple_getitem__") => Str::ever("__getitem__"),
         ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
         ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),

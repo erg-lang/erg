@@ -159,13 +159,13 @@ impl TyVarContext {
             Type::BuiltinPoly { name, params } => {
                 self.instantiate_poly(None, mid.name(), &name, params, ctx)
             }
-            Type::MonoProj { lhs, rhs } => {
+            Type::Proj { lhs, rhs } => {
                 let lhs = if lhs.has_qvar() {
                     self.instantiate_qvar(*lhs)
                 } else {
                     *lhs
                 };
-                mono_proj(lhs, rhs)
+                proj(lhs, rhs)
             }
             Type::Ref(t) if t.has_qvar() => ref_(self.instantiate_qvar(*t)),
             Type::RefMut { before, after } => {
@@ -242,6 +242,7 @@ impl TyVarContext {
             }
             TyBound::Instance { name, t } => {
                 let t = match t {
+                    Type::FreeVar(fv) if fv.is_linked() => todo!(),
                     Type::BuiltinPoly { name, params } => {
                         self.instantiate_poly(None, name.clone(), &name, params, ctx)
                     }
@@ -251,8 +252,7 @@ impl TyVarContext {
                     t => t,
                 };
                 let constraint = Constraint::new_type_of(t.clone());
-                // TODO: type-like types
-                if t == Type {
+                if t.is_type() {
                     if let Some(tv) = self.tyvar_instances.get(&name) {
                         tv.update_constraint(constraint);
                     } else if let Some(tp) = self.typaram_instances.get(&name) {
@@ -438,7 +438,10 @@ impl TyVarContext {
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &Str, tp: &TyParam) {
         // FIXME:
-        if self.tyvar_instances.get(name).is_some() || self.typaram_instances.get(name).is_some() {
+        if let Some(_tp) = self.typaram_instances.get(name) {
+            return;
+        }
+        if let Some(_t) = self.tyvar_instances.get(name) {
             return;
         }
         self.typaram_instances.insert(name.clone(), tp.clone());
@@ -1053,9 +1056,20 @@ impl Context {
                     .transpose()?;
                 Ok(ref_mut(before, after))
             }
-            MonoProj { lhs, rhs } => {
+            Proj { lhs, rhs } => {
                 let lhs = self.instantiate_t(*lhs, tmp_tv_ctx, loc)?;
-                Ok(mono_proj(lhs, rhs))
+                Ok(proj(lhs, rhs))
+            }
+            ProjMethod {
+                lhs,
+                method_name,
+                mut args,
+            } => {
+                let lhs = self.instantiate_tp(*lhs, tmp_tv_ctx, loc)?;
+                for arg in args.iter_mut() {
+                    *arg = self.instantiate_tp(mem::take(arg), tmp_tv_ctx, loc)?;
+                }
+                Ok(proj_method(lhs, method_name, args))
             }
             BuiltinPoly { name, mut params } => {
                 for param in params.iter_mut() {

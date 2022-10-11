@@ -17,7 +17,7 @@ use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
 use erg_type::constructors::{
-    anon, builtin_mono, builtin_poly, free_var, func, module, mono_proj, subr_t, v_enum,
+    anon, builtin_mono, builtin_poly, free_var, func, module, proj, subr_t, v_enum,
 };
 use erg_type::free::Constraint;
 use erg_type::typaram::TyParam;
@@ -1864,7 +1864,7 @@ impl Context {
     // TODO: params, polymorphic types
     pub(crate) fn get_candidates(&self, t: &Type) -> Option<Set<Type>> {
         match t {
-            Type::MonoProj { lhs, rhs } => Some(self.get_proj_candidates(lhs, rhs)),
+            Type::Proj { lhs, rhs } => Some(self.get_proj_candidates(lhs, rhs)),
             Type::Subr(subr) => {
                 let candidates = self.get_candidates(&subr.return_t)?;
                 Some(
@@ -1896,7 +1896,7 @@ impl Context {
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
                             self.eval_t_params(
-                                mono_proj(inst.sub_type, rhs),
+                                proj(inst.sub_type, rhs),
                                 self.level,
                                 Location::Unknown,
                             )
@@ -1920,7 +1920,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
             Type::Or(l, r) => self.is_class(l) && self.is_class(r),
-            Type::MonoProj { lhs, rhs } => self
+            Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_class(t)),
@@ -1943,7 +1943,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
             Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
-            Type::MonoProj { lhs, rhs } => self
+            Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_trait(t)),

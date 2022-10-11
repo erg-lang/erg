@@ -10,10 +10,12 @@ use erg_common::config::Input;
 use erg_common::error::Location;
 use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
+use erg_common::str::Str;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, log, set, switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
+    switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -64,6 +66,8 @@ pub enum BraceContainer {
     Dict(Dict),
     Record(Record),
 }
+
+impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
 
 /// Perform recursive descent parsing.
 ///
@@ -391,9 +395,9 @@ impl Parser {
         }
     }
 
-    fn try_reduce_acc(&mut self, in_type_args: bool) -> ParseResult<Accessor> {
+    fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
-        let mut acc = match self.peek() {
+        let acc = match self.peek() {
             Some(t) if t.is(Symbol) || t.is(UBar) => Accessor::local(self.lpop()),
             Some(t) if t.is(Dot) => {
                 let dot = self.lpop();
@@ -414,99 +418,6 @@ impl Parser {
                 return Err(());
             }
         };
-        loop {
-            match self.peek() {
-                Some(t) if t.is(Dot) => {
-                    let vis = self.lpop();
-                    let token = self.lpop();
-                    match token.kind {
-                        Symbol => {
-                            let ident = Identifier::new(Some(vis), VarName::new(token));
-                            acc = Accessor::attr(Expr::Accessor(acc), ident);
-                        }
-                        NatLit => {
-                            let attr = Literal::from(token);
-                            acc = Accessor::tuple_attr(Expr::Accessor(acc), attr);
-                        }
-                        Newline => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        _ => {
-                            self.restore(token);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                Some(t) if t.is(DblColon) => {
-                    let vis = self.lpop();
-                    let token = self.lpop();
-                    match token.kind {
-                        Symbol => {
-                            let ident = Identifier::new(None, VarName::new(token));
-                            acc = Accessor::attr(Expr::Accessor(acc), ident);
-                        }
-                        // DataPack
-                        LBrace => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        // MethodDefs
-                        Newline => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        _ => {
-                            self.restore(token);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                // x[...] (`x [...]` will interpreted as `x([...])`)
-                Some(t) if t.is(LSqBr) && acc.col_end().unwrap() == t.col_begin().unwrap() => {
-                    self.skip();
-                    let index = self
-                        .try_reduce_expr(false, false, false)
-                        .map_err(|_| self.stack_dec())?;
-                    if self.cur_is(RSqBr) {
-                        self.skip();
-                    } else {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                    acc = Accessor::subscr(Expr::Accessor(acc), index);
-                    if self.cur_is(RSqBr) {
-                        self.lpop();
-                    } else {
-                        self.level -= 1;
-                        // TODO: error report: RSqBr not found
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                }
-                Some(t) if t.is(VBar) && !in_type_args => {
-                    let type_args = self
-                        .try_reduce_type_app_args()
-                        .map_err(|_| self.stack_dec())?;
-                    acc = Accessor::TypeApp(TypeApp::new(Expr::Accessor(acc), type_args));
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
         self.level -= 1;
         Ok(acc)
     }
@@ -755,9 +666,7 @@ impl Parser {
                     return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
                 }
                 if self.nth_is(1, Walrus) {
-                    let acc = self
-                        .try_reduce_acc(in_type_args)
-                        .map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
@@ -799,9 +708,7 @@ impl Parser {
         match self.peek() {
             Some(t) if t.is(Symbol) => {
                 if self.nth_is(1, Walrus) {
-                    let acc = self
-                        .try_reduce_acc(in_type_args)
-                        .map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let keyword = if let Accessor::Ident(n) = acc {
@@ -1473,30 +1380,144 @@ impl Parser {
     #[inline]
     fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
-        let acc = self
-            .try_reduce_acc(in_type_args)
-            .map_err(|_| self.stack_dec())?;
-        if let Some(res) = self.opt_reduce_args(in_type_args) {
+        let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
+        let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
+        while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec())?;
-            let (obj, method_name) = match acc {
-                Accessor::Attr(attr) => (*attr.obj, Some(attr.ident)),
-                other => (Expr::Accessor(other), None),
+            let (receiver, method_name) = match call_or_acc {
+                Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
+                other => (other, None),
             };
-            let mut call = Expr::Call(Call::new(obj, method_name, args));
-            // e.g.
-            // f(x).y == Attr { obj: f(x) attr: .y }
-            // f(x) .y == Call { obj: f(x), args: [.y] } (with warning)
-            // f(x) g(x) == f(x)(g(x))
-            while let Some(res) = self.opt_reduce_args(in_type_args) {
-                let args = res.map_err(|_| self.stack_dec())?;
-                call = Expr::Call(Call::new(call, None, args));
-            }
-            self.level -= 1;
-            Ok(call)
-        } else {
-            self.level -= 1;
-            Ok(Expr::Accessor(acc))
+            let call = Call::new(receiver, method_name, args);
+            call_or_acc = Expr::Call(call);
         }
+        self.level -= 1;
+        Ok(call_or_acc)
+    }
+
+    /// [y], .0, .attr, .method(...), (...)
+    #[inline]
+    fn try_reduce_acc_chain(&mut self, acc: Accessor, in_type_args: bool) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let mut obj = Expr::Accessor(acc);
+        loop {
+            match self.peek() {
+                Some(t) if t.is(LSqBr) && obj.col_end() == t.col_begin() => {
+                    let _l_sqbr = self.lpop();
+                    let index = self
+                        .try_reduce_expr(true, false, false)
+                        .map_err(|_| self.stack_dec())?;
+                    let r_sqbr = if self.cur_is(RSqBr) {
+                        self.lpop()
+                    } else {
+                        self.level -= 1;
+                        // TODO: error report: RSqBr not found
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
+                }
+                Some(t) if t.is(Dot) && obj.col_end() == t.col_begin() => {
+                    let vis = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                        }
+                        NatLit => {
+                            let index = Literal::from(token);
+                            obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                        }
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                // e.g. l[0].0
+                Some(t) if t.is(RatioLit) && obj.col_end() == t.col_begin() => {
+                    let mut token = self.lpop();
+                    token.content = Str::rc(&token.content[1..]);
+                    token.kind = NatLit;
+                    token.col_begin += 1;
+                    let index = Literal::from(token);
+                    obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                }
+                Some(t) if t.is(DblColon) && obj.col_end() == t.col_begin() => {
+                    let vis = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let ident = Identifier::new(None, VarName::new(token));
+                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                        }
+                        LBrace => {
+                            self.restore(token);
+                            let args = self
+                                .try_reduce_brace_container()
+                                .map_err(|_| self.stack_dec())?;
+                            match args {
+                                BraceContainer::Record(args) => {
+                                    obj = Expr::DataPack(DataPack::new(obj, vis, args));
+                                }
+                                other => {
+                                    self.level -= 1;
+                                    let err = ParseError::simple_syntax_error(
+                                        line!() as usize,
+                                        other.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    return Err(());
+                                }
+                            }
+                        }
+                        // MethodDefs
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(LParen) && obj.col_end() == t.col_begin() => {
+                    let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                    let (receiver, method_name) = match obj {
+                        Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
+                        other => (other, None),
+                    };
+                    let call = Call::new(receiver, method_name, args);
+                    obj = Expr::Call(call);
+                }
+                Some(t) if t.is(VBar) && !in_type_args => {
+                    let type_args = self
+                        .try_reduce_type_app_args()
+                        .map_err(|_| self.stack_dec())?;
+                    obj = Expr::Accessor(Accessor::TypeApp(TypeApp::new(obj, type_args)));
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        self.level -= 1;
+        Ok(obj)
     }
 
     #[inline]
@@ -1754,7 +1775,7 @@ impl Parser {
                     return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                 }
                 Some(_) => {
-                    let acc = self.try_reduce_acc(false).map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     let acc = match acc {
                         Accessor::Ident(ident) => ident,
                         other => {

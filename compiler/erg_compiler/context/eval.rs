@@ -15,8 +15,9 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
+use erg_type::constructors::proj_method;
 use erg_type::constructors::{
-    builtin_mono, builtin_poly, mono_proj, not, poly, ref_, ref_mut, refinement, subr_t, v_enum,
+    array, builtin_mono, builtin_poly, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
 use erg_type::typaram::{OpKind, TyParam};
 use erg_type::value::ValueObj;
@@ -130,7 +131,9 @@ impl<'c> SubstContext<'c> {
     ///
     /// `ctx` is used to obtain information on the names and variance of the parameters.
     pub fn new(substituted: &Type, ctx: &'c Context, loc: Location) -> Self {
-        let ty_ctx = ctx.get_nominal_type_ctx(substituted).unwrap();
+        let ty_ctx = ctx
+            .get_nominal_type_ctx(substituted)
+            .unwrap_or_else(|| todo!("{substituted} not found"));
         let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
             opt_name
@@ -203,7 +206,7 @@ impl<'c> SubstContext<'c> {
             TyParam::Type(t) => {
                 self.substitute_t(t)?;
             }
-            TyParam::MonoProj { obj, .. } => {
+            TyParam::Proj { obj, .. } => {
                 self.substitute_tp(obj)?;
             }
             _ => {}
@@ -240,7 +243,7 @@ impl<'c> SubstContext<'c> {
                 self.substitute_t(l)?;
                 self.substitute_t(r)?;
             }
-            Type::MonoProj { lhs, .. } => {
+            Type::Proj { lhs, .. } => {
                 self.substitute_t(lhs)?;
             }
             Type::Record(rec) => {
@@ -678,6 +681,20 @@ impl Context {
                     line!(),
                 ))
             }),
+            Lt => lhs.try_lt(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Le => lhs.try_le(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
             Eq => lhs.try_eq(rhs).ok_or_else(|| {
                 EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
@@ -710,8 +727,10 @@ impl Context {
                 .eval_bin(op, lhs.clone(), rhs.clone())
                 .map(TyParam::value),
             (TyParam::FreeVar(fv), r) if fv.is_linked() => self.eval_bin_tp(op, &*fv.crack(), r),
+            (TyParam::FreeVar(_), _) if op.is_comparison() => Ok(TyParam::value(true)),
             (TyParam::FreeVar(_), _) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (l, TyParam::FreeVar(fv)) if fv.is_linked() => self.eval_bin_tp(op, l, &*fv.crack()),
+            (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
             (_, TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
             (l, r) => todo!("{l} {op} {r}"),
@@ -759,6 +778,20 @@ impl Context {
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(*op, val),
             TyParam::App { name, args } => self.eval_app(name, args),
+            TyParam::Array(tps) => {
+                let mut new_tps = Vec::with_capacity(tps.len());
+                for tp in tps {
+                    new_tps.push(self.eval_tp(tp)?);
+                }
+                Ok(TyParam::Array(new_tps))
+            }
+            TyParam::Tuple(tps) => {
+                let mut new_tps = Vec::with_capacity(tps.len());
+                for tp in tps {
+                    new_tps.push(self.eval_tp(tp)?);
+                }
+                Ok(TyParam::Tuple(new_tps))
+            }
             p @ (TyParam::Type(_)
             | TyParam::Erased(_)
             | TyParam::Value(_)
@@ -813,106 +846,12 @@ impl Context {
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
             // ?T(:> Int, <: Add(?R(:> Int))).Output == Int
-            Type::MonoProj { lhs, rhs } => {
-                // Currently Erg does not allow projection-types to be evaluated with type variables included.
-                // All type variables will be dereferenced or fail.
-                let (sub, opt_sup) = match *lhs.clone() {
-                    Type::FreeVar(fv) if fv.is_linked() => {
-                        return self.eval_t_params(mono_proj(fv.crack().clone(), rhs), level, t_loc)
-                    }
-                    Type::FreeVar(fv) if fv.is_unbound() => {
-                        let (sub, sup) = fv.get_bound_types().unwrap();
-                        (sub, Some(sup))
-                    }
-                    other => (other, None),
-                };
-                // cannot determine at this point
-                if sub == Type::Never {
-                    return Ok(mono_proj(*lhs, rhs));
-                }
-                for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
-                    EvalError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        t_loc,
-                        self.caused_by(),
-                        &rhs,
-                        None, // TODO:
-                    )
-                })? {
-                    if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
-                        if let ValueObj::Type(quant_t) = obj {
-                            let subst_ctx = SubstContext::new(&sub, self, t_loc);
-                            let t = subst_ctx.substitute(quant_t.typ().clone())?;
-                            let t = self.eval_t_params(t, level, t_loc)?;
-                            return Ok(t);
-                        } else {
-                            todo!()
-                        }
-                    }
-                    for (class, methods) in ty_ctx.methods_list.iter() {
-                        match (class, &opt_sup) {
-                            (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
-                                if !self.supertype_of(impl_trait, sup) {
-                                    continue;
-                                }
-                            }
-                            (ClassDefType::ImplTrait { impl_trait, .. }, None) => {
-                                if !self.supertype_of(impl_trait, &sub) {
-                                    continue;
-                                }
-                            }
-                            _ => {}
-                        }
-                        if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
-                            if let ValueObj::Type(quant_t) = obj {
-                                let subst_ctx = SubstContext::new(&sub, self, t_loc);
-                                let t = subst_ctx.substitute(quant_t.typ().clone())?;
-                                let t = self.eval_t_params(t, level, t_loc)?;
-                                return Ok(t);
-                            } else {
-                                todo!()
-                            }
-                        }
-                    }
-                }
-                if lhs.is_unbound_var() {
-                    let (sub, sup) = enum_unwrap!(lhs.as_ref(), Type::FreeVar)
-                        .get_bound_types()
-                        .unwrap();
-                    if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
-                        return Err(EvalErrors::from(EvalError::no_trait_impl_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            &sub,
-                            &sup,
-                            t_loc,
-                            self.caused_by(),
-                            None,
-                        )));
-                    }
-                }
-                // if the target can't be found in the supertype, the type will be dereferenced.
-                // In many cases, it is still better to determine the type variable than if the target is not found.
-                let coerced = self.deref_tyvar(*lhs.clone(), Variance::Covariant, t_loc)?;
-                if lhs.as_ref() != &coerced {
-                    let proj = mono_proj(coerced, rhs);
-                    self.eval_t_params(proj, level, t_loc).map(|t| {
-                        self.coerce(&lhs);
-                        t
-                    })
-                } else {
-                    let proj = mono_proj(*lhs, rhs);
-                    Err(EvalErrors::from(EvalError::no_candidate_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        &proj,
-                        t_loc,
-                        self.caused_by(),
-                        self.get_no_candidate_hint(&proj),
-                    )))
-                }
-            }
+            Type::Proj { lhs, rhs } => self.eval_proj(*lhs, rhs, level, t_loc),
+            Type::ProjMethod {
+                lhs,
+                method_name,
+                args,
+            } => self.eval_proj_method(*lhs, method_name, args, level, t_loc),
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
                 let before = self.eval_t_params(*before, level, t_loc)?;
@@ -964,6 +903,197 @@ impl Context {
         }
     }
 
+    fn eval_proj(&self, lhs: Type, rhs: Str, level: usize, t_loc: Location) -> EvalResult<Type> {
+        // Currently Erg does not allow projection-types to be evaluated with type variables included.
+        // All type variables will be dereferenced or fail.
+        let (sub, opt_sup) = match lhs.clone() {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                return self.eval_t_params(proj(fv.crack().clone(), rhs), level, t_loc)
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, sup) = fv.get_bound_types().unwrap();
+                (sub, Some(sup))
+            }
+            other => (other, None),
+        };
+        // cannot determine at this point
+        if sub == Type::Never {
+            return Ok(proj(lhs, rhs));
+        }
+        for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
+            EvalError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_loc,
+                self.caused_by(),
+                &rhs,
+                None, // TODO:
+            )
+        })? {
+            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
+                if let ValueObj::Type(quant_t) = obj {
+                    let subst_ctx = SubstContext::new(&sub, self, t_loc);
+                    let t = subst_ctx.substitute(quant_t.typ().clone())?;
+                    let t = self.eval_t_params(t, level, t_loc)?;
+                    return Ok(t);
+                } else {
+                    todo!()
+                }
+            }
+            for (class, methods) in ty_ctx.methods_list.iter() {
+                match (class, &opt_sup) {
+                    (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
+                        if !self.supertype_of(impl_trait, sup) {
+                            continue;
+                        }
+                    }
+                    (ClassDefType::ImplTrait { impl_trait, .. }, None) => {
+                        if !self.supertype_of(impl_trait, &sub) {
+                            continue;
+                        }
+                    }
+                    _ => {}
+                }
+                if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
+                    if let ValueObj::Type(quant_t) = obj {
+                        let subst_ctx = SubstContext::new(&sub, self, t_loc);
+                        let t = subst_ctx.substitute(quant_t.typ().clone())?;
+                        let t = self.eval_t_params(t, level, t_loc)?;
+                        return Ok(t);
+                    } else {
+                        todo!()
+                    }
+                }
+            }
+        }
+        if lhs.is_unbound_var() {
+            let (sub, sup) = enum_unwrap!(&lhs, Type::FreeVar).get_bound_types().unwrap();
+            if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &sub,
+                    &sup,
+                    t_loc,
+                    self.caused_by(),
+                    None,
+                )));
+            }
+        }
+        // if the target can't be found in the supertype, the type will be dereferenced.
+        // In many cases, it is still better to determine the type variable than if the target is not found.
+        let coerced = self.deref_tyvar(lhs.clone(), Variance::Covariant, t_loc)?;
+        if lhs != coerced {
+            let proj = proj(coerced, rhs);
+            self.eval_t_params(proj, level, t_loc).map(|t| {
+                self.coerce(&lhs);
+                t
+            })
+        } else {
+            let proj = proj(lhs, rhs);
+            Err(EvalErrors::from(EvalError::no_candidate_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                &proj,
+                t_loc,
+                self.caused_by(),
+                self.get_no_candidate_hint(&proj),
+            )))
+        }
+    }
+
+    fn eval_proj_method(
+        &self,
+        lhs: TyParam,
+        method_name: Str,
+        args: Vec<TyParam>,
+        level: usize,
+        t_loc: Location,
+    ) -> EvalResult<Type> {
+        let t = self.get_tp_t(&lhs)?;
+        for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
+            EvalError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_loc,
+                self.caused_by(),
+                &method_name,
+                None, // TODO:
+            )
+        })? {
+            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&method_name), &self.name) {
+                if let ValueObj::Subr(subr) = obj {
+                    let is_method = subr.sig_t().self_t().is_some();
+                    let mut pos_args = vec![];
+                    if is_method {
+                        pos_args.push(ValueObj::try_from(lhs).unwrap());
+                    }
+                    for pos_arg in args.into_iter() {
+                        pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                    }
+                    let args = ValueArgs::new(pos_args, dict! {});
+                    let t = self.call(subr, args, None, t_loc)?;
+                    let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
+                    return Ok(t.into_typ());
+                } else {
+                    todo!()
+                }
+            }
+            for (_class, methods) in ty_ctx.methods_list.iter() {
+                if let Ok(obj) = methods.get_const_local(&Token::symbol(&method_name), &self.name) {
+                    if let ValueObj::Subr(subr) = obj {
+                        let mut pos_args = vec![];
+                        for pos_arg in args.into_iter() {
+                            pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                        }
+                        let args = ValueArgs::new(pos_args, dict! {});
+                        let t = self.call(subr, args, None, t_loc)?;
+                        let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
+                        return Ok(t.into_typ());
+                    } else {
+                        todo!()
+                    }
+                }
+            }
+        }
+        if lhs.is_unbound_var() {
+            let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar)
+                .get_bound_types()
+                .unwrap();
+            if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &sub,
+                    &sup,
+                    t_loc,
+                    self.caused_by(),
+                    None,
+                )));
+            }
+        }
+        // if the target can't be found in the supertype, the type will be dereferenced.
+        // In many cases, it is still better to determine the type variable than if the target is not found.
+        let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, t_loc)?;
+        if lhs != coerced {
+            let proj = proj_method(coerced, method_name, args);
+            self.eval_t_params(proj, level, t_loc).map(|t| {
+                self.coerce_tp(&lhs);
+                t
+            })
+        } else {
+            let proj = proj_method(lhs, method_name, args);
+            Err(EvalErrors::from(EvalError::no_candidate_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                &proj,
+                t_loc,
+                self.caused_by(),
+                self.get_no_candidate_hint(&proj),
+            )))
+        }
+    }
+
     pub(crate) fn _eval_bound(
         &self,
         bound: TyBound,
@@ -1010,8 +1140,18 @@ impl Context {
                     todo!()
                 }
             }
-            // TODO: Class, Trait
-            TyParam::Type(_) => Ok(Type::Type),
+            TyParam::Type(typ) => {
+                if let Some(ctx) = self.get_nominal_type_ctx(&typ) {
+                    let t = match ctx.kind {
+                        ContextKind::Class => Type::ClassType,
+                        ContextKind::Trait | ContextKind::StructuralTrait => Type::TraitType,
+                        _ => unreachable!(),
+                    };
+                    Ok(t)
+                } else {
+                    Ok(Type::Type)
+                }
+            }
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
                 .map(|v| v_enum(set![v.clone()]))
@@ -1024,6 +1164,11 @@ impl Context {
                 }),
             TyParam::MonoQVar(name) => {
                 panic!("Not instantiated type variable: {name}")
+            }
+            TyParam::Array(tps) => {
+                let tp_t = self.get_tp_t(&tps[0])?;
+                let t = array(tp_t, TyParam::value(tps.len()));
+                Ok(t)
             }
             TyParam::UnaryOp { op, val } => match op {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
