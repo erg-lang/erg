@@ -10,10 +10,12 @@ use erg_common::config::Input;
 use erg_common::error::Location;
 use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
+use erg_common::str::Str;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, log, set, switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
+    switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -64,6 +66,8 @@ pub enum BraceContainer {
     Dict(Dict),
     Record(Record),
 }
+
+impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
 
 /// Perform recursive descent parsing.
 ///
@@ -264,7 +268,7 @@ impl Parser {
                     switch_unreachable!()
                 }
                 Some(_) => {
-                    if let Ok(expr) = self.try_reduce_chunk(true) {
+                    if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
                     }
                 }
@@ -280,7 +284,9 @@ impl Parser {
         let mut block = Block::with_capacity(2);
         // single line block
         if !self.cur_is(Newline) {
-            let chunk = self.try_reduce_chunk(true).map_err(|_| self.stack_dec())?;
+            let chunk = self
+                .try_reduce_chunk(true, false)
+                .map_err(|_| self.stack_dec())?;
             block.push(chunk);
             self.level -= 1;
             return Ok(block);
@@ -304,7 +310,7 @@ impl Parser {
                     break;
                 }
                 Some(_) => {
-                    if let Ok(expr) = self.try_reduce_chunk(true) {
+                    if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         block.push(expr);
                     }
                 }
@@ -343,7 +349,7 @@ impl Parser {
         if self.cur_is(TokenKind::AtSign) {
             self.lpop();
             let expr = self
-                .try_reduce_expr(false, false)
+                .try_reduce_expr(false, false, false)
                 .map_err(|_| self.stack_dec())?;
             self.level -= 1;
             Ok(Some(Decorator::new(expr)))
@@ -389,9 +395,9 @@ impl Parser {
         }
     }
 
-    fn try_reduce_acc(&mut self, in_type_args: bool) -> ParseResult<Accessor> {
+    fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
-        let mut acc = match self.peek() {
+        let acc = match self.peek() {
             Some(t) if t.is(Symbol) || t.is(UBar) => Accessor::local(self.lpop()),
             Some(t) if t.is(Dot) => {
                 let dot = self.lpop();
@@ -412,99 +418,6 @@ impl Parser {
                 return Err(());
             }
         };
-        loop {
-            match self.peek() {
-                Some(t) if t.is(Dot) => {
-                    let vis = self.lpop();
-                    let token = self.lpop();
-                    match token.kind {
-                        Symbol => {
-                            let ident = Identifier::new(Some(vis), VarName::new(token));
-                            acc = Accessor::attr(Expr::Accessor(acc), ident);
-                        }
-                        NatLit => {
-                            let attr = Literal::from(token);
-                            acc = Accessor::tuple_attr(Expr::Accessor(acc), attr);
-                        }
-                        Newline => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        _ => {
-                            self.restore(token);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                Some(t) if t.is(DblColon) => {
-                    let vis = self.lpop();
-                    let token = self.lpop();
-                    match token.kind {
-                        Symbol => {
-                            let ident = Identifier::new(None, VarName::new(token));
-                            acc = Accessor::attr(Expr::Accessor(acc), ident);
-                        }
-                        // DataPack
-                        LBrace => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        // MethodDefs
-                        Newline => {
-                            self.restore(token);
-                            self.restore(vis);
-                            break;
-                        }
-                        _ => {
-                            self.restore(token);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
-                            self.errs.push(err);
-                            return Err(());
-                        }
-                    }
-                }
-                // x[...] (`x [...]` will interpreted as `x([...])`)
-                Some(t) if t.is(LSqBr) && acc.col_end().unwrap() == t.col_begin().unwrap() => {
-                    self.skip();
-                    let index = self
-                        .try_reduce_expr(false, false)
-                        .map_err(|_| self.stack_dec())?;
-                    if self.cur_is(RSqBr) {
-                        self.skip();
-                    } else {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                    acc = Accessor::subscr(Expr::Accessor(acc), index);
-                    if self.cur_is(RSqBr) {
-                        self.lpop();
-                    } else {
-                        self.level -= 1;
-                        // TODO: error report: RSqBr not found
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                }
-                Some(t) if t.is(VBar) && !in_type_args => {
-                    let type_args = self
-                        .try_reduce_type_app_args()
-                        .map_err(|_| self.stack_dec())?;
-                    acc = Accessor::TypeApp(TypeApp::new(Expr::Accessor(acc), type_args));
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
         self.level -= 1;
         Ok(acc)
     }
@@ -523,7 +436,7 @@ impl Parser {
             Some(semi) if semi.is(Semi) => {
                 self.lpop();
                 let len = self
-                    .try_reduce_expr(false, false)
+                    .try_reduce_expr(false, false, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
@@ -580,7 +493,7 @@ impl Parser {
         match self.peek() {
             Some(_) => {
                 let expr = self
-                    .try_reduce_expr(false, false)
+                    .try_reduce_expr(false, false, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosArg::new(expr))
@@ -753,9 +666,7 @@ impl Parser {
                     return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
                 }
                 if self.nth_is(1, Walrus) {
-                    let acc = self
-                        .try_reduce_acc(in_type_args)
-                        .map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
@@ -769,13 +680,13 @@ impl Parser {
                         return Err(());
                     };
                     let expr = self
-                        .try_reduce_expr(false, in_type_args)
+                        .try_reduce_expr(false, in_type_args, false)
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
-                        .try_reduce_expr(false, in_type_args)
+                        .try_reduce_expr(false, in_type_args, false)
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(PosOrKwArg::Pos(PosArg::new(expr)))
@@ -783,7 +694,7 @@ impl Parser {
             }
             Some(_) => {
                 let expr = self
-                    .try_reduce_expr(false, in_type_args)
+                    .try_reduce_expr(false, in_type_args, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosOrKwArg::Pos(PosArg::new(expr)))
@@ -797,9 +708,7 @@ impl Parser {
         match self.peek() {
             Some(t) if t.is(Symbol) => {
                 if self.nth_is(1, Walrus) {
-                    let acc = self
-                        .try_reduce_acc(in_type_args)
-                        .map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let keyword = if let Accessor::Ident(n) = acc {
@@ -822,7 +731,7 @@ impl Parser {
                         None
                     };*/
                     let expr = self
-                        .try_reduce_expr(false, in_type_args)
+                        .try_reduce_expr(false, in_type_args, false)
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(KwArg::new(keyword, None, expr))
@@ -856,7 +765,9 @@ impl Parser {
         while self.cur_is(Newline) {
             self.skip();
         }
-        let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+        let first = self
+            .try_reduce_chunk(false, false)
+            .map_err(|_| self.stack_dec())?;
         let first = if let Some(fst) = option_enum_unwrap!(first, Expr::Def) {
             fst
         } else {
@@ -879,7 +790,9 @@ impl Parser {
                     self.skip();
                 }
                 Some(_) => {
-                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+                    let def = self
+                        .try_reduce_chunk(false, false)
+                        .map_err(|_| self.stack_dec())?;
                     match def {
                         Expr::Def(def) => {
                             defs.push(def);
@@ -921,7 +834,7 @@ impl Parser {
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
-                .try_reduce_expr(true, false)
+                .try_reduce_expr(true, false, false)
                 .map_err(|_| self.stack_dec())?;
             let block = Block::new(vec![expr]);
             self.level -= 1;
@@ -930,11 +843,11 @@ impl Parser {
     }
 
     /// chunk = normal expr + def
-    fn try_reduce_chunk(&mut self, winding: bool) -> ParseResult<Expr> {
+    fn try_reduce_chunk(&mut self, winding: bool, in_brace: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
-            self.try_reduce_bin_lhs(false)
+            self.try_reduce_bin_lhs(false, in_brace)
                 .map_err(|_| self.stack_dec())?,
         ));
         loop {
@@ -969,14 +882,26 @@ impl Parser {
                         self.counter,
                     ))));
                 }
+                // type ascription
                 Some(op)
                     if (op.is(Colon) && !self.nth_is(1, Newline))
                         || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
                 {
+                    // "a": 1 (key-value pair)
+                    if in_brace {
+                        while stack.len() >= 3 {
+                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let bin = BinOp::new(op, lhs, rhs);
+                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                        }
+                        break;
+                    }
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
-                        .try_reduce_expr(false, false)
+                        .try_reduce_expr(false, false, false)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
@@ -1004,7 +929,7 @@ impl Parser {
                     }
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
-                        self.try_reduce_bin_lhs(false)
+                        self.try_reduce_bin_lhs(false, in_brace)
                             .map_err(|_| self.stack_dec())?,
                     ));
                 }
@@ -1119,6 +1044,30 @@ impl Parser {
                         }
                     }
                 }
+                Some(t) if t.is(LSqBr) => {
+                    let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
+                        expr
+                    } else {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    self.skip();
+                    let index = self
+                        .try_reduce_expr(false, false, in_brace)
+                        .map_err(|_| self.stack_dec())?;
+                    let r_sqbr = self.lpop();
+                    if !r_sqbr.is(RSqBr) {
+                        self.restore(r_sqbr);
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                    let acc = Accessor::subscr(obj, index, r_sqbr);
+                    stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                }
                 Some(t) if t.is(Comma) && winding => {
                     let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let tup = self
@@ -1176,11 +1125,17 @@ impl Parser {
 
     /// chunk = expr + def
     /// winding: true => parse paren-less tuple
-    fn try_reduce_expr(&mut self, winding: bool, in_type_args: bool) -> ParseResult<Expr> {
+    /// in_brace: true => (1: 1) will not be a syntax error (key-value pair)
+    fn try_reduce_expr(
+        &mut self,
+        winding: bool,
+        in_type_args: bool,
+        in_brace: bool,
+    ) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
-            self.try_reduce_bin_lhs(in_type_args)
+            self.try_reduce_bin_lhs(in_type_args, in_brace)
                 .map_err(|_| self.stack_dec())?,
         ));
         loop {
@@ -1200,14 +1155,19 @@ impl Parser {
                         self.counter,
                     ))));
                 }
+                // type ascription
                 Some(op)
                     if (op.is(Colon) && !self.nth_is(1, Newline))
                         || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
                 {
+                    // "a": 1 (key-value pair)
+                    if in_brace {
+                        break;
+                    }
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
-                        .try_reduce_expr(false, in_type_args)
+                        .try_reduce_expr(false, in_type_args, in_brace)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
@@ -1235,7 +1195,7 @@ impl Parser {
                     }
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
-                        self.try_reduce_bin_lhs(in_type_args)
+                        self.try_reduce_bin_lhs(in_type_args, in_brace)
                             .map_err(|_| self.stack_dec())?,
                     ));
                 }
@@ -1332,7 +1292,7 @@ impl Parser {
 
     /// "LHS" is the smallest unit that can be the left-hand side of an BinOp.
     /// e.g. Call, Name, UnaryOp, Lambda
-    fn try_reduce_bin_lhs(&mut self, in_type_args: bool) -> ParseResult<Expr> {
+    fn try_reduce_bin_lhs(&mut self, in_type_args: bool, in_brace: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => {
@@ -1343,7 +1303,7 @@ impl Parser {
             }
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
-                let expr = self.try_reduce_chunk(false)?;
+                let expr = self.try_reduce_chunk(false, in_brace)?;
                 let mut def = if let Some(def) = option_enum_unwrap!(expr, Expr::Def) {
                     def
                 } else {
@@ -1396,7 +1356,7 @@ impl Parser {
                     return Ok(Expr::Tuple(unit));
                 }
                 let mut expr = self
-                    .try_reduce_expr(true, false)
+                    .try_reduce_expr(true, false, false)
                     .map_err(|_| self.stack_dec())?;
                 let rparen = self.lpop();
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
@@ -1451,30 +1411,144 @@ impl Parser {
     #[inline]
     fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
-        let acc = self
-            .try_reduce_acc(in_type_args)
-            .map_err(|_| self.stack_dec())?;
-        if let Some(res) = self.opt_reduce_args(in_type_args) {
+        let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
+        let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
+        while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec())?;
-            let (obj, method_name) = match acc {
-                Accessor::Attr(attr) => (*attr.obj, Some(attr.ident)),
-                other => (Expr::Accessor(other), None),
+            let (receiver, method_name) = match call_or_acc {
+                Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
+                other => (other, None),
             };
-            let mut call = Expr::Call(Call::new(obj, method_name, args));
-            // e.g.
-            // f(x).y == Attr { obj: f(x) attr: .y }
-            // f(x) .y == Call { obj: f(x), args: [.y] } (with warning)
-            // f(x) g(x) == f(x)(g(x))
-            while let Some(res) = self.opt_reduce_args(in_type_args) {
-                let args = res.map_err(|_| self.stack_dec())?;
-                call = Expr::Call(Call::new(call, None, args));
-            }
-            self.level -= 1;
-            Ok(call)
-        } else {
-            self.level -= 1;
-            Ok(Expr::Accessor(acc))
+            let call = Call::new(receiver, method_name, args);
+            call_or_acc = Expr::Call(call);
         }
+        self.level -= 1;
+        Ok(call_or_acc)
+    }
+
+    /// [y], .0, .attr, .method(...), (...)
+    #[inline]
+    fn try_reduce_acc_chain(&mut self, acc: Accessor, in_type_args: bool) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let mut obj = Expr::Accessor(acc);
+        loop {
+            match self.peek() {
+                Some(t) if t.is(LSqBr) && obj.col_end() == t.col_begin() => {
+                    let _l_sqbr = self.lpop();
+                    let index = self
+                        .try_reduce_expr(true, false, false)
+                        .map_err(|_| self.stack_dec())?;
+                    let r_sqbr = if self.cur_is(RSqBr) {
+                        self.lpop()
+                    } else {
+                        self.level -= 1;
+                        // TODO: error report: RSqBr not found
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
+                }
+                Some(t) if t.is(Dot) && obj.col_end() == t.col_begin() => {
+                    let vis = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                        }
+                        NatLit => {
+                            let index = Literal::from(token);
+                            obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                        }
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                // e.g. l[0].0
+                Some(t) if t.is(RatioLit) && obj.col_end() == t.col_begin() => {
+                    let mut token = self.lpop();
+                    token.content = Str::rc(&token.content[1..]);
+                    token.kind = NatLit;
+                    token.col_begin += 1;
+                    let index = Literal::from(token);
+                    obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                }
+                Some(t) if t.is(DblColon) && obj.col_end() == t.col_begin() => {
+                    let vis = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
+                            let ident = Identifier::new(None, VarName::new(token));
+                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                        }
+                        LBrace => {
+                            self.restore(token);
+                            let args = self
+                                .try_reduce_brace_container()
+                                .map_err(|_| self.stack_dec())?;
+                            match args {
+                                BraceContainer::Record(args) => {
+                                    obj = Expr::DataPack(DataPack::new(obj, vis, args));
+                                }
+                                other => {
+                                    self.level -= 1;
+                                    let err = ParseError::simple_syntax_error(
+                                        line!() as usize,
+                                        other.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    return Err(());
+                                }
+                            }
+                        }
+                        // MethodDefs
+                        Newline => {
+                            self.restore(token);
+                            self.restore(vis);
+                            break;
+                        }
+                        _ => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                    }
+                }
+                Some(t) if t.is(LParen) && obj.col_end() == t.col_begin() => {
+                    let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                    let (receiver, method_name) = match obj {
+                        Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
+                        other => (other, None),
+                    };
+                    let call = Call::new(receiver, method_name, args);
+                    obj = Expr::Call(call);
+                }
+                Some(t) if t.is(VBar) && !in_type_args => {
+                    let type_args = self
+                        .try_reduce_type_app_args()
+                        .map_err(|_| self.stack_dec())?;
+                    obj = Expr::Accessor(Accessor::TypeApp(TypeApp::new(obj, type_args)));
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        self.level -= 1;
+        Ok(obj)
     }
 
     #[inline]
@@ -1482,7 +1556,7 @@ impl Parser {
         debug_call_info!(self);
         let op = self.lpop();
         let expr = self
-            .try_reduce_expr(false, false)
+            .try_reduce_expr(false, false, false)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(UnaryOp::new(op, expr))
@@ -1569,6 +1643,9 @@ impl Parser {
                         return Ok(BraceContainer::Record(Record::Normal(rec)));
                     }
                 }
+                self.level -= 1;
+                let err = self.skip_and_throw_syntax_err(caused_by!());
+                self.errs.push(err);
                 return Err(());
             }
             if first.is(Colon) {
@@ -1576,16 +1653,20 @@ impl Parser {
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
-                        let arg = Args::empty();
-                        let dict = NormalDict::new(l_brace, r_brace, arg);
+                        let dict = NormalDict::new(l_brace, r_brace, vec![]);
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
                 }
+                self.level -= 1;
+                let err = self.skip_and_throw_syntax_err(caused_by!());
+                self.errs.push(err);
                 return Err(());
             }
         }
 
-        let first = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+        let first = self
+            .try_reduce_chunk(false, true)
+            .map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
                 let record = self
@@ -1594,8 +1675,6 @@ impl Parser {
                 self.level -= 1;
                 Ok(BraceContainer::Record(Record::Normal(record)))
             }
-            // Dict
-            Expr::TypeAsc(_) => todo!(),
             // TODO: {X; Y} will conflict with Set
             Expr::Accessor(acc)
                 if self.cur_is(Semi)
@@ -1607,6 +1686,14 @@ impl Parser {
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(BraceContainer::Record(Record::Shortened(record)))
+            }
+            // Dict
+            other if self.cur_is(Colon) => {
+                let dict = self
+                    .try_reduce_normal_dict(l_brace, other)
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(BraceContainer::Dict(Dict::Normal(dict)))
             }
             other => {
                 let set = self
@@ -1653,7 +1740,9 @@ impl Parser {
                     return Ok(NormalRecord::new(l_brace, r_brace, attrs));
                 }
                 Some(_) => {
-                    let def = self.try_reduce_chunk(false).map_err(|_| self.stack_dec())?;
+                    let def = self
+                        .try_reduce_chunk(false, false)
+                        .map_err(|_| self.stack_dec())?;
                     let def = if let Some(def) = option_enum_unwrap!(def, Expr::Def) {
                         def
                     } else {
@@ -1717,7 +1806,7 @@ impl Parser {
                     return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
                 }
                 Some(_) => {
-                    let acc = self.try_reduce_acc(false).map_err(|_| self.stack_dec())?;
+                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     let acc = match acc {
                         Accessor::Ident(ident) => ident,
                         other => {
@@ -1740,8 +1829,59 @@ impl Parser {
         }
     }
 
-    fn _try_reduce_dict() -> ParseResult<Dict> {
-        todo!()
+    fn try_reduce_normal_dict(
+        &mut self,
+        l_brace: Token,
+        first_key: Expr,
+    ) -> ParseResult<NormalDict> {
+        debug_call_info!(self);
+        assert!(self.cur_is(Colon));
+        self.skip();
+        let value = self
+            .try_reduce_chunk(false, false)
+            .map_err(|_| self.stack_dec())?;
+        let mut kvs = vec![KeyValue::new(first_key, value)];
+        loop {
+            match self.peek() {
+                Some(t) if t.is(Comma) => {
+                    self.skip();
+                    if self.cur_is(Comma) {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    } else if self.cur_is(RBrace) {
+                        let dict = NormalDict::new(l_brace, self.lpop(), kvs);
+                        self.level -= 1;
+                        return Ok(dict);
+                    }
+                    let key = self
+                        .try_reduce_expr(false, false, true)
+                        .map_err(|_| self.stack_dec())?;
+                    if self.cur_is(Colon) {
+                        self.skip();
+                        let value = self
+                            .try_reduce_chunk(false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        kvs.push(KeyValue::new(key, value));
+                    } else {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                }
+                Some(t) if t.is(RBrace) => {
+                    let dict = NormalDict::new(l_brace, self.lpop(), kvs);
+                    self.level -= 1;
+                    return Ok(dict);
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Err(())
     }
 
     fn try_reduce_set(&mut self, l_brace: Token, first_elem: Expr) -> ParseResult<Set> {
@@ -1749,7 +1889,7 @@ impl Parser {
         if self.cur_is(Semi) {
             self.skip();
             let len = self
-                .try_reduce_expr(false, false)
+                .try_reduce_expr(false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let r_brace = self.lpop();
             return Ok(Set::WithLength(SetWithLength::new(

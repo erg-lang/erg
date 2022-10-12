@@ -5,7 +5,7 @@ use std::thread::LocalKey;
 
 use erg_common::dict::Dict;
 
-use erg_type::Type;
+use crate::ty::Type;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubtypePair {

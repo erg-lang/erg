@@ -14,6 +14,8 @@ use std::fmt;
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
+use constructors::dict_t;
+use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
@@ -23,14 +25,16 @@ use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 use erg_parser::ast::{Block, Params};
 use erg_parser::token::TokenKind;
 
-use crate::constructors::{builtin_mono, int_interval, mono_q};
-use crate::free::{
+use self::constructors::{int_interval, mono, mono_q};
+use self::free::{
     fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
 };
-use crate::typaram::{IntervalOp, TyParam};
-use crate::value::value_set::*;
-use crate::value::ValueObj::{Inf, NegInf};
-use crate::value::{EvalValueResult, ValueObj};
+use self::typaram::{IntervalOp, TyParam};
+use self::value::value_set::*;
+use self::value::ValueObj::{Inf, NegInf};
+use self::value::{EvalValueResult, ValueObj};
+
+use crate::context::Context;
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -63,7 +67,7 @@ pub trait HasType {
 #[macro_export]
 macro_rules! impl_t {
     ($T: ty) => {
-        impl $crate::HasType for $T {
+        impl $crate::ty::HasType for $T {
             #[inline]
             fn ref_t(&self) -> &Type {
                 &self.t
@@ -107,7 +111,7 @@ macro_rules! impl_t {
 #[macro_export]
 macro_rules! impl_t_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl $crate::HasType for $Enum {
+        impl $crate::ty::HasType for $Enum {
             fn ref_t(&self) -> &Type {
                 match self {
                     $($Enum::$Variant(v) => v.ref_t(),)*
@@ -179,12 +183,36 @@ impl ValueArgs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct BuiltinConstSubr {
     name: &'static str,
-    subr: fn(ValueArgs, PathBuf, Option<Str>) -> EvalValueResult<ValueObj>,
+    subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
     sig_t: Type,
     as_type: Option<Type>,
+}
+
+impl std::fmt::Debug for BuiltinConstSubr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BuiltinConstSubr")
+            .field("name", &self.name)
+            .field("sig_t", &self.sig_t)
+            .field("as_type", &self.as_type)
+            .finish()
+    }
+}
+
+impl PartialEq for BuiltinConstSubr {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for BuiltinConstSubr {}
+
+impl std::hash::Hash for BuiltinConstSubr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
 }
 
 impl fmt::Display for BuiltinConstSubr {
@@ -196,7 +224,7 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub const fn new(
         name: &'static str,
-        subr: fn(ValueArgs, PathBuf, Option<Str>) -> EvalValueResult<ValueObj>,
+        subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
@@ -208,13 +236,8 @@ impl BuiltinConstSubr {
         }
     }
 
-    pub fn call(
-        &self,
-        args: ValueArgs,
-        path: PathBuf,
-        __name__: Option<Str>,
-    ) -> EvalValueResult<ValueObj> {
-        (self.subr)(args, path, __name__)
+    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, ctx)
     }
 }
 
@@ -374,7 +397,7 @@ impl TyBound {
     }
 
     pub fn mentions_as_mid(&self, name: &str) -> bool {
-        matches!(self, Self::Sandwiched{ mid, .. } if &mid.name()[..] == name)
+        matches!(self, Self::Sandwiched{ mid, .. } if &mid.qual_name()[..] == name)
     }
 
     pub fn has_qvar(&self) -> bool {
@@ -426,7 +449,7 @@ impl TyBound {
 
     pub fn get_lhs(&self) -> Str {
         match self {
-            Self::Sandwiched { mid, .. } => mid.name(),
+            Self::Sandwiched { mid, .. } => mid.qual_name(),
             Self::Instance { name, .. } => name.clone(),
         }
     }
@@ -1123,13 +1146,9 @@ pub enum Type {
     TraitType,
     Patch,
     NotImplemented,
-    Ellipsis, // これはクラスのほうで型推論用のマーカーではない
-    Never,    // {}
-    BuiltinMono(Str),
-    Mono {
-        path: PathBuf,
-        name: Str,
-    },
+    Ellipsis,  // これはクラスのほうで型推論用のマーカーではない
+    Never,     // {}
+    Mono(Str), // the name is fully qualified (e.g. <module>::C, foo.D)
     /* Polymorphic types */
     Ref(Box<Type>),
     RefMut {
@@ -1155,12 +1174,7 @@ pub enum Type {
     And(Box<Type>, Box<Type>),
     Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
-    BuiltinPoly {
-        name: Str,
-        params: Vec<TyParam>,
-    },
     Poly {
-        path: PathBuf,
         name: Str,
         params: Vec<TyParam>,
     },
@@ -1170,10 +1184,15 @@ pub enum Type {
         name: Str,
         params: Vec<TyParam>,
     },
-    MonoProj {
+    Proj {
         lhs: Box<Type>,
         rhs: Str,
     }, // e.g. T.U
+    ProjMethod {
+        lhs: Box<TyParam>,
+        method_name: Str,
+        args: Vec<TyParam>,
+    }, // e.g. Ts.__getitem__(N)
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     Failure,            // when failed to infer (e.g. get the type of `match`)
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
@@ -1203,11 +1222,8 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::BuiltinMono(l), Self::BuiltinMono(r))
-            | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
-            (Self::Mono { path: lp, name: ln }, Self::Mono { path: rp, name: rn }) => {
-                lp == rp && ln == rn
-            }
+            (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
+            (Self::Mono(l), Self::Mono(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
                 Self::RefMut {
@@ -1249,41 +1265,33 @@ impl PartialEq for Type {
             | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll == rl && lr == rr,
             (
                 Self::Poly {
-                    path: lp,
                     name: ln,
                     params: lps,
                 },
                 Self::Poly {
-                    path: rp,
-                    name: rn,
-                    params: rps,
-                },
-            ) => lp == rp && ln == rn && lps == rps,
-            (
-                Self::BuiltinPoly {
-                    name: ln,
-                    params: lps,
-                }
-                | Self::PolyQVar {
-                    name: ln,
-                    params: lps,
-                },
-                Self::BuiltinPoly {
-                    name: rn,
-                    params: rps,
-                }
-                | Self::PolyQVar {
                     name: rn,
                     params: rps,
                 },
             ) => ln == rn && lps == rps,
             (
-                Self::MonoProj { lhs, rhs },
-                Self::MonoProj {
+                Self::Proj { lhs, rhs },
+                Self::Proj {
                     lhs: rlhs,
                     rhs: rrhs,
                 },
             ) => lhs == rlhs && rhs == rrhs,
+            (
+                Self::ProjMethod {
+                    lhs,
+                    method_name,
+                    args,
+                },
+                Self::ProjMethod {
+                    lhs: r,
+                    method_name: rm,
+                    args: ra,
+                },
+            ) => lhs == r && method_name == rm && args == ra,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
@@ -1307,15 +1315,14 @@ impl LimitedDisplay for Type {
             return write!(f, "...");
         }
         match self {
-            Self::BuiltinMono(name) => write!(f, "{name}"),
-            Self::Mono { path, name } => write!(f, "{}.{name}", path.display()),
+            Self::Mono(name) => write!(f, "{name}"),
             Self::Ref(t) => {
-                write!(f, "{}(", self.name())?;
+                write!(f, "{}(", self.qual_name())?;
                 t.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
             Self::RefMut { before, after } => {
-                write!(f, "{}(", self.name())?;
+                write!(f, "{}(", self.qual_name())?;
                 before.limited_fmt(f, limit - 1)?;
                 if let Some(after) = after {
                     write!(f, " ~> ")?;
@@ -1365,17 +1372,7 @@ impl LimitedDisplay for Type {
                 write!(f, " or ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::Poly { path, name, params } => {
-                write!(f, "{}.{name}(", path.display())?;
-                for (i, tp) in params.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    tp.limited_fmt(f, limit - 1)?;
-                }
-                write!(f, ")")
-            }
-            Self::BuiltinPoly { name, params } => {
+            Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
                 for (i, tp) in params.iter().enumerate() {
                     if i > 0 {
@@ -1405,11 +1402,26 @@ impl LimitedDisplay for Type {
                 write!(f, "{name}")
             }
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
-            Self::MonoProj { lhs, rhs } => {
+            Self::Proj { lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, ".{rhs}")
             }
-            _ => write!(f, "{}", self.name()),
+            Self::ProjMethod {
+                lhs,
+                method_name,
+                args,
+            } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, ".{method_name}(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
+            _ => write!(f, "{}", self.qual_name()),
         }
     }
 }
@@ -1446,6 +1458,35 @@ impl From<RangeInclusive<&TyParam>> for Type {
     }
 }
 
+impl From<Dict<Type, Type>> for Type {
+    fn from(d: Dict<Type, Type>) -> Self {
+        let d = d
+            .into_iter()
+            .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+            .collect();
+        dict_t(TyParam::Dict(d))
+    }
+}
+
+impl TryFrom<Type> for Dict<Type, Type> {
+    type Error = ();
+    fn try_from(tp: Type) -> Result<Self, ()> {
+        match tp {
+            Type::Poly { name, params } if &name[..] == "Dict" => {
+                let dict = Dict::try_from(params[0].clone())?;
+                let mut new_dict = dict! {};
+                for (k, v) in dict.into_iter() {
+                    let k = Type::try_from(k)?;
+                    let v = Type::try_from(v)?;
+                    new_dict.insert(k, v);
+                }
+                Ok(new_dict)
+            }
+            _ => Err(()),
+        }
+    }
+}
+
 fn get_t_from_tp(tp: &TyParam) -> Option<Type> {
     match tp {
         TyParam::FreeVar(fv) if fv.is_linked() => get_t_from_tp(&fv.crack()),
@@ -1475,9 +1516,9 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
-            Self::BuiltinPoly { params, .. }
-            | Self::Poly { params, .. }
-            | Self::PolyQVar { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+                params.iter().filter_map(get_t_from_tp).collect()
+            }
             _ => vec![],
         }
     }
@@ -1535,14 +1576,12 @@ impl HasLevel for Type {
                     t.update_level(level);
                 }
             }
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => {
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
                 for p in params.iter() {
                     p.update_level(level);
                 }
             }
-            Self::MonoProj { lhs, .. } => {
+            Self::Proj { lhs, .. } => {
                 lhs.update_level(level);
             }
             Self::Refinement(refine) => {
@@ -1598,14 +1637,12 @@ impl HasLevel for Type {
                     t.lift();
                 }
             }
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => {
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
                 for p in params.iter() {
                     p.lift();
                 }
             }
-            Self::MonoProj { lhs, .. } => {
+            Self::Proj { lhs, .. } => {
                 lhs.lift();
             }
             Self::Refinement(refine) => {
@@ -1651,12 +1688,12 @@ impl Type {
                 fv.link(&t.mutate());
                 Self::FreeVar(fv)
             }
-            Self::Int => builtin_mono("Int!"),
-            Self::Nat => builtin_mono("Nat!"),
-            Self::Ratio => builtin_mono("Ratio!"),
-            Self::Float => builtin_mono("Float!"),
-            Self::Bool => builtin_mono("Bool!"),
-            Self::Str => builtin_mono("Str!"),
+            Self::Int => mono("Int!"),
+            Self::Nat => mono("Nat!"),
+            Self::Ratio => mono("Ratio!"),
+            Self::Float => mono("Float!"),
+            Self::Bool => mono("Bool!"),
+            Self::Str => mono("Str!"),
             _ => todo!(),
         }
     }
@@ -1696,7 +1733,7 @@ impl Type {
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) =>
                 refine.t.is_procedural() || refine.preds.iter().any(|pred|
-                    matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.name().map(|n| n.ends_with('!')).unwrap_or(false))
+                    matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.qual_name().map(|n| n.ends_with('!')).unwrap_or(false))
                 ),
             _ => false,
         }
@@ -1711,13 +1748,11 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::BuiltinMono(name)
-            | Self::Mono { name, .. }
+            Self::Mono(name)
             | Self::MonoQVar(name)
             | Self::Poly { name, .. }
-            | Self::BuiltinPoly { name, .. }
             | Self::PolyQVar { name, .. }
-            | Self::MonoProj { rhs: name, .. } => name.ends_with('!'),
+            | Self::Proj { rhs: name, .. } => name.ends_with('!'),
             Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
@@ -1727,13 +1762,11 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
-            Self::BuiltinPoly { name, params, .. }
-                if &name[..] == "Option" || &name[..] == "Option!" =>
-            {
+            Self::Poly { name, params, .. } if &name[..] == "Option" || &name[..] == "Option!" => {
                 let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
                 inner_t.is_nonelike()
             }
-            Self::BuiltinPoly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
+            Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             _ => false,
         }
@@ -1778,9 +1811,7 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => {
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
                 for param in params.iter() {
                     match param {
                         TyParam::Type(t) if t.contains_tvar(name) => {
@@ -1838,7 +1869,7 @@ impl Type {
         }
     }
 
-    pub fn name(&self) -> Str {
+    pub fn qual_name(&self) -> Str {
         match self {
             Self::Obj => Str::ever("Obj"),
             Self::Int => Str::ever("Int"),
@@ -1857,9 +1888,7 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::BuiltinMono(name) | Self::MonoQVar(name) | Self::Mono { name, .. } => {
-                name.clone()
-            }
+            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
             Self::And(_, _) => Str::ever("And"),
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
@@ -1875,23 +1904,33 @@ impl Type {
             }) => Str::ever("Proc"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
-            Self::Poly { name, .. }
-            | Self::BuiltinPoly { name, .. }
-            | Self::PolyQVar { name, .. } => name.clone(),
+            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
-            Self::Refinement(refine) => refine.t.name(),
+            Self::Refinement(refine) => refine.t.qual_name(),
             Self::Quantified(_) => Str::ever("Quantified"),
             Self::Ellipsis => Str::ever("Ellipsis"),
             Self::NotImplemented => Str::ever("NotImplemented"),
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.name(),
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.qual_name(),
                 FreeKind::NamedUnbound { name, .. } => name.clone(),
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
-            }, // TODO: 中身がSomeなら表示したい
-            Self::MonoProj { .. } => Str::ever("MonoProj"),
+            },
+            Self::Proj { .. } => Str::ever("MonoProj"),
+            Self::ProjMethod { .. } => Str::ever("MonoProjMethod"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
+        }
+    }
+
+    pub fn local_name(&self) -> Str {
+        match self {
+            Self::Mono(name) | Self::Poly { name, .. } => {
+                let name = name.split("::").last().unwrap_or(name);
+                let name = name.split('.').last().unwrap_or(name);
+                Str::rc(name)
+            }
+            _ => self.qual_name(),
         }
     }
 
@@ -1965,10 +2004,8 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|tb| tb.has_qvar())
             }
-            Self::Poly { params, .. } | Self::BuiltinPoly { params, .. } => {
-                params.iter().any(|tp| tp.has_qvar())
-            }
-            Self::MonoProj { lhs, .. } => lhs.has_qvar(),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
+            Self::Proj { lhs, .. } => lhs.has_qvar(),
             _ => false,
         }
     }
@@ -2009,10 +2046,10 @@ impl Type {
             Self::Quantified(quant) => {
                 quant.unbound_callable.is_cachable() || quant.bounds.iter().all(|b| b.is_cachable())
             }
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => params.iter().all(|p| p.is_cachable()),
-            Self::MonoProj { lhs, .. } => lhs.is_cachable(),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+                params.iter().all(|p| p.is_cachable())
+            }
+            Self::Proj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
     }
@@ -2060,10 +2097,10 @@ impl Type {
                 quant.unbound_callable.has_unbound_var()
                     || quant.bounds.iter().any(|b| b.has_unbound_var())
             }
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => params.iter().any(|p| p.has_unbound_var()),
-            Self::MonoProj { lhs, .. } => lhs.has_no_unbound_var(),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+                params.iter().any(|p| p.has_unbound_var())
+            }
+            Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
     }
@@ -2086,9 +2123,7 @@ impl Type {
                     + 1,
             ),
             Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => Some(params.len()),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => Some(params.len()),
             _ => None,
         }
     }
@@ -2104,9 +2139,7 @@ impl Type {
             }
             Self::Subr(subr) => subr.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
-            Self::Poly { params, .. }
-            | Self::BuiltinPoly { params, .. }
-            | Self::PolyQVar { params, .. } => params.clone(),
+            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => params.clone(),
             _ => vec![],
         }
     }
@@ -2119,6 +2152,7 @@ impl Type {
                 .and_then(|t| t.self_t()),
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
+            Self::Quantified(quant) => quant.unbound_callable.self_t(),
             _ => None,
         }
     }
@@ -2219,7 +2253,7 @@ impl Type {
                 Self::FreeVar(Free::new_named_unbound(name, level, constraint))
             }
             Self::Refinement(refine) => refine.t.as_ref().clone(),
-            Self::Poly { path, name, params } => {
+            Self::Poly { name, params } => {
                 let params = params
                     .iter()
                     .map(|tp| match tp {
@@ -2228,20 +2262,6 @@ impl Type {
                     })
                     .collect();
                 Self::Poly {
-                    path: path.clone(),
-                    name: name.clone(),
-                    params,
-                }
-            }
-            Self::BuiltinPoly { name, params } => {
-                let params = params
-                    .iter()
-                    .map(|tp| match tp {
-                        TyParam::Type(t) => TyParam::t(t.derefine()),
-                        other => other.clone(),
-                    })
-                    .collect();
-                Self::BuiltinPoly {
                     name: name.clone(),
                     params,
                 }
@@ -2306,7 +2326,7 @@ impl From<&Type> for TypeCode {
             Type::Float => Self::Float64,
             Type::Bool => Self::Bool,
             Type::Str => Self::Str,
-            Type::BuiltinMono(name) => match &name[..] {
+            Type::Mono(name) => match &name[..] {
                 "Int!" => Self::Int32,
                 "Nat!" => Self::Nat64,
                 "Float!" => Self::Float64,

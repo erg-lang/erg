@@ -9,7 +9,6 @@ dependencies = [
  "erg_common",
  "erg_compiler",
  "erg_parser",
- "erg_type",
 ]
 
 [[package]]
@@ -27,7 +26,6 @@ version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",
- "erg_type",
 ]
 
 [[package]]
@@ -35,14 +33,6 @@ name = "erg_parser"
 version = "0.5.9-nightly.0"
 dependencies = [
  "erg_common",
-]
-
-[[package]]
-name = "erg_type"
-version = "0.5.9-nightly.0"
-dependencies = [
- "erg_common",
- "erg_parser",
 ]
 
 [[package]]

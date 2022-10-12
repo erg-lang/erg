@@ -175,8 +175,8 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn insert(&mut self, k: K, v: V) {
-        self.dict.insert(k, v);
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.dict.insert(k, v)
     }
 
     #[inline]

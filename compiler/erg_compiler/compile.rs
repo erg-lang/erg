@@ -7,7 +7,7 @@ use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 
-use erg_type::codeobj::CodeObj;
+use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
 use crate::codegen::CodeGenerator;

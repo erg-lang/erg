@@ -1,27 +1,29 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
+use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
-    enum_unwrap, fmt_option, impl_display_for_enum, impl_display_from_nested, impl_locational,
-    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream_for_wrapper,
+    enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
+    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
+    impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
 
 use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
-use erg_type::constructors::{array, set, tuple};
-use erg_type::typaram::TyParam;
-use erg_type::value::{TypeKind, ValueObj};
-use erg_type::{impl_t, impl_t_for_enum, HasType, Type};
+use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
+use crate::ty::typaram::TyParam;
+use crate::ty::value::{TypeKind, ValueObj};
+use crate::ty::{HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
 use crate::context::OperationKind;
 use crate::error::readable_name;
+use crate::{impl_t, impl_t_for_enum};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {
@@ -307,7 +309,7 @@ impl Args {
 pub struct Identifier {
     pub dot: Option<Token>,
     pub name: VarName,
-    pub __name__: Option<Str>,
+    pub qual_name: Option<Str>,
     pub t: Type,
 }
 
@@ -321,8 +323,8 @@ impl NestedDisplay for Identifier {
                 write!(f, "::{}", self.name)?;
             }
         }
-        if let Some(__name__) = &self.__name__ {
-            write!(f, "(__name__: {})", __name__)?;
+        if let Some(qn) = &self.qual_name {
+            write!(f, "(qual_name: {})", qn)?;
         }
         if self.t != Type::Uninited {
             write!(f, "(: {})", self.t)?;
@@ -351,11 +353,11 @@ impl From<&Identifier> for Field {
 }
 
 impl Identifier {
-    pub const fn new(dot: Option<Token>, name: VarName, __name__: Option<Str>, t: Type) -> Self {
+    pub const fn new(dot: Option<Token>, name: VarName, qual_name: Option<Str>, t: Type) -> Self {
         Self {
             dot,
             name,
-            __name__,
+            qual_name,
             t,
         }
     }
@@ -550,9 +552,19 @@ impl Accessor {
     }
 
     // 参照するオブジェクト自体が持っている固有の名前(クラス、モジュールなど)
-    pub fn __name__(&self) -> Option<&str> {
+    pub fn qual_name(&self) -> Option<&str> {
         match self {
-            Self::Ident(ident) => ident.__name__.as_ref().map(|s| &s[..]),
+            Self::Ident(ident) => ident.qual_name.as_ref().map(|s| &s[..]),
+            _ => None,
+        }
+    }
+
+    pub fn local_name(&self) -> Option<&str> {
+        match self {
+            Self::Ident(ident) => ident.qual_name.as_ref().map(|s| {
+                let name = s.split("::").last().unwrap_or(&s[..]);
+                name.split('.').last().unwrap_or(name)
+            }),
             _ => None,
         }
     }
@@ -631,7 +643,7 @@ impl_t!(NormalArray);
 
 impl NormalArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
-        let t = array(elem_t, TyParam::value(elems.len()));
+        let t = array_t(elem_t, TyParam::value(elems.len()));
         Self {
             l_sqbr,
             r_sqbr,
@@ -677,7 +689,7 @@ impl_t!(NormalTuple);
 
 impl NormalTuple {
     pub fn new(elems: Args) -> Self {
-        let t = tuple(elems.pos_args.iter().map(|a| a.expr.t()).collect());
+        let t = tuple_t(elems.pos_args.iter().map(|a| a.expr.t()).collect());
         Self { elems, t }
     }
 }
@@ -694,18 +706,39 @@ impl_locational_for_enum!(Tuple; Normal);
 impl_t_for_enum!(Tuple; Normal);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyValue {
+    pub key: Expr,
+    pub value: Expr,
+}
+
+impl NestedDisplay for KeyValue {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl_display_from_nested!(KeyValue);
+impl_locational!(KeyValue, key, value);
+
+impl KeyValue {
+    pub const fn new(key: Expr, value: Expr) -> Self {
+        Self { key, value }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
     pub r_brace: Token,
     pub t: Type,
-    pub attrs: Args, // TODO: keyをTokenではなくExprにする
+    pub kvs: Vec<KeyValue>,
 }
 
 impl_t!(NormalDict);
 
 impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}(: {})", self.attrs, self.t)
+        write!(f, "{{{}}}(: {})", fmt_vec(&self.kvs), self.t)
     }
 }
 
@@ -713,12 +746,17 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub const fn new(l_brace: Token, r_brace: Token, t: Type, attrs: Args) -> Self {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        kv_ts: HashMap<TyParam, TyParam>,
+        kvs: Vec<KeyValue>,
+    ) -> Self {
         Self {
             l_brace,
             r_brace,
-            t,
-            attrs,
+            t: dict_t(TyParam::Dict(kv_ts)),
+            kvs,
         }
     }
 }
@@ -780,7 +818,7 @@ impl_t!(NormalSet);
 
 impl NormalSet {
     pub fn new(l_brace: Token, r_brace: Token, elem_t: Type, elems: Args) -> Self {
-        let t = set(elem_t, TyParam::value(elems.len()));
+        let t = set_t(elem_t, TyParam::value(elems.len()));
         Self {
             l_brace,
             r_brace,
@@ -1668,10 +1706,18 @@ impl Expr {
         }
     }
 
-    /// 参照するオブジェクト自体が持っている名前(e.g. Int.__name__ == Some("int"))
-    pub fn __name__(&self) -> Option<&str> {
+    /// 参照するオブジェクト自体が持っている名前(e.g. Int.qual_name == Some("int"), Socket!.qual_name == Some("io.Socket!"))
+    pub fn qual_name(&self) -> Option<&str> {
         match self {
-            Expr::Accessor(acc) => acc.__name__(),
+            Expr::Accessor(acc) => acc.qual_name(),
+            _ => None,
+        }
+    }
+
+    /// e.g. Int.local_name == Some("int"), Socket!.local_name == Some("Socket!")
+    pub fn local_name(&self) -> Option<&str> {
+        match self {
+            Expr::Accessor(acc) => acc.local_name(),
             _ => None,
         }
     }

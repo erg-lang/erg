@@ -8,15 +8,14 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name, log, set};
 
-use erg_type::constructors::*;
-use erg_type::free::{Constraint, Cyclicity, FreeKind};
-use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{HasType, Predicate, TyBound, Type};
+use crate::ty::constructors::*;
+use crate::ty::free::{Constraint, Cyclicity, FreeKind};
+use crate::ty::typaram::TyParam;
+use crate::ty::value::ValueObj;
+use crate::ty::{HasType, Predicate, TyBound, Type};
 
 use crate::context::eval::SubstContext;
-use crate::context::{Context, Variance};
-// use crate::context::instantiate::TyVarContext;
+use crate::context::{Context, TyVarInstContext, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 
@@ -81,7 +80,7 @@ impl Context {
             // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
             // However, the current Erg cannot handle existential types, so it quantifies anyway
             /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
-                let mut tv_ctx = TyVarContext::new(self.level, bounds.clone(), self);
+                let mut tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
                 let inst = Self::instantiate_t(
                     maybe_unbound_t,
                     &mut tv_ctx,
@@ -177,27 +176,27 @@ impl Context {
                 let after = after.map(|aft| self.generalize_t_inner(*aft, bounds, lazy_inits));
                 ref_mut(self.generalize_t_inner(*before, bounds, lazy_inits), after)
             }
-            BuiltinPoly { name, mut params } => {
+            Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
                     .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
                     .collect::<Vec<_>>();
-                builtin_poly(name, params)
+                poly(name, params)
             }
-            Poly {
-                path,
-                name,
-                mut params,
-            } => {
-                let params = params
-                    .iter_mut()
-                    .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
-                    .collect::<Vec<_>>();
-                poly(path, name, params)
-            }
-            MonoProj { lhs, rhs } => {
+            Proj { lhs, rhs } => {
                 let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
-                mono_proj(lhs, rhs)
+                proj(lhs, rhs)
+            }
+            ProjMethod {
+                lhs,
+                method_name,
+                mut args,
+            } => {
+                let lhs = self.generalize_tp(*lhs, bounds, lazy_inits);
+                for arg in args.iter_mut() {
+                    *arg = self.generalize_tp(mem::take(arg), bounds, lazy_inits);
+                }
+                proj_method(lhs, method_name, args)
             }
             And(l, r) => {
                 let l = self.generalize_t_inner(*l, bounds, lazy_inits);
@@ -249,7 +248,7 @@ impl Context {
         }
     }
 
-    fn deref_tp(
+    pub(crate) fn deref_tp(
         &self,
         tp: TyParam,
         variance: Variance,
@@ -274,8 +273,21 @@ impl Context {
             }
             TyParam::BinOp { .. } => todo!(),
             TyParam::UnaryOp { .. } => todo!(),
-            TyParam::Array(_) | TyParam::Tuple(_) => todo!(),
-            TyParam::MonoProj { .. }
+            TyParam::Array(tps) => {
+                let mut new_tps = vec![];
+                for tp in tps {
+                    new_tps.push(self.deref_tp(tp, variance, loc)?);
+                }
+                Ok(TyParam::Array(new_tps))
+            }
+            TyParam::Tuple(tps) => {
+                let mut new_tps = vec![];
+                for tp in tps {
+                    new_tps.push(self.deref_tp(tp, variance, loc)?);
+                }
+                Ok(TyParam::Tuple(new_tps))
+            }
+            TyParam::Proj { .. }
             | TyParam::MonoQVar(_)
             | TyParam::PolyQVar { .. }
             | TyParam::Failure
@@ -418,29 +430,14 @@ impl Context {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t, variance, loc)
             }
-            Type::BuiltinPoly { name, mut params } => {
-                let typ = builtin_poly(&name, params.clone());
-                let ctx = self
-                    .get_nominal_type_ctx(&typ)
-                    .unwrap_or_else(|| todo!("{typ} not found"));
-                let variances = ctx.type_params_variance();
-                for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
-                    *param = self.deref_tp(mem::take(param), variance, loc)?;
-                }
-                Ok(Type::BuiltinPoly { name, params })
-            }
-            Type::Poly {
-                path,
-                name,
-                mut params,
-            } => {
-                let typ = poly(path.clone(), &name, params.clone());
+            Type::Poly { name, mut params } => {
+                let typ = poly(&name, params.clone());
                 let ctx = self.get_nominal_type_ctx(&typ).unwrap();
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;
                 }
-                Ok(Type::Poly { path, name, params })
+                Ok(Type::Poly { name, params })
             }
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
@@ -532,9 +529,23 @@ impl Context {
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
-            {
+            let sub_type = if inst.sub_type.has_qvar() {
+                let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
+                let tv_ctx = TyVarInstContext::new(self.level, sub_ctx.bounds(), self);
+                self.instantiate_t(inst.sub_type, &tv_ctx, Location::Unknown)
+                    .unwrap()
+            } else {
+                inst.sub_type
+            };
+            let sup_trait = if inst.sup_trait.has_qvar() {
+                let sup_ctx = self.get_nominal_type_ctx(&inst.sup_trait).unwrap();
+                let tv_ctx = TyVarInstContext::new(self.level, sup_ctx.bounds(), self);
+                self.instantiate_t(inst.sup_trait, &tv_ctx, Location::Unknown)
+                    .unwrap()
+            } else {
+                inst.sup_trait
+            };
+            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
             }
@@ -613,6 +624,16 @@ impl Context {
                 self.coerce(l);
                 self.coerce(r);
             }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn coerce_tp(&self, tp: &TyParam) {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                self.coerce_tp(&fv.crack());
+            }
+            TyParam::Type(t) => self.coerce(t),
             _ => {}
         }
     }
@@ -705,9 +726,18 @@ impl Context {
                     Ok(())
                 }
             },
-            hir::Expr::Dict(_dict) => {
-                todo!()
-            }
+            hir::Expr::Dict(dict) => match dict {
+                hir::Dict::Normal(dic) => {
+                    let loc = dic.loc();
+                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, loc)?;
+                    for kv in dic.kvs.iter_mut() {
+                        self.resolve_expr_t(&mut kv.key)?;
+                        self.resolve_expr_t(&mut kv.value)?;
+                    }
+                    Ok(())
+                }
+                other => todo!("{other}"),
+            },
             hir::Expr::Record(record) => {
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
@@ -856,12 +886,9 @@ impl Context {
                 self.occur(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
-            (
-                Type::Poly { params, .. }
-                | Type::BuiltinPoly { params, .. }
-                | Type::PolyQVar { params, .. },
-                Type::FreeVar(fv),
-            ) if fv.is_unbound() => {
+            (Type::Poly { params, .. } | Type::PolyQVar { params, .. }, Type::FreeVar(fv))
+                if fv.is_unbound() =>
+            {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -873,12 +900,9 @@ impl Context {
                 }
                 Ok(())
             }
-            (
-                Type::FreeVar(fv),
-                Type::Poly { params, .. }
-                | Type::BuiltinPoly { params, .. }
-                | Type::PolyQVar { params, .. },
-            ) if fv.is_unbound() => {
+            (Type::FreeVar(fv), Type::Poly { params, .. } | Type::PolyQVar { params, .. })
+                if fv.is_unbound() =>
+            {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -956,7 +980,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.subtype_of(&fv_t, &builtin_mono("Num"))
+                    && self.subtype_of(&fv_t, &mono("Num"))
                 {
                     fv.link(tp);
                     Ok(())
@@ -1001,7 +1025,7 @@ impl Context {
                 } else if allow_divergence
                     && (self.eq_tp(tp, &TyParam::value(Inf))
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.subtype_of(&fv_t, &builtin_mono("Num"))
+                    && self.subtype_of(&fv_t, &mono("Num"))
                 {
                     fv.link(tp);
                     Ok(())
@@ -1071,7 +1095,7 @@ impl Context {
     }
 
     /// predは正規化されているとする
-    fn _sub_unify_pred(
+    fn sub_unify_pred(
         &self,
         l_pred: &Predicate,
         r_pred: &Predicate,
@@ -1089,8 +1113,8 @@ impl Context {
             | (Pred::Or(l1, r1), Pred::Or(l2, r2))
             | (Pred::Not(l1, r1), Pred::Not(l2, r2)) => {
                 match (
-                    self._sub_unify_pred(l1, l2, loc),
-                    self._sub_unify_pred(r1, r2, loc),
+                    self.sub_unify_pred(l1, l2, loc),
+                    self.sub_unify_pred(r1, r2, loc),
                 ) {
                     (Ok(()), Ok(())) => Ok(()),
                     (Ok(()), Err(e)) | (Err(e), Ok(())) | (Err(e), Err(_)) => Err(e),
@@ -1199,45 +1223,17 @@ impl Context {
             (l, Type::Ref(r)) => self.reunify(l, r, loc),
             (l, Type::RefMut { before, .. }) => self.reunify(l, before, loc),
             (
-                Type::BuiltinPoly {
+                Type::Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::BuiltinPoly {
+                Type::Poly {
                     name: rn,
                     params: rps,
                 },
             ) => {
                 if ln != rn {
-                    let before_t = builtin_poly(ln.clone(), lps.clone());
-                    return Err(TyCheckError::re_unification_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        &before_t,
-                        after_t,
-                        loc,
-                        self.caused_by(),
-                    ));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.reunify_tp(l, r, loc)?;
-                }
-                Ok(())
-            }
-            (
-                Type::Poly {
-                    path: lp,
-                    name: ln,
-                    params: lps,
-                },
-                Type::Poly {
-                    path: rp,
-                    name: rn,
-                    params: rps,
-                },
-            ) => {
-                if lp != rp || ln != rn {
-                    let before_t = poly(lp.clone(), ln.clone(), lps.clone());
+                    let before_t = poly(ln.clone(), lps.clone());
                     return Err(TyCheckError::re_unification_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -1295,6 +1291,7 @@ impl Context {
             return Ok(());
         }
         if !maybe_sub_is_sub {
+            log!(err "{maybe_sub} !<: {maybe_sup}");
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1463,43 +1460,33 @@ impl Context {
                 Ok(())
             }
             (
-                Type::BuiltinPoly {
+                Type::Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::BuiltinPoly {
+                Type::Poly {
                     name: rn,
                     params: rps,
                 },
             ) => {
+                // e.g. Set(?T) <: Eq(Set(?T))
                 if ln != rn {
-                    return Err(TyCheckErrors::from(TyCheckError::unification_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        maybe_sub,
-                        maybe_sup,
-                        loc,
-                        self.caused_by(),
-                    )));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.sub_unify_tp(l, r, None, loc, false)?;
-                }
-                Ok(())
-            }
-            (
-                Type::Poly {
-                    path: lp,
-                    name: ln,
-                    params: lps,
-                },
-                Type::Poly {
-                    path: rp,
-                    name: rn,
-                    params: rps,
-                },
-            ) => {
-                if lp != rp || ln != rn {
+                    if let Some(sub_ctx) = self.get_nominal_type_ctx(maybe_sub) {
+                        let subst_ctx = SubstContext::new(maybe_sub, self, loc);
+                        for sup_trait in sub_ctx.super_traits.iter() {
+                            let sup_trait = if sup_trait.has_qvar() {
+                                subst_ctx.substitute(sup_trait.clone())?
+                            } else {
+                                sup_trait.clone()
+                            };
+                            if self.supertype_of(maybe_sup, &sup_trait) {
+                                for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
+                                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
+                                }
+                                return Ok(());
+                            }
+                        }
+                    }
                     return Err(TyCheckErrors::from(TyCheckError::unification_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -1536,12 +1523,20 @@ impl Context {
                 self.sub_unify(maybe_sub, before, loc, param_name)?;
                 Ok(())
             }
-            (Type::MonoProj { .. }, _) => todo!(),
-            (_, Type::MonoProj { .. }) => todo!(),
-            (Refinement(_), Refinement(_)) => todo!(),
+            (Type::Proj { .. }, _) => todo!(),
+            (_, Type::Proj { .. }) => todo!(),
+            (Refinement(l), Refinement(r)) => {
+                if l.preds.len() == 1 && r.preds.len() == 1 {
+                    let l_first = l.preds.iter().next().unwrap();
+                    let r_first = r.preds.iter().next().unwrap();
+                    self.sub_unify_pred(l_first, r_first, loc)?;
+                    return Ok(());
+                }
+                todo!("{l}, {r}")
+            },
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
-            // TODO Tuple2, ...
-            (Type::BuiltinPoly{ name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
+            // REVIEW: correct?
+            (Type::Poly{ name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
             _ => todo!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify (or existential types are not supported)"),
         }
     }

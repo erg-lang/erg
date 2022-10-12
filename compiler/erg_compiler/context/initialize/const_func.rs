@@ -1,21 +1,17 @@
 use std::mem;
-use std::path::PathBuf;
 
-use erg_common::Str;
+use erg_common::enum_unwrap;
 
+use crate::context::Context;
+use crate::ty::constructors::{and, mono};
+use crate::ty::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
+use crate::ty::ValueArgs;
 use erg_common::astr::AtomicStr;
 use erg_common::color::{RED, RESET, YELLOW};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
-use erg_type::constructors::{and, builtin_mono, mono};
-use erg_type::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
-use erg_type::ValueArgs;
 
 /// Requirement: Type, Impl := Type -> ClassType
-pub fn class_func(
-    mut args: ValueArgs,
-    path: PathBuf,
-    __name__: Option<Str>,
-) -> EvalValueResult<ValueObj> {
+pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -40,16 +36,12 @@ pub fn class_func(
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
-pub fn inherit_func(
-    mut args: ValueArgs,
-    path: PathBuf,
-    __name__: Option<Str>,
-) -> EvalValueResult<ValueObj> {
+pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -76,7 +68,7 @@ pub fn inherit_func(
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(
         TypeKind::Subclass,
         t,
@@ -88,11 +80,7 @@ pub fn inherit_func(
 
 /// Class: ClassType -> ClassType (with `InheritableType`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
-pub fn inheritable_func(
-    mut args: ValueArgs,
-    _path: PathBuf,
-    __name__: Option<Str>,
-) -> EvalValueResult<ValueObj> {
+pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
     let class = args.remove_left_or_key("Class").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -107,14 +95,14 @@ pub fn inheritable_func(
             if let Some(typ) = &mut gen.impls {
                 match typ.as_mut() {
                     TypeObj::Generated(gen) => {
-                        gen.t = and(mem::take(&mut gen.t), builtin_mono("InheritableType"));
+                        gen.t = and(mem::take(&mut gen.t), mono("InheritableType"));
                     }
                     TypeObj::Builtin(t) => {
-                        *t = and(mem::take(t), builtin_mono("InheritableType"));
+                        *t = and(mem::take(t), mono("InheritableType"));
                     }
                 }
             } else {
-                gen.impls = Some(Box::new(TypeObj::Builtin(builtin_mono("InheritableType"))));
+                gen.impls = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
             }
             Ok(ValueObj::Type(TypeObj::Generated(gen)))
         }
@@ -123,11 +111,7 @@ pub fn inheritable_func(
 }
 
 /// Requirement: Type, Impl := Type -> TraitType
-pub fn trait_func(
-    mut args: ValueArgs,
-    path: PathBuf,
-    __name__: Option<Str>,
-) -> EvalValueResult<ValueObj> {
+pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -152,16 +136,12 @@ pub fn trait_func(
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
-    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
 }
 
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
-pub fn subsume_func(
-    mut args: ValueArgs,
-    path: PathBuf,
-    __name__: Option<Str>,
-) -> EvalValueResult<ValueObj> {
+pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             line!() as usize,
@@ -188,7 +168,7 @@ pub fn subsume_func(
     let impls = impls.map(|v| v.as_type().unwrap());
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
-    let t = mono(path, __name__.unwrap_or(Str::ever("<Lambda>")));
+    let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(
         TypeKind::Subtrait,
         t,
@@ -196,4 +176,58 @@ pub fn subsume_func(
         impls,
         additional,
     ))
+}
+
+pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let _self = enum_unwrap!(args.remove_left_or_key("Self").unwrap(), ValueObj::Array);
+    let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
+    if let Some(v) = _self.get(index as usize) {
+        Ok(v.clone())
+    } else {
+        Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::IndexError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "[{}] has {} elements, but accessed {}th element",
+                erg_common::fmt_vec(&_self),
+                _self.len(),
+                index
+            )),
+            None,
+        ))
+    }
+}
+
+pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    let _self = args.remove_left_or_key("Self").unwrap();
+    let _self = enum_unwrap!(_self, ValueObj::Dict);
+    let index = args.remove_left_or_key("Index").unwrap();
+    if let Some(v) = _self.get(&index).or_else(|| {
+        for (k, v) in _self.iter() {
+            match (&index, k) {
+                (ValueObj::Type(idx), ValueObj::Type(kt)) => {
+                    if ctx.subtype_of(idx.typ(), kt.typ()) {
+                        return Some(v);
+                    }
+                }
+                (idx, k) => {
+                    if idx == k {
+                        return Some(v);
+                    }
+                }
+            }
+        }
+        None
+    }) {
+        Ok(v.clone())
+    } else {
+        Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::IndexError,
+            Location::Unknown,
+            AtomicStr::from(format!("{_self} has no key {index}",)),
+            None,
+        ))
+    }
 }

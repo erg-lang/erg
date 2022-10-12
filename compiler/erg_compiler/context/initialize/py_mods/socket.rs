@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{builtin_mono, func, kw, or};
-use erg_type::Type;
+use crate::ty::constructors::{func, kw, mono, or};
+use crate::ty::Type;
 use Type::*;
 
 use crate::context::Context;
@@ -26,12 +26,12 @@ impl Context {
                     kw("proto", Int),
                     kw("fileno", or(Int, NoneType)),
                 ],
-                builtin_mono("Socket!"),
+                mono("socket.Socket!"),
             ),
             Immutable,
             Public,
         );
-        socket.register_builtin_type(builtin_mono("Socket!"), sock, Const);
+        socket.register_builtin_type(mono("socket.Socket!"), sock, Public, Const);
         socket
     }
 }

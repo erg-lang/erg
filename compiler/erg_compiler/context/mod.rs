@@ -29,17 +29,17 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
+use crate::ty::typaram::TyParam;
+use crate::ty::value::ValueObj;
+use crate::ty::{Predicate, Type};
 use erg_parser::ast::DefKind;
-use erg_type::typaram::TyParam;
-use erg_type::value::ValueObj;
-use erg_type::{Predicate, TyBound, Type};
 use Type::*;
 
 use ast::{DefId, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarContext};
+use crate::context::instantiate::{ConstTemplate, TyVarInstContext};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -331,9 +331,6 @@ pub struct Context {
     pub name: Str,
     pub kind: ContextKind,
     pub(crate) cfg: ErgConfig,
-    // Type bounds & Predicates (if the context kind is Subroutine)
-    // ユーザー定義APIでのみ使う
-    pub(crate) bounds: Vec<TyBound>,
     pub(crate) preds: Vec<Predicate>,
     /// for looking up the parent scope
     pub(crate) outer: Option<Box<Context>>,
@@ -383,7 +380,7 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) py_mod_cache: Option<SharedModuleCache>,
-    pub(crate) tv_ctx: Option<TyVarContext>,
+    pub(crate) tv_ctx: Option<TyVarInstContext>,
     pub(crate) level: usize,
 }
 
@@ -407,7 +404,6 @@ impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Context")
             .field("name", &self.name)
-            .field("bounds", &self.bounds)
             .field("preds", &self.preds)
             .field("params", &self.params)
             .field("decls", &self.decls)
@@ -480,7 +476,6 @@ impl Context {
             name,
             cfg,
             kind,
-            bounds: vec![],
             preds: vec![],
             outer: outer.map(Box::new),
             super_classes: vec![],
@@ -816,13 +811,14 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
-    pub(crate) fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> Str {
+        // NOTE: this need to be changed if we want to support nested classes/traits
         if let Some(outer) = self.get_outer() {
             outer.path()
         } else if self.kind == ContextKind::Module {
-            Path::new(&self.name[..])
+            self.name.clone()
         } else {
-            Path::new(&BUILTINS[..])
+            BUILTINS.clone()
         }
     }
 
@@ -830,7 +826,7 @@ impl Context {
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if self.path().to_string_lossy() != "<builtins>" {
+        if &self.path()[..] != "<builtins>" {
             self.mod_cache
                 .as_ref()
                 .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())
@@ -844,7 +840,7 @@ impl Context {
         name: &str,
         kind: ContextKind,
         vis: Visibility,
-        tv_ctx: Option<TyVarContext>,
+        tv_ctx: Option<TyVarInstContext>,
     ) -> TyCheckResult<()> {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
@@ -870,6 +866,15 @@ impl Context {
             log!(info "{}: current namespace: {}", fn_name!(), self.name);
             ctx
         } else {
+            panic!("cannot pop the top-level context (or use `pop_mod`)");
+        }
+    }
+
+    pub fn pop_mod(&mut self) -> Context {
+        if self.outer.is_some() {
+            panic!("not in the top-level context");
+        } else {
+            log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel
             mem::take(self)
         }

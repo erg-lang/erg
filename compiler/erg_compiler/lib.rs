@@ -18,4 +18,5 @@ pub mod mod_cache;
 pub mod optimize;
 pub mod ownercheck;
 pub mod reorder;
+pub mod ty;
 pub mod varinfo;

@@ -4,6 +4,7 @@
 use std::fmt;
 use std::process;
 
+use crate::ty::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
@@ -17,16 +18,10 @@ use erg_common::{
 };
 use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
-use erg_type::codeobj::{CodeObj, CodeObjFlags};
 use Opcode::*;
 
 use erg_parser::ast::{ParamPattern, ParamSignature, Params, VarName};
 use erg_parser::token::{Token, TokenKind};
-
-use erg_type::free::fresh_varname;
-use erg_type::value::TypeKind;
-use erg_type::value::ValueObj;
-use erg_type::{HasType, Type, TypeCode, TypePair};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::type_from_token_kind;
@@ -36,6 +31,10 @@ use crate::hir::{
     Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
+use crate::ty::free::fresh_varname;
+use crate::ty::value::TypeKind;
+use crate::ty::value::ValueObj;
+use crate::ty::{HasType, Type, TypeCode, TypePair};
 use AccessKind::*;
 
 fn is_python_special(name: &str) -> bool {
@@ -223,6 +222,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("File!", _, "read!") => Str::ever("read"),
         (_, _, "__new__") => Str::ever("__call__"),
         (_, _, "to_str") => Str::ever("__str__"),
+        (_, _, "__Tuple_getitem__") => Str::ever("__getitem__"),
         ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
         ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
         ("Module", Some("random"), "randint!") => Str::ever("randint"),
@@ -579,7 +579,7 @@ impl CodeGenerator {
     }
 
     fn emit_load_name_instr(&mut self, ident: Identifier) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
         let name = self
             .local_search(&escaped, Name)
@@ -596,7 +596,7 @@ impl CodeGenerator {
     }
 
     fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
         let name = self
             .local_search(&escaped, Name)
@@ -804,15 +804,15 @@ impl CodeGenerator {
                 self.emit_load_name_instr(ident);
             }
             Accessor::Attr(a) => {
-                let class = a.obj.ref_t().name();
-                let uniq_obj_name = a.obj.__name__().map(Str::rc);
+                let class = a.obj.ref_t().qual_name();
+                let uniq_obj_name = a.obj.local_name().map(Str::rc);
                 // C = Class ...
                 // C.
                 //     a = C.x
                 // ↓
                 // class C:
                 //     a = x
-                if Some(&self.cur_block_codeobj().name[..]) == a.obj.__name__()
+                if Some(&self.cur_block_codeobj().name[..]) == a.obj.local_name()
                     && &self.cur_block_codeobj().name[..] != "<module>"
                 {
                     self.emit_load_name_instr(a.ident);
@@ -1500,8 +1500,8 @@ impl CodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        let class = obj.ref_t().name(); // これは必ずmethodのあるクラスになっている
-        let uniq_obj_name = obj.__name__().map(Str::rc);
+        let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
+        let uniq_obj_name = obj.qual_name().map(Str::rc);
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
         } else if is_fake_method(&class, method_name.inspect()) {
@@ -1753,6 +1753,23 @@ impl CodeGenerator {
                     self.write_arg(1u8);
                 }
             },
+            Expr::Dict(dict) => match dict {
+                crate::hir::Dict::Normal(dic) => {
+                    let len = dic.kvs.len();
+                    for kv in dic.kvs.into_iter() {
+                        self.emit_expr(kv.key);
+                        self.emit_expr(kv.value);
+                    }
+                    self.write_instr(BUILD_MAP);
+                    self.write_arg(len as u8);
+                    if len == 0 {
+                        self.stack_inc();
+                    } else {
+                        self.stack_dec_n(2 * len - 1);
+                    }
+                }
+                other => todo!("{other}"),
+            },
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
                 let code = self.emit_block(code, None, vec![]);
@@ -1768,9 +1785,8 @@ impl CodeGenerator {
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
             }
-            // Dict,
             other => {
-                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "Dict", "".into())
+                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "??", "".into())
                     .write_to_stderr();
                 self.crash("cannot compile this expression at this time");
             }
@@ -2156,7 +2172,7 @@ impl CodeGenerator {
                 fn_name_full!(),
             )
             .write_to_stderr();
-            self.crash("error in codegen: invalid stack size");
+            self.crash("error in emit: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
         self.write_arg(0u8);

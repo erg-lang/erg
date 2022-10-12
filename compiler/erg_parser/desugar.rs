@@ -12,11 +12,11 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
-    DefBody, DefId, Expr, Identifier, KwArg, Lambda, LambdaSignature, Literal, Methods, Module,
-    NormalArray, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamSignature, Params,
-    PosArg, Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature,
-    SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
+    Methods, Module, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern,
+    ParamSignature, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
+    ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
+    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -47,15 +47,178 @@ impl Desugarer {
         var_name
     }
 
-    #[allow(clippy::let_and_return)]
     pub fn desugar(&mut self, module: Module) -> Module {
         log!(info "the desugaring process has started.");
         let module = self.desugar_multiple_pattern_def(module);
         let module = self.desugar_pattern(module);
-        let module = self.desugar_shortened_record(module);
+        let module = Self::desugar_shortened_record(module);
+        let module = Self::desugar_acc(module);
         log!(info "AST (desugared):\n{module}");
         log!(info "the desugaring process has completed.");
         module
+    }
+
+    fn perform_desugar(desugar: impl Fn(Expr) -> Expr, expr: Expr) -> Expr {
+        match expr {
+            Expr::Record(record) => match record {
+                Record::Normal(rec) => {
+                    let mut new_attrs = vec![];
+                    for attr in rec.attrs {
+                        new_attrs.push(enum_unwrap!(desugar(Expr::Def(attr)), Expr::Def));
+                    }
+                    Expr::Record(Record::Normal(NormalRecord::new(
+                        rec.l_brace,
+                        rec.r_brace,
+                        RecordAttrs::new(new_attrs),
+                    )))
+                }
+                _ => todo!(),
+            },
+            Expr::DataPack(pack) => {
+                let class = desugar(*pack.class);
+                let args = enum_unwrap!(desugar(Expr::Record(pack.args)), Expr::Record);
+                Expr::DataPack(DataPack::new(class, pack.connector, args))
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let (elems, _, _) = arr.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(desugar(elem.expr)))
+                        .collect();
+                    let elems = Args::new(elems, vec![], None);
+                    let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
+                    Expr::Array(Array::Normal(arr))
+                }
+                Array::WithLength(arr) => {
+                    let elem = PosArg::new(desugar(arr.elem.expr));
+                    let len = desugar(*arr.len);
+                    let arr = ArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
+                    Expr::Array(Array::WithLength(arr))
+                }
+                Array::Comprehension(arr) => {
+                    let elem = desugar(*arr.elem);
+                    let generators = arr
+                        .generators
+                        .into_iter()
+                        .map(|(ident, gen)| (ident, desugar(gen)))
+                        .collect();
+                    let guards = arr.guards.into_iter().map(desugar).collect();
+                    let arr =
+                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, elem, generators, guards);
+                    Expr::Array(Array::Comprehension(arr))
+                }
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    let (elems, _, paren) = tup.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(desugar(elem.expr)))
+                        .collect();
+                    let new_tup = Args::new(elems, vec![], paren);
+                    let tup = NormalTuple::new(new_tup);
+                    Expr::Tuple(Tuple::Normal(tup))
+                }
+            },
+            Expr::Set(set) => match set {
+                astSet::Normal(set) => {
+                    let (elems, _, _) = set.elems.deconstruct();
+                    let elems = elems
+                        .into_iter()
+                        .map(|elem| PosArg::new(desugar(elem.expr)))
+                        .collect();
+                    let elems = Args::new(elems, vec![], None);
+                    let set = NormalSet::new(set.l_brace, set.r_brace, elems);
+                    Expr::Set(astSet::Normal(set))
+                }
+                astSet::WithLength(set) => {
+                    let elem = PosArg::new(desugar(set.elem.expr));
+                    let len = desugar(*set.len);
+                    let set = SetWithLength::new(set.l_brace, set.r_brace, elem, len);
+                    Expr::Set(astSet::WithLength(set))
+                }
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dic) => {
+                    let new_kvs = dic
+                        .kvs
+                        .into_iter()
+                        .map(|elem| {
+                            let key = desugar(elem.key);
+                            let value = desugar(elem.value);
+                            KeyValue::new(key, value)
+                        })
+                        .collect();
+                    let tup = NormalDict::new(dic.l_brace, dic.r_brace, new_kvs);
+                    Expr::Dict(Dict::Normal(tup))
+                }
+                _ => todo!("dict comprehension"),
+            },
+            Expr::BinOp(binop) => {
+                let mut args = binop.args.into_iter();
+                let lhs = desugar(*args.next().unwrap());
+                let rhs = desugar(*args.next().unwrap());
+                Expr::BinOp(BinOp::new(binop.op, lhs, rhs))
+            }
+            Expr::UnaryOp(unaryop) => {
+                let mut args = unaryop.args.into_iter();
+                let expr = desugar(*args.next().unwrap());
+                Expr::UnaryOp(UnaryOp::new(unaryop.op, expr))
+            }
+            Expr::Call(call) => {
+                let obj = desugar(*call.obj);
+                let (pos_args, kw_args, paren) = call.args.deconstruct();
+                let pos_args = pos_args
+                    .into_iter()
+                    .map(|arg| PosArg::new(desugar(arg.expr)))
+                    .collect();
+                let kw_args = kw_args
+                    .into_iter()
+                    .map(|arg| {
+                        let expr = desugar(arg.expr);
+                        KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+                    })
+                    .collect();
+                let args = Args::new(pos_args, kw_args, paren);
+                Expr::Call(Call::new(obj, call.method_name, args))
+            }
+            Expr::Def(def) => {
+                let mut chunks = vec![];
+                for chunk in def.body.block.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
+                Expr::Def(Def::new(def.sig, body))
+            }
+            Expr::Lambda(lambda) => {
+                let mut chunks = vec![];
+                for chunk in lambda.body.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                let body = Block::new(chunks);
+                Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
+            }
+            Expr::TypeAsc(tasc) => {
+                let expr = desugar(*tasc.expr);
+                Expr::TypeAsc(TypeAscription::new(expr, tasc.op, tasc.t_spec))
+            }
+            Expr::Methods(method_defs) => {
+                let mut new_defs = vec![];
+                for def in method_defs.defs.into_iter() {
+                    let mut chunks = vec![];
+                    for chunk in def.body.block.into_iter() {
+                        chunks.push(desugar(chunk));
+                    }
+                    let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
+                    new_defs.push(Def::new(def.sig, body));
+                }
+                let new_defs = RecordAttrs::from(new_defs);
+                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_defs))
+            }
+            // TODO: Accessor
+            other => other,
+        }
     }
 
     fn desugar_ubar_lambda(&self, _module: Module) -> Module {
@@ -280,7 +443,17 @@ impl Desugarer {
                 Accessor::tuple_attr(obj, Literal::nat(n, sig.ln_begin().unwrap()))
             }
             BufIndex::Array(n) => {
-                Accessor::subscr(obj, Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())))
+                let r_brace = Token::new(
+                    TokenKind::RBrace,
+                    "]",
+                    sig.ln_begin().unwrap(),
+                    sig.col_begin().unwrap(),
+                );
+                Accessor::subscr(
+                    obj,
+                    Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => Accessor::attr(obj, attr.clone()),
         };
@@ -351,164 +524,35 @@ impl Desugarer {
     }
 
     /// `{x; y}` -> `{x = x; y = y}`
-    fn desugar_shortened_record(&self, mut module: Module) -> Module {
+    fn desugar_shortened_record(mut module: Module) -> Module {
         let mut new = Module::with_capacity(module.len());
         while let Some(chunk) = module.lpop() {
-            new.push(self.rec_desugar_shortened_record(chunk));
+            new.push(Self::rec_desugar_shortened_record(chunk));
         }
         new
     }
 
-    fn rec_desugar_shortened_record(&self, expr: Expr) -> Expr {
+    fn rec_desugar_shortened_record(expr: Expr) -> Expr {
         match expr {
             Expr::Record(Record::Shortened(rec)) => {
-                let rec = self.desugar_shortened_record_inner(rec);
+                let rec = Self::desugar_shortened_record_inner(rec);
                 Expr::Record(Record::Normal(rec))
             }
             Expr::DataPack(pack) => {
                 if let Record::Shortened(rec) = pack.args {
-                    let class = self.rec_desugar_shortened_record(*pack.class);
-                    let rec = self.desugar_shortened_record_inner(rec);
+                    let class = Self::rec_desugar_shortened_record(*pack.class);
+                    let rec = Self::desugar_shortened_record_inner(rec);
                     let args = Record::Normal(rec);
                     Expr::DataPack(DataPack::new(class, pack.connector, args))
                 } else {
                     Expr::DataPack(pack)
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    let (elems, _, _) = arr.elems.deconstruct();
-                    let elems = elems
-                        .into_iter()
-                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
-                        .collect();
-                    let elems = Args::new(elems, vec![], None);
-                    let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
-                    Expr::Array(Array::Normal(arr))
-                }
-                Array::WithLength(arr) => {
-                    let elem = PosArg::new(self.rec_desugar_shortened_record(arr.elem.expr));
-                    let len = self.rec_desugar_shortened_record(*arr.len);
-                    let arr = ArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
-                    Expr::Array(Array::WithLength(arr))
-                }
-                Array::Comprehension(arr) => {
-                    let elem = self.rec_desugar_shortened_record(*arr.elem);
-                    let generators = arr
-                        .generators
-                        .into_iter()
-                        .map(|(ident, gen)| (ident, self.rec_desugar_shortened_record(gen)))
-                        .collect();
-                    let guards = arr
-                        .guards
-                        .into_iter()
-                        .map(|guard| self.rec_desugar_shortened_record(guard))
-                        .collect();
-                    let arr =
-                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, elem, generators, guards);
-                    Expr::Array(Array::Comprehension(arr))
-                }
-            },
-            Expr::Tuple(tuple) => match tuple {
-                Tuple::Normal(tup) => {
-                    let (elems, _, paren) = tup.elems.deconstruct();
-                    let elems = elems
-                        .into_iter()
-                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
-                        .collect();
-                    let new_tup = Args::new(elems, vec![], paren);
-                    let tup = NormalTuple::new(new_tup);
-                    Expr::Tuple(Tuple::Normal(tup))
-                }
-            },
-            Expr::Set(set) => match set {
-                astSet::Normal(set) => {
-                    let (elems, _, _) = set.elems.deconstruct();
-                    let elems = elems
-                        .into_iter()
-                        .map(|elem| PosArg::new(self.rec_desugar_shortened_record(elem.expr)))
-                        .collect();
-                    let elems = Args::new(elems, vec![], None);
-                    let set = NormalSet::new(set.l_brace, set.r_brace, elems);
-                    Expr::Set(astSet::Normal(set))
-                }
-                astSet::WithLength(set) => {
-                    let elem = PosArg::new(self.rec_desugar_self(set.elem.expr));
-                    let len = self.rec_desugar_shortened_record(*set.len);
-                    let set = SetWithLength::new(set.l_brace, set.r_brace, elem, len);
-                    Expr::Set(astSet::WithLength(set))
-                }
-            },
-            Expr::Dict(dict) => {
-                todo!("{dict}")
-            }
-            Expr::BinOp(binop) => {
-                let mut args = binop.args.into_iter();
-                let lhs = self.rec_desugar_shortened_record(*args.next().unwrap());
-                let rhs = self.rec_desugar_shortened_record(*args.next().unwrap());
-                Expr::BinOp(BinOp::new(binop.op, lhs, rhs))
-            }
-            Expr::UnaryOp(unaryop) => {
-                let mut args = unaryop.args.into_iter();
-                let expr = self.rec_desugar_shortened_record(*args.next().unwrap());
-                Expr::UnaryOp(UnaryOp::new(unaryop.op, expr))
-            }
-            Expr::Call(call) => {
-                let obj = self.rec_desugar_shortened_record(*call.obj);
-                let (pos_args, kw_args, paren) = call.args.deconstruct();
-                let pos_args = pos_args
-                    .into_iter()
-                    .map(|arg| PosArg::new(self.rec_desugar_shortened_record(arg.expr)))
-                    .collect();
-                let kw_args = kw_args
-                    .into_iter()
-                    .map(|arg| {
-                        let expr = self.rec_desugar_shortened_record(arg.expr);
-                        KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
-                    })
-                    .collect();
-                let args = Args::new(pos_args, kw_args, paren);
-                Expr::Call(Call::new(obj, call.method_name, args))
-            }
-            Expr::Def(def) => {
-                let mut chunks = vec![];
-                for chunk in def.body.block.into_iter() {
-                    chunks.push(self.rec_desugar_shortened_record(chunk));
-                }
-                let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
-                Expr::Def(Def::new(def.sig, body))
-            }
-            Expr::Lambda(lambda) => {
-                let mut chunks = vec![];
-                for chunk in lambda.body.into_iter() {
-                    chunks.push(self.rec_desugar_shortened_record(chunk));
-                }
-                let body = Block::new(chunks);
-                Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
-            }
-            Expr::TypeAsc(tasc) => {
-                let expr = self.rec_desugar_shortened_record(*tasc.expr);
-                Expr::TypeAsc(TypeAscription::new(expr, tasc.op, tasc.t_spec))
-            }
-            Expr::Methods(method_defs) => {
-                let mut new_defs = vec![];
-                for def in method_defs.defs.into_iter() {
-                    let mut chunks = vec![];
-                    for chunk in def.body.block.into_iter() {
-                        chunks.push(self.rec_desugar_shortened_record(chunk));
-                    }
-                    let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
-                    new_defs.push(Def::new(def.sig, body));
-                }
-                let new_defs = RecordAttrs::from(new_defs);
-                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_defs))
-            }
-            // TODO: Accessorにも一応レコードを入れられる
-            other => other,
+            expr => Self::perform_desugar(Self::rec_desugar_shortened_record, expr),
         }
     }
 
-    fn desugar_shortened_record_inner(&self, rec: ShortenedRecord) -> NormalRecord {
+    fn desugar_shortened_record_inner(rec: ShortenedRecord) -> NormalRecord {
         let mut attrs = vec![];
         for attr in rec.idents.into_iter() {
             let var = VarSignature::new(VarPattern::Ident(attr.clone()), None);
@@ -529,20 +573,83 @@ impl Desugarer {
         NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
     }
 
-    fn desugar_self(&self, mut module: Module) -> Module {
+    fn desugar_self(mut module: Module) -> Module {
         let mut new = Module::with_capacity(module.len());
         while let Some(chunk) = module.lpop() {
-            new.push(self.rec_desugar_self(chunk));
+            new.push(Self::desugar_self_inner(chunk));
         }
         new
     }
 
-    fn rec_desugar_self(&self, _expr: Expr) -> Expr {
+    fn desugar_self_inner(_expr: Expr) -> Expr {
         todo!()
     }
+
     /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
-    fn desugar_refinement_pattern(&self, _mod: Module) -> Module {
+    fn desugar_refinement_pattern(_mod: Module) -> Module {
         todo!()
+    }
+
+    /// x[y] => x.__getitem__(y)
+    /// x.0 => x.__Tuple_getitem__(0)
+    fn desugar_acc(mut module: Module) -> Module {
+        let mut new = Module::with_capacity(module.len());
+        while let Some(chunk) = module.lpop() {
+            new.push(Self::rec_desugar_acc(chunk));
+        }
+        new
+    }
+
+    fn rec_desugar_acc(expr: Expr) -> Expr {
+        match expr {
+            Expr::Accessor(acc) => Self::desugar_acc_inner(acc),
+            expr => Self::perform_desugar(Self::rec_desugar_acc, expr),
+        }
+    }
+
+    fn desugar_acc_inner(acc: Accessor) -> Expr {
+        match acc {
+            // x[y] => x.__getitem__(y)
+            Accessor::Subscr(subscr) => {
+                let args = Args::new(vec![PosArg::new(*subscr.index)], vec![], None);
+                let line = subscr.obj.ln_begin().unwrap();
+                let call = Call::new(
+                    Self::rec_desugar_acc(*subscr.obj),
+                    Some(Identifier::public_with_line(
+                        Token::dummy(),
+                        Str::ever("__getitem__"),
+                        line,
+                    )),
+                    args,
+                );
+                Expr::Call(call)
+            }
+            // x.0 => x.__Tuple_getitem__(0)
+            Accessor::TupleAttr(tattr) => {
+                let args = Args::new(vec![PosArg::new(Expr::Lit(tattr.index))], vec![], None);
+                let line = tattr.obj.ln_begin().unwrap();
+                let call = Call::new(
+                    Self::rec_desugar_acc(*tattr.obj),
+                    Some(Identifier::public_with_line(
+                        Token::dummy(),
+                        Str::ever("__Tuple_getitem__"),
+                        line,
+                    )),
+                    args,
+                );
+                Expr::Call(call)
+            }
+            Accessor::TypeApp(mut tapp) => {
+                tapp.obj = Box::new(Self::rec_desugar_acc(*tapp.obj));
+                // REVIEW: tapp.type_args
+                Expr::Accessor(Accessor::TypeApp(tapp))
+            }
+            Accessor::Attr(mut attr) => {
+                attr.obj = Box::new(Self::rec_desugar_acc(*attr.obj));
+                Expr::Accessor(Accessor::Attr(attr))
+            }
+            other => Expr::Accessor(other),
+        }
     }
 }
 

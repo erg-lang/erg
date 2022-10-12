@@ -22,6 +22,11 @@ fn exec_class() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dict() -> Result<(), ()> {
+    expect_success("examples/dict.er")
+}
+
+#[test]
 fn exec_fib() -> Result<(), ()> {
     expect_success("examples/fib.er")
 }

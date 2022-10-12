@@ -1,14 +1,18 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
+use std::rc::Rc;
 
+use erg_common::dict;
+use erg_common::dict::Dict;
+use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
+use erg_common::Str;
 
-use crate::constructors::int_interval;
-use crate::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
-use crate::value::ValueObj;
-use crate::Str;
-use crate::Type;
+use super::constructors::int_interval;
+use super::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
+use super::value::ValueObj;
+use super::Type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -70,6 +74,15 @@ impl fmt::Display for OpKind {
     }
 }
 
+impl OpKind {
+    pub fn is_comparison(&self) -> bool {
+        matches!(
+            self,
+            Self::Gt | Self::Lt | Self::Ge | Self::Le | Self::Eq | Self::Ne
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IntervalOp {
     /// ..
@@ -127,10 +140,11 @@ pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
     Array(Vec<TyParam>),
-    Set(Vec<TyParam>),
     Tuple(Vec<TyParam>),
+    Set(Set<TyParam>),
+    Dict(Dict<TyParam, TyParam>),
     Mono(Str),
-    MonoProj {
+    Proj {
         obj: Box<TyParam>,
         attr: Str,
     },
@@ -164,10 +178,12 @@ impl PartialEq for TyParam {
             (Self::Type(l), Self::Type(r)) => l == r,
             (Self::Array(l), Self::Array(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
+            (Self::Dict(l), Self::Dict(r)) => l == r,
+            (Self::Set(l), Self::Set(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (
-                Self::MonoProj { obj, attr },
-                Self::MonoProj {
+                Self::Proj { obj, attr },
+                Self::Proj {
                     obj: r_obj,
                     attr: r_attr,
                 },
@@ -278,7 +294,7 @@ impl LimitedDisplay for TyParam {
             }
             Self::Mono(name) => write!(f, "{}", name),
             Self::MonoQVar(name) => write!(f, "'{}", name),
-            Self::MonoProj { obj, attr } => {
+            Self::Proj { obj, attr } => {
                 write!(f, "{}.", obj)?;
                 write!(f, "{}", attr)
             }
@@ -302,6 +318,7 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, "}}")
             }
+            Self::Dict(dict) => write!(f, "{dict}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
                 for (i, t) in tuple.iter().enumerate() {
@@ -394,6 +411,83 @@ impl<V: Into<ValueObj>> From<V> for TyParam {
     }
 }
 
+impl From<Dict<Type, Type>> for TyParam {
+    fn from(v: Dict<Type, Type>) -> Self {
+        Self::Dict(
+            v.into_iter()
+                .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+                .collect(),
+        )
+    }
+}
+
+impl TryFrom<TyParam> for ValueObj {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::Array(tps) => {
+                let mut vals = vec![];
+                for tp in tps {
+                    vals.push(ValueObj::try_from(tp)?);
+                }
+                Ok(ValueObj::Array(Rc::from(vals)))
+            }
+            TyParam::Tuple(tps) => {
+                let mut vals = vec![];
+                for tp in tps {
+                    vals.push(ValueObj::try_from(tp)?);
+                }
+                Ok(ValueObj::Tuple(Rc::from(vals)))
+            }
+            TyParam::Dict(tps) => {
+                let mut vals = dict! {};
+                for (k, v) in tps {
+                    vals.insert(ValueObj::try_from(k)?, ValueObj::try_from(v)?);
+                }
+                Ok(ValueObj::Dict(vals))
+            }
+            TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
+            TyParam::Type(t) => Ok(ValueObj::builtin_t(*t)),
+            TyParam::Value(v) => Ok(v),
+            _ => panic!("Expected value, got {:?}", tp),
+        }
+    }
+}
+
+impl TryFrom<TyParam> for Dict<TyParam, TyParam> {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Dict::try_from(fv.crack().clone()),
+            TyParam::Dict(tps) => Ok(tps),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<TyParam> for Vec<TyParam> {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Vec::try_from(fv.crack().clone()),
+            TyParam::Array(tps) => Ok(tps),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<TyParam> for Type {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Type::try_from(fv.crack().clone()),
+            TyParam::Type(t) => Ok(t.as_ref().clone()),
+            // TODO: Array, Dict, Set
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasLevel for TyParam {
     fn level(&self) -> Option<Level> {
         match self {
@@ -453,8 +547,8 @@ impl TyParam {
         Self::MonoQVar(name.into())
     }
 
-    pub fn mono_proj<S: Into<Str>>(obj: TyParam, attr: S) -> Self {
-        Self::MonoProj {
+    pub fn proj<S: Into<Str>>(obj: TyParam, attr: S) -> Self {
+        Self::Proj {
             obj: Box::new(obj),
             attr: attr.into(),
         }
@@ -520,10 +614,10 @@ impl TyParam {
         Self::app("Pred", vec![self])
     }
 
-    pub fn name(&self) -> Option<Str> {
+    pub fn qual_name(&self) -> Option<Str> {
         match self {
-            Self::Type(t) => Some(t.name()),
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().name(),
+            Self::Type(t) => Some(t.qual_name()),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
             Self::Mono(name) => Some(name.clone()),
             Self::MonoQVar(name) => Some(name.clone()),
             _ => None,
@@ -579,8 +673,10 @@ impl TyParam {
                 }
             }
             Self::Type(t) => t.has_qvar(),
-            Self::MonoProj { obj, .. } => obj.has_qvar(),
-            Self::Array(ts) | Self::Tuple(ts) | Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Proj { obj, .. } => obj.has_qvar(),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Dict(ts) => ts.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
@@ -593,16 +689,21 @@ impl TyParam {
         match self {
             Self::FreeVar(_) => false,
             Self::Type(t) => t.is_cachable(),
-            Self::MonoProj { obj, .. } => obj.is_cachable(),
+            Self::Proj { obj, .. } => obj.is_cachable(),
             Self::Array(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::Tuple(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::Set(ts) => ts.iter().all(|t| t.is_cachable()),
+            Self::Dict(kv) => kv.iter().all(|(k, v)| k.is_cachable() && v.is_cachable()),
             Self::UnaryOp { val, .. } => val.is_cachable(),
             Self::BinOp { lhs, rhs, .. } => lhs.is_cachable() && rhs.is_cachable(),
             Self::App { args, .. } => args.iter().all(|p| p.is_cachable()),
             Self::Erased(t) => t.is_cachable(),
             _ => true,
         }
+    }
+
+    pub fn is_unbound_var(&self) -> bool {
+        matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }
 
     pub fn has_unbound_var(&self) -> bool {
@@ -615,8 +716,12 @@ impl TyParam {
                 }
             }
             Self::Type(t) => t.has_unbound_var(),
-            Self::MonoProj { obj, .. } => obj.has_unbound_var(),
+            Self::Proj { obj, .. } => obj.has_unbound_var(),
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::Dict(kv) => kv
+                .iter()
+                .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } | Self::PolyQVar { args, .. } => {
@@ -650,8 +755,14 @@ impl TyParam {
     }
 
     pub fn update_constraint(&self, new_constraint: Constraint) {
-        if let Self::Type(t) = self {
-            t.update_constraint(new_constraint);
+        match self {
+            Self::Type(t) => {
+                t.update_constraint(new_constraint);
+            }
+            Self::FreeVar(fv) => {
+                fv.update_constraint(new_constraint);
+            }
+            _ => {}
         }
     }
 }
@@ -694,6 +805,24 @@ impl TryFrom<TyParamOrdering> for Ordering {
 }
 
 impl TyParamOrdering {
+    pub const fn canbe_eq(self) -> bool {
+        matches!(self, LessEqual | GreaterEqual | Equal | Any)
+    }
+    pub const fn canbe_lt(self) -> bool {
+        matches!(self, Less | LessEqual | NotEqual | Any)
+    }
+    pub const fn canbe_gt(self) -> bool {
+        matches!(self, Greater | GreaterEqual | NotEqual | Any)
+    }
+    pub const fn canbe_le(self) -> bool {
+        matches!(self, Less | LessEqual | Equal | Any)
+    }
+    pub const fn canbe_ge(self) -> bool {
+        matches!(self, Greater | GreaterEqual | Equal | Any)
+    }
+    pub const fn canbe_ne(self) -> bool {
+        matches!(self, NotEqual | Any)
+    }
     pub const fn is_lt(&self) -> bool {
         matches!(self, Less | LessEqual | Any)
     }

@@ -14,9 +14,8 @@ use erg_parser::ParserRunner;
 
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
+use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
-
-use erg_type::deserialize::Deserializer;
 
 use erg::dummy::DummyVM;
 

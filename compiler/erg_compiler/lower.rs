@@ -4,6 +4,7 @@
 
 use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
+use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
@@ -17,15 +18,15 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
-use erg_type::constructors::{
-    array, array_mut, builtin_mono, builtin_poly, free_var, func, mono, proc, quant, set, set_mut,
+use crate::ty::constructors::{
+    array_mut, array_t, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
 };
-use erg_type::free::Constraint;
-use erg_type::typaram::TyParam;
-use erg_type::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
-use erg_type::{HasType, ParamTy, Type};
+use crate::ty::free::Constraint;
+use crate::ty::typaram::TyParam;
+use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
+use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::instantiate::TyVarContext;
+use crate::context::instantiate::TyVarInstContext;
 use crate::context::{
     ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
 };
@@ -266,23 +267,21 @@ impl ASTLowerer {
     }
 
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len, None);
+        let maybe_len = self.ctx.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
-                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
-                    builtin_poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
-                    array(elem.t(), TyParam::Value(v))
+                    array_t(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -294,12 +293,12 @@ impl ASTLowerer {
             // REVIEW: is it ok to ignore the error?
             Err(_e) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    array(elem.t(), TyParam::erased(Type::Nat))
+                    array_t(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }
@@ -362,7 +361,6 @@ impl ASTLowerer {
         let mut union = Type::Never;
         let mut new_set = vec![];
         for elem in elems {
-            // TODO: Check if the object's type implements Eq
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
             if union.is_intersection_type() {
@@ -415,7 +413,7 @@ impl ASTLowerer {
         Ok(normal_set)
         */
         let elems = hir::Args::from(new_set);
-        let sup = builtin_poly("Eq", vec![TyParam::t(elem_t.clone())]);
+        let sup = poly("Eq", vec![TyParam::t(elem_t.clone())]);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
             self.errs.extend(errs.into_iter());
@@ -437,23 +435,23 @@ impl ASTLowerer {
     }
 
     fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len, None);
+        let maybe_len = self.ctx.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
                 } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
-                    builtin_poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
+                    poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
-                    set(elem.t(), TyParam::Value(v))
+                    set_t(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == builtin_mono("Nat!") => {
+            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutTypeAndLength!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
@@ -464,15 +462,103 @@ impl ASTLowerer {
             Ok(other) => todo!("{other} is not a Nat object"),
             Err(_e) => {
                 if elem.ref_t().is_mut_type() {
-                    builtin_poly(
+                    poly(
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    set(elem.t(), TyParam::erased(Type::Nat))
+                    set_t(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }
+    }
+
+    fn lower_dict(&mut self, dict: ast::Dict) -> LowerResult<hir::Dict> {
+        log!(info "enter {}({dict})", fn_name!());
+        match dict {
+            ast::Dict::Normal(set) => Ok(hir::Dict::Normal(self.lower_normal_dict(set)?)),
+            other => todo!("{other}"),
+            // ast::Dict::WithLength(set) => Ok(hir::Dict::WithLength(self.lower_dict_with_length(set)?)),
+        }
+    }
+
+    fn lower_normal_dict(&mut self, dict: ast::NormalDict) -> LowerResult<hir::NormalDict> {
+        log!(info "enter {}({dict})", fn_name!());
+        let mut union = dict! {};
+        let mut new_kvs = vec![];
+        for kv in dict.kvs {
+            let loc = kv.loc();
+            let key = self.lower_expr(kv.key)?;
+            let value = self.lower_expr(kv.value)?;
+            if union.insert(key.t(), value.t()).is_some() {
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    loc,
+                    AtomicStr::arc(&self.ctx.name[..]),
+                    switch_lang!(
+                        "japanese" => "Dictの値は全て同じ型である必要があります",
+                        "simplified_chinese" => "Dict的值必须是同一类型",
+                        "traditional_chinese" => "Dict的值必須是同一類型",
+                        "english" => "Values of Dict must be the same type",
+                    ),
+                    Some(
+                        switch_lang!(
+                            "japanese" => "Int or Strなど明示的に型を指定してください",
+                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                        )
+                        .into(),
+                    ),
+                )));
+            }
+            new_kvs.push(hir::KeyValue::new(key, value));
+        }
+        for key_t in union.keys() {
+            let sup = poly("Eq", vec![TyParam::t(key_t.clone())]);
+            let loc = Location::concat(&dict.l_brace, &dict.r_brace);
+            // check if key_t is Eq
+            if let Err(errs) = self.ctx.sub_unify(key_t, &sup, loc, None) {
+                self.errs.extend(errs.into_iter());
+            }
+        }
+        let kv_ts = if union.is_empty() {
+            dict! {
+                ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type))) =>
+                    ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type)))
+            }
+        } else {
+            union
+                .into_iter()
+                .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
+                .collect()
+        };
+        // TODO: lint
+        /*
+        if is_duplicated {
+            self.warns.push(LowerWarning::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                normal_set.loc(),
+                AtomicStr::arc(&self.ctx.name[..]),
+                switch_lang!(
+                    "japanese" => "要素が重複しています",
+                    "simplified_chinese" => "元素重复",
+                    "traditional_chinese" => "元素重複",
+                    "english" => "Elements are duplicated",
+                ),
+                None,
+            ));
+        }
+        Ok(normal_set)
+        */
+        Ok(hir::NormalDict::new(
+            dict.l_brace,
+            dict.r_brace,
+            kv_ts,
+            new_kvs,
+        ))
     }
 
     fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
@@ -646,7 +732,6 @@ impl ASTLowerer {
             },
             _ => {
                 if let Some(type_spec) = opt_cast_to {
-                    log!(err "cast({type_spec}): {call}");
                     self.ctx.cast(type_spec, &mut call)?;
                 }
             }
@@ -700,7 +785,7 @@ impl ASTLowerer {
         let bounds = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+        let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
         self.ctx.grow(&name, kind, Private, Some(tv_ctx))?;
         if let Err(errs) = self.ctx.assign_params(&lambda.sig.params, None) {
             self.errs.extend(errs.into_iter());
@@ -784,7 +869,7 @@ impl ASTLowerer {
                 let bounds = self
                     .ctx
                     .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
-                let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+                let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
                 self.ctx.grow(&name, kind, vis, Some(tv_ctx))?;
                 self.lower_subr_def(sig, def.body)
             }
@@ -809,43 +894,54 @@ impl ASTLowerer {
         if let Err(errs) = self.ctx.preregister(&body.block) {
             self.errs.extend(errs.into_iter());
         }
-        let block = self.lower_block(body.block).map_err(|e| {
-            self.pop_append_errs();
-            e
-        })?;
-        let found_body_t = block.ref_t();
-        let opt_expect_body_t = self
-            .ctx
-            .outer
-            .as_ref()
-            .unwrap()
-            .get_current_scope_var(sig.inspect().unwrap())
-            .map(|vi| vi.t.clone());
-        let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
-            _ => unreachable!(),
-        };
-        if let Some(expect_body_t) = opt_expect_body_t {
-            // TODO: expect_body_t is smaller for constants
-            // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
-            if !sig.is_const() {
-                if let Err(e) =
-                    self.return_t_check(sig.loc(), ident.inspect(), &expect_body_t, found_body_t)
-                {
-                    self.errs.push(e);
+        match self.lower_block(body.block) {
+            Ok(block) => {
+                let found_body_t = block.ref_t();
+                let opt_expect_body_t = self
+                    .ctx
+                    .outer
+                    .as_ref()
+                    .unwrap()
+                    .get_current_scope_var(sig.inspect().unwrap())
+                    .map(|vi| vi.t.clone());
+                let ident = match &sig.pat {
+                    ast::VarPattern::Ident(ident) => ident,
+                    _ => unreachable!(),
+                };
+                if let Some(expect_body_t) = opt_expect_body_t {
+                    // TODO: expect_body_t is smaller for constants
+                    // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
+                    if !sig.is_const() {
+                        if let Err(e) = self.return_t_check(
+                            sig.loc(),
+                            ident.inspect(),
+                            &expect_body_t,
+                            found_body_t,
+                        ) {
+                            self.errs.push(e);
+                        }
+                    }
                 }
+                let id = body.id;
+                self.ctx
+                    .outer
+                    .as_mut()
+                    .unwrap()
+                    .assign_var_sig(&sig, found_body_t, id)?;
+                let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+                let sig = hir::VarSignature::new(ident, found_body_t.clone());
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Var(sig), body))
+            }
+            Err(errs) => {
+                self.ctx.outer.as_mut().unwrap().assign_var_sig(
+                    &sig,
+                    &Type::Never,
+                    ast::DefId(0),
+                )?;
+                Err(errs)
             }
         }
-        let id = body.id;
-        self.ctx
-            .outer
-            .as_mut()
-            .unwrap()
-            .assign_var_sig(&sig, found_body_t, id)?;
-        let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-        let sig = hir::VarSignature::new(ident, found_body_t.clone());
-        let body = hir::DefBody::new(body.op, block, body.id);
-        Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
     // NOTE: 呼ばれている間はinner scopeなので注意
@@ -871,33 +967,41 @@ impl ASTLowerer {
                 if let Err(errs) = self.ctx.preregister(&body.block) {
                     self.errs.extend(errs.into_iter());
                 }
-                let block = self.lower_block(body.block).map_err(|e| {
-                    self.pop_append_errs();
-                    e
-                })?;
-                let found_body_t = block.ref_t();
-                let expect_body_t = t.return_t.as_ref();
-                if !sig.is_const() {
-                    if let Err(e) = self.return_t_check(
-                        sig.loc(),
-                        sig.ident.inspect(),
-                        expect_body_t,
-                        found_body_t,
-                    ) {
-                        self.errs.push(e);
+                match self.lower_block(body.block) {
+                    Ok(block) => {
+                        let found_body_t = block.ref_t();
+                        let expect_body_t = t.return_t.as_ref();
+                        if !sig.is_const() {
+                            if let Err(e) = self.return_t_check(
+                                sig.loc(),
+                                sig.ident.inspect(),
+                                expect_body_t,
+                                found_body_t,
+                            ) {
+                                self.errs.push(e);
+                            }
+                        }
+                        let id = body.id;
+                        let t =
+                            self.ctx
+                                .outer
+                                .as_mut()
+                                .unwrap()
+                                .assign_subr(&sig, id, found_body_t)?;
+                        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                        let sig = hir::SubrSignature::new(ident, sig.params, t);
+                        let body = hir::DefBody::new(body.op, block, body.id);
+                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
+                    }
+                    Err(errs) => {
+                        self.ctx.outer.as_mut().unwrap().assign_subr(
+                            &sig,
+                            ast::DefId(0),
+                            &Type::Failure,
+                        )?;
+                        Err(errs)
                     }
                 }
-                let id = body.id;
-                let t = self
-                    .ctx
-                    .outer
-                    .as_mut()
-                    .unwrap()
-                    .assign_subr(&sig, id, found_body_t)?;
-                let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, sig.params, t);
-                let body = hir::DefBody::new(body.op, block, body.id);
-                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
             Type::Failure => {
                 if let Err(errs) = self.ctx.assign_params(&sig.params, None) {
@@ -906,15 +1010,12 @@ impl ASTLowerer {
                 if let Err(errs) = self.ctx.preregister(&body.block) {
                     self.errs.extend(errs.into_iter());
                 }
-                let block = self.lower_block(body.block).map_err(|e| {
-                    self.pop_append_errs();
-                    e
-                })?;
                 self.ctx
                     .outer
                     .as_mut()
                     .unwrap()
-                    .fake_subr_assign(&sig, Type::Failure);
+                    .fake_subr_assign(&sig, Type::Never);
+                let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                 let sig = hir::SubrSignature::new(ident, sig.params, Type::Failure);
                 let body = hir::DefBody::new(body.op, block, body.id);
@@ -967,7 +1068,7 @@ impl ASTLowerer {
                         line!() as usize,
                         methods.loc(),
                         self.ctx.caused_by(),
-                        &class.name(),
+                        &class.qual_name(),
                         None,
                     )));
                 }
@@ -977,12 +1078,12 @@ impl ASTLowerer {
                     line!() as usize,
                     methods.class.loc(),
                     self.ctx.caused_by(),
-                    &class.name(),
-                    self.ctx.get_similar_name(&class.name()),
+                    &class.qual_name(),
+                    self.ctx.get_similar_name(&class.local_name()),
                 )));
             }
             self.ctx
-                .grow(&class.name(), ContextKind::MethodDefs, Private, None)?;
+                .grow(&class.local_name(), ContextKind::MethodDefs, Private, None)?;
             for def in methods.defs.iter_mut() {
                 if methods.vis.is(TokenKind::Dot) {
                     def.sig.ident_mut().unwrap().dot = Some(Token::new(
@@ -1015,10 +1116,9 @@ impl ASTLowerer {
                 }
             }
         }
-        let ctx = self
-            .ctx
-            .get_nominal_type_ctx(&mono(self.ctx.path(), hir_def.sig.ident().inspect()))
-            .unwrap();
+        let class = mono(hir_def.sig.ident().inspect());
+        log!("{class}");
+        let class_ctx = self.ctx.get_nominal_type_ctx(&class).unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
@@ -1027,8 +1127,8 @@ impl ASTLowerer {
         Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            ctx.get_current_scope_var("__new__"),
-            ctx.get_current_scope_var("new"),
+            class_ctx.get_current_scope_var("__new__"),
+            class_ctx.get_current_scope_var("new"),
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
@@ -1055,7 +1155,7 @@ impl ASTLowerer {
     ) {
         if let TypeObj::Generated(gen) = type_obj.require_or_sup.as_ref() {
             if let Some(impls) = gen.impls.as_ref() {
-                if !impls.contains_intersec(&builtin_mono("InheritableType")) {
+                if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
                         cfg.input.clone(),
                         line!() as usize,
@@ -1092,7 +1192,7 @@ impl ASTLowerer {
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
-                            &builtin_mono(&sup.name), // TODO: get super type
+                            &mono(&sup.name), // TODO: get super type
                             ctx.caused_by(),
                         ));
                     }
@@ -1114,7 +1214,7 @@ impl ASTLowerer {
             let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
-            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.name()) {
+            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
@@ -1171,7 +1271,7 @@ impl ASTLowerer {
                         line!() as usize,
                         loc,
                         self.ctx.caused_by(),
-                        &impl_trait.name(),
+                        &impl_trait.qual_name(),
                         &Type::TraitType,
                         &trait_obj.t(),
                         None,
@@ -1184,8 +1284,8 @@ impl ASTLowerer {
                     line!() as usize,
                     loc,
                     self.ctx.caused_by(),
-                    &impl_trait.name(),
-                    self.ctx.get_similar_name(&impl_trait.name()),
+                    &impl_trait.qual_name(),
+                    self.ctx.get_similar_name(&impl_trait.local_name()),
                 ));
             }
         }
@@ -1194,18 +1294,21 @@ impl ASTLowerer {
 
     fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
         // TODO: polymorphic trait
-        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.name()) {
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
             impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
         } else {
             self.ctx.trait_impls.insert(
-                trait_.name(),
+                trait_.qual_name(),
                 set! {TraitInstance::new(class.clone(), trait_.clone())},
             );
         }
     }
 
     fn push_methods(&mut self, class: Type, methods: Context) {
-        let (_, class_root) = self.ctx.get_mut_nominal_type_ctx(&class).unwrap();
+        let (_, class_root) = self
+            .ctx
+            .get_mut_nominal_type_ctx(&class)
+            .unwrap_or_else(|| todo!("{class} not found"));
         for (newly_defined_name, _vi) in methods.locals.iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
@@ -1274,6 +1377,7 @@ impl ASTLowerer {
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
             ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
+            ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.lower_dict(dict)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
             ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
@@ -1403,7 +1507,7 @@ impl ASTLowerer {
                     Type::ClassType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Class,
-                            mono(self.ctx.path(), ident.inspect()),
+                            mono(format!("{}{ident}", self.ctx.path())),
                             TypeObj::Builtin(Type::Uninited),
                             None,
                             None,
@@ -1413,7 +1517,7 @@ impl ASTLowerer {
                     Type::TraitType => {
                         let ty_obj = GenTypeObj::new(
                             TypeKind::Trait,
-                            mono(self.ctx.path(), ident.inspect()),
+                            mono(format!("{}{ident}", self.ctx.path())),
                             TypeObj::Builtin(Type::Uninited),
                             None,
                             None,

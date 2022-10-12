@@ -10,9 +10,9 @@ use erg_common::python_util::detect_magic_number;
 use erg_common::serialize::*;
 use erg_common::Str;
 
-use crate::deserialize::{DeserializeResult, Deserializer};
-use crate::value::ValueObj;
-use crate::{HasType, Type, TypePair};
+use super::deserialize::{DeserializeResult, Deserializer};
+use super::value::ValueObj;
+use super::{HasType, Type, TypePair};
 
 pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
     let mut tuple = vec![];

@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::*;
+use crate::ty::*;
 
 #[inline]
 pub const fn kw(name: &'static str, ty: Type) -> ParamTy {
@@ -27,39 +27,41 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
     Type::FreeVar(Free::new_named_unbound(name, level, constraint))
 }
 
-pub fn array(elem_t: Type, len: TyParam) -> Type {
-    builtin_poly("Array", vec![TyParam::t(elem_t), len])
+pub fn array_t(elem_t: Type, len: TyParam) -> Type {
+    poly("Array", vec![TyParam::t(elem_t), len])
 }
 
 pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
-    builtin_poly("Array!", vec![TyParam::t(elem_t), len])
+    poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
-pub fn dict(k_t: Type, v_t: Type) -> Type {
-    builtin_poly("Dict", vec![TyParam::t(k_t), TyParam::t(v_t)])
+pub fn tuple_t(args: Vec<Type>) -> Type {
+    poly(
+        "Tuple",
+        vec![TyParam::Array(args.into_iter().map(TyParam::t).collect())],
+    )
 }
 
-pub fn tuple(args: Vec<Type>) -> Type {
-    let name = format!("Tuple{}", args.len());
-    builtin_poly(name, args.into_iter().map(TyParam::t).collect())
-}
-
-pub fn set(elem_t: Type, len: TyParam) -> Type {
-    builtin_poly("Set", vec![TyParam::t(elem_t), len])
+pub fn set_t(elem_t: Type, len: TyParam) -> Type {
+    poly("Set", vec![TyParam::t(elem_t), len])
 }
 
 pub fn set_mut(elem_t: Type, len: TyParam) -> Type {
-    builtin_poly("Set!", vec![TyParam::t(elem_t), len])
+    poly("Set!", vec![TyParam::t(elem_t), len])
+}
+
+pub fn dict_t(dict: TyParam) -> Type {
+    poly("Dict", vec![dict])
 }
 
 #[inline]
 pub fn range(t: Type) -> Type {
-    builtin_poly("Range", vec![TyParam::t(t)])
+    poly("Range", vec![TyParam::t(t)])
 }
 
 #[inline]
 pub fn module(path: TyParam) -> Type {
-    builtin_poly("Module", vec![path])
+    poly("Module", vec![path])
 }
 
 pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
@@ -68,7 +70,9 @@ pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
 }
 
 pub fn v_enum(s: Set<ValueObj>) -> Type {
-    assert!(is_homogeneous(&s));
+    if !is_homogeneous(&s) {
+        panic!("{s} is not homogeneous");
+    }
     let name = Str::from(fresh_varname());
     let t = inner_class(&s);
     let preds = s
@@ -131,7 +135,7 @@ where
 }
 
 pub fn iter(t: Type) -> Type {
-    builtin_poly("Iter", vec![TyParam::t(t)])
+    poly("Iter", vec![TyParam::t(t)])
 }
 
 pub fn ref_(t: Type) -> Type {
@@ -279,6 +283,10 @@ pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
     )
 }
 
+pub fn fn1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
+    fn_met(self_t, vec![input], None, vec![], return_t)
+}
+
 pub fn pr_met(
     self_t: Type,
     mut non_default_params: Vec<ParamTy>,
@@ -329,7 +337,12 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn builtin_mono<S: Into<Str>>(name: S) -> Type {
+pub fn mono_q<S: Into<Str>>(name: S) -> Type {
+    Type::MonoQVar(name.into())
+}
+
+#[inline]
+pub fn mono<S: Into<Str>>(name: S) -> Type {
     let name = name.into();
     if cfg!(feature = "debug") {
         // do not use for: `Int`, `Nat`, ...
@@ -340,28 +353,7 @@ pub fn builtin_mono<S: Into<Str>>(name: S) -> Type {
             _ => {}
         }
     }
-    Type::BuiltinMono(name)
-}
-
-#[inline]
-pub fn mono_q<S: Into<Str>>(name: S) -> Type {
-    Type::MonoQVar(name.into())
-}
-
-#[inline]
-pub fn mono<P: Into<PathBuf>, S: Into<Str>>(path: P, name: S) -> Type {
-    Type::Mono {
-        path: path.into(),
-        name: name.into(),
-    }
-}
-
-#[inline]
-pub fn builtin_poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::BuiltinPoly {
-        name: name.into(),
-        params,
-    }
+    Type::Mono(name)
 }
 
 #[inline]
@@ -373,19 +365,27 @@ pub fn poly_q<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
 }
 
 #[inline]
-pub fn poly<P: Into<PathBuf>, T: Into<Str>>(path: P, name: T, params: Vec<TyParam>) -> Type {
+pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
     Type::Poly {
-        path: path.into(),
         name: name.into(),
         params,
     }
 }
 
 #[inline]
-pub fn mono_proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
-    Type::MonoProj {
+pub fn proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
+    Type::Proj {
         lhs: Box::new(lhs),
         rhs: rhs.into(),
+    }
+}
+
+#[inline]
+pub fn proj_method<S: Into<Str>>(lhs: TyParam, method_name: S, args: Vec<TyParam>) -> Type {
+    Type::ProjMethod {
+        lhs: Box::new(lhs),
+        method_name: method_name.into(),
+        args,
     }
 }
 

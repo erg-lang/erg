@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{builtin_mono, proc1};
-use erg_type::Type;
+use crate::ty::constructors::{mono, proc1};
+use crate::ty::Type;
 use Type::*;
 
 use crate::context::Context;
@@ -14,7 +14,7 @@ impl Context {
         let mut importlib = Context::builtin_module("importlib", 15);
         importlib.register_builtin_impl(
             "reload!",
-            proc1(builtin_mono("GenericModule"), NoneType),
+            proc1(mono("GenericModule"), NoneType),
             Immutable,
             Public,
         );

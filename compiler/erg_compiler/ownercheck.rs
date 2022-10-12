@@ -10,7 +10,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
 
-use erg_type::{HasType, Ownership};
+use crate::ty::{HasType, Ownership};
 
 use crate::error::{OwnershipError, OwnershipErrors};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};
@@ -171,12 +171,12 @@ impl OwnershipChecker {
             },
             Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {
-                    for a in dic.attrs.kw_args.iter() {
-                        // self.check_expr(&a.key);
-                        self.check_expr(&a.expr, ownership, false);
+                    for kv in dic.kvs.iter() {
+                        self.check_expr(&kv.key, ownership, false);
+                        self.check_expr(&kv.value, ownership, false);
                     }
                 }
-                _ => todo!(),
+                other => todo!("{other}"),
             },
             Expr::Record(rec) => {
                 for def in rec.attrs.iter() {

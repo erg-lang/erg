@@ -15,11 +15,11 @@ impl StdinReader {
         reader.read_line(&mut buf).unwrap();
         self.lineno += 1;
         self.buf.push(buf);
-        self.buf.last().unwrap().clone()
+        self.buf.last().cloned().unwrap_or_else(|| "".to_string())
     }
 
     pub fn reread(&self) -> String {
-        self.buf.last().unwrap().clone()
+        self.buf.last().cloned().unwrap_or_else(|| "".to_string())
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {

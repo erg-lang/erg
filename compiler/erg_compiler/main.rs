@@ -10,12 +10,11 @@ use erg_common::traits::Runnable;
 
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
+use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
 
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
-
-use erg_type::deserialize::Deserializer;
 
 fn run() {
     let cfg = ErgConfig::parse();

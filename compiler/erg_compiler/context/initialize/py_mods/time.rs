@@ -1,7 +1,7 @@
 use erg_common::vis::Visibility;
 
-use erg_type::constructors::{proc0, proc1};
-use erg_type::Type;
+use crate::ty::constructors::{proc0, proc1};
+use crate::ty::Type;
 use Type::*;
 
 use crate::context::Context;
