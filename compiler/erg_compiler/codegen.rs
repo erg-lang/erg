@@ -199,6 +199,9 @@ fn is_python_global(name: &str) -> bool {
             | "type"
             | "vars"
             | "zip"
+            | "license"
+            | "copyright"
+            | "credits"
     )
 }
 

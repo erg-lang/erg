@@ -229,6 +229,29 @@ impl Context {
         }
     }
 
+    fn init_builtin_consts(&mut self) {
+        // TODO: this is not a const, but a special property
+        self.register_builtin_impl("__name__", Str, Immutable, Private);
+        self.register_builtin_impl(
+            "license",
+            mono("_sitebuiltins._Printer"),
+            Immutable,
+            Private,
+        );
+        self.register_builtin_impl(
+            "credits",
+            mono("_sitebuiltins._Printer"),
+            Immutable,
+            Private,
+        );
+        self.register_builtin_impl(
+            "copyright",
+            mono("_sitebuiltins._Printer"),
+            Immutable,
+            Private,
+        );
+    }
+
     /// see std/prelude.er
     /// All type boundaries are defined in each subroutine
     /// `push_subtype_bound`, etc. are used for type boundary determination in user-defined APIs
@@ -1790,6 +1813,7 @@ impl Context {
     pub(crate) fn init_builtins(mod_cache: &SharedModuleCache) {
         // TODO: capacityを正確に把握する
         let mut ctx = Context::builtin_module("<builtins>", 40);
+        ctx.init_builtin_consts();
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
