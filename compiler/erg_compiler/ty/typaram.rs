@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use erg_common::dict;
 use erg_common::dict::Dict;
+use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
 
@@ -139,8 +140,8 @@ pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
     Array(Vec<TyParam>),
-    Set(Vec<TyParam>),
     Tuple(Vec<TyParam>),
+    Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
     Mono(Str),
     Proj {
@@ -177,6 +178,8 @@ impl PartialEq for TyParam {
             (Self::Type(l), Self::Type(r)) => l == r,
             (Self::Array(l), Self::Array(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
+            (Self::Dict(l), Self::Dict(r)) => l == r,
+            (Self::Set(l), Self::Set(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (
                 Self::Proj { obj, attr },
@@ -671,7 +674,9 @@ impl TyParam {
             }
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),
-            Self::Array(ts) | Self::Tuple(ts) | Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Dict(ts) => ts.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
@@ -688,6 +693,7 @@ impl TyParam {
             Self::Array(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::Tuple(ts) => ts.iter().all(|t| t.is_cachable()),
             Self::Set(ts) => ts.iter().all(|t| t.is_cachable()),
+            Self::Dict(kv) => kv.iter().all(|(k, v)| k.is_cachable() && v.is_cachable()),
             Self::UnaryOp { val, .. } => val.is_cachable(),
             Self::BinOp { lhs, rhs, .. } => lhs.is_cachable() && rhs.is_cachable(),
             Self::App { args, .. } => args.iter().all(|p| p.is_cachable()),
@@ -712,6 +718,10 @@ impl TyParam {
             Self::Type(t) => t.has_unbound_var(),
             Self::Proj { obj, .. } => obj.has_unbound_var(),
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::Dict(kv) => kv
+                .iter()
+                .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } | Self::PolyQVar { args, .. } => {

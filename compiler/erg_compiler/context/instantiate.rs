@@ -1140,7 +1140,6 @@ impl Context {
             }
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
             Refinement(refine) if refine.t.is_quantified() => {
-                erg_common::log!(err "{refine}");
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
                 let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;

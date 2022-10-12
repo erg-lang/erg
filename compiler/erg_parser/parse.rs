@@ -1044,6 +1044,30 @@ impl Parser {
                         }
                     }
                 }
+                Some(t) if t.is(LSqBr) => {
+                    let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
+                        expr
+                    } else {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    self.skip();
+                    let index = self
+                        .try_reduce_expr(false, false, in_brace)
+                        .map_err(|_| self.stack_dec())?;
+                    let r_sqbr = self.lpop();
+                    if !r_sqbr.is(RSqBr) {
+                        self.restore(r_sqbr);
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                    let acc = Accessor::subscr(obj, index, r_sqbr);
+                    stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                }
                 Some(t) if t.is(Comma) && winding => {
                     let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let tup = self
@@ -1665,7 +1689,6 @@ impl Parser {
             }
             // Dict
             other if self.cur_is(Colon) => {
-                log!(err "{other}");
                 let dict = self
                     .try_reduce_normal_dict(l_brace, other)
                     .map_err(|_| self.stack_dec())?;

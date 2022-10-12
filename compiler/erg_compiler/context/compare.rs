@@ -100,8 +100,8 @@ impl Context {
                         .all(|(l, r)| self.eq_tp(l, r))
             }
             (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                    return self.eq_tp(t, other);
+                FreeKind::Linked(linked) | FreeKind::UndoableLinked { t: linked, .. } => {
+                    return self.eq_tp(linked, other);
                 }
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
@@ -781,29 +781,36 @@ impl Context {
             .iter()
             .zip(rparams.iter())
             .zip(variances.iter())
-            .all(|((lp, rp), variance)| match (lp, rp, variance) {
-                (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
-                    self.subtype_of(l, r)
+            .all(|((lp, rp), variance)| self.supertype_of_tp(lp, rp, *variance))
+    }
+
+    fn supertype_of_tp(&self, lp: &TyParam, rp: &TyParam, variance: Variance) -> bool {
+        match (lp, rp, variance) {
+            (TyParam::FreeVar(fv), _, _) if fv.is_linked() => {
+                self.supertype_of_tp(&fv.crack(), rp, variance)
+            }
+            (_, TyParam::FreeVar(fv), _) if fv.is_linked() => {
+                self.supertype_of_tp(lp, &fv.crack(), variance)
+            }
+            (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => self.subtype_of(l, r),
+            (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
+                // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
+                self.supertype_of(l, r)
+            }
+            (TyParam::FreeVar(fv), _, _) if fv.is_unbound() => {
+                let fv_t = fv.get_type().unwrap();
+                let rp_t = self.get_tp_t(rp).unwrap();
+                if variance == Variance::Contravariant {
+                    self.subtype_of(&fv_t, &rp_t)
+                } else if variance == Variance::Covariant {
+                    self.supertype_of(&fv_t, &rp_t)
+                } else {
+                    self.same_type_of(&fv_t, &rp_t)
                 }
-                (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                    // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
-                    self.supertype_of(l, r)
-                }
-                (TyParam::FreeVar(fv), _, _) if fv.is_unbound() => {
-                    let fv_t = fv.get_type().unwrap();
-                    let rp_t = self.get_tp_t(rp).unwrap();
-                    log!("{fv_t}, {rp_t}, {variance}");
-                    if variance == &Variance::Contravariant {
-                        self.subtype_of(&fv_t, &rp_t)
-                    } else if variance == &Variance::Covariant {
-                        self.supertype_of(&fv_t, &rp_t)
-                    } else {
-                        self.same_type_of(&fv_t, &rp_t)
-                    }
-                }
-                // Invariant
-                _ => self.eq_tp(lp, rp),
-            })
+            }
+            // Invariant
+            _ => self.eq_tp(lp, rp),
+        }
     }
 
     /// lhs <: rhs?

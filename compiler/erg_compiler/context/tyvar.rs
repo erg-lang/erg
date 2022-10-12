@@ -1510,12 +1510,10 @@ impl Context {
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),
             (Refinement(l), Refinement(r)) => {
-                log!(err "{l}, {r}");
                 if l.preds.len() == 1 && r.preds.len() == 1 {
                     let l_first = l.preds.iter().next().unwrap();
                     let r_first = r.preds.iter().next().unwrap();
                     self.sub_unify_pred(l_first, r_first, loc)?;
-                    log!("{l}, {r}");
                     return Ok(());
                 }
                 todo!("{l}, {r}")
