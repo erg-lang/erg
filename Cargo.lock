@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "erg"
-version = "0.5.9-nightly.0"
+version = "0.5.9-nightly.1"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.5.9-nightly.0"
+version = "0.5.9-nightly.1"
 dependencies = [
  "hermit-abi",
  "libc",
@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.5.9-nightly.0"
+version = "0.5.9-nightly.1"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -30,7 +30,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.5.9-nightly.0"
+version = "0.5.9-nightly.1"
 dependencies = [
  "erg_common",
 ]
