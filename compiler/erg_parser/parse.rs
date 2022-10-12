@@ -889,6 +889,13 @@ impl Parser {
                 {
                     // "a": 1 (key-value pair)
                     if in_brace {
+                        while stack.len() >= 3 {
+                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            let bin = BinOp::new(op, lhs, rhs);
+                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                        }
                         break;
                     }
                     let op = self.lpop();
@@ -1658,6 +1665,7 @@ impl Parser {
             }
             // Dict
             other if self.cur_is(Colon) => {
+                log!(err "{other}");
                 let dict = self
                     .try_reduce_normal_dict(l_brace, other)
                     .map_err(|_| self.stack_dec())?;
