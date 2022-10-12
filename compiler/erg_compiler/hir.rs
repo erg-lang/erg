@@ -15,7 +15,7 @@ use erg_common::{
 use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
-use crate::ty::constructors::{array, dict_t, set_t, tuple};
+use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{TypeKind, ValueObj};
 use crate::ty::{HasType, Type};
@@ -643,7 +643,7 @@ impl_t!(NormalArray);
 
 impl NormalArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
-        let t = array(elem_t, TyParam::value(elems.len()));
+        let t = array_t(elem_t, TyParam::value(elems.len()));
         Self {
             l_sqbr,
             r_sqbr,
@@ -689,7 +689,7 @@ impl_t!(NormalTuple);
 
 impl NormalTuple {
     pub fn new(elems: Args) -> Self {
-        let t = tuple(elems.pos_args.iter().map(|a| a.expr.t()).collect());
+        let t = tuple_t(elems.pos_args.iter().map(|a| a.expr.t()).collect());
         Self { elems, t }
     }
 }

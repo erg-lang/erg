@@ -19,7 +19,7 @@ use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
 use crate::ty::constructors::{
-    array, array_mut, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -275,10 +275,8 @@ impl ASTLowerer {
                         "ArrayWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
-                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
-                    poly("ArrayType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
-                    array(elem.t(), TyParam::Value(v))
+                    array_t(elem.t(), TyParam::Value(v))
                 }
             }
             Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
@@ -300,7 +298,7 @@ impl ASTLowerer {
                         vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
                     )
                 } else {
-                    array(elem.t(), TyParam::erased(Type::Nat))
+                    array_t(elem.t(), TyParam::erased(Type::Nat))
                 }
             }
         }

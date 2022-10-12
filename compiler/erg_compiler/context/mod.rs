@@ -31,7 +31,7 @@ use erg_common::{fn_name, get_hash, log};
 
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Predicate, TyBound, Type};
+use crate::ty::{Predicate, Type};
 use erg_parser::ast::DefKind;
 use Type::*;
 
@@ -331,9 +331,6 @@ pub struct Context {
     pub name: Str,
     pub kind: ContextKind,
     pub(crate) cfg: ErgConfig,
-    // Type bounds & Predicates (if the context kind is Subroutine)
-    // ユーザー定義APIでのみ使う
-    pub(crate) bounds: Vec<TyBound>,
     pub(crate) preds: Vec<Predicate>,
     /// for looking up the parent scope
     pub(crate) outer: Option<Box<Context>>,
@@ -407,7 +404,6 @@ impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Context")
             .field("name", &self.name)
-            .field("bounds", &self.bounds)
             .field("preds", &self.preds)
             .field("params", &self.params)
             .field("decls", &self.decls)
@@ -480,7 +476,6 @@ impl Context {
             name,
             cfg,
             kind,
-            bounds: vec![],
             preds: vec![],
             outer: outer.map(Box::new),
             super_classes: vec![],

@@ -451,6 +451,40 @@ impl TryFrom<TyParam> for ValueObj {
     }
 }
 
+impl TryFrom<TyParam> for Dict<TyParam, TyParam> {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Dict::try_from(fv.crack().clone()),
+            TyParam::Dict(tps) => Ok(tps),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<TyParam> for Vec<TyParam> {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Vec::try_from(fv.crack().clone()),
+            TyParam::Array(tps) => Ok(tps),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<TyParam> for Type {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => Type::try_from(fv.crack().clone()),
+            TyParam::Type(t) => Ok(t.as_ref().clone()),
+            // TODO: Array, Dict, Set
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasLevel for TyParam {
     fn level(&self) -> Option<Level> {
         match self {
@@ -538,14 +572,6 @@ impl TyParam {
         Self::UnaryOp {
             op,
             val: Box::new(val),
-        }
-    }
-
-    pub fn as_type(&self) -> Option<Type> {
-        match self {
-            Self::Type(t) => Some(t.as_ref().clone()),
-            // TODO: Array, Dict, Set
-            _ => None,
         }
     }
 

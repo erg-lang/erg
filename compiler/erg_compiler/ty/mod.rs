@@ -15,6 +15,7 @@ use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
 use constructors::dict_t;
+use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
@@ -1464,6 +1465,25 @@ impl From<Dict<Type, Type>> for Type {
             .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
             .collect();
         dict_t(TyParam::Dict(d))
+    }
+}
+
+impl TryFrom<Type> for Dict<Type, Type> {
+    type Error = ();
+    fn try_from(tp: Type) -> Result<Self, ()> {
+        match tp {
+            Type::Poly { name, params } if &name[..] == "Dict" => {
+                let dict = Dict::try_from(params[0].clone())?;
+                let mut new_dict = dict! {};
+                for (k, v) in dict.into_iter() {
+                    let k = Type::try_from(k)?;
+                    let v = Type::try_from(v)?;
+                    new_dict.insert(k, v);
+                }
+                Ok(new_dict)
+            }
+            _ => Err(()),
+        }
     }
 }
 

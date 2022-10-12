@@ -1275,6 +1275,17 @@ impl Context {
             .collect()
     }
 
+    pub(crate) fn bounds(&self) -> Set<TyBound> {
+        self.params
+            .iter()
+            .filter_map(|(opt_name, vi)| {
+                opt_name
+                    .as_ref()
+                    .map(|name| TyBound::instance(name.inspect().clone(), vi.t.clone()))
+            })
+            .collect()
+    }
+
     /// Perform types linearization.
     /// TODO: Current implementation may be very inefficient.
     ///

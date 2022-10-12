@@ -27,7 +27,7 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
     Type::FreeVar(Free::new_named_unbound(name, level, constraint))
 }
 
-pub fn array(elem_t: Type, len: TyParam) -> Type {
+pub fn array_t(elem_t: Type, len: TyParam) -> Type {
     poly("Array", vec![TyParam::t(elem_t), len])
 }
 
@@ -35,7 +35,7 @@ pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
     poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
-pub fn tuple(args: Vec<Type>) -> Type {
+pub fn tuple_t(args: Vec<Type>) -> Type {
     poly(
         "Tuple",
         vec![TyParam::Array(args.into_iter().map(TyParam::t).collect())],

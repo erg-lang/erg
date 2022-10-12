@@ -18,7 +18,7 @@ use erg_parser::token::{Token, TokenKind};
 use crate::ty::constructors::dict_t;
 use crate::ty::constructors::proj_method;
 use crate::ty::constructors::{
-    array, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
+    array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::ValueObj;
@@ -715,12 +715,25 @@ impl Context {
                 .map(TyParam::value),
             (TyParam::FreeVar(fv), r) if fv.is_linked() => self.eval_bin_tp(op, &*fv.crack(), r),
             (TyParam::FreeVar(_), _) if op.is_comparison() => Ok(TyParam::value(true)),
+            // _: Nat <= 10 => true
+            // TODO: maybe this is wrong, we should do the type-checking of `<=`
+            (TyParam::Erased(t), _)
+                if op.is_comparison() && self.supertype_of(t, &self.get_tp_t(rhs).unwrap()) =>
+            {
+                Ok(TyParam::value(true))
+            }
             (TyParam::FreeVar(_), _) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (l, TyParam::FreeVar(fv)) if fv.is_linked() => self.eval_bin_tp(op, l, &*fv.crack()),
             (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
+            // 10 <= _: Nat => true
+            (_, TyParam::Erased(t))
+                if op.is_comparison() && self.supertype_of(&self.get_tp_t(lhs).unwrap(), t) =>
+            {
+                Ok(TyParam::value(true))
+            }
             (_, TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
-            (l, r) => todo!("{l} {op} {r}"),
+            (l, r) => todo!("{l:?} {op} {r:?}"),
         }
     }
 
@@ -1151,7 +1164,7 @@ impl Context {
             }
             TyParam::Array(tps) => {
                 let tp_t = self.get_tp_t(&tps[0])?;
-                let t = array(tp_t, TyParam::value(tps.len()));
+                let t = array_t(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),

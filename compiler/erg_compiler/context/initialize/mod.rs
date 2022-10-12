@@ -793,7 +793,12 @@ impl Context {
         /* Type */
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
-        type_.register_builtin_impl("mro", array(Type, TyParam::erased(Nat)), Immutable, Public);
+        type_.register_builtin_impl(
+            "mro",
+            array_t(Type, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
         type_.register_marker_trait(mono("Named"));
         let mut type_eq = Self::builtin_methods("Eq", 2);
         type_eq.register_builtin_impl("__eq__", fn1_met(Type, Type, Bool), Const, Public);
@@ -846,13 +851,13 @@ impl Context {
         array_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
         let n = mono_q_tp("N");
         let m = mono_q_tp("M");
-        let array_t = array(mono_q("T"), n.clone());
+        let arr_t = array_t(mono_q("T"), n.clone());
         let t = fn_met(
-            array_t.clone(),
-            vec![kw("rhs", array(mono_q("T"), m.clone()))],
+            arr_t.clone(),
+            vec![kw("rhs", array_t(mono_q("T"), m.clone()))],
             None,
             vec![],
-            array(mono_q("T"), n + m),
+            array_t(mono_q("T"), n + m),
         );
         let t = quant(
             t,
@@ -867,7 +872,7 @@ impl Context {
         array_.register_builtin_const("MutType!", Public, mut_type);
         // __getitem__: |T, N|(self: [T; N], _: {N}) -> T
         let getitem_t = fn1_kw_met(
-            array(mono_q("T"), mono_q_tp("N")), // TODO:
+            array_t(mono_q("T"), mono_q_tp("N")), // TODO:
             anon(tp_enum(Nat, set! {mono_q_tp("N")})),
             mono_q("T"),
         );
@@ -881,33 +886,20 @@ impl Context {
         let mut array_eq = Self::builtin_methods("Eq", 2);
         array_eq.register_builtin_impl(
             "__eq__",
-            fn1_met(array_t.clone(), array_t.clone(), Bool),
+            fn1_met(arr_t.clone(), arr_t.clone(), Bool),
             Const,
             Public,
         );
         array_.register_trait(
-            array_t.clone(),
-            poly("Eq", vec![ty_tp(array_t.clone())]),
+            arr_t.clone(),
+            poly("Eq", vec![ty_tp(arr_t.clone())]),
             array_eq,
         );
         array_.register_marker_trait(mono("Mutizable"));
         array_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
         let mut array_show = Self::builtin_methods("Show", 1);
-        array_show.register_builtin_impl(
-            "to_str",
-            fn0_met(array_t.clone(), Str),
-            Immutable,
-            Public,
-        );
-        array_.register_trait(array_t.clone(), mono("Show"), array_show);
-        let array_type_t = poly("ArrayType", vec![mono_q_tp("T"), mono_q_tp("N")]);
-        let mut array_type = Self::builtin_poly_class(
-            "ArrayType",
-            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
-            2,
-        );
-        array_type.register_superclass(array_t.clone(), &array_);
-        array_type.register_superclass(Type, &type_);
+        array_show.register_builtin_impl("to_str", fn0_met(arr_t.clone(), Str), Immutable, Public);
+        array_.register_trait(arr_t.clone(), mono("Show"), array_show);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -918,10 +910,10 @@ impl Context {
         set_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
         let t = fn_met(
             set_t.clone(),
-            vec![kw("rhs", array(mono_q("T"), m.clone()))],
+            vec![kw("rhs", array_t(mono_q("T"), m.clone()))],
             None,
             vec![],
-            array(mono_q("T"), n + m),
+            array_t(mono_q("T"), n + m),
         );
         let t = quant(
             t,
@@ -950,14 +942,6 @@ impl Context {
         let mut set_show = Self::builtin_methods("Show", 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
         set_.register_trait(set_t.clone(), mono("Show"), set_show);
-        let set_type_t = poly("SetType", vec![mono_q_tp("T"), mono_q_tp("N")]);
-        let mut set_type = Self::builtin_poly_class(
-            "SetType",
-            vec![PS::named_nd("T", Type), PS::named_nd("N", Nat)],
-            2,
-        );
-        set_type.register_superclass(set_t.clone(), &set_);
-        set_type.register_superclass(Type, &type_);
         let g_dict_t = mono("GenericDict");
         let mut generic_dict = Self::builtin_mono_class("GenericDict", 2);
         generic_dict.register_superclass(Obj, &obj);
@@ -1028,15 +1012,12 @@ impl Context {
         );
         let tuple_getitem_t = quant(
             tuple_getitem_t,
-            set! {static_instance("Ts", array(Type, mono_q_tp("N"))), static_instance("N", Nat)},
+            set! {static_instance("Ts", array_t(Type, mono_q_tp("N"))), static_instance("N", Nat)},
         );
         tuple_.register_builtin_impl("__Tuple_getitem__", tuple_getitem_t, Const, Public);
         /* record */
         let mut record = Self::builtin_mono_class("Record", 2);
         record.register_superclass(Obj, &obj);
-        let mut record_type = Self::builtin_mono_class("RecordType", 2);
-        record_type.register_superclass(mono("Record"), &record);
-        record_type.register_superclass(Type, &type_);
         /* Or (true or type) */
         let or_t = poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
         let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
@@ -1157,7 +1138,7 @@ impl Context {
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
             2,
         );
-        array_mut_.register_superclass(array_t.clone(), &array_);
+        array_mut_.register_superclass(arr_t.clone(), &array_);
         let t = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1190,12 +1171,7 @@ impl Context {
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
             "f",
-            func(
-                vec![kw("old", array_t.clone())],
-                None,
-                vec![],
-                array_t.clone(),
-            ),
+            func(vec![kw("old", arr_t.clone())], None, vec![], arr_t.clone()),
         );
         let t = pr_met(
             ref_mut(array_mut_t.clone(), None),
@@ -1306,17 +1282,14 @@ impl Context {
         self.register_builtin_type(TraitType, trait_type, Private, Const);
         self.register_builtin_type(g_module_t, generic_module, Private, Const);
         self.register_builtin_type(module_t, module, Private, Const);
-        self.register_builtin_type(array_t, array_, Private, Const);
-        self.register_builtin_type(array_type_t, array_type, Private, Const);
+        self.register_builtin_type(arr_t, array_, Private, Const);
         self.register_builtin_type(set_t, set_, Private, Const);
-        self.register_builtin_type(set_type_t, set_type, Private, Const);
         self.register_builtin_type(g_dict_t, generic_dict, Private, Const);
         self.register_builtin_type(dict_t, dict_, Private, Const);
         self.register_builtin_type(mono("Bytes"), bytes, Private, Const);
         self.register_builtin_type(mono("GenericTuple"), generic_tuple, Private, Const);
         self.register_builtin_type(tuple_t, tuple_, Private, Const);
         self.register_builtin_type(mono("Record"), record, Private, Const);
-        self.register_builtin_type(mono("RecordType"), record_type, Private, Const);
         self.register_builtin_type(or_t, or, Private, Const);
         self.register_builtin_type(mono("Int!"), int_mut, Private, Const);
         self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const);
@@ -1533,7 +1506,7 @@ impl Context {
             vec![kw("obj", ref_(Obj))],
             None,
             vec![],
-            array(Str, TyParam::erased(Nat)),
+            array_t(Str, TyParam::erased(Nat)),
         );
         let t_print = proc(
             vec![],

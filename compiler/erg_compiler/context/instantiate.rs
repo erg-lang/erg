@@ -635,6 +635,7 @@ impl Context {
         tmp_tv_ctx: Option<&TyVarContext>,
     ) -> TyCheckResult<Type> {
         match &simple.name.inspect()[..] {
+            "_" | "Obj" => Ok(Type::Obj),
             "Nat" => Ok(Type::Nat),
             "Int" => Ok(Type::Int),
             "Ratio" => Ok(Type::Ratio),
@@ -646,7 +647,6 @@ impl Context {
             "NotImplemented" => Ok(Type::NotImplemented),
             "Inf" => Ok(Type::Inf),
             "NegInf" => Ok(Type::NegInf),
-            "Obj" => Ok(Type::Obj),
             "Array" => {
                 // TODO: kw
                 let mut args = simple.args.pos_args();
@@ -654,7 +654,7 @@ impl Context {
                     let t = self.instantiate_const_expr_as_type(&first.expr)?;
                     let len = args.next().unwrap();
                     let len = self.instantiate_const_expr(&len.expr)?;
-                    Ok(array(t, len))
+                    Ok(array_t(t, len))
                 } else {
                     Ok(mono("GenericArray"))
                 }
@@ -716,7 +716,11 @@ impl Context {
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                Ok(TyParam::Mono(name.inspect().clone()))
+                if &name.inspect()[..] == "_" {
+                    Ok(TyParam::erased(Type::Uninited))
+                } else {
+                    Ok(TyParam::Mono(name.inspect().clone()))
+                }
             }
             _ => todo!(),
         }
@@ -771,23 +775,27 @@ impl Context {
             )),
             TypeSpec::Array(arr) => {
                 let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
-                let len = self.instantiate_const_expr(&arr.len)?;
-                Ok(poly("ArrayType", vec![ty_tp(elem_t), len]))
+                let mut len = self.instantiate_const_expr(&arr.len)?;
+                if let TyParam::Erased(t) = &mut len {
+                    *t.as_mut() = Type::Nat;
+                }
+                Ok(array_t(elem_t, len))
             }
             TypeSpec::Set(set) => {
                 let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
-                let len = self.instantiate_const_expr(&set.len)?;
-                Ok(poly("SetType", vec![ty_tp(elem_t), len]))
+                let mut len = self.instantiate_const_expr(&set.len)?;
+                if let TyParam::Erased(t) = &mut len {
+                    *t.as_mut() = Type::Nat;
+                }
+                Ok(set_t(elem_t, len))
             }
-            // FIXME: unwrap
-            TypeSpec::Tuple(tys) => Ok(tuple(
-                tys.iter()
-                    .map(|spec| {
-                        self.instantiate_typespec(spec, opt_decl_t, tmp_tv_ctx, mode)
-                            .unwrap()
-                    })
-                    .collect(),
-            )),
+            TypeSpec::Tuple(tys) => {
+                let mut inst_tys = vec![];
+                for spec in tys {
+                    inst_tys.push(self.instantiate_typespec(spec, opt_decl_t, tmp_tv_ctx, mode)?);
+                }
+                Ok(tuple_t(inst_tys))
+            }
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
                 let mut new_set = set! {};
@@ -930,8 +938,22 @@ impl Context {
                 Ok(TyParam::bin(op, lhs, rhs))
             }
             TyParam::Type(t) => {
-                let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
-                Ok(TyParam::t(t))
+                // Int
+                /*if t.is_monomorphic() {
+                    Ok(TyParam::Type(t))
+                }*/
+                // 'T -> ?T
+                if t.is_mono_q() {
+                    let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
+                    Ok(TyParam::t(t))
+                }
+                // K('U) -> K(?U)
+                else {
+                    let ctx = self.get_nominal_type_ctx(&t).unwrap();
+                    let tv_ctx = TyVarContext::new(self.level, ctx.bounds(), self);
+                    let t = self.instantiate_t(*t, &tv_ctx, loc)?;
+                    Ok(TyParam::t(t))
+                }
             }
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_tp(fv.crack().clone(), tmp_tv_ctx, loc)

@@ -12,7 +12,7 @@ use erg_common::{fn_name, switch_lang};
 use erg_common::{RcArray, Str};
 
 use super::codeobj::CodeObj;
-use super::constructors::array;
+use super::constructors::array_t;
 use super::typaram::TyParam;
 use super::value::ValueObj;
 use super::{HasType, Type};
@@ -306,7 +306,7 @@ impl Deserializer {
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
-                &array(Type::Str, TyParam::erased(Type::Nat)),
+                &array_t(Type::Str, TyParam::erased(Type::Nat)),
                 other.ref_t(),
             )),
         }

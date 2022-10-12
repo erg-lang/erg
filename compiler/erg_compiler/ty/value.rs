@@ -19,7 +19,7 @@ use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use super::codeobj::CodeObj;
-use super::constructors::{array, mono, poly, refinement, set_t, tuple};
+use super::constructors::{array_t, mono, poly, refinement, set_t, tuple_t};
 use super::free::fresh_varname;
 use super::typaram::TyParam;
 use super::{ConstSubr, HasType, Predicate, Type};
@@ -503,12 +503,12 @@ impl ValueObj {
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
             // TODO: Zero
-            Self::Array(arr) => array(
+            Self::Array(arr) => array_t(
                 arr.iter().next().unwrap().class(),
                 TyParam::value(arr.len()),
             ),
             Self::Dict(_dict) => todo!(),
-            Self::Tuple(tup) => tuple(tup.iter().map(|v| v.class()).collect()),
+            Self::Tuple(tup) => tuple_t(tup.iter().map(|v| v.class()).collect()),
             Self::Set(st) => set_t(st.iter().next().unwrap().class(), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {

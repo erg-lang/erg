@@ -1,6 +1,6 @@
 use erg_common::vis::Visibility;
 
-use crate::ty::constructors::{array, array_mut, func0, func1, mono, proc1};
+use crate::ty::constructors::{array_mut, array_t, func0, func1, mono, proc1};
 use crate::ty::typaram::TyParam;
 use crate::ty::Type;
 use Type::*;
@@ -13,11 +13,16 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_sys_mod() -> Self {
         let mut sys = Context::builtin_module("sys", 15);
-        sys.register_builtin_impl("argv", array(Str, TyParam::erased(Nat)), Immutable, Public);
+        sys.register_builtin_impl(
+            "argv",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
         sys.register_builtin_impl("byteorder", Str, Immutable, Public);
         sys.register_builtin_impl(
             "builtin_module_names",
-            array(Str, TyParam::erased(Nat)),
+            array_t(Str, TyParam::erased(Nat)),
             Immutable,
             Public,
         );

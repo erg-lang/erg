@@ -15,7 +15,7 @@ use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, TyBound, Type};
 
 use crate::context::eval::SubstContext;
-use crate::context::{Context, Variance};
+use crate::context::{Context, TyVarContext, Variance};
 // use crate::context::instantiate::TyVarContext;
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
@@ -530,9 +530,23 @@ impl Context {
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
-            {
+            let sub_type = if inst.sub_type.has_qvar() {
+                let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
+                let tv_ctx = TyVarContext::new(self.level, sub_ctx.bounds(), self);
+                self.instantiate_t(inst.sub_type, &tv_ctx, Location::Unknown)
+                    .unwrap()
+            } else {
+                inst.sub_type
+            };
+            let sup_trait = if inst.sup_trait.has_qvar() {
+                let sup_ctx = self.get_nominal_type_ctx(&inst.sup_trait).unwrap();
+                let tv_ctx = TyVarContext::new(self.level, sup_ctx.bounds(), self);
+                self.instantiate_t(inst.sup_trait, &tv_ctx, Location::Unknown)
+                    .unwrap()
+            } else {
+                inst.sup_trait
+            };
+            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
                 super_exists = true;
                 break;
             }

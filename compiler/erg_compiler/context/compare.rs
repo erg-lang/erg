@@ -12,6 +12,7 @@ use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
+use erg_common::dict::Dict;
 use erg_common::Str;
 use erg_common::{assume_unreachable, log, set};
 use TyParamOrdering::*;
@@ -493,6 +494,18 @@ impl Context {
                     },
                 }
             }
+            (Type::Record(lhs), Type::Record(rhs)) => {
+                for (k, l) in lhs.iter() {
+                    if let Some(r) = rhs.get(k) {
+                        if !self.supertype_of(l, r) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
                     if !self.supertype_of(&Type, t) {
@@ -501,13 +514,49 @@ impl Context {
                 }
                 true
             }
-            (Type::Record(lhs), Type::Record(rhs)) => {
-                for (k, l) in lhs.iter() {
-                    if let Some(r) = rhs.get(k) {
-                        if !self.supertype_of(l, r) {
-                            return false;
-                        }
+            (Type, Poly { name, params }) | (Poly { name, params }, Type)
+                if &name[..] == "Array" || &name[..] == "Set" =>
+            {
+                let elem_t = Type::try_from(params[0].clone()).unwrap();
+                self.supertype_of(&Type, &elem_t)
+            }
+            (Type, Poly { name, params }) | (Poly { name, params }, Type)
+                if &name[..] == "Tuple" =>
+            {
+                let ts = Vec::try_from(params[0].clone()).unwrap();
+                for t in ts {
+                    let t = if let Ok(t) = Type::try_from(t) {
+                        t
                     } else {
+                        return false;
+                    };
+                    if !self.supertype_of(&Type, &t) {
+                        return false;
+                    }
+                }
+                false
+            }
+            (Type, Poly { name, params }) | (Poly { name, params }, Type)
+                if &name[..] == "Dict" =>
+            {
+                // HACK: e.g. ?D: GenericDict
+                let dict = if let Ok(d) = Dict::try_from(params[0].clone()) {
+                    d
+                } else {
+                    return false;
+                };
+                for (k, v) in dict.into_iter() {
+                    let k = if let Ok(t) = Type::try_from(k) {
+                        t
+                    } else {
+                        return false;
+                    };
+                    let v = if let Ok(t) = Type::try_from(v) {
+                        t
+                    } else {
+                        return false;
+                    };
+                    if !self.supertype_of(&Type, &k) || !self.supertype_of(&Type, &v) {
                         return false;
                     }
                 }
@@ -637,11 +686,11 @@ impl Context {
                 }
                 // [Int; 2] :> [Int; 3]
                 if &ln[..] == "Array" || &ln[..] == "Set" {
-                    let lt = &lparams[0].as_type().unwrap();
-                    let rt = &rparams[0].as_type().unwrap();
+                    let lt = Type::try_from(lparams[0].clone()).unwrap();
+                    let rt = Type::try_from(rparams[0].clone()).unwrap();
                     let llen = &lparams[1];
                     let rlen = &rparams[1];
-                    self.supertype_of(lt, rt)
+                    self.supertype_of(&lt, &rt)
                         && self
                             .eval_bin_tp(OpKind::Le, llen, rlen)
                             .map(|tp| matches!(tp, TyParam::Value(ValueObj::Bool(true))))
