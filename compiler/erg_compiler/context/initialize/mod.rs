@@ -266,6 +266,14 @@ impl Context {
             set! { subtypeof(mono_q("Self"), mono("Readable!")) },
         );
         readable.register_builtin_decl("read!", t_read, Public);
+        /* Writable */
+        let mut writable = Self::builtin_mono_trait("Writable!", 2);
+        let t_write = pr1_kw_met(ref_mut(mono_q("Self"), None), kw("s", Str), Nat);
+        let t_write = quant(
+            t_write,
+            set! { subtypeof(mono_q("Self"), mono("Writable!")) },
+        );
+        writable.register_builtin_decl("write!", t_write, Public);
         /* Show */
         let mut show = Self::builtin_mono_trait("Show", 2);
         let t_show = fn0_met(ref_(mono_q("Self")), Str);
@@ -394,6 +402,7 @@ impl Context {
         self.register_builtin_type(mono("Mutizable"), mutizable, Private, Const);
         self.register_builtin_type(mono("PathLike"), pathlike, Private, Const);
         self.register_builtin_type(mono("Readable!"), readable, Private, Const);
+        self.register_builtin_type(mono("Writable!"), writable, Private, Const);
         self.register_builtin_type(mono("Show"), show, Private, Const);
         self.register_builtin_type(
             poly("Input", vec![ty_tp(mono_q("T"))]),
@@ -1142,6 +1151,14 @@ impl Context {
             Public,
         );
         file_mut.register_trait(mono("File!"), mono("Readable!"), file_mut_readable);
+        let mut file_mut_writable = Self::builtin_methods("Writable!", 1);
+        file_mut_writable.register_builtin_impl(
+            "write!",
+            pr1_kw_met(ref_mut(mono("File!"), None), kw("s", Str), Nat),
+            Immutable,
+            Public,
+        );
+        file_mut.register_trait(mono("File!"), mono("Writable!"), file_mut_writable);
         /* Array_mut */
         let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(

@@ -318,6 +318,10 @@ pub fn pr1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
     )
 }
 
+pub fn pr1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
+    pr_met(self_t, vec![input], None, vec![], return_t)
+}
+
 /// function type with non-default parameters
 #[inline]
 pub fn nd_func(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> Type {
