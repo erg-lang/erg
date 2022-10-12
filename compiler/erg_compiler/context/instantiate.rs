@@ -32,6 +32,9 @@ use RegistrationMode::*;
 
 /// Context for instantiating a quantified type
 /// 量化型をインスタンス化するための文脈
+/// e.g. Array -> [("T": ?T(: Type)), ("N": ?N(: Nat))]
+/// FIXME: current implementation is wrong
+/// It will not work unless the type variable is used with the same name as the definition.
 #[derive(Debug, Clone)]
 pub struct TyVarInstContext {
     level: usize,
