@@ -326,7 +326,7 @@ impl SideEffectChecker {
             Expr::Call(call) => {
                 if (call.obj.t().is_procedural()
                     || call
-                        .method_name
+                        .attr_name
                         .as_ref()
                         .map(|name| name.is_procedural())
                         .unwrap_or(false))

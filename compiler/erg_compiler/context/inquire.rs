@@ -525,11 +525,11 @@ impl Context {
     fn search_callee_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Identifier>,
+        attr_name: &Option<Identifier>,
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
-        if let Some(method_name) = method_name.as_ref() {
+        if let Some(attr_name) = attr_name.as_ref() {
             for ctx in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| {
@@ -545,19 +545,19 @@ impl Context {
             {
                 if let Some(vi) = ctx
                     .locals
-                    .get(method_name.inspect())
-                    .or_else(|| ctx.decls.get(method_name.inspect()))
+                    .get(attr_name.inspect())
+                    .or_else(|| ctx.decls.get(attr_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, input, namespace)?;
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, methods_ctx) in ctx.methods_list.iter() {
                     if let Some(vi) = methods_ctx
                         .locals
-                        .get(method_name.inspect())
-                        .or_else(|| methods_ctx.decls.get(method_name.inspect()))
+                        .get(attr_name.inspect())
+                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, input, namespace)?;
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.t());
                     }
                 }
@@ -565,34 +565,34 @@ impl Context {
             if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
                 if let Some(vi) = singular_ctx
                     .locals
-                    .get(method_name.inspect())
-                    .or_else(|| singular_ctx.decls.get(method_name.inspect()))
+                    .get(attr_name.inspect())
+                    .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
                 {
-                    self.validate_visibility(method_name, vi, input, namespace)?;
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.t());
                 }
                 for (_, method_ctx) in singular_ctx.methods_list.iter() {
                     if let Some(vi) = method_ctx
                         .locals
-                        .get(method_name.inspect())
-                        .or_else(|| method_ctx.decls.get(method_name.inspect()))
+                        .get(attr_name.inspect())
+                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
                     {
-                        self.validate_visibility(method_name, vi, input, namespace)?;
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.t());
                     }
                 }
                 return Err(TyCheckError::singular_no_attr_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    method_name.loc(),
+                    attr_name.loc(),
                     namespace.into(),
                     obj.qual_name().unwrap_or("?"),
                     obj.ref_t(),
-                    method_name.inspect(),
-                    self.get_similar_attr_from_singular(obj, method_name.inspect()),
+                    attr_name.inspect(),
+                    self.get_similar_attr_from_singular(obj, attr_name.inspect()),
                 ));
             }
-            match self.get_method_type_by_name(method_name) {
+            match self.get_method_type_by_name(attr_name) {
                 Ok(t) => {
                     self.sub_unify(obj.ref_t(), &t.definition_type, obj.loc(), None)
                         // HACK: change this func's return type to TyCheckResult<Type>
@@ -608,11 +608,11 @@ impl Context {
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                method_name.loc(),
+                attr_name.loc(),
                 namespace.into(),
                 obj.ref_t(),
-                method_name.inspect(),
-                self.get_similar_attr(obj.ref_t(), method_name.inspect()),
+                attr_name.inspect(),
+                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
             ))
         } else {
             Ok(obj.t())
@@ -759,17 +759,17 @@ impl Context {
     fn substitute_call(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Identifier>,
+        attr_name: &Option<Identifier>,
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<()> {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.substitute_call(obj, method_name, &fv.crack(), pos_args, kw_args)
+                self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
             }
             Type::FreeVar(fv) => {
-                if let Some(_method_name) = method_name {
+                if let Some(_attr_name) = attr_name {
                     todo!()
                 } else {
                     let is_procedural = obj
@@ -789,16 +789,21 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
-                self.substitute_call(obj, method_name, &refine.t, pos_args, kw_args)
+                self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args)
             }
             Type::Subr(subr) => {
-                let callee = if let Some(ident) = method_name {
-                    let attr = hir::Attribute::new(
-                        obj.clone(),
-                        hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
-                        Type::Uninited,
-                    );
-                    hir::Expr::Accessor(hir::Accessor::Attr(attr))
+                let not_method_but_attr = subr.self_t().is_none();
+                let callee = if let Some(ident) = attr_name {
+                    if not_method_but_attr {
+                        obj.clone()
+                    } else {
+                        let attr = hir::Attribute::new(
+                            obj.clone(),
+                            hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
+                            Type::Uninited,
+                        );
+                        hir::Expr::Accessor(hir::Accessor::Attr(attr))
+                    }
                 } else {
                     obj.clone()
                 };
@@ -818,7 +823,7 @@ impl Context {
                     )));
                 }
                 let mut passed_params = set! {};
-                let non_default_params_len = if method_name.is_some() {
+                let non_default_params_len = if attr_name.is_some() && !not_method_but_attr {
                     subr.non_default_params.len() - 1
                 } else {
                     subr.non_default_params.len()
@@ -895,13 +900,13 @@ impl Context {
                 Ok(())
             }
             other => {
-                if let Some(method_name) = method_name {
+                if let Some(attr_name) = attr_name {
                     Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        Location::concat(obj, method_name),
+                        Location::concat(obj, attr_name),
                         self.caused_by(),
-                        &(obj.to_string() + &method_name.to_string()),
+                        &(obj.to_string() + &attr_name.to_string()),
                         &mono("Callable"),
                         other,
                         self.get_candidates(other),
@@ -1073,7 +1078,7 @@ impl Context {
     pub(crate) fn get_call_t(
         &self,
         obj: &hir::Expr,
-        method_name: &Option<Identifier>,
+        attr_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
@@ -1103,10 +1108,10 @@ impl Context {
                 }
             }
         }
-        let found = self.search_callee_t(obj, method_name, input, namespace)?;
+        let found = self.search_callee_t(obj, attr_name, input, namespace)?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
-            fmt_option!(pre ".", method_name.as_ref().map(|ident| &ident.name))
+            fmt_option!(pre ".", attr_name.as_ref().map(|ident| &ident.name))
         );
         let instance = self.instantiate(found, obj)?;
         log!(
@@ -1114,7 +1119,7 @@ impl Context {
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        self.substitute_call(obj, method_name, &instance, pos_args, kw_args)?;
+        self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
         log!(info "Substituted:\ninstance: {instance}");
         let res = self.eval_t_params(instance, self.level, obj.loc())?;
         log!(info "Params evaluated:\nres: {res}\n");

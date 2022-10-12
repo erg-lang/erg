@@ -1462,8 +1462,8 @@ impl CodeGenerator {
 
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
-        if let Some(method_name) = call.method_name {
-            self.emit_call_method(*call.obj, method_name, call.args);
+        if let Some(attr_name) = call.attr_name {
+            self.emit_call_method(*call.obj, attr_name, call.args);
         } else {
             match *call.obj {
                 Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {

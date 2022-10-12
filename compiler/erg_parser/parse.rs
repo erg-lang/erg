@@ -1415,11 +1415,11 @@ impl Parser {
         let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
         while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec())?;
-            let (receiver, method_name) = match call_or_acc {
+            let (receiver, attr_name) = match call_or_acc {
                 Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
                 other => (other, None),
             };
-            let call = Call::new(receiver, method_name, args);
+            let call = Call::new(receiver, attr_name, args);
             call_or_acc = Expr::Call(call);
         }
         self.level -= 1;
@@ -1529,11 +1529,11 @@ impl Parser {
                 }
                 Some(t) if t.is(LParen) && obj.col_end() == t.col_begin() => {
                     let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
-                    let (receiver, method_name) = match obj {
+                    let (receiver, attr_name) = match obj {
                         Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
                         other => (other, None),
                     };
-                    let call = Call::new(receiver, method_name, args);
+                    let call = Call::new(receiver, attr_name, args);
                     obj = Expr::Call(call);
                 }
                 Some(t) if t.is(VBar) && !in_type_args => {

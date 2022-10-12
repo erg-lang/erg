@@ -16,7 +16,7 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::dict_t;
-use crate::ty::constructors::proj_method;
+use crate::ty::constructors::proj_call;
 use crate::ty::constructors::{
     array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
@@ -854,11 +854,11 @@ impl Context {
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
             // ?T(:> Int, <: Add(?R(:> Int))).Output == Int
             Type::Proj { lhs, rhs } => self.eval_proj(*lhs, rhs, level, t_loc),
-            Type::ProjMethod {
+            Type::ProjCall {
                 lhs,
-                method_name,
+                attr_name,
                 args,
-            } => self.eval_proj_method(*lhs, method_name, args, level, t_loc),
+            } => self.eval_proj_call(*lhs, attr_name, args, level, t_loc),
             Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
             Type::RefMut { before, after } => {
                 let before = self.eval_t_params(*before, level, t_loc)?;
@@ -999,10 +999,10 @@ impl Context {
         }
     }
 
-    fn eval_proj_method(
+    fn eval_proj_call(
         &self,
         lhs: TyParam,
-        method_name: Str,
+        attr_name: Str,
         args: Vec<TyParam>,
         level: usize,
         t_loc: Location,
@@ -1014,11 +1014,11 @@ impl Context {
                 line!() as usize,
                 t_loc,
                 self.caused_by(),
-                &method_name,
+                &attr_name,
                 None, // TODO:
             )
         })? {
-            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&method_name), &self.name) {
+            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
                 if let ValueObj::Subr(subr) = obj {
                     let is_method = subr.sig_t().self_t().is_some();
                     let mut pos_args = vec![];
@@ -1037,7 +1037,7 @@ impl Context {
                 }
             }
             for (_class, methods) in ty_ctx.methods_list.iter() {
-                if let Ok(obj) = methods.get_const_local(&Token::symbol(&method_name), &self.name) {
+                if let Ok(obj) = methods.get_const_local(&Token::symbol(&attr_name), &self.name) {
                     if let ValueObj::Subr(subr) = obj {
                         let mut pos_args = vec![];
                         for pos_arg in args.into_iter() {
@@ -1073,13 +1073,13 @@ impl Context {
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, t_loc)?;
         if lhs != coerced {
-            let proj = proj_method(coerced, method_name, args);
+            let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc).map(|t| {
                 self.coerce_tp(&lhs);
                 t
             })
         } else {
-            let proj = proj_method(lhs, method_name, args);
+            let proj = proj_call(lhs, attr_name, args);
             Err(EvalErrors::from(EvalError::no_candidate_error(
                 self.cfg.input.clone(),
                 line!() as usize,

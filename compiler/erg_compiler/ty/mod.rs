@@ -1188,9 +1188,9 @@ pub enum Type {
         lhs: Box<Type>,
         rhs: Str,
     }, // e.g. T.U
-    ProjMethod {
+    ProjCall {
         lhs: Box<TyParam>,
-        method_name: Str,
+        attr_name: Str,
         args: Vec<TyParam>,
     }, // e.g. Ts.__getitem__(N)
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
@@ -1281,17 +1281,17 @@ impl PartialEq for Type {
                 },
             ) => lhs == rlhs && rhs == rrhs,
             (
-                Self::ProjMethod {
+                Self::ProjCall {
                     lhs,
-                    method_name,
+                    attr_name,
                     args,
                 },
-                Self::ProjMethod {
+                Self::ProjCall {
                     lhs: r,
-                    method_name: rm,
+                    attr_name: rn,
                     args: ra,
                 },
-            ) => lhs == r && method_name == rm && args == ra,
+            ) => lhs == r && attr_name == rn && args == ra,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
@@ -1406,13 +1406,13 @@ impl LimitedDisplay for Type {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, ".{rhs}")
             }
-            Self::ProjMethod {
+            Self::ProjCall {
                 lhs,
-                method_name,
+                attr_name,
                 args,
             } => {
                 lhs.limited_fmt(f, limit - 1)?;
-                write!(f, ".{method_name}(")?;
+                write!(f, ".{attr_name}(")?;
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 {
                         write!(f, ", ")?;
@@ -1918,7 +1918,7 @@ impl Type {
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
             },
             Self::Proj { .. } => Str::ever("MonoProj"),
-            Self::ProjMethod { .. } => Str::ever("MonoProjMethod"),
+            Self::ProjCall { .. } => Str::ever("MonoProjMethod"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
         }

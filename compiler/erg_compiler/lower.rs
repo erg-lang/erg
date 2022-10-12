@@ -654,7 +654,7 @@ impl ASTLowerer {
     }
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.method_name));
+        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
@@ -690,23 +690,23 @@ impl ASTLowerer {
         let obj = self.lower_expr(*call.obj)?;
         let sig_t = self.ctx.get_call_t(
             &obj,
-            &call.method_name,
+            &call.attr_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
             &self.ctx.name,
         )?;
-        let method_name = if let Some(method_name) = call.method_name {
+        let attr_name = if let Some(attr_name) = call.attr_name {
             Some(hir::Identifier::new(
-                method_name.dot,
-                method_name.name,
+                attr_name.dot,
+                attr_name.name,
                 None,
                 Type::Uninited,
             ))
         } else {
             None
         };
-        let mut call = hir::Call::new(obj, method_name, hir_args, sig_t);
+        let mut call = hir::Call::new(obj, attr_name, hir_args, sig_t);
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
@@ -744,7 +744,7 @@ impl ASTLowerer {
         let class = self.lower_expr(*pack.class)?;
         let args = self.lower_record(pack.args)?;
         let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
-        let method_name = ast::Identifier::new(
+        let attr_name = ast::Identifier::new(
             Some(Token::new(
                 TokenKind::Dot,
                 Str::ever("."),
@@ -760,15 +760,15 @@ impl ASTLowerer {
         );
         let sig_t = self.ctx.get_call_t(
             &class,
-            &Some(method_name.clone()),
+            &Some(attr_name.clone()),
             &args,
             &[],
             &self.cfg.input,
             &self.ctx.name,
         )?;
         let args = hir::Args::new(args, None, vec![], None);
-        let method_name = hir::Identifier::bare(method_name.dot, method_name.name);
-        Ok(hir::Call::new(class, Some(method_name), args, sig_t))
+        let attr_name = hir::Identifier::bare(attr_name.dot, attr_name.name);
+        Ok(hir::Call::new(class, Some(attr_name), args, sig_t))
     }
 
     /// TODO: varargs

@@ -385,10 +385,10 @@ pub fn proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
 }
 
 #[inline]
-pub fn proj_method<S: Into<Str>>(lhs: TyParam, method_name: S, args: Vec<TyParam>) -> Type {
-    Type::ProjMethod {
+pub fn proj_call<S: Into<Str>>(lhs: TyParam, attr_name: S, args: Vec<TyParam>) -> Type {
+    Type::ProjCall {
         lhs: Box::new(lhs),
-        method_name: method_name.into(),
+        attr_name: attr_name.into(),
         args,
     }
 }

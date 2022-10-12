@@ -1070,16 +1070,16 @@ impl Context {
                 let lhs = self.instantiate_t(*lhs, tmp_tv_ctx, loc)?;
                 Ok(proj(lhs, rhs))
             }
-            ProjMethod {
+            ProjCall {
                 lhs,
-                method_name,
+                attr_name,
                 mut args,
             } => {
                 let lhs = self.instantiate_tp(*lhs, tmp_tv_ctx, loc)?;
                 for arg in args.iter_mut() {
                     *arg = self.instantiate_tp(mem::take(arg), tmp_tv_ctx, loc)?;
                 }
-                Ok(proj_method(lhs, method_name, args))
+                Ok(proj_call(lhs, attr_name, args))
             }
             Poly { name, mut params } => {
                 for param in params.iter_mut() {

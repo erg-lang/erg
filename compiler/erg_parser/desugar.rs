@@ -181,7 +181,7 @@ impl Desugarer {
                     })
                     .collect();
                 let args = Args::new(pos_args, kw_args, paren);
-                Expr::Call(Call::new(obj, call.method_name, args))
+                Expr::Call(Call::new(obj, call.attr_name, args))
             }
             Expr::Def(def) => {
                 let mut chunks = vec![];

@@ -1075,7 +1075,7 @@ impl UnaryOp {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
-    pub method_name: Option<Identifier>,
+    pub attr_name: Option<Identifier>,
     pub args: Args,
     /// 全体の型(引数自体の型は関係ない)、e.g. `abs(-1)` -> `Neg -> Nat`
     pub sig_t: Type,
@@ -1087,7 +1087,7 @@ impl NestedDisplay for Call {
             f,
             "({}){} (: {}):",
             self.obj,
-            fmt_option!(self.method_name),
+            fmt_option!(self.attr_name),
             self.sig_t
         )?;
         self.args.fmt_nest(f, level + 1)
@@ -1130,10 +1130,10 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, method_name: Option<Identifier>, args: Args, sig_t: Type) -> Self {
+    pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args, sig_t: Type) -> Self {
         Self {
             obj: Box::new(obj),
-            method_name,
+            attr_name,
             args,
             sig_t,
         }

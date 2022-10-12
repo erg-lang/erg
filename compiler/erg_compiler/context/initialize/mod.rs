@@ -1020,7 +1020,7 @@ impl Context {
         let dict_getitem_t = fn1_met(
             dict_t.clone(),
             mono_q("T"),
-            proj_method(mono_q_tp("D"), "__getitem__", vec![ty_tp(mono_q("T"))]),
+            proj_call(mono_q_tp("D"), "__getitem__", vec![ty_tp(mono_q("T"))]),
         );
         let dict_getitem_t = quant(
             dict_getitem_t,
@@ -1057,7 +1057,7 @@ impl Context {
         tuple_.register_superclass(mono("GenericTuple"), &generic_tuple);
         tuple_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("Ts"))]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
-        let return_t = proj_method(mono_q_tp("Ts"), "__getitem__", vec![mono_q_tp("N")]);
+        let return_t = proj_call(mono_q_tp("Ts"), "__getitem__", vec![mono_q_tp("N")]);
         let tuple_getitem_t = fn1_met(
             tuple_t.clone(),
             tp_enum(Nat, set! {mono_q_tp("N")}),

@@ -924,7 +924,7 @@ impl UnaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
-    pub method_name: Option<Identifier>,
+    pub attr_name: Option<Identifier>,
     pub args: Args,
 }
 
@@ -935,8 +935,8 @@ impl NestedDisplay for Call {
         } else {
             write!(f, "{}", self.obj)?;
         }
-        if let Some(method_name) = self.method_name.as_ref() {
-            write!(f, "{}", method_name)?;
+        if let Some(attr_name) = self.attr_name.as_ref() {
+            write!(f, "{}", attr_name)?;
         }
         writeln!(f, ":")?;
         self.args.fmt_nest(f, level + 1)
@@ -952,10 +952,10 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, method_name: Option<Identifier>, args: Args) -> Self {
+    pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
-            method_name,
+            attr_name,
             args,
         }
     }

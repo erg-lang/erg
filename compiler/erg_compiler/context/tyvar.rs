@@ -187,16 +187,16 @@ impl Context {
                 let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
                 proj(lhs, rhs)
             }
-            ProjMethod {
+            ProjCall {
                 lhs,
-                method_name,
+                attr_name,
                 mut args,
             } => {
                 let lhs = self.generalize_tp(*lhs, bounds, lazy_inits);
                 for arg in args.iter_mut() {
                     *arg = self.generalize_tp(mem::take(arg), bounds, lazy_inits);
                 }
-                proj_method(lhs, method_name, args)
+                proj_call(lhs, attr_name, args)
             }
             And(l, r) => {
                 let l = self.generalize_t_inner(*l, bounds, lazy_inits);
