@@ -1163,6 +1163,7 @@ impl CodeGenerator {
             TokenKind::Minus => BINARY_SUBTRACT,
             TokenKind::Star => BINARY_MULTIPLY,
             TokenKind::Slash => BINARY_TRUE_DIVIDE,
+            TokenKind::FloorDiv => BINARY_FLOOR_DIVIDE,
             TokenKind::Pow => BINARY_POWER,
             TokenKind::Mod => BINARY_MODULO,
             TokenKind::AndOp => BINARY_AND,

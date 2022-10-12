@@ -54,6 +54,7 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
         TokenKind::Minus => Ok(OpKind::Sub),
         TokenKind::Star => Ok(OpKind::Mul),
         TokenKind::Slash => Ok(OpKind::Div),
+        TokenKind::FloorDiv => Ok(OpKind::FloorDiv),
         TokenKind::Pow => Ok(OpKind::Pow),
         TokenKind::Mod => Ok(OpKind::Mod),
         TokenKind::DblEq => Ok(OpKind::Eq),
@@ -80,6 +81,7 @@ fn op_to_name(op: OpKind) -> &'static str {
         OpKind::Sub => "__sub__",
         OpKind::Mul => "__mul__",
         OpKind::Div => "__div__",
+        OpKind::FloorDiv => "__floordiv__",
         OpKind::Mod => "__mod__",
         OpKind::Pow => "__pow__",
         OpKind::Pos => "__pos__",
@@ -639,6 +641,13 @@ impl Context {
                 ))
             }),
             Div => lhs.try_div(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            FloorDiv => lhs.try_floordiv(rhs).ok_or_else(|| {
                 EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
                     fn_name!(),
