@@ -372,6 +372,17 @@ impl Context {
         );
         // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
         seq.register_builtin_decl("get", t, Public);
+        /* Iterable */
+        let mut iterable = Self::builtin_poly_trait("Iterable", vec![PS::t("T", NonDefault)], 2);
+        iterable.register_superclass(poly("Output", vec![ty_tp(mono_q("T"))]), &output);
+        let self_t = mono_q("Self");
+        let t = fn0_met(self_t.clone(), proj(self_t.clone(), "Iter"));
+        let t = quant(
+            t,
+            set! {subtypeof(self_t, poly("Iterable", vec![ty_tp(mono_q("T"))]))},
+        );
+        iterable.register_builtin_decl("iter", t, Public);
+        iterable.register_builtin_decl("Iter", Type, Public);
         let r = mono_q("R");
         let r_bound = static_instance("R", Type);
         let params = vec![PS::t("R", WithDefault)];
@@ -450,6 +461,12 @@ impl Context {
         self.register_builtin_type(mono("Ord"), ord, Private, Const);
         self.register_builtin_type(mono("Num"), num, Private, Const);
         self.register_builtin_type(poly("Seq", vec![ty_tp(mono_q("T"))]), seq, Private, Const);
+        self.register_builtin_type(
+            poly("Iterable", vec![ty_tp(mono_q("T"))]),
+            iterable,
+            Private,
+            Const,
+        );
         self.register_builtin_type(poly("Add", ty_params.clone()), add, Private, Const);
         self.register_builtin_type(poly("Sub", ty_params.clone()), sub, Private, Const);
         self.register_builtin_type(poly("Mul", ty_params.clone()), mul, Private, Const);
@@ -809,6 +826,14 @@ impl Context {
         let mut str_show = Self::builtin_methods("Show", 1);
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
         str_.register_trait(Str, mono("Show"), str_show);
+        let mut str_iterable = Self::builtin_methods("Iterable", 2);
+        str_iterable.register_builtin_impl(
+            "iter",
+            fn0_met(Str, mono("StrIterator")),
+            Immutable,
+            Public,
+        );
+        str_.register_trait(Str, poly("Iterable", vec![ty_tp(Str)]), str_iterable);
         /* NoneType */
         let mut nonetype = Self::builtin_mono_class("NoneType", 10);
         nonetype.register_superclass(Obj, &obj);
@@ -953,6 +978,18 @@ impl Context {
         let mut array_show = Self::builtin_methods("Show", 1);
         array_show.register_builtin_impl("to_str", fn0_met(arr_t.clone(), Str), Immutable, Public);
         array_.register_trait(arr_t.clone(), mono("Show"), array_show);
+        let mut array_iterable = Self::builtin_methods("Iterable", 2);
+        array_iterable.register_builtin_impl(
+            "iter",
+            fn0_met(Str, mono("ArrayIterator")),
+            Immutable,
+            Public,
+        );
+        array_.register_trait(
+            arr_t.clone(),
+            poly("Iterable", vec![ty_tp(mono_q("T"))]),
+            array_iterable,
+        );
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -1075,6 +1112,11 @@ impl Context {
         let or_t = poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
         let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
         or.register_superclass(Obj, &obj);
+        /* Iterators */
+        let mut str_iterator = Self::builtin_mono_class("StrIterator", 1);
+        str_iterator.register_superclass(Obj, &obj);
+        let mut array_iterator = Self::builtin_poly_class("ArrayIterator", vec![PS::t_nd("T")], 1);
+        array_iterator.register_superclass(Obj, &obj);
         /* Float_mut */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
@@ -1352,6 +1394,13 @@ impl Context {
         self.register_builtin_type(tuple_t, tuple_, Private, Const);
         self.register_builtin_type(mono("Record"), record, Private, Const);
         self.register_builtin_type(or_t, or, Private, Const);
+        self.register_builtin_type(mono("StrIterator"), str_iterator, Private, Const);
+        self.register_builtin_type(
+            poly("ArrayIterator", vec![ty_tp(mono_q("T"))]),
+            array_iterator,
+            Private,
+            Const,
+        );
         self.register_builtin_type(mono("Int!"), int_mut, Private, Const);
         self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const);
         self.register_builtin_type(mono("Float!"), float_mut, Private, Const);
@@ -1594,7 +1643,7 @@ impl Context {
         let t_if = quant(t_if, set! {static_instance("T", Type)});
         let t_for = nd_proc(
             vec![
-                kw("iter", iter(mono_q("T"))),
+                kw("iterable", poly("Iterable", vec![ty_tp(mono_q("T"))])),
                 kw("p", nd_proc(vec![anon(mono_q("T"))], None, NoneType)),
             ],
             None,
