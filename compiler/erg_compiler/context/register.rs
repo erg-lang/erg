@@ -966,6 +966,10 @@ impl Context {
             return Ok(builtin_path);
         }
         match &__name__[..] {
+            "glob" => {
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_glob_mod());
+                Ok(builtin_path)
+            }
             "importlib" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_importlib_mod());
                 Ok(builtin_path)
@@ -980,6 +984,10 @@ impl Context {
             }
             "random" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_random_mod());
+                Ok(builtin_path)
+            }
+            "re" => {
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_re_mod());
                 Ok(builtin_path)
             }
             "socket" => {
