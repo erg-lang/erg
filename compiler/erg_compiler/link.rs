@@ -2,6 +2,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
@@ -238,6 +239,10 @@ impl<'a> Linker<'a> {
         let args = &mut enum_unwrap!(expr, Expr::Call).args;
         let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
         let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
+        if BUILTIN_PYTHON_MODS.contains(&&mod_name_str[..]) {
+            args.push_pos(PosArg::new(Expr::Lit(mod_name_lit)));
+            return;
+        }
         let mod_name_str = if let Some(stripped) = mod_name_str.strip_prefix("./") {
             stripped
         } else {

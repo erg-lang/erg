@@ -5,6 +5,19 @@ use std::process::Command;
 
 use crate::serialize::get_magic_num_from_bytes;
 
+pub const BUILTIN_PYTHON_MODS: [&str; 10] = [
+    "glob",
+    "importlib",
+    "io",
+    "math",
+    "re",
+    "random",
+    "socket",
+    "sys",
+    "time",
+    "urllib",
+];
+
 pub fn which_python() -> String {
     let (cmd, python) = if cfg!(windows) {
         ("where", "python")

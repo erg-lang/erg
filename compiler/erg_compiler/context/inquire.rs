@@ -1660,7 +1660,11 @@ impl Context {
                 let path =
                     option_enum_unwrap!(params.remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
                 let path = Path::new(&path[..]);
-                let path = self.cfg.input.resolve(path).ok()?;
+                let path = if let Ok(path) = self.cfg.input.resolve(path) {
+                    path
+                } else {
+                    PathBuf::from(format!("<builtins>.{}", path.display()))
+                };
                 self.mod_cache
                     .as_ref()
                     .and_then(|cache| cache.ref_ctx(&path))

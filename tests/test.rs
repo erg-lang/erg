@@ -67,6 +67,11 @@ fn exec_prelude() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pyimport() -> Result<(), ()> {
+    expect_end_with("examples/pyimport.er", 111)
+}
+
+#[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er")
 }

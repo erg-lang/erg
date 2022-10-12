@@ -1760,6 +1760,7 @@ impl Type {
 
     pub fn is_nonelike(&self) -> bool {
         match self {
+            Self::Never | Self::Failure => true,
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
             Self::Poly { name, params, .. } if &name[..] == "Option" || &name[..] == "Option!" => {

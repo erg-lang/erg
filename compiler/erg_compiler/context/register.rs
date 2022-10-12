@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::ty::free::HasLevel;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::levenshtein::get_similar_name;
+use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
@@ -1011,11 +1012,7 @@ impl Context {
     }
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
-        get_similar_name(
-            ["importlib", "io", "math", "random", "socket", "sys", "time"].into_iter(),
-            name,
-        )
-        .map(Str::rc)
+        get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
     }
 
     fn import_user_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {

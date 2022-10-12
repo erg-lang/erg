@@ -1,0 +1,5 @@
+math = pyimport "math"
+sys = pyimport "sys"
+
+print! math.pi
+sys.exit 111
