@@ -9,7 +9,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::{Predicate, TyBound, Type};
 use Type::*;
 
-use crate::context::instantiate::TyVarContext;
+use crate::context::instantiate::TyVarInstContext;
 use crate::context::Context;
 
 impl Context {
@@ -54,7 +54,7 @@ impl Context {
         let unbound_t = func1(t.clone(), t);
         let quantified = quant(unbound_t.clone(), bounds.clone());
         println!("quantified      : {quantified}");
-        let tv_ctx = TyVarContext::new(self.level + 1, bounds, self);
+        let tv_ctx = TyVarInstContext::new(self.level + 1, bounds, self);
         println!("tv_ctx: {tv_ctx}");
         let inst = self
             .instantiate_t(unbound_t, &tv_ctx, Location::Unknown)

@@ -1397,6 +1397,11 @@ impl Context {
         Some(vec![ctx].into_iter().chain(sups))
     }
 
+    pub(crate) fn _get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+        self.get_nominal_type_ctx(typ)
+            .map(|ctx| ctx.super_traits.clone().into_iter())
+    }
+
     /// if `typ` is a refinement type, include the base type (refine.t)
     pub(crate) fn get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ).map(|ctx| {

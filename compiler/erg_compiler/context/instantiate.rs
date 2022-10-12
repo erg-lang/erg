@@ -33,23 +33,23 @@ use RegistrationMode::*;
 /// Context for instantiating a quantified type
 /// 量化型をインスタンス化するための文脈
 #[derive(Debug, Clone)]
-pub struct TyVarContext {
+pub struct TyVarInstContext {
     level: usize,
     pub(crate) tyvar_instances: Dict<Str, Type>,
     pub(crate) typaram_instances: Dict<Str, TyParam>,
 }
 
-impl fmt::Display for TyVarContext {
+impl fmt::Display for TyVarInstContext {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "TyVarContext {{ tyvar_instances: {}, typaram_instances: {} }}",
+            "TyVarInstContext {{ tyvar_instances: {}, typaram_instances: {} }}",
             self.tyvar_instances, self.typaram_instances,
         )
     }
 }
 
-impl TyVarContext {
+impl TyVarInstContext {
     pub fn new(level: usize, bounds: Set<TyBound>, ctx: &Context) -> Self {
         let mut self_ = Self {
             level,
@@ -509,7 +509,7 @@ impl Context {
             .ok()
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-        let tv_ctx = TyVarContext::new(self.level, bounds, self);
+        let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
         let mut non_defaults = vec![];
         for (n, p) in sig.params.non_defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
@@ -558,7 +558,7 @@ impl Context {
         &self,
         sig: &ParamSignature,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
@@ -595,7 +595,7 @@ impl Context {
         &self,
         sig: &ParamSignature,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
         let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_ctx, mode)?;
@@ -618,7 +618,7 @@ impl Context {
         &self,
         predecl: &PreDeclTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
     ) -> TyCheckResult<Type> {
         match predecl {
             ast::PreDeclTypeSpec::Simple(simple) => {
@@ -632,7 +632,7 @@ impl Context {
         &self,
         simple: &SimpleTypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
     ) -> TyCheckResult<Type> {
         match &simple.name.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
@@ -740,7 +740,7 @@ impl Context {
         &self,
         p: &ParamTySpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
         let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_ctx, mode)?;
@@ -754,7 +754,7 @@ impl Context {
         &self,
         spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
-        tmp_tv_ctx: Option<&TyVarContext>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         match spec {
@@ -897,7 +897,7 @@ impl Context {
     fn instantiate_tp(
         &self,
         quantified: TyParam,
-        tmp_tv_ctx: &TyVarContext,
+        tmp_tv_ctx: &TyVarInstContext,
         loc: Location,
     ) -> TyCheckResult<TyParam> {
         match quantified {
@@ -950,7 +950,7 @@ impl Context {
                 // K('U) -> K(?U)
                 else {
                     let ctx = self.get_nominal_type_ctx(&t).unwrap();
-                    let tv_ctx = TyVarContext::new(self.level, ctx.bounds(), self);
+                    let tv_ctx = TyVarInstContext::new(self.level, ctx.bounds(), self);
                     let t = self.instantiate_t(*t, &tv_ctx, loc)?;
                     Ok(TyParam::t(t))
                 }
@@ -970,7 +970,7 @@ impl Context {
     pub(crate) fn instantiate_t(
         &self,
         unbound: Type,
-        tmp_tv_ctx: &TyVarContext,
+        tmp_tv_ctx: &TyVarInstContext,
         loc: Location,
     ) -> TyCheckResult<Type> {
         match unbound {
@@ -1121,7 +1121,7 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             Quantified(quant) => {
-                let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
+                let tmp_tv_ctx = TyVarInstContext::new(self.level, quant.bounds, self);
                 let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
@@ -1141,7 +1141,7 @@ impl Context {
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
             Refinement(refine) if refine.t.is_quantified() => {
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
-                let tmp_tv_ctx = TyVarContext::new(self.level, quant.bounds, self);
+                let tmp_tv_ctx = TyVarInstContext::new(self.level, quant.bounds, self);
                 let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {

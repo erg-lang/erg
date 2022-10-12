@@ -20,7 +20,7 @@ use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
 use crate::context::eval::SubstContext;
-use crate::context::instantiate::TyVarContext;
+use crate::context::instantiate::TyVarInstContext;
 use crate::context::{Context, TraitInstance, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -619,8 +619,8 @@ impl Context {
             }
             (Quantified(l), Quantified(r)) => {
                 // REVIEW: maybe this should be `unreachable`
-                let l_tv_ctx = TyVarContext::new(self.level, l.bounds.clone(), self);
-                let r_tv_ctx = TyVarContext::new(self.level, r.bounds.clone(), self);
+                let l_tv_ctx = TyVarInstContext::new(self.level, l.bounds.clone(), self);
+                let r_tv_ctx = TyVarInstContext::new(self.level, r.bounds.clone(), self);
                 let l_callable = self
                     .instantiate_t(
                         l.unbound_callable.as_ref().clone(),
@@ -639,7 +639,7 @@ impl Context {
             }
             (Quantified(q), r) => {
                 // REVIEW: maybe this should be `unreachable`
-                let tmp_tv_ctx = TyVarContext::new(self.level, q.bounds.clone(), self);
+                let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
                 let q_callable = self
                     .instantiate_t(
                         q.unbound_callable.as_ref().clone(),

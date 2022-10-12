@@ -24,7 +24,7 @@ use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::ValueObj;
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
 
-use crate::context::instantiate::TyVarContext;
+use crate::context::instantiate::TyVarInstContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult, TyCheckResult};
 
@@ -172,7 +172,7 @@ impl<'c> SubstContext<'c> {
     }
 
     pub fn substitute(&self, quant_t: Type) -> TyCheckResult<Type> {
-        let tv_ctx = TyVarContext::new(self.ctx.level, self.bounds.clone(), self.ctx);
+        let tv_ctx = TyVarInstContext::new(self.ctx.level, self.bounds.clone(), self.ctx);
         let inst = self.ctx.instantiate_t(quant_t, &tv_ctx, self.loc)?;
         for param in inst.typarams() {
             self.substitute_tp(&param)?;
@@ -425,7 +425,7 @@ impl Context {
                 Signature::Subr(subr) => {
                     let bounds =
                         self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal)?;
-                    Some(TyVarContext::new(self.level, bounds, self))
+                    Some(TyVarInstContext::new(self.level, bounds, self))
                 }
                 Signature::Var(_) => None,
             };
@@ -507,7 +507,7 @@ impl Context {
     /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
         let bounds = self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let tv_ctx = TyVarContext::new(self.level, bounds, self);
+        let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
             let pt =

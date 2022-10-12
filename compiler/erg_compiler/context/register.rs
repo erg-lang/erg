@@ -34,7 +34,7 @@ use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
 
-use super::instantiate::TyVarContext;
+use super::instantiate::TyVarInstContext;
 use super::OperationKind;
 
 impl Context {
@@ -517,7 +517,7 @@ impl Context {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
                     let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-                    let tv_ctx = TyVarContext::new(self.level, bounds, self);
+                    let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
                     let vis = def.sig.vis();
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx))?;
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {

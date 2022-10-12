@@ -39,7 +39,7 @@ use ast::{DefId, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarContext};
+use crate::context::instantiate::{ConstTemplate, TyVarInstContext};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -380,7 +380,7 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) py_mod_cache: Option<SharedModuleCache>,
-    pub(crate) tv_ctx: Option<TyVarContext>,
+    pub(crate) tv_ctx: Option<TyVarInstContext>,
     pub(crate) level: usize,
 }
 
@@ -840,7 +840,7 @@ impl Context {
         name: &str,
         kind: ContextKind,
         vis: Visibility,
-        tv_ctx: Option<TyVarContext>,
+        tv_ctx: Option<TyVarInstContext>,
     ) -> TyCheckResult<()> {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)

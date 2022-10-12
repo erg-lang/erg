@@ -15,8 +15,7 @@ use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, TyBound, Type};
 
 use crate::context::eval::SubstContext;
-use crate::context::{Context, TyVarContext, Variance};
-// use crate::context::instantiate::TyVarContext;
+use crate::context::{Context, TyVarInstContext, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 
@@ -81,7 +80,7 @@ impl Context {
             // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
             // However, the current Erg cannot handle existential types, so it quantifies anyway
             /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
-                let mut tv_ctx = TyVarContext::new(self.level, bounds.clone(), self);
+                let mut tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
                 let inst = Self::instantiate_t(
                     maybe_unbound_t,
                     &mut tv_ctx,
@@ -532,7 +531,7 @@ impl Context {
         for inst in self.get_trait_impls(trait_).into_iter() {
             let sub_type = if inst.sub_type.has_qvar() {
                 let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
-                let tv_ctx = TyVarContext::new(self.level, sub_ctx.bounds(), self);
+                let tv_ctx = TyVarInstContext::new(self.level, sub_ctx.bounds(), self);
                 self.instantiate_t(inst.sub_type, &tv_ctx, Location::Unknown)
                     .unwrap()
             } else {
@@ -540,7 +539,7 @@ impl Context {
             };
             let sup_trait = if inst.sup_trait.has_qvar() {
                 let sup_ctx = self.get_nominal_type_ctx(&inst.sup_trait).unwrap();
-                let tv_ctx = TyVarContext::new(self.level, sup_ctx.bounds(), self);
+                let tv_ctx = TyVarInstContext::new(self.level, sup_ctx.bounds(), self);
                 self.instantiate_t(inst.sup_trait, &tv_ctx, Location::Unknown)
                     .unwrap()
             } else {
@@ -1470,7 +1469,24 @@ impl Context {
                     params: rps,
                 },
             ) => {
+                // e.g. Set(?T) <: Eq(Set(?T))
                 if ln != rn {
+                    if let Some(sub_ctx) = self.get_nominal_type_ctx(maybe_sub) {
+                        let subst_ctx = SubstContext::new(maybe_sub, self, loc);
+                        for sup_trait in sub_ctx.super_traits.iter() {
+                            let sup_trait = if sup_trait.has_qvar() {
+                                subst_ctx.substitute(sup_trait.clone())?
+                            } else {
+                                sup_trait.clone()
+                            };
+                            if self.supertype_of(maybe_sup, &sup_trait) {
+                                for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
+                                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
+                                }
+                                return Ok(());
+                            }
+                        }
+                    }
                     return Err(TyCheckErrors::from(TyCheckError::unification_error(
                         self.cfg.input.clone(),
                         line!() as usize,

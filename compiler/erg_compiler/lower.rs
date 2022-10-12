@@ -26,7 +26,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::instantiate::TyVarContext;
+use crate::context::instantiate::TyVarInstContext;
 use crate::context::{
     ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
 };
@@ -785,7 +785,7 @@ impl ASTLowerer {
         let bounds = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+        let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
         self.ctx.grow(&name, kind, Private, Some(tv_ctx))?;
         if let Err(errs) = self.ctx.assign_params(&lambda.sig.params, None) {
             self.errs.extend(errs.into_iter());
@@ -869,7 +869,7 @@ impl ASTLowerer {
                 let bounds = self
                     .ctx
                     .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
-                let tv_ctx = TyVarContext::new(self.ctx.level, bounds, &self.ctx);
+                let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
                 self.ctx.grow(&name, kind, vis, Some(tv_ctx))?;
                 self.lower_subr_def(sig, def.body)
             }
