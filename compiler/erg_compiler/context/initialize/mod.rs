@@ -871,9 +871,19 @@ impl Context {
         );
         let t = quant(
             t,
-            set! {static_instance("N", Nat), static_instance("M", Nat)},
+            set! {static_instance("T", Type), static_instance("N", Nat), static_instance("M", Nat)},
         );
         array_.register_builtin_impl("concat", t, Immutable, Public);
+        // Array(T, N)|<: Add(Array(T, M))|.
+        //     Output = Array(T, N + M)
+        //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
+        /*
+        let mut array_add = Self::builtin_methods("Add", 2);
+        array_add.register_builtin_impl("__add__", t, Immutable, Public);
+        let out_t = array_t(mono_q("T"), n + m.clone());
+        array_add.register_builtin_const("Output", Public, ValueObj::builtin_t(out_t));
+        array_.register_trait(arr_t.clone(), poly("Add", vec![ty_tp(array_t(mono_q("T"), m))]), array_add);
+        */
         let mut_type = ValueObj::builtin_t(poly(
             "Array!",
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
