@@ -13,10 +13,11 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
+use crate::ty::free::fresh_varname;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
-use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr};
+use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
 use ParamSpec as PS;
 use Type::*;
 
@@ -870,16 +871,26 @@ impl Context {
         ));
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         array_.register_builtin_const("MutType!", Public, mut_type);
-        // __getitem__: |T, N|(self: [T; N], _: {N}) -> T
-        let getitem_t = fn1_kw_met(
-            array_t(mono_q("T"), mono_q_tp("N")), // TODO:
-            anon(tp_enum(Nat, set! {mono_q_tp("N")})),
+        let var = Str::from(fresh_varname());
+        let input = refinement(
+            var.clone(),
+            Nat,
+            set! { Predicate::le(var, mono_q_tp("N") - value(1usize)) },
+        );
+        // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
+        let array_getitem_t = fn1_kw_met(
+            array_t(mono_q("T"), mono_q_tp("N")),
+            anon(input),
             mono_q("T"),
+        );
+        let array_getitem_t = quant(
+            array_getitem_t,
+            set! { static_instance("T", Type), static_instance("N", Nat) },
         );
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __array_getitem__,
-            getitem_t,
+            array_getitem_t,
             None,
         )));
         array_.register_builtin_const("__getitem__", Public, get_item);

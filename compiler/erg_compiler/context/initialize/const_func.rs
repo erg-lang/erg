@@ -181,34 +181,53 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
 pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
     let _self = enum_unwrap!(args.remove_left_or_key("Self").unwrap(), ValueObj::Array);
     let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
-    let res = _self[index as usize].clone();
-    Ok(res)
+    if let Some(v) = _self.get(index as usize) {
+        Ok(v.clone())
+    } else {
+        Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::IndexError,
+            Location::Unknown,
+            AtomicStr::from(format!(
+                "[{}] has {} elements, but accessed {}th element",
+                erg_common::fmt_vec(&_self),
+                _self.len(),
+                index
+            )),
+            None,
+        ))
+    }
 }
 
 pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let _self = args.remove_left_or_key("Self").unwrap();
     let _self = enum_unwrap!(_self, ValueObj::Dict);
     let index = args.remove_left_or_key("Index").unwrap();
-    let res = _self
-        .get(&index)
-        .or_else(|| {
-            for (k, v) in _self.iter() {
-                match (&index, k) {
-                    (ValueObj::Type(idx), ValueObj::Type(kt)) => {
-                        if ctx.subtype_of(idx.typ(), kt.typ()) {
-                            return Some(v);
-                        }
+    if let Some(v) = _self.get(&index).or_else(|| {
+        for (k, v) in _self.iter() {
+            match (&index, k) {
+                (ValueObj::Type(idx), ValueObj::Type(kt)) => {
+                    if ctx.subtype_of(idx.typ(), kt.typ()) {
+                        return Some(v);
                     }
-                    (idx, k) => {
-                        if idx == k {
-                            return Some(v);
-                        }
+                }
+                (idx, k) => {
+                    if idx == k {
+                        return Some(v);
                     }
                 }
             }
-            None
-        })
-        .unwrap()
-        .clone();
-    Ok(res)
+        }
+        None
+    }) {
+        Ok(v.clone())
+    } else {
+        Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::IndexError,
+            Location::Unknown,
+            AtomicStr::from(format!("{_self} has no key {index}",)),
+            None,
+        ))
+    }
 }
