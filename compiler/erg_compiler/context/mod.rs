@@ -40,7 +40,7 @@ use erg_parser::ast;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::{ConstTemplate, TyVarInstContext};
-use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Visibility::*;
@@ -841,7 +841,7 @@ impl Context {
         kind: ContextKind,
         vis: Visibility,
         tv_ctx: Option<TyVarInstContext>,
-    ) -> TyCheckResult<()> {
+    ) {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
         } else {
@@ -855,7 +855,6 @@ impl Context {
         self.tv_ctx = tv_ctx;
         self.name = name.into();
         self.kind = kind;
-        Ok(())
     }
 
     pub fn pop(&mut self) -> Context {

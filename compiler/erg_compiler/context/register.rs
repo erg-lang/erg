@@ -526,7 +526,7 @@ impl Context {
                     let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
                     let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
                     let vis = def.sig.vis();
-                    self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx))?;
+                    self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err(e) => {
@@ -545,7 +545,7 @@ impl Context {
                 }
             }
             ast::Signature::Var(sig) if sig.is_const() => {
-                self.grow(__name__, ContextKind::Instant, sig.vis(), None)?;
+                self.grow(__name__, ContextKind::Instant, sig.vis(), None);
                 let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                     Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                     Err(e) => {

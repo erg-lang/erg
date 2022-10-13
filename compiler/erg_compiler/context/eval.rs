@@ -432,7 +432,7 @@ impl Context {
                 Signature::Var(_) => None,
             };
             // TODO: set params
-            self.grow(__name__, ContextKind::Instant, vis, tv_ctx)?;
+            self.grow(__name__, ContextKind::Instant, vis, tv_ctx);
             let obj = self.eval_const_block(&def.body.block).map_err(|e| {
                 self.pop();
                 e
