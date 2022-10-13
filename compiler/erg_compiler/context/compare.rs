@@ -617,26 +617,6 @@ impl Context {
                 }
                 self.supertype_of(&l.t, r)
             }
-            (Quantified(l), Quantified(r)) => {
-                // REVIEW: maybe this should be `unreachable`
-                let l_tv_ctx = TyVarInstContext::new(self.level, l.bounds.clone(), self);
-                let r_tv_ctx = TyVarInstContext::new(self.level, r.bounds.clone(), self);
-                let l_callable = self
-                    .instantiate_t(
-                        l.unbound_callable.as_ref().clone(),
-                        &l_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();
-                let r_callable = self
-                    .instantiate_t(
-                        r.unbound_callable.as_ref().clone(),
-                        &r_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();
-                self.structural_supertype_of(&l_callable, &r_callable)
-            }
             (Quantified(q), r) => {
                 // REVIEW: maybe this should be `unreachable`
                 let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
@@ -647,7 +627,19 @@ impl Context {
                         Location::Unknown,
                     )
                     .unwrap();
-                self.structural_supertype_of(&q_callable, r)
+                self.supertype_of(&q_callable, r)
+            }
+            (l, Quantified(q)) => {
+                // REVIEW: maybe this should be `unreachable`
+                let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
+                let q_callable = self
+                    .instantiate_t(
+                        q.unbound_callable.as_ref().clone(),
+                        &tmp_tv_ctx,
+                        Location::Unknown,
+                    )
+                    .unwrap();
+                self.structural_supertype_of(l, &q_callable)
             }
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             // (Num or Show) :> Show == Num :> Show || Show :> Num == true
