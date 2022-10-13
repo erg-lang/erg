@@ -521,6 +521,15 @@ impl Accessor {
         Self::Ident(Identifier::new(None, VarName::new(name), None, t))
     }
 
+    pub fn public(name: Token, t: Type) -> Self {
+        Self::Ident(Identifier::new(
+            Some(Token::dummy()),
+            VarName::new(name),
+            None,
+            t,
+        ))
+    }
+
     pub fn attr(obj: Expr, ident: Identifier, t: Type) -> Self {
         Self::Attr(Attribute::new(obj, ident, t))
     }
