@@ -634,7 +634,7 @@ impl Context {
         ident: &Identifier,
         obj: ValueObj,
     ) -> SingleTyCheckResult<()> {
-        if self.rec_get_const_obj(ident.inspect()).is_some() {
+        if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
             Err(TyCheckError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -835,13 +835,10 @@ impl Context {
     ) {
         // FIXME: not panic but error
         // FIXME: recursive search
-        if self.mono_types.contains_key(&gen.t.local_name()) {
-            panic!("{} has already been registered", gen.t.local_name());
-        } else if self.rec_get_const_obj(&gen.t.local_name()).is_some() {
-            panic!(
-                "{} has already been registered as const",
-                gen.t.local_name()
-            );
+        if self.mono_types.contains_key(ident.inspect()) {
+            panic!("{ident} has already been registered");
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+            panic!("{ident} has already been registered as const");
         } else {
             let t = gen.t.clone();
             let meta_t = gen.meta_type();

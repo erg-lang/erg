@@ -30,6 +30,7 @@ use Type::*;
 use crate::context::{Context, RegistrationMode};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
+use crate::AccessKind;
 use RegistrationMode::*;
 
 /// Context for instantiating a quantified type
@@ -510,7 +511,7 @@ impl Context {
     ) -> TyCheckResult<Type> {
         // -> Result<Type, (Type, TyCheckErrors)> {
         let opt_decl_sig_t = self
-            .rec_get_decl_t(&sig.ident, &self.cfg.input, &self.name)
+            .rec_get_decl_t(&sig.ident, AccessKind::Name, &self.cfg.input, &self.name)
             .ok()
             .map(|t| enum_unwrap!(t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;

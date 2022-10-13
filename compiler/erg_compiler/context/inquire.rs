@@ -30,6 +30,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::varinfo::VarInfo;
+use crate::AccessKind;
 use RegistrationMode::*;
 use Visibility::*;
 
@@ -342,49 +343,65 @@ impl Context {
     pub(crate) fn rec_get_var_t(
         &self,
         ident: &Identifier,
+        acc_kind: AccessKind,
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
-            self.validate_visibility(ident, vi, input, namespace)?;
-            Ok(vi.t())
-        } else {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return parent.rec_get_var_t(ident, input, namespace);
+            match self.validate_visibility(ident, vi, input, namespace) {
+                Ok(()) => {
+                    return Ok(vi.t());
+                }
+                Err(err) => {
+                    if !acc_kind.is_local() {
+                        return Err(err);
+                    }
+                }
             }
-            Err(TyCheckError::no_var_error(
-                input.clone(),
-                line!() as usize,
-                ident.loc(),
-                namespace.into(),
-                ident.inspect(),
-                self.get_similar_name(ident.inspect()),
-            ))
         }
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+            return parent.rec_get_var_t(ident, acc_kind, input, namespace);
+        }
+        Err(TyCheckError::no_var_error(
+            input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            ident.inspect(),
+            self.get_similar_name(ident.inspect()),
+        ))
     }
 
     pub(crate) fn rec_get_decl_t(
         &self,
         ident: &Identifier,
+        acc_kind: AccessKind,
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<Type> {
         if let Some(vi) = self.decls.get(&ident.inspect()[..]) {
-            self.validate_visibility(ident, vi, input, namespace)?;
-            Ok(vi.t())
-        } else {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return parent.rec_get_decl_t(ident, input, namespace);
+            match self.validate_visibility(ident, vi, input, namespace) {
+                Ok(()) => {
+                    return Ok(vi.t());
+                }
+                Err(err) => {
+                    if !acc_kind.is_local() {
+                        return Err(err);
+                    }
+                }
             }
-            Err(TyCheckError::no_var_error(
-                input.clone(),
-                line!() as usize,
-                ident.loc(),
-                namespace.into(),
-                ident.inspect(),
-                self.get_similar_name(ident.inspect()),
-            ))
         }
+        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+            return parent.rec_get_decl_t(ident, acc_kind, input, namespace);
+        }
+        Err(TyCheckError::no_var_error(
+            input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            ident.inspect(),
+            self.get_similar_name(ident.inspect()),
+        ))
     }
 
     pub(crate) fn rec_get_attr_t(
@@ -406,7 +423,7 @@ impl Context {
             }
         }
         if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
-            match singular_ctx.rec_get_var_t(ident, input, namespace) {
+            match singular_ctx.rec_get_var_t(ident, AccessKind::Attr, input, namespace) {
                 Ok(t) => {
                     return Ok(t);
                 }
@@ -426,7 +443,7 @@ impl Context {
                 None, // TODO:
             )
         })? {
-            match ctx.rec_get_var_t(ident, input, namespace) {
+            match ctx.rec_get_var_t(ident, AccessKind::Attr, input, namespace) {
                 Ok(t) => {
                     return Ok(t);
                 }
@@ -666,6 +683,7 @@ impl Context {
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(
             &Identifier::new(None, VarName::new(symbol.clone())),
+            AccessKind::Name,
             input,
             namespace,
         )?;
@@ -706,6 +724,7 @@ impl Context {
         let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
         let t = self.rec_get_var_t(
             &Identifier::new(None, VarName::new(symbol.clone())),
+            AccessKind::Name,
             input,
             namespace,
         )?;

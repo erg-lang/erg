@@ -39,6 +39,7 @@ use crate::hir::HIR;
 use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::AccessKind;
 use Visibility::*;
 
 /// Singleton that checks types of an AST, and convert (lower) it into a HIR
@@ -612,8 +613,12 @@ impl ASTLowerer {
             (Type::Untyped, None)
         } else {
             (
-                self.ctx
-                    .rec_get_var_t(&ident, &self.cfg.input, &self.ctx.name)?,
+                self.ctx.rec_get_var_t(
+                    &ident,
+                    AccessKind::Name,
+                    &self.cfg.input,
+                    &self.ctx.name,
+                )?,
                 self.ctx
                     .get_singular_ctx_by_ident(&ident, &self.ctx.name)
                     .ok()
@@ -852,6 +857,7 @@ impl ASTLowerer {
             .ctx
             .registered_info(&name, def.sig.is_const())
             .is_some()
+            && def.sig.vis().is_private()
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg.input.clone(),
@@ -1479,6 +1485,7 @@ impl ASTLowerer {
             .ctx
             .registered_info(&name, def.sig.is_const())
             .is_some()
+            && def.sig.vis().is_private()
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg.input.clone(),
