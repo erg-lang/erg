@@ -706,8 +706,22 @@ impl Context {
                         ast::ConstExpr::Lit(lit) => {
                             new_params.push(TyParam::Value(self.eval_lit(lit)?));
                         }
-                        _ => {
-                            todo!()
+                        ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
+                            if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
+                                new_params.push(TyParam::t(typ.clone()));
+                            } else {
+                                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    name.loc(),
+                                    self.caused_by(),
+                                    name.inspect(),
+                                    self.get_similar_name(name.inspect()),
+                                )));
+                            }
+                        }
+                        other => {
+                            todo!("instantiating {other}")
                         }
                     }
                 }
