@@ -4,6 +4,8 @@ use std::mem;
 use erg_common::dict::Dict;
 use erg_common::enum_unwrap;
 use erg_common::error::Location;
+#[allow(unused)]
+use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};

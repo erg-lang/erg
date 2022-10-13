@@ -5,6 +5,8 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::astr::AtomicStr;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
+#[allow(unused)]
+use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;

@@ -1982,7 +1982,11 @@ impl Type {
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
                     let (sub, sup) = fv.get_bound_types().unwrap();
-                    sub.has_qvar() || sup.has_qvar()
+                    match fv.cyclicity() {
+                        Cyclicity::Not => sub.has_qvar() || sup.has_qvar(),
+                        Cyclicity::Super => sub.has_qvar(),
+                        _ => todo!(),
+                    }
                 } else {
                     fv.crack().has_qvar()
                 }
