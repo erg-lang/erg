@@ -37,14 +37,17 @@ impl Context {
     fn generalize_tp(
         &self,
         free: TyParam,
+        variance: Variance,
         bounds: &mut Set<TyBound>,
         lazy_inits: &mut Set<Str>,
     ) -> TyParam {
         match free {
-            TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            TyParam::Type(t) => {
+                TyParam::t(self.generalize_t_inner(*t, variance, bounds, lazy_inits))
+            }
             TyParam::FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
-                    *tp = self.generalize_tp(tp.clone(), bounds, lazy_inits);
+                    *tp = self.generalize_tp(tp.clone(), variance, bounds, lazy_inits);
                 } else {
                     assume_unreachable!()
                 }
@@ -54,13 +57,13 @@ impl Context {
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => match &*fv.borrow() {
                 FreeKind::Unbound { id, constraint, .. } => {
                     let name = format!("%{id}");
-                    self.generalize_constraint(&name, constraint, bounds, lazy_inits);
+                    self.generalize_constraint(&name, constraint, variance, bounds, lazy_inits);
                     TyParam::mono_q(name)
                 }
                 FreeKind::NamedUnbound {
                     name, constraint, ..
                 } => {
-                    self.generalize_constraint(name, constraint, bounds, lazy_inits);
+                    self.generalize_constraint(name, constraint, variance, bounds, lazy_inits);
                     TyParam::mono_q(name)
                 }
                 _ => assume_unreachable!(),
@@ -71,9 +74,42 @@ impl Context {
     }
 
     pub(crate) fn generalize_t(&self, free_type: Type) -> Type {
+        if cfg!(feature = "debug") && free_type.has_qvar() {
+            panic!("{free_type} has qvars")
+        }
         let mut bounds = set! {};
         let mut lazy_inits = set! {};
-        let maybe_unbound_t = self.generalize_t_inner(free_type, &mut bounds, &mut lazy_inits);
+        let maybe_unbound_t =
+            self.generalize_t_inner(free_type, Covariant, &mut bounds, &mut lazy_inits);
+        if bounds.is_empty() {
+            maybe_unbound_t
+        } else {
+            // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
+            // However, the current Erg cannot handle existential types, so it quantifies anyway
+            /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
+                let mut tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
+                let inst = Self::instantiate_t(
+                    maybe_unbound_t,
+                    &mut tv_ctx,
+                    Location::Unknown,
+                )
+                .unwrap();
+                inst.lift();
+                self.deref_tyvar(inst, Location::Unknown).unwrap()
+            } else { */
+            quant(maybe_unbound_t, bounds)
+            // }
+        }
+    }
+
+    pub(crate) fn generalize_t_given_bounds(
+        &self,
+        free_type: Type,
+        mut bounds: Set<TyBound>,
+    ) -> Type {
+        let mut lazy_inits = set! {};
+        let maybe_unbound_t =
+            self.generalize_t_inner(free_type, Covariant, &mut bounds, &mut lazy_inits);
         if bounds.is_empty() {
             maybe_unbound_t
         } else {
@@ -105,13 +141,14 @@ impl Context {
     fn generalize_t_inner(
         &self,
         free_type: Type,
+        variance: Variance,
         bounds: &mut Set<TyBound>,
         lazy_inits: &mut Set<Str>,
     ) -> Type {
         match free_type {
             FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
-                    *t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
+                    *t = self.generalize_t_inner(t.clone(), variance, bounds, lazy_inits);
                 } else {
                     assume_unreachable!()
                 }
@@ -122,15 +159,33 @@ impl Context {
                 FreeKind::Unbound { id, constraint, .. } => {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
                     let (l, r) = constraint.get_sub_sup().unwrap();
-                    if l == r {
-                        fv.forced_link(&l.clone());
-                        FreeVar(fv.clone())
-                    } else if r != &Obj && self.is_class(r) {
-                        // x: T <: Bool ==> x: Bool
+                    // the input type of `is_class` must not be quantified (if the type is Proj). So instantiate it here.
+                    let l = if l.has_qvar() {
+                        let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
+                        self.instantiate_t(l.clone(), &tv_ctx, Location::Unknown)
+                            .unwrap()
+                    } else {
+                        l.clone()
+                    };
+                    let r = if r.has_qvar() {
+                        let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
+                        self.instantiate_t(r.clone(), &tv_ctx, Location::Unknown)
+                            .unwrap()
+                    } else {
                         r.clone()
+                    };
+                    if l == r {
+                        fv.forced_link(&l);
+                        FreeVar(fv.clone())
+                    } else if r != Obj && self.is_class(&r) && variance == Contravariant {
+                        // |T <: Bool| T -> Int ==> Bool -> Int
+                        r
+                    } else if l != Never && self.is_class(&l) && variance == Covariant {
+                        // |T :> Int| X -> T ==> X -> Int
+                        l
                     } else {
                         let name = format!("%{id}");
-                        self.generalize_constraint(&name, constraint, bounds, lazy_inits);
+                        self.generalize_constraint(&name, constraint, variance, bounds, lazy_inits);
                         mono_q(name)
                     }
                 }
@@ -142,7 +197,7 @@ impl Context {
                         fv.forced_link(l);
                         FreeVar(fv.clone())
                     } else {
-                        self.generalize_constraint(name, constraint, bounds, lazy_inits);
+                        self.generalize_constraint(name, constraint, variance, bounds, lazy_inits);
                         mono_q(name)
                     }
                 }
@@ -150,18 +205,31 @@ impl Context {
             },
             Subr(mut subr) => {
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
-                    *nd_param.typ_mut() =
-                        self.generalize_t_inner(mem::take(nd_param.typ_mut()), bounds, lazy_inits);
+                    *nd_param.typ_mut() = self.generalize_t_inner(
+                        mem::take(nd_param.typ_mut()),
+                        Contravariant,
+                        bounds,
+                        lazy_inits,
+                    );
                 });
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() =
-                        self.generalize_t_inner(mem::take(var_args.typ_mut()), bounds, lazy_inits);
+                    *var_args.typ_mut() = self.generalize_t_inner(
+                        mem::take(var_args.typ_mut()),
+                        Contravariant,
+                        bounds,
+                        lazy_inits,
+                    );
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
-                    *d_param.typ_mut() =
-                        self.generalize_t_inner(mem::take(d_param.typ_mut()), bounds, lazy_inits);
+                    *d_param.typ_mut() = self.generalize_t_inner(
+                        mem::take(d_param.typ_mut()),
+                        Contravariant,
+                        bounds,
+                        lazy_inits,
+                    );
                 });
-                let return_t = self.generalize_t_inner(*subr.return_t, bounds, lazy_inits);
+                let return_t =
+                    self.generalize_t_inner(*subr.return_t, Covariant, bounds, lazy_inits);
                 subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -171,20 +239,24 @@ impl Context {
                 )
             }
             Callable { .. } => todo!(),
-            Ref(t) => ref_(self.generalize_t_inner(*t, bounds, lazy_inits)),
+            Ref(t) => ref_(self.generalize_t_inner(*t, variance, bounds, lazy_inits)),
             RefMut { before, after } => {
-                let after = after.map(|aft| self.generalize_t_inner(*aft, bounds, lazy_inits));
-                ref_mut(self.generalize_t_inner(*before, bounds, lazy_inits), after)
+                let after =
+                    after.map(|aft| self.generalize_t_inner(*aft, variance, bounds, lazy_inits));
+                ref_mut(
+                    self.generalize_t_inner(*before, variance, bounds, lazy_inits),
+                    after,
+                )
             }
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
-                    .map(|p| self.generalize_tp(mem::take(p), bounds, lazy_inits))
+                    .map(|p| self.generalize_tp(mem::take(p), variance, bounds, lazy_inits))
                     .collect::<Vec<_>>();
                 poly(name, params)
             }
             Proj { lhs, rhs } => {
-                let lhs = self.generalize_t_inner(*lhs, bounds, lazy_inits);
+                let lhs = self.generalize_t_inner(*lhs, variance, bounds, lazy_inits);
                 proj(lhs, rhs)
             }
             ProjCall {
@@ -192,27 +264,27 @@ impl Context {
                 attr_name,
                 mut args,
             } => {
-                let lhs = self.generalize_tp(*lhs, bounds, lazy_inits);
+                let lhs = self.generalize_tp(*lhs, variance, bounds, lazy_inits);
                 for arg in args.iter_mut() {
-                    *arg = self.generalize_tp(mem::take(arg), bounds, lazy_inits);
+                    *arg = self.generalize_tp(mem::take(arg), variance, bounds, lazy_inits);
                 }
                 proj_call(lhs, attr_name, args)
             }
             And(l, r) => {
-                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
                 // not `self.intersection` because types are generalized
                 and(l, r)
             }
             Or(l, r) => {
-                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
                 // not `self.union` because types are generalized
                 or(l, r)
             }
             Not(l, r) => {
-                let l = self.generalize_t_inner(*l, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
+                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
                 not(l, r)
             }
             // REVIEW: その他何でもそのまま通していいのか?
@@ -224,6 +296,7 @@ impl Context {
         &self,
         name: S,
         constraint: &Constraint,
+        variance: Variance,
         bounds: &mut Set<TyBound>,
         lazy_inits: &mut Set<Str>,
     ) {
@@ -234,13 +307,13 @@ impl Context {
             lazy_inits.insert(name.clone());
             match constraint {
                 Constraint::Sandwiched { sub, sup, .. } => {
-                    let sub = self.generalize_t_inner(sub.clone(), bounds, lazy_inits);
-                    let sup = self.generalize_t_inner(sup.clone(), bounds, lazy_inits);
+                    let sub = self.generalize_t_inner(sub.clone(), variance, bounds, lazy_inits);
+                    let sup = self.generalize_t_inner(sup.clone(), variance, bounds, lazy_inits);
                     // let bs = sub_bs.concat(sup_bs);
                     bounds.insert(TyBound::sandwiched(sub, mono_q(name), sup));
                 }
                 Constraint::TypeOf(t) => {
-                    let t = self.generalize_t_inner(t.clone(), bounds, lazy_inits);
+                    let t = self.generalize_t_inner(t.clone(), variance, bounds, lazy_inits);
                     bounds.insert(TyBound::instance(Str::rc(&name[..]), t));
                 }
                 Constraint::Uninited => unreachable!(),

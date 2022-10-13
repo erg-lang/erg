@@ -1139,6 +1139,9 @@ impl Context {
                     }
                     _ => unreachable!(),
                 }
+                if cfg!(feature = "debug") && t.has_qvar() {
+                    panic!("{t} has qvar")
+                }
                 Ok(t)
             }
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T

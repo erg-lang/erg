@@ -9,7 +9,7 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{enum_unwrap, get_hash, log, option_enum_unwrap, set};
 
 use ast::{DefId, Identifier, VarName};
 use erg_parser::ast;
@@ -410,9 +410,15 @@ impl Context {
         sub_t.lift();
         let found_t = self.generalize_t(sub_t);
         if let Some(mut vi) = self.decls.remove(name) {
+            let bounds = if let Some(quant) = option_enum_unwrap!(&found_t, Type::Quantified) {
+                quant.bounds.clone()
+            } else {
+                set! {}
+            };
             if vi.t.has_unbound_var() {
                 vi.t.lift();
-                vi.t = self.generalize_t(vi.t.clone());
+                vi.t = self.generalize_t_given_bounds(vi.t.clone(), bounds);
+                // vi.t = self.generalize_t(vi.t.clone());
             }
             self.decls.insert(name.clone(), vi);
         }

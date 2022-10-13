@@ -1981,7 +1981,8 @@ impl Type {
             Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
-                    false
+                    let (sub, sup) = fv.get_bound_types().unwrap();
+                    sub.has_qvar() || sup.has_qvar()
                 } else {
                     fv.crack().has_qvar()
                 }
@@ -2007,6 +2008,9 @@ impl Type {
             }
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::Proj { lhs, .. } => lhs.has_qvar(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_qvar() || args.iter().any(|tp| tp.has_qvar())
+            }
             _ => false,
         }
     }
