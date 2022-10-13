@@ -155,54 +155,47 @@ impl Context {
                 Type::FreeVar(v)
             }
             // TODO: Polymorphic generalization
-            FreeVar(fv) if fv.level().unwrap() > self.level => match &*fv.borrow() {
-                FreeKind::Unbound { id, constraint, .. } => {
-                    // |Int <: T <: Int| T -> T ==> Int -> Int
-                    let (l, r) = constraint.get_sub_sup().unwrap();
-                    // the input type of `is_class` must not be quantified (if the type is Proj). So instantiate it here.
-                    let l = if l.has_qvar() {
-                        let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                        self.instantiate_t(l.clone(), &tv_ctx, Location::Unknown)
-                            .unwrap()
-                    } else {
-                        l.clone()
-                    };
-                    let r = if r.has_qvar() {
-                        let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                        self.instantiate_t(r.clone(), &tv_ctx, Location::Unknown)
-                            .unwrap()
-                    } else {
-                        r.clone()
-                    };
-                    if l == r {
-                        fv.forced_link(&l);
-                        FreeVar(fv.clone())
-                    } else if r != Obj && self.is_class(&r) && variance == Contravariant {
-                        // |T <: Bool| T -> Int ==> Bool -> Int
-                        r
-                    } else if l != Never && self.is_class(&l) && variance == Covariant {
-                        // |T :> Int| X -> T ==> X -> Int
-                        l
-                    } else {
-                        let name = format!("%{id}");
-                        self.generalize_constraint(&name, constraint, variance, bounds, lazy_inits);
-                        mono_q(name)
+            FreeVar(fv) if fv.level().unwrap() > self.level => {
+                let (name, constraint) = match &*fv.borrow() {
+                    FreeKind::Unbound { id, constraint, .. } => {
+                        (Str::from(format!("%{id}")), constraint.clone())
                     }
+                    FreeKind::NamedUnbound {
+                        name, constraint, ..
+                    } => (name.clone(), constraint.clone()),
+                    _ => assume_unreachable!(),
+                };
+                // |Int <: T <: Int| T -> T ==> Int -> Int
+                let (l, r) = constraint.get_sub_sup().unwrap();
+                // the input type of `is_class` must not be quantified (if the type is Proj). So instantiate it here.
+                let l = if l.has_qvar() {
+                    let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
+                    self.instantiate_t(l.clone(), &tv_ctx, Location::Unknown)
+                        .unwrap()
+                } else {
+                    l.clone()
+                };
+                let r = if r.has_qvar() {
+                    let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
+                    self.instantiate_t(r.clone(), &tv_ctx, Location::Unknown)
+                        .unwrap()
+                } else {
+                    r.clone()
+                };
+                if l == r {
+                    fv.forced_link(&l);
+                    FreeVar(fv)
+                } else if r != Obj && self.is_class(&r) && variance == Contravariant {
+                    // |T <: Bool| T -> Int ==> Bool -> Int
+                    r
+                } else if l != Never && self.is_class(&l) && variance == Covariant {
+                    // |T :> Int| X -> T ==> X -> Int
+                    l
+                } else {
+                    self.generalize_constraint(&name, &constraint, variance, bounds, lazy_inits);
+                    mono_q(name)
                 }
-                FreeKind::NamedUnbound {
-                    name, constraint, ..
-                } => {
-                    let (l, r) = constraint.get_sub_sup().unwrap();
-                    if l == r {
-                        fv.forced_link(l);
-                        FreeVar(fv.clone())
-                    } else {
-                        self.generalize_constraint(name, constraint, variance, bounds, lazy_inits);
-                        mono_q(name)
-                    }
-                }
-                _ => assume_unreachable!(),
-            },
+            }
             Subr(mut subr) => {
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
                     *nd_param.typ_mut() = self.generalize_t_inner(
