@@ -2734,8 +2734,27 @@ impl Parser {
         Ok(t_spec)
     }
 
-    fn call_to_predecl_type_spec(_call: Call) -> Result<PreDeclTypeSpec, ParseError> {
-        todo!()
+    fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
+        match *call.obj {
+            Expr::Accessor(Accessor::Ident(ident)) => {
+                let (_pos_args, _kw_args, paren) = call.args.deconstruct();
+                let mut pos_args = vec![];
+                for arg in _pos_args.into_iter() {
+                    let const_expr = Self::validate_const_expr(arg.expr)?;
+                    pos_args.push(ConstPosArg::new(const_expr));
+                }
+                let mut kw_args = vec![];
+                for arg in _kw_args.into_iter() {
+                    let const_expr = Self::validate_const_expr(arg.expr)?;
+                    kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
+                }
+                Ok(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
+                    ident.name,
+                    ConstArgs::new(pos_args, kw_args, paren),
+                )))
+            }
+            _ => todo!(),
+        }
     }
 
     fn lambda_to_subr_type_spec(mut lambda: Lambda) -> Result<SubrTypeSpec, ParseError> {
