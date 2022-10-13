@@ -161,9 +161,9 @@ impl Context {
             return (Absolutely, true);
         }
         match (lhs, rhs) {
-            (Obj, _) | (_, Never) => (Absolutely, true),
+            (Obj, _) | (_, Never | Failure) => (Absolutely, true),
             (_, Obj) if !lhs.is_unbound_var() => (Absolutely, false),
-            (Never, _) if !rhs.is_unbound_var() => (Absolutely, false),
+            (Never | Failure, _) if !rhs.is_unbound_var() => (Absolutely, false),
             (Float | Ratio | Int | Nat | Bool, Bool)
             | (Float | Ratio | Int | Nat, Nat)
             | (Float | Ratio | Int, Int)

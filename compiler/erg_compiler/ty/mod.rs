@@ -924,10 +924,16 @@ impl SubrType {
     }
 
     pub fn self_t(&self) -> Option<&Type> {
-        self.non_default_params
-            .iter()
-            .find(|p| p.name() == Some(&Str::ever("self")) || p.name() == Some(&Str::ever("Self")))
-            .map(|p| p.typ())
+        self.non_default_params.first().and_then(|p| {
+            if p.name()
+                .map(|n| &n[..] == "self" || &n[..] == "Self")
+                .unwrap_or(false)
+            {
+                Some(p.typ())
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -1194,7 +1200,8 @@ pub enum Type {
         args: Vec<TyParam>,
     }, // e.g. Ts.__getitem__(N)
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
-    Failure,            // when failed to infer (e.g. get the type of `match`)
+    Failure,            // indicates a failure of type inference and behaves as `Never`.
+    Untyped,            // e.g. the type of `match`
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
@@ -1295,7 +1302,9 @@ impl PartialEq for Type {
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
-            (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
+            (Self::Failure, Self::Failure)
+            | (Self::Untyped, Self::Untyped)
+            | (Self::Uninited, Self::Uninited) => true,
             _ => false,
         }
     }
@@ -1920,6 +1929,7 @@ impl Type {
             Self::Proj { .. } => Str::ever("MonoProj"),
             Self::ProjCall { .. } => Str::ever("MonoProjMethod"),
             Self::Failure => Str::ever("Failure"),
+            Self::Untyped => Str::ever("Untyped"),
             Self::Uninited => Str::ever("Uninited"),
         }
     }

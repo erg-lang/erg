@@ -792,9 +792,9 @@ impl Context {
                 self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args)
             }
             Type::Subr(subr) => {
-                let not_method_but_attr = subr.self_t().is_none();
+                let is_method = subr.self_t().is_some();
                 let callee = if let Some(ident) = attr_name {
-                    if not_method_but_attr {
+                    if is_method {
                         obj.clone()
                     } else {
                         let attr = hir::Attribute::new(
@@ -823,19 +823,14 @@ impl Context {
                     )));
                 }
                 let mut passed_params = set! {};
-                let non_default_params_len = if attr_name.is_some() && !not_method_but_attr {
+                let non_default_params_len = if attr_name.is_some() && is_method {
                     subr.non_default_params.len() - 1
                 } else {
                     subr.non_default_params.len()
                 };
                 if pos_args.len() >= non_default_params_len {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
-                    let non_default_params = if subr
-                        .non_default_params
-                        .first()
-                        .map(|p| p.name().map(|s| &s[..]) == Some("self"))
-                        .unwrap_or(false)
-                    {
+                    let non_default_params = if is_method {
                         let mut non_default_params = subr.non_default_params.iter();
                         let self_pt = non_default_params.next().unwrap();
                         self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())?;

@@ -610,7 +610,7 @@ impl ASTLowerer {
         // `match` is an untypable special form
         // `match`は型付け不可能な特殊形式
         let (t, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
-            (Type::Failure, None)
+            (Type::Untyped, None)
         } else {
             (
                 self.ctx
@@ -936,7 +936,7 @@ impl ASTLowerer {
             Err(errs) => {
                 self.ctx.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
-                    &Type::Never,
+                    &Type::Failure,
                     ast::DefId(0),
                 )?;
                 Err(errs)
@@ -1014,7 +1014,7 @@ impl ASTLowerer {
                     .outer
                     .as_mut()
                     .unwrap()
-                    .fake_subr_assign(&sig, Type::Never);
+                    .fake_subr_assign(&sig, Type::Failure);
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                 let sig = hir::SubrSignature::new(ident, sig.params, Type::Failure);
@@ -1096,11 +1096,14 @@ impl ASTLowerer {
                 self.ctx.preregister_def(def)?;
             }
             for def in methods.defs.into_iter() {
-                let def = self.lower_def(def).map_err(|e| {
-                    self.pop_append_errs();
-                    e
-                })?;
-                hir_methods.push(hir::Expr::Def(def));
+                match self.lower_def(def) {
+                    Ok(def) => {
+                        hir_methods.push(hir::Expr::Def(def));
+                    }
+                    Err(errs) => {
+                        self.errs.extend(errs.into_iter());
+                    }
+                }
             }
             match self.ctx.check_decls_and_pop() {
                 Ok(methods) => {
@@ -1108,8 +1111,10 @@ impl ASTLowerer {
                     if let Some((trait_, _)) = &impl_trait {
                         self.register_trait_impl(&class, trait_);
                     }
-                    self.check_trait_impl(impl_trait, &class, &methods)?;
-                    self.push_methods(class, methods);
+                    if let Err(err) = self.check_trait_impl(impl_trait, &class, &methods) {
+                        self.errs.push(err);
+                    }
+                    self.check_collision_and_push(class, methods);
                 }
                 Err(mut errs) => {
                     self.errs.append(&mut errs);
@@ -1117,7 +1122,6 @@ impl ASTLowerer {
             }
         }
         let class = mono(hir_def.sig.ident().inspect());
-        log!("{class}");
         let class_ctx = self.ctx.get_nominal_type_ctx(&class).unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
@@ -1179,7 +1183,11 @@ impl ASTLowerer {
     fn check_override(&mut self, class: &Type, ctx: &Context) {
         if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
             for sup in sups.into_iter().skip(1) {
-                for (method_name, vi) in ctx.locals.iter() {
+                for (method_name, vi) in ctx
+                    .locals
+                    .iter()
+                    .chain(ctx.methods_list.iter().flat_map(|(_, c)| c.locals.iter()))
+                {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
                         if let Some(decos) = &vi.comptime_decos {
@@ -1304,12 +1312,14 @@ impl ASTLowerer {
         }
     }
 
-    fn push_methods(&mut self, class: Type, methods: Context) {
+    fn check_collision_and_push(&mut self, class: Type, methods: Context) {
         let (_, class_root) = self
             .ctx
             .get_mut_nominal_type_ctx(&class)
             .unwrap_or_else(|| todo!("{class} not found"));
+        log!("{class}, {} {}", methods.name, methods.locals.len());
         for (newly_defined_name, _vi) in methods.locals.iter() {
+            log!("{}", class_root.methods_list.len());
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示

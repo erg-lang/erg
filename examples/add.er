@@ -1,13 +1,16 @@
-Point = Class {x = Int; y = Int}, Impl := Add() and Eq()
+Point = Class {x = Int; y = Int}
 Point.
-    new x, y = Self::__new__ {x; y}
+    new x, y = Point::__new__ {x; y}
     norm self = self::x**2 + self::y**2
-    @Impl Add()
-    `+` self, other =
-        Self.new(self::x + other::x, self::y + other::y)
+Point|Point <: Add()|.
+    `+` self, other: Point =
+        Point.new(self::x + other::x, self::y + other::y)
+Point|Point <: Eq()|.
+    `==` self, other: Point =
+        self::x == other::x && self::y == other::y
 
 p = Point.new 1, 2
 q = Point.new 3, 4
-r = p + q
+r = p.add q
 assert r == Point.new 4, 6
 assert r.norm() == 52
