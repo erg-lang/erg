@@ -235,6 +235,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Module", Some("sys"), "setrecurtionlimit!") => Str::ever("setrecurtionlimit"),
         ("Module", Some("time"), "sleep!") => Str::ever("sleep"),
         ("Module", Some("time"), "time!") => Str::ever("time"),
+        ("Module", Some("glob"), "glob!") => Str::ever("glob"),
         _ => name,
     }
 }
@@ -1292,7 +1293,7 @@ impl CodeGenerator {
     }
 
     fn emit_for_instr(&mut self, mut args: Args) {
-        log!(info "entered {}", fn_name!());
+        log!(info "entered {} ({})", fn_name!(), args);
         let iterable = args.remove(0);
         self.emit_expr(iterable);
         self.write_instr(GET_ITER);
@@ -1310,6 +1311,7 @@ impl CodeGenerator {
         self.write_arg((idx_for_iter / 2) as u8);
         let idx_end = self.cur_block().lasti;
         self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
+        self.emit_pop_top();
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1830,7 +1832,8 @@ impl CodeGenerator {
         }
         for expr in block.into_iter() {
             self.emit_expr(expr);
-            if self.cur_block().stack_len != 0 {
+            // __exit__, __enter__() are on the stack
+            if self.cur_block().stack_len != 2 {
                 self.emit_pop_top();
             }
         }
