@@ -1221,17 +1221,16 @@ impl ASTLowerer {
             let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
+            let mut unverified_names = methods.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
                             Type::Record(attrs) => {
-                                let mut unverified_names =
-                                    methods.locals.keys().collect::<Set<_>>();
-                                for (field, typ) in attrs.iter() {
+                                for (field, field_typ) in attrs.iter() {
                                     if let Some((name, vi)) = methods.get_local_kv(&field.symbol) {
                                         unverified_names.remove(name);
-                                        if !self.ctx.supertype_of(typ, &vi.t) {
+                                        if !self.ctx.supertype_of(field_typ, &vi.t) {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 self.cfg.input.clone(),
                                                 line!() as usize,
@@ -1239,7 +1238,7 @@ impl ASTLowerer {
                                                 self.ctx.caused_by(),
                                                 name.inspect(),
                                                 &impl_trait,
-                                                typ,
+                                                field_typ,
                                                 &vi.t,
                                                 None,
                                             ));
@@ -1256,21 +1255,42 @@ impl ASTLowerer {
                                         ));
                                     }
                                 }
-                                for unverified in unverified_names {
+                            }
+                            other => todo!("{other}"),
+                        },
+                        TypeObj::Builtin(_typ) => {
+                            log!("{class}, {_typ}, {impl_trait}",);
+                            let ctx = self.ctx.get_nominal_type_ctx(_typ).unwrap();
+                            for (decl_name, decl_vi) in ctx.decls.iter() {
+                                if let Some((name, vi)) = methods.get_local_kv(decl_name.inspect())
+                                {
+                                    unverified_names.remove(name);
+                                    if !self.ctx.supertype_of(&decl_vi.t, &vi.t) {
+                                        self.errs.push(LowerError::trait_member_type_error(
+                                            self.cfg.input.clone(),
+                                            line!() as usize,
+                                            name.loc(),
+                                            self.ctx.caused_by(),
+                                            name.inspect(),
+                                            &impl_trait,
+                                            &decl_vi.t,
+                                            &vi.t,
+                                            None,
+                                        ));
+                                    }
+                                } else {
                                     self.errs.push(LowerError::trait_member_not_defined_error(
                                         self.cfg.input.clone(),
                                         line!() as usize,
                                         self.ctx.caused_by(),
-                                        unverified.inspect(),
+                                        decl_name.inspect(),
                                         &impl_trait,
                                         class,
                                         None,
                                     ));
                                 }
                             }
-                            other => todo!("{other}"),
-                        },
-                        TypeObj::Builtin(_builtin) => todo!(),
+                        }
                     }
                 } else {
                     return Err(LowerError::type_mismatch_error(
@@ -1295,6 +1315,17 @@ impl ASTLowerer {
                     self.ctx.get_similar_name(&impl_trait.local_name()),
                 ));
             }
+            for unverified in unverified_names {
+                self.errs.push(LowerError::trait_member_not_defined_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    self.ctx.caused_by(),
+                    unverified.inspect(),
+                    &impl_trait,
+                    class,
+                    None,
+                ));
+            }
         }
         Ok(())
     }
@@ -1316,7 +1347,6 @@ impl ASTLowerer {
             .ctx
             .get_mut_nominal_type_ctx(&class)
             .unwrap_or_else(|| todo!("{class} not found"));
-        log!("{class}, {} {}", methods.name, methods.locals.len());
         for (newly_defined_name, _vi) in methods.locals.iter() {
             log!("{}", class_root.methods_list.len());
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
