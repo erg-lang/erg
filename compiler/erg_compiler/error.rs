@@ -32,8 +32,9 @@ pub fn binop_to_dname(op: &str) -> &str {
         "<.." => "__lorng__",
         "..<" => "__rorng__",
         "<..<" => "__orng__",
-        "and" => "__and__",
-        "or" => "__or__",
+        "&&" | "and" => "__and__",
+        "||" | "or" => "__or__",
+        "^^" => "__xor__",
         "in" => "__in__",
         "contains" => "__contains__",
         "subof" => "__subof__",
@@ -46,7 +47,7 @@ pub fn binop_to_dname(op: &str) -> &str {
         "<=" => "__le__",
         ">" => "__gt__",
         ">=" => "__ge__",
-        _ => todo!(),
+        other => todo!("no such binary operator: {other}"),
     }
 }
 
@@ -57,7 +58,7 @@ pub fn unaryop_to_dname(op: &str) -> &str {
         "~" => "__invert__",
         "!" => "__mutate__",
         "..." => "__spread__",
-        _ => todo!(),
+        other => todo!("no such unary operator: {other}"),
     }
 }
 
