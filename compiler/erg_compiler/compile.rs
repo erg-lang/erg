@@ -161,7 +161,7 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<Expr, CompileErrors> {
+    ) -> Result<Option<Expr>, CompileErrors> {
         let (code, last) = self.eval_compile(src, mode)?;
         code.dump_as_pyc(pyc_path, self.cfg.python_ver)
             .expect("failed to dump a .pyc file (maybe permission denied)");
@@ -183,10 +183,10 @@ impl Compiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<(CodeObj, Expr), CompileErrors> {
+    ) -> Result<(CodeObj, Option<Expr>), CompileErrors> {
         log!(info "the compiling process has started.");
         let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
-        let last = hir.module.last().unwrap().clone();
+        let last = hir.module.last().cloned();
         let linker = Linker::new(&self.cfg, &self.mod_cache);
         let hir = linker.link(hir);
         let codeobj = self.code_generator.emit(hir);
