@@ -812,12 +812,6 @@ impl CodeGenerator {
             Accessor::Attr(a) => {
                 let class = a.obj.ref_t().qual_name();
                 let uniq_obj_name = a.obj.local_name().map(Str::rc);
-                // C = Class ...
-                // C.
-                //     a = C.x
-                // ↓
-                // class C:
-                //     a = x
                 if Some(&self.cur_block_codeobj().name[..]) == a.obj.local_name()
                     && &self.cur_block_codeobj().name[..] != "<module>"
                 {

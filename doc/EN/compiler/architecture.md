@@ -35,9 +35,15 @@
 
 ## 4. Check ownerships (compiler/memcheck.rs)
 
-## 5. Generate Bytecode (`CodeObj`) from `HIR` (compiler/codegen.rs)
+## 5. Desugar `HIR` (compiler/desugar_hir.rs)
 
-## (6. (Future plans) Convert Bytecode -> LLVM IR)
+Convert parts that are not consistent with Python syntax
+
+* Convert class member variables to functions
+
+## 6. Generate Bytecode (`CodeObj`) from `HIR` (compiler/codegen.rs)
+
+## (7. (Future plans) Convert Bytecode -> LLVM IR)
 
 * Bytecode is stack-based, whereas LLVM IR is register-based.
   There will be several more layers of intermediate processes for this conversion process.

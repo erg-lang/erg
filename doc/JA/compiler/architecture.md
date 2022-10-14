@@ -18,7 +18,7 @@
 
 ### 2.1 `AST`の脱糖
 
-* ネストされた変数を展開 (`Desugarer::desugar_nest_vars_pattern`)
+* パターンマッチを単一の変数代入列へ変換 (`Desugarer::desugar_nest_vars_pattern`)
 * 複数パターン定義構文をmatchへ変換 (`Desugarer::desugar_multiple_pattern_def`)
 
 ## 3. `AST` -> `HIR`  (compiler/lower.rs)
@@ -40,9 +40,15 @@
 
 ## 4. 所有権の確認 (compiler/memcheck.rs)
 
-## 5. `HIR` からバイトコード (`CodeObj`) を生成 (compiler/codegen.rs)
+## 5. `HIR`の脱糖 (compiler/desugar_hir.rs)
 
-## (6. (今後の予定) バイトコード -> LLVM IR)
+* Pythonの文法と整合しない部分を変換する
+
+* クラスのメンバ変数を関数に変換
+
+## 6. `HIR` からバイトコード (`CodeObj`) を生成 (compiler/codegen.rs)
+
+## (7. (今後の予定) バイトコード -> LLVM IR)
 
 * バイトコードはスタックベースだが、LLVM IR はレジスタベースである。
   この変換プロセスには、さらにいくつかの中間プロセスのレイヤーが必要となる。
