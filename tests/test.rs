@@ -42,6 +42,11 @@ fn exec_helloworld() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_impl() -> Result<(), ()> {
+    expect_success("examples/impl.er")
+}
+
+#[test]
 fn exec_import() -> Result<(), ()> {
     expect_success("examples/import.er")
 }
