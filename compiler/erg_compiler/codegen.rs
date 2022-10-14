@@ -812,18 +812,8 @@ impl CodeGenerator {
             Accessor::Attr(a) => {
                 let class = a.obj.ref_t().qual_name();
                 let uniq_obj_name = a.obj.local_name().map(Str::rc);
-                if Some(&self.cur_block_codeobj().name[..]) == a.obj.local_name()
-                    && &self.cur_block_codeobj().name[..] != "<module>"
-                {
-                    self.emit_load_name_instr(a.ident);
-                } else {
-                    self.emit_expr(*a.obj);
-                    self.emit_load_attr_instr(
-                        &class,
-                        uniq_obj_name.as_ref().map(|s| &s[..]),
-                        a.ident,
-                    );
-                }
+                self.emit_expr(*a.obj);
+                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.ident);
             }
             Accessor::TupleAttr(t_attr) => {
                 self.emit_expr(*t_attr.obj);

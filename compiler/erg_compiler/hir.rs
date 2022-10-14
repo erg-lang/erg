@@ -1700,6 +1700,12 @@ impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
 impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
 
+impl Default for Expr {
+    fn default() -> Self {
+        Self::Code(Block::default())
+    }
+}
+
 impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {
         match self {
