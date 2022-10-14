@@ -1110,16 +1110,16 @@ impl ASTLowerer {
                     }
                 }
             }
-            match self.ctx.check_decls_and_pop() {
-                Ok(methods) => {
-                    self.check_override(&class, &methods);
+            match self.ctx.check_decls() {
+                Ok(()) => {
+                    self.check_override(&class);
                     if let Some((trait_, _)) = &impl_trait {
                         self.register_trait_impl(&class, trait_);
                     }
-                    if let Err(err) = self.check_trait_impl(impl_trait, &class, &methods) {
+                    if let Err(err) = self.check_trait_impl(impl_trait, &class) {
                         self.errs.push(err);
                     }
-                    self.check_collision_and_push(class, methods);
+                    self.check_collision_and_push(class);
                 }
                 Err(mut errs) => {
                     self.errs.append(&mut errs);
@@ -1185,14 +1185,15 @@ impl ASTLowerer {
         }
     }
 
-    fn check_override(&mut self, class: &Type, ctx: &Context) {
+    fn check_override(&mut self, class: &Type) {
         if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
             for sup in sups.into_iter().skip(1) {
-                for (method_name, vi) in ctx
-                    .locals
-                    .iter()
-                    .chain(ctx.methods_list.iter().flat_map(|(_, c)| c.locals.iter()))
-                {
+                for (method_name, vi) in self.ctx.locals.iter().chain(
+                    self.ctx
+                        .methods_list
+                        .iter()
+                        .flat_map(|(_, c)| c.locals.iter()),
+                ) {
                     if let Some(_sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
                         // must `@Override`
                         if let Some(decos) = &vi.comptime_decos {
@@ -1206,7 +1207,7 @@ impl ASTLowerer {
                             method_name.inspect(),
                             method_name.loc(),
                             &mono(&sup.name), // TODO: get super type
-                            ctx.caused_by(),
+                            self.ctx.caused_by(),
                         ));
                     }
                 }
@@ -1220,21 +1221,20 @@ impl ASTLowerer {
         &mut self,
         impl_trait: Option<(Type, Location)>,
         class: &Type,
-        methods: &Context,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
             // assume the class has implemented the trait, regardless of whether the implementation is correct
             let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
             let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
-            let mut unverified_names = methods.locals.keys().collect::<Set<_>>();
+            let mut unverified_names = self.ctx.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
                             Type::Record(attrs) => {
                                 for (field, field_typ) in attrs.iter() {
-                                    if let Some((name, vi)) = methods.get_local_kv(&field.symbol) {
+                                    if let Some((name, vi)) = self.ctx.get_local_kv(&field.symbol) {
                                         unverified_names.remove(name);
                                         if !self.ctx.supertype_of(field_typ, &vi.t) {
                                             self.errs.push(LowerError::trait_member_type_error(
@@ -1265,12 +1265,12 @@ impl ASTLowerer {
                             other => todo!("{other}"),
                         },
                         TypeObj::Builtin(_typ) => {
-                            log!("{class}, {_typ}, {impl_trait}",);
                             let ctx = self.ctx.get_nominal_type_ctx(_typ).unwrap();
                             for (decl_name, decl_vi) in ctx.decls.iter() {
-                                if let Some((name, vi)) = methods.get_local_kv(decl_name.inspect())
+                                if let Some((name, vi)) = self.ctx.get_local_kv(decl_name.inspect())
                                 {
                                     unverified_names.remove(name);
+                                    log!(err "checking");
                                     if !self.ctx.supertype_of(&decl_vi.t, &vi.t) {
                                         self.errs.push(LowerError::trait_member_type_error(
                                             self.cfg.input.clone(),
@@ -1337,24 +1337,25 @@ impl ASTLowerer {
     }
 
     fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
+        let trait_impls = &mut self.ctx.outer.as_mut().unwrap().trait_impls;
         // TODO: polymorphic trait
-        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
+        if let Some(impls) = trait_impls.get_mut(&trait_.qual_name()) {
             impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
         } else {
-            self.ctx.trait_impls.insert(
+            trait_impls.insert(
                 trait_.qual_name(),
                 set! {TraitInstance::new(class.clone(), trait_.clone())},
             );
         }
     }
 
-    fn check_collision_and_push(&mut self, class: Type, methods: Context) {
+    fn check_collision_and_push(&mut self, class: Type) {
+        let methods = self.ctx.pop();
         let (_, class_root) = self
             .ctx
             .get_mut_nominal_type_ctx(&class)
             .unwrap_or_else(|| todo!("{class} not found"));
-        for (newly_defined_name, _vi) in methods.locals.iter() {
-            log!("{}", class_root.methods_list.len());
+        for (newly_defined_name, _vi) in methods.locals.clone().into_iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
@@ -1366,7 +1367,7 @@ impl ASTLowerer {
                             self.cfg.input.clone(),
                             line!() as usize,
                             newly_defined_name.loc(),
-                            methods.name.clone().into(),
+                            methods.caused_by(),
                             newly_defined_name.inspect(),
                         ));
                     } else {
