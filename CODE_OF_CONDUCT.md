@@ -1,6 +1,6 @@
 # Code of Conduct
 
-English | <a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_JA.md'>日本語</a> | <a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-CN.md'>简体中文</a> | <a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-TW.md'>繁體中文</a>
+<a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_JA.md'>日本語</a> | <a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-CN.md'>简体中文</a> | <a href='./doc/CODE_OF_CONDUCT/CODE_OF_CONDUCT_zh-TW.md'>繁體中文</a>
 
 ## General
 
