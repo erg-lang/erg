@@ -10,7 +10,7 @@ assert f(g(x, y)) == ((x, y) |> g |> f)
 ```
 
 换句话说，`Callable(object)` 的顺序可以更改为 `object |> Callable`
-管道运算符也可用于方法。 对于方法，`object.method(args)` 更改为 `object |>.method(args)`
+管道运算符也可用于方法。对于方法，`object.method(args)` 更改为 `object |>.method(args)`
 它看起来只是更多的`|>`，但由于粘合强度较低，您可以减少`()`的数量
 
 ```python

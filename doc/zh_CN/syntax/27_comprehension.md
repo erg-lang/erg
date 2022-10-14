@@ -52,7 +52,7 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 
 ## 筛子类型
 
-与推导类似的是筛类型。 筛子类型是以`{Name: Type | Predicate}`创建的(枚举类型)
+与推导类似的是筛类型。筛子类型是以`{Name: Type | Predicate}`创建的(枚举类型)
 sieve类型的情况下，只能指定一个Name，不能指定布局(但是如果是tuple类型可以处理多个值)，Predicate可以在编译时计算，即 ，只能指定一个常量表达式
 
 ```python

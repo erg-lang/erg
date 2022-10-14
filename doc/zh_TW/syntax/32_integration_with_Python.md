@@ -26,7 +26,7 @@ print(foo.private) # 屬性錯誤:
 
 ## 從 Python 導入
 
-默認情況下，從 Python 導入的所有對象都是"Object"類型。 由于此時無法進行比較，因此有必要細化類型
+默認情況下，從 Python 導入的所有對象都是"Object"類型。由于此時無法進行比較，因此有必要細化類型
 
 ## 標準庫中的類型規范
 
@@ -65,7 +65,7 @@ foo = pyimport "foo"
 assert foo.bar(1) in Int
 ```
 
-這通過在運行時執行類型檢查來確保類型安全。 ``declare`` 函數大致如下工作
+這通過在運行時執行類型檢查來確保類型安全。``declare`` 函數大致如下工作
 
 ```python
 declare|S: Subroutine| sub!: S, T =

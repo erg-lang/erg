@@ -4,7 +4,7 @@
 
 ## 重載(臨時多態性)
 
-被放棄了，因為它可以用參數+子類型多態來代替，并且與Python的語義不兼容。 有關詳細信息，請參閱 [overload](../syntax/type/advanced/overloading.md) 文章
+被放棄了，因為它可以用參數+子類型多態來代替，并且與Python的語義不兼容。有關詳細信息，請參閱 [overload](../syntax/type/advanced/overloading.md) 文章
 
 ## 具有顯式生命周期的所有權系統
 

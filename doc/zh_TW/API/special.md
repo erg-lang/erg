@@ -83,7 +83,7 @@ print!(x: Int) # 語法錯誤:
 
 ## `|>`(obj, c: Callable)
 
-執行`c(obj)`。 `x + y |>.foo()` 與 `(x + y).foo()` 相同
+執行`c(obj)`。`x + y |>.foo()` 與 `(x + y).foo()` 相同
 
 ### (x: Option T)`?` -> T | T 
 
@@ -114,11 +114,11 @@ del True # SyntaxError: cannot delete a built-in object
 
 ## do(body: Body) -> Func
 
-生成一個不帶參數的匿名函數。 `() ->` 的語法糖
+生成一個不帶參數的匿名函數。`() ->` 的語法糖
 
 ## do!(body: Body) -> Proc
 
-生成不帶參數的匿名過程。 `() =>` 的語法糖
+生成不帶參數的匿名過程。`() =>` 的語法糖
 
 ## `else`(l, r) -> Choice
 

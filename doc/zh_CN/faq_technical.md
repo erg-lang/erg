@@ -18,7 +18,7 @@
 
 ## Never、{}、None、()、NotImplemented 和 Ellipsis 有什么区别?
 
-A: `Never` 是一种"不可能"的类型。产生运行时错误的子例程将"Never"(或"Never"的合并类型)作为其返回类型。该程序将在检测到这一点后立即停止。尽管 `Never` 类型在定义上也是所有类型的子类，但 `Never` 类型的对象永远不会出现在 Erg 代码中，也永远不会被创建。 `{}` 等价于 `Never`
+A: `Never` 是一种"不可能"的类型。产生运行时错误的子例程将"Never"(或"Never"的合并类型)作为其返回类型。该程序将在检测到这一点后立即停止。尽管 `Never` 类型在定义上也是所有类型的子类，但 `Never` 类型的对象永远不会出现在 Erg 代码中，也永远不会被创建。`{}` 等价于 `Never`
 `Ellipsis` 是一个表示省略号的对象，来自 Python
 `NotImplemented` 也来自 Python。它被用作未实现的标记，但 Erg 更喜欢产生错误的 `todo` 函数
 `None` 是 `NoneType` 的一个实例。它通常与 `Option` 类型一起使用

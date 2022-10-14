@@ -33,7 +33,7 @@ Erg 標配有一個包管理器，您可以使用 `pack` 子命令調用它
 
 ## package.er
 
-`erg pack init` 將生成如下所示的 `package.er` 文件。 `package.er` 描述了包的配置
+`erg pack init` 將生成如下所示的 `package.er` 文件。`package.er` 描述了包的配置
 下面是一個`package.er`的例子
 
 ```python

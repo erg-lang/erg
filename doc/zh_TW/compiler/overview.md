@@ -6,7 +6,7 @@
 
 ## 1. 詞法分析
 
-* `Lexer` 進行詞法分析。 `Lexer::next`(`Lexer`被實現為一個迭代器)負責詞法分析的主要邏輯。 `Token` 作為解析的結果輸出
+* `Lexer` 進行詞法分析。`Lexer::next`(`Lexer`被實現為一個迭代器)負責詞法分析的主要邏輯。`Token` 作為解析的結果輸出
 
 ## 2. 解析
 
@@ -14,11 +14,11 @@
 
 ## 3. 脫糖
 
-* 脫糖由 `Desugarer` 完成。 `AST` 將被輸出
+* 脫糖由 `Desugarer` 完成。`AST` 將被輸出
 
 ## 4. 類型檢查/類型推斷
 
-* `ASTLowerer` 進行打字。類型檢查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`(確定子類型關系)、`Context::unify/sub_unify`(統一/半統一類型變量)、`Context::init_builtin_*`(定義內置 API)。 `HIR` 作為分析結果輸出
+* `ASTLowerer` 進行打字。類型檢查主要由 `Context` 完成。尤其重要的是 `Context::supertype_of`(確定子類型關系)、`Context::unify/sub_unify`(統一/半統一類型變量)、`Context::init_builtin_*`(定義內置 API)。`HIR` 作為分析結果輸出
 
 ## 5. 副作用檢查
 
@@ -30,7 +30,7 @@
 
 ## 7. 字節碼生成
 
-* `CodeGenerator` 將 `HIR` 轉換為 `CodeObj`。 `CodeObj` 保存字節碼和執行配置。特別重要的是`CodeGenerator::compile_expr`
+* `CodeGenerator` 將 `HIR` 轉換為 `CodeObj`。`CodeObj` 保存字節碼和執行配置。特別重要的是`CodeGenerator::compile_expr`
 
 ---
 

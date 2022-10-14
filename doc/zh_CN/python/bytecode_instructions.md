@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3Dd15cbbf7b33df0f78a575cff9679d84c36ea3ab1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=d15cbbf7b33df0f78a575cff9679d84c36ea3ab1)
 
-Python 字节码变量操作命令通过 名称索引(名称索引)访问。 这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)
+Python 字节码变量操作命令通过 名称索引(名称索引)访问。这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)
 一条指令为 2 个字节，指令和参数以 little endian 形式存储
 不带参数的指令也使用 2 个字节(参数部分为 0)
 
@@ -115,4 +115,4 @@ fast_locals 对应的函数内部变量名称列表
 ## 单元格变量
 
 对应于 cellvars
-在函数内捕获到内部闭包函数的变量。 由于制作了副本，因此原始变量保持原样。
+在函数内捕获到内部闭包函数的变量。由于制作了副本，因此原始变量保持原样。

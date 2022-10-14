@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/25_object_system.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/25_object_system.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-可以分配給變量的所有數據。 `Object` 類的屬性如下
+可以分配給變量的所有數據。`Object` 類的屬性如下
 
 * `.__repr__`: 返回對象的(非豐富)字符串表示
 * `.__sizeof__`: 返回對象的大小(包括堆分配)
@@ -27,7 +27,7 @@ assert obj2.x == 1 and obj2.y == 2
 
 ## 屬性
 
-與對象關聯的對象。 特別是，將 self (`self`) 作為其隱式第一個參數的子例程屬性稱為方法
+與對象關聯的對象。特別是，將 self (`self`) 作為其隱式第一個參數的子例程屬性稱為方法
 
 ```python
 # 請注意，private_attr 中沒有`.`

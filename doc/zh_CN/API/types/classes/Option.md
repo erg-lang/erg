@@ -8,7 +8,7 @@
 
 * unwrap(self, msg = "unwrapped a None value") -> T or Panic
 
-提取它，期望内容是 `T` 类型。 如果是 `None`，则输出 `msg` 并恐慌
+提取它，期望内容是 `T` 类型。如果是 `None`，则输出 `msg` 并恐慌
 
 ```python
 x = "...".parse(Int).into(Option Int)

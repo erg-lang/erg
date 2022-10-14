@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/trait_method_resolving.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/trait_method_resolving.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
 `Nat` 是零个或多个`Int`，`Int` 的子类型
-`Nat` 在 Python 类层次结构中不存在。 我想知道 Erg 是如何解决这个补丁方法的?
+`Nat` 在 Python 类层次结构中不存在。我想知道 Erg 是如何解决这个补丁方法的?
 
 ```python
 1.times do:
@@ -73,7 +73,7 @@ FnType T: Type = Patch T -> T
 FnType.type = T
 ```
 
-在 `FnType` 补丁下可以使用如下代码。 我想知道这将如何解决
+在 `FnType` 补丁下可以使用如下代码。我想知道这将如何解决
 
 ```python
 assert (Int -> Int).type == Int
@@ -89,8 +89,8 @@ provided_method_table = {
 }
 ```
 
-`FnType(T)` 检查匹配类型。 在这种情况下，`FnType(T)` 补丁类型是 `Type -> Type`
-这匹配 `Int -> Int`。 如果合适，进行单态化和替换(取 `T -> T` 和 `Int -> Int`、`{T => Int}` 的差异)
+`FnType(T)` 检查匹配类型。在这种情况下，`FnType(T)` 补丁类型是 `Type -> Type`
+这匹配 `Int -> Int`。如果合适，进行单态化和替换(取 `T -> T` 和 `Int -> Int`、`{T => Int}` 的差异)
 
 ```python
 assert FnType(Int).type == Int

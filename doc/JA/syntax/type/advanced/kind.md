@@ -148,4 +148,4 @@ Fn2(T, U).
 
 <span id="1" style="font-size:x-small"><sup>1</sup> 型理論の記法では`*=>*` [↩](#f1)</span>
 
-<span id="2" style="font-size:x-small"><sup>2</sup> 可視性などの微妙な違いはある。 [↩](#f2)</span>
+<span id="2" style="font-size:x-small"><sup>2</sup> 可視性などの微妙な違いはある。[↩](#f2)</span>

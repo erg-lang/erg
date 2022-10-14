@@ -10,7 +10,7 @@ for! 0..9, i =>
 ```
 
 此代碼打印數字 0 到 9
-每個數字(=Int 對象)都分配給`i`，并執行以下操作(=`print！i`)。 這種重復執行稱為__iteration__
+每個數字(=Int 對象)都分配給`i`，并執行以下操作(=`print！i`)。這種重復執行稱為__iteration__
 
 現在讓我們看看 `for!` 過程的類型簽名
 
@@ -43,7 +43,7 @@ log (1..3).iter() # <Range迭代器對象>
 
 `ArrayIterator` 和 `RangeIterator` 都是實現 `Iterator` 的類，它們的存在只是為了提供 `Array` 和 `Range` 迭代函數
 這種設計模式稱為伴生類 [<sup id="f1">1</sup>](#1)
-而"IteratorImpl"補丁是迭代功能的核心。 `Iterator` 只需要一個`.next` 方法，`IteratorImpl` 確實提供了幾十種方法。 `ArrayIterator`和`RangeIterator`只需實現`.next`方法就可以使用`IteratorImpl`的實現方法。 為了方便起見，標準庫實現了許多迭代器
+而"IteratorImpl"補丁是迭代功能的核心。`Iterator` 只需要一個`.next` 方法，`IteratorImpl` 確實提供了幾十種方法。`ArrayIterator`和`RangeIterator`只需實現`.next`方法就可以使用`IteratorImpl`的實現方法。為了方便起見，標準庫實現了許多迭代器
 
 ```mermaid
 classDiagram
@@ -84,7 +84,7 @@ classDiagram
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 這個模式似乎沒有統一的名稱，但是在 Rust 中，有 [companion struct 模式]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82 %8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80% 81%E3 %81%9D%E3%81%AE)，并以此命名。 [?](#f1) </span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 這個模式似乎沒有統一的名稱，但是在 Rust 中，有 [companion struct 模式]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82 %8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80% 81%E3 %81%9D%E3%81%AE)，并以此命名。[?](#f1) </span>
 
 <p align='center'>
     <a href='./15_type.md'>上一頁</a> | <a href='./17_mutability.md'>下一頁</a>

@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_tuple.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_tuple.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
 元組類似于數組，但可以保存不同類型的對象
-這樣的集合稱為不等集合。 相比之下，同構集合包括數組、集合等
+這樣的集合稱為不等集合。相比之下，同構集合包括數組、集合等
 
 ```python
 t = (1, True, "a")
@@ -54,7 +54,7 @@ t.try_into([Show; 3])? .iter().map(x -> log x) # OK
 
 ## 單元
 
-零元素的元組稱為 __unit__。 一個單元是一個值，但也指它自己的類型
+零元素的元組稱為 __unit__。一個單元是一個值，但也指它自己的類型
 
 ```python
 unit = ()
@@ -68,7 +68,7 @@ Unit 是所有元素 0 元組的父類
 () > (Str; 0)
 ```
 
-該對象的用途是用于沒有參數和沒有返回值的過程等。Erg 子例程必須有參數和返回值。 但是，在某些情況下，例如過程，可能沒有有意義的參數或返回值，只有副作用。 在這種情況下，我們將單位用作"無意義的正式值"
+該對象的用途是用于沒有參數和沒有返回值的過程等。Erg 子例程必須有參數和返回值。但是，在某些情況下，例如過程，可能沒有有意義的參數或返回值，只有副作用。在這種情況下，我們將單位用作"無意義的正式值"
 
 ```python
 # ↓ Actually, this parenthesis is a unit
@@ -101,7 +101,7 @@ assert f in T: {(T,) -> T | T}
 assert g in {(Int, ... (Int; N)) -> (Int; N) | N: Nat}
 ```
 
-準確地說，函數的輸入不是元組，而是"具有默認屬性的命名元組"。 這是一個特殊的元組，只能在函數參數中使用，可以像記錄一樣命名，并且可以有默認值
+準確地說，函數的輸入不是元組，而是"具有默認屬性的命名元組"。這是一個特殊的元組，只能在函數參數中使用，可以像記錄一樣命名，并且可以有默認值
 
 ```python
 f(x: Int, y=0) = x + y

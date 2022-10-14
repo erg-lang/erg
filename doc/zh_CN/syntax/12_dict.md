@@ -19,7 +19,7 @@ l = {[]: "empty", [1]: "1"}
 assert l[[]] == "empty"
 ```
 
-对于字典来说，顺序无关紧要。 它也不能有重复的元素。 在这方面，Dict 与 Set 类似
+对于字典来说，顺序无关紧要。它也不能有重复的元素。在这方面，Dict 与 Set 类似
 您可以说 Dict 是具有值的 Set
 
 ```python
@@ -33,7 +33,7 @@ assert l[[]] == "empty"
 {"Alice": 145, "Alice": 1} # Key错误: 重复键`Alice`
 ```
 
-空字典是用 `{:}` 创建的。 请注意，`{}` 表示一个空集
+空字典是用 `{:}` 创建的。请注意，`{}` 表示一个空集
 
 ```python
 mut_dict = !{:}
@@ -44,7 +44,7 @@ assert mut_dict["Alice"] == 145
 
 ## 异构字典
 
-不需要有单一的键/值类型。 这样的字典称为 __heterogenous dict_
+不需要有单一的键/值类型。这样的字典称为 __heterogenous dict_
 
 ```python
 d: {Str: Int, Int: Str} = {"a": 1, 1: "a"}
