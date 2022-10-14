@@ -23,8 +23,6 @@ impl ASTBuilder {
         let module = self.runner.parse(src)?;
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
-        let mut desugarer = Desugarer::new();
-        let module = desugarer.desugar(module);
         let ast = AST::new(Str::rc(self.runner.cfg().input.filename()), module);
         Ok(ast)
     }

@@ -11,8 +11,9 @@ use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
 use crate::codegen::CodeGenerator;
+use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
-use crate::hir::Expr;
+use crate::hir::{Expr, HIR};
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 
@@ -170,9 +171,7 @@ impl Compiler {
 
     pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
         log!(info "the compiling process has started.");
-        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
-        let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(hir);
+        let hir = self.build_link_desugar(src, mode)?;
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(info "the compiling process has completed");
@@ -185,13 +184,18 @@ impl Compiler {
         mode: &str,
     ) -> Result<(CodeObj, Option<Expr>), CompileErrors> {
         log!(info "the compiling process has started.");
-        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
+        let hir = self.build_link_desugar(src, mode)?;
         let last = hir.module.last().cloned();
-        let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(hir);
         let codeobj = self.code_generator.emit(hir);
         log!(info "code object:\n{}", codeobj.code_info());
         log!(info "the compiling process has completed");
         Ok((codeobj, last))
+    }
+
+    fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
+        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
+        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let hir = linker.link(hir);
+        Ok(HIRDesugarer::desugar(hir))
     }
 }
