@@ -22,8 +22,8 @@
 
 ### panic(msg: Str) -> Panic
 
-显示msg并停止。
-支持表情符号的终端有一个🚨前缀。
+显示msg并停止
+支持表情符号的终端有一个🚨前缀
 
 ### discard|T|(x: ...T) -> NoneType
 
@@ -46,11 +46,11 @@ assert True # OK
 
 ### eval(code: Str) -> Object
 
-将`code`作为代码进行评估并返回。
+将`code`作为代码进行评估并返回
 
 ### classof(object: Object) -> Class
 
-返回`object`的类。
+返回`object`的类
 但是，由于无法比较类，如果要判断实例，请使用`object in Class`而不是`classof(object) == Class`
 编译时确定的结构类型是通过`Typeof`获得的
 
@@ -110,8 +110,8 @@ match jan:
 
 ### Typeof
 
-返回参数类型。如果要获取运行时类，请使用`classof`。
-如果您将其用于类型规范，则会出现警告。
+返回参数类型。如果要获取运行时类，请使用`classof`
+如果您将其用于类型规范，则会出现警告
 
 ```python
 x: Typeof i = ...

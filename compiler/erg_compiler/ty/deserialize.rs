@@ -251,8 +251,8 @@ impl Deserializer {
                 fn_name!(),
                 switch_lang!(
                     "japanese" => format!("このオブジェクトは復元できません: {}", other),
-                    "simplified_chinese" => format!("无法反序列化此对象：{}", other),
-                    "traditional_chinese" => format!("無法反序列化此對象：{}", other),
+                    "simplified_chinese" => format!("无法反序列化此对象: {}", other),
+                    "traditional_chinese" => format!("無法反序列化此對象: {}", other),
                     "english" => format!("cannot deserialize this object: {}", other),
                 ),
             )),

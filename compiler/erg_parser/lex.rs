@@ -858,8 +858,8 @@ impl Iterator for Lexer /*<'a>*/ {
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "<.という演算子はありません",
-                                "simplified_chinese" => "没有这样的运算符：<.",
-                                "traditional_chinese" => "沒有這樣的運算符：<.",
+                                "simplified_chinese" => "没有这样的运算符: <.",
+                                "traditional_chinese" => "沒有這樣的運算符: <.",
                                 "english" => "no such operator: <.",
                             ),
                             None,
@@ -1167,8 +1167,8 @@ impl Iterator for Lexer /*<'a>*/ {
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("この文字は使用できません: '{invalid}'"),
-                        "simplified_chinese" => format!("无效字符：'{invalid}'"),
-                        "traditional_chinese" => format!("無效字符：'{invalid}'"),
+                        "simplified_chinese" => format!("无效字符: '{invalid}'"),
+                        "traditional_chinese" => format!("無效字符: '{invalid}'"),
                         "english" => format!("invalid character: '{invalid}'"),
                     ),
                     None,

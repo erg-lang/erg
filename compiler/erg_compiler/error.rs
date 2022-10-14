@@ -155,8 +155,8 @@ impl CompileError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自：{fn_name}:{line}"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
                     "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
@@ -182,12 +182,12 @@ impl CompileError {
                     "japanese" => format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
                             これはコンパイラのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n\
                             {fn_name}より発生"),
-                "simplified_chinese" => format!("堆栈中的元素数无效（元素数：{stack_len}，块id：{block_id}）\n\
+                "simplified_chinese" => format!("堆栈中的元素数无效（元素数: {stack_len}，块id: {block_id}）\n\
                             这是 Erg 编译器的一个错误，请报告它 (https://github.com/erg-lang/erg)\n\
-                            起因于：{fn_name}"),
-                "traditional_chinese" => format!("堆棧中的元素數無效（元素數：{stack_len}，塊id：{block_id}）\n\
+                            起因于: {fn_name}"),
+                "traditional_chinese" => format!("堆棧中的元素數無效（元素數: {stack_len}，塊id: {block_id}）\n\
                             這是 Erg 編譯器的一個錯誤，請報告它 (https://github.com/erg-lang/erg)\n\
-                            起因於：{fn_name}"),
+                            起因於: {fn_name}"),
                     "english" => format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
                             this is a bug of the Erg compiler, please report it (https://github.com/erg-lang/erg)\n\
                             caused from: {fn_name}"),
@@ -263,8 +263,8 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自：{fn_name}:{line}"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
                     "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
@@ -349,8 +349,8 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("{YELLOW}{name}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "与えられた型の単一化候補:\n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
                     "english" => format!("the type of {YELLOW}{name}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "unification candidates of a given type:\n", candidates, |x: &Set<Type>| x.folded_display())),
                 ),
                 hint,
@@ -376,8 +376,8 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("{name}の戻り値の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{name}的返回类型不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{name}的返回類型不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "simplified_chinese" => format!("{name}的返回类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
+                    "traditional_chinese" => format!("{name}的返回類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
                     "english" => format!("the return type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
                 ),
                 None,
@@ -402,8 +402,8 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("{name}: {t}は宣言されましたが初期化されていません"),
-                    "simplified_chinese" => format!("{name}：{t}已声明但未初始化"),
-                    "traditional_chinese" => format!("{name}：{t}已宣告但未初始化"),
+                    "simplified_chinese" => format!("{name}: {t}已声明但未初始化"),
+                    "traditional_chinese" => format!("{name}: {t}已宣告但未初始化"),
                     "english" => format!("{name}: {t} is declared but not initialized"),
                 ),
                 None,
@@ -428,8 +428,8 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("ポジショナル引数の数が違います。\n予期した個数: {GREEN}{expect}{RESET}\n与えられた個数: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("正则参数的数量不匹配：\n预期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("正則參數的數量不匹配：\n預期：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "simplified_chinese" => format!("正则参数的数量不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
+                    "traditional_chinese" => format!("正則參數的數量不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
                     "english" => format!("the number of positional arguments is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
                 ),
                 None,
@@ -516,21 +516,21 @@ impl TyCheckError {
                 loc,
                 switch_lang!(
                     "japanese" => format!(
-                        "{name}に渡された引数の数が多すぎます。
+                        "{name}に渡された引数の数が多すぎます
 必要な引数の合計数: {GREEN}{params_len}{RESET}個
 渡された引数の数:   {RED}{pos_args_len}{RESET}個
 キーワード引数の数: {RED}{kw_args_len}{RESET}個"
                     ),
-                    "simplified_chinese" => format!("传递给{name}的参数过多。
-                    所需参数总数：{GREEN}{params_len}{RESET}
-                    传递的参数数量：{RED}{pos_args_len}{RESET}
-                    关键字参数的数量：{RED}{kw_args_len}{RESET}
+                    "simplified_chinese" => format!("传递给{name}的参数过多
+                    所需参数总数: {GREEN}{params_len}{RESET}
+                    传递的参数数量: {RED}{pos_args_len}{RESET}
+                    关键字参数的数量: {RED}{kw_args_len}{RESET}
                     "
                     ),
-                    "traditional_chinese" => format!("傳遞給{name}的參數過多。
-                    所需參數總數：{GREEN}{params_len}{RESET}
-                    傳遞的參數數量：{RED}{pos_args_len}{RESET}
-                    關鍵字參數的數量：{RED}{kw_args_len}{RESET}
+                    "traditional_chinese" => format!("傳遞給{name}的參數過多
+                    所需參數總數: {GREEN}{params_len}{RESET}
+                    傳遞的參數數量: {RED}{pos_args_len}{RESET}
+                    關鍵字參數的數量: {RED}{kw_args_len}{RESET}
                     "
                     ),
                     "english" => format!(
@@ -644,8 +644,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 loc,
                 switch_lang!(
                     "japanese" => format!("型の単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
-                    "simplified_chinese" => format!("类型统一失败：\n左边：{YELLOW}{lhs_t}{RESET}\n右边：{YELLOW}{rhs_t}{RESET}"),
-                    "traditional_chinese" => format!("類型統一失敗：\n左邊：{YELLOW}{lhs_t}{RESET}\n右邊：{YELLOW}{rhs_t}{RESET}"),
+                    "simplified_chinese" => format!("类型统一失败: \n左边: {YELLOW}{lhs_t}{RESET}\n右边: {YELLOW}{rhs_t}{RESET}"),
+                    "traditional_chinese" => format!("類型統一失敗: \n左邊: {YELLOW}{lhs_t}{RESET}\n右邊: {YELLOW}{rhs_t}{RESET}"),
                     "english" => format!("unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
                 ),
                 None,
@@ -670,8 +670,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 loc,
                 switch_lang!(
                     "japanese" => format!("型の再単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
-                    "simplified_chinese" => format!("重新统一类型失败：\n左边：{YELLOW}{lhs_t}{RESET}\n右边：{YELLOW}{rhs_t}{RESET}"),
-                    "traditional_chinese" => format!("重新統一類型失敗：\n左邊：{YELLOW}{lhs_t}{RESET}\n右邊：{YELLOW}{rhs_t}{RESET}"),
+                    "simplified_chinese" => format!("重新统一类型失败: \n左边: {YELLOW}{lhs_t}{RESET}\n右边: {YELLOW}{rhs_t}{RESET}"),
+                    "traditional_chinese" => format!("重新統一類型失敗: \n左邊: {YELLOW}{lhs_t}{RESET}\n右邊: {YELLOW}{rhs_t}{RESET}"),
                     "english" => format!("re-unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
                 ),
                 None,
@@ -696,8 +696,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 loc,
                 switch_lang!(
                     "japanese" => format!("この式の部分型制約を満たせません:\nサブタイプ: {YELLOW}{sub_t}{RESET}\nスーパータイプ: {YELLOW}{sup_t}{RESET}"),
-                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束：\n子类型：{YELLOW}{sub_t}{RESET}\n超类型：{YELLOW}{sup_t}{RESET}"),
-                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束：\n子類型：{YELLOW}{sub_t}{RESET}\n超類型：{YELLOW}{sup_t}{RESET}"),
+                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束: \n子类型: {YELLOW}{sub_t}{RESET}\n超类型: {YELLOW}{sup_t}{RESET}"),
+                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束: \n子類型: {YELLOW}{sub_t}{RESET}\n超類型: {YELLOW}{sup_t}{RESET}"),
                     "english" => format!("the subtype constraint in this expression cannot be satisfied:\nsubtype: {YELLOW}{sub_t}{RESET}\nsupertype: {YELLOW}{sup_t}{RESET}"),
                 ),
                 None,
@@ -721,8 +721,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 Location::Unknown,
                 switch_lang!(
                     "japanese" => format!("述語式の単一化に失敗しました:\n左辺: {YELLOW}{lhs}{RESET}\n右辺: {YELLOW}{rhs}{RESET}"),
-                    "simplified_chinese" => format!("无法统一谓词表达式：\n左边：{YELLOW}{lhs}{RESET}\n左边：{YELLOW}{rhs}{RESET}"),
-                    "traditional_chinese" => format!("無法統一謂詞表達式：\n左邊：{YELLOW}{lhs}{RESET}\n左邊：{YELLOW}{rhs}{RESET}"),
+                    "simplified_chinese" => format!("无法统一谓词表达式: \n左边: {YELLOW}{lhs}{RESET}\n左边: {YELLOW}{rhs}{RESET}"),
+                    "traditional_chinese" => format!("無法統一謂詞表達式: \n左邊: {YELLOW}{lhs}{RESET}\n左邊: {YELLOW}{rhs}{RESET}"),
                     "english" => format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
                 ),
                 None,
@@ -838,8 +838,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 loc,
                 switch_lang!(
                     "japanese" => format!("{YELLOW}{member_name}{RESET}の型が違います。\n{trait_type}で宣言された型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{YELLOW}{member_name}{RESET}的类型不匹配：\n在{trait_type}中声明的类型：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{YELLOW}{member_name}{RESET}的類型不匹配：\n在{trait_type}中聲明的類型：{GREEN}{expect}{RESET}\n但找到：{RED}{found}{RESET}"),
+                    "simplified_chinese" => format!("{YELLOW}{member_name}{RESET}的类型不匹配: \n在{trait_type}中声明的类型: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
+                    "traditional_chinese" => format!("{YELLOW}{member_name}{RESET}的類型不匹配: \n在{trait_type}中聲明的類型: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
                     "english" => format!("the type of {YELLOW}{member_name}{RESET} is mismatched:\ndeclared in {trait_type}: {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
                 ),
                 hint,
@@ -944,8 +944,8 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 expr.loc(),
                 switch_lang!(
                     "japanese" => format!("{expr}の型を一意に決定できませんでした\n候補: {}", fmt_vec(candidates)),
-                    "simplified_chinese" => format!("无法确定{expr}的类型\n候选：{}", fmt_vec(candidates)),
-                    "traditional_chinese" => format!("無法確定{expr}的類型\n候選：{}", fmt_vec(candidates)),
+                    "simplified_chinese" => format!("无法确定{expr}的类型\n候选: {}", fmt_vec(candidates)),
+                    "traditional_chinese" => format!("無法確定{expr}的類型\n候選: {}", fmt_vec(candidates)),
                     "english" => format!("cannot determine the type of {expr}\ncandidates: {}", fmt_vec(candidates)),
                 ),
                 Some(
@@ -1239,8 +1239,8 @@ impl LowerError {
             let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
-                "simplified_chinese" => format!("存在相同名称变量：{n}"),
-                "traditional_chinese" => format!("存在相同名稱變量：{n}"),
+                "simplified_chinese" => format!("存在相同名称变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
                 "english" => format!("exists a similar name variable: {n}"),
             )
             .into()
@@ -1276,8 +1276,8 @@ impl LowerError {
             let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
-                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
+                "simplified_chinese" => format!("具有相同名称的属性: {n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
                 "english" => format!("has a similar name attribute: {n}"),
             )
             .into()
@@ -1315,8 +1315,8 @@ impl LowerError {
             let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的属性：{n}"),
-                "traditional_chinese" => format!("具有相同名稱的屬性：{n}"),
+                "simplified_chinese" => format!("具有相同名称的属性: {n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
                 "english" => format!("has a similar name attribute: {n}"),
             )
             .into()

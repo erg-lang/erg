@@ -14,7 +14,7 @@ for! 0..10, i =>
 log v.sum()
 ```
 
-從此代碼生成的 AST 如下所示：
+從此代碼生成的 AST 如下所示: 
 
 ```python
 AST(Module[
@@ -71,7 +71,7 @@ AST(Module[
 ])
 ```
 
-從 AST 生成的 HIR 如下所示：
+從 AST 生成的 HIR 如下所示: 
 
 ```python
 HIR(Module[

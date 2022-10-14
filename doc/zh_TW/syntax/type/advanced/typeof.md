@@ -18,10 +18,10 @@ assert Typeof(J) == {i = Int}
 assert {X: C | X == I} < C and C <= {i = Int}
 ```
 
-`Typeof` 函數返回派生類型，而不是對象的類。
-因此，例如 `C = Class T` 類的`I: C`，`Typeof(I) == T`。
-值類沒有對應的記錄類型。 為了解決這個問題，值類應該是具有 `__valueclass_tag__` 屬性的記錄類型。
-請注意，您不能訪問此屬性，也不能在用戶定義的類型上定義 `__valueclass_tag__` 屬性。
+`Typeof` 函數返回派生類型，而不是對象的類
+因此，例如 `C = Class T` 類的`I: C`，`Typeof(I) == T`
+值類沒有對應的記錄類型。 為了解決這個問題，值類應該是具有 `__valueclass_tag__` 屬性的記錄類型
+請注意，您不能訪問此屬性，也不能在用戶定義的類型上定義 `__valueclass_tag__` 屬性
 
 ```python
 i: Int = ...
@@ -30,15 +30,15 @@ s: Str = ...
 assert Typeof(s) == {__valueclass_tag__ = Phantom Str}
 ```
 
-`Typeof` 僅輸出結構化類型。 我解釋說結構化類型包括屬性類型、篩類型和(真正的)代數類型。
-這些是獨立的類型(存在推理優先級)，不會發生推理沖突。
-屬性類型和代數類型可以跨越多個類，而篩類型是單個類的子類型。
-Erg 盡可能將對象類型推斷為篩類型，如果不可能，則將篩基類擴展為結構化類型(見下文)。
+`Typeof` 僅輸出結構化類型。 我解釋說結構化類型包括屬性類型、篩類型和(真正的)代數類型
+這些是獨立的類型(存在推理優先級)，不會發生推理沖突
+屬性類型和代數類型可以跨越多個類，而篩類型是單個類的子類型
+Erg 盡可能將對象類型推斷為篩類型，如果不可能，則將篩基類擴展為結構化類型(見下文)
 
 ## 結構化的
 
-所有類都可以轉換為派生類型。 這稱為 __結構化__。 類的結構化類型可以通過 `Structure` 函數獲得。
-如果一個類是用`C = Class T`定義的(所有類都以這種形式定義)，那么`Structure(C) == T`。
+所有類都可以轉換為派生類型。 這稱為 __結構化__。 類的結構化類型可以通過 `Structure` 函數獲得
+如果一個類是用`C = Class T`定義的(所有類都以這種形式定義)，那么`Structure(C) == T`
 
 ```python
 C = Class {i = Int}
@@ -49,7 +49,7 @@ Nat = Class {I: Int | I >= 0}
 assert Structure(Nat) == {I: Int | I >= 0}
 Option T = Class (T or NoneType)
 assert Structure(Option Int) == Or(Int, NoneType)
-assert Structure(Option) # 類型錯誤：只能構造單態類型
+assert Structure(Option) # 類型錯誤: 只能構造單態類型
 # 你實際上不能用 __valueclass_tag__ 定義一條記錄，但在概念上
 assert Structure(Int) == {__valueclass_tag__ = Phantom Int}
 assert Structure(Str) == {__valueclass_tag__ = Phantom Str}

@@ -4,8 +4,8 @@
 
 ## 導出到 Python
 
-編譯 Erg 腳本時，會生成一個 .pyc 文件，可以簡單地將其作為 Python 模塊導入。
-但是，無法從 Python 訪問在 Erg 端設置為私有的變量。
+編譯 Erg 腳本時，會生成一個 .pyc 文件，可以簡單地將其作為 Python 模塊導入
+但是，無法從 Python 訪問在 Erg 端設置為私有的變量
 
 ```python
 # foo.er
@@ -21,16 +21,16 @@ erg --compile foo.er
 import foo
 
 print(foo.public)
-print(foo.private) # 屬性錯誤：
+print(foo.private) # 屬性錯誤: 
 ```
 
 ## 從 Python 導入
 
-默認情況下，從 Python 導入的所有對象都是"Object"類型。 由于此時無法進行比較，因此有必要細化類型。
+默認情況下，從 Python 導入的所有對象都是"Object"類型。 由于此時無法進行比較，因此有必要細化類型
 
 ## 標準庫中的類型規范
 
-Python 標準庫中的所有 API 都是由 Erg 開發團隊指定的類型。
+Python 標準庫中的所有 API 都是由 Erg 開發團隊指定的類型
 
 ```python
 time = pyimport "time"
@@ -39,8 +39,8 @@ time.sleep! 1
 
 ## 用戶腳本的類型規范
 
-創建一個類型為 Python `foo` 模塊的 `foo.d.er` 文件。
-Python 端的類型提示被忽略，因為它們不是 100% 保證的。
+創建一個類型為 Python `foo` 模塊的 `foo.d.er` 文件
+Python 端的類型提示被忽略，因為它們不是 100% 保證的
 
 ```python
 # foo.py

@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/types/traits/Num.md%26commit_hash%3D14710744ed4c3aa29a43953366c67162bc157f7d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/types/traits/Num.md&commit_hash=14710744ed4c3aa29a43953366c67162bc157f7d)
 
 
-`A<：B`表示类型A是类型B的子类型声明。此外, 类型A此时称为子类型, 类型B称为广义类型(超类型)。此外, 如果`A<：B`, 则类型为A的所有表达式都具有类型B的属性。这称为包含(subsumption)
+`A<: B`表示类型A是类型B的子类型声明。此外, 类型A此时称为子类型, 类型B称为广义类型(超类型)。此外, 如果`A<: B`, 则类型为A的所有表达式都具有类型B的属性。这称为包含(subsumption)
 
 Erg内置数字类型的类型关系如下:
 
@@ -31,7 +31,7 @@ True
 以后不能重新定义类之间的转换。只有在定义类时通过继承指定超类时, 它才有资格进行强制转换
 此外，特征不能被部分类型化, 除非它们在类定义时基本上“实现”。但是，这只能通过 [patch](../../../syntax/type/07_patch.md) 来完成
 
-如果协变复合文字(例如数组文字)处于包含关系中, 则可以进行强制转换。
+如果协变复合文字(例如数组文字)处于包含关系中, 则可以进行强制转换
 但是请注意，具有非退化的类型不能在 Erg 中强制转换，即使它们处于包含关系中(有关详细信息，请参阅 [degenerate](../../../syntax/type/advanced/variance.md))
 
 ## 定义

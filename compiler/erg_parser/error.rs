@@ -40,8 +40,8 @@ impl LexError {
             loc,
             switch_lang!(
                 "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给https://github.com/erg-lang/erg\n原因来自：{fn_name}:{line}"),
-                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給https://github.com/erg-lang/erg\n原因來自：{fn_name}:{line}"),
+                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
+                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
                 "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
             ),
             None,
@@ -105,8 +105,8 @@ impl LexError {
         let hint = similar_name.map(|n| {
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
-                "simplified_chinese" => format!("存在相同名称变量：{n}"),
-                "traditional_chinese" => format!("存在相同名稱變量：{n}"),
+                "simplified_chinese" => format!("存在相同名称变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
                 "english" => format!("exists a similar name variable: {n}"),
             )
             .into()

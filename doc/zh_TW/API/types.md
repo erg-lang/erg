@@ -8,15 +8,15 @@
 
 ### 對象
 
-* `__dir__`：將對象的屬性作為數組返回(dir函數)
+* `__dir__`: 將對象的屬性作為數組返回(dir函數)
 * `__getattribute__`: 獲取并返回一個屬性
-* `__hash__`：返回對象的哈希值
-* `__repr__`：對象的字符串表示(不存在豐富/默認實現)
-* `__sizeof__`：返回對象的大小(包括在堆中分配的大小)
+* `__hash__`: 返回對象的哈希值
+* `__repr__`: 對象的字符串表示(不存在豐富/默認實現)
+* `__sizeof__`: 返回對象的大小(包括在堆中分配的大小)
 
 ### 顯示
 
-* `__str__`：返回對象的字符串表示(豐富)
+* `__str__`: 返回對象的字符串表示(豐富)
 
 ### Fmt
 
@@ -24,7 +24,7 @@
 
 ### 文檔
 
-* `__doc__`：對象描述
+* `__doc__`: 對象描述
 
 ### 命名
 
@@ -38,33 +38,33 @@
 ## 對象系統
 
 Trait 類相當于 Python 中的 ABC(抽象基類，接口)
-實例屬于1、True、"aaa"等。
-類是 Int、Bool、Str 等。
+實例屬于1、True、"aaa"等
+類是 Int、Bool、Str 等
 
 ### 類型
 
-* `__父類__`：超類型(`__mro__` 是一個數組，但這個是一個 Set)
+* `__父類__`: 超類型(`__mro__` 是一個數組，但這個是一個 Set)
 * `__basicsize__`:
-* `__dictoffset__`：Evm 不支持
+* `__dictoffset__`: Evm 不支持
 * `__flags__`:
-* `__itemsize__`：實例的大小(如果不是類，則為 0)
-* `__weakrefoffset__`：Evm 不支持
+* `__itemsize__`: 實例的大小(如果不是類，則為 0)
+* `__weakrefoffset__`: Evm 不支持
 * `__membercheck__`: 相當于`ismember(x, T)`
-* `__subtypecheck__`：等價于`issubtype(U, T)`，別名`__subclasshook__`(兼容CPython)
+* `__subtypecheck__`: 等價于`issubtype(U, T)`，別名`__subclasshook__`(兼容CPython)
 
 ### 實例
 
-* `__class__`：返回創建實例的類(自動附加到使用 `.new` 創建的對象)
+* `__class__`: 返回創建實例的類(自動附加到使用 `.new` 創建的對象)
 
 ### Class
 
-* `__mro__`：用于方法解析的類型數組(包括自身，始終以 Object 結尾)
-* `__base__`：基本類型(`__mro__[1]` 如果有多個)
+* `__mro__`: 用于方法解析的類型數組(包括自身，始終以 Object 結尾)
+* `__base__`: 基本類型(`__mro__[1]` 如果有多個)
 * `__new__`: 實例化
 * `__init__`: 初始化實例
 * `__init_subclass__`: 初始化實例
-* `__intstancecheck__`：使用類似于 `MyClass.__instancecheck__(x)`，等價于 `isinstance(x, MyClass)`
-* `__subclasscheck__`：等價于 `issubclass(C, MyClass)`
+* `__intstancecheck__`: 使用類似于 `MyClass.__instancecheck__(x)`，等價于 `isinstance(x, MyClass)`
+* `__subclasscheck__`: 等價于 `issubclass(C, MyClass)`
 
 ## 運算符
 
@@ -78,9 +78,9 @@ Trait 類相當于 Python 中的 ABC(抽象基類，接口)
 ### 秩序
 
 * `__lt__(self, rhs: Self) -> Bool`: 對象比較函數 (<)
-* `__le__`：對象比較函數(<=)，默認實現
-* `__gt__`：對象比較函數(>)，默認實現
-* `__ge__`：對象比較函數(>=)，默認實現
+* `__le__`: 對象比較函數(<=)，默認實現
+* `__gt__`: 對象比較函數(>)，默認實現
+* `__ge__`: 對象比較函數(>=)，默認實現
 
 ### BinAdd
 
@@ -100,7 +100,7 @@ Trait 類相當于 Python 中的 ABC(抽象基類，接口)
 
 ### BinMul <: Mul Self
 
-* `__pow__`：實現 `**`(默認實現)
+* `__pow__`: 實現 `**`(默認實現)
 
 ### Div R, O
 
@@ -118,9 +118,9 @@ Trait 類相當于 Python 中的 ABC(抽象基類，接口)
 
 ### Complex (= Inherit(Object, Impl := Num))
 
-* `imag: Ratio`：返回虛部
-* `real: Ratio`：返回實部
-* `conjugate self -> Complex`：返回復共軛
+* `imag: Ratio`: 返回虛部
+* `real: Ratio`: 返回實部
+* `conjugate self -> Complex`: 返回復共軛
 
 ### Float (= Inherit(FloatComplex, Impl := Num))
 
@@ -168,22 +168,22 @@ Trait 類相當于 Python 中的 ABC(抽象基類，接口)
 
 ### 位
 
-* `from_bytes`：從字節轉換
-* `to_bytes`：轉換為字節(指定長度和字節序(字節序))
-* `bit_length`：返回位長度
+* `from_bytes`: 從字節轉換
+* `to_bytes`: 轉換為字節(指定長度和字節序(字節序))
+* `bit_length`: 返回位長度
 
 ### 可迭代 T
 
-請注意，它不是 `Iterator` 本身的類型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`。
+請注意，它不是 `Iterator` 本身的類型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`
 
-* `iter`：創建一個迭代器。
+* `iter`: 創建一個迭代器
 
 ### 迭代器 T
 
-Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().fold (sum, n) -> sum + n*2`等是可能的。
-由于所有和任何在使用后都會被破壞，因此沒有副作用。這些應該使用沒有副作用的 `next` 來實現，但內部使用 `Iterator!.next!` 來提高執行效率。
+Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().fold (sum, n) -> sum + n*2`等是可能的
+由于所有和任何在使用后都會被破壞，因此沒有副作用。這些應該使用沒有副作用的 `next` 來實現，但內部使用 `Iterator!.next!` 來提高執行效率
 
-* `next`：返回第一個元素和剩余的迭代器。
+* `next`: 返回第一個元素和剩余的迭代器
 * `all`
 * `any`
 * `filter`
@@ -204,11 +204,11 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 
 ### Iterator!T = IteratorT 和 ...
 
-* `next!`：獲取第一個元素。
+* `next!`: 獲取第一個元素
 
 ## SizedIterator T = 迭代器 T 和 ...
 
-有限數量元素的迭代器。
+有限數量元素的迭代器
 
 * `len`:
 * `chain`:
@@ -226,21 +226,21 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 ## Seq T = SizedIterable T 和 ...
 
 * `concat`: 合并兩個 Seq
-* `__getitem__`：等同于使用 `[]` 訪問(否則會出現恐慌)
+* `__getitem__`: 等同于使用 `[]` 訪問(否則會出現恐慌)
 * 與 `get`: __getitem__ 不同，它返回 Option
-* `maketrans`：創建替換表(靜態方法)
+* `maketrans`: 創建替換表(靜態方法)
 * `replace`: 替換
-* `translate`：根據替換表替換
+* `translate`: 根據替換表替換
 * `insert`: 添加到 idx
 * `remove`: 刪除 idx
 * `prepend`: 前置
 * `dequeue`: 移除頭部
-* `push`：添加到末尾
+* `push`: 添加到末尾
 * `pop`: 取尾巴
-* `dedup`：刪除連續值
-* `uniq`：刪除重復元素(通過 sort |> dedup 實現，因此順序可能會改變)
-* `swap`：交換元素
-* `reverse`：反轉元素
+* `dedup`: 刪除連續值
+* `uniq`: 刪除重復元素(通過 sort |> dedup 實現，因此順序可能會改變)
+* `swap`: 交換元素
+* `reverse`: 反轉元素
 * `sort`: 排序元素
 * `first`:
 * `last`:
@@ -249,16 +249,16 @@ Nat 和 Range 有迭代器，所以 `Nat.iter().map n -> n**2`, `(3..10).iter().
 
 * `__setitem__!`:
 * `__delitem__!`:
-* `插入！`：添加到 idx
+* `插入！`: 添加到 idx
 * `remove!`: 刪除 idx
-* `prepend!`：前置
+* `prepend!`: 前置
 * `dequeue!`: 刪除開頭
-* `push!`：添加到末尾
-* `pop!`：拿尾巴
-* `dedup!`：刪除連續值
+* `push!`: 添加到末尾
+* `pop!`: 拿尾巴
+* `dedup!`: 刪除連續值
 * `uniq!`: 刪除重復元素(通過排序實現！|> dedup!，因此順序可能會改變)
-* `swap!`：交換元素
-* `reverse!`：反轉元素
+* `swap!`: 交換元素
+* `reverse!`: 反轉元素
 * `set!`
 * `sort!`: 排序元素
 * `translate!`

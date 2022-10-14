@@ -23,9 +23,9 @@ print! x + 2s # TypeError: `+`(Meter, Sec) is not implemented
 
 unitでは以下の単位を型として定義しています。SI(国際単位系)と呼ばれるものです。
 
-* 長さ：Meter(単位定数: m)
-* 質量：KiloGram(単位定数: kg, g = 0.001kg)
-* 時間：Sec (分、時間、日、年などはSecから生成されたminute, hour, day, yearなどの定数がある)
+* 長さ: Meter(単位定数: m)
+* 質量: KiloGram(単位定数: kg, g = 0.001kg)
+* 時間: Sec (分、時間、日、年などはSecから生成されたminute, hour, day, yearなどの定数がある)
 * 電流: Amper(単位定数: a)
 * 温度: Kelvin(単位定数: k, Fahren, Celsius型もあり、相互変換可能)
 * 物質量: Mol(単位定数: mol)

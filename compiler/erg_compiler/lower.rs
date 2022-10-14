@@ -232,8 +232,8 @@ impl ASTLowerer {
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "请明确指定类型，例如：Int or Str",
-                            "traditional_chinese" => "請明確指定類型，例如：Int or Str",
+                            "simplified_chinese" => "请明确指定类型，例如: Int or Str",
+                            "traditional_chinese" => "請明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
                         .into(),
@@ -378,8 +378,8 @@ impl ASTLowerer {
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "simplified_chinese" => "明确指定类型，例如: Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
                         .into(),
@@ -505,8 +505,8 @@ impl ASTLowerer {
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如：Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如：Int or Str",
+                            "simplified_chinese" => "明确指定类型，例如: Int or Str",
+                            "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
                         .into(),

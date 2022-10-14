@@ -2,11 +2,11 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/14_dependent.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/14_dependent.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-依賴類型是一個特性，可以說是 Erg 的最大特性。
-依賴類型是將值作為參數的類型。 普通的多態類型只能將類型作為參數，但依賴類型放寬了這個限制。
+依賴類型是一個特性，可以說是 Erg 的最大特性
+依賴類型是將值作為參數的類型。 普通的多態類型只能將類型作為參數，但依賴類型放寬了這個限制
 
-依賴類型等價于`[T; N]`(`數組(T，N)`)。
-這種類型不僅取決于內容類型"T"，還取決于內容數量"N"。 `N` 包含一個`Nat` 類型的對象。
+依賴類型等價于`[T; N]`(`數組(T，N)`)
+這種類型不僅取決于內容類型"T"，還取決于內容數量"N"。 `N` 包含一個`Nat` 類型的對象
 
 ```python
 a1 = [1, 2, 3]
@@ -16,7 +16,7 @@ assert a1 in [Nat; 4]
 assert a1 + a2 in [Nat; 7]
 ```
 
-如果函數參數中傳遞的類型對象與返回類型有關，則寫：
+如果函數參數中傳遞的類型對象與返回類型有關，則寫: 
 
 ```python
 narray: |N: Nat| {N} -> [{N}; N]
@@ -24,7 +24,7 @@ narray(N: Nat): [N; N] = [N; N]
 assert array(3) == [3, 3, 3]
 ```
 
-定義依賴類型時，所有類型參數都必須是常量。
+定義依賴類型時，所有類型參數都必須是常量
 
 依賴類型本身存在于現有語言中，但 Erg 具有在依賴類型上定義過程方法的特性
 
@@ -41,14 +41,14 @@ T(X).
 T(1).x() # 1
 ```
 
-可變依賴類型的類型參數可以通過方法應用程序進行轉換。
+可變依賴類型的類型參數可以通過方法應用程序進行轉換
 轉換規范是用 `~>` 完成的
 
 ```python
 # 注意 `Id` 是不可變類型，不能轉換
 VM!(State: {"stopped", "running"}! := _, Id: Nat := _) = Class(..., Impl := Phantom! State)
 VM!().
-    # 不改變的變量可以通過傳遞`_`省略。
+    # 不改變的變量可以通過傳遞`_`省略
     start! ref! self("stopped" ~> "running") =
         self.initialize_something!()
         self::set_phantom!("running")
@@ -62,15 +62,15 @@ VM!("running" ~> "running").stop!ref!self =
 vm = VM!.new()
 vm.start!()
 vm.stop!()
-vm.stop!() # 類型錯誤：VM!(!"stopped", 1) 沒有 .stop!()
-# 提示：VM!(!"running", 1) 有 .stop!()
+vm.stop!() # 類型錯誤: VM!(!"stopped", 1) 沒有 .stop!()
+# 提示: VM!(!"running", 1) 有 .stop!()
 ```
 
-您還可以嵌入或繼承現有類型以創建依賴類型。
+您還可以嵌入或繼承現有類型以創建依賴類型
 
 ```python
 MyArray(T, N) = Inherit[T; N]
 
-# self 的類型：Self(T, N) 與 .array 一起變化
+# self 的類型: Self(T, N) 與 .array 一起變化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```

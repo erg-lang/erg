@@ -4,7 +4,7 @@
 
 ## 重载(临时多态性)
 
-被放弃了，因为它可以用参数+子类型多态来代替，并且与Python的语义不兼容。 有关详细信息，请参阅 [overload](../syntax/type/advanced/overloading.md) 文章。
+被放弃了，因为它可以用参数+子类型多态来代替，并且与Python的语义不兼容。 有关详细信息，请参阅 [overload](../syntax/type/advanced/overloading.md) 文章
 
 ## 具有显式生命周期的所有权系统
 

@@ -4,7 +4,7 @@
 
 ## [API/](./API/index.md)
 
-    本節介紹 Erg 的內置或標準庫提供的子程序、類型、常量等的規范。
+    本節介紹 Erg 的內置或標準庫提供的子程序、類型、常量等的規范
 
 ## [compiler/](./compiler/index.md)
 
@@ -12,15 +12,15 @@
 
 ## [dev_guide/](./dev_guide/index.md)
 
-    它解釋了項目的發展政策，如何做出貢獻等。
+    它解釋了項目的發展政策，如何做出貢獻等
 
 ## [python/](./python/index.md)
 
-    解釋了開發 Erg 所需的 Python 知識。
+    解釋了開發 Erg 所需的 Python 知識
 
 ## [syntax/](./syntax/00_basic.md)
 
-    Erg 的語法進行了解釋。
+    Erg 的語法進行了解釋
 
 ## [tools/](./tools/index.md)
 

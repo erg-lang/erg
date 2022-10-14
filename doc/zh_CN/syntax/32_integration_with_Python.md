@@ -4,8 +4,8 @@
 
 ## 导出到 Python
 
-编译 Erg 脚本时，会生成一个 .pyc 文件，可以简单地将其作为 Python 模块导入。
-但是，无法从 Python 访问在 Erg 端设置为私有的变量。
+编译 Erg 脚本时，会生成一个 .pyc 文件，可以简单地将其作为 Python 模块导入
+但是，无法从 Python 访问在 Erg 端设置为私有的变量
 
 ```python
 # foo.er
@@ -21,16 +21,16 @@ erg --compile foo.er
 import foo
 
 print(foo.public)
-print(foo.private) # 属性错误：
+print(foo.private) # 属性错误: 
 ```
 
 ## 从 Python 导入
 
-默认情况下，从 Python 导入的所有对象都是"Object"类型。 由于此时无法进行比较，因此有必要细化类型。
+默认情况下，从 Python 导入的所有对象都是"Object"类型。 由于此时无法进行比较，因此有必要细化类型
 
 ## 标准库中的类型规范
 
-Python 标准库中的所有 API 都是由 Erg 开发团队指定的类型。
+Python 标准库中的所有 API 都是由 Erg 开发团队指定的类型
 
 ```python
 time = pyimport "time"
@@ -39,8 +39,8 @@ time.sleep! 1
 
 ## 用户脚本的类型规范
 
-创建一个类型为 Python `foo` 模块的 `foo.d.er` 文件。
-Python 端的类型提示被忽略，因为它们不是 100% 保证的。
+创建一个类型为 Python `foo` 模块的 `foo.d.er` 文件
+Python 端的类型提示被忽略，因为它们不是 100% 保证的
 
 ```python
 # foo.py

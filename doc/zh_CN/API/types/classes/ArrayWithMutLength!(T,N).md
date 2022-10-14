@@ -18,8 +18,8 @@
   把里面的东西随机摆放
 
 * assert_len ref! self(_ ~> N, ...), N: Nat -> () or Panic
-  验证长度。
-  `panic!` 如果长度无效。
+  验证长度
+  `panic!` 如果长度无效
 
 ## Impl
 

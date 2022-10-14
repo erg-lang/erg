@@ -4,7 +4,7 @@
 
 ## 如果
 
-`if` 是一个根据条件改变处理的函数。
+`if` 是一个根据条件改变处理的函数
 
 ```python
 result: Option Int = if! Bool.sample!(), do:
@@ -13,8 +13,8 @@ result: Option Int = if! Bool.sample!(), do:
 print! result # None (or 1)
 ```
 
-`.sample!()` 返回一组随机值。 如果返回值为真，`print! "真"`被执行。
-如果条件为假，您还可以指定要执行的操作； 第二个 do 块称为 else 块。
+`.sample!()` 返回一组随机值。 如果返回值为真，`print! "真"`被执行
+如果条件为假，您还可以指定要执行的操作； 第二个 do 块称为 else 块
 
 ```python
 result: Nat = if Bool.sample!():
@@ -27,7 +27,7 @@ result: Nat = if Bool.sample!():
 print! result # 1 (or 0)
 ```
 
-如果进程是单行，则可以省略缩进。
+如果进程是单行，则可以省略缩进
 
 ```python
 result = if Bool.sample!():
@@ -37,7 +37,7 @@ result = if Bool.sample!():
 
 ## for
 
-你可以使用 `for` 来编写一个重复的过程。
+你可以使用 `for` 来编写一个重复的过程
 
 ```python
 match_s(ss: Iterator(Str), pat: Pattern): Option Str =

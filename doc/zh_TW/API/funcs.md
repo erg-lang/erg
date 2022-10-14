@@ -22,8 +22,8 @@
 
 ### panic(msg: Str) -> Panic
 
-顯示msg并停止。
-支持表情符號的終端有一個??前綴。
+顯示msg并停止
+支持表情符號的終端有一個??前綴
 
 ### discard|T|(x: ...T) -> NoneType
 
@@ -46,11 +46,11 @@ assert True # OK
 
 ### eval(code: Str) -> Object
 
-將`code`作為代碼進行評估并返回。
+將`code`作為代碼進行評估并返回
 
 ### classof(object: Object) -> Class
 
-返回`object`的類。
+返回`object`的類
 但是，由于無法比較類，如果要判斷實例，請使用`object in Class`而不是`classof(object) == Class`
 編譯時確定的結構類型是通過`Typeof`獲得的
 
@@ -110,8 +110,8 @@ match jan:
 
 ### Typeof
 
-返回參數類型。如果要獲取運行時類，請使用`classof`。
-如果您將其用于類型規范，則會出現警告。
+返回參數類型。如果要獲取運行時類，請使用`classof`
+如果您將其用于類型規范，則會出現警告
 
 ```python
 x: Typeof i = ...

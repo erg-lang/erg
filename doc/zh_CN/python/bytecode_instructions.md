@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3Dd15cbbf7b33df0f78a575cff9679d84c36ea3ab1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=d15cbbf7b33df0f78a575cff9679d84c36ea3ab1)
 
-Python 字节码变量操作命令通过 名称索引(名称索引)访问。 这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)。
-一条指令为 2 个字节，指令和参数以 little endian 形式存储。
-不带参数的指令也使用 2 个字节(参数部分为 0)。
+Python 字节码变量操作命令通过 名称索引(名称索引)访问。 这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)
+一条指令为 2 个字节，指令和参数以 little endian 形式存储
+不带参数的指令也使用 2 个字节(参数部分为 0)
 
 ## STORE_NAME(名称索引)
 
@@ -34,7 +34,7 @@ stack.push(globals[namei])
 stack.push(consts[namei])
 ```
 
-在常量表中加载常量。
+在常量表中加载常量
 目前(Python 3.9)，在 CPython 中，每个 lambda 函数都是 MAKE_FUNCTION，名称为"\<lambda\>"
 
 ```console
@@ -73,7 +73,7 @@ stack. push(cell)
 ```
 
 然后调用 BUILD_TUPLE
-它只在闭包内被调用，并且 cellvars 应该在闭包内存储引用。
+它只在闭包内被调用，并且 cellvars 应该在闭包内存储引用
 与 LOAD_DEREF 不同，每个单元格(填充有引用的容器)都被推入堆栈
 
 ## STORE_DEREF(名称索引)
@@ -110,7 +110,7 @@ fast_locals 对应的函数内部变量名称列表
 ## 自由变量
 
 与免费变量兼容
-闭包捕获的变量。它在同一个函数实例中静态地运行。
+闭包捕获的变量。它在同一个函数实例中静态地运行
 
 ## 单元格变量
 

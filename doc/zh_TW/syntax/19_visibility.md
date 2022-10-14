@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-Erg 變量具有 __visibility__ 的概念。
-到目前為止，我們看到的所有變量都稱為 __private variables__。 這是一個外部不可見的變量。
-例如，`foo` 模塊中定義的私有變量不能被另一個模塊引用。
+Erg 變量具有 __visibility__ 的概念
+到目前為止，我們看到的所有變量都稱為 __private variables__。 這是一個外部不可見的變量
+例如，`foo` 模塊中定義的私有變量不能被另一個模塊引用
 
 ```python
 # foo.er
@@ -17,8 +17,8 @@ foo = import "foo"
 foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
 ```
 
-另一方面，也有__public variables__，可以從外部引用。
-公共變量用`.`定義。
+另一方面，也有__public variables__，可以從外部引用
+公共變量用`.`定義
 
 ```python
 # foo.er
@@ -48,9 +48,9 @@ y =
     x + 1 # 完全是 module::x
 ```
 
-通過使用`::`，可以區分作用域內同名的變量。
-在左側指定要引用的變量的范圍。 為頂層指定 `module`。
-如果未指定，則照常引用最里面的變量。
+通過使用`::`，可以區分作用域內同名的變量
+在左側指定要引用的變量的范圍。 為頂層指定 `module`
+如果未指定，則照常引用最里面的變量
 
 ```python
 ::x = 0
@@ -75,7 +75,7 @@ f = x ->
 f1# 0 1
 ```
 
-`::` 還負責訪問私有實例屬性。
+`::` 還負責訪問私有實例屬性
 
 ```python
 x = 0
@@ -89,7 +89,7 @@ C.
 
 ## 外部模塊中的可見性
 
-在一個模塊中定義的類實際上可以定義來自外部模塊的方法。
+在一個模塊中定義的類實際上可以定義來自外部模塊的方法
 
 ```python
 # foo.er
@@ -111,20 +111,20 @@ Foo.
     foo::private() # 屬性錯誤
 ```
 
-但是，這兩種方法都只在該模塊中可用。
-外部定義的私有方法對 Foo 類的方法僅在定義模塊內可見。
-公共方法暴露在類之外，但不在模塊之外。
+但是，這兩種方法都只在該模塊中可用
+外部定義的私有方法對 Foo 類的方法僅在定義模塊內可見
+公共方法暴露在類之外，但不在模塊之外
 
 ```python
 # baz.er
 {Foo; ...} = import "foo"
 
 foo = Foo.new()
-foo.public() # 屬性錯誤："Foo"沒有屬性"public"("public"在模塊"bar"中定義)
+foo.public() # 屬性錯誤: "Foo"沒有屬性"public"("public"在模塊"bar"中定義)
 ```
 
-此外，方法不能在要重新導出的類型中定義。
-這是為了避免混淆方法是否找到，具體取決于導入方法的模塊。
+此外，方法不能在要重新導出的類型中定義
+這是為了避免混淆方法是否找到，具體取決于導入方法的模塊
 
 ```python
 #bar.er
@@ -136,7 +136,7 @@ Foo.
     public self = self::private() # 錯誤
 ```
 
-如果你想做這樣的事情，定義一個 [patch](./type/07_patch.md)。
+如果你想做這樣的事情，定義一個 [patch](./type/07_patch.md)
 
 ```python
 #bar.er
@@ -160,8 +160,8 @@ foo.public()
 
 ## 受限公共變量
 
-可變可見性不限于完全公共/私有。
-您也可以有限制地發布。
+可變可見性不限于完全公共/私有
+您也可以有限制地發布
 
 ```python
 # foo.er

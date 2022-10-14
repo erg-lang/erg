@@ -2,17 +2,17 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/11_enum.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/11_enum.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-Set 生成的枚舉類型。
-枚舉類型可以與類型規范一起使用，但可以通過將它們分類為類或定義修復程序來定義進一步的方法。
+Set 生成的枚舉類型
+枚舉類型可以與類型規范一起使用，但可以通過將它們分類為類或定義修復程序來定義進一步的方法
 
-具有枚舉類型的部分類型系統稱為枚舉部分類型。
+具有枚舉類型的部分類型系統稱為枚舉部分類型
 
 ```python
 Bool = {True, False}
 Status = {"ok", "error"}
 ```
 
-由于 `1..7` 可以重寫為 `{1, 2, 3, 4, 5, 6, 7}`，所以當元素是有限的時，Enum 類型本質上等同于 Range 類型。
+由于 `1..7` 可以重寫為 `{1, 2, 3, 4, 5, 6, 7}`，所以當元素是有限的時，Enum 類型本質上等同于 Range 類型
 
 ```python
 Binary! = Class {0, 1}!.
@@ -27,7 +27,7 @@ b = Binary!.new !0
 b.invert!()
 ```
 
-順便說一下，Erg 的 Enum 類型是一個包含其他語言中常見的枚舉類型的概念。
+順便說一下，Erg 的 Enum 類型是一個包含其他語言中常見的枚舉類型的概念
 
 ```rust
 // Rust
@@ -39,10 +39,10 @@ enum Status { Ok, Error }
 Status = {"Ok", "Error"}
 ```
 
-Rust 的不同之處在于它使用了結構子類型(SST)。
+Rust 的不同之處在于它使用了結構子類型(SST)
 
 ```rust
-// Status 和 ExtraStatus 之間沒有關系。
+// Status 和 ExtraStatus 之間沒有關系
 enum Status { Ok, Error }
 enum ExtraStatus { Ok, Error, Unknown }
 
@@ -63,17 +63,17 @@ ExtraStatus = Trait {"Ok", "Error", "Unknown"}
     # ...
 ```
 
-方法也可以通過補丁添加。
+方法也可以通過補丁添加
 
-使用"或"運算符明確指示包含或向現有 Enum 類型添加選項。
+使用"或"運算符明確指示包含或向現有 Enum 類型添加選項
 
 ```python
 ExtraStatus = Status or {"Unknown"}
 ```
 
-一個元素所屬的所有類都相同的枚舉類型稱為同質枚舉類型。
+一個元素所屬的所有類都相同的枚舉類型稱為同質枚舉類型
 
-默認情況下，可以將需求類型為同類枚舉類型的類視為元素所屬類的子類。
+默認情況下，可以將需求類型為同類枚舉類型的類視為元素所屬類的子類
 
 如果您不想這樣做，可以將其設為包裝類
 

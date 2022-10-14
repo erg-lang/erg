@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_set.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/14_set.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
-一個Set代表一個集合，它在結構上是一個重復的無序數組。
+一個Set代表一個集合，它在結構上是一個重復的無序數組
 
 ```python
 assert Set.from([1, 2, 3, 2, 1]) == {1, 2, 3}
@@ -22,7 +22,7 @@ but found: Set({0, }, 1)
 ]#
 ```
 
-此外，只有實現 `Eq` 特徵的對象才能成為集合的成員。
+此外，只有實現 `Eq` 特徵的對象才能成為集合的成員
 
 所以你不能使用 Float 等作為集合的元素
 
@@ -37,7 +37,7 @@ but found: {0.0, 1.0, }
 ]#
 ```
 
-Set可以執行集合操作。
+Set可以執行集合操作
 
 ```python
 assert 1 in {1, 2, 3}
@@ -54,15 +54,15 @@ s: {Int or Str} = {"a", 1, "b", -1}
 ```
 
 ## Sets為類型
-Sets也可以被視為類型。 這種類型稱為 _枚舉類型_。
+Sets也可以被視為類型。 這種類型稱為 _枚舉類型_
 
 ```python
 i: {1, 2, 3} = 1
 assert i in {1, 2, 3}
 ```
 
-Set的元素直接是類型的元素。
-請注意，這些Set本身是不同的。
+Set的元素直接是類型的元素
+請注意，這些Set本身是不同的
 
 ```python
 mut_set = {1, 2, 3}.into {Int; !3}

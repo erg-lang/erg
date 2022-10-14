@@ -2,13 +2,13 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/i18n_messages.md%26commit_hash%3Dd15cbbf7b33df0f78a575cff9679d84c36ea3ab1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/i18n_messages.md&commit_hash=d15cbbf7b33df0f78a575cff9679d84c36ea3ab1)
 
-Erg 正在推动消息(开始、选项、文档、提示、警告、错误消息等)的多语言化。如果你不熟悉 Rust 或 Erg，也可以参与此项目。请务必配合。
+Erg 正在推动消息(开始、选项、文档、提示、警告、错误消息等)的多语言化。如果你不熟悉 Rust 或 Erg，也可以参与此项目。请务必配合
 
-以下是多语种方法的说明。
+以下是多语种方法的说明
 
 ## 查找`switch_lang!`
 
-在 Erg 源代码中找到(使用 grep 或编辑器的搜索功能)。我们应该能找到下面这样的东西。
+在 Erg 源代码中找到(使用 grep 或编辑器的搜索功能)。我们应该能找到下面这样的东西
 
 ```rust
 switch_lang!(
@@ -17,11 +17,11 @@ switch_lang!(
 ),
 ```
 
-此消息目前仅支持日语和英语。让我们尝试添加简体消息。
+此消息目前仅支持日语和英语。让我们尝试添加简体消息
 
 ## 添加消息
 
-请在查看其他语言内容的同时添加翻译消息。最后不要忘记逗号(,)。
+请在查看其他语言内容的同时添加翻译消息。最后不要忘记逗号(,)
 
 ```rust
 switch_lang!(
@@ -31,13 +31,13 @@ switch_lang!(
 ),
 ```
 
-另外，英语是默认设置，一定要排在最后。
+另外，英语是默认设置，一定要排在最后
 
-`{name}`部分是 Rust 的格式化功能，允许你将变量的内容(`name`)嵌入到字符串中。
+`{name}`部分是 Rust 的格式化功能，允许你将变量的内容(`name`)嵌入到字符串中
 
 ## 构建
 
-现在，我们使用选项构建它。
+现在，我们使用选项构建它
 
 <img src="../../../assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
 
@@ -45,9 +45,9 @@ switch_lang!(
 
 ## FAQ
 
-Q：像这样的指定是什么意思?A：{RED} 及更高版本将显示为红色。重新启动交互渲染。
+Q: 像这样的指定是什么意思?A: {RED} 及更高版本将显示为红色。重新启动交互渲染
 
-Q：如果想添加自己的语言，该如何替换部分?答：目前支持以下语言。
+Q: 如果想添加自己的语言，该如何替换部分?答: 目前支持以下语言
 
 * "english"(默认设置)
 * "japanese" (日语)

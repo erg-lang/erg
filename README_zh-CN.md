@@ -4,7 +4,7 @@
     <img width="500" src="./assets/erg_logo_with_slogan.svg">
 </div>
 
-<br>这是[Erg](https://erg-lang.org/)的主要源代码库。它包含编译器和文档。
+<br>这是[Erg](https://erg-lang.org/)的主要源代码库。它包含编译器和文档
 
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
@@ -29,7 +29,7 @@
 
 1. 稳健性
 
-    Erg有一个智能而强大的类型系统。例如：Erg 可以在编译时检查：空值（Option类型）、除以零的情况、数组中的超出范围的地址
+    Erg有一个智能而强大的类型系统。例如: Erg 可以在编译时检查: 空值（Option类型）、除以零的情况、数组中的超出范围的地址
 
     ```python
     rand = pyimport "random"
@@ -41,20 +41,20 @@
     assert l2 in [0..10; 4]
     assert l2 + [3, 5, 7] in [0..10; 7]
     # 这将导致下标错误，Erg可以在编译时发现它
-    l2[10] # 下标错误：`l2`只有7个元素，但却被访问了第11个元素
+    l2[10] # 下标错误: `l2`只有7个元素，但却被访问了第11个元素
 
     2.times! do!:
         print! "hello, ", end := ""
     # => hello, hello,
     -2.times! do!:
         print! "hello, ", end := ""
-    # 类型错误：`.times!`是`Nat`(0或更大整数)的方法，不是`Int`的
+    # 类型错误: `.times!`是`Nat`(0或更大整数)的方法，不是`Int`的
 
     {Meter; Sec; meter; yard; sec; ...} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
-    v = velocity 3yard, 2sec # 类型错误：`x`的类型不匹配：预期为`Meter`，找到`Yard'`
+    v = velocity 3yard, 2sec # 类型错误: `x`的类型不匹配: 预期为`Meter`，找到`Yard'`
     v = velocity 3meter, 2sec # v == 1.5 m/s
     ```
 
@@ -83,8 +83,8 @@
 
 3. 函数式 & 面向对象
 
-    Erg是一种纯面向对象的语言，一切都是对象。类型，函数和运算符都是对象。另一方面，Erg也是一种函数式语言。
-    Erg要求在引起副作用或改变内部状态的代码上放置某些种类的标记，这可以使代码的复杂性局部化，这将大大改善代码的可维护性。
+    Erg是一种纯面向对象的语言，一切都是对象。类型，函数和运算符都是对象。另一方面，Erg也是一种函数式语言
+    Erg要求在引起副作用或改变内部状态的代码上放置某些种类的标记，这可以使代码的复杂性局部化，这将大大改善代码的可维护性
 
     ```python
     # 函数式风格（不可变），与Python中的`sorted(list)`相同
@@ -101,8 +101,8 @@
     # 函数不能引起副作用
     inc i: Int! =
         i.update! old -> old + 1
-    # 语法错误：不能在函数中调用程序性方法
-    # 提示：只有可变类型的方法才能改变对象的状态
+    # 语法错误: 不能在函数中调用程序性方法
+    # 提示: 只有可变类型的方法才能改变对象的状态
 
     # 使用大量副作用的代码是多余的，所以你自然会写纯代码
     Counter! = Inherit Int!
@@ -166,7 +166,7 @@
 cargo install erg
 ```
 
-通过启用`--features`标志，你可以改变显示错误信息的语言。
+通过启用`--features`标志，你可以改变显示错误信息的语言
 
 * 日语
 
@@ -186,7 +186,7 @@ cargo install erg --features simplified_chinese
 cargo install erg --features traditional_chinese
 ```
 
-还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）。
+还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
 
 * 调试模式（针对贡献者）
 
@@ -234,4 +234,4 @@ nix build
 
 在此存储库[assets](./assets)和[doc](./doc)文件夹内的所有文件使用[CC-BY-4.0](./doc/LICENSE)授权。其余文件使用[Apache License 2.0](./LICENSE-APACHE) + [MIT License](./LICENSE-MIT)授权
 
-关于第三方crates的制作人员，请参阅：[THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
+关于第三方crates的制作人员，请参阅: [THIRD_PARTY_CREDITS.md](./THIRD_PARTY_CREDITS.md)（英文）
