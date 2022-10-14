@@ -1352,10 +1352,10 @@ impl LowerError {
                 AssignError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("変数{YELLOW}{name}{RESET}を複数回割り当てることはできません"),
+                    "japanese" => format!("変数{YELLOW}{name}{RESET}に複数回代入することはできません"),
                     "simplified_chinese" => format!("不能为变量{YELLOW}{name}{RESET}分配多次"),
                     "traditional_chinese" => format!("不能為變量{YELLOW}{name}{RESET}分配多次"),
-                    "english" => format!("cannot assign a variable more than once{YELLOW}{name}{RESET}"),
+                    "english" => format!("variable {YELLOW}{name}{RESET} cannot be assigned more than once"),
                 ),
                 None,
             ),
