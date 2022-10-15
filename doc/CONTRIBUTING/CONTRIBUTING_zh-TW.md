@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)
 ](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
 
-初學者應閱讀說明 [此處](https://github.com/erg-lang/erg/issues/31# issuecomment-1217505198)
+初學者應閱讀說明 [此處](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)
 
 ## 文檔
 
@@ -22,7 +22,7 @@
 
 我們一直在尋找將我們的文件翻譯成各種語言版本的人
 
-我們也歡迎那些發現文檔與其他語言相比已經過時並希望更新內容的人(請參閱[此處](https://github.com/erg-lang/erg/issues/48# issuecomment-1218247362)如何做到這一點)
+我們也歡迎那些發現文檔與其他語言相比已經過時並希望更新內容的人(請參閱[此處](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362)如何做到這一點)
 
 ## 提問
 

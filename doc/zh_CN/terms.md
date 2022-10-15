@@ -182,7 +182,7 @@
 
 ### panic
 
-### [print!](../syntax/../API/procs.md# print)
+### [print!](../syntax/../API/procs.md#print)
 
 ### [Python]
 

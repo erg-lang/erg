@@ -10,7 +10,7 @@
 ## Record, Record type
 
 namedtupleにトランスパイルされます。
-namedtupleについては、[こちら](https://docs.python.jp/3/library/collections.html# collections.namedtuple)を参照してください。
+namedtupleについては、[こちら](https://docs.python.jp/3/library/collections.html#collections.namedtuple)を参照してください。
 似たような機能にdataclassがありますが、dataclassは`__eq__`や`__hash__`が自動実装されるなどの影響で少しパフォーマンスが落ちます。
 
 ```python

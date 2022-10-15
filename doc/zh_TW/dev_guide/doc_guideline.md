@@ -8,7 +8,7 @@
 * 向外部(普通用戶)展示的文檔應該越來越多地編寫
 * 始終包含定義、含義或文檔中首次出現的術語的鏈接
 * 僅對理解正文所必需的補充句子使用括號作為附加條件，對于理解正文不是必需的句子使用腳注[<sup id="f1">1</ sup>](#1)
-* 如果文檔內容過時，按照[此方法](https://github.com/erg-lang/erg/issues/48# issuecomment-1218247362)更新
+* 如果文檔內容過時，按照[此方法](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362)更新
 
 ---
 
