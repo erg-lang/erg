@@ -74,3 +74,6 @@ MyArray(T, N) = Inherit [T; N]
 # .arrayと連動してself: Self(T, N)の型が変わる
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+<p align='center'>
+    <a href='./13_algebraic.md'>Previous</a> | <a href='./15_quantified.md'>Next</a>
+</p>

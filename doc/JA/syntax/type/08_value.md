@@ -37,3 +37,7 @@ Value = (
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> Ergにおける値型という用語は、他の言語での定義とは異なっています。純粋なErgの意味論内でメモリという概念は存在せず、スタックに置かれるから値型であるとか、実体としてポインタだから値型ではない、といった言明は正しくありません。あくまで、値型は`Value`型もしくはそのサブタイプであるという意味しか持ちません。[↩](#f1)</span>
+
+<p align='center'>
+    <a href='./07_patch.md'>Previous</a> | <a href='./08_value.md'>Next</a>
+</p>

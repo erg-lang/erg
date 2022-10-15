@@ -18,3 +18,7 @@ Odd = {I: Int | I % 2 == 1}
 R2Plus = {(L, R) | L, R: Ratio; L > 0 and R > 0}
 GeneralizedOdd = {I | U; I <: Div(Nat, U); I % 2 == 0}
 ```
+
+<p align='center'>
+    <a href='./18_mut.md'>上一页</a> | 下一页
+</p>

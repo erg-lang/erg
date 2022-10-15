@@ -36,3 +36,7 @@ Range 運算符可用于非數字類型，只要它們是"Ord"不可變類型
 ```python
 Alphabet = "A".."z"
 ```
+
+<p align='center'>
+    <a href='./09_attributive.md'>上一頁</a> | <a href='./11_enum.md'>下一頁</a>
+</p>

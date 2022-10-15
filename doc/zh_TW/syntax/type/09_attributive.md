@@ -8,4 +8,8 @@
 ## 記錄類型復合
 
 可以展平復合的記錄類型
-例如，`{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` 變成 `{.name = Str; .age = 自然； .id = Nat}`。
+例如，`{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` 變成 `{.name = Str; .age = 自然； .id = Nat}`
+
+<p align='center'>
+    <a href='./08_value.md'>上一頁</a> | <a href='./10_interval.md'>下一頁</a>
+</p>

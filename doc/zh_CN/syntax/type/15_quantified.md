@@ -280,3 +280,6 @@ DepFn.
 assert (Int -> Int).type() == Int # 由 DepFn
 assert DepFn(Int).type() == Int # 由 DepFn
 ```
+<p align='center'>
+    <a href='./14_dependent.md'>上一页</a> | <a href='./16_subtyping.md'>下一页</a>
+</p>

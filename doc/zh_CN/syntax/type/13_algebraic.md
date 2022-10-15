@@ -84,3 +84,7 @@ assert Int and Marker == And(Int, Marker)
 ```
 
 Diff, Complement 类型不是真正的代数类型，因为它们总是可以被简化
+
+<p align='center'>
+    <a href='./12_refinement.md'>上一页</a> | <a href='./14_dependent.md'>下一页</a>
+</p>

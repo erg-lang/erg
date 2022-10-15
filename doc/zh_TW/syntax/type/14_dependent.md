@@ -74,3 +74,6 @@ MyArray(T, N) = Inherit[T; N]
 # self 的類型: Self(T, N) 與 .array 一起變化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+<p align='center'>
+    <a href='./13_algebraic.md'>上一頁</a> | <a href='./15_quantified.md'>下一頁</a>
+</p>

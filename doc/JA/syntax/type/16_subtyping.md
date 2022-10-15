@@ -76,3 +76,6 @@ i as (Int or Str)
 i as (1..10)
 i as {I: Int | I >= 0}
 ```
+<p align='center'>
+    <a href='./15_quantified.md'>Previous</a> | <a href='./17_type_casting.md'>Next</a>
+</p>

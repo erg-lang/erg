@@ -75,3 +75,6 @@ match i:
 Array(T, N | N >= 3)
     .m(&self) = ...
 ```
+<p align='center'>
+    <a href='./11_enum.md'>上一页</a> | <a href='./13_algebraic.md'>下一页</a>
+</p>

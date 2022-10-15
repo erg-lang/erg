@@ -84,3 +84,7 @@ assert Int and Marker == And(Int, Marker)
 ```
 
 Diff, Complement型は必ず簡約できるので真の代数演算型ではありません。
+
+<p align='center'>
+    <a href='./12_refinement.md'>Previous</a> | <a href='./14_dependent.md'>Next</a>
+</p>

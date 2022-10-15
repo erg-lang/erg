@@ -8,4 +8,8 @@
 ## 记录类型复合
 
 可以展平复合的记录类型
-例如，`{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` 变成 `{.name = Str; .age = 自然； .id = Nat}`。
+例如，`{... {.name = Str; .age = Nat}; ... {.name = Str; .id = Nat}}` 变成 `{.name = Str; .age = 自然； .id = Nat}`
+
+<p align='center'>
+    <a href='./08_value.md'>上一页</a> | <a href='./10_interval.md'>下一页</a>
+</p>

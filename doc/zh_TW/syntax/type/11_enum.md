@@ -85,3 +85,6 @@ OpaqueAbc = Class {inner = {"A", "B", "C"}}.
     new inner: {"A", "B", "C"} = Self.new {inner;}
 OpaqueAbc.new("A").is_uppercase() # 類型錯誤
 ```
+<p align='center'>
+    <a href='./10_interval.md'>上一頁</a> | <a href='./12_refinement.md'>下一頁</a>
+</p>
