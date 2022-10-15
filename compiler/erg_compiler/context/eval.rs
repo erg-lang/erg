@@ -921,15 +921,10 @@ impl Context {
         }
         // in Methods
         if self.name == sub.qual_name() {
-            if let Ok(obj) = self.get_const_local(&Token::symbol(&rhs), &self.name) {
-                if let ValueObj::Type(quant_t) = obj {
-                    let subst_ctx = SubstContext::new(&sub, self, t_loc);
-                    let t = subst_ctx.substitute(quant_t.typ().clone())?;
-                    let t = self.eval_t_params(t, level, t_loc)?;
-                    return Ok(t);
-                } else {
-                    todo!()
-                }
+            if let Some(t) =
+                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
+            {
+                return Ok(t);
             }
         }
         for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
@@ -942,15 +937,10 @@ impl Context {
                 None, // TODO:
             )
         })? {
-            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&rhs), &self.name) {
-                if let ValueObj::Type(quant_t) = obj {
-                    let subst_ctx = SubstContext::new(&sub, self, t_loc);
-                    let t = subst_ctx.substitute(quant_t.typ().clone())?;
-                    let t = self.eval_t_params(t, level, t_loc)?;
-                    return Ok(t);
-                } else {
-                    todo!()
-                }
+            if let Some(t) =
+                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, ty_ctx, level, t_loc)
+            {
+                return Ok(t);
             }
             for (class, methods) in ty_ctx.methods_list.iter() {
                 match (class, &opt_sup) {
@@ -966,15 +956,10 @@ impl Context {
                     }
                     _ => {}
                 }
-                if let Ok(obj) = methods.get_const_local(&Token::symbol(&rhs), &self.name) {
-                    if let ValueObj::Type(quant_t) = obj {
-                        let subst_ctx = SubstContext::new(&sub, self, t_loc);
-                        let t = subst_ctx.substitute(quant_t.typ().clone())?;
-                        let t = self.eval_t_params(t, level, t_loc)?;
-                        return Ok(t);
-                    } else {
-                        todo!()
-                    }
+                if let Some(t) =
+                    self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, methods, level, t_loc)
+                {
+                    return Ok(t);
                 }
             }
         }
@@ -1012,6 +997,37 @@ impl Context {
                 self.get_no_candidate_hint(&proj),
             )))
         }
+    }
+
+    fn validate_and_project(
+        &self,
+        sub: &Type,
+        opt_sup: Option<&Type>,
+        rhs: &str,
+        methods: &Context,
+        level: usize,
+        t_loc: Location,
+    ) -> Option<Type> {
+        if let Ok(obj) = methods.get_const_local(&Token::symbol(rhs), &self.name) {
+            #[allow(clippy::single_match)]
+            match (&opt_sup, methods.impl_of()) {
+                (Some(sup), Some(trait_)) => {
+                    if !self.supertype_of(&trait_, sup) {
+                        return None;
+                    }
+                }
+                _ => {}
+            }
+            if let ValueObj::Type(quant_t) = obj {
+                let subst_ctx = SubstContext::new(sub, self, t_loc);
+                let t = subst_ctx.substitute(quant_t.typ().clone()).ok()?;
+                let t = self.eval_t_params(t, level, t_loc).ok()?;
+                return Some(t);
+            } else {
+                todo!()
+            }
+        }
+        None
     }
 
     fn eval_proj_call(

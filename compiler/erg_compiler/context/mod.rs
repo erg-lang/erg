@@ -225,7 +225,7 @@ pub enum ContextKind {
     Func,
     Proc,
     Class,
-    MethodDefs,
+    MethodDefs(Option<Type>), // Type: trait implemented
     Trait,
     StructuralTrait,
     Patch(Type),
@@ -250,7 +250,7 @@ impl From<DefKind> for ContextKind {
 
 impl ContextKind {
     pub const fn is_method_def(&self) -> bool {
-        matches!(self, Self::MethodDefs)
+        matches!(self, Self::MethodDefs(_))
     }
 
     pub const fn is_type(&self) -> bool {
@@ -462,13 +462,13 @@ impl Context {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None);
                 params_.push((None, vi));
             }
         }
@@ -677,18 +677,23 @@ impl Context {
     }
 
     #[inline]
-    pub fn methods<S: Into<Str>>(
-        name: S,
+    pub fn methods(
+        impl_trait: Option<Type>,
         cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
         py_mod_cache: Option<SharedModuleCache>,
         capacity: usize,
         level: usize,
     ) -> Self {
+        let name = if let Some(tr) = &impl_trait {
+            tr.local_name()
+        } else {
+            Str::ever("Methods")
+        };
         Self::with_capacity(
-            name.into(),
+            name,
             cfg,
-            ContextKind::MethodDefs,
+            ContextKind::MethodDefs(impl_trait),
             vec![],
             None,
             mod_cache,
@@ -699,9 +704,9 @@ impl Context {
     }
 
     #[inline]
-    pub fn builtin_methods<S: Into<Str>>(name: S, capacity: usize) -> Self {
+    pub fn builtin_methods(impl_trait: Option<Type>, capacity: usize) -> Self {
         Self::methods(
-            name,
+            impl_trait,
             ErgConfig::default(),
             None,
             None,
@@ -809,6 +814,14 @@ impl Context {
 
     pub(crate) fn get_outer(&self) -> Option<&Context> {
         self.outer.as_ref().map(|x| x.as_ref())
+    }
+
+    pub(crate) fn impl_of(&self) -> Option<Type> {
+        if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
+            Some(tr.clone())
+        } else {
+            None
+        }
     }
 
     pub(crate) fn path(&self) -> Str {

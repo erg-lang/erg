@@ -37,12 +37,19 @@ use Visibility::*;
 
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
+            Some(tr.clone())
+        } else {
+            None
+        };
         let name = VarName::from_static(name);
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.decls
-                .insert(name, VarInfo::new(t, Immutable, vis, Builtin, None));
+            self.decls.insert(
+                name,
+                VarInfo::new(t, Immutable, vis, Builtin, None, impl_of),
+            );
         }
     }
 
@@ -53,21 +60,42 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
     ) {
+        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
+            Some(tr.clone())
+        } else {
+            None
+        };
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
             self.locals
-                .insert(name, VarInfo::new(t, muty, vis, Builtin, None));
+                .insert(name, VarInfo::new(t, muty, vis, Builtin, None, impl_of));
         }
+    }
+
+    fn register_builtin_immutable_private_var(&mut self, name: &'static str, t: Type) {
+        self.register_builtin_impl(name, t, Immutable, Private)
     }
 
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {name}");
         } else {
+            let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
+                Some(tr.clone())
+            } else {
+                None
+            };
             // TODO: not all value objects are comparable
-            let vi = VarInfo::new(v_enum(set! {obj.clone()}), Const, vis, Builtin, None);
+            let vi = VarInfo::new(
+                v_enum(set! {obj.clone()}),
+                Const,
+                vis,
+                Builtin,
+                None,
+                impl_of,
+            );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
         }
@@ -116,8 +144,10 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals
-                .insert(name.clone(), VarInfo::new(meta_t, muty, vis, Builtin, None));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(meta_t, muty, vis, Builtin, None, None),
+            );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -166,8 +196,10 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals
-                .insert(name.clone(), VarInfo::new(meta_t, muty, vis, Builtin, None));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(meta_t, muty, vis, Builtin, None, None),
+            );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -215,8 +247,10 @@ impl Context {
             panic!("{} has already been registered", name);
         } else {
             let name = VarName::from_static(name);
-            self.locals
-                .insert(name.clone(), VarInfo::new(Patch, muty, vis, Builtin, None));
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(Patch, muty, vis, Builtin, None, None),
+            );
             for method_name in ctx.locals.keys() {
                 if let Some(patches) = self.method_impl_patches.get_mut(method_name) {
                     patches.push(name.clone());
@@ -231,25 +265,10 @@ impl Context {
 
     fn init_builtin_consts(&mut self) {
         // TODO: this is not a const, but a special property
-        self.register_builtin_impl("__name__", Str, Immutable, Private);
-        self.register_builtin_impl(
-            "license",
-            mono("_sitebuiltins._Printer"),
-            Immutable,
-            Private,
-        );
-        self.register_builtin_impl(
-            "credits",
-            mono("_sitebuiltins._Printer"),
-            Immutable,
-            Private,
-        );
-        self.register_builtin_impl(
-            "copyright",
-            mono("_sitebuiltins._Printer"),
-            Immutable,
-            Private,
-        );
+        self.register_builtin_immutable_private_var("__name__", Str);
+        self.register_builtin_immutable_private_var("license", mono("_sitebuiltins._Printer"));
+        self.register_builtin_immutable_private_var("credits", mono("_sitebuiltins._Printer"));
+        self.register_builtin_immutable_private_var("copyright", mono("_sitebuiltins._Printer"));
     }
 
     /// see std/prelude.er
@@ -519,12 +538,12 @@ impl Context {
             Public,
         );
         obj.register_builtin_impl("__bytes__", fn0_met(Obj, mono("Bytes")), Immutable, Public);
-        let mut obj_in = Self::builtin_methods("In", 2);
+        let mut obj_in = Self::builtin_methods(Some(poly("In", vec![ty_tp(Type)])), 2);
         obj_in.register_builtin_impl("__in__", fn1_met(Obj, Type, Bool), Const, Public);
-        obj.register_trait(Obj, poly("In", vec![ty_tp(Type)]), obj_in);
-        let mut obj_mutizable = Self::builtin_methods("Mutizable", 1);
+        obj.register_trait(Obj, obj_in);
+        let mut obj_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 1);
         obj_mutizable.register_builtin_const("MutType!", Public, ValueObj::builtin_t(mono("Obj!")));
-        obj.register_trait(Obj, mono("Mutizable"), obj_mutizable);
+        obj.register_trait(Obj, obj_mutizable);
         // Obj does not implement Eq
 
         /* Float */
@@ -536,53 +555,51 @@ impl Context {
         float.register_builtin_impl("Imag", Float, Const, Public);
         float.register_marker_trait(mono("Num"));
         float.register_marker_trait(mono("Ord"));
-        let mut float_partial_ord = Self::builtin_methods("PartialOrd", 2);
+        let mut float_partial_ord =
+            Self::builtin_methods(Some(poly("PartialOrd", vec![ty_tp(Float)])), 2);
         float_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Float, Float, mono("Ordering")),
             Const,
             Public,
         );
-        float.register_trait(
-            Float,
-            poly("PartialOrd", vec![ty_tp(Float)]),
-            float_partial_ord,
-        );
+        float.register_trait(Float, float_partial_ord);
         // Float doesn't have an `Eq` implementation
         let op_t = fn1_met(Float, Float, Float);
-        let mut float_add = Self::builtin_methods("Add", 2);
+        let mut float_add = Self::builtin_methods(Some(poly("Add", vec![ty_tp(Float)])), 2);
         float_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         float_add.register_builtin_const("Output", Public, ValueObj::builtin_t(Float));
-        float.register_trait(Float, poly("Add", vec![ty_tp(Float)]), float_add);
-        let mut float_sub = Self::builtin_methods("Sub", 2);
+        float.register_trait(Float, float_add);
+        let mut float_sub = Self::builtin_methods(Some(poly("Sub", vec![ty_tp(Float)])), 2);
         float_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         float_sub.register_builtin_const("Output", Public, ValueObj::builtin_t(Float));
-        float.register_trait(Float, poly("Sub", vec![ty_tp(Float)]), float_sub);
-        let mut float_mul = Self::builtin_methods("Mul", 2);
+        float.register_trait(Float, float_sub);
+        let mut float_mul = Self::builtin_methods(Some(poly("Mul", vec![ty_tp(Float)])), 2);
         float_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         float_mul.register_builtin_const("Output", Public, ValueObj::builtin_t(Float));
         float_mul.register_builtin_const("PowOutput", Public, ValueObj::builtin_t(Float));
-        float.register_trait(Float, poly("Mul", vec![ty_tp(Float)]), float_mul);
-        let mut float_div = Self::builtin_methods("Div", 2);
+        float.register_trait(Float, float_mul);
+        let mut float_div = Self::builtin_methods(Some(poly("Div", vec![ty_tp(Float)])), 2);
         float_div.register_builtin_impl("__div__", op_t.clone(), Const, Public);
         float_div.register_builtin_const("Output", Public, ValueObj::builtin_t(Float));
         float_div.register_builtin_const("ModOutput", Public, ValueObj::builtin_t(Float));
-        float.register_trait(Float, poly("Div", vec![ty_tp(Float)]), float_div);
-        let mut float_floordiv = Self::builtin_methods("FloorDiv", 2);
+        float.register_trait(Float, float_div);
+        let mut float_floordiv =
+            Self::builtin_methods(Some(poly("FloorDiv", vec![ty_tp(Float)])), 2);
         float_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         float_floordiv.register_builtin_const("Output", Public, ValueObj::builtin_t(Float));
-        float.register_trait(Float, poly("FloorDiv", vec![ty_tp(Float)]), float_floordiv);
-        let mut float_mutizable = Self::builtin_methods("Mutizable", 2);
+        float.register_trait(Float, float_floordiv);
+        let mut float_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         float_mutizable.register_builtin_const(
             "MutType!",
             Public,
             ValueObj::builtin_t(mono("Float!")),
         );
-        float.register_trait(Float, mono("Mutizable"), float_mutizable);
-        let mut float_show = Self::builtin_methods("Show", 1);
+        float.register_trait(Float, float_mutizable);
+        let mut float_show = Self::builtin_methods(Some(mono("Show")), 1);
         let t = fn0_met(Float, Str);
         float_show.register_builtin_impl("to_str", t, Immutable, Public);
-        float.register_trait(Float, mono("Show"), float_show);
+        float.register_trait(Float, float_show);
 
         /* Ratio */
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
@@ -592,55 +609,53 @@ impl Context {
         ratio.register_builtin_impl("Imag", Ratio, Const, Public);
         ratio.register_marker_trait(mono("Num"));
         ratio.register_marker_trait(mono("Ord"));
-        let mut ratio_partial_ord = Self::builtin_methods("PartialOrd", 2);
+        let mut ratio_partial_ord =
+            Self::builtin_methods(Some(poly("PartialOrd", vec![ty_tp(Ratio)])), 2);
         ratio_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Ratio, Ratio, mono("Ordering")),
             Const,
             Public,
         );
-        ratio.register_trait(
-            Ratio,
-            poly("PartialOrd", vec![ty_tp(Ratio)]),
-            ratio_partial_ord,
-        );
-        let mut ratio_eq = Self::builtin_methods("Eq", 2);
+        ratio.register_trait(Ratio, ratio_partial_ord);
+        let mut ratio_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Ratio)])), 2);
         ratio_eq.register_builtin_impl("__eq__", fn1_met(Ratio, Ratio, Bool), Const, Public);
-        ratio.register_trait(Ratio, poly("Eq", vec![ty_tp(Ratio)]), ratio_eq);
+        ratio.register_trait(Ratio, ratio_eq);
         let op_t = fn1_met(Ratio, Ratio, Ratio);
-        let mut ratio_add = Self::builtin_methods("Add", 2);
+        let mut ratio_add = Self::builtin_methods(Some(poly("Add", vec![ty_tp(Ratio)])), 2);
         ratio_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         ratio_add.register_builtin_const("Output", Public, ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, poly("Add", vec![ty_tp(Ratio)]), ratio_add);
-        let mut ratio_sub = Self::builtin_methods("Sub", 2);
+        ratio.register_trait(Ratio, ratio_add);
+        let mut ratio_sub = Self::builtin_methods(Some(poly("Sub", vec![ty_tp(Ratio)])), 2);
         ratio_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         ratio_sub.register_builtin_const("Output", Public, ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, poly("Sub", vec![ty_tp(Ratio)]), ratio_sub);
-        let mut ratio_mul = Self::builtin_methods("Mul", 2);
+        ratio.register_trait(Ratio, ratio_sub);
+        let mut ratio_mul = Self::builtin_methods(Some(poly("Mul", vec![ty_tp(Ratio)])), 2);
         ratio_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         ratio_mul.register_builtin_const("Output", Public, ValueObj::builtin_t(Ratio));
         ratio_mul.register_builtin_const("PowOutput", Public, ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, poly("Mul", vec![ty_tp(Ratio)]), ratio_mul);
-        let mut ratio_div = Self::builtin_methods("Div", 2);
+        ratio.register_trait(Ratio, ratio_mul);
+        let mut ratio_div = Self::builtin_methods(Some(poly("Div", vec![ty_tp(Ratio)])), 2);
         ratio_div.register_builtin_impl("__div__", op_t.clone(), Const, Public);
         ratio_div.register_builtin_const("Output", Public, ValueObj::builtin_t(Ratio));
         ratio_div.register_builtin_const("ModOutput", Public, ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, poly("Div", vec![ty_tp(Ratio)]), ratio_div);
-        let mut ratio_floordiv = Self::builtin_methods("FloorDiv", 2);
+        ratio.register_trait(Ratio, ratio_div);
+        let mut ratio_floordiv =
+            Self::builtin_methods(Some(poly("FloorDiv", vec![ty_tp(Ratio)])), 2);
         ratio_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         ratio_floordiv.register_builtin_const("Output", Public, ValueObj::builtin_t(Ratio));
-        ratio.register_trait(Ratio, poly("FloorDiv", vec![ty_tp(Ratio)]), ratio_floordiv);
-        let mut ratio_mutizable = Self::builtin_methods("Mutizable", 2);
+        ratio.register_trait(Ratio, ratio_floordiv);
+        let mut ratio_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         ratio_mutizable.register_builtin_const(
             "MutType!",
             Public,
             ValueObj::builtin_t(mono("Ratio!")),
         );
-        ratio.register_trait(Ratio, mono("Mutizable"), ratio_mutizable);
-        let mut ratio_show = Self::builtin_methods("Show", 1);
+        ratio.register_trait(Ratio, ratio_mutizable);
+        let mut ratio_show = Self::builtin_methods(Some(mono("Show")), 1);
         let t = fn0_met(Ratio, Str);
         ratio_show.register_builtin_impl("to_str", t, Immutable, Public);
-        ratio.register_trait(Ratio, mono("Show"), ratio_show);
+        ratio.register_trait(Ratio, ratio_show);
 
         /* Int */
         let mut int = Self::builtin_mono_class("Int", 2);
@@ -651,43 +666,44 @@ impl Context {
         // class("Rational"),
         // class("Integral"),
         int.register_builtin_impl("abs", fn0_met(Int, Nat), Immutable, Public);
-        let mut int_partial_ord = Self::builtin_methods("PartialOrd", 2);
+        let mut int_partial_ord =
+            Self::builtin_methods(Some(poly("PartialOrd", vec![ty_tp(Int)])), 2);
         int_partial_ord.register_builtin_impl(
             "__partial_cmp__",
             fn1_met(Int, Int, or(mono("Ordering"), NoneType)),
             Const,
             Public,
         );
-        int.register_trait(Int, poly("PartialOrd", vec![ty_tp(Int)]), int_partial_ord);
-        let mut int_eq = Self::builtin_methods("Eq", 2);
+        int.register_trait(Int, int_partial_ord);
+        let mut int_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Int)])), 2);
         int_eq.register_builtin_impl("__eq__", fn1_met(Int, Int, Bool), Const, Public);
-        int.register_trait(Int, poly("Eq", vec![ty_tp(Int)]), int_eq);
+        int.register_trait(Int, int_eq);
         // __div__ is not included in Int (cast to Ratio)
         let op_t = fn1_met(Int, Int, Int);
-        let mut int_add = Self::builtin_methods("Add", 2);
+        let mut int_add = Self::builtin_methods(Some(poly("Add", vec![ty_tp(Int)])), 2);
         int_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         int_add.register_builtin_const("Output", Public, ValueObj::builtin_t(Int));
-        int.register_trait(Int, poly("Add", vec![ty_tp(Int)]), int_add);
-        let mut int_sub = Self::builtin_methods("Sub", 2);
+        int.register_trait(Int, int_add);
+        let mut int_sub = Self::builtin_methods(Some(poly("Sub", vec![ty_tp(Int)])), 2);
         int_sub.register_builtin_impl("__sub__", op_t.clone(), Const, Public);
         int_sub.register_builtin_const("Output", Public, ValueObj::builtin_t(Int));
-        int.register_trait(Int, poly("Sub", vec![ty_tp(Int)]), int_sub);
-        let mut int_mul = Self::builtin_methods("Mul", 2);
+        int.register_trait(Int, int_sub);
+        let mut int_mul = Self::builtin_methods(Some(poly("Mul", vec![ty_tp(Int)])), 2);
         int_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         int_mul.register_builtin_const("Output", Public, ValueObj::builtin_t(Int));
         int_mul.register_builtin_const("PowOutput", Public, ValueObj::builtin_t(Nat));
-        int.register_trait(Int, poly("Mul", vec![ty_tp(Int)]), int_mul);
-        let mut int_floordiv = Self::builtin_methods("FloorDiv", 2);
+        int.register_trait(Int, int_mul);
+        let mut int_floordiv = Self::builtin_methods(Some(poly("FloorDiv", vec![ty_tp(Int)])), 2);
         int_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         int_floordiv.register_builtin_const("Output", Public, ValueObj::builtin_t(Int));
-        int.register_trait(Int, poly("FloorDiv", vec![ty_tp(Int)]), int_floordiv);
-        let mut int_mutizable = Self::builtin_methods("Mutizable", 2);
+        int.register_trait(Int, int_floordiv);
+        let mut int_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         int_mutizable.register_builtin_const("MutType!", Public, ValueObj::builtin_t(mono("Int!")));
-        int.register_trait(Int, mono("Mutizable"), int_mutizable);
-        let mut int_show = Self::builtin_methods("Show", 1);
+        int.register_trait(Int, int_mutizable);
+        let mut int_show = Self::builtin_methods(Some(mono("Show")), 1);
         let t = fn0_met(Int, Str);
         int_show.register_builtin_impl("to_str", t, Immutable, Public);
-        int.register_trait(Int, mono("Show"), int_show);
+        int.register_trait(Int, int_show);
         int.register_builtin_impl("Real", Int, Const, Public);
         int.register_builtin_impl("Imag", Int, Const, Public);
 
@@ -710,34 +726,35 @@ impl Context {
         );
         nat.register_marker_trait(mono("Num"));
         nat.register_marker_trait(mono("Ord"));
-        let mut nat_eq = Self::builtin_methods("Eq", 2);
+        let mut nat_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Nat)])), 2);
         nat_eq.register_builtin_impl("__eq__", fn1_met(Nat, Nat, Bool), Const, Public);
-        nat.register_trait(Nat, poly("Eq", vec![ty_tp(Nat)]), nat_eq);
-        let mut nat_partial_ord = Self::builtin_methods("PartialOrd", 2);
+        nat.register_trait(Nat, nat_eq);
+        let mut nat_partial_ord =
+            Self::builtin_methods(Some(poly("PartialOrd", vec![ty_tp(Nat)])), 2);
         nat_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Nat, Nat, mono("Ordering")),
             Const,
             Public,
         );
-        nat.register_trait(Nat, poly("PartialOrd", vec![ty_tp(Nat)]), nat_partial_ord);
+        nat.register_trait(Nat, nat_partial_ord);
         // __sub__, __div__ is not included in Nat (cast to Int/ Ratio)
         let op_t = fn1_met(Nat, Nat, Nat);
-        let mut nat_add = Self::builtin_methods("Add", 2);
+        let mut nat_add = Self::builtin_methods(Some(poly("Add", vec![ty_tp(Nat)])), 2);
         nat_add.register_builtin_impl("__add__", op_t.clone(), Const, Public);
         nat_add.register_builtin_const("Output", Public, ValueObj::builtin_t(Nat));
-        nat.register_trait(Nat, poly("Add", vec![ty_tp(Nat)]), nat_add);
-        let mut nat_mul = Self::builtin_methods("Mul", 2);
+        nat.register_trait(Nat, nat_add);
+        let mut nat_mul = Self::builtin_methods(Some(poly("Mul", vec![ty_tp(Nat)])), 2);
         nat_mul.register_builtin_impl("__mul__", op_t.clone(), Const, Public);
         nat_mul.register_builtin_const("Output", Public, ValueObj::builtin_t(Nat));
-        nat.register_trait(Nat, poly("Mul", vec![ty_tp(Nat)]), nat_mul);
-        let mut nat_floordiv = Self::builtin_methods("FloorDiv", 2);
+        nat.register_trait(Nat, nat_mul);
+        let mut nat_floordiv = Self::builtin_methods(Some(poly("FloorDiv", vec![ty_tp(Nat)])), 2);
         nat_floordiv.register_builtin_impl("__floordiv__", op_t, Const, Public);
         nat_floordiv.register_builtin_const("Output", Public, ValueObj::builtin_t(Nat));
-        nat.register_trait(Nat, poly("FloorDiv", vec![ty_tp(Nat)]), nat_floordiv);
-        let mut nat_mutizable = Self::builtin_methods("Mutizable", 2);
+        nat.register_trait(Nat, nat_floordiv);
+        let mut nat_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         nat_mutizable.register_builtin_const("MutType!", Public, ValueObj::builtin_t(mono("Nat!")));
-        nat.register_trait(Nat, mono("Mutizable"), nat_mutizable);
+        nat.register_trait(Nat, nat_mutizable);
         nat.register_builtin_impl("Real", Nat, Const, Public);
         nat.register_builtin_impl("Imag", Nat, Const, Public);
 
@@ -751,31 +768,28 @@ impl Context {
         bool_.register_builtin_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_marker_trait(mono("Num"));
         bool_.register_marker_trait(mono("Ord"));
-        let mut bool_partial_ord = Self::builtin_methods("PartialOrd", 2);
+        let mut bool_partial_ord =
+            Self::builtin_methods(Some(poly("PartialOrd", vec![ty_tp(Bool)])), 2);
         bool_partial_ord.register_builtin_impl(
             "__cmp__",
             fn1_met(Bool, Bool, mono("Ordering")),
             Const,
             Public,
         );
-        bool_.register_trait(
-            Bool,
-            poly("PartialOrd", vec![ty_tp(Bool)]),
-            bool_partial_ord,
-        );
-        let mut bool_eq = Self::builtin_methods("Eq", 2);
+        bool_.register_trait(Bool, bool_partial_ord);
+        let mut bool_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Bool)])), 2);
         bool_eq.register_builtin_impl("__eq__", fn1_met(Bool, Bool, Bool), Const, Public);
-        bool_.register_trait(Bool, poly("Eq", vec![ty_tp(Bool)]), bool_eq);
-        let mut bool_mutizable = Self::builtin_methods("Mutizable", 2);
+        bool_.register_trait(Bool, bool_eq);
+        let mut bool_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         bool_mutizable.register_builtin_const(
             "MutType!",
             Public,
             ValueObj::builtin_t(mono("Bool!")),
         );
-        bool_.register_trait(Bool, mono("Mutizable"), bool_mutizable);
-        let mut bool_show = Self::builtin_methods("Show", 1);
+        bool_.register_trait(Bool, bool_mutizable);
+        let mut bool_show = Self::builtin_methods(Some(mono("Show")), 1);
         bool_show.register_builtin_impl("to_str", fn0_met(Bool, Str), Immutable, Public);
-        bool_.register_trait(Bool, mono("Show"), bool_show);
+        bool_.register_trait(Bool, bool_show);
         /* Str */
         let mut str_ = Self::builtin_mono_class("Str", 10);
         str_.register_superclass(Obj, &obj);
@@ -805,49 +819,49 @@ impl Context {
             Immutable,
             Public,
         );
-        let mut str_eq = Self::builtin_methods("Eq", 2);
+        let mut str_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Str)])), 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
-        str_.register_trait(Str, poly("Eq", vec![ty_tp(Str)]), str_eq);
-        let mut str_seq = Self::builtin_methods("Seq", 2);
+        str_.register_trait(Str, str_eq);
+        let mut str_seq = Self::builtin_methods(Some(poly("Seq", vec![ty_tp(Str)])), 2);
         str_seq.register_builtin_impl("len", fn0_met(Str, Nat), Const, Public);
         str_seq.register_builtin_impl("get", fn1_met(Str, Nat, Str), Const, Public);
-        str_.register_trait(Str, poly("Seq", vec![ty_tp(Str)]), str_seq);
-        let mut str_add = Self::builtin_methods("Add", 2);
+        str_.register_trait(Str, str_seq);
+        let mut str_add = Self::builtin_methods(Some(poly("Add", vec![ty_tp(Str)])), 2);
         str_add.register_builtin_impl("__add__", fn1_met(Str, Str, Str), Const, Public);
         str_add.register_builtin_const("Output", Public, ValueObj::builtin_t(Str));
-        str_.register_trait(Str, poly("Add", vec![ty_tp(Str)]), str_add);
-        let mut str_mul = Self::builtin_methods("Mul", 2);
+        str_.register_trait(Str, str_add);
+        let mut str_mul = Self::builtin_methods(Some(poly("Mul", vec![ty_tp(Nat)])), 2);
         str_mul.register_builtin_impl("__mul__", fn1_met(Str, Nat, Str), Const, Public);
         str_mul.register_builtin_const("Output", Public, ValueObj::builtin_t(Str));
-        str_.register_trait(Str, poly("Mul", vec![ty_tp(Nat)]), str_mul);
-        let mut str_mutizable = Self::builtin_methods("Mutizable", 2);
+        str_.register_trait(Str, str_mul);
+        let mut str_mutizable = Self::builtin_methods(Some(mono("Mutizable")), 2);
         str_mutizable.register_builtin_const("MutType!", Public, ValueObj::builtin_t(mono("Str!")));
-        str_.register_trait(Str, mono("Mutizable"), str_mutizable);
-        let mut str_show = Self::builtin_methods("Show", 1);
+        str_.register_trait(Str, str_mutizable);
+        let mut str_show = Self::builtin_methods(Some(mono("Show")), 1);
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
-        str_.register_trait(Str, mono("Show"), str_show);
-        let mut str_iterable = Self::builtin_methods("Iterable", 2);
+        str_.register_trait(Str, str_show);
+        let mut str_iterable = Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(Str)])), 2);
         str_iterable.register_builtin_impl(
             "iter",
             fn0_met(Str, mono("StrIterator")),
             Immutable,
             Public,
         );
-        str_.register_trait(Str, poly("Iterable", vec![ty_tp(Str)]), str_iterable);
+        str_.register_trait(Str, str_iterable);
         /* NoneType */
         let mut nonetype = Self::builtin_mono_class("NoneType", 10);
         nonetype.register_superclass(Obj, &obj);
-        let mut nonetype_eq = Self::builtin_methods("Eq", 2);
+        let mut nonetype_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(NoneType)])), 2);
         nonetype_eq.register_builtin_impl(
             "__eq__",
             fn1_met(NoneType, NoneType, Bool),
             Const,
             Public,
         );
-        nonetype.register_trait(NoneType, poly("Eq", vec![ty_tp(NoneType)]), nonetype_eq);
-        let mut nonetype_show = Self::builtin_methods("Show", 1);
+        nonetype.register_trait(NoneType, nonetype_eq);
+        let mut nonetype_show = Self::builtin_methods(Some(mono("Show")), 1);
         nonetype_show.register_builtin_impl("to_str", fn0_met(NoneType, Str), Immutable, Public);
-        nonetype.register_trait(NoneType, mono("Show"), nonetype_show);
+        nonetype.register_trait(NoneType, nonetype_show);
         /* Type */
         let mut type_ = Self::builtin_mono_class("Type", 2);
         type_.register_superclass(Obj, &obj);
@@ -858,47 +872,44 @@ impl Context {
             Public,
         );
         type_.register_marker_trait(mono("Named"));
-        let mut type_eq = Self::builtin_methods("Eq", 2);
+        let mut type_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(Type)])), 2);
         type_eq.register_builtin_impl("__eq__", fn1_met(Type, Type, Bool), Const, Public);
-        type_.register_trait(Type, poly("Eq", vec![ty_tp(Type)]), type_eq);
+        type_.register_trait(Type, type_eq);
         let mut class_type = Self::builtin_mono_class("ClassType", 2);
         class_type.register_superclass(Type, &type_);
         class_type.register_marker_trait(mono("Named"));
-        let mut class_eq = Self::builtin_methods("Eq", 2);
+        let mut class_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(ClassType)])), 2);
         class_eq.register_builtin_impl(
             "__eq__",
             fn1_met(ClassType, ClassType, Bool),
             Const,
             Public,
         );
-        class_type.register_trait(ClassType, poly("Eq", vec![ty_tp(ClassType)]), class_eq);
+        class_type.register_trait(ClassType, class_eq);
         let mut trait_type = Self::builtin_mono_class("TraitType", 2);
         trait_type.register_superclass(Type, &type_);
         trait_type.register_marker_trait(mono("Named"));
-        let mut trait_eq = Self::builtin_methods("Eq", 2);
+        let mut trait_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(TraitType)])), 2);
         trait_eq.register_builtin_impl(
             "__eq__",
             fn1_met(TraitType, TraitType, Bool),
             Const,
             Public,
         );
-        trait_type.register_trait(TraitType, poly("Eq", vec![ty_tp(TraitType)]), trait_eq);
+        trait_type.register_trait(TraitType, trait_eq);
         let g_module_t = mono("GenericModule");
         let mut generic_module = Self::builtin_mono_class("GenericModule", 2);
         generic_module.register_superclass(Obj, &obj);
         generic_module.register_marker_trait(mono("Named"));
-        let mut generic_module_eq = Self::builtin_methods("Eq", 2);
+        let mut generic_module_eq =
+            Self::builtin_methods(Some(poly("Eq", vec![ty_tp(g_module_t.clone())])), 2);
         generic_module_eq.register_builtin_impl(
             "__eq__",
             fn1_met(g_module_t.clone(), g_module_t.clone(), Bool),
             Const,
             Public,
         );
-        generic_module.register_trait(
-            g_module_t.clone(),
-            poly("Eq", vec![ty_tp(g_module_t.clone())]),
-            generic_module_eq,
-        );
+        generic_module.register_trait(g_module_t.clone(), generic_module_eq);
         let module_t = module(mono_q_tp("Path"));
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
@@ -961,35 +972,28 @@ impl Context {
             None,
         )));
         array_.register_builtin_const("__getitem__", Public, get_item);
-        let mut array_eq = Self::builtin_methods("Eq", 2);
+        let mut array_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(arr_t.clone())])), 2);
         array_eq.register_builtin_impl(
             "__eq__",
             fn1_met(arr_t.clone(), arr_t.clone(), Bool),
             Const,
             Public,
         );
-        array_.register_trait(
-            arr_t.clone(),
-            poly("Eq", vec![ty_tp(arr_t.clone())]),
-            array_eq,
-        );
+        array_.register_trait(arr_t.clone(), array_eq);
         array_.register_marker_trait(mono("Mutizable"));
         array_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
-        let mut array_show = Self::builtin_methods("Show", 1);
+        let mut array_show = Self::builtin_methods(Some(mono("Show")), 1);
         array_show.register_builtin_impl("to_str", fn0_met(arr_t.clone(), Str), Immutable, Public);
-        array_.register_trait(arr_t.clone(), mono("Show"), array_show);
-        let mut array_iterable = Self::builtin_methods("Iterable", 2);
+        array_.register_trait(arr_t.clone(), array_show);
+        let mut array_iterable =
+            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(mono_q("T"))])), 2);
         array_iterable.register_builtin_impl(
             "iter",
             fn0_met(Str, mono("ArrayIterator")),
             Immutable,
             Public,
         );
-        array_.register_trait(
-            arr_t.clone(),
-            poly("Iterable", vec![ty_tp(mono_q("T"))]),
-            array_iterable,
-        );
+        array_.register_trait(arr_t.clone(), array_iterable);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -1015,38 +1019,31 @@ impl Context {
             vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
         ));
         set_.register_builtin_const("MutType!", Public, mut_type);
-        let mut set_eq = Self::builtin_methods("Eq", 2);
+        let mut set_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(set_t.clone())])), 2);
         set_eq.register_builtin_impl(
             "__eq__",
             fn1_met(set_t.clone(), set_t.clone(), Bool),
             Const,
             Public,
         );
-        set_.register_trait(
-            set_t.clone(),
-            poly("Eq", vec![ty_tp(set_t.clone())]),
-            set_eq,
-        );
+        set_.register_trait(set_t.clone(), set_eq);
         set_.register_marker_trait(mono("Mutizable"));
         set_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
-        let mut set_show = Self::builtin_methods("Show", 1);
+        let mut set_show = Self::builtin_methods(Some(mono("Show")), 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
-        set_.register_trait(set_t.clone(), mono("Show"), set_show);
+        set_.register_trait(set_t.clone(), set_show);
         let g_dict_t = mono("GenericDict");
         let mut generic_dict = Self::builtin_mono_class("GenericDict", 2);
         generic_dict.register_superclass(Obj, &obj);
-        let mut generic_dict_eq = Self::builtin_methods("Eq", 2);
+        let mut generic_dict_eq =
+            Self::builtin_methods(Some(poly("Eq", vec![ty_tp(g_dict_t.clone())])), 2);
         generic_dict_eq.register_builtin_impl(
             "__eq__",
             fn1_met(g_dict_t.clone(), g_dict_t.clone(), Bool),
             Const,
             Public,
         );
-        generic_dict.register_trait(
-            g_dict_t.clone(),
-            poly("Eq", vec![ty_tp(g_dict_t.clone())]),
-            generic_dict_eq,
-        );
+        generic_dict.register_trait(g_dict_t.clone(), generic_dict_eq);
         let dict_t = poly("Dict", vec![mono_q_tp("D")]);
         let mut dict_ =
             // TODO: D <: GenericDict
@@ -1075,18 +1072,15 @@ impl Context {
         bytes.register_superclass(Obj, &obj);
         let mut generic_tuple = Self::builtin_mono_class("GenericTuple", 1);
         generic_tuple.register_superclass(Obj, &obj);
-        let mut tuple_eq = Self::builtin_methods("Eq", 2);
+        let mut tuple_eq =
+            Self::builtin_methods(Some(poly("Eq", vec![ty_tp(mono("GenericTuple"))])), 2);
         tuple_eq.register_builtin_impl(
             "__eq__",
             fn1_met(mono("GenericTuple"), mono("GenericTuple"), Bool),
             Const,
             Public,
         );
-        generic_tuple.register_trait(
-            mono("GenericTuple"),
-            poly("Eq", vec![ty_tp(mono("GenericTuple"))]),
-            tuple_eq,
-        );
+        generic_tuple.register_trait(mono("GenericTuple"), tuple_eq);
         // Ts <: GenericArray
         let tuple_t = poly("Tuple", vec![mono_q_tp("Ts")]);
         let mut tuple_ =
@@ -1120,7 +1114,7 @@ impl Context {
         /* Float_mut */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
-        let mut float_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut float_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         float_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Float));
         let f_t = kw("f", func(vec![kw("old", Float)], None, vec![], Float));
         let t = pr_met(
@@ -1131,11 +1125,11 @@ impl Context {
             NoneType,
         );
         float_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        float_mut.register_trait(mono("Float!"), mono("Mutable"), float_mut_mutable);
+        float_mut.register_trait(mono("Float!"), float_mut_mutable);
         /* Ratio_mut */
         let mut ratio_mut = Self::builtin_mono_class("Ratio!", 2);
         ratio_mut.register_superclass(Ratio, &ratio);
-        let mut ratio_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut ratio_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Ratio));
         let f_t = kw("f", func(vec![kw("old", Ratio)], None, vec![], Ratio));
         let t = pr_met(
@@ -1146,12 +1140,12 @@ impl Context {
             NoneType,
         );
         ratio_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        ratio_mut.register_trait(mono("Ratio!"), mono("Mutable"), ratio_mut_mutable);
+        ratio_mut.register_trait(mono("Ratio!"), ratio_mut_mutable);
         /* Int_mut */
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono("Float!"), &float_mut);
-        let mut int_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut int_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         int_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Int));
         let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
         let t = pr_met(
@@ -1162,12 +1156,12 @@ impl Context {
             NoneType,
         );
         int_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        int_mut.register_trait(mono("Int!"), mono("Mutable"), int_mut_mutable);
+        int_mut.register_trait(mono("Int!"), int_mut_mutable);
         let mut nat_mut = Self::builtin_mono_class("Nat!", 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono("Int!"), &int_mut);
         /* Nat_mut */
-        let mut nat_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut nat_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         nat_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Nat));
         let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
         let t = pr_met(
@@ -1178,12 +1172,12 @@ impl Context {
             NoneType,
         );
         nat_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        nat_mut.register_trait(mono("Nat!"), mono("Mutable"), nat_mut_mutable);
+        nat_mut.register_trait(mono("Nat!"), nat_mut_mutable);
         /* Bool_mut */
         let mut bool_mut = Self::builtin_mono_class("Bool!", 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(mono("Nat!"), &nat_mut);
-        let mut bool_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut bool_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         bool_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Bool));
         let f_t = kw("f", func(vec![kw("old", Bool)], None, vec![], Bool));
         let t = pr_met(
@@ -1194,11 +1188,11 @@ impl Context {
             NoneType,
         );
         bool_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        bool_mut.register_trait(mono("Bool!"), mono("Mutable"), bool_mut_mutable);
+        bool_mut.register_trait(mono("Bool!"), bool_mut_mutable);
         /* Str_mut */
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
         str_mut.register_superclass(Str, &nonetype);
-        let mut str_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut str_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         str_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Str));
         let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
         let t = pr_met(
@@ -1209,10 +1203,10 @@ impl Context {
             NoneType,
         );
         str_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        str_mut.register_trait(mono("Str!"), mono("Mutable"), str_mut_mutable);
+        str_mut.register_trait(mono("Str!"), str_mut_mutable);
         /* File_mut */
         let mut file_mut = Self::builtin_mono_class("File!", 2);
-        let mut file_mut_readable = Self::builtin_methods("Readable!", 1);
+        let mut file_mut_readable = Self::builtin_methods(Some(mono("Readable!")), 1);
         file_mut_readable.register_builtin_impl(
             "read!",
             pr_met(
@@ -1225,15 +1219,15 @@ impl Context {
             Immutable,
             Public,
         );
-        file_mut.register_trait(mono("File!"), mono("Readable!"), file_mut_readable);
-        let mut file_mut_writable = Self::builtin_methods("Writable!", 1);
+        file_mut.register_trait(mono("File!"), file_mut_readable);
+        let mut file_mut_writable = Self::builtin_methods(Some(mono("Writable!")), 1);
         file_mut_writable.register_builtin_impl(
             "write!",
             pr1_kw_met(ref_mut(mono("File!"), None), kw("s", Str), Nat),
             Immutable,
             Public,
         );
-        file_mut.register_trait(mono("File!"), mono("Writable!"), file_mut_writable);
+        file_mut.register_trait(mono("File!"), file_mut_writable);
         /* Array_mut */
         let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(
@@ -1283,9 +1277,9 @@ impl Context {
             vec![],
             NoneType,
         );
-        let mut array_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut array_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        array_mut_.register_trait(array_mut_t.clone(), mono("Mutable"), array_mut_mutable);
+        array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
         /* Set_mut */
         let set_mut_t = poly("Set!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut set_mut_ = Self::builtin_poly_class(
@@ -1336,27 +1330,23 @@ impl Context {
             vec![],
             NoneType,
         );
-        let mut set_mut_mutable = Self::builtin_methods("Mutable", 2);
+        let mut set_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         set_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
-        set_mut_.register_trait(set_mut_t.clone(), mono("Mutable"), set_mut_mutable);
+        set_mut_.register_trait(set_mut_t.clone(), set_mut_mutable);
         /* Range */
         let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
         // range.register_superclass(Obj, &obj);
         range.register_superclass(Type, &type_);
         range.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
-        let mut range_eq = Self::builtin_methods("Eq", 2);
+        let mut range_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(range_t.clone())])), 2);
         range_eq.register_builtin_impl(
             "__eq__",
             fn1_met(range_t.clone(), range_t.clone(), Bool),
             Const,
             Public,
         );
-        range.register_trait(
-            range_t.clone(),
-            poly("Eq", vec![ty_tp(range_t.clone())]),
-            range_eq,
-        );
+        range.register_trait(range_t.clone(), range_eq);
         /* Proc */
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);
@@ -1816,28 +1806,27 @@ impl Context {
             PS::named_nd("O", Int),
             PS::named_nd("P", Int),
         ];
+        let class = Type::from(&m..=&n);
         // Interval is a bounding patch connecting M..N and (Add(O..P, M+O..N..P), Sub(O..P, M-P..N-O))
-        let mut interval = Self::builtin_poly_patch("Interval", Type::from(&m..=&n), params, 2);
+        let mut interval = Self::builtin_poly_patch("Interval", class.clone(), params, 2);
         let op_t = fn1_met(
-            Type::from(&m..=&n),
+            class.clone(),
             Type::from(&o..=&p),
             Type::from(m.clone() + o.clone()..=n.clone() + p.clone()),
         );
-        let mut interval_add = Self::builtin_methods("Add", 2);
+        let mut interval_add =
+            Self::builtin_methods(Some(poly("Add", vec![TyParam::from(&o..=&p)])), 2);
         interval_add.register_builtin_impl("__add__", op_t, Const, Public);
         interval_add.register_builtin_const(
             "Output",
             Public,
             ValueObj::builtin_t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
         );
-        interval.register_trait(
-            Type::from(&m..=&n),
-            poly("Add", vec![TyParam::from(&o..=&p)]),
-            interval_add,
-        );
-        let mut interval_sub = Self::builtin_methods("Sub", 2);
+        interval.register_trait(class.clone(), interval_add);
+        let mut interval_sub =
+            Self::builtin_methods(Some(poly("Sub", vec![TyParam::from(&o..=&p)])), 2);
         let op_t = fn1_met(
-            Type::from(&m..=&n),
+            class.clone(),
             Type::from(&o..=&p),
             Type::from(m.clone() - p.clone()..=n.clone() - o.clone()),
         );
@@ -1845,13 +1834,9 @@ impl Context {
         interval_sub.register_builtin_const(
             "Output",
             Public,
-            ValueObj::builtin_t(Type::from(m.clone() - p.clone()..=n.clone() - o.clone())),
+            ValueObj::builtin_t(Type::from(m - p..=n - o)),
         );
-        interval.register_trait(
-            Type::from(&m..=&n),
-            poly("Sub", vec![TyParam::from(&o..=&p)]),
-            interval_sub,
-        );
+        interval.register_trait(class, interval_sub);
         self.register_builtin_patch("Interval", interval, Private, Const);
         // eq.register_impl("__ne__", op_t,         Const, Public);
         // ord.register_impl("__le__", op_t.clone(), Const, Public);
