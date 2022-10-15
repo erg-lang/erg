@@ -43,5 +43,6 @@ jobs:
         with:
           bin: erg
           target: ${{ matrix.target }}
+          features: no_build_rs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

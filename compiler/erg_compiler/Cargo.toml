@@ -22,10 +22,11 @@ traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
 ]
+no_build_rs = []
 
 [dependencies]
-erg_common = { version = "0.5.9-nightly.6", path = "../erg_common" }
-erg_parser = { version = "0.5.9-nightly.6", path = "../erg_parser" }
+erg_common = { version = "0.5.9", path = "../erg_common" }
+erg_parser = { version = "0.5.9", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"

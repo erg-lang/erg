@@ -1150,9 +1150,9 @@ impl Context {
         if let Some(obj) = self.consts.get(name.inspect()) {
             Ok(obj.clone())
         } else {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+            /*if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.get_const_local(name, namespace);
-            }
+            }*/
             Err(TyCheckError::no_var_error(
                 self.cfg.input.clone(),
                 line!() as usize,

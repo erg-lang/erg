@@ -86,7 +86,7 @@ impl Context {
                 } else {
                     self.decls.insert(
                         ident.name.clone(),
-                        VarInfo::new(sig_t, muty, vis, kind, None),
+                        VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of()),
                     );
                     Ok(())
                 }
@@ -121,11 +121,12 @@ impl Context {
                 vis,
                 kind.clone(),
                 Some(comptime_decos.clone()),
+                self.impl_of(),
             );
             self.decls.insert(sig.ident.name.clone(), vi);
             e
         })?;
-        let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos));
+        let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos), self.impl_of());
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -161,7 +162,15 @@ impl Context {
         let generalized = self.generalize_t(body_t.clone());
         self.decls.remove(ident.inspect());
         let vis = ident.vis();
-        let vi = VarInfo::new(generalized, muty, vis, VarKind::Defined(id), None);
+        let vi = VarInfo::new(
+            generalized,
+            muty,
+            vis,
+            VarKind::Defined(id),
+            None,
+            self.impl_of(),
+        );
+        log!(info "Registered {}::{}: {} {:?}", self.name, ident.name, vi.t, vi.impl_of);
         self.locals.insert(ident.name.clone(), vi);
         Ok(())
     }
@@ -211,7 +220,7 @@ impl Context {
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, muty, Private, kind, None),
+                        VarInfo::new(spec_t, muty, Private, kind, None, None),
                     ));
                     Ok(())
                 }
@@ -250,7 +259,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None, None),
                     ));
                     Ok(())
                 }
@@ -289,7 +298,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None, None),
                     ));
                     Ok(())
                 }
@@ -451,9 +460,10 @@ impl Context {
             sig.ident.vis(),
             VarKind::Defined(id),
             Some(comptime_decos),
+            self.impl_of(),
         );
         let t = vi.t.clone();
-        log!(info "Registered {}::{name}: {}", self.name, t);
+        log!(info "Registered {}::{name}: {t}", self.name);
         self.locals.insert(name.clone(), vi);
         Ok(t)
     }
@@ -487,6 +497,7 @@ impl Context {
             sig.ident.vis(),
             VarKind::DoesNotExist,
             Some(comptime_decos),
+            self.impl_of(),
         );
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
@@ -576,8 +587,10 @@ impl Context {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.locals
-                .insert(name, VarInfo::new(t, muty, vis, VarKind::Auto, None));
+            self.locals.insert(
+                name,
+                VarInfo::new(t, muty, vis, VarKind::Auto, None, self.impl_of()),
+            );
         }
     }
 
@@ -593,33 +606,55 @@ impl Context {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.locals
-                .insert(name, VarInfo::new(t, muty, vis, VarKind::FixedAuto, None));
+            self.locals.insert(
+                name,
+                VarInfo::new(t, muty, vis, VarKind::FixedAuto, None, self.impl_of()),
+            );
         }
     }
 
-    fn _register_gen_decl(&mut self, name: VarName, t: Type, vis: Visibility) {
+    fn _register_gen_decl(
+        &mut self,
+        name: VarName,
+        t: Type,
+        vis: Visibility,
+        impl_of: Option<Type>,
+    ) {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
             self.decls.insert(
                 name,
-                VarInfo::new(t, Immutable, vis, VarKind::Declared, None),
+                VarInfo::new(t, Immutable, vis, VarKind::Declared, None, impl_of),
             );
         }
     }
 
-    fn _register_gen_impl(&mut self, name: VarName, t: Type, muty: Mutability, vis: Visibility) {
+    fn _register_gen_impl(
+        &mut self,
+        name: VarName,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+        impl_of: Option<Type>,
+    ) {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.locals
-                .insert(name, VarInfo::new(t, muty, vis, VarKind::Defined(id), None));
+            self.locals.insert(
+                name,
+                VarInfo::new(t, muty, vis, VarKind::Defined(id), None, impl_of),
+            );
         }
     }
 
-    pub(crate) fn register_trait(&mut self, class: Type, trait_: Type, methods: Self) {
+    pub(crate) fn register_trait(&mut self, class: Type, methods: Self) {
+        let trait_ = if let ContextKind::MethodDefs(Some(tr)) = &methods.kind {
+            tr.clone()
+        } else {
+            todo!()
+        };
         self.super_traits.push(trait_.clone());
         self.methods_list
             .push((ClassDefType::impl_trait(class, trait_), methods));
@@ -648,7 +683,9 @@ impl Context {
                     TypeObj::Generated(gen) => {
                         self.register_gen_type(ident, gen);
                     }
-                    TypeObj::Builtin(_t) => panic!("aliasing bug"),
+                    TypeObj::Builtin(t) => {
+                        self.register_type_alias(ident, t);
+                    }
                 },
                 // TODO: not all value objects are comparable
                 other => {
@@ -659,9 +696,10 @@ impl Context {
                         ident.vis(),
                         VarKind::Defined(id),
                         None,
+                        self.impl_of(),
                     );
-                    self.consts.insert(ident.name.clone(), other);
                     self.decls.insert(ident.name.clone(), vi);
+                    self.consts.insert(ident.name.clone(), other);
                 }
             }
             Ok(())
@@ -682,7 +720,7 @@ impl Context {
                         self.level,
                     );
                     let mut methods = Self::methods(
-                        gen.t.qual_name(),
+                        None,
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -720,7 +758,7 @@ impl Context {
                         ctx.register_superclass(sup, sup_ctx);
                     }
                     let mut methods = Self::methods(
-                        gen.t.qual_name(),
+                        None,
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -778,7 +816,14 @@ impl Context {
                         } else {
                             Mutability::Immutable
                         };
-                        let vi = VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                        let vi = VarInfo::new(
+                            t.clone(),
+                            muty,
+                            field.vis,
+                            VarKind::Declared,
+                            None,
+                            self.impl_of(),
+                        );
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
                     }
@@ -807,8 +852,14 @@ impl Context {
                             } else {
                                 Mutability::Immutable
                             };
-                            let vi =
-                                VarInfo::new(t.clone(), muty, field.vis, VarKind::Declared, None);
+                            let vi = VarInfo::new(
+                                t.clone(),
+                                muty,
+                                field.vis,
+                                VarKind::Declared,
+                                None,
+                                self.impl_of(),
+                            );
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
                         }
@@ -823,6 +874,31 @@ impl Context {
                 }
             }
             other => todo!("{other:?}"),
+        }
+    }
+
+    pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) {
+        if self.mono_types.contains_key(ident.inspect()) {
+            panic!("{ident} has already been registered");
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+            panic!("{ident} has already been registered as const");
+        } else {
+            let name = &ident.name;
+            let muty = Mutability::from(&ident.inspect()[..]);
+            let id = DefId(get_hash(&(&self.name, &name)));
+            self.decls.insert(
+                name.clone(),
+                VarInfo::new(
+                    Type::Type,
+                    muty,
+                    ident.vis(),
+                    VarKind::Defined(id),
+                    None,
+                    self.impl_of(),
+                ),
+            );
+            self.consts
+                .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
         }
     }
 
@@ -846,7 +922,14 @@ impl Context {
             let id = DefId(get_hash(&(&self.name, &name)));
             self.decls.insert(
                 name.clone(),
-                VarInfo::new(meta_t, muty, ident.vis(), VarKind::Defined(id), None),
+                VarInfo::new(
+                    meta_t,
+                    muty,
+                    ident.vis(),
+                    VarKind::Defined(id),
+                    None,
+                    self.impl_of(),
+                ),
             );
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));

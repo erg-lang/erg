@@ -122,6 +122,7 @@ pub struct VarInfo {
     pub vis: Visibility,
     pub kind: VarKind,
     pub comptime_decos: Option<Set<Str>>,
+    pub impl_of: Option<Type>,
 }
 
 impl fmt::Display for VarInfo {
@@ -160,6 +161,7 @@ impl VarInfo {
         Private,
         VarKind::DoesNotExist,
         None,
+        None,
     );
 
     pub const fn new(
@@ -168,6 +170,7 @@ impl VarInfo {
         vis: Visibility,
         kind: VarKind,
         comptime_decos: Option<Set<Str>>,
+        impl_of: Option<Type>,
     ) -> Self {
         Self {
             t,
@@ -175,6 +178,7 @@ impl VarInfo {
             vis,
             kind,
             comptime_decos,
+            impl_of,
         }
     }
 
