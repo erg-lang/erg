@@ -11,7 +11,7 @@
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
-* &# 35; → [Str](./00_basic.md/#comment)
+* &# 35; → [Str](./00_basic.md/#注释)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
@@ -20,7 +20,7 @@
 * [&quot;&nbsp;(double&nbsp;quote)](./01_literal.md)
 * &lpar;&rpar; → [Tuple](./11_tuple.md)
 * &ast;
-  * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-multiplication)
+  * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-乘法)
 * &plus; (前置) → [operator](./06_operator.md)
   * &plus;_ → &plus; (前置)
 * &plus; (中置) → [operator](./06_operator.md)
