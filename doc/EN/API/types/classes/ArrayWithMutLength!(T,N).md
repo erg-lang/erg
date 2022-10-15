@@ -1,6 +1,6 @@
 # ArrayWithLen T: Type, N: Nat
 
-`[T; N]` is syntactic sugar. There is also an [`Array` type](./Array.md) that omits the length.
+`[T; N]` is syntactic sugar. There is also an [`Array` type](../../../syntax/10_array.md) that omits the length.
 
 ## methods
 

@@ -4,7 +4,7 @@
 
 * Rust (installed with rustup)
 
-  * ver >= 1.63.0
+  * ver >= 1.64.0
   * 2021 edition
 
 * [pre-commit](https://pre-commit.com/)
