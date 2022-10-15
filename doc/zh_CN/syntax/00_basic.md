@@ -70,11 +70,11 @@ hello, world!
 
 ## 注释
 
-`# ` 之后的代码作为注释被忽略。使用它来解释代码的意图或暂时禁用代码
+`#` 之后的代码作为注释被忽略。使用它来解释代码的意图或暂时禁用代码
 
 ```python
 # Comment
-# `# ` and after are ignored until a new line is inserted
+# `#` and after are ignored until a new line is inserted
 # [
 Multi-line comment
 Treated as a comment all the way up to the corresponding `]# `

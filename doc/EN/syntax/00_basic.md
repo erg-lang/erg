@@ -74,11 +74,11 @@ hello, world!
 
 ## Comments
 
-The code after `# ` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
+The code after `#` is ignored as a comment. Use this to explain the intent of the code or to temporarily disable the code.
 
 ```python
 # Comment
-# `# ` and after are ignored until a new line is inserted
+# `#` and after are ignored until a new line is inserted
 # [
 Multi-line comment
 Treated as a comment all the way up to the corresponding `]# `
