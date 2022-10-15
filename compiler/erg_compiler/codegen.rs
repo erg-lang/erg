@@ -2051,27 +2051,36 @@ impl CodeGenerator {
     }
 
     fn load_prelude_py(&mut self) {
-        self.emit_global_import_items(
-            Identifier::public("sys"),
-            vec![(
-                Identifier::public("path"),
-                Some(Identifier::private("#path")),
-            )],
-        );
-        self.emit_load_name_instr(Identifier::private("#path"));
-        self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
-        self.emit_load_const(env!("ERG_STD_PATH"));
-        self.write_instr(CALL_METHOD);
-        self.write_arg(1u8);
-        self.stack_dec();
-        self.emit_pop_top();
-        self.emit_global_import_items(
-            Identifier::public("_erg_std_prelude"),
-            vec![(
-                Identifier::public("in_operator"),
-                Some(Identifier::private("#in_operator")),
-            )],
-        );
+        if let Some(std_path) = option_env!("ERG_STD_PATH") {
+            self.emit_global_import_items(
+                Identifier::public("sys"),
+                vec![(
+                    Identifier::public("path"),
+                    Some(Identifier::private("#path")),
+                )],
+            );
+            self.emit_load_name_instr(Identifier::private("#path"));
+            self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
+            self.emit_load_const(std_path);
+            self.write_instr(CALL_METHOD);
+            self.write_arg(1u8);
+            self.stack_dec();
+            self.emit_pop_top();
+            self.emit_global_import_items(
+                Identifier::public("_erg_std_prelude"),
+                vec![(
+                    Identifier::public("in_operator"),
+                    Some(Identifier::private("#in_operator")),
+                )],
+            );
+        } else {
+            self.emit_load_name_instr(Identifier::private("exec"));
+            self.emit_load_const(include_str!("std/_erg_std_prelude.py"));
+            self.write_instr(CALL_FUNCTION);
+            self.write_arg(1u8);
+            self.stack_dec();
+            self.emit_pop_top();
+        }
     }
 
     fn load_record_type(&mut self) {
