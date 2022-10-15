@@ -77,7 +77,7 @@ hello, world!
 # `#` and after are ignored until a new line is inserted
 # [
 Multi-line comment
-Treated as a comment all the way up to the corresponding `]# `
+Treated as a comment all the way up to the corresponding `]#`
 ]# 
 ```
 
