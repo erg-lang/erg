@@ -11,7 +11,7 @@
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
-* &# 35; → [Str](./00_basic.md/#注釋)
+* &#35; → [Str](./00_basic.md/#注釋)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
@@ -60,8 +60,8 @@
 * ^
   * ^^
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
-  * &# 95;+&# 95; → &plus; (infix)
-  * &# 95;-&# 95; → &minus; (infix)
+  * &#95;+&#95; → &plus; (infix)
+  * &#95;-&#95; → &minus; (infix)
 * [``&nbsp;(back&nbsp;quote)](./22_subroutine.md)
 * {}
   * [{} type](./type/01_type_system.md)
