@@ -15,7 +15,7 @@ foo = {.i = 1}
 ```
 
 ```python: bar.er
-#bar.er
+# bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
 assert foo.i == 1

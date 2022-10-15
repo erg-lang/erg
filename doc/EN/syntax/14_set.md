@@ -13,11 +13,11 @@ Sets can be declared by specifying type and length.
 ```python
 a: {Int; 3} = {0, 1, 2} # OK
 b: {Int; 3} = {0, 0, 0} # NG, Duplicates are deleted, and the length changes.
-#[
+# [
 TypeError: the type of b is mismatched
 expected:  Set(Int, 3)
 but found: Set({0, }, 1)
-]#
+]# 
 ```
 
 In addition, only objects that implement the `Eq` trait can be elements of the Set.
@@ -26,13 +26,13 @@ Therefore, it is not possible to use the Set elements such as a Float.
 
 ```python
 d = {0.0, 1.0} # NG
-#[
+# [
 1│ d = {0.0, 1.0}
         ^^^^^^^^
 TypeError: the type of _ is mismatched:
 expected:  Eq(Float)
 but found: {0.0, 1.0, }
-]#
+]# 
 ```
 
 Sets can perform set operations.

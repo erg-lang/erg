@@ -69,7 +69,7 @@ After applying it, you will notice the difference.
 
 ```python
 _ = take_univq_f_and_return_i(x -> x, 1) # OK
-_ = take_univq_f_and_return_i(x: Int -> x, 1) #NG
+_ = take_univq_f_and_return_i(x: Int -> x, 1) # NG
 _ = take_univq_f_and_return_i(x: Str -> x, 1) # NG
 _ = take_arbit_f_and_return_i(x -> x, 1) # OK
 _ = take_arbit_f_and_return_i(x: Int -> x, 1) # OK

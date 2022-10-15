@@ -1,6 +1,6 @@
 # 型変数、量化型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D14657486719a134f494e107774ac8f9d5a63f083)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=14657486719a134f494e107774ac8f9d5a63f083)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
 
 型変数はサブルーチン引数の型指定などに使用する変数で、その型が任意である(単相化しない)ことを示します。
 まず、型変数を導入するモチベーションとして、入力をそのまま返す`id`関数について考えましょう。

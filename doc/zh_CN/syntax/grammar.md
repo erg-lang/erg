@@ -3,7 +3,7 @@
 special_op ::= '=' | '->' | '=>' | '.' | ',' | ':' | '::' | '|>' | '&'
 separator ::= ';' | '\n'
 escape ::= '\'
-comment_marker ::= '#'
+comment_marker ::= '# '
 reserved_symbol ::= special_op | separator | comment_marker
 number ::= [0-9]
 first_last_dight ::= number

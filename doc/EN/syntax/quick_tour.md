@@ -26,7 +26,7 @@ If you do not want to allow these implicit type conversions, you can specify the
 a = 1
 b: Int = a / 2
 # error message
-Error[#0047]: File <stdin>, line 1, in <module>
+Error[# 0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
 TypeError: the type of ratio is mismatched:
@@ -145,7 +145,7 @@ Ergs are owned by mutable objects (objects mutated with the `!` operator) and ca
 i = !0
 j = i
 assert j == 0
-i#MoveError
+i# MoveError
 ```
 
 Immutable objects, on the other hand, can be referenced from multiple places.

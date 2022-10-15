@@ -13,7 +13,7 @@ Erg 数值类型包括 `Nat`、`Int`、`Ratio` 等。但是，这些类型没有
 
 x = 6m # 相当于 `x = Meter.new(6)`
 t = 3s # 相当于 `t = Sec.new(3)`
-#m/s是速度单位对象，类型为velocity
+# m/s是速度单位对象，类型为velocity
 print! x/t # 2m/s
 print! x + 4m # 10m
 print! x + 2s # 类型错误: `+`(Meter, Sec) 未实现

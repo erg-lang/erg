@@ -1,6 +1,6 @@
 # 索引
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D68054846e20b4cdb0e92e986b1b86fcc77de8bcd)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=68054846e20b4cdb0e92e986b1b86fcc77de8bcd)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D304882f403ee8a6db8e19fae67b15ccf9747b6ff)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=304882f403ee8a6db8e19fae67b15ccf9747b6ff)
 
 この索引にないAPIについては[こちら](../API/index.md)を参照してください。
 
@@ -11,7 +11,7 @@
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
-* &#35; → [Str](./00_basic.md/#comment)
+* &# 35; → [Str](./00_basic.md/#comment)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
@@ -38,7 +38,7 @@
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
-  * : → [Declaration](./03_declaration.md.md)
+  * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
   * :: → [visibility](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
@@ -60,8 +60,8 @@
 * ^
   * ^^
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
-  * &#95;+&#95; → &plus; (infix)
-  * &#95;-&#95; → &minus; (infix)
+  * &# 95;+&# 95; → &plus; (infix)
+  * &# 95;-&# 95; → &minus; (infix)
 * [``&nbsp;(back&nbsp;quote)](./22_subroutine.md)
 * {}
   * [{} type](./type/01_type_system.md)
@@ -340,7 +340,7 @@
 
 * [アサーション]
 * 値オブジェクト
-* [アタッチメントパッチ](./29_decorator.md#attach)
+* [アタッチメントパッチ](./29_decorator.md# attach)
 * アドホック多相 → [オーバーロードの禁止](./type/overloading.md)
 * アトリビュート → [属性]
 * アリティ
@@ -348,9 +348,9 @@
 * イミュータブル → [不変]
 * 引数(いんすう) → [引数(ひきすう)]
 * インスタンス
-* [インスタントブロック](./00_basic.md#式セパレータ)
+* [インスタントブロック](./00_basic.md# 式セパレータ)
 * インデックス
-* [インデント](./00_basic.md#インデント)
+* [インデント](./00_basic.md# インデント)
 * エイリアス
 * エラー
   * [エラーハンドリング]
@@ -358,7 +358,7 @@
   * [演算子の結合強度]
 * オーバーライド
 * [オーバーロードの禁止](./type/overloading.md)
-* オフサイドルール → [インデント](./00_basic.md#インデント)
+* オフサイドルール → [インデント](./00_basic.md# インデント)
 * [オブジェクト]
   * オブジェクト指向
 * オペランド → [被演算子](./06_operator.md)
@@ -386,7 +386,7 @@
   * [可変配列]
   * [可変長引数]
 * [関数](./04_function.md)
-  * [関数型プログラミング](./23_scope.md#可変状態の回避関数型プログラミング)
+  * [関数型プログラミング](./23_scope.md# 可変状態の回避関数型プログラミング)
 * 基底型
 * 記名
   * [記名型] → [クラス](./type/04_class.md)
@@ -422,20 +422,20 @@
 * [コンストラクタ](./type/04_class.md)
 * コンテナ
 * コンパイラ
-* [コンパイル時計算](./04_function.md#コンパイル時関数)
+* [コンパイル時計算](./04_function.md# コンパイル時関数)
 * コンマ → [,]
 
 ## さ行
 
 * 再帰
   * 再帰型
-  * [再帰関数](./04_function.md#再帰関数)
+  * [再帰関数](./04_function.md# 再帰関数)
 * サブスクリプト → [インデックス]
 * [サブタイピング多相](./type/overloading.md)
 * サブルーチン
-* [参照](./18_memory_management.md#借用)
+* [参照](./18_memory_management.md# 借用)
   * 参照オブジェクト
-  * [参照カウント(RC)](./18_memory_management.md#メモリ管理)
+  * [参照カウント(RC)](./18_memory_management.md# メモリ管理)
   * 参照等価性 → [副作用](./07_side_effect.md)
 * [識別子](./02_variable.md/#代入)
 * シグネチャ
@@ -445,8 +445,8 @@
 * ジェネリクス → [全称型]
 * ジェネレータ
 * [射影型]
-* 借用 → [参照](./18_memory_management.md#借用)
-* [シャドーイング](./02_name.md#変数)
+* 借用 → [参照](./18_memory_management.md# 借用)
+* [シャドーイング](./02_name.md# 変数)
 * 種 → [カインド](./type/advanced/kind.md)
 * [集合] → [セット]
 * 述語
@@ -457,10 +457,10 @@
 * シングルトン
 * [シンボル] → [識別子](./02_name.md)
   * [シンボル化]
-* [スクリプト](./00_basic.md#スクリプト)
+* [スクリプト](./00_basic.md# スクリプト)
 * スコープ
 * スプレッド演算子 → [展開代入]
-* [スライス](./10_array.md#スライス)
+* [スライス](./10_array.md# スライス)
 * 制御文字
 * [整数] → [Int]
 * [セット](./12_set.md)

@@ -18,7 +18,7 @@ So code like the following will result in an error:
 In Erg, methods can only be defined in atomic kinds, and the name `self` cannot be used anywhere other than the first argument of a method.
 
 ```python
-#K is an unary kind
+# K is an unary kind
 K: Type -> Type
 K T = Class...
 K.

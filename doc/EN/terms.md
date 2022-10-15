@@ -7,7 +7,7 @@
 A marker added to the end of an identifier to indicate that it is a procedure or variable type.
 Or the mutating operator.
 
-### [&#35;](./syntax/00_basic.md#comments)
+### [&# 35;](./syntax/00_basic.md# comments)
 
 ### $
 
@@ -181,7 +181,7 @@ Or the mutating operator.
 
 ### panic
 
-### [print!](../syntax/../API/procs.md#print)
+### [print!](../syntax/../API/procs.md# print)
 
 ### [Python]
 

@@ -22,14 +22,14 @@ test_1_plus_n(n: Nat) =
 
 ## 文档测试
 
-在 Erg 中，`#` 和 `#[` 是注释行，但 `##` 和 `#[[` 是 doc 注释，并且注释可以从 VSCode 等编辑器显示为 markdown
+在 Erg 中，`# ` 和 `# [` 是注释行，但 `## ` 和 `# [[` 是 doc 注释，并且注释可以从 VSCode 等编辑器显示为 markdown
 此外，如果指定了 erg，则使用 erg test 命令自动测试文档注释中的源代码
 下面是一个示例测试
 
 ```python
 VMs =...
     ...
-    #[[
+    # [[
     execute commands.
     ```python
     # 标准配置的虚拟机
@@ -38,7 +38,7 @@ VMs =...
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]#
+    ]]# 
     .exec! ref self, src =
         ...
     ...

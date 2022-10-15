@@ -1,6 +1,6 @@
 # 基本事項
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Df1b2fe99d667c75a71a7c69c9b8342c99353ca32)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=f1b2fe99d667c75a71a7c69c9b8342c99353ca32)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D736dcb272d2132883ec7b883f7694829398be61e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=736dcb272d2132883ec7b883f7694829398be61e)
 
 > __Warning__: 本ドキュメントは未完成です。校正(文体、正しいリンクが張られているか、など)がなされていません。また、Ergの文法はバージョン0.*の間に破壊的変更が加えられる可能性があり、それに伴うドキュメントの更新が追いついていない可能性があります。予めご了承ください。
 > また、本ドキュメントの誤りを見つけた場合は、[こちらのフォーム](https://forms.gle/HtLYRfYzWCAaeTGb6)または[GitHubリポジトリ](https://github.com/mtshiba/TheErgBook/issues/new)から修正の提案をしていただけると幸いです。
@@ -55,15 +55,15 @@ hello, world
 
 ## コメント
 
-`#`以降はコメントとして無視されます。コードの意図を説明したいときや一時的にコードを無効化したいときなどに使います。
+`# `以降はコメントとして無視されます。コードの意図を説明したいときや一時的にコードを無効化したいときなどに使います。
 
 ```python
 # コメント
-## `#`以降は改行されるまで無視されるため、`#`は何個でも使用できる
-#[
+## `# `以降は改行されるまで無視されるため、`# `は何個でも使用できる
+# [
 複数行コメント
-対応する#`[`から`]#`のところまでがコメントとして扱われる
-]#
+対応する# `[`から`]# `のところまでがコメントとして扱われる
+]# 
 ```
 
 ## 式、セパレータ

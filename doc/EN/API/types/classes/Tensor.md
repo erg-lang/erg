@@ -4,7 +4,7 @@
    Matrix, Vector, etc. inherit from this type.
 
 ```python
-Tensor.arrange(0..9) #Tensor[10]
+Tensor.arrange(0..9) # Tensor[10]
 ```
 
 * reshape(self, NewShape: [Nat; M]) -> Self NewShape

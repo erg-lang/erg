@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D74368faf9d82957f40d92117ace36d69dae28b57)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=74368faf9d82957f40d92117ace36d69dae28b57)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D736dcb272d2132883ec7b883f7694829398be61e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=736dcb272d2132883ec7b883f7694829398be61e)
 
 > __Warning__: 本文档不完整。它未经校对(样式、正确链接、误译等)。此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。请事先了解这一点
 > 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。我们将不胜感激您的建议
@@ -70,15 +70,15 @@ hello, world!
 
 ## 注释
 
-`#` 之后的代码作为注释被忽略。使用它来解释代码的意图或暂时禁用代码
+`# ` 之后的代码作为注释被忽略。使用它来解释代码的意图或暂时禁用代码
 
 ```python
 # Comment
-# `#` and after are ignored until a new line is inserted
-#[
+# `# ` and after are ignored until a new line is inserted
+# [
 Multi-line comment
-Treated as a comment all the way up to the corresponding `]#`
-]#
+Treated as a comment all the way up to the corresponding `]# `
+]# 
 ```
 
 ## 表达式，分隔符

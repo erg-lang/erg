@@ -28,7 +28,7 @@ e = f // 2 # 0: Nat(Int)
 a = 1
 b: Int = a / 2
 # error message
-Error[#0047]: File <stdin>, line 1, in <module>
+Error[# 0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
 TypeError: the type of ratio is mismatched:

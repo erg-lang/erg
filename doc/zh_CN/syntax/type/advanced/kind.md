@@ -20,7 +20,7 @@ assert Option in Type -> Type
 在 Erg 中，方法只能在原子类型中定义，并且名称 `self` 不能在方法的第一个参数以外的任何地方使用
 
 ```python
-#K 是一元类型
+# K 是一元类型
 K: Type -> Type
 K T = Class...
 K.

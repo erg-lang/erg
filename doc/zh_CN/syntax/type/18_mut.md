@@ -1,6 +1,6 @@
 # 可变类型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
 
 > __Warning__: 本节中的信息是旧的并且包含一些错误
 
@@ -140,16 +140,16 @@ a: [!Str; 3]
 数组、元组、集合、字典和记录类型都是非简单的结构化类型，但 Int 和 Sieve 类型是
 
 ```python
-#筛子类型
+# 筛子类型
 ## 枚举
 {1, 2, 3} # 1, 2, 3 之一，不可更改
 {1、2、3}！ # 1、2、3，可以改
-##区间类型
-1..12 #1到12，不能改
+## 区间类型
+1..12 # 1到12，不能改
 1..12！ # 1-12中的任意一个，你可以改变
-##筛型(普通型)
-{I: Int | I % 2 == 0} #偶数类型，不可变
-{I: Int | I % 2 == 0} #偶数类型，可以改变
+## 筛型(普通型)
+{I: Int | I % 2 == 0} # 偶数类型，不可变
+{I: Int | I % 2 == 0} # 偶数类型，可以改变
 {I: Int | I % 2 == 0}！ # 与上面完全相同的类型，但上面的表示法是首选
 ```
 

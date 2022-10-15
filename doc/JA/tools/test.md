@@ -22,14 +22,14 @@ test_1_plus_n(n: Nat) =
 
 ## Doc Test
 
-Ergでは`#`, `#[`以降がコメント行となるが、`##`, `#[[`でdoc commentとなり、VSCodeなどエディタからコメントをマークダウンで表示できる。
+Ergでは`# `, `# [`以降がコメント行となるが、`## `, `# [[`でdoc commentとなり、VSCodeなどエディタからコメントをマークダウンで表示できる。
 さらにdoc comment中のソースコードはergと指定されていれば、erg testコマンドで自動テストされる。
 以下はテストの例である。
 
 ```python
 VM = ...
     ...
-    #[[
+    # [[
     execute commands.
     ```python
     # 標準構成のVM
@@ -38,7 +38,7 @@ VM = ...
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]#
+    ]]# 
     .exec! ref self, src =
         ...
     ...

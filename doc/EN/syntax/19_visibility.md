@@ -10,7 +10,7 @@ x = "this is an invisible variable"
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
 ```
@@ -24,7 +24,7 @@ Public variables are defined with `.`.
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
 ```
@@ -95,7 +95,7 @@ A class defined in one module can actually define methods from an external modul
 ```
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 Foo::
@@ -125,7 +125,7 @@ Also, methods cannot be defined in the type to be re-exported.
 This is to avoid confusion about methods being found or not found depending on the module they are imported from.
 
 ```python
-#bar.er
+# bar.er
 {.Foo; ...} = import "foo"
 
 .Foo::
@@ -137,7 +137,7 @@ Foo.
 If you want to do something like this, define a [patch](./type/07_patch.md).
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 FooImpl = Patch Foo

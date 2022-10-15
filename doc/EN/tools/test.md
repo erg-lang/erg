@@ -20,14 +20,14 @@ The execution result is displayed as a summary and can be output in various file
 
 ## Doc Test
 
-In Erg, `#` and `#[` are comment lines, but `##` and `#[[` are doc comments, and comments can be displayed as markdown from editors such as VSCode.
+In Erg, `# ` and `# [` are comment lines, but `## ` and `# [[` are doc comments, and comments can be displayed as markdown from editors such as VSCode.
 Furthermore, the source code in the doc comment is automatically tested with the erg test command if erg is specified.
 Below is an example test.
 
 ```python
 VMs =...
     ...
-    #[[
+    # [[
     execute commands.
     ```python
     # VM in standard configuration
@@ -36,7 +36,7 @@ VMs =...
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]#
+    ]]# 
     .exec! ref self, src =
         ...
     ...

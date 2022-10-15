@@ -21,7 +21,7 @@ C. get(ref self) =
     self::i # 类型错误: `self::i` 是 `Int!`(需要所有权)但 `get` 不拥有 `self`
 C.steal(self) =
     self::i
-#NG
+# NG
 C.new({i = 1}).steal().inc!() # 所有权警告: `C.new({i = 1}).steal()` 不属于任何人
 # 提示: 分配给变量或使用 `uwn_do!`
 # OK (分配)

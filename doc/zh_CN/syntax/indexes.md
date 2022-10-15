@@ -1,6 +1,6 @@
 # 指数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D438bcb89ea692f219b30f3a3ba107888b23eae98)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=438bcb89ea692f219b30f3a3ba107888b23eae98)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D304882f403ee8a6db8e19fae67b15ccf9747b6ff)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=304882f403ee8a6db8e19fae67b15ccf9747b6ff)
 
 有关不在此索引中的 API，请参阅 [此处](../API/index.md)
 
@@ -11,7 +11,7 @@
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
-* &#35; → [Str](./00_basic.md/#comment)
+* &# 35; → [Str](./00_basic.md/#comment)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
@@ -38,7 +38,7 @@
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
-  * : → [Declaration](./03_declaration.md.md)
+  * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
   * :: → [visibility](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
@@ -60,8 +60,8 @@
 * ^
   * ^^
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
-  * &#95;+&#95; → &plus; (infix)
-  * &#95;-&#95; → &minus; (infix)
+  * &# 95;+&# 95; → &plus; (infix)
+  * &# 95;-&# 95; → &minus; (infix)
 * [``&nbsp;(back&nbsp;quote)](./22_subroutine.md)
 * {}
   * [{} type](./type/01_type_system.md)
@@ -72,7 +72,7 @@
   * || → [Type variable list](./type/advanced/)
 * ~
 
-## アルファベット
+## 拉丁字母
 
 ### A
 

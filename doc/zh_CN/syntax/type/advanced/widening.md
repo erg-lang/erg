@@ -15,7 +15,7 @@ ids|T|(x: T, y: T) = x, y
 ```python
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
-ids(1, "a") #TypeError
+ids(1, "a") # TypeError
 ```
 
 现在，具有不同派生类型的类型呢?

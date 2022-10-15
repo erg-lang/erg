@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D157f51ae0e8cf3ceb45632b537ebe3560a5500b7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=157f51ae0e8cf3ceb45632b537ebe3560a5500b7)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
 
 Erg 中的类大致是一种可以创建自己的元素(实例)的类型
 这是一个简单类的示例
@@ -101,7 +101,7 @@ C.i = 1 # 属性错误: `.i` 已在实例字段中定义
 对象可以使用补丁方法以及类方法
 Erg 不允许您添加类方法，但您可以使用 [patch](./07_patch.md) 来扩展类
 
-您还可以从现有类([Inheritable](../29_decorator.md#可继承) 类)继承
+您还可以从现有类([Inheritable](../29_decorator.md# 可继承) 类)继承
 您可以使用 `Inherit` 创建一个继承类。左侧的类型称为派生类，右侧的"继承"的参数类型称为基类(继承类)
 
 ```python

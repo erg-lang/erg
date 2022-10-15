@@ -12,7 +12,7 @@ x = "this is an invisible variable"
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 foo.x # AttributeError: 模块 'foo' 没有属性 'x' ('x' 是私有的)
 ```
@@ -26,7 +26,7 @@ foo.x # AttributeError: 模块 'foo' 没有属性 'x' ('x' 是私有的)
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
 ```
@@ -97,7 +97,7 @@ C.
 ```
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 Foo::
@@ -127,7 +127,7 @@ foo.public() # 属性错误: "Foo"没有属性"public"("public"在模块"bar"中
 这是为了避免混淆方法是否找到，具体取决于导入方法的模块
 
 ```python
-#bar.er
+# bar.er
 {.Foo; ...} = import "foo"
 
 .Foo::
@@ -139,7 +139,7 @@ Foo.
 如果你想做这样的事情，定义一个 [patch](./type/07_patch.md)
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 FooImpl = Patch Foo

@@ -8,7 +8,7 @@ More advanced optimizations eliminate things that don't need to be instantiated.
 ## Record, Record type
 
 It will be transpiled to a namedtuple.
-For namedtuple, see [here](https://docs.python.jp/3/library/collections.html#collections.namedtuple).
+For namedtuple, see [here](https://docs.python.jp/3/library/collections.html# collections.namedtuple).
 There is a similar function, dataclass, but dataclass has a slight performance drop due to auto-implementation of `__eq__` and `__hash__`.
 
 ```python

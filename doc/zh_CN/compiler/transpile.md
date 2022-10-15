@@ -10,7 +10,7 @@
 ## 记录，记录类型
 
 它将被转译为一个命名元组
-对于 namedtuple，请参阅 [此处](https://docs.python.jp/3/library/collections.html#collections.namedtuple)
+对于 namedtuple，请参阅 [此处](https://docs.python.jp/3/library/collections.html# collections.namedtuple)
 有一个类似的函数，dataclass，但是由于 `__eq__` 和 `__hash__` 的自动实现，dataclass 的性能略有下降
 
 ```python
