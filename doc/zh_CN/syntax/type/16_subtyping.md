@@ -1,6 +1,6 @@
 # 子类型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/16_subtyping.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/16_subtyping.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/16_subtyping.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/16_subtyping.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
 
 在 Erg 中，可以使用比较运算符 `<`、`>` 确定类包含
 
@@ -13,7 +13,7 @@ Int < Object
 {I: Int | I >= 1} < {I: Int | I >= 0}
 ```
 
-请注意，这与 `<:` 运算符的含义不同。 它声明左侧的类是右侧类型的子类型，并且仅在编译时才有意义
+请注意，这与 `<:` 运算符的含义不同。它声明左侧的类是右侧类型的子类型，并且仅在编译时才有意义
 
 ```python
 C <: T # T: 结构类型
@@ -53,7 +53,7 @@ assert not c in D
 ## 子程序的子类型化
 
 子例程的参数和返回值只采用一个类
-换句话说，您不能直接将结构类型或特征指定为函数的类型
+换句话说，您不能直接将结构类型或Trait指定为函数的类型
 必须使用部分类型规范将其指定为"作为该类型子类型的单个类"
 
 ```python
@@ -66,7 +66,7 @@ f2 x, y: Add = x + y
 f3<A <: Add> x, y: A = x + y
 ```
 
-子程序中的类型推断也遵循此规则。 当子例程中的变量具有未指定的类型时，编译器首先检查它是否是其中一个类的实例，如果不是，则在特征范围内查找匹配项。 如果仍然找不到，则会发生编译错误。 此错误可以通过使用结构类型来解决，但由于推断匿名类型可能会给程序员带来意想不到的后果，因此它被设计为由程序员使用 `Structural` 显式指定
+子程序中的类型推断也遵循此规则。当子例程中的变量具有未指定的类型时，编译器首先检查它是否是其中一个类的实例，如果不是，则在Trait范围内查找匹配项。如果仍然找不到，则会发生编译错误。此错误可以通过使用结构类型来解决，但由于推断匿名类型可能会给程序员带来意想不到的后果，因此它被设计为由程序员使用 `Structural` 显式指定
 
 ## 类向上转换
 
@@ -76,3 +76,6 @@ i as (Int or Str)
 i as (1..10)
 i as {I: Int | I >= 0}
 ```
+<p align='center'>
+    <a href='./15_quantified.md'>上一页</a> | <a href='./17_type_casting.md'>下一页</a>
+</p>

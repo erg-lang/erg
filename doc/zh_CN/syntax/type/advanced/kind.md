@@ -2,14 +2,14 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Da9ea4eca75fe849e31f83570159f84b611892d7a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=a9ea4eca75fe849e31f83570159f84b611892d7a)
 
-一切都在 Erg 中输入。类型本身也不例外。 __kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。 `Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`
+一切都在 Erg 中输入。类型本身也不例外。__kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。`Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`
 
 在Kind的概念中，实际上重要的是一种或多种Kind(多项式Kind)。单项类型，例如`Option`，属于它。一元Kind表示为 `Type -> Type` [<sup id="f1">1</sup>](#1)。诸如 `Array` 或 `Option` 之类的 __container__ 特别是一种以类型作为参数的多项式类型
 正如符号 `Type -> Type` 所表明的，`Option` 实际上是一个接收类型 `T` 并返回类型 `Option T` 的函数。但是，由于这个函数不是通常意义上的函数，所以通常称为一元类
 
 注意`->`本身，它是一个匿名函数操作符，当它接收一个类型并返回一个类型时，也可以看作是一Kind型
 
-另请注意，不是原子Kind的Kind不是类型。正如 `-1` 是一个数字但 `-` 不是，`Option Int` 是一个类型但 `Option` 不是。 `Option` 等有时被称为类型构造函数
+另请注意，不是原子Kind的Kind不是类型。正如 `-1` 是一个数字但 `-` 不是，`Option Int` 是一个类型但 `Option` 不是。`Option` 等有时被称为类型构造函数
 
 ```python
 assert not Option in Type
@@ -20,7 +20,7 @@ assert Option in Type -> Type
 在 Erg 中，方法只能在原子类型中定义，并且名称 `self` 不能在方法的第一个参数以外的任何地方使用
 
 ```python
-#K 是一元类型
+# K 是一元类型
 K: Type -> Type
 K T = Class...
 K.
@@ -32,7 +32,7 @@ K(T).
 
 二进制或更高类型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type `), ... 等等
 
-还有一个零项类型`() -> Type`。 这有时等同于类型论中的原子类型，但在 Erg 中有所区别。 一个例子是`类`
+还有一个零项类型`() -> Type`。这有时等同于类型论中的原子类型，但在 Erg 中有所区别。一个例子是`类`
 
 ```python
 Nil = Class()
@@ -56,7 +56,7 @@ L<: K
 
 ## 高阶Kind
 
-还有一种高阶Kind。 这是一种与高阶函数相同的概念，一种自身接收一种类型。 `(Type -> Type) -> Type` 是一种更高的Kind。 让我们定义一个属于更高Kind的对象
+还有一种高阶Kind。这是一种与高阶函数相同的概念，一种自身接收一种类型。`(Type -> Type) -> Type` 是一种更高的Kind。让我们定义一个属于更高Kind的对象
 
 ```python
 IntContainerOf K: Type -> Type = K Int
@@ -69,7 +69,7 @@ assert IntContainerOf in (Type -> Type) -> Type
 
 ## 设置Kind
 
-在类型论中，有记录的概念。 这与 Erg 记录 [<sup id="f2">2</sup>](#2) 几乎相同
+在类型论中，有记录的概念。这与 Erg 记录 [<sup id="f2">2</sup>](#2) 几乎相同
 
 ```python
 # 这是一条记录，对应于类型论中所谓的记录
@@ -82,13 +82,13 @@ assert IntContainerOf in (Type -> Type) -> Type
 assert {x = 1; y = 2} in {x = Int; y = Int}
 ```
 
-记录类型键入记录。 一个好的猜测者可能认为应该有一个"记录类型"来键入记录类型。 实际上它是存在的
+记录类型键入记录。一个好的猜测者可能认为应该有一个"记录类型"来键入记录类型。实际上它是存在的
 
 ```python
 log Typeof {x = Int; y = Int} # {{x = Int; y = Int}}
 ```
 
-像 `{{x = Int; 这样的类型 y = Int}}` 是一种记录类型。 这不是一个特殊的符号。 它只是一个枚举类型，只有 `{x = Int; y = Int}` 作为一个元素
+像 `{{x = Int; 这样的类型 y = Int}}` 是一种记录类型。这不是一个特殊的符号。它只是一个枚举类型，只有 `{x = Int; y = Int}` 作为一个元素
 
 ```python
 Point = {x = Int; y = Int}
@@ -104,7 +104,7 @@ Pointy = {Point}
 ```
 
 类型约束中的 `U <: T` 实际上是 `U: |T|` 的语法糖
-作为此类类型的集合的种类通常称为集合种类。 Setkind 也出现在迭代器模式中
+作为此类类型的集合的种类通常称为集合种类。Setkind 也出现在迭代器模式中
 
 ```python
 Iterable T = Trait {

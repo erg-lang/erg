@@ -2,6 +2,6 @@
 
 The type of the unary operator.
 
-##def
+## def
 
 Operator [T], O

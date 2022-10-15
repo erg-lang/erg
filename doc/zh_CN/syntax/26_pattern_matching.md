@@ -1,4 +1,4 @@
-# 模式匹配，可反驳
+# 模式匹配
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/26_pattern_matching.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/26_pattern_matching.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -180,14 +180,14 @@ match i
 
 ### 不是模式的东西，不能被模式化的东西
 
-模式是可以唯一指定的东西。 在这方面，模式匹配不同于普通的条件分支
+模式是可以唯一指定的东西。在这方面，模式匹配不同于普通的条件分支
 
-条件规格不是唯一的。 例如，要检查数字 `n` 是否为偶数，正统是 `n % 2 == 0`，但也可以写成 `(n / 2).round() == n / 2`
+条件规格不是唯一的。例如，要检查数字 `n` 是否为偶数，正统是 `n % 2 == 0`，但也可以写成 `(n / 2).round() == n / 2`
 非唯一形式无论是正常工作还是等效于另一个条件都不是微不足道的
 
 #### Set
 
-没有固定的模式。 因为集合没有办法唯一地检索元素
+没有固定的模式。因为集合没有办法唯一地检索元素
 您可以通过迭代器检索它们，但不能保证顺序
 
 <p align='center'>

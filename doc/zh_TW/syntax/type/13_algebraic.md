@@ -1,6 +1,6 @@
 # 代數類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Dc120700585fdb1d655255c8e2817bb13cc8d369e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=c120700585fdb1d655255c8e2817bb13cc8d369e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
 
 代數類型是通過將類型視為代數來操作類型而生成的類型
 它們處理的操作包括Union、Intersection、Diff、Complement等
@@ -8,8 +8,8 @@
 
 ## 聯合(Union)
 
-聯合類型可以為類型提供多種可能性。 顧名思義，它們是由"或"運算符生成的
-一個典型的 Union 是 `Option` 類型。 `Option` 類型是 `T 或 NoneType` 補丁類型，主要表示可能失敗的值
+聯合類型可以為類型提供多種可能性。顧名思義，它們是由"或"運算符生成的
+一個典型的 Union 是 `Option` 類型。`Option` 類型是 `T 或 NoneType` 補丁類型，主要表示可能失敗的值
 
 ```python
 IntOrStr = Int or Str
@@ -27,7 +27,7 @@ Option T = T or NoneType
 Num = Add and Sub and Mul and Eq
 ```
 
-如上所述，普通類不能與"and"操作結合使用。 這是因為實例只屬于一個類
+如上所述，普通類不能與"and"操作結合使用。這是因為實例只屬于一個類
 
 ## 差異
 
@@ -44,7 +44,7 @@ OneTwoThree = {1, 2, 3, 4, 5, 6} - {4, 5, 6, 7, 8, 9, 10}
 
 ## 補充
 
-補碼類型是通過 `not` 操作得到的，這是一個一元操作。 `not T` 類型是 `{=} not T` 的簡寫
+補碼類型是通過 `not` 操作得到的，這是一個一元操作。`not T` 類型是 `{=} not T` 的簡寫
 類型為"非 T"的交集等價于 Diff，類型為"非 T"的 Diff 等價于交集
 但是，不推薦這種寫法
 
@@ -76,7 +76,7 @@ Point2D = Point1D and {y = Int; ...} # == {x = Int; y = Int; ...}
 q: Point2D = {x = 1; y = 2; z = 3}
 ```
 
-真正的代數類型包括類型"或"和"與"。 類之間的"或"等類屬于"或"類型
+真正的代數類型包括類型"或"和"與"。類之間的"或"等類屬于"或"類型
 
 ```python
 assert Int or Str == Or(Int, Str)
@@ -84,3 +84,7 @@ assert Int and Marker == And(Int, Marker)
 ```
 
 Diff, Complement 類型不是真正的代數類型，因為它們總是可以被簡化
+
+<p align='center'>
+    <a href='./12_refinement.md'>上一頁</a> | <a href='./14_dependent.md'>下一頁</a>
+</p>

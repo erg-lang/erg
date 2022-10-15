@@ -2,11 +2,11 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/modules/external/alstruct.md%26commit_hash%3D14657486719a134f494e107774ac8f9d5a63f083)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/modules/external/alstruct.md&commit_hash=14657486719a134f494e107774ac8f9d5a63f083)
 
-模塊為它們提供代表代數結構和補丁的特征
+模塊為它們提供代表代數結構和補丁的Trait
 
 * 成員
 
-## 二進制運算(BinOp)
+## BinOp(二進制運算)
 
 ```python
 BinOp Op: Kind 2 = Subsume Op(Self, Self.ReturnTypeOf Op), Additional: {
@@ -20,7 +20,7 @@ assert Nat. ReturnTypeof(Mul) == Nat
 assert Nat.ReturnTypeof(Div) == Positive Ratio
 ```
 
-## 半群(SemiGroup)
+## SemiGroup(半群)
 
 ```python
 SemiGroup Op: Kind 2 = Op(Self, Self)
@@ -30,7 +30,7 @@ IntIsSemiGroupAdd = Patch Int, Impl=SemiGroupAdd
 Int <: SemiGroup Add
 ```
 
-## 函子(Functor)
+## Functor(函子)
 
 ```python
 # * Identity law: x.map(id) == x
@@ -40,7 +40,7 @@ Functor = Trait {
 }
 ```
 
-## 應用(Applicative)
+## Applicative(應用)
 
 ```python
 # * Identity law: x.app(X.pure(id)) == x
@@ -50,7 +50,7 @@ Applicative = Subsume Functor, Additional: {
 }
 ```
 
-## 單子(Monad)
+## Monad(單子)
 
 ```python
 Monad = Subsume Applicative, Additional: {

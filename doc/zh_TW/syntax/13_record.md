@@ -1,6 +1,6 @@
 # 記錄(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
 
 記錄是一個集合，它結合了通過鍵訪問的 Dict 和在編譯時檢查其訪問的元組的屬性
 如果您了解 JavaScript，請將其視為一種(更增強的)對象字面量表示法
@@ -16,11 +16,11 @@ john["name"] # 錯誤: john 不可訂閱
 
 `.name` 和 `.age` 部分稱為屬性，而 `"John"` 和 `21` 部分稱為屬性值
 
-與 JavaScript 對象字面量的區別在于它們不能作為字符串訪問。 也就是說，屬性不僅僅是字符串
-這是因為對值的訪問是在編譯時確定的，而且字典和記錄是不同的東西。 換句話說，`{"name": "John"}` 是一個字典，`{name = "John"}` 是一個記錄
+與 JavaScript 對象字面量的區別在于它們不能作為字符串訪問。也就是說，屬性不僅僅是字符串
+這是因為對值的訪問是在編譯時確定的，而且字典和記錄是不同的東西。換句話說，`{"name": "John"}` 是一個字典，`{name = "John"}` 是一個記錄
 那么我們應該如何使用字典和記錄呢?
-一般來說，我們建議使用記錄。 記錄具有在編譯時檢查元素是否存在以及能夠指定 __visibility_ 的優點
-指定可見性等同于在 Java 和其他語言中指定公共/私有。 有關詳細信息，請參閱 [可見性](./19_visibility.md) 了解詳細信息
+一般來說，我們建議使用記錄。記錄具有在編譯時檢查元素是否存在以及能夠指定 __visibility_ 的優點
+指定可見性等同于在 Java 和其他語言中指定公共/私有。有關詳細信息，請參閱 [可見性](./19_visibility.md) 了解詳細信息
 
 ```python
 a = {x = 1; .y = x + 1}
@@ -54,8 +54,8 @@ o.inc!()
 assert o.i == 1
 ```
 
-關于記錄有一個值得注意的語法。 當記錄的所有屬性值都是類(不是結構類型)時，記錄本身表現為一個類型，其自身的屬性作為必需屬性
-這種類型稱為記錄類型。 有關詳細信息，請參閱 [記錄] 部分
+關于記錄有一個值得注意的語法。當記錄的所有屬性值都是類(不是結構類型)時，記錄本身表現為一個類型，其自身的屬性作為必需屬性
+這種類型稱為記錄類型。有關詳細信息，請參閱 [記錄] 部分
 
 ```python
 # 記錄
@@ -123,7 +123,7 @@ assert b == 2
 
 ## 空記錄
 
-空記錄由`{=}`表示。 空記錄也是它自己的類，如 Unit
+空記錄由`{=}`表示。空記錄也是它自己的類，如 Unit
 
 ```python
 empty_record = {=}
@@ -134,10 +134,10 @@ empty_record: Structural {=}
 {x = 3; y = 5}: Structural {=}
 ```
 
-空記錄不同于空 Dict `{:}` 或空集 `{}`。 特別要注意的是，它與 `{}` 的含義相反(在 Python 中，`{}` 是一個空字典，而在 Erg 中它是 Erg 中的 `!{:}`)
-作為枚舉類型，`{}` 是一個空類型，其元素中不包含任何內容。 `Never` 類型是這種類型的一個分類
-相反，記錄類 `{=}` 沒有必需的實例屬性，因此所有對象都是它的元素。 `Object` 是 this 的別名
-一個`Object`(`Object`的一個補丁)是`的一個元素。 __sizeof__` 和其他非常基本的提供方法
+空記錄不同于空 Dict `{:}` 或空集 `{}`。特別要注意的是，它與 `{}` 的含義相反(在 Python 中，`{}` 是一個空字典，而在 Erg 中它是 Erg 中的 `!{:}`)
+作為枚舉類型，`{}` 是一個空類型，其元素中不包含任何內容。`Never` 類型是這種類型的一個分類
+相反，記錄類 `{=}` 沒有必需的實例屬性，因此所有對象都是它的元素。`Object` 是 this 的別名
+一個`Object`(`Object`的一個補丁)是`的一個元素。__sizeof__` 和其他非常基本的提供方法
 
 ```python
 AnyPatch = Patch Structural {=}
@@ -148,12 +148,12 @@ Never = Class {}
 ```
 
 請注意，沒有其他類型或類在結構上與 `{}`、`Never` 類型等效，如果用戶在右側使用 `{}`、`Class {}` 定義類型，則會出錯
-這意味著，例如，`1..10 或 -10。 -1`，但 `1..10 和 -10... -1`。 例如，當它應該是 1..10 或 -10...-1 時是 `-1`
+這意味著，例如，`1..10 或 -10。-1`，但 `1..10 和 -10... -1`。例如，當它應該是 1..10 或 -10...-1 時是 `-1`
 此外，如果您定義的類型(例如 `Int 和 Str`)會導致組合 `Object`，則會警告您只需將其設置為 `Object`
 
 ## 即時封鎖
 
-Erg 有另一種語法 Instant 塊，它只返回最后評估的值。 不能保留屬性
+Erg 有另一種語法 Instant 塊，它只返回最后評估的值。不能保留屬性
 
 ```python
 x =
@@ -179,10 +179,10 @@ john = {
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
-# 類型錯誤: {name = Str; 沒有實現 + 年齡=詮釋； 。迎接！ =參考(自我)。 () => 無； inc_age！ =參考！ () => 無}, 整數
+# 類型錯誤: {name = Str; 沒有實現 + 年齡=詮釋； 。迎接！ =參考(自我)。() => 無； inc_age！ =參考！ () => 無}, 整數
 ```
 
-因此，在這種情況下，您可以繼承一個記錄類。 這樣的類稱為數據類
+因此，在這種情況下，您可以繼承一個記錄類。這樣的類稱為數據類
 這在 [class](./type/04_class.md) 中有描述
 
 ```python

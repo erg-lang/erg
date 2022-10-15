@@ -1,9 +1,9 @@
 # 所有权制度
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
 
 由于 Erg 是一种使用 Python 作为宿主语言的语言，因此内存管理的方法取决于 Python 的实现
-但语义上 Erg 的内存管理与 Python 的不同。 一个显着的区别在于所有权制度和禁止循环引用
+但语义上 Erg 的内存管理与 Python 的不同。一个显着的区别在于所有权制度和禁止循环引用
 
 ## 所有权
 
@@ -30,7 +30,7 @@ print!w # [1, 2, 3, 4]
 
 ## 复制
 
-复制一个对象并转移其所有权。 它通过将 `.clone` 方法应用于实际参数来做到这一点
+复制一个对象并转移其所有权。它通过将 `.clone` 方法应用于实际参数来做到这一点
 复制的对象与原始对象完全相同，但相互独立，不受更改影响
 
 复制相当于 Python 的深拷贝，由于它完全重新创建相同的对象，因此计算和内存成本通常高于冻结和借用
@@ -49,7 +49,7 @@ log s2, s1 # !"HELLO hello"
 ## 冻结
 
 我们利用了不可变对象可以从多个位置引用的事实，并将可变对象转换为不可变对象
-这称为冻结。 例如，在从可变数组创建迭代器时会使用冻结
+这称为冻结。例如，在从可变数组创建迭代器时会使用冻结
 由于您不能直接从可变数组创建迭代器，请将其转换为不可变数组
 如果您不想破坏数组，请使用 [`.freeze_map` 方法](./type/18_mut.md)
 
@@ -98,14 +98,14 @@ steal_str ref(s: Str!) =
     x
 ```
 
-Erg 的引用比 Rust 的更严格。 引用是语言中的一等对象，但不能显式创建，它们只能指定为通过 `ref`/`ref!` 传递的参数
+Erg 的引用比 Rust 的更严格。引用是语言中的一等对象，但不能显式创建，它们只能指定为通过 `ref`/`ref!` 传递的参数
 这意味着您不能将引用填充到数组中或创建将引用作为属性的类
 
 但是，这样的限制是语言中的自然规范，一开始就没有引用，而且它们并没有那么不方便
 
 ## 循环引用
 
-Erg 旨在防止无意的内存泄漏，如果内存检查器检测到循环引用，则会发出错误。 在大多数情况下，这个错误可以通过弱引用 `Weak` 来解决。 但是，由于无法生成循环图等具有循环结构的对象，因此我们计划实现一个 API，可以将循环引用作为不安全操作生成
+Erg 旨在防止无意的内存泄漏，如果内存检查器检测到循环引用，则会发出错误。在大多数情况下，这个错误可以通过弱引用 `Weak` 来解决。但是，由于无法生成循环图等具有循环结构的对象，因此我们计划实现一个 API，可以将循环引用作为不安全操作生成
 
 <p align='center'>
     <a href='./17_mutability.md'>上一页</a> | <a href='./19_visibility.md'>下一页</a>

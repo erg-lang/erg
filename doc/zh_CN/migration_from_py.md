@@ -4,7 +4,7 @@
 
 ## 我想将字符串转换为 int 等
 
-使用 `Str` 类的 `parse` 方法。 它返回一个 `Result` 类型
+使用 `Str` 类的 `parse` 方法。它返回一个 `Result` 类型
 
 ```python
 s: str

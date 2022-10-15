@@ -26,7 +26,7 @@ print(foo.private) # 属性错误:
 
 ## 从 Python 导入
 
-默认情况下，从 Python 导入的所有对象都是"Object"类型。 由于此时无法进行比较，因此有必要细化类型
+默认情况下，从 Python 导入的所有对象都是"Object"类型。由于此时无法进行比较，因此有必要细化类型
 
 ## 标准库中的类型规范
 
@@ -65,7 +65,7 @@ foo = pyimport "foo"
 assert foo.bar(1) in Int
 ```
 
-这通过在运行时执行类型检查来确保类型安全。 ``declare`` 函数大致如下工作
+这通过在运行时执行类型检查来确保类型安全。``declare`` 函数大致如下工作
 
 ```python
 declare|S: Subroutine| sub!: S, T =

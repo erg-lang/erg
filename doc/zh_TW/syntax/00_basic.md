@@ -1,8 +1,8 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D74368faf9d82957f40d92117ace36d69dae28b57)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=74368faf9d82957f40d92117ace36d69dae28b57)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D736dcb272d2132883ec7b883f7694829398be61e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=736dcb272d2132883ec7b883f7694829398be61e)
 
-> __Warning__: 本文檔不完整。它未經校對(樣式、正確鏈接、誤譯等)。此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，並且文檔可能沒有相應更新。請事先了解這一點
+> __Warning__: 本文檔不完整。它未經校對(樣式、正確鏈接、誤譯等)。此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，并且文檔可能沒有相應更新。請事先了解這一點
 > 如果您在本文檔中發現任何錯誤，請報告至 [此處的表單](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。我們將不勝感激您的建議
 
 本文檔描述 Erg 的基本語法
@@ -17,7 +17,7 @@
 print!("Hello, World!")
 ```
 
-這與 Python 和同一家族中的其他語言幾乎相同。最顯著的特徵是`!`，後面會解釋它的含義
+這與 Python 和同一家族中的其他語言幾乎相同。最顯著的Trait是`!`，后面會解釋它的含義
 在 Erg 中，括號 `()` 可以省略，除非在解釋上有一些混淆
 括號的省略與 Ruby 類似，但不能省略可以以多種方式解釋的括號
 
@@ -25,7 +25,7 @@ print!("Hello, World!")
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
-print! # OK, 但這並不意味著調用，只是將 `print!` 作為可調用對象
+print! # OK, 但這并不意味著調用，只是將 `print!` 作為可調用對象
 
 print! f x # OK, 解釋為 `print!(f(x))`
 print!(f(x, y)) # OK
@@ -68,17 +68,17 @@ Or you can compile from a file.
 hello, world!
 ```
 
-## 註釋
+## 注釋
 
-`#` 之後的代碼作為註釋被忽略。使用它來解釋代碼的意圖或暫時禁用代碼
+`#` 之后的代碼作為注釋被忽略。使用它來解釋代碼的意圖或暫時禁用代碼
 
 ```python
 # Comment
 # `#` and after are ignored until a new line is inserted
-#[
+# [
 Multi-line comment
 Treated as a comment all the way up to the corresponding `]#`
-]#
+]# 
 ```
 
 ## 表達式，分隔符
@@ -94,7 +94,7 @@ f(1, 2) # 函數調用表達式
 f(1, 2); 1 + 1
 ```
 
-如下所示，有一種稱為 Instant block 的語法，它將塊中評估的最後一個表達式作為變量的值
+如下所示，有一種稱為 Instant block 的語法，它將塊中評估的最后一個表達式作為變量的值
 這與沒有參數的函數不同，它不添加 `()`。請注意，即時塊僅在運行中評估一次
 
 ```python
@@ -112,7 +112,7 @@ i = (x = 1; x + 1) # 語法錯誤: 不能在括號中使用 `;`
 
 ## 縮進
 
-Erg 和 Python 一樣，使用縮進來表示塊。有五個運算符(特殊形式)觸發塊的開始: `=`、`->`、`=>`、`do` 和 `do!`(此外，`:` 和 `|` ，雖然不是運算符，但也會產生縮進)。每個的含義將在後面描述
+Erg 和 Python 一樣，使用縮進來表示塊。有五個運算符(特殊形式)觸發塊的開始: `=`、`->`、`=>`、`do` 和 `do!`(此外，`:` 和 `|` ，雖然不是運算符，但也會產生縮進)。每個的含義將在后面描述
 
 ```python
 f x, y =

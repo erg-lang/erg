@@ -13,12 +13,12 @@ Erg 数值类型包括 `Nat`、`Int`、`Ratio` 等。但是，这些类型没有
 
 x = 6m # 相当于 `x = Meter.new(6)`
 t = 3s # 相当于 `t = Sec.new(3)`
-#m/s是速度单位对象，类型为velocity
+# m/s是速度单位对象，类型为velocity
 print! x/t # 2m/s
 print! x + 4m # 10m
 print! x + 2s # 类型错误: `+`(Meter, Sec) 未实现
 ```
-对象`m`、`s`和`m/s`被称为单元对象。它本身具有1m、1s、1m/s的含义。 `m/s`可以说是结合m和s创建的单位对象
+对象`m`、`s`和`m/s`被称为单元对象。它本身具有1m、1s、1m/s的含义。`m/s`可以说是结合m和s创建的单位对象
 
 在单元中，以下单元被定义为类型。它被称为SI(国际单位制)
 

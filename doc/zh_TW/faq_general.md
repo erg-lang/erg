@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_general.md%26commit_hash%3D1b3d7827bb770459475e4102c6f5c43d8ad79ae4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_general.md&commit_hash=1b3d7827bb770459475e4102c6f5c43d8ad79ae4)
 
-此常見問題解答適用於一般 Erg 初學者
-對於個別(常見)技術問題，請參閱 [此處](./faq_technical.md) 了解個別(常見)技術問題，以及
-[這裡](./faq_syntax.md) 了解更多信息
+此常見問題解答適用于一般 Erg 初學者
+對于個別(常見)技術問題，請參閱 [此處](./faq_technical.md) 了解個別(常見)技術問題，以及
+[這里](./faq_syntax.md) 了解更多信息
 
 ## Erg 是 Python 兼容語言是什么意思?
 
@@ -17,7 +17,7 @@ A: Erg 代碼被轉譯成 Python 字節碼。也就是說，它運行在與 Pyth
 我們受到的語言多于我們雙手所能指望的數量，但 Python、Rust、Nim 和 Haskell 的影響最大
 我們從 Python 繼承了許多語義，從 Rust 繼承了面向表達式和 trait，從 Nim 繼承了過程，從 Haskell 繼承了函數式編程相關的特性
 
-## 已經有一些語言可以調用Python，比如Julia。為什麼要創建Erg?
+## 已經有一些語言可以調用Python，比如Julia。為什么要創建Erg?
 
 答: Erg 設計的動機之一是擁有一種易于使用且具有強大類型系統的語言。即具有類型推斷、Kind、依賴類型等的語言
 Julia 是可以有類型的，但它確實是一種動態類型語言，不具備靜態類型語言的編譯時錯誤檢測優勢

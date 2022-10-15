@@ -82,7 +82,7 @@ Types such as `Iterable` that provide an interface for handling traits (in this 
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> There doesn't seem to be a uniform name for this pattern, but in Rust, there is [companion struct pattern]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38#:~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80%81%E3 %81%9D%E3%81%AE), and was named after it. [↩](#f1) </span>
+<span id="1" style="font-size:x-small"><sup>1</sup> There doesn't seem to be a uniform name for this pattern, but in Rust, there is [companion struct pattern]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38# :~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80%81%E3 %81%9D%E3%81%AE), and was named after it. [↩](#f1) </span>
 
 <p align='center'>
     <a href='./15_type.md'>Previous</a> | <a href='./17_mutability.md'>Next</a>

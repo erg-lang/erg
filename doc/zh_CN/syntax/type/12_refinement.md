@@ -1,11 +1,11 @@
 # 细化类型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/12_refinement.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/12_refinement.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/12_refinement.md%26commit_hash%3D94015f61ed0018714a6271ecf60ff2ca38733ce6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/12_refinement.md&commit_hash=94015f61ed0018714a6271ecf60ff2ca38733ce6)
 
 细化类型是受谓词表达式约束的类型。 枚举类型和区间类型是细化类型的语法糖
 
-细化类型的标准形式是`{Elem: Type | (预)*}`。 这意味着该类型是其元素为满足 `Pred` 的 `Elem` 的类型
-可用于筛选类型的类型仅为 [Const type]
+细化类型的标准形式是`{Elem: Type | (Pred)*}`。这意味着该类型是其元素为满足 `Pred` 的 `Elem` 的类型
+可用于筛选类型的类型仅为 [数值类型](./08_value.md)
 
 ```python
 Nat = 0.. _
@@ -75,3 +75,6 @@ match i:
 Array(T, N | N >= 3)
     .m(&self) = ...
 ```
+<p align='center'>
+    <a href='./11_enum.md'>上一页</a> | <a href='./13_algebraic.md'>下一页</a>
+</p>

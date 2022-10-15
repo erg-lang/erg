@@ -1,4 +1,4 @@
-# 類型加寬
+# 指示轉換運算符關鍵字: widening
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/widening.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/widening.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -15,7 +15,7 @@ ids|T|(x: T, y: T) = x, y
 ```python
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
-ids(1, "a") #TypeError
+ids(1, "a") # TypeError
 ```
 
 現在，具有不同派生類型的類型呢?
@@ -42,7 +42,7 @@ ids(1, "a"): {__valueclass_tag__ = Phantom Int} and {__valueclass_tag__ = Phanto
 例如，一個`Int`或Str`類型的對象的類是`Int`或`Str`，但你只有通過執行才能知道它是哪一個
 當然，`Int` 類型的對象的類被定義為 `Int`，但是在這種情況下，從類型系統中可見的是 `Int` 的結構類型 `{__valueclass_tag__ = Int}`
 
-現在讓我們回到另一個結構化類型示例。 總之，上述代碼將導致類型錯誤，因為類型不匹配
+現在讓我們回到另一個結構化類型示例。總之，上述代碼將導致類型錯誤，因為類型不匹配
 但是，如果您使用類型注釋進行類型擴展，編譯將通過
 
 ```python

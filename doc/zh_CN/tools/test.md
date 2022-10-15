@@ -29,7 +29,7 @@ test_1_plus_n(n: Nat) =
 ```python
 VMs =...
     ...
-    #[[
+    # [[
     execute commands.
     ```python
     # 标准配置的虚拟机
@@ -38,7 +38,7 @@ VMs =...
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]#
+    ]]# 
     .exec! ref self, src =
         ...
     ...

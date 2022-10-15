@@ -1,6 +1,6 @@
 # 指數
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D438bcb89ea692f219b30f3a3ba107888b23eae98)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=438bcb89ea692f219b30f3a3ba107888b23eae98)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
 
 有關不在此索引中的 API，請參閱 [此處](../API/index.md)
 
@@ -11,7 +11,7 @@
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
 * ? → [error&nbsp;handling](./30_error_handling.md)
-* &#35; → [Str](./00_basic.md/#comment)
+* &#35; → [Str](./00_basic.md/#注釋)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
@@ -20,7 +20,7 @@
 * [&quot;&nbsp;(double&nbsp;quote)](./01_literal.md)
 * &lpar;&rpar; → [Tuple](./11_tuple.md)
 * &ast;
-  * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-multiplication)
+  * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-乘法)
 * &plus; (前置) → [operator](./06_operator.md)
   * &plus;_ → &plus; (前置)
 * &plus; (中置) → [operator](./06_operator.md)
@@ -38,7 +38,7 @@
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
-  * : → [Declaration](./03_declaration.md.md)
+  * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
   * :: → [visibility](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
@@ -72,7 +72,7 @@
   * || → [Type variable list](./type/advanced/)
 * ~
 
-## アルファベット
+## 拉丁字母
 
 ### A
 

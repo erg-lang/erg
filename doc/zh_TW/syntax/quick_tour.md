@@ -3,14 +3,14 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D51016775279ecd28b87178dab6a493a645abb171)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=51016775279ecd28b87178dab6a493a645abb171)
 
 `syntax` 下面的文檔是為了讓編程初學者也能理解而編寫的
-對於已經掌握 Python、Rust、Haskell 等語言的人來說，可能有點囉嗦
+對于已經掌握 Python、Rust、Haskell 等語言的人來說，可能有點啰嗦
 
-所以，這裡是 Erg 語法的概述
+所以，這里是 Erg 語法的概述
 請認為未提及的部分與 Python 相同
 
 ## 基本計算
 
-Erg 有一個嚴格的類型。但是, 由於類和特徵提供的靈活性, 類型會自動轉換為子類型(有關詳細信息，請參閱 [API])
+Erg 有一個嚴格的類型。但是, 由于類和Trait提供的靈活性, 類型會自動轉換為子類型(有關詳細信息，請參閱 [API])
 
 另外，不同的類型可以相互計算，只要類型是數值類型即可
 
@@ -49,7 +49,7 @@ True == "a" # NG
 
 ## 變量，常量
 
-變量用 `=` 定義。與 Haskell 一樣，變量一旦定義就不能更改。但是，它可以在另一個範圍內被遮蔽
+變量用 `=` 定義。與 Haskell 一樣，變量一旦定義就不能更改。但是，它可以在另一個范圍內被遮蔽
 
 ```python
 i = 0
@@ -59,7 +59,7 @@ assert i == 0
 ```
 
 任何以大寫字母開頭的都是常數。只有可以在編譯時計算的東西才能是常量
-此外，自定義以來，常量在所有範圍內都是相同的
+此外，自定義以來，常量在所有范圍內都是相同的
 
 ```python
 PI = 3.141592653589793
@@ -97,7 +97,7 @@ assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 
 ## 運算符
 
-特定於 Erg 的運算符是: 
+特定于 Erg 的運算符是: 
 
 ### 變異運算符 (!)
 
@@ -111,7 +111,7 @@ assert i == 1
 
 ## 程序
 
-具有副作用的子例程稱為過程，並標有`!`
+具有副作用的子例程稱為過程，并標有`!`
 
 您不能在函數中調用過程
 
@@ -138,20 +138,20 @@ assert p.x == 1
 
 ## 所有權
 
-Ergs 由可變對象(使用 `!` 運算符突變的對象)擁有，並且不能從多個位置重寫
+Ergs 由可變對象(使用 `!` 運算符突變的對象)擁有，并且不能從多個位置重寫
 
 ```python
 i = !0
 j = i
 assert j == 0
-i#移動錯誤
+i# 移動錯誤
 ```
 
 另一方面，不可變對象可以從多個位置引用
 
 ## 可見性
 
-使用 `.` 前綴變量使其成為公共變量並允許從外部模塊引用它
+使用 `.` 前綴變量使其成為公共變量并允許從外部模塊引用它
 
 ```python
 # foo.er
@@ -218,7 +218,7 @@ right(_, r) = r
 
 ### 可變長度模式
 
-與稍後描述的元組/數組/記錄模式結合使用
+與稍后描述的元組/數組/記錄模式結合使用
 
 ```python
 [i,...j] = [1, 2, 3, 4]
@@ -273,9 +273,9 @@ odds = [i | i <- 1..100; i % 2 == 0]
 
 Erg 不支持多重繼承
 
-## 特質
+## Trait
 
-它們類似於 Rust 特徵，但在更字面意義上，允許組合和解耦，並將屬性和方法視為平等
+它們類似于 Rust Trait，但在更字面意義上，允許組合和解耦，并將屬性和方法視為平等
 此外，它不涉及實施
 
 ```python
@@ -292,7 +292,7 @@ Point.
 
 ## 修補
 
-您可以為類和特徵提供實現
+您可以為類和Trait提供實現
 
 ## 篩子類型
 

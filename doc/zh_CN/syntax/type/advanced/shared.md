@@ -16,10 +16,10 @@ normal_area.push(new NormalMember())
 console.log(vip_area) # [NormalMember]
 ```
 
-一个 NormalMember 已进入 vip_area。 这是一个明显的错误，但是出了什么问题?
-原因是共享引用 [denatured](./variance.md)。 `normal_area` 是通过复制 `vip_area` 来创建的，但是这样做的时候类型已经改变了
+一个 NormalMember 已进入 vip_area。这是一个明显的错误，但是出了什么问题?
+原因是共享引用 [denatured](./variance.md)。`normal_area` 是通过复制 `vip_area` 来创建的，但是这样做的时候类型已经改变了
 但是 `VIPMember` 继承自 `NormalMember`，所以 `VIPMember[] <: NormalMember[]`，这不是问题
-关系 `VIPMember[] <: NormalMember[]` 适用于不可变对象。 但是，如果您执行上述破坏性操作，则会出现故障
+关系 `VIPMember[] <: NormalMember[]` 适用于不可变对象。但是，如果您执行上述破坏性操作，则会出现故障
 
 在 Erg 中，由于所有权系统，此类代码会被回放
 
@@ -53,19 +53,19 @@ assert $p2 == 2
 assert $p3 == 1
 ```
 
-`SharedCell!` 类型的对象必须以`$` 为前缀。 此外，就其性质而言，它们不可能是常数
+`SharedCell!` 类型的对象必须以`$` 为前缀。此外，就其性质而言，它们不可能是常数
 
-`SharedCell！ T!` 类型也是 `T!` 的子类型，可以调用 `T!` 类型的方法。 `SharedCell!T!` 类型特有的唯一方法是 `.addr!`、`.mirror!` 和 `.try_take`
+`SharedCell！ T!` 类型也是 `T!` 的子类型，可以调用 `T!` 类型的方法。`SharedCell!T!` 类型特有的唯一方法是 `.addr!`、`.mirror!` 和 `.try_take`
 
 一个重要的事实是`SharedCell! T!` 是非变体的，即没有为不同类型的参数定义包含
 
 ```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
-$normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() #类型错误: 预期 SharedCell！([NormalMember；！_])，但得到 SharedCell！([VIPMember;!_])
+$normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # 类型错误: 预期 SharedCell！([NormalMember；！_])，但得到 SharedCell！([VIPMember;!_])
 # 提示: SharedCell!(T) 是非变体的，这意味着它不能有超类型或子类型
 ```
 
-但是，下面的代码没有问题。 在最后一行，它是 `VIPMember` 参数已被类型转换
+但是，下面的代码没有问题。在最后一行，它是 `VIPMember` 参数已被类型转换
 
 ```python
 $normal_area = SharedCell!.new([].into [NormalMember; !_])

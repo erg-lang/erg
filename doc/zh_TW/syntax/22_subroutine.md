@@ -28,7 +28,7 @@ some_proc!: (T, U) => V
 
 ## 過程方法(依賴)
 
-在下文中，假設類型 `T!` 采用類型參數 `N: Nat`。 要在外部指定它，請使用類型變量
+在下文中，假設類型 `T!` 采用類型參數 `N: Nat`。要在外部指定它，請使用類型變量
 
 ```python
 T!: Nat -> Type
@@ -36,7 +36,7 @@ T!: Nat -> Type
 T!(N).some_method!: (Ref!(T! N ~> N+X), X: Nat) => ()
 ```
 
-注意，`.some_method` 的類型是 `|N, X: Nat| (Ref!(T! N ~> N+X), {X}) => ()`
+注意，`.some_method` 的類型是 `| N，X: Nat| (Ref!(T! N ~> N+X), {X}) => ()`
 對于沒有 `ref!` 的方法，即在應用后被剝奪所有權，不能使用類型參數轉換(`~>`)
 
 如果取得所有權，則如下所示
@@ -44,7 +44,7 @@ T!(N).some_method!: (Ref!(T! N ~> N+X), X: Nat) => ()
 ```python
 # 如果不使用N，可以用_省略
 # .some_method!: |N, X: Nat| (T!(N), {X}) => T!(N+X)
-.some_method!|N, X: Nat|(self: T!(N), X: Nat) => T!(N+X)
+.some_method!|N, X: Nat| (self: T!(N), X: Nat) => T!(N+X)
 ```
 
 ## 運算符

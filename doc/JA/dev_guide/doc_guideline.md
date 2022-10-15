@@ -12,4 +12,4 @@
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 脚注の書き方はこれを参照すること。 [↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 脚注の書き方はこれを参照すること。[↩](#f1)</span>

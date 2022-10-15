@@ -1,4 +1,4 @@
-# Comprehension
+# 推导式
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/27_comprehension.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/27_comprehension.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -52,7 +52,7 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 
 ## 筛子类型
 
-与推导类似的是筛类型。 筛子类型是以`{Name: Type | Predicate}`创建的(枚举类型)
+与推导类似的是筛类型。筛子类型是以`{Name: Type | Predicate}`创建的(枚举类型)
 sieve类型的情况下，只能指定一个Name，不能指定布局(但是如果是tuple类型可以处理多个值)，Predicate可以在编译时计算，即 ，只能指定一个常量表达式
 
 ```python

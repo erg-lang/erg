@@ -1,11 +1,11 @@
 # 可變類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
 
 > __Warning__: 本節中的信息是舊的并且包含一些錯誤
 
 默認情況下，Erg 中的所有類型都是不可變的，即它們的內部狀態無法更新
-但是你當然也可以定義可變類型。 變量類型用 `!` 聲明
+但是你當然也可以定義可變類型。變量類型用 `!` 聲明
 
 ```python
 Person! = Class({name = Str; age = Nat!})
@@ -14,12 +14,12 @@ Person!.
     inc_age!ref!self = self::name.update!old -> old + 1
 ```
 
-準確地說，基類型是可變類型或包含可變類型的復合類型的類型必須在類型名稱的末尾有一個"！"。 沒有 `!` 的類型可以存在于同一個命名空間中，并被視為單獨的類型
-在上面的例子中，`.age` 屬性是可變的，`.name` 屬性是不可變的。 如果即使一個屬性是可變的，那么整個屬性也是可變的
+準確地說，基類型是可變類型或包含可變類型的復合類型的類型必須在類型名稱的末尾有一個"！"。沒有 `!` 的類型可以存在于同一個命名空間中，并被視為單獨的類型
+在上面的例子中，`.age` 屬性是可變的，`.name` 屬性是不可變的。如果即使一個屬性是可變的，那么整個屬性也是可變的
 
-可變類型可以定義重寫實例的過程方法，但具有過程方法并不一定使它們可變。 例如數組類型`[T; N]` 實現了一個 `sample!` 隨機選擇一個元素的方法，但當然不會破壞性地修改數組
+可變類型可以定義重寫實例的過程方法，但具有過程方法并不一定使它們可變。例如數組類型`[T; N]` 實現了一個 `sample!` 隨機選擇一個元素的方法，但當然不會破壞性地修改數組
 
-對可變對象的破壞性操作主要是通過 .update! 方法完成的。 `.update!` 方法是一個高階過程，它通過應用函數 `f` 來更新 `self`
+對可變對象的破壞性操作主要是通過 .update! 方法完成的。`.update!` 方法是一個高階過程，它通過應用函數 `f` 來更新 `self`
 
 ```python
 i = !1
@@ -27,7 +27,7 @@ i.update! old -> old + 1
 assert i == 2
 ```
 
-`.set!` 方法只是丟棄舊內容并用新值替換它。 .set!x = .update!_ -> x
+`.set!` 方法只是丟棄舊內容并用新值替換它。.set!x = .update!_ -> x
 
 ```python
 i = !1
@@ -50,7 +50,7 @@ KT: ImmutType = Class ...
 K!T: Type = Class ...
 ```
 
-在標準庫中，變量 `(...)!` 類型通常基于不可變 `(...)` 類型。 但是，`T!` 和 `T` 類型沒有特殊的語言關系，并且不能這樣構造 [<sup id="f1">1</sup>](#1) 
+在標準庫中，變量 `(...)!` 類型通常基于不可變 `(...)` 類型。但是，`T!` 和 `T` 類型沒有特殊的語言關系，并且不能這樣構造 [<sup id="f1">1</sup>](#1) 
 
 請注意，有幾種類型的對象可變性
 下面我們將回顧內置集合類型的不可變/可變語義
@@ -136,20 +136,20 @@ a: [!Str; 3]
 ...
 ```
 
-一個類型 `(...)` 簡單地變成了 `T! = (...)!` 當 `T = (...)` 被稱為簡單結構化類型。 簡單的結構化類型也可以(語義上)說是沒有內部結構的類型
+一個類型 `(...)` 簡單地變成了 `T! = (...)!` 當 `T = (...)` 被稱為簡單結構化類型。簡單的結構化類型也可以(語義上)說是沒有內部結構的類型
 數組、元組、集合、字典和記錄類型都是非簡單的結構化類型，但 Int 和 Sieve 類型是
 
 ```python
-#篩子類型
+# 篩子類型
 ## 枚舉
 {1, 2, 3} # 1, 2, 3 之一，不可更改
 {1、2、3}！ # 1、2、3，可以改
-##區間類型
-1..12 #1到12，不能改
+## 區間類型
+1..12 # 1到12，不能改
 1..12！ # 1-12中的任意一個，你可以改變
-##篩型(普通型)
-{I: Int | I % 2 == 0} #偶數類型，不可變
-{I: Int | I % 2 == 0} #偶數類型，可以改變
+## 篩型(普通型)
+{I: Int | I % 2 == 0} # 偶數類型，不可變
+{I: Int | I % 2 == 0} # 偶數類型，可以改變
 {I: Int | I % 2 == 0}！ # 與上面完全相同的類型，但上面的表示法是首選
 ```
 
@@ -163,3 +163,7 @@ a: [!Str; 3]
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> `T!` 和 `T` 類型沒有特殊的語言關系是有意的。這是一個設計。如果存在關系，例如命名空間中存在`T`/`T!`類型，則無法從其他模塊引入`T!`/`T`類型。此外，可變類型不是為不可變類型唯一定義的。給定定義 `T = (U, V)`，`T!` 的可能變量子類型是 `(U!, V)` 和 `(U, V!)`。[?](#f1)</span>
+
+<p align='center'>
+    <a href='./17'>上一頁</a> | <a href='./19_bound.md'>下一頁</a>
+</p>

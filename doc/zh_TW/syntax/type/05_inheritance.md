@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
 繼承允許您定義一個新類，為現有類添加功能或專業化
-繼承類似于包含在特征中。 繼承的類成為原始類的子類型
+繼承類似于包含在Trait中。繼承的類成為原始類的子類型
 
 ```python
 NewInt = Inherit Int
@@ -16,7 +16,7 @@ assert NewInt.new(1) + NewInt.new(1) == 2
 
 如果你希望新定義的類是可繼承的，你必須給它一個 `Inheritable` 裝飾器
 
-您可以指定一個可選參數 `additional` 以允許該類具有其他實例屬性，但前提是該類是一個值類。 但是，如果類是值類，則不能添加實例屬性
+您可以指定一個可選參數 `additional` 以允許該類具有其他實例屬性，但前提是該類是一個值類。但是，如果類是值類，則不能添加實例屬性
 
 ```python
 @Inheritable
@@ -29,12 +29,12 @@ alice = Student.new {name = "Alice", id = 123}
 MailAddress = Inherit Str, additional: {owner = Str} # 類型錯誤: 實例變量不能添加到值類中
 ```
 
-Erg 的特殊設計不允許繼承"Never"類型。 Erg 的特殊設計不允許繼承 `Never` 類型，因為 `Never` 是一個永遠無法實例化的獨特類
+Erg 的特殊設計不允許繼承"Never"類型。Erg 的特殊設計不允許繼承 `Never` 類型，因為 `Never` 是一個永遠無法實例化的獨特類
 
 ## 枚舉類的繼承
 
-[Or 類型](./13_algebraic.md) 也可以被繼承。 在這種情況下，您可以通過指定可選參數 `Excluding` 來刪除任何選項(可以使用 `or` 進行多項選擇)
-不能添加其他選項。 添加選項的類不是原始類的子類型
+[Or 類型](./13_algebraic.md) 也可以被繼承。在這種情況下，您可以通過指定可選參數 `Excluding` 來刪除任何選項(可以使用 `or` 進行多項選擇)
+不能添加其他選項。添加選項的類不是原始類的子類型
 
 ```python
 Number = Class Int or Float or Complex
@@ -92,7 +92,7 @@ Inherited!
     # 覆蓋錯誤: 方法 `.g` 被 `.f` 引用但未被覆蓋
 ```
 
-在繼承類 `Inherited!` 中，`.g!` 方法被重寫以將處理轉移到 `.f!`。 但是，基類中的 `.f!` 方法會將其處理轉移到 `.g!`，從而導致無限循環。 `.f` 是 `Base!` 類中的一個沒有問題的方法，但它被覆蓋以一種意想不到的方式使用，并且被破壞了
+在繼承類 `Inherited!` 中，`.g!` 方法被重寫以將處理轉移到 `.f!`。但是，基類中的 `.f!` 方法會將其處理轉移到 `.g!`，從而導致無限循環。`.f` 是 `Base!` 類中的一個沒有問題的方法，但它被覆蓋以一種意想不到的方式使用，并且被破壞了
 
 Erg 已將此規則構建到規范中
 
@@ -116,12 +116,12 @@ Inherited!
     g! ref! self = self.f!()
 ```
 
-然而，這個規范并沒有完全解決覆蓋問題。 然而，這個規范并沒有完全解決覆蓋問題，因為編譯器無法檢測覆蓋是否解決了問題
-創建派生類的程序員有責任糾正覆蓋的影響。 只要有可能，嘗試定義一個別名方法
+然而，這個規范并沒有完全解決覆蓋問題。然而，這個規范并沒有完全解決覆蓋問題，因為編譯器無法檢測覆蓋是否解決了問題
+創建派生類的程序員有責任糾正覆蓋的影響。只要有可能，嘗試定義一個別名方法
 
-### 替換特征(或看起來像什么)
+### 替換Trait(或看起來像什么)
 
-盡管無法在繼承時替換特征，但有一些示例似乎可以這樣做
+盡管無法在繼承時替換Trait，但有一些示例似乎可以這樣做
 
 例如，`Int`，`Real` 的子類型(實現了 `Add()`)，似乎重新實現了 `Add()`
 
@@ -130,7 +130,7 @@ Int = Class ... , Impl := Add() and ...
 ```
 
 但實際上 `Real` 中的 `Add()` 代表 `Add(Real, Real)`，而在 `Int` 中它只是被 `Add(Int, Int)` 覆蓋
-它們是兩個不同的特征(`Add` 是一個 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
+它們是兩個不同的Trait(`Add` 是一個 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
 
 ## 多重繼承
 
@@ -149,18 +149,18 @@ IntAndStr = Inherit Int and Str # 語法錯誤: 不允許類的多重繼承
 
 ## 多層(多級)繼承
 
-Erg 繼承也禁止多層繼承。 也就是說，您不能定義從另一個類繼承的類
+Erg 繼承也禁止多層繼承。也就是說，您不能定義從另一個類繼承的類
 從"Object"繼承的可繼承類可能會異常繼承
 
 同樣在這種情況下，可以使用 Python 的多層繼承類
 
 ## 重寫繼承的屬性
 
-Erg 不允許重寫從基類繼承的屬性。 這有兩個含義
+Erg 不允許重寫從基類繼承的屬性。這有兩個含義
 
-第一個是對繼承的源類屬性的更新操作。 例如，它不能重新分配，也不能通過 `.update!` 方法更新
+第一個是對繼承的源類屬性的更新操作。例如，它不能重新分配，也不能通過 `.update!` 方法更新
 
-覆蓋與重寫不同，因為它是一種用更專業的方法覆蓋的操作。 覆蓋也必須替換為兼容的類型
+覆蓋與重寫不同，因為它是一種用更專業的方法覆蓋的操作。覆蓋也必須替換為兼容的類型
 
 ```python
 @Inheritable
@@ -178,8 +178,8 @@ Inherited!
     # 覆蓋錯誤: `.inc_pub!` 必須是 `Self! 的子類型！ () => ()`
 ```
 
-第二個是對繼承源的(變量)實例屬性的更新操作。 這也是被禁止的。 基類的實例屬性只能從基類提供的方法中更新
-無論屬性的可見性如何，都無法直接更新。 但是，它們可以被讀取
+第二個是對繼承源的(變量)實例屬性的更新操作。這也是被禁止的。基類的實例屬性只能從基類提供的方法中更新
+無論屬性的可見性如何，都無法直接更新。但是，它們可以被讀取
 
 ```python
 @Inheritable
@@ -226,7 +226,7 @@ valid: ValidMailAddressStr # 確保電子郵件地址格式正確
 
 另一個指標是您何時想要實現名義多態性
 例如，下面定義的 `greet!` 過程將接受任何類型為 `Named` 的對象
-但顯然應用 `Dog` 類型的對象是錯誤的。 所以我們將使用 `Person` 類作為參數類型
+但顯然應用 `Dog` 類型的對象是錯誤的。所以我們將使用 `Person` 類作為參數類型
 這樣，只有 `Person` 對象、從它們繼承的類和 `Student` 對象將被接受為參數
 這是比較保守的，避免不必要地承擔過多的責任
 

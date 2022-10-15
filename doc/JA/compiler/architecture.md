@@ -33,7 +33,7 @@
 * `HIR` は、すべての変数の型情報を持っており、「高レベルの中間表現」を表す。
 * `ASTLowerer` は Parser や Lexer と同じように構築できる。
 * `ASTLowerer::lower` は、エラーが発生しなければ、`HIR` と `CompileWarnings` のタプルを出力する。
-* `ASTLowerer` は `Compiler` によって所有されている。 `ASTLowerer` は従来の構造体とは異なり、文脈を保持し、1 回限りの使い捨てではない。
+* `ASTLowerer` は `Compiler` によって所有されている。`ASTLowerer` は従来の構造体とは異なり、文脈を保持し、1 回限りの使い捨てではない。
 * 型推論の結果が不完全な場合(未知の型変数がある場合)、名前解決時にエラーが発生する。
 
 ## 4. 副作用のチェック (compiler/effectcheck.rs)

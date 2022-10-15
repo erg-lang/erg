@@ -1,12 +1,12 @@
 # 依賴類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/14_dependent.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/14_dependent.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/14_dependent.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/14_dependent.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
 
 依賴類型是一個特性，可以說是 Erg 的最大特性
-依賴類型是將值作為參數的類型。 普通的多態類型只能將類型作為參數，但依賴類型放寬了這個限制
+依賴類型是將值作為參數的類型。普通的多態類型只能將類型作為參數，但依賴類型放寬了這個限制
 
 依賴類型等價于`[T; N]`(`數組(T，N)`)
-這種類型不僅取決于內容類型"T"，還取決于內容數量"N"。 `N` 包含一個`Nat` 類型的對象
+這種類型不僅取決于內容類型"T"，還取決于內容數量"N"。`N` 包含一個`Nat` 類型的對象
 
 ```python
 a1 = [1, 2, 3]
@@ -74,3 +74,6 @@ MyArray(T, N) = Inherit[T; N]
 # self 的類型: Self(T, N) 與 .array 一起變化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+<p align='center'>
+    <a href='./13_algebraic.md'>上一頁</a> | <a href='./15_quantified.md'>下一頁</a>
+</p>

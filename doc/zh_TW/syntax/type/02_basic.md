@@ -1,6 +1,6 @@
 # 類型的基本語法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
 
 ## 類型規范
 
@@ -50,7 +50,7 @@ f x: _, y: Int = x + y # 類型錯誤: Object 和 Int 之間沒有實現 +
 ## 子類型規范
 
 除了 `:`(類型聲明運算符)，Erg 還允許您使用 `<:`(部分類型聲明運算符)來指定類型之間的關系
-`<:` 的左邊只能指定一個類。 使用 `Subtypeof` 或類似的運算符來比較結構類型
+`<:` 的左邊只能指定一個類。使用 `Subtypeof` 或類似的運算符來比較結構類型
 
 這也經常在定義子例程或類型時使用，而不是簡單地指定變量
 
@@ -96,7 +96,7 @@ C.shoe self = ... # Show 由于 Typo 沒有實現(它被認為只是一種獨特
 
 ## 屬性定義
 
-只能在模塊中為特征和類定義屬性
+只能在模塊中為Trait和類定義屬性
 
 ```python
 C = Class()
@@ -127,7 +127,7 @@ C::
 
 ## 別名
 
-類型可以有別名。 這允許縮短長類型，例如記錄類型
+類型可以有別名。這允許縮短長類型，例如記錄類型
 
 ```python
 Id = Int

@@ -69,7 +69,7 @@ A <: B <=> ∀a∈A; a∈B
     * {I >= l} <: {I <= r} = False
     * {I <= l} <: {I >= r} = False
 
-布尔表达式的简化规则如下。 min, max 不能被删除。此外，多个 or, and 被转换为嵌套的 min, max
+布尔表达式的简化规则如下。min, max 不能被删除。此外，多个 or, and 被转换为嵌套的 min, max
 
 * 组合规则
   * `I == a` => `I >= a 和 I <= a`

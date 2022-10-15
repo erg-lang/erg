@@ -1,6 +1,6 @@
 # 可変型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
 
 > __Warning__: この項の情報は古く、一部に間違いを含みます。
 
@@ -162,4 +162,8 @@ a: [!Str; 3]
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> `T!`型と`T`型に言語上の特別な関係がないのは意図的な設計です。関連があったとすると、例えば名前空間に`T`/`T!`型が存在するときに別のモジュールから`T!`/`T`型を導入できなくなるなどの不都合が生じます。また、不変型に対し可変型は一意に定まりません。`T = (U, V)`という定義があった際、`(U!, V)`と`(U, V!)`という可変サブタイプが`T!`としてあり得えます。 [↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> `T!`型と`T`型に言語上の特別な関係がないのは意図的な設計です。関連があったとすると、例えば名前空間に`T`/`T!`型が存在するときに別のモジュールから`T!`/`T`型を導入できなくなるなどの不都合が生じます。また、不変型に対し可変型は一意に定まりません。`T = (U, V)`という定義があった際、`(U!, V)`と`(U, V!)`という可変サブタイプが`T!`としてあり得えます。[↩](#f1)</span>
+
+<p align='center'>
+    <a href='./17_type_casting.md'>Previous</a> | <a href='./19_bound.md'>Next</a>
+</p>

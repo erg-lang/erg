@@ -19,7 +19,7 @@ C. get(ref self) =
     self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
 C.steal(self) =
     self::i
-#NG
+# NG
 C.new({i = 1}).steal().inc!() # OwnershipWarning: `C.new({i = 1}).steal()` is not owned by anyone
 # hint: assign to a variable or use `uwn_do!`
 # OK (assigning)

@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/33_package_system.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/33_package_system.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
 Erg包大致可以分为app包，即应用程序，以及lib包，即库
-应用包的入口点是`src/app.er`。 `app.er` 中定义的`main` 函数被执行
+应用包的入口点是`src/app.er`。`app.er` 中定义的`main` 函数被执行
 lib 包的入口点是`src/lib.er`。导入包相当于导入 `lib.er`
 
 一个包有一个称为模块的子结构，在 Erg 中是一个 Erg 文件或由 Erg 文件组成的目录。外部 Erg 文件/目录是作为模块对象的可操作对象
@@ -24,7 +24,7 @@ lib 包的入口点是`src/lib.er`。导入包相当于导入 `lib.er`
 ```
 
 您可以在 `app.er` 中导入 `foo` 和 `bar` 模块。由于 `bar.er` 文件，`bar` 目录可以被识别为一个模块
-`foo` 模块是由文件组成的模块，`bar` 模块是由目录组成的模块。 `bar` 模块还包含 `baz` 和 `qux` 模块
+`foo` 模块是由文件组成的模块，`bar` 模块是由目录组成的模块。`bar` 模块还包含 `baz` 和 `qux` 模块
 该模块只是 `bar` 模块的一个属性，可以从 `app.er` 访问，如下所示
 
 ```python
@@ -38,9 +38,9 @@ main args =
     ...
 ```
 
-请注意用于访问子模块的 `/` 分隔符。 这是因为可以有诸如 `bar.baz.er` 之类的文件名
+请注意用于访问子模块的 `/` 分隔符。这是因为可以有诸如 `bar.baz.er` 之类的文件名
 不鼓励使用此类文件名，因为 `.er` 前缀在 Erg 中是有意义的
-例如，用于测试的模块。 以 `.test.er` 结尾的文件是一个(白盒)测试模块，它在运行测试时执行一个用 `@Test` 修饰的子例程
+例如，用于测试的模块。以 `.test.er` 结尾的文件是一个(白盒)测试模块，它在运行测试时执行一个用 `@Test` 修饰的子例程
 
 ```console
 └─┬ ./src

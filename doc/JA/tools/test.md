@@ -29,7 +29,7 @@ Ergでは`#`, `#[`以降がコメント行となるが、`##`, `#[[`でdoc comme
 ```python
 VM = ...
     ...
-    #[[
+    # [[
     execute commands.
     ```python
     # 標準構成のVM
@@ -38,7 +38,7 @@ VM = ...
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]#
+    ]]# 
     .exec! ref self, src =
         ...
     ...

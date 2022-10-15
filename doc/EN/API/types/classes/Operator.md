@@ -2,6 +2,6 @@
 
 is the type of the operator.
 
-##def
+## def
 
 Inherit Func [...T], O

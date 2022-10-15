@@ -38,7 +38,7 @@ Below are some frequently used built-in decorators.
 
 Indicates that the defining type is an inheritable class. If you specify `"public"` for the argument `scope`, it will be possible to inherit even the class of the external module. By default it is `"private"` and cannot be inherited externally.
 
-##Final
+## Final
 
 Make the method non-overridable. Adding it to a class makes it a non-inheritable class, but since it's the default it doesn't make sense.
 
@@ -107,7 +107,7 @@ assert X not in U. attaches
 assert Y in U. attaches
 ```
 
-##Deprecated
+## Deprecated
 
 Indicates that the variable specification is obsolete and deprecated.
 

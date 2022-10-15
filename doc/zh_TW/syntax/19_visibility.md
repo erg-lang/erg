@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
 Erg 變量具有 __visibility__ 的概念
-到目前為止，我們看到的所有變量都稱為 __private variables__。 這是一個外部不可見的變量
+到目前為止，我們看到的所有變量都稱為 __private variables__。這是一個外部不可見的變量
 例如，`foo` 模塊中定義的私有變量不能被另一個模塊引用
 
 ```python
@@ -12,7 +12,7 @@ x = "this is an invisible variable"
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
 ```
@@ -26,12 +26,12 @@ foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
 ```
 
 ```python
-#bar.er
+# bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
 ```
 
-您不需要向私有變量添加任何內容，但您也可以添加 `::` 或 `self::`(用于類型等的`Self::`)以表明它們是私有的。 增加。 如果它是一個模塊，它也可以是 `module::`
+您不需要向私有變量添加任何內容，但您也可以添加 `::` 或 `self::`(用于類型等的`Self::`)以表明它們是私有的。增加。如果它是一個模塊，它也可以是 `module::`
 
 ```python
 ::x = "this is an invisible variable"
@@ -49,7 +49,7 @@ y =
 ```
 
 通過使用`::`，可以區分作用域內同名的變量
-在左側指定要引用的變量的范圍。 為頂層指定 `module`
+在左側指定要引用的變量的范圍。為頂層指定 `module`
 如果未指定，則照常引用最里面的變量
 
 ```python
@@ -97,7 +97,7 @@ C.
 ```
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 Foo::
@@ -127,7 +127,7 @@ foo.public() # 屬性錯誤: "Foo"沒有屬性"public"("public"在模塊"bar"中
 這是為了避免混淆方法是否找到，具體取決于導入方法的模塊
 
 ```python
-#bar.er
+# bar.er
 {.Foo; ...} = import "foo"
 
 .Foo::
@@ -139,7 +139,7 @@ Foo.
 如果你想做這樣的事情，定義一個 [patch](./type/07_patch.md)
 
 ```python
-#bar.er
+# bar.er
 {Foo; ...} = import "foo"
 
 FooImpl = Patch Foo

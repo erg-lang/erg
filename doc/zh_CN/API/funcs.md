@@ -12,7 +12,7 @@
 
 ### log(x: Object, type: LogType = Info) -> None
 
-在调试显示中记录"x"。 执行完成后汇总并显示日志
+在调试显示中记录"x"。执行完成后汇总并显示日志
 支持表情符号的终端根据"类型"添加前缀
 
 * type == Info: 💬
@@ -84,7 +84,7 @@ cycle("hello").take 3 # "hellohellohello"
 
 ### Class
 
-创建一个新类。 与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
+创建一个新类。与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
 您将无法进行比较，但您可以进行模式匹配等操作
 
 ```python
@@ -98,7 +98,7 @@ match jan:
     _ -> log "Other"
 ```
 
-第二个参数 Impl 是要实现的特征
+第二个参数 Impl 是要实现的Trait
 
 ### Inherit
 
@@ -106,7 +106,7 @@ match jan:
 
 ### Trait
 
-创造一个新的特质。目前，只能指定记录类型
+创造一个新的trait。目前，只能指定记录类型
 
 ### Typeof
 

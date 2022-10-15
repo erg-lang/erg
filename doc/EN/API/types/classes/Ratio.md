@@ -1,4 +1,4 @@
-#Ratio
+# Ratio
 
 A type that represents a rational number. It is mainly used when you want to use fractions.
 In fact, the / operator in Erg returns Ratio. 1/3 etc. is not evaluated as 0.33333... and is processed as 1/3. Also, 0.1 is equivalent to 1/10. So `0.1 + 0.2 == 0.3`. It sounds obvious, but in Python it is False.

@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/phantom.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/phantom.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-幻像类型是标记特征，其存在仅用于向编译器提供注释
+幻像类型是标记Trait，其存在仅用于向编译器提供注释
 作为幻像类型的一种用法，让我们看一下列表的结构
 
 ```python
@@ -17,20 +17,20 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 3 | List T, 0 = Inherit Nil
                         ^^^
 类型构造错误: 由于Nil没有参数T，所以无法用Nil构造List(T, 0)
-提示: 使用 'Phantom' 特质消耗 T
+提示: 使用 'Phantom' trait消耗 T
 ```
 
 此错误是在使用 `List(_, 0).new Nil.new()` 时无法推断 `T` 的抱怨
-在这种情况下，无论 `T` 类型是什么，它都必须在右侧使用。 大小为零的类型(例如长度为零的元组)很方便，因为它没有运行时开销
+在这种情况下，无论 `T` 类型是什么，它都必须在右侧使用。大小为零的类型(例如长度为零的元组)很方便，因为它没有运行时开销
 ```python
 Nil T = Class((T; 0))
 List T, 0 = Inherit Nil T
 List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 ```
 
-此代码通过编译。 但是理解意图有点棘手，除非类型参数是类型，否则不能使用它
+此代码通过编译。但是理解意图有点棘手，除非类型参数是类型，否则不能使用它
 
-在这种情况下，幻影类型正是您所需要的。 幻像类型是大小为 0 的广义类型
+在这种情况下，幻影类型正是您所需要的。幻像类型是大小为 0 的广义类型
 
 ```python
 Nil T = Class(Impl := Phantom T)
@@ -41,9 +41,9 @@ nil = Nil(Int).new()
 assert nil.__size__ == 0
 ```
 
-`Phantom` 拥有`T` 类型。 但实际上 `Phantom T` 类型的大小是 0 并且不包含 `T` 类型的对象
+`Phantom` 拥有`T` 类型。但实际上 `Phantom T` 类型的大小是 0 并且不包含 `T` 类型的对象
 
-此外，`Phantom` 可以使用除其类型之外的任意类型参数。 在下面的示例中，`Phantom` 包含一个名为 `State` 的类型参数，它是 `Str` 的子类型对象
+此外，`Phantom` 可以使用除其类型之外的任意类型参数。在下面的示例中，`Phantom` 包含一个名为 `State` 的类型参数，它是 `Str` 的子类型对象
 同样，`State` 是一个假的类型变量，不会出现在对象的实体中
 
 ```python

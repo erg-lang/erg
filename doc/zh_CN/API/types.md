@@ -37,7 +37,7 @@
 
 ## 对象系统
 
-Trait 类相当于 Python 中的 ABC(抽象基类，接口)
+Trait 类相当于 Python 中的 ABC(抽象基类，trait)
 实例属于1、True、"aaa"等
 类是 Int、Bool、Str 等
 
@@ -174,7 +174,7 @@ Trait 类相当于 Python 中的 ABC(抽象基类，接口)
 
 ### 可迭代 T
 
-请注意，它不是 `Iterator` 本身的类型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`
+请注意，它不是 `Iterator` 本身的类型。`Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`
 
 * `iter`: 创建一个迭代器
 

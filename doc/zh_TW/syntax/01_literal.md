@@ -1,6 +1,6 @@
 # 字面量
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
 
 ## 基本字面量
 
@@ -29,13 +29,13 @@ assert 0.5 == .5
 ### 字符串字面量
 
 可以使用任何 Unicode 可表示的字符串
-與 Python 不同，引號不能包含在 `'` 中。 如果要在字符串中使用 `"`，請使用 `\"`
+與 Python 不同，引號不能包含在 `'` 中。如果要在字符串中使用 `"`，請使用 `\"`
 
 ```python
 "", "a", "abc", "111", "1# 3f2-3*8$", "こんにちは", "?????????? ??????????", ...
 ```
 
-`{}` 允許您在字符串中嵌入表達式。 這稱為字符串插值
+`{}` 允許您在字符串中嵌入表達式。這稱為字符串插值
 如果要輸出 `{`、`}` 本身，請使用 `\{`、`\}`
 
 ```python
@@ -46,7 +46,7 @@ assert "\{1+1}\" == "\{{s}\}"
 
 ### 指數字面量
 
-這是學術計算中常用的表示指數符號的文字。 它是"比率"類型的一個實例
+這是學術計算中常用的表示指數符號的文字。它是"比率"類型的一個實例
 該符號與 Python 中的符號相同
 
 ```python
@@ -139,7 +139,7 @@ assert 0.0f32 == 0.0f64
 
 ## *-less 乘法
 
-在 Erg 中，您可以省略 `*` 來表示乘法，只要解釋上沒有混淆即可。 但是，運算符的組合強度設置為強于 `*`
+在 Erg 中，您可以省略 `*` 來表示乘法，只要解釋上沒有混淆即可。但是，運算符的組合強度設置為強于 `*`
 
 ```python
 # same as `assert (1*m) / (1*s) == 1*(m/s)`

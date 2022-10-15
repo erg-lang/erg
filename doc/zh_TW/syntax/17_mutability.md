@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/17_mutability.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/17_mutability.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-正如我們已經看到的，所有 Erg 變量都是不可變的。 但是，Erg 對象具有可變性的概念
+正如我們已經看到的，所有 Erg 變量都是不可變的。但是，Erg 對象具有可變性的概念
 以下面的代碼為例
 
 ```python
@@ -11,7 +11,7 @@ a = a + [4, 5, 6]
 print! a # [1, 2, 3, 4, 5, 6]
 ```
 
-上面的代碼實際上不能被 Erg 執行。 這是因為它不可重新分配
+上面的代碼實際上不能被 Erg 執行。這是因為它不可重新分配
 
 可以執行此代碼
 
@@ -22,7 +22,7 @@ print! b # [1, 2, 3, 4, 5, 6]
 ```
 
 `a, b` 的最終結果看起來一樣，但它們的含義卻大不相同
-雖然 `a` 是表示 `Nat` 數組的變量，但第一行和第二行指向的對象是不同的。 名稱`a`相同，但內容不同
+雖然 `a` 是表示 `Nat` 數組的變量，但第一行和第二行指向的對象是不同的。名稱`a`相同，但內容不同
 
 ```python
 a = [1, 2, 3]
@@ -33,7 +33,7 @@ print! id! _a # 0x000002A798DFE980
 
 `id!` 過程返回對象駐留的內存地址
 
-`b` 是一個 `Nat` "動態" 數組。 對象的內容發生了變化，但變量指向的是同一個東西
+`b` 是一個 `Nat` "動態" 數組。對象的內容發生了變化，但變量指向的是同一個東西
 
 ```python
 b = ![1, 2, 3]
@@ -50,7 +50,7 @@ if! True. do!
 print! i # 1
 ```
 
-`!` 是一個特殊的運算符，稱為 __mutation 運算符__。 它使不可變對象可變
+`!` 是一個特殊的運算符，稱為 __mutation 運算符__。它使不可變對象可變
 標有"！"的對象的行為可以自定義
 
 ```python
@@ -91,7 +91,7 @@ match! x:
 符號是表示名稱的語法元素、記號
 
 只有非符號字符是符號，符號不稱為符號，盡管它們可以作為運算符的標識符
-例如，`x` 是一個標識符和一個符號。 `x.y` 也是一個標識符，但它不是一個符號。 `x` 和 `y` 是符號
+例如，`x` 是一個標識符和一個符號。`x.y` 也是一個標識符，但它不是一個符號。`x` 和 `y` 是符號
 即使 `x` 沒有綁定到任何對象，`x` 仍然是一個符號和一個標識符，但它不會被稱為變量
 `x.y` 形式的標識符稱為字段訪問器
 `x[y]` 形式的標識符稱為下標訪問器

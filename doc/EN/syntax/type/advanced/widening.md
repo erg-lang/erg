@@ -13,7 +13,7 @@ Also, it is easy to understand that an error will occur if another class that is
 ```python
 assert ids(1, 2) == (1, 2)
 assert ids(1, 2.0) == (1.0, 2.0)
-ids(1, "a") #TypeError
+ids(1, "a") # TypeError
 ```
 
 Now, what about types that have different derived types?

@@ -145,7 +145,7 @@ Ergs are owned by mutable objects (objects mutated with the `!` operator) and ca
 i = !0
 j = i
 assert j == 0
-i#MoveError
+i# MoveError
 ```
 
 Immutable objects, on the other hand, can be referenced from multiple places.

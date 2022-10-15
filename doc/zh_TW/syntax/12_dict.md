@@ -19,7 +19,7 @@ l = {[]: "empty", [1]: "1"}
 assert l[[]] == "empty"
 ```
 
-對于字典來說，順序無關緊要。 它也不能有重復的元素。 在這方面，Dict 與 Set 類似
+對于字典來說，順序無關緊要。它也不能有重復的元素。在這方面，Dict 與 Set 類似
 您可以說 Dict 是具有值的 Set
 
 ```python
@@ -33,7 +33,7 @@ assert l[[]] == "empty"
 {"Alice": 145, "Alice": 1} # Key錯誤: 重復鍵`Alice`
 ```
 
-空字典是用 `{:}` 創建的。 請注意，`{}` 表示一個空集
+空字典是用 `{:}` 創建的。請注意，`{}` 表示一個空集
 
 ```python
 mut_dict = !{:}
@@ -44,7 +44,7 @@ assert mut_dict["Alice"] == 145
 
 ## 異構字典
 
-不需要有單一的鍵/值類型。 這樣的字典稱為 __heterogenous dict_
+不需要有單一的鍵/值類型。這樣的字典稱為 __heterogenous dict_
 
 ```python
 d: {Str: Int, Int: Str} = {"a": 1, 1: "a"}

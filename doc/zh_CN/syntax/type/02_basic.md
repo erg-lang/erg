@@ -1,6 +1,6 @@
 # 类型的基本语法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
 
 ## 类型规范
 
@@ -50,7 +50,7 @@ f x: _, y: Int = x + y # 类型错误: Object 和 Int 之间没有实现 +
 ## 子类型规范
 
 除了 `:`(类型声明运算符)，Erg 还允许您使用 `<:`(部分类型声明运算符)来指定类型之间的关系
-`<:` 的左边只能指定一个类。 使用 `Subtypeof` 或类似的运算符来比较结构类型
+`<:` 的左边只能指定一个类。使用 `Subtypeof` 或类似的运算符来比较结构类型
 
 这也经常在定义子例程或类型时使用，而不是简单地指定变量
 
@@ -96,7 +96,7 @@ C.shoe self = ... # Show 由于 Typo 没有实现(它被认为只是一种独特
 
 ## 属性定义
 
-只能在模块中为特征和类定义属性
+只能在模块中为Trait和类定义属性
 
 ```python
 C = Class()
@@ -127,7 +127,7 @@ C::
 
 ## 别名
 
-类型可以有别名。 这允许缩短长类型，例如记录类型
+类型可以有别名。这允许缩短长类型，例如记录类型
 
 ```python
 Id = Int

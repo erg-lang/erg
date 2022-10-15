@@ -10,31 +10,31 @@ assert {1, 2} == {1, 1, 2} # 重復的被自動刪除
 assert {1, 2} == {2, 1}
 ```
 
-也可以通過指定類型和長度來聲明
+它也可以用類型和長度來聲明
 
 ```python
 a: {Int; 3} = {0, 1, 2} # OK
-b: {Int; 3} = {0, 0, 0} # NG，刪除了重複項並更改了長度
-#[
+b: {Int; 3} = {0, 0, 0} # NG，重復的內容被刪除，長度也會改變
+# [
 TypeError: the type of b is mismatched
 expected:  Set(Int, 3)
 but found: Set({0, }, 1)
-]#
+]# 
 ```
 
-此外，只有實現 `Eq` 特徵的對象才能成為集合的成員
+此外，只有實現`Eq`跟蹤的對象才能成為集合的元素
 
-所以你不能使用 Float 等作為集合的元素
+因此，不可能使用Floats等作為集合元素
 
 ```python
 d = {0.0, 1.0} # NG
-#[
+# [
 1│ d = {0.0, 1.0}
         ^^^^^^^^
 TypeError: the type of _ is mismatched:
 expected:  Eq(Float)
 but found: {0.0, 1.0, }
-]#
+]# 
 ```
 
 Set可以執行集合操作
@@ -47,14 +47,14 @@ assert {1, 2} and {2, 3} == {2}
 assert {1, 2} not {2} == {1}
 ```
 
-Set是同質集合。 為了使不同類的對象共存，它們必須同質化
+Set是同質集合。為了使不同類的對象共存，它們必須同質化
 
 ```python
 s: {Int or Str} = {"a", 1, "b", -1}
 ```
 
 ## Sets為類型
-Sets也可以被視為類型。 這種類型稱為 _枚舉類型_
+Sets也可以被視為類型。這種類型稱為 _枚舉類型_
 
 ```python
 i: {1, 2, 3} = 1

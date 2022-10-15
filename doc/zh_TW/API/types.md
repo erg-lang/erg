@@ -37,7 +37,7 @@
 
 ## 對象系統
 
-Trait 類相當于 Python 中的 ABC(抽象基類，接口)
+Trait 類相當于 Python 中的 ABC(抽象基類，trait)
 實例屬于1、True、"aaa"等
 類是 Int、Bool、Str 等
 
@@ -174,7 +174,7 @@ Trait 類相當于 Python 中的 ABC(抽象基類，接口)
 
 ### 可迭代 T
 
-請注意，它不是 `Iterator` 本身的類型。 `Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`
+請注意，它不是 `Iterator` 本身的類型。`Nat` 是 `Iterable` 但你不能 `Nat.next()`，你需要 `Nat.iter().next()`
 
 * `iter`: 創建一個迭代器
 

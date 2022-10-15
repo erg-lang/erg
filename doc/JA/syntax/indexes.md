@@ -1,6 +1,6 @@
 # 索引
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D68054846e20b4cdb0e92e986b1b86fcc77de8bcd)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=68054846e20b4cdb0e92e986b1b86fcc77de8bcd)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
 
 この索引にないAPIについては[こちら](../API/index.md)を参照してください。
 
@@ -38,7 +38,7 @@
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
-  * : → [Declaration](./03_declaration.md.md)
+  * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
   * :: → [visibility](./19_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
