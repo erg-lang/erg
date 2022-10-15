@@ -1,6 +1,6 @@
 # Erg 代碼如何轉譯成 Python 代碼?
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3Da9d45b743cc655543e0d7f586426499091cead3d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=a9d45b743cc655543e0d7f586426499091cead3d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
 
 準確地說，Erg 代碼被轉譯為 Python 字節碼
 但是，由于 Python 字節碼幾乎可以重構為 Python 代碼，因此這里以等效的 Python 代碼為例
@@ -10,7 +10,7 @@
 ## 記錄，記錄類型
 
 它將被轉譯為一個命名元組
-對于 namedtuple，請參閱 [此處](https://docs.python.jp/3/library/collections.html#collections.namedtuple)
+對于 namedtuple，請參閱 [此處](https://docs.python.org/zh-tw/3/library/collections.html#collections.namedtuple)
 有一個類似的函數，dataclass，但是由于 `__eq__` 和 `__hash__` 的自動實現，dataclass 的性能略有下降
 
 ```python
