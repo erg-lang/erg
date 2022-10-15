@@ -18,7 +18,7 @@ assert "abc".reverse() == "cba"
 这样，被修补类型的对象(`Str`)可以使用修补程序的方法(`StrReverse`)
 实际上，内置方法`.reverse`并不是`Str`的方法，而是`StrRReverse`中添加的方法
 
-但是，补丁方法的优先级低于名义类型(类/特质)的方法，并且不能覆盖现有类型
+但是，补丁方法的优先级低于名义类型(类/trait)的方法，并且不能覆盖现有类型
 
 ```python
 StrangeInt = Patch Int
@@ -106,7 +106,7 @@ assert "hello".reverse() == "olleh"
 
 维修程序也可以将类型相互关联。`StrReverse` 补丁涉及 `Str` 和 `Reverse`
 这样的补丁称为 __glue patch__
-因为 `Str` 是内置类型，所以用户需要使用胶水补丁来改造特征
+因为 `Str` 是内置类型，所以用户需要使用胶水补丁来改造Trait
 
 ```python
 Reverse = Trait {
@@ -119,7 +119,7 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-每个类型/特征对只能定义一个胶水补丁
+每个类型/Trait对只能定义一个胶水补丁
 这是因为如果多个胶水修复程序同时"可见"，就不可能唯一确定选择哪个实现
 但是，当移动到另一个范围(模块)时，您可以交换维修程序
 
@@ -135,7 +135,7 @@ NumStrRev.
 # 提示: 'Str'(NumericStr'的超类)通过'StrReverse'与'Reverse'关联
 ```
 
-## 附录: 与 Rust 特征的关系
+## 附录: 与 Rust Trait的关系
 
 Erg 修复程序相当于 Rust 的(改造的)`impl` 块
 
@@ -152,7 +152,7 @@ impl Reverse for String {
 }
 ```
 
-可以说，Rust 的特征是 Erg 的特征和修复程序的特征。这使得 Rust 的特征听起来更方便，但事实并非如此
+可以说，Rust 的Trait是 Erg 的Trait和修复程序的Trait。这使得 Rust 的Trait听起来更方便，但事实并非如此
 
 ```python
 # Erg
@@ -166,7 +166,7 @@ StrReverse.
         self.iter().rev().collect(Str)
 ```
 
-因为 impl 块在 Erg 中被对象化为补丁，所以在从其他模块导入时可以选择性地包含。作为副作用，它还允许将外部特征实现到外部结构
+因为 impl 块在 Erg 中被对象化为补丁，所以在从其他模块导入时可以选择性地包含。作为副作用，它还允许将外部Trait实现到外部结构
 此外，结构类型不再需要诸如 `dyn trait` 和 `impl trait` 之类的语法
 
 ```python

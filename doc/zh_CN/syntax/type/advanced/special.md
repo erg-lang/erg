@@ -33,7 +33,7 @@ classof D. new_c() # C
 
 ## 特殊类型变量
 
-`Self` 和 `Super` 可以用作结构化类型和特征中的类型变量。这指的是作为该类型子类型的类。也就是说，`T` 类型中的`Self` 表示`Self <: T`
+`Self` 和 `Super` 可以用作结构化类型和Trait中的类型变量。这指的是作为该类型子类型的类。也就是说，`T` 类型中的`Self` 表示`Self <: T`
 
 ```python
 Add R = Trait {

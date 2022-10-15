@@ -1,10 +1,10 @@
-# 投掷
+# 类型转换
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/17_type_casting.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/17_type_casting.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
 
-## 向上转型
+## 向上转换
 
-因为 Python 是一种使用鸭子类型的语言，所以没有强制转换的概念。没有必要向上转型，本质上也没有向下转型
+因为 Python 是一种使用鸭子类型的语言，所以没有强制转换的概念。没有必要向上转换，本质上也没有向下转换
 但是，Erg 是静态类型的，因此有时必须进行强制转换
 一个简单的例子是 `1 + 2.0`: `+`(Int, Ratio) 或 Int(<: Add(Ratio, Ratio)) 操作在 Erg 语言规范中没有定义。这是因为 `Int <: Ratio`，所以 1 向上转换为 1.0，即 Ratio 的一个实例
 
@@ -49,7 +49,7 @@ parent = Parent.new()
 child = Child.new()
 
 parent # 来自Parent的问候！
-child #  来自child的问候！
+child  # 来自child的问候！
 ```
 
 您还可以使用 `.from` 和 `.into`，它们会为相互继承的类型自动实现
@@ -60,9 +60,9 @@ assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
 ```
 
-## 向下转型
+## 向下转换
 
-由于向下转换通常是不安全的并且转换方法很重要，我们改为实现"TryFrom.try_from"
+由于向下转换通常是不安全的并且转换方法很重要，我们改为实现`TryFrom.try_from`
 
 ```python
 IntTryFromFloat = Patch Int

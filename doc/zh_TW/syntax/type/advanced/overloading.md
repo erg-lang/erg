@@ -2,8 +2,8 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-Erg 不支持 __ad hoc 多態性__。也就是說，函數和種類(重載)的多重定義是不可能的。但是，您可以通過使用特征和補丁的組合來重現重載行為
-您可以使用特征而不是特征類，但隨后將涵蓋所有實現 `.add1` 的類型
+Erg 不支持 __ad hoc 多態性__。也就是說，函數和種類(重載)的多重定義是不可能的。但是，您可以通過使用Trait和補丁的組合來重現重載行為
+您可以使用Trait而不是Trait類，但隨后將涵蓋所有實現 `.add1` 的類型
 
 ```python
 Add1 = Trait {

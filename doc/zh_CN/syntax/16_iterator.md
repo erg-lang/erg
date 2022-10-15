@@ -80,7 +80,7 @@ classDiagram
     Range <-- RangeIterator
 ```
 
-诸如 `Iterable` 之类的以静态分派但统一的方式提供用于处理特征(在本例中为 `Iterator`)的接口的类型称为伴生类适配器
+诸如 `Iterable` 之类的以静态分派但统一的方式提供用于处理Trait(在本例中为 `Iterator`)的trait的类型称为伴生类适配器
 
 ---
 

@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
 繼承允許您定義一個新類，為現有類添加功能或專業化
-繼承類似于包含在特征中。繼承的類成為原始類的子類型
+繼承類似于包含在Trait中。繼承的類成為原始類的子類型
 
 ```python
 NewInt = Inherit Int
@@ -119,9 +119,9 @@ Inherited!
 然而，這個規范并沒有完全解決覆蓋問題。然而，這個規范并沒有完全解決覆蓋問題，因為編譯器無法檢測覆蓋是否解決了問題
 創建派生類的程序員有責任糾正覆蓋的影響。只要有可能，嘗試定義一個別名方法
 
-### 替換特征(或看起來像什么)
+### 替換Trait(或看起來像什么)
 
-盡管無法在繼承時替換特征，但有一些示例似乎可以這樣做
+盡管無法在繼承時替換Trait，但有一些示例似乎可以這樣做
 
 例如，`Int`，`Real` 的子類型(實現了 `Add()`)，似乎重新實現了 `Add()`
 
@@ -130,7 +130,7 @@ Int = Class ... , Impl := Add() and ...
 ```
 
 但實際上 `Real` 中的 `Add()` 代表 `Add(Real, Real)`，而在 `Int` 中它只是被 `Add(Int, Int)` 覆蓋
-它們是兩個不同的特征(`Add` 是一個 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
+它們是兩個不同的Trait(`Add` 是一個 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
 
 ## 多重繼承
 

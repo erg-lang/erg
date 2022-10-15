@@ -1,4 +1,4 @@
-# 變化
+# 變性(逆變與協變 Variance)
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -125,7 +125,7 @@ List(T).
 
 ## 附錄: 用戶定義類型的修改
 
-默認情況下，用戶定義類型的突變是不可變的。但是，您也可以使用 `Inputs/Outputs` 標記特征指定可變性
+默認情況下，用戶定義類型的突變是不可變的。但是，您也可以使用 `Inputs/Outputs` 標記Trait指定可變性
 如果您指定 `Inputs(T)`，則類型相對于 `T` 是逆變的
 如果您指定 `Outputs(T)`，則類型相對于 `T` 是協變的
 

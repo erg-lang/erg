@@ -98,7 +98,7 @@ match jan:
     _ -> log "Other"
 ```
 
-第二個參數 Impl 是要實現的特征
+第二個參數 Impl 是要實現的Trait
 
 ### Inherit
 
@@ -106,7 +106,7 @@ match jan:
 
 ### Trait
 
-創造一個新的特質。目前，只能指定記錄類型
+創造一個新的trait。目前，只能指定記錄類型
 
 ### Typeof
 

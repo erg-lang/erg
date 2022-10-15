@@ -35,7 +35,7 @@ assert i is not 257
 
 ## Traits
 
-就像 Java 的接口一样，你可以进行基于契约的编程
+就像 Java 的trait一样，你可以进行基于契约的编程
 
 Python 也有 ABC(抽象基类)，但这种结构最适合静态类型
 

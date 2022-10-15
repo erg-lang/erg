@@ -1,4 +1,4 @@
-# 变化
+# 变性(逆变与协变 Variance)
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
 
@@ -125,7 +125,7 @@ List(T).
 
 ## 附录: 用户定义类型的修改
 
-默认情况下，用户定义类型的突变是不可变的。但是，您也可以使用 `Inputs/Outputs` 标记特征指定可变性
+默认情况下，用户定义类型的突变是不可变的。但是，您也可以使用 `Inputs/Outputs` 标记Trait指定可变性
 如果您指定 `Inputs(T)`，则类型相对于 `T` 是逆变的
 如果您指定 `Outputs(T)`，则类型相对于 `T` 是协变的
 

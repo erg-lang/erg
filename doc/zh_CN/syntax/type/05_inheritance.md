@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
 继承允许您定义一个新类，为现有类添加功能或专业化
-继承类似于包含在特征中。继承的类成为原始类的子类型
+继承类似于包含在Trait中。继承的类成为原始类的子类型
 
 ```python
 NewInt = Inherit Int
@@ -119,9 +119,9 @@ Inherited!
 然而，这个规范并没有完全解决覆盖问题。然而，这个规范并没有完全解决覆盖问题，因为编译器无法检测覆盖是否解决了问题
 创建派生类的程序员有责任纠正覆盖的影响。只要有可能，尝试定义一个别名方法
 
-### 替换特征(或看起来像什么)
+### 替换Trait(或看起来像什么)
 
-尽管无法在继承时替换特征，但有一些示例似乎可以这样做
+尽管无法在继承时替换Trait，但有一些示例似乎可以这样做
 
 例如，`Int`，`Real` 的子类型(实现了 `Add()`)，似乎重新实现了 `Add()`
 
@@ -130,7 +130,7 @@ Int = Class ... , Impl := Add() and ...
 ```
 
 但实际上 `Real` 中的 `Add()` 代表 `Add(Real, Real)`，而在 `Int` 中它只是被 `Add(Int, Int)` 覆盖
-它们是两个不同的特征(`Add` 是一个 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
+它们是两个不同的Trait(`Add` 是一个 [covariate](./advanced/variance.md)，所以`Add(Real, Real) :> Add(Int, Int)`)
 
 ## 多重继承
 

@@ -38,7 +38,7 @@ Erg 的类型系统包含结构子类型 (SST)。该系统类型化的类型称�
 | generator | record      | set        | range operator | or operator | and operator | not operator |
 
 也可以使用名义子类型(NST)，将 SST 类型转换为 NST 类型称为类型的名义化。结果类型称为名义类型
-在 Erg 中，名义类型是类和特征。当我们简单地说类/特征时，我们通常指的是记录类/特征
+在 Erg 中，名义类型是类和Trait。当我们简单地说类/Trait时，我们通常指的是记录类/Trait
 
 |     | Type           | Abstraction      | Subtyping procedure |
 | --- | -------------- | ---------------- | ------------------- |

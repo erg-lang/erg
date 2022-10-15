@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/phantom.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/phantom.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
 
-幻像類型是標記特征，其存在僅用于向編譯器提供注釋
+幻像類型是標記Trait，其存在僅用于向編譯器提供注釋
 作為幻像類型的一種用法，讓我們看一下列表的結構
 
 ```python
@@ -17,7 +17,7 @@ List T, N: Nat = Class {head = T; rest = List(T, N-1)}
 3 | List T, 0 = Inherit Nil
                         ^^^
 類型構造錯誤: 由于Nil沒有參數T，所以無法用Nil構造List(T, 0)
-提示: 使用 'Phantom' 特質消耗 T
+提示: 使用 'Phantom' trait消耗 T
 ```
 
 此錯誤是在使用 `List(_, 0).new Nil.new()` 時無法推斷 `T` 的抱怨

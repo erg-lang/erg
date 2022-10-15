@@ -38,7 +38,7 @@ Erg 的類型系統包含結構子類型 (SST)。該系統類型化的類型稱�
 | generator | record      | set        | range operator | or operator | and operator | not operator |
 
 也可以使用名義子類型(NST)，將 SST 類型轉換為 NST 類型稱為類型的名義化。結果類型稱為名義類型
-在 Erg 中，名義類型是類和特征。當我們簡單地說類/特征時，我們通常指的是記錄類/特征
+在 Erg 中，名義類型是類和Trait。當我們簡單地說類/Trait時，我們通常指的是記錄類/Trait
 
 |     | Type           | Abstraction      | Subtyping procedure |
 | --- | -------------- | ---------------- | ------------------- |

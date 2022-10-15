@@ -71,7 +71,7 @@ C.
 ## 附
 
 指定默认情况下随 trait 附带的附件补丁
-这允许您重现与 Rust 特征相同的行为
+这允许您重现与 Rust Trait相同的行为
 
 ```python
 # foo.er
@@ -88,7 +88,7 @@ AddForOdd = Patch(Odd, Impl := ClosedAdd)
 AddForOdd.AddO = Even
 ```
 
-当从其他模块导入特征时，这将自动应用附件补丁
+当从其他模块导入Trait时，这将自动应用附件补丁
 
 ```Python
 # 本来应该同时导入IntIsBinAdd和OddIsBinAdd，但是如果是附件补丁可以省略
