@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D736dcb272d2132883ec7b883f7694829398be61e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=736dcb272d2132883ec7b883f7694829398be61e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Db9329fe66e9a24368e1380754fb7a35beb37ab0d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=b9329fe66e9a24368e1380754fb7a35beb37ab0d)
 
 > __Warning__: 本文档不完整。它未经校对(样式、正确链接、误译等)。此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。请事先了解这一点
 > 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/mtshiba/TheErgBook/issues/new )。我们将不胜感激您的建议

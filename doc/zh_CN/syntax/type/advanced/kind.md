@@ -1,6 +1,6 @@
 # Kind
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Da9ea4eca75fe849e31f83570159f84b611892d7a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=a9ea4eca75fe849e31f83570159f84b611892d7a)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
 
 一切都在 Erg 中输入。类型本身也不例外。__kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。`Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`
 

@@ -1,6 +1,6 @@
 # Erg 部分设计的原因
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3D1b3d7827bb770459475e4102c6f5c43d8ad79ae4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=1b3d7827bb770459475e4102c6f5c43d8ad79ae4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3Da9d45b743cc655543e0d7f586426499091cead3d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=a9d45b743cc655543e0d7f586426499091cead3d)
 
 ## Erg内存管理模型
 

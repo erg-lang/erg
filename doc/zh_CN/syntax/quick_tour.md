@@ -1,6 +1,6 @@
 # 快速浏览
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D51016775279ecd28b87178dab6a493a645abb171)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=51016775279ecd28b87178dab6a493a645abb171)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D2ecd249a2a99dc93dde2660b8d50bfa4fa0b03b9)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=2ecd249a2a99dc93dde2660b8d50bfa4fa0b03b9)
 
 `syntax` 下面的文档是为了让编程初学者也能理解而编写的
 对于已经掌握 Python、Rust、Haskell 等语言的人来说，可能有点啰嗦

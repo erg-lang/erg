@@ -1,6 +1,6 @@
 # Erg 部分設計的原因
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3D1b3d7827bb770459475e4102c6f5c43d8ad79ae4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=1b3d7827bb770459475e4102c6f5c43d8ad79ae4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3Da9d45b743cc655543e0d7f586426499091cead3d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=a9d45b743cc655543e0d7f586426499091cead3d)
 
 ## Erg內存管理模型
 
@@ -80,11 +80,11 @@ try!:
 
 此外，Erg 沒有引入異常機制的另一個原因是它計劃引入并行編程的功能。這是因為異常機制與并行執行不兼容(例如，如果并行執行導致多個異常，則很難處理)
 
-## Erg似乎删除了被認為是糟糕實踐的Python特性，為什麼不取消繼承呢？
+## Erg似乎刪除了被認為是糟糕實踐的Python特性，為什么不取消繼承呢？
 
-這是因為Python庫中的類是在假定它們將被繼承的基礎上設計的，如果完全取消繼承，那麼它們的操作就會出現問題
+這是因為Python庫中的類是在假定它們將被繼承的基礎上設計的，如果完全取消繼承，那么它們的操作就會出現問題
 
-然而，在Erg中，默認情况下類是final的，原則上禁止多重/多級繼承，囙此可以相對安全地使用繼承
+然而，在Erg中，默認情況下類是final的，原則上禁止多重/多級繼承，因此可以相對安全地使用繼承
 
 ## 為什么多相關數的子類型推理默認指向記名trait?
 
