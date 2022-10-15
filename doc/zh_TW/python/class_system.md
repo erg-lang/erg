@@ -61,7 +61,7 @@ Erg 靜態檢查與父類的一致性
 >>> D = Inherit C
 ...   .f self = "a"
 ...
-錯誤[# XX]: 文件"<stdin>"，第 5 行，在 D 中
+錯誤[#XX]: 文件"<stdin>"，第 5 行，在 D 中
 要覆蓋 f，必須添加 `Override` 裝飾器，其類型必須是 `Self.() -> Nat` 或其子類型
 f(self) 已在 C 中定義。要覆蓋 f，必須添加 `Override` 裝飾器，其類型必須為 `Self. 要覆蓋，必須給它一個 `Override` 裝飾器，并且它的類型必須是 `Self.() -> Nat` 或 that.f(self) 的子類型
 ```

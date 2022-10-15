@@ -61,7 +61,7 @@ Ergでは親クラスとの整合性が静的に検査される。
 >>> D = Inherit C
 ...   .f self = "a"
 ...
-Error[# XX]: File "<stdin>", line 5, in D
+Error[#XX]: File "<stdin>", line 5, in D
 .f(self) is already defined in C. To override f, it must be added `Override` decorator and its type must be `Self.() -> Nat` or the subtype of that
 .f(self)は既にCで定義されています。オーバーライドするためには`Override`デコレータを付与し、`Self.() -> Nat`型かそのサブタイプである必要があります。
 ```

@@ -59,7 +59,7 @@ The `Override` decorator must be given when overriding, and the type of the over
 >>> D = Inherit C
 ...   .f self = "a"
 ...
-Error[# XX]: File "<stdin>", line 5, in D
+Error[#XX]: File "<stdin>", line 5, in D
 To override f, it must be added `Override` decorator and its type must be `Self.() -> Nat` or the subtype of that
 f(self) is already defined in C. To override f, it must be added `Override` decorator and its type must be `Self. To override, it must be given an `Override` decorator and its type must be `Self.() -> Nat` or the subtype of that.f(self).
 ```

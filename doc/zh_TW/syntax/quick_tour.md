@@ -28,7 +28,7 @@ e = f // 2 # 0: Nat
 a = 1
 b: Int = a / 2
 # 錯誤信息
-Error[# 0047]: File <stdin>, line 1, in <module>
+Error[#0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
 類型錯誤: ratio的類型不匹配: 

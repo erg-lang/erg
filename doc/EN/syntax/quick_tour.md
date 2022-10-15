@@ -26,7 +26,7 @@ If you do not want to allow these implicit type conversions, you can specify the
 a = 1
 b: Int = a / 2
 # error message
-Error[# 0047]: File <stdin>, line 1, in <module>
+Error[#0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
 TypeError: the type of ratio is mismatched:
