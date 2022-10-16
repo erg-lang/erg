@@ -14,20 +14,36 @@ fn main() -> std::io::Result<()> {
         + "/.erg";
     if !path::Path::new(&erg_path).exists() {
         fs::create_dir(&erg_path)?;
-        fs::create_dir(format!("{erg_path}/std"))?;
     }
     println!("cargo:rustc-env=CARGO_ERG_PATH={erg_path}");
-    // println!("cargo:rustc-env=CARGO_ERG_STD_PATH={erg_path}/std");
     // create a std library in ".erg"
-    for res in fs::read_dir("std")? {
+    copy_dir(&erg_path, "lib")?;
+    Ok(())
+}
+
+fn copy_dir(erg_path: &str, path: &str) -> std::io::Result<()> {
+    let full_path = format!("{erg_path}/{path}");
+    if !path::Path::new(&full_path).exists() {
+        fs::create_dir(&full_path)?;
+    }
+    let mut dirs = vec![];
+    for res in fs::read_dir(path)? {
         let entry = res?;
-        let path = entry.path();
-        let filename = path
-            .file_name()
-            .expect("this is not a file")
-            .to_str()
-            .unwrap();
-        fs::copy(&path, format!("{erg_path}/std/{filename}"))?;
+        let entry_path = entry.path();
+        if entry_path.is_dir() {
+            dirs.push(entry);
+        } else {
+            let filename = entry_path
+                .file_name()
+                .expect("this is not a file")
+                .to_str()
+                .unwrap();
+            let filename = format!("{full_path}/{filename}");
+            fs::copy(&entry_path, filename)?;
+        }
+    }
+    for dir in dirs {
+        copy_dir(erg_path, dir.path().to_str().unwrap())?;
     }
     Ok(())
 }

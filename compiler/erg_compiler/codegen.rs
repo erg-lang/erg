@@ -8,6 +8,7 @@ use crate::ty::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
+use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::Opcode;
 use erg_common::traits::{Locational, Stream};
@@ -2052,8 +2053,7 @@ impl CodeGenerator {
     }
 
     fn load_prelude_py(&mut self) {
-        if let Some(erg_path) = option_env!("ERG_PATH").or_else(|| option_env!("CARGO_ERG_PATH")) {
-            let std_path = std::path::Path::new(erg_path).join("std");
+        if let Some(std_path) = erg_std_path() {
             self.emit_global_import_items(
                 Identifier::public("sys"),
                 vec![(

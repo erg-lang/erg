@@ -7,6 +7,7 @@ pub mod color;
 pub mod config;
 pub mod datetime;
 pub mod dict;
+pub mod env;
 pub mod error;
 pub mod fxhash;
 pub mod help_messages;
