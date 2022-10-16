@@ -13,6 +13,7 @@ pub mod effectcheck;
 pub mod error;
 pub mod hir;
 pub mod link;
+pub mod linter;
 pub mod lower;
 pub mod mod_cache;
 // pub mod name_resolve;
