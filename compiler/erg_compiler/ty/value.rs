@@ -326,9 +326,15 @@ impl From<CodeObj> for ValueObj {
     }
 }
 
-impl From<Vec<ValueObj>> for ValueObj {
-    fn from(item: Vec<ValueObj>) -> Self {
-        ValueObj::Array(RcArray::from(&item[..]))
+impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
+    fn from(item: Vec<V>) -> Self {
+        ValueObj::Array(RcArray::from(&item.into_iter().map(Into::into).collect::<Vec<_>>()[..]))
+    }
+}
+
+impl<const N: usize, V: Into<ValueObj>> From<[V; N]> for ValueObj {
+    fn from(item: [V; N]) -> Self {
+        ValueObj::Array(RcArray::from(&item.map(Into::into)[..]))
     }
 }
 
@@ -395,6 +401,14 @@ impl ValueObj {
         match self {
             Self::Int(_) | Self::Nat(_) | Self::Float(_) | Self::Bool(_) => true,
             Self::Mut(n) => n.borrow().is_num(),
+            _ => false,
+        }
+    }
+
+    pub fn is_nat(&self) -> bool {
+        match self {
+            Self::Nat(_) | Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_nat(),
             _ => false,
         }
     }

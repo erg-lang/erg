@@ -66,6 +66,9 @@ pub enum Opcode {
     LOAD_ASSERTION_ERROR = 74,
     LIST_TO_TUPLE = 82,
     RETURN_VALUE = 83,
+    IMPORT_STAR = 84,
+    SETUP_ANNOTATIONS = 85,
+    YIELD_VALUE = 86,
     POP_BLOCK = 87,
     POP_EXCEPT = 89,
     /* ↓ These opcodes take an arg */
@@ -216,6 +219,9 @@ impl From<u8> for Opcode {
             74 => LOAD_ASSERTION_ERROR,
             82 => LIST_TO_TUPLE,
             83 => RETURN_VALUE,
+            84 => IMPORT_STAR,
+            85 => SETUP_ANNOTATIONS,
+            86 => YIELD_VALUE,
             87 => POP_BLOCK,
             89 => POP_EXCEPT,
             /* ↓ These opcodes take an arg */

@@ -16,6 +16,11 @@ def in_operator(x, y):
     else:
         return x in y
 
+class Nat(int):
+    def times(self, f):
+        for _ in range(self):
+            f()
+
 class Range:
     def __init__(self, start, end):
         self.start = start

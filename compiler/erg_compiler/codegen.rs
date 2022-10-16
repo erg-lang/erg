@@ -238,6 +238,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Module", Some("time"), "time!") => Str::ever("time"),
         ("Module", Some("glob"), "glob!") => Str::ever("glob"),
         ("Module", Some("os"), name) if name != "name" && name != "path" => Str::from(name.replace('!', "")),
+        ("Nat", _, "times" | "times!") => Str::ever("times"),
         _ => name,
     }
 }
@@ -274,7 +275,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "print!" => Str::ever("print"),
         "py" | "pyimport" => Str::ever("__import__"),
         "quit" | "exit" => Str::ever("quit"),
-        "Nat" | "Nat!" => Str::ever("int"),
+        "Nat" | "Nat!" => Str::ever("Nat"),
         "Int" | "Int!" => Str::ever("int"),
         "Float" | "Float!" => Str::ever("float"),
         "Ratio" | "Ratio!" => Str::ever("float"),
@@ -283,6 +284,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "Bool" | "Bool!" => Str::ever("bool"),
         "Array" | "Array!" => Str::ever("list"),
         "Set" | "Set!" => Str::ever("set"),
+        "Dict" | "Dict!" => Str::ever("dict"),
         _ => name,
     }
 }
@@ -474,19 +476,28 @@ impl CodeGenerator {
     }
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
-        let cons = cons.into();
+        let value = cons.into();
+        let is_nat = value.is_nat();
+        if is_nat {
+            self.emit_load_name_instr(Identifier::public("Nat"));
+        }
         let idx = self
             .mut_cur_block_codeobj()
             .consts
             .iter()
-            .position(|c| c == &cons)
+            .position(|c| c == &value)
             .unwrap_or_else(|| {
-                self.mut_cur_block_codeobj().consts.push(cons);
+                self.mut_cur_block_codeobj().consts.push(value);
                 self.mut_cur_block_codeobj().consts.len() - 1
             });
         self.write_instr(Opcode::LOAD_CONST);
         self.write_arg(idx as u8);
         self.stack_inc();
+        if is_nat {
+            self.write_instr(Opcode::CALL_FUNCTION);
+            self.write_arg(1);
+            self.stack_dec();
+        }
     }
 
     fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
@@ -624,6 +635,22 @@ impl CodeGenerator {
         self.write_instr(IMPORT_FROM);
         self.write_arg(name.idx as u8);
         // self.stack_inc(); (module object) -> attribute
+    }
+
+    fn emit_import_all_instr(&mut self, ident: Identifier) {
+        log!(info "entered {}", fn_name!());
+        self.emit_load_const(0i32); // escaping to call access `Nat` before importing `Nat`
+        self.emit_load_const([Str::ever("*")]);
+        let escaped = escape_name(ident);
+        let name = self
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
+        self.write_instr(IMPORT_NAME);
+        self.write_arg(name.idx as u8);
+        self.stack_inc();
+        self.write_instr(IMPORT_STAR);
+        self.write_arg(0);
+        self.stack_dec_n(3);
     }
 
     /// item: (name, renamed)
@@ -2053,29 +2080,29 @@ impl CodeGenerator {
     }
 
     fn load_prelude_py(&mut self) {
-        if let Some(std_path) = erg_std_path() {
-            self.emit_global_import_items(
-                Identifier::public("sys"),
-                vec![(
-                    Identifier::public("path"),
-                    Some(Identifier::private("#path")),
-                )],
-            );
-            self.emit_load_name_instr(Identifier::private("#path"));
-            self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
-            self.emit_load_const(std_path.to_str().unwrap());
-            self.write_instr(CALL_METHOD);
-            self.write_arg(1u8);
-            self.stack_dec();
-            self.emit_pop_top();
-            self.emit_global_import_items(
-                Identifier::public("_erg_std_prelude"),
-                vec![(
-                    Identifier::public("in_operator"),
-                    Some(Identifier::private("#in_operator")),
-                )],
-            );
-        }
+        self.emit_global_import_items(
+            Identifier::public("sys"),
+            vec![(
+                Identifier::public("path"),
+                Some(Identifier::private("#path")),
+            )],
+        );
+        self.emit_load_name_instr(Identifier::private("#path"));
+        self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
+        self.emit_load_const(erg_std_path().to_str().unwrap());
+        self.write_instr(CALL_METHOD);
+        self.write_arg(1u8);
+        self.stack_dec();
+        self.emit_pop_top();
+        // escaping
+        self.emit_global_import_items(
+            Identifier::public("_erg_std_prelude"),
+            vec![(
+                Identifier::public("in_operator"),
+                Some(Identifier::private("#in_operator")),
+            )],
+        );
+        self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
     }
 
     fn load_record_type(&mut self) {
@@ -2147,7 +2174,7 @@ impl CodeGenerator {
         if self.input().is_repl() {
             if self.cur_block().stack_len == 0 {
                 // remains `print`, nothing to be printed
-                self.edit_code(print_point, Opcode::NOP as usize);
+                self.edit_code(print_point, NOP as usize);
             } else {
                 self.stack_inc();
                 self.write_instr(CALL_FUNCTION);
