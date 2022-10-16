@@ -68,7 +68,7 @@ fn exec_move_check() -> Result<(), ()> {
 
 #[test]
 fn exec_prelude() -> Result<(), ()> {
-    expect_success("compiler/erg_compiler/std/prelude.er")
+    expect_success("compiler/erg_compiler/lib/std/prelude.er")
 }
 
 #[test]

@@ -161,6 +161,7 @@ impl<'a> Linker<'a> {
     /// ```python
     /// x =
     ///     _x = ModuleType("mod")
+    ///     _x.__dict__.update(locals()) # `Nat`, etc. are in locals but treated as globals, so they cannot be put in the third argument of exec.
     ///     exec(code, _x.__dict__)  # `code` is the mod's content
     ///     _x
     /// ```
@@ -203,13 +204,19 @@ impl<'a> Linker<'a> {
                 Signature::Var(VarSignature::new(tmp.clone(), Type::Uninited)),
                 DefBody::new(Token::dummy(), block, DefId(0)),
             ));
-            let exec = Expr::Accessor(Accessor::public_with_line(
-                Str::ever("exec"),
-                expr.ln_begin().unwrap_or(0),
-            ));
             let module = Expr::Accessor(Accessor::Ident(tmp));
             let __dict__ = Identifier::public("__dict__");
             let m_dict = Expr::Accessor(Accessor::attr(module.clone(), __dict__, Type::Uninited));
+            let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
+            let locals_call = Expr::Call(Call::new(locals, None, Args::empty(), Type::Uninited));
+            let args = Args::new(vec![PosArg::new(locals_call)], None, vec![], None);
+            let mod_update = Expr::Call(Call::new(
+                m_dict.clone(),
+                Some(Identifier::public("update")),
+                args,
+                Type::Uninited,
+            ));
+            let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
             let args = Args::new(
                 vec![PosArg::new(code), PosArg::new(m_dict)],
                 None,
@@ -217,7 +224,7 @@ impl<'a> Linker<'a> {
                 None,
             );
             let exec_code = Expr::Call(Call::new(exec, None, args, Type::Uninited));
-            let compound = Block::new(vec![mod_def, exec_code, module]);
+            let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
             *expr = Expr::Compound(compound);
         }
     }

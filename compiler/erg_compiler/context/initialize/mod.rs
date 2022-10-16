@@ -1044,6 +1044,10 @@ impl Context {
             Public,
         );
         generic_dict.register_trait(g_dict_t.clone(), generic_dict_eq);
+        // .get: _: T -> T or None
+        let dict_get_t = fn1_met(g_dict_t.clone(), mono_q("T"), or(mono_q("T"), NoneType));
+        let dict_get_t = quant(dict_get_t, set! {static_instance("T", Type)});
+        generic_dict.register_builtin_impl("get", dict_get_t, Immutable, Public);
         let dict_t = poly("Dict", vec![mono_q_tp("D")]);
         let mut dict_ =
             // TODO: D <: GenericDict
@@ -1640,6 +1644,8 @@ impl Context {
             NoneType,
         );
         let t_for = quant(t_for, set! {static_instance("T", Type)});
+        let t_globals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
+        let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
             vec![
                 kw("cond", mono("Bool!")),
@@ -1682,6 +1688,8 @@ impl Context {
         self.register_builtin_impl("input!", t_input, Immutable, Private);
         self.register_builtin_impl("if!", t_if, Immutable, Private);
         self.register_builtin_impl("for!", t_for, Immutable, Private);
+        self.register_builtin_impl("globals!", t_globals, Immutable, Private);
+        self.register_builtin_impl("locals!", t_locals, Immutable, Private);
         self.register_builtin_impl("while!", t_while, Immutable, Private);
         self.register_builtin_impl("open!", t_open, Immutable, Private);
         self.register_builtin_impl("with!", t_with, Immutable, Private);

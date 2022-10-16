@@ -1,8 +1,28 @@
 from collections.abc import Iterable, Sequence, Iterator, Container
+from typing import TypeVar, Union, _SpecialForm, _type_check
+
+class Error:
+    def __init__(self, message):
+        self.message = message
+
+T = TypeVar("T")
+@_SpecialForm
+def Result(self, parameters):
+    """Result type.
+
+    Result[T] is equivalent to Union[T, Error].
+    """
+    arg = _type_check(parameters, f"{self} requires a single type.")
+    return Union[arg, Error]
+
+def is_ok(obj: Result[T]) -> bool:
+    return not isinstance(obj, Error)
 
 def in_operator(x, y):
     if type(y) == type:
         if isinstance(x, y):
+            return True
+        elif is_ok(y.try_new(x)):
             return True
         # TODO: trait check
         return False
@@ -17,9 +37,30 @@ def in_operator(x, y):
         return x in y
 
 class Nat(int):
+    def try_new(i: int): # -> Result[Nat]
+        if i >= 0:
+            return Nat(i)
+        else:
+            return Error("Nat can't be negative")
+
     def times(self, f):
         for _ in range(self):
             f()
+
+class Bool(Nat):
+    def try_new(b: bool): # -> Result[Nat]
+        if b == True or b == False:
+            return Bool(b)
+        else:
+            return Error("Bool can't be other than True or False")
+
+    def __str__(self) -> str:
+        if self:
+            return "True"
+        else:
+            return "False"
+    def __repr__(self) -> str:
+        return self.__str__()
 
 class Range:
     def __init__(self, start, end):

@@ -206,6 +206,10 @@ fn is_python_global(name: &str) -> bool {
     )
 }
 
+fn is_erg_global(name: &str) -> bool {
+    matches!(name, "Nat",)
+}
+
 fn is_fake_method(class: &str, name: &str) -> bool {
     matches!(
         (class, name),
@@ -237,8 +241,10 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Module", Some("time"), "sleep!") => Str::ever("sleep"),
         ("Module", Some("time"), "time!") => Str::ever("time"),
         ("Module", Some("glob"), "glob!") => Str::ever("glob"),
-        ("Module", Some("os"), name) if name != "name" && name != "path" => Str::from(name.replace('!', "")),
-        ("Nat", _, "times" | "times!") => Str::ever("times"),
+        ("Module", Some("os"), name) if name != "name" && name != "path" => {
+            Str::from(name.replace('!', ""))
+        }
+        ("Nat", _, "times!") => Str::ever("times"),
         _ => name,
     }
 }
@@ -249,7 +255,11 @@ fn escape_attr(class: &str, uniq_obj_name: Option<&str>, ident: Identifier) -> S
         convert_to_python_attr(class, uniq_obj_name, ident.name.into_token().content).to_string();
     name = name.replace('!', "__erg_proc__");
     name = name.replace('$', "__erg_shared__");
-    if vis.is_public() || is_python_global(&name) || is_python_special(&name) {
+    if vis.is_public()
+        || is_python_global(&name)
+        || is_erg_global(&name)
+        || is_python_special(&name)
+    {
         Str::from(name)
     } else {
         Str::from("::".to_string() + &name)
@@ -263,6 +273,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "classof" => Str::ever("type"),
         "compile" => Str::ever("compile"),
         "dir!" => Str::ever("dir"),
+        "globals!" => Str::ever("globals"),
         // discard is implemented in bytecode
         // for is implemented in bytecode
         "id!" => Str::ever("id"),
@@ -270,6 +281,7 @@ fn convert_to_python_name(name: Str) -> Str {
         "import" => Str::ever("__import__"),
         "input!" => Str::ever("input"),
         "log" => Str::ever("print"), // TODO: log != print (prints after executing)
+        "locals!" => Str::ever("locals"),
         "open!" => Str::ever("open"),
         "panic" => Str::ever("exit"),
         "print!" => Str::ever("print"),
@@ -294,7 +306,11 @@ fn escape_name(ident: Identifier) -> Str {
     let mut name = convert_to_python_name(ident.name.into_token().content).to_string();
     name = name.replace('!', "__erg_proc__");
     name = name.replace('$', "__erg_shared__");
-    if vis.is_public() || is_python_global(&name) || is_python_special(&name) {
+    if vis.is_public()
+        || is_python_global(&name)
+        || is_erg_global(&name)
+        || is_python_special(&name)
+    {
         Str::from(name)
     } else {
         Str::from("::".to_string() + &name)
@@ -478,7 +494,10 @@ impl CodeGenerator {
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
         let value = cons.into();
         let is_nat = value.is_nat();
-        if is_nat {
+        let is_bool = value.is_bool();
+        if is_bool {
+            self.emit_load_name_instr(Identifier::public("Bool"));
+        } else if is_nat {
             self.emit_load_name_instr(Identifier::public("Nat"));
         }
         let idx = self

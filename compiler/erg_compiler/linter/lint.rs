@@ -1,7 +1,7 @@
 use erg_common::Str;
 
-use crate::hir::HIR;
 use crate::error::CompileWarnings;
+use crate::hir::HIR;
 
 #[derive(Debug, Default)]
 pub struct Linter {
@@ -10,9 +10,7 @@ pub struct Linter {
 
 impl Linter {
     pub fn new() -> Self {
-        Self {
-            _used: Vec::new(),
-        }
+        Self { _used: Vec::new() }
     }
 
     pub fn lint(&mut self, _hir: &HIR) -> CompileWarnings {

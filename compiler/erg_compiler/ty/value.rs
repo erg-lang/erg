@@ -328,7 +328,9 @@ impl From<CodeObj> for ValueObj {
 
 impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
     fn from(item: Vec<V>) -> Self {
-        ValueObj::Array(RcArray::from(&item.into_iter().map(Into::into).collect::<Vec<_>>()[..]))
+        ValueObj::Array(RcArray::from(
+            &item.into_iter().map(Into::into).collect::<Vec<_>>()[..],
+        ))
     }
 }
 
@@ -409,6 +411,14 @@ impl ValueObj {
         match self {
             Self::Nat(_) | Self::Bool(_) => true,
             Self::Mut(n) => n.borrow().is_nat(),
+            _ => false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_bool(),
             _ => false,
         }
     }
