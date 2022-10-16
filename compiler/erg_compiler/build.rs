@@ -5,9 +5,6 @@ use std::fs;
 use std::path;
 
 fn main() -> std::io::Result<()> {
-    if cfg!(feature = "no_build_rs") {
-        return Ok(());
-    }
     // Create a ".erg" directory
     let erg_path = env::home_dir()
         .expect("failed to get the location of the home dir")
@@ -19,8 +16,8 @@ fn main() -> std::io::Result<()> {
         fs::create_dir(&erg_path)?;
         fs::create_dir(format!("{erg_path}/std"))?;
     }
-    println!("cargo:rustc-env=ERG_PATH={erg_path}");
-    println!("cargo:rustc-env=ERG_STD_PATH={erg_path}/std");
+    println!("cargo:rustc-env=CARGO_ERG_PATH={erg_path}");
+    // println!("cargo:rustc-env=CARGO_ERG_STD_PATH={erg_path}/std");
     // create a std library in ".erg"
     for res in fs::read_dir("std")? {
         let entry = res?;

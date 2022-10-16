@@ -47,7 +47,6 @@ traditional_chinese = [
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
 ]
-no_build_rs = ["erg_compiler/no_build_rs"]
 pre-commit = []
 
 [dependencies]

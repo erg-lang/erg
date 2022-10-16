@@ -2051,7 +2051,8 @@ impl CodeGenerator {
     }
 
     fn load_prelude_py(&mut self) {
-        if let Some(std_path) = option_env!("ERG_STD_PATH") {
+        if let Some(erg_path) = option_env!("ERG_PATH").or_else(|| option_env!("CARGO_ERG_PATH")) {
+            let std_path = std::path::Path::new(erg_path).join("std");
             self.emit_global_import_items(
                 Identifier::public("sys"),
                 vec![(
@@ -2061,7 +2062,7 @@ impl CodeGenerator {
             );
             self.emit_load_name_instr(Identifier::private("#path"));
             self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
-            self.emit_load_const(std_path);
+            self.emit_load_const(std_path.to_str().unwrap());
             self.write_instr(CALL_METHOD);
             self.write_arg(1u8);
             self.stack_dec();
@@ -2073,13 +2074,6 @@ impl CodeGenerator {
                     Some(Identifier::private("#in_operator")),
                 )],
             );
-        } else {
-            self.emit_load_name_instr(Identifier::private("exec"));
-            self.emit_load_const(include_str!("std/_erg_std_prelude.py"));
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1u8);
-            self.stack_dec();
-            self.emit_pop_top();
         }
     }
 
