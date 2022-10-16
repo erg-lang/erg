@@ -1069,6 +1069,10 @@ impl Context {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_math_mod());
                 Ok(builtin_path)
             }
+            "os" => {
+                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_os_mod());
+                Ok(builtin_path)
+            }
             "random" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_random_mod());
                 Ok(builtin_path)

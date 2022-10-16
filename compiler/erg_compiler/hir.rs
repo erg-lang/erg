@@ -1086,7 +1086,7 @@ pub struct Call {
     pub obj: Box<Expr>,
     pub attr_name: Option<Identifier>,
     pub args: Args,
-    /// 全体の型(引数自体の型は関係ない)、e.g. `abs(-1)` -> `Neg -> Nat`
+    /// 全体の型(引数自体の型は関係ない)、e.g. `abs(-1)` -> `(self: Neg) -> Nat`
     pub sig_t: Type,
 }
 
@@ -1146,6 +1146,10 @@ impl Call {
             args,
             sig_t,
         }
+    }
+
+    pub fn is_method(&self) -> bool {
+        self.sig_t.self_t().is_some()
     }
 
     pub fn additional_operation(&self) -> Option<OperationKind> {

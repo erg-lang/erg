@@ -236,6 +236,7 @@ fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -
         ("Module", Some("time"), "sleep!") => Str::ever("sleep"),
         ("Module", Some("time"), "time!") => Str::ever("time"),
         ("Module", Some("glob"), "glob!") => Str::ever("glob"),
+        ("Module", Some("os"), name) if name != "name" && name != "path" => Str::from(name.replace('!', "")),
         _ => name,
     }
 }

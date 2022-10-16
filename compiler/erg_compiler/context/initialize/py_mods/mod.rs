@@ -2,6 +2,7 @@ pub mod glob;
 pub mod importlib;
 pub mod io;
 pub mod math;
+pub mod os;
 pub mod random;
 pub mod re;
 pub mod socket;

@@ -333,6 +333,11 @@ pub fn nd_proc(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> 
     proc(params, var_params, vec![], ret)
 }
 
+#[inline]
+pub fn nd_proc1(pt: ParamTy, ret: Type) -> Type {
+    nd_proc(vec![pt], None, ret)
+}
+
 pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
     Type::Callable {
         param_ts,

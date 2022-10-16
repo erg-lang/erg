@@ -109,7 +109,7 @@ impl OwnershipChecker {
             // TODO: referenced
             Expr::Call(call) => {
                 let args_owns = call.signature_t().unwrap().args_ownership();
-                let non_defaults_len = if call.attr_name.is_some() {
+                let non_defaults_len = if call.is_method() {
                     args_owns.non_defaults.len() - 1
                 } else {
                     args_owns.non_defaults.len()
