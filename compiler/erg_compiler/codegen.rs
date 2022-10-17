@@ -301,6 +301,7 @@ fn convert_to_python_name(name: Str) -> Str {
     }
 }
 
+/// This method obviously does not scale, so in the future all Python APIs will be replaced by declarations in d.er, and renaming will be done in `HIRDesugarer`.
 fn escape_name(ident: Identifier) -> Str {
     let vis = ident.vis();
     let mut name = convert_to_python_name(ident.name.into_token().content).to_string();

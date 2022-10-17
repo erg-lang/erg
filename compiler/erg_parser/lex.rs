@@ -186,7 +186,8 @@ impl Lexer /*<'a>*/ {
     fn is_definable_operator(s: &str) -> bool {
         matches!(
             s,
-            "+" | "-"
+            "+_" | "_+_"
+                | "-"
                 | "*"
                 | "/"
                 | "//"
@@ -1127,6 +1128,18 @@ impl Iterator for Lexer /*<'a>*/ {
                             return self.accept(Symbol, &op);
                         } else {
                             let token = self.emit_token(Illegal, &op);
+                            let hint = if op.contains('+') {
+                                Some(
+                                    switch_lang!(
+                                        "japanese" => "二項演算子の+は`_+_`、単項演算子の+は`+_`です",
+                                        "simplified_chinese" => "二元运算符+是`_+_`，一元运算符+是`+_`",
+                                        "traditional_chinese" => "二元運算符+是`_+_`，一元運算符+是`+_`",
+                                        "english" => "the binary operator + is `_+_`, the unary operator + is `+_`",
+                                    ).into(),
+                                )
+                            } else {
+                                None
+                            };
                             return Some(Err(LexError::syntax_error(
                                 0,
                                 token.loc(),
@@ -1136,7 +1149,7 @@ impl Iterator for Lexer /*<'a>*/ {
                                     "traditional_chinese" => format!("`{}`不能由用戶定義", &token.content),
                                     "english" => format!("`{}` cannot be defined by user", &token.content),
                                 ),
-                                None,
+                                hint,
                             )));
                         }
                     }

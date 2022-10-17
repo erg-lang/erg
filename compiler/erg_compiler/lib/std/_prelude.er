@@ -13,8 +13,8 @@ PartialOrd(R := Self) = Trait {
 }
 Ord = Subsume PartialOrd()
 
-EqForOrd R = Patch Ord, Impl := Eq()
-EqForOrd(R).
+EqForOrd R = Patch Ord
+EqForOrd(R)|<: Eq()|.
     `==`(self, other: R): Bool = self.cmp(other) == Ordering.Equal
 
 LeForOrd = Patch Ord
@@ -36,9 +36,9 @@ Add(R := Self) = Trait {
 }
 Sub(R := Self) = Trait {
     .Output = Type
-    .`_-_` = (self: Self, R) -> Self.Output
+    .`-` = (self: Self, R) -> Self.Output
 }
-Mul(R := Self()) = Trait {
+Mul(R := Self) = Trait {
     .Output = Type
     .`*` = (self: Self, R) -> Self.Output
 }
@@ -46,7 +46,6 @@ Div(R := Self) = Trait {
     .Output = Type
     .`/` = (self: Self, R) -> Self.Output or Panic
 }
-Num: (R := Type) -> Type
 Num = Add and Sub and Mul
 
 Seq T = Trait {
@@ -54,29 +53,40 @@ Seq T = Trait {
     .get = (self: Ref(Self), Nat) -> T
 }
 
-`_+_`: |R: Type, A <: Add(R)| (A, R) -> A.AddO
-`_-_`: |R: Type, S <: Add(R)| (S, R) -> S.SubO
-`*`: |R, O: Type, M <: Add(R)| (M, R) -> M.MulO
-`/`: |R, O: Type, D <: Add(R)| (D, R) -> D.DivO
-
-AddForInt = Patch Int, Impl := Add()
-AddForInt.AddO = Int
-AddForInt.
-    `_+_`: (self: Self, other: Int) -> Int = magic("Add.`_+_`")
+AddForInt = Patch Int
+AddForInt|<: Add(Int)|.
+    AddO = Int
+    `_+_`(self: Self, other: Int): Int = magic("Add.`_+_`")
 
 # TODO: Mul and Div
-NumForInterval M, N, O, P: Int =
-    Patch M..N, Impl := Add(R := O..P) and Sub(R := O..P)
-NumForInterval(M, N, O, P).
-    `_+_`: (self: Self, other: O..P) -> M+O..N+P = magic("NumForInterval.`_+_`")
-    `_-_`: (self: Self, other: O..P) -> M-P..N-O = magic("NumForInterval.`_-_`")
+NumForInterval M, N, O, P: Int = Patch M..N
+NumForInterval(M, N, O, P)|<: Add(O..P)|.
+    Output = M+O..N+P
+    __add__(self: Self, other: O..P) = magic("NumForInterval.`_+_`")
+NumForInterval(M, N, O, P)|<: Sub(O..P)|.
+    Output = M-P..N-O
+    __sub__(self: Self, other: O..P) = magic("NumForInterval.`_-_`")
 
 Read = Trait {
-    .read = (self: Ref(Self)) -> Str
+    .read = (self: Ref(Self),) -> Str
 }
 Read! = Trait {
-    .read! = (self: Ref!(Self)) => Str
+    .read! = (self: Ref!(Self),) => Str
 }
 Write! = Trait {
     .write! = (self: Ref!(Self), Str) => ()
 }
+
+discard _x = None
+
+discard 1
+
+# if: |T, U|(Bool, T, U) -> T or U
+cond|T: Type|(c: Bool, then: T, else: T): T =
+    if c:
+        do then
+        do else
+
+assert cond(False, 1, 2) == 2
+# assert cond(True, 1, 3) == "a"
+# assert "a" == cond(True, 1, 3)
