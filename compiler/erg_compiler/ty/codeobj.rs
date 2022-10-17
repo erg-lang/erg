@@ -354,9 +354,9 @@ impl CodeObj {
     fn instr_info(&self) -> String {
         let mut lnotab_iter = self.lnotab.iter();
         let mut code_iter = self.code.iter();
-        let mut idx = 0;
-        let mut line_offset = 0;
-        let mut lineno = self.firstlineno as u8;
+        let mut idx = 0usize;
+        let mut line_offset = 0usize;
+        let mut lineno = self.firstlineno;
         let mut sdelta = lnotab_iter.next().unwrap_or(&0);
         let mut ldelta = lnotab_iter.next().unwrap_or(&0);
         let mut instrs = "".to_string();
@@ -365,9 +365,9 @@ impl CodeObj {
             writeln!(instrs, "{}:", lineno).unwrap();
         }
         loop {
-            if *sdelta == line_offset {
+            if *sdelta as usize == line_offset {
                 line_offset = 0;
-                lineno += ldelta;
+                lineno += *ldelta as u32;
                 writeln!(instrs, "{}:", lineno).unwrap();
                 sdelta = lnotab_iter.next().unwrap_or(&0);
                 ldelta = lnotab_iter.next().unwrap_or(&0);
@@ -443,19 +443,19 @@ impl CodeObj {
                         .unwrap();
                     }
                     Opcode::FOR_ITER => {
-                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
+                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
                     }
                     Opcode::JUMP_FORWARD => {
-                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
+                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
                     }
                     Opcode::SETUP_WITH => {
-                        write!(instrs, "{} (to {})", arg, idx + arg * 2 + 2).unwrap();
+                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
                     }
                     Opcode::JUMP_ABSOLUTE => {
-                        write!(instrs, "{} (to {})", arg, arg * 2).unwrap();
+                        write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
                     }
                     Opcode::POP_JUMP_IF_FALSE | Opcode::POP_JUMP_IF_TRUE => {
-                        write!(instrs, "{} (to {})", arg, arg * 2).unwrap();
+                        write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
                     }
                     Opcode::MAKE_FUNCTION => {
                         let flag = match arg {
