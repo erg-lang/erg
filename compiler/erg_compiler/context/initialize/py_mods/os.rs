@@ -13,15 +13,22 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_os_mod() -> Self {
         let mut os = Context::builtin_module("os", 15);
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "chdir!",
             nd_proc1(kw("path", mono("PathLike")), NoneType),
             Immutable,
             Public,
+            Some("chdir"),
         );
-        os.register_builtin_impl("getcwd!", proc0(Str), Immutable, Public);
-        os.register_builtin_impl("getenv!", nd_proc1(kw("key", Str), Str), Immutable, Public);
-        os.register_builtin_impl(
+        os.register_builtin_py_impl("getcwd!", proc0(Str), Immutable, Public, Some("getcwd"));
+        os.register_builtin_py_impl(
+            "getenv!",
+            nd_proc1(kw("key", Str), Str),
+            Immutable,
+            Public,
+            Some("getenv"),
+        );
+        os.register_builtin_py_impl(
             "listdir!",
             proc(
                 vec![],
@@ -31,15 +38,17 @@ impl Context {
             ),
             Immutable,
             Public,
+            Some("listdir"),
         );
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "mkdir!",
             nd_proc1(kw("path", mono("PathLike")), NoneType),
             Immutable,
             Public,
+            Some("mkdir"),
         );
         os.register_builtin_impl("name", Str, Immutable, Public);
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "putenv!",
             proc(
                 vec![kw("key", Str), kw("value", Str)],
@@ -49,20 +58,23 @@ impl Context {
             ),
             Immutable,
             Public,
+            Some("putenv"),
         );
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "remove!",
             nd_proc1(kw("path", mono("PathLike")), NoneType),
             Immutable,
             Public,
+            Some("remove"),
         );
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "removedirs!",
             nd_proc1(kw("name", mono("PathLike")), NoneType),
             Immutable,
             Public,
+            Some("removedirs"),
         );
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "rename!",
             proc(
                 vec![kw("src", mono("PathLike")), kw("dst", mono("PathLike"))],
@@ -72,19 +84,22 @@ impl Context {
             ),
             Immutable,
             Public,
+            Some("rename"),
         );
-        os.register_builtin_impl(
+        os.register_builtin_py_impl(
             "rmdir!",
             nd_proc1(kw("path", mono("PathLike")), NoneType),
             Immutable,
             Public,
+            Some("rmdir"),
         );
         if cfg!(unix) {
-            os.register_builtin_impl(
+            os.register_builtin_py_impl(
                 "uname!",
                 proc0(mono("posix.UnameResult")),
                 Immutable,
                 Public,
+                Some("uname"),
             );
         }
         // TODO

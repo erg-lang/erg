@@ -1734,14 +1734,14 @@ impl Type {
         }
     }
 
-    /// Procedure or MutType?
-    pub fn is_procedural(&self) -> bool {
+    /// Procedure
+    pub fn is_procedure(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_procedural(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_procedure(),
             Self::Callable { .. } => true,
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) =>
-                refine.t.is_procedural() || refine.preds.iter().any(|pred|
+                refine.t.is_procedure() || refine.preds.iter().any(|pred|
                     matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.qual_name().map(|n| n.ends_with('!')).unwrap_or(false))
                 ),
             _ => false,
@@ -2229,6 +2229,9 @@ impl Type {
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
+            // NOTE: Quantified could return a quantified type variable.
+            // At least in situations where this function is needed, self cannot be Quantified.
+            // Self::Quantified(quant) => quant.unbound_callable.return_t(),
             _ => None,
         }
     }
@@ -2243,6 +2246,7 @@ impl Type {
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
+            // Self::Quantified(quant) => quant.unbound_callable.mut_return_t(),
             _ => None,
         }
     }

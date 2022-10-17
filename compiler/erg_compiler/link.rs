@@ -45,13 +45,6 @@ impl<'a> Linker<'a> {
                 Accessor::Attr(attr) => {
                     self.replace_import(&mut attr.obj);
                 }
-                Accessor::TupleAttr(attr) => {
-                    self.replace_import(&mut attr.obj);
-                }
-                Accessor::Subscr(subscr) => {
-                    self.replace_import(&mut subscr.obj);
-                    self.replace_import(&mut subscr.index);
-                }
                 Accessor::Ident(_) => {}
             },
             Expr::Array(array) => match array {
@@ -192,12 +185,7 @@ impl<'a> Linker<'a> {
             let module_type =
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
             let args = Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
-            let block = Block::new(vec![Expr::Call(Call::new(
-                module_type,
-                None,
-                args,
-                Type::Uninited,
-            ))]);
+            let block = Block::new(vec![Expr::Call(Call::new(module_type, None, args))]);
             let tmp =
                 Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
             let mod_def = Expr::Def(Def::new(
@@ -206,15 +194,14 @@ impl<'a> Linker<'a> {
             ));
             let module = Expr::Accessor(Accessor::Ident(tmp));
             let __dict__ = Identifier::public("__dict__");
-            let m_dict = Expr::Accessor(Accessor::attr(module.clone(), __dict__, Type::Uninited));
+            let m_dict = Expr::Accessor(Accessor::attr(module.clone(), __dict__));
             let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
-            let locals_call = Expr::Call(Call::new(locals, None, Args::empty(), Type::Uninited));
+            let locals_call = Expr::Call(Call::new(locals, None, Args::empty()));
             let args = Args::new(vec![PosArg::new(locals_call)], None, vec![], None);
             let mod_update = Expr::Call(Call::new(
                 m_dict.clone(),
                 Some(Identifier::public("update")),
                 args,
-                Type::Uninited,
             ));
             let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
             let args = Args::new(
@@ -223,7 +210,7 @@ impl<'a> Linker<'a> {
                 vec![],
                 None,
             );
-            let exec_code = Expr::Call(Call::new(exec, None, args, Type::Uninited));
+            let exec_code = Expr::Call(Call::new(exec, None, args));
             let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
             *expr = Expr::Compound(compound);
         }
@@ -277,7 +264,6 @@ impl<'a> Linker<'a> {
                     Str::rc(attr.as_os_str().to_str().unwrap()),
                     line,
                 ),
-                Type::Uninited,
             ));
         }
     }

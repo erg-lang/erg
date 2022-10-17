@@ -2,7 +2,6 @@ use erg_common::log;
 use erg_common::traits::Stream;
 
 use crate::hir::{Accessor, AttrDef, Block, Expr, HIR};
-use crate::ty::Type;
 
 pub struct HIRDesugarer {}
 
@@ -19,9 +18,10 @@ impl HIRDesugarer {
     //     _Self = C
     //     a = C.x
     //     x = 1
+    //     m(self) = ...
     // ↓
     // class C:
-    //     pass
+    //     def m(self): ...
     // C._Self = C
     // C.a = C.x
     // C.x = 1
@@ -39,11 +39,7 @@ impl HIRDesugarer {
                         .into_iter()
                         .map(|expr| match expr {
                             Expr::Def(def) => {
-                                let acc = Accessor::attr(
-                                    class.clone(),
-                                    def.sig.into_ident(),
-                                    Type::Untyped,
-                                );
+                                let acc = Accessor::attr(class.clone(), def.sig.into_ident());
                                 let attr_def = AttrDef::new(acc, def.body.block);
                                 Expr::AttrDef(attr_def)
                             }

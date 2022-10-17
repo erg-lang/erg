@@ -38,283 +38,29 @@ use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
 use AccessKind::*;
 
-fn is_python_special(name: &str) -> bool {
-    matches!(name, "__call__" | "__init__")
-}
-
-fn is_python_global(name: &str) -> bool {
-    matches!(
-        name,
-        "ArithmeticError"
-            | "AssertionError"
-            | "AttributeError"
-            | "BaseException"
-            | "BlockingIOError"
-            | "BrokenPipeError"
-            | "BufferError"
-            | "BytesWarning"
-            | "ChildProcessError"
-            | "ConnectionAbortedError"
-            | "ConnectionError"
-            | "ConnectionRefusedError"
-            | "ConnectionResetError"
-            | "DeprecationWarning"
-            | "EOFError"
-            | "Ellipsis"
-            | "EncodingWarning"
-            | "EnvironmentError"
-            | "Exception"
-            | "False"
-            | "FileExistsError"
-            | "FileNotFoundError"
-            | "FloatingPointError"
-            | "FutureWarning"
-            | "GeneratorExit"
-            | "IOError"
-            | "ImportError"
-            | "ImportWarning"
-            | "IndentationError"
-            | "IndexError"
-            | "InterruptedError"
-            | "IsADirectoryError"
-            | "KeyError"
-            | "KeyboardInterrupt"
-            | "LookupError"
-            | "MemoryError"
-            | "ModuleNotFoundError"
-            | "NameError"
-            | "None"
-            | "NotADirectoryError"
-            | "NotImplemented"
-            | "NotImplementedError"
-            | "OSError"
-            | "OverflowError"
-            | "PendingDeprecationWarning"
-            | "PermissionError"
-            | "ProcessLookupError"
-            | "RecursionError"
-            | "ReferenceError"
-            | "ResourceWarning"
-            | "RuntimeError"
-            | "RuntimeWarning"
-            | "StopAsyncIteration"
-            | "StopIteration"
-            | "SyntaxError"
-            | "SyntaxWarning"
-            | "SystemError"
-            | "SystemExit"
-            | "TabError"
-            | "TimeoutError"
-            | "True"
-            | "TypeError"
-            | "UnboundLocalError"
-            | "UnicodeDecodeError"
-            | "UnicodeEncodeError"
-            | "UnicodeError"
-            | "UnicodeTranslateError"
-            | "UnicodeWarning"
-            | "UserWarning"
-            | "ValueError"
-            | "Warning"
-            | "WindowsError"
-            | "ZeroDivisionError"
-            | "__build__class__"
-            | "__debug__"
-            | "__doc__"
-            | "__import__"
-            | "__loader__"
-            | "__name__"
-            | "__package__"
-            | "__spec__"
-            | "__annotations__"
-            | "__builtins__"
-            | "abs"
-            | "aiter"
-            | "all"
-            | "any"
-            | "anext"
-            | "ascii"
-            | "bin"
-            | "bool"
-            | "breakpoint"
-            | "bytearray"
-            | "bytes"
-            | "callable"
-            | "chr"
-            | "classmethod"
-            | "compile"
-            | "complex"
-            | "delattr"
-            | "dict"
-            | "dir"
-            | "divmod"
-            | "enumerate"
-            | "eval"
-            | "exec"
-            | "exit"
-            | "filter"
-            | "float"
-            | "format"
-            | "frozenset"
-            | "getattr"
-            | "globals"
-            | "hasattr"
-            | "hash"
-            | "help"
-            | "hex"
-            | "id"
-            | "input"
-            | "int"
-            | "isinstance"
-            | "issubclass"
-            | "iter"
-            | "len"
-            | "list"
-            | "locals"
-            | "map"
-            | "max"
-            | "memoryview"
-            | "min"
-            | "next"
-            | "object"
-            | "oct"
-            | "open"
-            | "ord"
-            | "pow"
-            | "print"
-            | "property"
-            | "quit"
-            | "range"
-            | "repr"
-            | "reversed"
-            | "round"
-            | "set"
-            | "setattr"
-            | "slice"
-            | "sorted"
-            | "staticmethod"
-            | "str"
-            | "sum"
-            | "super"
-            | "tuple"
-            | "type"
-            | "vars"
-            | "zip"
-            | "license"
-            | "copyright"
-            | "credits"
-    )
-}
-
-fn is_erg_global(name: &str) -> bool {
-    matches!(name, "Nat",)
-}
-
-fn is_fake_method(class: &str, name: &str) -> bool {
-    matches!(
-        (class, name),
-        (
-            _, // "Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool",
-            "abs"
-        ) | (_, "iter")
-            | (_, "map")
-    )
-}
-
-fn convert_to_python_attr(class: &str, uniq_obj_name: Option<&str>, name: Str) -> Str {
-    match (class, uniq_obj_name, &name[..]) {
-        ("Array!", _, "push!") => Str::ever("append"),
-        ("Array!" | "Array", _, "concat") => Str::ever("__add__"),
-        ("Set!", _, "add!") => Str::ever("add"),
-        ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Real") => Str::ever("real"),
-        ("Complex" | "Float" | "Ratio" | "Int" | "Nat" | "Bool", _, "Imag") => Str::ever("imag"),
-        (_, _, "read!") => Str::ever("read"),
-        (_, _, "write!") => Str::ever("write"),
-        (_, _, "__new__") => Str::ever("__call__"),
-        (_, _, "to_str") => Str::ever("__str__"),
-        (_, _, "__Tuple_getitem__") => Str::ever("__getitem__"),
-        ("StringIO!", _, "getvalue!") => Str::ever("getvalue"),
-        ("Module", Some("importlib"), "reload!") => Str::ever("reload"),
-        ("Module", Some("random"), "randint!") => Str::ever("randint"),
-        ("Module", Some("random"), "choice!") => Str::ever("choice"),
-        ("Module", Some("sys"), "setrecurtionlimit!") => Str::ever("setrecurtionlimit"),
-        ("Module", Some("time"), "sleep!") => Str::ever("sleep"),
-        ("Module", Some("time"), "time!") => Str::ever("time"),
-        ("Module", Some("glob"), "glob!") => Str::ever("glob"),
-        ("Module", Some("os"), name) if name != "name" && name != "path" => {
-            Str::from(name.replace('!', ""))
-        }
-        ("Nat", _, "times!") => Str::ever("times"),
-        _ => name,
-    }
-}
-
-fn escape_attr(class: &str, uniq_obj_name: Option<&str>, ident: Identifier) -> Str {
-    let vis = ident.vis();
-    let mut name =
-        convert_to_python_attr(class, uniq_obj_name, ident.name.into_token().content).to_string();
-    name = name.replace('!', "__erg_proc__");
-    name = name.replace('$', "__erg_shared__");
-    if vis.is_public()
-        || is_python_global(&name)
-        || is_erg_global(&name)
-        || is_python_special(&name)
-    {
-        Str::from(name)
-    } else {
-        Str::from("::".to_string() + &name)
-    }
-}
-
-fn convert_to_python_name(name: Str) -> Str {
-    match &name[..] {
-        "abs" => Str::ever("abs"),
-        // assert is implemented in bytecode
-        "classof" => Str::ever("type"),
-        "compile" => Str::ever("compile"),
-        "dir!" => Str::ever("dir"),
-        "globals!" => Str::ever("globals"),
-        // discard is implemented in bytecode
-        // for is implemented in bytecode
-        "id!" => Str::ever("id"),
-        // if is implemented in bytecode
-        "import" => Str::ever("__import__"),
-        "input!" => Str::ever("input"),
-        "log" => Str::ever("print"), // TODO: log != print (prints after executing)
-        "locals!" => Str::ever("locals"),
-        "open!" => Str::ever("open"),
-        "panic" => Str::ever("exit"),
-        "print!" => Str::ever("print"),
-        "py" | "pyimport" => Str::ever("__import__"),
-        "quit" | "exit" => Str::ever("quit"),
-        "Nat" | "Nat!" => Str::ever("Nat"),
-        "Int" | "Int!" => Str::ever("int"),
-        "Float" | "Float!" => Str::ever("float"),
-        "Ratio" | "Ratio!" => Str::ever("float"),
-        "Complex" => Str::ever("complex"),
-        "Str" | "Str!" => Str::ever("str"),
-        "Bool" | "Bool!" => Str::ever("bool"),
-        "Array" | "Array!" => Str::ever("list"),
-        "Set" | "Set!" => Str::ever("set"),
-        "Dict" | "Dict!" => Str::ever("dict"),
-        _ => name,
+fn fake_method_to_func(class: &str, name: &str) -> Option<&'static str> {
+    match (class, name) {
+        (_, "abs") => Some("abs"),
+        (_, "iter") => Some("iter"),
+        (_, "map") => Some("map"),
+        _ => None,
     }
 }
 
 /// This method obviously does not scale, so in the future all Python APIs will be replaced by declarations in d.er, and renaming will be done in `HIRDesugarer`.
 fn escape_name(ident: Identifier) -> Str {
     let vis = ident.vis();
-    let mut name = convert_to_python_name(ident.name.into_token().content).to_string();
-    name = name.replace('!', "__erg_proc__");
-    name = name.replace('$', "__erg_shared__");
-    if vis.is_public()
-        || is_python_global(&name)
-        || is_erg_global(&name)
-        || is_python_special(&name)
-    {
-        Str::from(name)
+    if let Some(py_name) = ident.vi.py_name {
+        py_name
     } else {
-        Str::from("::".to_string() + &name)
+        let name = ident.name.into_token().content.to_string();
+        let name = name.replace('!', "__erg_proc__");
+        let name = name.replace('$', "__erg_shared__");
+        if vis.is_private() {
+            Str::from("::".to_string() + &name)
+        } else {
+            Str::from(name)
+        }
     }
 }
 
@@ -699,14 +445,9 @@ impl CodeGenerator {
         self.emit_pop_top(); // discard IMPORT_FROM object
     }
 
-    fn emit_load_attr_instr(
-        &mut self,
-        class: &str,
-        uniq_obj_name: Option<&str>,
-        ident: Identifier,
-    ) {
-        log!(info "entered {} ({class}{ident})", fn_name!());
-        let escaped = escape_attr(class, uniq_obj_name, ident);
+    fn emit_load_attr_instr(&mut self, ident: Identifier) {
+        log!(info "entered {} ({ident})", fn_name!());
+        let escaped = escape_name(ident);
         let name = self
             .local_search(&escaped, Attr)
             .unwrap_or_else(|| self.register_attr(escaped));
@@ -720,14 +461,12 @@ impl CodeGenerator {
         self.write_arg(name.idx as u8);
     }
 
-    fn emit_load_method_instr(
-        &mut self,
-        class: &str,
-        uniq_obj_name: Option<&str>,
-        ident: Identifier,
-    ) {
-        log!(info "entered {} ({class}{ident})", fn_name!());
-        let escaped = escape_attr(class, uniq_obj_name, ident);
+    fn emit_load_method_instr(&mut self, ident: Identifier) {
+        log!(info "entered {} ({ident})", fn_name!());
+        if &ident.inspect()[..] == "__new__" {
+            log!("{:?}", ident.vi);
+        }
+        let escaped = escape_name(ident);
         let name = self
             .local_search(&escaped, Method)
             .unwrap_or_else(|| self.register_method(escaped));
@@ -801,7 +540,6 @@ impl CodeGenerator {
                 self.emit_expr(*attr.obj);
                 self.emit_store_instr(attr.ident, Attr);
             }
-            acc => todo!("store: {acc}"),
         }
     }
 
@@ -859,24 +597,8 @@ impl CodeGenerator {
                 self.emit_load_name_instr(ident);
             }
             Accessor::Attr(a) => {
-                let class = a.obj.ref_t().qual_name();
-                let uniq_obj_name = a.obj.local_name().map(Str::rc);
                 self.emit_expr(*a.obj);
-                self.emit_load_attr_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), a.ident);
-            }
-            Accessor::TupleAttr(t_attr) => {
-                self.emit_expr(*t_attr.obj);
-                self.emit_load_const(t_attr.index.value);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
-            }
-            Accessor::Subscr(subscr) => {
-                self.emit_expr(*subscr.obj);
-                self.emit_expr(*subscr.index);
-                self.write_instr(BINARY_SUBSCR);
-                self.write_arg(0);
-                self.stack_dec();
+                self.emit_load_attr_instr(a.ident);
             }
         }
     }
@@ -1541,14 +1263,13 @@ impl CodeGenerator {
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
         let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
-        let uniq_obj_name = obj.qual_name().map(Str::rc);
         if &method_name.inspect()[..] == "update!" {
             return self.emit_call_update(obj, args);
-        } else if is_fake_method(&class, method_name.inspect()) {
-            return self.emit_call_fake_method(obj, method_name, args);
+        } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
+            return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         self.emit_expr(obj);
-        self.emit_load_method_instr(&class, uniq_obj_name.as_ref().map(|s| &s[..]), method_name);
+        self.emit_load_method_instr(method_name);
         self.emit_args(args, Method);
     }
 
@@ -1621,9 +1342,16 @@ impl CodeGenerator {
     }
 
     /// 1.abs() => abs(1)
-    fn emit_call_fake_method(&mut self, obj: Expr, mut method_name: Identifier, mut args: Args) {
+    fn emit_call_fake_method(
+        &mut self,
+        obj: Expr,
+        func_name: &'static str,
+        mut method_name: Identifier,
+        mut args: Args,
+    ) {
         log!(info "entered {}", fn_name!());
         method_name.dot = None;
+        method_name.vi.py_name = Some(Str::ever(func_name));
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
         self.emit_args(args, Name);
@@ -1965,7 +1693,6 @@ impl CodeGenerator {
                             Some(Token::dummy()),
                             VarName::from_str(field.symbol.clone()),
                         ),
-                        Type::Failure,
                     )));
                     let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
                     let dot = if field.vis.is_private() {
@@ -1976,7 +1703,6 @@ impl CodeGenerator {
                     let attr = Accessor::Attr(Attribute::new(
                         obj,
                         Identifier::bare(dot, VarName::from_str(field.symbol.clone())),
-                        Type::Failure,
                     ));
                     let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
                     attrs.push(Expr::AttrDef(attr_def));
@@ -2010,16 +1736,14 @@ impl CodeGenerator {
             line,
         )));
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
-        let class_new = Expr::Accessor(Accessor::attr(
-            class,
-            Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line)),
-            Type::Failure,
-        ));
+        let mut new_ident =
+            Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line));
+        new_ident.vi.py_name = Some(Str::ever("__call__"));
+        let class_new = Expr::Accessor(Accessor::attr(class, new_ident));
         let call = Expr::Call(Call::new(
             class_new,
             None,
             Args::new(vec![arg], None, vec![], None),
-            Type::Failure,
         ));
         let block = Block::new(vec![call]);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
@@ -2108,7 +1832,7 @@ impl CodeGenerator {
             )],
         );
         self.emit_load_name_instr(Identifier::private("#path"));
-        self.emit_load_method_instr("Array!", None, Identifier::public("push!"));
+        self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
         self.write_instr(CALL_METHOD);
         self.write_arg(1u8);

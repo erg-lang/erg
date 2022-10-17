@@ -731,21 +731,8 @@ impl Context {
                 let loc = acc.loc();
                 let t = acc.ref_mut_t();
                 *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
-                match acc {
-                    hir::Accessor::Attr(attr) => {
-                        self.resolve_expr_t(&mut attr.obj)?;
-                    }
-                    hir::Accessor::TupleAttr(attr) => {
-                        self.resolve_expr_t(&mut attr.obj)?;
-                    }
-                    hir::Accessor::Subscr(subscr) => {
-                        self.resolve_expr_t(&mut subscr.obj)?;
-                        self.resolve_expr_t(&mut subscr.index)?;
-                    }
-                    hir::Accessor::Ident(ident) => {
-                        ident.t =
-                            self.deref_tyvar(mem::take(&mut ident.t), Covariant, ident.loc())?;
-                    }
+                if let hir::Accessor::Attr(attr) = acc {
+                    self.resolve_expr_t(&mut attr.obj)?;
                 }
                 Ok(())
             }
@@ -839,8 +826,9 @@ impl Context {
             }
             hir::Expr::Call(call) => {
                 let loc = call.loc();
-                let t = call.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                if let Some(t) = call.signature_mut_t() {
+                    *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                }
                 self.resolve_expr_t(&mut call.obj)?;
                 for arg in call.args.pos_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr)?;

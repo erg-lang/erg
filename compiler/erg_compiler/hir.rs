@@ -23,6 +23,7 @@ use crate::ty::{HasType, Type};
 use crate::context::eval::type_from_token_kind;
 use crate::context::OperationKind;
 use crate::error::readable_name;
+use crate::varinfo::VarInfo;
 use crate::{impl_t, impl_t_for_enum};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -310,7 +311,7 @@ pub struct Identifier {
     pub dot: Option<Token>,
     pub name: VarName,
     pub qual_name: Option<Str>,
-    pub t: Type,
+    pub vi: VarInfo,
 }
 
 impl NestedDisplay for Identifier {
@@ -326,15 +327,33 @@ impl NestedDisplay for Identifier {
         if let Some(qn) = &self.qual_name {
             write!(f, "(qual_name: {})", qn)?;
         }
-        if self.t != Type::Uninited {
-            write!(f, "(: {})", self.t)?;
+        if self.vi.t != Type::Uninited {
+            write!(f, "(: {})", self.vi.t)?;
         }
         Ok(())
     }
 }
 
 impl_display_from_nested!(Identifier);
-impl_t!(Identifier);
+
+impl HasType for Identifier {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        &self.vi.t
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        &mut self.vi.t
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
@@ -353,12 +372,17 @@ impl From<&Identifier> for Field {
 }
 
 impl Identifier {
-    pub const fn new(dot: Option<Token>, name: VarName, qual_name: Option<Str>, t: Type) -> Self {
+    pub const fn new(
+        dot: Option<Token>,
+        name: VarName,
+        qual_name: Option<Str>,
+        vi: VarInfo,
+    ) -> Self {
         Self {
             dot,
             name,
             qual_name,
-            t,
+            vi,
         }
     }
 
@@ -382,7 +406,7 @@ impl Identifier {
     }
 
     pub const fn bare(dot: Option<Token>, name: VarName) -> Self {
-        Self::new(dot, name, None, Type::Uninited)
+        Self::new(dot, name, None, VarInfo::const_default())
     }
 
     pub fn is_const(&self) -> bool {
@@ -413,84 +437,41 @@ impl Identifier {
 pub struct Attribute {
     pub obj: Box<Expr>,
     pub ident: Identifier,
-    t: Type,
 }
 
 impl NestedDisplay for Attribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        if self.t != Type::Uninited {
-            write!(f, "({}){}(: {})", self.obj, self.ident, self.t)
-        } else {
-            write!(f, "({}){}", self.obj, self.ident)
-        }
+        write!(f, "({}){}", self.obj, self.ident)
     }
 }
 
 impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, ident);
-impl_t!(Attribute);
+
+impl HasType for Attribute {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        self.ident.ref_t()
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.ident.ref_mut_t()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        self.ident.signature_t()
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        self.ident.signature_mut_t()
+    }
+}
 
 impl Attribute {
-    pub fn new(obj: Expr, ident: Identifier, t: Type) -> Self {
+    pub fn new(obj: Expr, ident: Identifier) -> Self {
         Self {
             obj: Box::new(obj),
             ident,
-            t,
-        }
-    }
-}
-
-/// e.g. obj.0, obj.1
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TupleAttribute {
-    pub obj: Box<Expr>,
-    pub index: Literal,
-    t: Type,
-}
-
-impl NestedDisplay for TupleAttribute {
-    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "({}).{}", self.obj, self.index)
-    }
-}
-
-impl_display_from_nested!(TupleAttribute);
-impl_locational!(TupleAttribute, obj, index);
-impl_t!(TupleAttribute);
-
-impl TupleAttribute {
-    pub fn new(obj: Expr, index: Literal, t: Type) -> Self {
-        Self {
-            obj: Box::new(obj),
-            index,
-            t,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Subscript {
-    pub(crate) obj: Box<Expr>,
-    pub(crate) index: Box<Expr>,
-    t: Type,
-}
-
-impl NestedDisplay for Subscript {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "({})[{}](: {})", self.obj, self.index, self.t)
-    }
-}
-
-impl_display_from_nested!(Subscript);
-impl_locational!(Subscript, obj, index);
-impl_t!(Subscript);
-
-impl Subscript {
-    pub fn new(obj: Expr, index: Expr, t: Type) -> Self {
-        Self {
-            obj: Box::new(obj),
-            index: Box::new(index),
-            t,
         }
     }
 }
@@ -499,14 +480,12 @@ impl Subscript {
 pub enum Accessor {
     Ident(Identifier),
     Attr(Attribute),
-    TupleAttr(TupleAttribute),
-    Subscr(Subscript),
 }
 
-impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(Accessor; Ident, Attr);
 impl_display_from_nested!(Accessor);
-impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
-impl_t_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(Accessor; Ident, Attr);
+impl_t_for_enum!(Accessor; Ident, Attr);
 
 impl Accessor {
     pub fn private_with_line(name: Str, line: usize) -> Self {
@@ -517,25 +496,21 @@ impl Accessor {
         Self::Ident(Identifier::public_with_line(Token::dummy(), name, line))
     }
 
-    pub const fn private(name: Token, t: Type) -> Self {
-        Self::Ident(Identifier::new(None, VarName::new(name), None, t))
+    pub const fn private(name: Token, vi: VarInfo) -> Self {
+        Self::Ident(Identifier::new(None, VarName::new(name), None, vi))
     }
 
-    pub fn public(name: Token, t: Type) -> Self {
+    pub fn public(name: Token, vi: VarInfo) -> Self {
         Self::Ident(Identifier::new(
             Some(Token::dummy()),
             VarName::new(name),
             None,
-            t,
+            vi,
         ))
     }
 
-    pub fn attr(obj: Expr, ident: Identifier, t: Type) -> Self {
-        Self::Attr(Attribute::new(obj, ident, t))
-    }
-
-    pub fn subscr(obj: Expr, index: Expr, t: Type) -> Self {
-        Self::Subscr(Subscript::new(obj, index, t))
+    pub fn attr(obj: Expr, ident: Identifier) -> Self {
+        Self::Attr(Attribute::new(obj, ident))
     }
 
     pub fn show(&self) -> String {
@@ -548,15 +523,6 @@ impl Accessor {
                     + "." // TODO: visibility
                     + readable_name(attr.ident.inspect())
             }
-            Self::TupleAttr(t_attr) => {
-                t_attr
-                    .obj
-                    .show_acc()
-                    .unwrap_or_else(|| t_attr.obj.ref_t().to_string())
-                    + "."
-                    + t_attr.index.token.inspect()
-            }
-            Self::Subscr(_) => todo!(),
         }
     }
 
@@ -976,12 +942,12 @@ pub struct BinOp {
     pub op: Token,
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
-    pub sig_t: Type, // e.g. (Int, Int) -> Int
+    pub info: VarInfo, // e.g. (Int, Int) -> Int
 }
 
 impl NestedDisplay for BinOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`(: {}):", self.op.content, self.sig_t)?;
+        writeln!(f, "`{}`(: {}):", self.op.content, self.info.t)?;
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
@@ -991,26 +957,26 @@ impl NestedDisplay for BinOp {
 impl HasType for BinOp {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.sig_t.return_t().unwrap()
+        self.info.t.return_t().unwrap()
     }
     fn ref_mut_t(&mut self) -> &mut Type {
-        self.sig_t.mut_return_t().unwrap()
+        self.info.t.mut_return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
-        self.sig_t.lhs_t()
+        self.info.t.lhs_t()
     }
     #[inline]
     fn rhs_t(&self) -> &Type {
-        self.sig_t.rhs_t()
+        self.info.t.rhs_t()
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
-        Some(&self.sig_t)
+        Some(&self.info.t)
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        Some(&mut self.sig_t)
+        Some(&mut self.info.t)
     }
 }
 
@@ -1018,12 +984,12 @@ impl_display_from_nested!(BinOp);
 impl_locational!(BinOp, lhs, rhs);
 
 impl BinOp {
-    pub fn new(op: Token, lhs: Expr, rhs: Expr, sig_t: Type) -> Self {
+    pub fn new(op: Token, lhs: Expr, rhs: Expr, info: VarInfo) -> Self {
         Self {
             op,
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
-            sig_t,
+            info,
         }
     }
 }
@@ -1032,16 +998,16 @@ impl BinOp {
 pub struct UnaryOp {
     pub op: Token,
     pub expr: Box<Expr>,
-    pub sig_t: Type, // e.g. Neg -> Nat
+    pub info: VarInfo, // e.g. Neg -> Nat
 }
 
 impl HasType for UnaryOp {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.sig_t.return_t().unwrap()
+        self.info.t.return_t().unwrap()
     }
     fn ref_mut_t(&mut self) -> &mut Type {
-        self.sig_t.mut_return_t().unwrap()
+        self.info.t.mut_return_t().unwrap()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -1053,17 +1019,17 @@ impl HasType for UnaryOp {
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
-        Some(&self.sig_t)
+        Some(&self.info.t)
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        Some(&mut self.sig_t)
+        Some(&mut self.info.t)
     }
 }
 
 impl NestedDisplay for UnaryOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`(: {}):", self.op, self.sig_t)?;
+        writeln!(f, "`{}`(: {}):", self.op, self.info.t)?;
         self.expr.fmt_nest(f, level + 1)
     }
 }
@@ -1072,11 +1038,11 @@ impl_display_from_nested!(UnaryOp);
 impl_locational!(UnaryOp, op, expr);
 
 impl UnaryOp {
-    pub fn new(op: Token, expr: Expr, sig_t: Type) -> Self {
+    pub fn new(op: Token, expr: Expr, info: VarInfo) -> Self {
         Self {
             op,
             expr: Box::new(expr),
-            sig_t,
+            info,
         }
     }
 }
@@ -1086,19 +1052,11 @@ pub struct Call {
     pub obj: Box<Expr>,
     pub attr_name: Option<Identifier>,
     pub args: Args,
-    /// 全体の型(引数自体の型は関係ない)、e.g. `abs(-1)` -> `(self: Neg) -> Nat`
-    pub sig_t: Type,
 }
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(
-            f,
-            "({}){} (: {}):",
-            self.obj,
-            fmt_option!(self.attr_name),
-            self.sig_t
-        )?;
+        writeln!(f, "({}){}:", self.obj, fmt_option!(self.attr_name),)?;
         self.args.fmt_nest(f, level + 1)
     }
 }
@@ -1108,27 +1066,51 @@ impl_display_from_nested!(Call);
 impl HasType for Call {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.sig_t.return_t().unwrap()
+        if let Some(attr) = self.attr_name.as_ref() {
+            attr.ref_t().return_t().unwrap()
+        } else {
+            self.obj.ref_t().return_t().unwrap()
+        }
     }
     #[inline]
     fn ref_mut_t(&mut self) -> &mut Type {
-        self.sig_t.mut_return_t().unwrap()
+        if let Some(attr) = self.attr_name.as_mut() {
+            attr.ref_mut_t().mut_return_t().unwrap()
+        } else {
+            self.obj.ref_mut_t().mut_return_t().unwrap()
+        }
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
-        self.sig_t.lhs_t()
+        if let Some(attr) = self.attr_name.as_ref() {
+            attr.ref_t().lhs_t()
+        } else {
+            self.obj.lhs_t()
+        }
     }
     #[inline]
     fn rhs_t(&self) -> &Type {
-        self.sig_t.rhs_t()
+        if let Some(attr) = self.attr_name.as_ref() {
+            attr.ref_t().rhs_t()
+        } else {
+            self.obj.rhs_t()
+        }
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
-        Some(&self.sig_t)
+        if let Some(attr) = self.attr_name.as_ref() {
+            Some(attr.ref_t())
+        } else {
+            Some(self.obj.ref_t())
+        }
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        Some(&mut self.sig_t)
+        if let Some(attr) = self.attr_name.as_mut() {
+            Some(attr.ref_mut_t())
+        } else {
+            Some(self.obj.ref_mut_t())
+        }
     }
 }
 
@@ -1139,17 +1121,18 @@ impl Locational for Call {
 }
 
 impl Call {
-    pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args, sig_t: Type) -> Self {
+    pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
             attr_name,
             args,
-            sig_t,
         }
     }
 
-    pub fn is_method(&self) -> bool {
-        self.sig_t.self_t().is_some()
+    pub fn is_method_call(&self) -> bool {
+        self.signature_t()
+            .map(|t| t.self_t().is_some())
+            .unwrap_or(false)
     }
 
     pub fn additional_operation(&self) -> Option<OperationKind> {

@@ -13,7 +13,7 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_glob_mod() -> Self {
         let mut glob = Context::builtin_module("glob", 10);
-        glob.register_builtin_impl(
+        glob.register_builtin_py_impl(
             "glob!",
             proc(
                 vec![kw("pathname", Str)],
@@ -23,6 +23,7 @@ impl Context {
             ),
             Immutable,
             Public,
+            Some("glob"),
         );
         glob
     }

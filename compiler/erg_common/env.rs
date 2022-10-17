@@ -9,6 +9,10 @@ pub fn erg_std_path() -> PathBuf {
     erg_path().join("lib").join("std")
 }
 
+pub fn erg_pystd_path() -> PathBuf {
+    erg_path().join("lib").join("pystd")
+}
+
 pub fn erg_external_lib_path() -> PathBuf {
     erg_path().join("lib").join("external")
 }

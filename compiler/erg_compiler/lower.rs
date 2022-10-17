@@ -571,49 +571,32 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let t =
-                    self.ctx
-                        .rec_get_attr_t(&obj, &attr.ident, &self.cfg.input, &self.ctx.name)?;
-                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
-                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident, t));
-                Ok(acc)
-            }
-            ast::Accessor::TupleAttr(t_attr) => {
-                let obj = self.lower_expr(*t_attr.obj)?;
-                let index = self.lower_literal(t_attr.index)?;
-                let n = enum_unwrap!(index.value, ValueObj::Nat);
-                let t = enum_unwrap!(
-                    obj.ref_t().typarams().get(n as usize).unwrap().clone(),
-                    TyParam::Type
-                );
-                let acc = hir::Accessor::TupleAttr(hir::TupleAttribute::new(obj, index, *t));
-                Ok(acc)
-            }
-            ast::Accessor::Subscr(subscr) => {
-                let obj = self.lower_expr(*subscr.obj)?;
-                let index = self.lower_expr(*subscr.index)?;
-                // FIXME: 配列とは限らない！
-                let t = enum_unwrap!(
-                    obj.ref_t().typarams().get(0).unwrap().clone(),
-                    TyParam::Type
-                );
-                let acc = hir::Accessor::Subscr(hir::Subscript::new(obj, index, *t));
+                let vi = self.ctx.rec_get_attr_info(
+                    &obj,
+                    &attr.ident,
+                    &self.cfg.input,
+                    &self.ctx.name,
+                )?;
+                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
+                let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
             }
             ast::Accessor::TypeApp(_t_app) => {
                 todo!()
             }
+            // TupleAttr, Subscr are desugared
+            _ => unreachable!(),
         }
     }
 
     fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
         // `match` is an untypable special form
         // `match`は型付け不可能な特殊形式
-        let (t, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
-            (Type::Untyped, None)
+        let (vi, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
+            (VarInfo::default(), None)
         } else {
             (
-                self.ctx.rec_get_var_t(
+                self.ctx.rec_get_var_info(
                     &ident,
                     AccessKind::Name,
                     &self.cfg.input,
@@ -625,7 +608,7 @@ impl ASTLowerer {
                     .map(|ctx| ctx.name.clone()),
             )
         };
-        let ident = hir::Identifier::new(ident.dot, ident.name, __name__, t);
+        let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
 
@@ -691,8 +674,8 @@ impl ASTLowerer {
         for arg in kw_args.into_iter() {
             hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr)?));
         }
-        let obj = self.lower_expr(*call.obj)?;
-        let sig_t = self.ctx.get_call_t(
+        let mut obj = self.lower_expr(*call.obj)?;
+        let vi = self.ctx.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
@@ -705,12 +688,13 @@ impl ASTLowerer {
                 attr_name.dot,
                 attr_name.name,
                 None,
-                Type::Uninited,
+                vi,
             ))
         } else {
+            *obj.ref_mut_t() = vi.t;
             None
         };
-        let mut call = hir::Call::new(obj, attr_name, hir_args, sig_t);
+        let mut call = hir::Call::new(obj, attr_name, hir_args);
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
@@ -762,7 +746,7 @@ impl ASTLowerer {
                 pack.connector.col_begin,
             )),
         );
-        let sig_t = self.ctx.get_call_t(
+        let vi = self.ctx.get_call_t(
             &class,
             &Some(attr_name.clone()),
             &args,
@@ -771,8 +755,8 @@ impl ASTLowerer {
             &self.ctx.name,
         )?;
         let args = hir::Args::new(args, None, vec![], None);
-        let attr_name = hir::Identifier::bare(attr_name.dot, attr_name.name);
-        Ok(hir::Call::new(class, Some(attr_name), args, sig_t))
+        let attr_name = hir::Identifier::new(attr_name.dot, attr_name.name, None, vi);
+        Ok(hir::Call::new(class, Some(attr_name), args))
     }
 
     /// TODO: varargs
@@ -927,11 +911,12 @@ impl ASTLowerer {
                         }
                     }
                 }
-                self.ctx
-                    .outer
-                    .as_mut()
-                    .unwrap()
-                    .assign_var_sig(&sig, found_body_t, body.id)?;
+                self.ctx.outer.as_mut().unwrap().assign_var_sig(
+                    &sig,
+                    found_body_t,
+                    body.id,
+                    None,
+                )?;
                 let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
                 let sig = hir::VarSignature::new(ident, found_body_t.clone());
                 let body = hir::DefBody::new(body.op, block, body.id);
@@ -942,6 +927,7 @@ impl ASTLowerer {
                     &sig,
                     &Type::Failure,
                     ast::DefId(0),
+                    None,
                 )?;
                 Err(errs)
             }
@@ -1463,14 +1449,20 @@ impl ASTLowerer {
                 self.ctx.caused_by(),
             )));
         }
-        let block = hir::Block::new(vec![self.declare_chunk(body.block.remove(0))?]);
+        let chunk = self.declare_chunk(body.block.remove(0))?;
+        let acc = enum_unwrap!(
+            enum_unwrap!(&chunk, hir::Expr::TypeAsc).expr.as_ref(),
+            hir::Expr::Accessor
+        );
+        let py_name = acc.local_name().map(Str::rc);
+        let block = hir::Block::new(vec![chunk]);
         let found_body_t = block.ref_t();
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
             _ => unreachable!(),
         };
         let id = body.id;
-        self.ctx.assign_var_sig(&sig, found_body_t, id)?;
+        self.ctx.assign_var_sig(&sig, found_body_t, id, py_name)?;
         let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         let sig = hir::VarSignature::new(ident, found_body_t.clone());
         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1515,7 +1507,7 @@ impl ASTLowerer {
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let obj = self.fake_lower_obj(*attr.obj)?;
                 let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
-                let acc = hir::Accessor::attr(obj, ident, Type::Uninited);
+                let acc = hir::Accessor::attr(obj, ident);
                 Ok(hir::Expr::Accessor(acc))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -1527,10 +1519,11 @@ impl ASTLowerer {
         }
     }
 
-    fn declare_type(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+    fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
@@ -1545,6 +1538,7 @@ impl ASTLowerer {
                         VarKind::Declared,
                         None,
                         None,
+                        Some(py_name.clone()),
                     );
                     self.ctx.decls.insert(ident.name.clone(), vi);
                 }
@@ -1552,6 +1546,7 @@ impl ASTLowerer {
                     &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
                     &t,
                     ast::DefId(0),
+                    Some(py_name),
                 )?;
                 match t {
                     Type::ClassType => {
@@ -1576,13 +1571,18 @@ impl ASTLowerer {
                     }
                     _ => {}
                 }
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, t);
+                let muty = Mutability::from(&ident.inspect()[..]);
+                let vis = ident.vis();
+                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
+                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 Ok(hir::TypeAscription::new(
                     hir::Expr::Accessor(hir::Accessor::Ident(ident)),
                     tasc.t_spec,
                 ))
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
@@ -1597,11 +1597,15 @@ impl ASTLowerer {
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
                     ast::DefId(0),
+                    Some(py_name),
                 )?;
                 let obj = self.fake_lower_obj(*attr.obj)?;
-                let ident =
-                    hir::Identifier::new(attr.ident.dot, attr.ident.name, None, Type::Uninited);
-                let attr = hir::Accessor::attr(obj, ident, t);
+                let muty = Mutability::from(&attr.ident.inspect()[..]);
+                let vis = attr.ident.vis();
+                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
+                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
+                let attr = hir::Accessor::attr(obj, ident);
                 Ok(hir::TypeAscription::new(
                     hir::Expr::Accessor(attr),
                     tasc.t_spec,
@@ -1626,7 +1630,7 @@ impl ASTLowerer {
                 "class declaration",
                 self.ctx.caused_by(),
             ))),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_type(tasc)?)),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg.input.clone(),
                 line!() as usize,

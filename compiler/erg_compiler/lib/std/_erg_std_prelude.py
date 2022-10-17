@@ -62,6 +62,9 @@ class Bool(Nat):
     def __repr__(self) -> str:
         return self.__str__()
 
+class Str(str):
+    pass
+
 class Range:
     def __init__(self, start, end):
         self.start = start

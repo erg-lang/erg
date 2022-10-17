@@ -226,7 +226,7 @@ impl SideEffectChecker {
             if i == last_idx
                 && self.block_stack.last().unwrap() == &Instant
                 && !def.sig.is_procedural()
-                && chunk.t().is_procedural()
+                && chunk.t().is_procedure()
             {
                 self.errs.push(EffectError::proc_assign_error(
                     self.cfg.input.clone(),
@@ -324,7 +324,7 @@ impl SideEffectChecker {
             },
             // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
-                if (call.obj.t().is_procedural()
+                if (call.obj.t().is_procedure()
                     || call
                         .attr_name
                         .as_ref()

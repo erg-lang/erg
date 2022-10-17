@@ -1,0 +1,1 @@
+.run!: (args: Str or [Str; _], shell := Bool) => NoneType

@@ -511,9 +511,9 @@ impl Context {
     ) -> TyCheckResult<Type> {
         // -> Result<Type, (Type, TyCheckErrors)> {
         let opt_decl_sig_t = self
-            .rec_get_decl_t(&sig.ident, AccessKind::Name, &self.cfg.input, &self.name)
+            .rec_get_decl_info(&sig.ident, AccessKind::Name, &self.cfg.input, &self.name)
             .ok()
-            .map(|t| enum_unwrap!(t, Type::Subr));
+            .map(|vi| enum_unwrap!(vi.t, Type::Subr));
         let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
         let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
         let mut non_defaults = vec![];

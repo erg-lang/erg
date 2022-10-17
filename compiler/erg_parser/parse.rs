@@ -1963,7 +1963,7 @@ impl Parser {
                         break;
                     }
                     match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
-                        PosOrKwArg::Pos(arg) => match arg.expr {
+                        PosOrKwArg::Pos(arg) if args.kw_is_empty() => match arg.expr {
                             Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
                                 args.extend_pos(tup.elems.into_iters().0);
                             }
@@ -1971,11 +1971,26 @@ impl Parser {
                                 args.push_pos(PosArg::new(other));
                             }
                         },
-                        PosOrKwArg::Kw(arg) => {
-                            self.level -= 1;
-                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                        PosOrKwArg::Pos(arg) => {
+                            let err = ParseError::syntax_error(
+                                line!() as usize,
+                                arg.loc(),
+                                switch_lang!(
+                                    "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
+                                    "english" => "non-default argument follows default argument",
+                                ),
+                                None,
+                            );
                             self.errs.push(err);
                             return Err(());
+                        }
+                        // e.g. (x, y:=1) -> ...
+                        PosOrKwArg::Kw(arg) => {
+                            args.push_kw(arg);
+                            /*self.level -= 1;
+                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                            self.errs.push(err);
+                            return Err(());*/
                         }
                     }
                 }

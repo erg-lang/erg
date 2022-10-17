@@ -109,7 +109,7 @@ impl OwnershipChecker {
             // TODO: referenced
             Expr::Call(call) => {
                 let args_owns = call.signature_t().unwrap().args_ownership();
-                let non_defaults_len = if call.is_method() {
+                let non_defaults_len = if call.is_method_call() {
                     args_owns.non_defaults.len() - 1
                 } else {
                     args_owns.non_defaults.len()
@@ -226,11 +226,6 @@ impl OwnershipChecker {
             Accessor::Attr(attr) => {
                 // REVIEW: is ownership the same?
                 self.check_expr(&attr.obj, ownership, false)
-            }
-            Accessor::TupleAttr(t_attr) => self.check_expr(&t_attr.obj, ownership, false),
-            Accessor::Subscr(subscr) => {
-                self.check_expr(&subscr.obj, ownership, false);
-                self.check_expr(&subscr.index, ownership, false);
             }
         }
     }

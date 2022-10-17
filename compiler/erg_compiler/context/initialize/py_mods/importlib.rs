@@ -12,11 +12,12 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_importlib_mod() -> Self {
         let mut importlib = Context::builtin_module("importlib", 15);
-        importlib.register_builtin_impl(
+        importlib.register_builtin_py_impl(
             "reload!",
             proc1(mono("GenericModule"), NoneType),
             Immutable,
             Public,
+            Some("reload"),
         );
         importlib
     }

@@ -123,6 +123,7 @@ pub struct VarInfo {
     pub kind: VarKind,
     pub comptime_decos: Option<Set<Str>>,
     pub impl_of: Option<Type>,
+    pub py_name: Option<Str>,
 }
 
 impl fmt::Display for VarInfo {
@@ -154,15 +155,26 @@ impl HasType for VarInfo {
     }
 }
 
+impl Default for VarInfo {
+    fn default() -> Self {
+        Self::const_default()
+    }
+}
+
 impl VarInfo {
-    pub const ILLEGAL: &'static Self = &VarInfo::new(
-        Type::Failure,
-        Immutable,
-        Private,
-        VarKind::DoesNotExist,
-        None,
-        None,
-    );
+    pub const ILLEGAL: &'static Self = &Self::const_default();
+
+    pub const fn const_default() -> Self {
+        Self::new(
+            Type::Untyped,
+            Immutable,
+            Private,
+            VarKind::DoesNotExist,
+            None,
+            None,
+            None,
+        )
+    }
 
     pub const fn new(
         t: Type,
@@ -171,6 +183,7 @@ impl VarInfo {
         kind: VarKind,
         comptime_decos: Option<Set<Str>>,
         impl_of: Option<Type>,
+        py_name: Option<Str>,
     ) -> Self {
         Self {
             t,
@@ -179,6 +192,7 @@ impl VarInfo {
             kind,
             comptime_decos,
             impl_of,
+            py_name,
         }
     }
 

@@ -299,23 +299,23 @@ pub struct ContextInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodType {
+pub struct MethodInfo {
     definition_type: Type,
-    method_type: Type,
+    method_type: VarInfo,
 }
 
-impl fmt::Display for MethodType {
+impl fmt::Display for MethodInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{ def: {} t: {} }}",
+            "{{ def: {} info: {} }}",
             self.definition_type, self.method_type
         )
     }
 }
 
-impl MethodType {
-    pub const fn new(definition_type: Type, method_type: Type) -> Self {
+impl MethodInfo {
+    pub const fn new(definition_type: Type, method_type: VarInfo) -> Self {
         Self {
             definition_type,
             method_type,
@@ -345,8 +345,8 @@ pub struct Context {
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     // K: method name, V: types defines the method
     // If it is declared in a trait, it takes precedence over the class.
-    pub(crate) method_to_traits: Dict<Str, Vec<MethodType>>,
-    pub(crate) method_to_classes: Dict<Str, Vec<MethodType>>,
+    pub(crate) method_to_traits: Dict<Str, Vec<MethodInfo>>,
+    pub(crate) method_to_classes: Dict<Str, Vec<MethodInfo>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -462,13 +462,13 @@ impl Context {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let idx = ParamIdx::Nth(idx);
                 let kind = VarKind::parameter(id, idx, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((None, vi));
             }
         }

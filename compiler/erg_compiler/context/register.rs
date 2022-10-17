@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::ty::free::HasLevel;
 use erg_common::config::{ErgConfig, Input};
+use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -21,7 +22,7 @@ use crate::ty::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, MethodType, RegistrationMode, TraitInstance,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode, TraitInstance,
 };
 use crate::error::readable_name;
 use crate::error::{
@@ -86,7 +87,7 @@ impl Context {
                 } else {
                     self.decls.insert(
                         ident.name.clone(),
-                        VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of()),
+                        VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), None),
                     );
                     Ok(())
                 }
@@ -122,11 +123,20 @@ impl Context {
                 kind.clone(),
                 Some(comptime_decos.clone()),
                 self.impl_of(),
+                None,
             );
             self.decls.insert(sig.ident.name.clone(), vi);
             e
         })?;
-        let vi = VarInfo::new(t, muty, vis, kind, Some(comptime_decos), self.impl_of());
+        let vi = VarInfo::new(
+            t,
+            muty,
+            vis,
+            kind,
+            Some(comptime_decos),
+            self.impl_of(),
+            None,
+        );
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -146,6 +156,7 @@ impl Context {
         sig: &ast::VarSignature,
         body_t: &Type,
         id: DefId,
+        py_name: Option<Str>,
     ) -> TyCheckResult<()> {
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
@@ -169,6 +180,7 @@ impl Context {
             VarKind::Defined(id),
             None,
             self.impl_of(),
+            py_name,
         );
         log!(info "Registered {}::{}: {} {:?}", self.name, ident.name, vi.t, vi.impl_of);
         self.locals.insert(ident.name.clone(), vi);
@@ -220,7 +232,7 @@ impl Context {
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, muty, Private, kind, None, None),
+                        VarInfo::new(spec_t, muty, Private, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -259,7 +271,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -298,7 +310,7 @@ impl Context {
                         VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None),
+                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -461,6 +473,7 @@ impl Context {
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),
+            None,
         );
         let t = vi.t.clone();
         log!(info "Registered {}::{name}: {t}", self.name);
@@ -498,6 +511,7 @@ impl Context {
             VarKind::DoesNotExist,
             Some(comptime_decos),
             self.impl_of(),
+            None,
         );
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
@@ -582,6 +596,7 @@ impl Context {
         t: Type,
         muty: Mutability,
         vis: Visibility,
+        py_name: Option<Str>,
     ) {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
@@ -589,7 +604,7 @@ impl Context {
         } else {
             self.locals.insert(
                 name,
-                VarInfo::new(t, muty, vis, VarKind::Auto, None, self.impl_of()),
+                VarInfo::new(t, muty, vis, VarKind::Auto, None, self.impl_of(), py_name),
             );
         }
     }
@@ -601,6 +616,7 @@ impl Context {
         t: Type,
         muty: Mutability,
         vis: Visibility,
+        py_name: Option<Str>,
     ) {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
@@ -608,7 +624,15 @@ impl Context {
         } else {
             self.locals.insert(
                 name,
-                VarInfo::new(t, muty, vis, VarKind::FixedAuto, None, self.impl_of()),
+                VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::FixedAuto,
+                    None,
+                    self.impl_of(),
+                    py_name,
+                ),
             );
         }
     }
@@ -619,13 +643,14 @@ impl Context {
         t: Type,
         vis: Visibility,
         impl_of: Option<Type>,
+        py_name: Option<Str>,
     ) {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
             self.decls.insert(
                 name,
-                VarInfo::new(t, Immutable, vis, VarKind::Declared, None, impl_of),
+                VarInfo::new(t, Immutable, vis, VarKind::Declared, None, impl_of, py_name),
             );
         }
     }
@@ -637,6 +662,7 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
         impl_of: Option<Type>,
+        py_name: Option<Str>,
     ) {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
@@ -644,7 +670,7 @@ impl Context {
             let id = DefId(get_hash(&(&self.name, &name)));
             self.locals.insert(
                 name,
-                VarInfo::new(t, muty, vis, VarKind::Defined(id), None, impl_of),
+                VarInfo::new(t, muty, vis, VarKind::Defined(id), None, impl_of, py_name),
             );
         }
     }
@@ -697,6 +723,7 @@ impl Context {
                         VarKind::Defined(id),
                         None,
                         self.impl_of(),
+                        None,
                     );
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
@@ -729,9 +756,15 @@ impl Context {
                     );
                     let require = gen.require_or_sup.typ().clone();
                     let new_t = func1(require, gen.t.clone());
-                    methods.register_fixed_auto_impl("__new__", new_t.clone(), Immutable, Private);
+                    methods.register_fixed_auto_impl(
+                        "__new__",
+                        new_t.clone(),
+                        Immutable,
+                        Private,
+                        Some("__call__".into()),
+                    );
                     // 必要なら、ユーザーが独自に上書きする
-                    methods.register_auto_impl("new", new_t, Immutable, Public);
+                    methods.register_auto_impl("new", new_t, Immutable, Public, None);
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.t.clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
@@ -786,9 +819,10 @@ impl Context {
                             new_t.clone(),
                             Immutable,
                             Private,
+                            Some("__call__".into()),
                         );
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl("new", new_t, Immutable, Public);
+                        methods.register_auto_impl("new", new_t, Immutable, Public, None);
                         ctx.methods_list
                             .push((ClassDefType::Simple(gen.t.clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const);
@@ -823,6 +857,7 @@ impl Context {
                             VarKind::Declared,
                             None,
                             self.impl_of(),
+                            None,
                         );
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
@@ -859,6 +894,7 @@ impl Context {
                                 VarKind::Declared,
                                 None,
                                 self.impl_of(),
+                                None,
                             );
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
@@ -895,6 +931,7 @@ impl Context {
                     VarKind::Defined(id),
                     None,
                     self.impl_of(),
+                    None,
                 ),
             );
             self.consts
@@ -929,6 +966,7 @@ impl Context {
                     VarKind::Defined(id),
                     None,
                     self.impl_of(),
+                    None,
                 ),
             );
             self.consts
@@ -945,21 +983,21 @@ impl Context {
             }
             for (trait_method, vi) in ctx.decls.iter() {
                 if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                    types.push(MethodInfo::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_traits.insert(
                         trait_method.inspect().clone(),
-                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                        vec![MethodInfo::new(t.clone(), vi.clone())],
                     );
                 }
             }
             for (class_method, vi) in ctx.locals.iter() {
                 if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodType::new(t.clone(), vi.t.clone()));
+                    types.push(MethodInfo::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_classes.insert(
                         class_method.inspect().clone(),
-                        vec![MethodType::new(t.clone(), vi.t.clone())],
+                        vec![MethodInfo::new(t.clone(), vi.clone())],
                     );
                 }
             }
@@ -973,24 +1011,24 @@ impl Context {
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
         if kind.is_erg_import() {
-            self.import_erg_mod(mod_name)
+            self.import_erg_mod_using_cache(mod_name)
         } else {
-            self.import_py_mod(mod_name)
+            self.import_py_mod_using_cache(mod_name)
         }
     }
 
-    fn import_erg_mod(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
+    fn import_erg_mod_using_cache(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         #[allow(clippy::match_single_binding)]
         match &__name__[..] {
             // TODO: erg builtin modules
-            _ => self.import_user_erg_mod(__name__, mod_name, mod_cache, py_mod_cache),
+            _ => self.import_erg_mod(__name__, mod_name, mod_cache, py_mod_cache),
         }
     }
 
-    fn import_user_erg_mod(
+    fn import_erg_mod(
         &self,
         __name__: Str,
         mod_name: &Literal,
@@ -1045,13 +1083,14 @@ impl Context {
         Ok(path)
     }
 
-    fn import_py_mod(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
+    fn import_py_mod_using_cache(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         let builtin_path = PathBuf::from(&format!("<builtins>.{__name__}"));
         if py_mod_cache.get(&builtin_path).is_some() {
             return Ok(builtin_path);
         }
+        // TODO: rewrite all as `d.er`
         match &__name__[..] {
             "glob" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_glob_mod());
@@ -1097,7 +1136,7 @@ impl Context {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_urllib_mod());
                 Ok(builtin_path)
             }
-            _ => self.import_user_py_mod(mod_name),
+            _ => self.import_py_mod(mod_name),
         }
     }
 
@@ -1105,8 +1144,15 @@ impl Context {
         get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
     }
 
-    fn import_user_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
+    fn find_decl_in_pystd(__name__: &str) -> std::io::Result<PathBuf> {
+        let mut as_std_path = erg_pystd_path().join(__name__);
+        as_std_path.set_extension("d.er");
+        as_std_path.canonicalize()
+    }
+
+    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
             path.pop();
@@ -1115,7 +1161,10 @@ impl Context {
             PathBuf::new()
         };
         dir.push(format!("{__name__}.d.er"));
-        let path = match dir.canonicalize() {
+        let path = match dir
+            .canonicalize()
+            .or_else(|_| Self::find_decl_in_pystd(&__name__))
+        {
             Ok(path) => path,
             Err(err) => {
                 let err = TyCheckError::import_error(
@@ -1137,10 +1186,11 @@ impl Context {
         let cfg = ErgConfig::with_module_path(path.clone());
         let src = cfg.input.read();
         let mut builder =
-            HIRBuilder::new_with_cache(cfg, __name__, py_mod_cache.clone(), py_mod_cache.clone());
+            HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "declare") {
             Ok(hir) => {
-                py_mod_cache.register(path.clone(), Some(hir), builder.pop_mod_ctx());
+                let ctx = builder.pop_mod_ctx();
+                py_mod_cache.register(path.clone(), Some(hir), ctx);
             }
             Err((maybe_hir, errs)) => {
                 if let Some(hir) = maybe_hir {

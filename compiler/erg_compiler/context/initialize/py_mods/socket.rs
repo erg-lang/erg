@@ -31,7 +31,13 @@ impl Context {
             Immutable,
             Public,
         );
-        socket.register_builtin_type(mono("socket.Socket!"), sock, Public, Const);
+        socket.register_builtin_type(
+            mono("socket.Socket!"),
+            sock,
+            Public,
+            Const,
+            Some("socket.Socket"),
+        );
         socket
     }
 }

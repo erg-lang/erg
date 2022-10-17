@@ -15,7 +15,7 @@ use Visibility::*;
 impl Context {
     pub(crate) fn init_py_random_mod() -> Self {
         let mut random = Context::builtin_module("random", 10);
-        random.register_builtin_impl(
+        random.register_builtin_py_impl(
             "seed!",
             proc(
                 vec![],
@@ -28,12 +28,14 @@ impl Context {
             ),
             Immutable,
             Public,
+            Some("seed"),
         );
-        random.register_builtin_impl(
+        random.register_builtin_py_impl(
             "randint!",
             nd_proc(vec![kw("a", Int), kw("b", Int)], None, Int),
             Immutable,
             Public,
+            Some("randint"),
         );
         let t = nd_proc(
             vec![kw("seq", poly("Seq", vec![ty_tp(mono_q("T"))]))],
@@ -41,7 +43,7 @@ impl Context {
             mono_q("T"),
         );
         let t = quant(t, set! {static_instance("T", Type)});
-        random.register_builtin_impl("choice!", t, Immutable, Public);
+        random.register_builtin_py_impl("choice!", t, Immutable, Public, Some("choice"));
         random
     }
 }
