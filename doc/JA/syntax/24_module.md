@@ -1,6 +1,6 @@
 # モジュール
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D48107a2d1719892be50588de764991cba6db39b4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=48107a2d1719892be50588de764991cba6db39b4)
 
 Ergでは、ファイル自体を1つのレコードとみなすことができます。これをモジュールと呼びます。
 
@@ -29,15 +29,90 @@ assert foo.i == 1
 
 ## モジュールの可視性
 
+ファイルだけでなく、ディレクトリもモジュールとなりえます。
+ただしデフォルトでErgはディレクトリをErgモジュールとしては認識しません。認識させるには、`__init__.er`という名前のファイルを作成します。
+`__init__.er`はPythonの`__init__.py`と同じようなものです。
+
 ```console
-└─┬ ./src
-  ├─ lib.er
-  ├─ foo.er
-  ├─ bar.er
-  └─┬ bar
-    ├─ baz.er
-    └─ qux.er
+└─┬ bar
+  └─ __init__.er
 ```
+
+これで、`bar`ディレクトリはモジュールとして認識されます。`bar`内にあるファイルが`__init__.er`だけならばあまりディレクトリ構造にする意味はありませんが、複数のモジュールを束ねて一つのモジュールとしたい場合は便利です。すなわち、このような場合です。
+
+```console
+└─┬ bar
+  ├─ __init__.er
+  ├─ baz.er
+  └─ qux.er
+```
+
+`bar`ディレクトリの外側からは以下のようにして使用できます。
+
+```erg
+bar = import "bar"
+
+bar.baz.p!()
+bar.qux.p!()
+```
+
+`__init__.er`は単にディレクトリをモジュールとして機能させるだけのマーカーではなく、モジュールの可視性を制御する役割も持ちます。
+
+```erg
+# __init__.er
+
+# `./`はカレントディレクトリを指す。なくても良い
+.baz = import "./baz"
+qux = import "./qux"
+
+.f x =
+    .baz.f ...
+.g x =
+    qux.f ...
+```
+
+外から`bar`モジュールをインポートしたとき、`baz`モジュールはアクセス可能ですが、`qux`モジュールはアクセス不可能になります。
+
+## モジュールの循環参照
+
+Ergでは、モジュール間の循環的な依存関係を定義することができます。
+
+```python
+# foo.er
+bar = import "bar"
+
+print! bar.g 1
+.f x = x
+```
+
+```python
+# bar.er
+foo = "foo "をインポート
+
+print! foo.f 1
+.g x = x
+```
+
+しかし、手続き呼び出しによって作られた変数は、循環参照モジュールで定義することはできません。
+これは、Ergが依存関係に従って定義の順番を並べ替えるからです。
+
+```python
+# foo.er
+bar = import "bar"
+
+print! bar.x
+.x = g!(1) # ModuleError: 手続き呼び出しで作られた変数は、循環参照モジュールで定義できない
+```
+
+```python
+# bar.er
+foo = import "foo"
+
+print! foo.x
+.x = 0
+```
+
+また、エントリポイントであるErgモジュール（すなわち `__name__ == "__main__"` であるモジュール）は循環参照の対象になることはできません。
 
 <p align='center'>
     <a href='./23_closure.md'>Previous</a> | <a href='./25_object_system.md'>Next</a>
