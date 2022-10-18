@@ -831,6 +831,17 @@ impl CodeGenerator {
         let name = sig.ident.inspect().clone();
         let mut make_function_flag = 0u8;
         let params = self.gen_param_names(&sig.params);
+        if !sig.params.defaults.is_empty() {
+            let defaults_len = sig.params.defaults.len();
+            sig.params
+                .defaults
+                .into_iter()
+                .for_each(|default| self.emit_expr(default.default_val));
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(defaults_len as u8);
+            self.stack_dec_n(defaults_len - 1);
+            make_function_flag += MakeFunctionFlags::Defaults as u8;
+        }
         let code = self.emit_block(body.block, Some(name.clone()), params);
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
@@ -852,6 +863,9 @@ impl CodeGenerator {
         self.write_arg(make_function_flag);
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
+        if make_function_flag & MakeFunctionFlags::Defaults as u8 != 0 {
+            self.stack_dec();
+        }
         self.emit_store_instr(sig.ident, Name);
     }
 
