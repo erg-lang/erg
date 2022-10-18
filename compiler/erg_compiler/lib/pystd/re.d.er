@@ -1,0 +1,1 @@
+.sub: (pattern: Str, repl: Str, string: Str, count := Nat) -> Str

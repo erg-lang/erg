@@ -2780,16 +2780,25 @@ impl Parser {
         }
     }
 
+    fn ident_to_type_spec(ident: Identifier) -> SimpleTypeSpec {
+        SimpleTypeSpec::new(ident, ConstArgs::empty())
+    }
+
     fn accessor_to_type_spec(accessor: Accessor) -> Result<TypeSpec, ParseError> {
         let t_spec = match accessor {
             Accessor::Ident(ident) => {
-                let predecl =
-                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident.name, ConstArgs::empty()));
+                let predecl = PreDeclTypeSpec::Simple(Self::ident_to_type_spec(ident));
                 TypeSpec::PreDeclTy(predecl)
             }
             Accessor::TypeApp(tapp) => {
                 let spec = Self::expr_to_type_spec(*tapp.obj)?;
                 TypeSpec::type_app(spec, tapp.type_args)
+            }
+            Accessor::Attr(attr) => {
+                let namespace = attr.obj;
+                let t = Self::ident_to_type_spec(attr.ident);
+                let predecl = PreDeclTypeSpec::Attr { namespace, t };
+                TypeSpec::PreDeclTy(predecl)
             }
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
@@ -2814,7 +2823,7 @@ impl Parser {
                     kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
                 }
                 Ok(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
-                    ident.name,
+                    ident,
                     ConstArgs::new(pos_args, kw_args, paren),
                 )))
             }
@@ -2831,9 +2840,11 @@ impl Parser {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
                     ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
                 }
-                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
-                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
-                )),
+                (ParamPattern::VarName(name), None) => {
+                    ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
+                        SimpleTypeSpec::new(Identifier::new(None, name), ConstArgs::empty()),
+                    )))
+                }
                 _ => todo!(),
             };
             non_defaults.push(param);
@@ -2849,7 +2860,7 @@ impl Parser {
                     }
                     (ParamPattern::VarName(name), None) => {
                         ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
-                            SimpleTypeSpec::new(name, ConstArgs::empty()),
+                            SimpleTypeSpec::new(Identifier::new(None, name), ConstArgs::empty()),
                         )))
                     }
                     _ => todo!(),

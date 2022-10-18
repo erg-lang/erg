@@ -12,7 +12,9 @@ use erg_common::{
     impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, DefKind, NonDefaultParamSignature, TypeSpec, VarName};
+use erg_parser::ast::{
+    fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
+};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
@@ -21,7 +23,6 @@ use crate::ty::value::{TypeKind, ValueObj};
 use crate::ty::{HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
-use crate::context::OperationKind;
 use crate::error::readable_name;
 use crate::varinfo::VarInfo;
 use crate::{impl_t, impl_t_for_enum};
@@ -67,6 +68,16 @@ impl Literal {
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
+    }
+}
+
+impl Literal {
+    pub fn new(value: ValueObj, token: Token) -> Self {
+        Self {
+            t: value.t(),
+            value,
+            token,
+        }
     }
 }
 
@@ -1789,12 +1800,13 @@ pub enum Expr {
     TypeAsc(TypeAscription),
     Code(Block),     // code object
     Compound(Block), // compound statement
+    Import(Accessor),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 
 impl Default for Expr {
     fn default() -> Self {

@@ -1,0 +1,5 @@
+http = pyimport "http"
+
+.Request: ClassType
+.Request.data: Bytes
+.urlopen!: (url: Str or .Request, data: Bytes or NoneType := NoneType, timeout: Nat or NoneType := NoneType) -> http.client.HTTPResponse

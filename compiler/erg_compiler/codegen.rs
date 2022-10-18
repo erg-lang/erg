@@ -12,6 +12,7 @@ use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::Opcode;
+use erg_common::option_enum_unwrap;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
@@ -595,6 +596,10 @@ impl CodeGenerator {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
             Accessor::Ident(ident) => {
+                if &ident.inspect()[..] == "#ModuleType" && !self.module_type_loaded {
+                    self.load_module_type();
+                    self.module_type_loaded = true;
+                }
                 self.emit_load_name_instr(ident);
             }
             Accessor::Attr(a) => {
@@ -1250,6 +1255,7 @@ impl CodeGenerator {
 
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
+        // Python cannot distinguish at compile time between a method call and a attribute call
         if let Some(attr_name) = call.attr_name {
             self.emit_call_method(*call.obj, attr_name, call.args);
         } else {
@@ -1275,11 +1281,7 @@ impl CodeGenerator {
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             "with!" => self.emit_with_instr(args),
-            "import" => {
-                if !self.module_type_loaded {
-                    self.load_module_type();
-                    self.module_type_loaded = true;
-                }
+            "pyimport" | "py" => {
                 self.emit_load_name_instr(local);
                 self.emit_args(args, Name);
             }
@@ -1445,6 +1447,33 @@ impl CodeGenerator {
         self.stack_dec_n((1 + attrs_len + 0) - 1);
     }
 
+    fn get_root(acc: &Accessor) -> Identifier {
+        match acc {
+            Accessor::Ident(ident) => ident.clone(),
+            Accessor::Attr(attr) => {
+                if let Expr::Accessor(acc) = attr.obj.as_ref() {
+                    Self::get_root(acc)
+                } else {
+                    todo!("{:?}", attr.obj)
+                }
+            }
+        }
+    }
+
+    fn emit_import(&mut self, acc: Accessor) {
+        self.emit_load_const(0i32);
+        self.emit_load_const(ValueObj::None);
+        let full_name = Str::from(acc.show());
+        let name = self
+            .local_search(&full_name, Name)
+            .unwrap_or_else(|| self.register_name(full_name));
+        self.write_instr(IMPORT_NAME);
+        self.write_arg(name.idx as u8);
+        let root = Self::get_root(&acc);
+        self.emit_store_instr(root, Name);
+        self.stack_dec();
+    }
+
     fn emit_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
@@ -1574,15 +1603,31 @@ impl CodeGenerator {
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => {
-                if !self.module_type_loaded {
+                let is_module_loading_chunks = chunks
+                    .get(2)
+                    .map(|chunk| {
+                        option_enum_unwrap!(chunk, Expr::Call)
+                            .map(|call| {
+                                call.obj.show_acc().as_ref().map(|s| &s[..]) == Some("exec")
+                            })
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(false);
+                if !self.module_type_loaded && is_module_loading_chunks {
                     self.load_module_type();
                     self.module_type_loaded = true;
                 }
-                self.emit_frameless_block(chunks, vec![]);
+                for expr in chunks.into_iter() {
+                    self.emit_expr(expr);
+                }
+                if is_module_loading_chunks {
+                    self.stack_dec_n(2);
+                }
             }
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
             }
+            Expr::Import(acc) => self.emit_import(acc),
             other => {
                 CompileError::feature_error(self.cfg.input.clone(), other.loc(), "??", "".into())
                     .write_to_stderr();

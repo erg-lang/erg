@@ -667,7 +667,7 @@ impl TyParam {
             Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
-                    true
+                    false
                 } else {
                     fv.crack().has_qvar()
                 }

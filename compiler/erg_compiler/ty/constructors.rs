@@ -64,6 +64,11 @@ pub fn module(path: TyParam) -> Type {
     poly("Module", vec![path])
 }
 
+#[inline]
+pub fn py_module(path: TyParam) -> Type {
+    poly("PyModule", vec![path])
+}
+
 pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
     let s = ValueObj::Str(Str::rc(path.into().to_str().unwrap()));
     module(TyParam::Value(s))

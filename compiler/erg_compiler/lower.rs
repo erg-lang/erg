@@ -13,7 +13,7 @@ use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
 
 use erg_parser::ast;
-use erg_parser::ast::AST;
+use erg_parser::ast::{OperationKind, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
@@ -27,9 +27,7 @@ use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarInstContext;
-use crate::context::{
-    ClassDefType, Context, ContextKind, OperationKind, RegistrationMode, TraitInstance,
-};
+use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TraitInstance};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
@@ -1455,7 +1453,7 @@ impl ASTLowerer {
         Ok(hir::Block::new(hir_block))
     }
 
-    fn declare_var_alias(
+    fn declare_or_import_var(
         &mut self,
         sig: ast::VarSignature,
         mut body: ast::DefBody,
@@ -1470,11 +1468,13 @@ impl ASTLowerer {
             )));
         }
         let chunk = self.declare_chunk(body.block.remove(0))?;
-        let acc = enum_unwrap!(
-            enum_unwrap!(&chunk, hir::Expr::TypeAsc).expr.as_ref(),
-            hir::Expr::Accessor
-        );
-        let py_name = acc.local_name().map(Str::rc);
+        let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
+            enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
+                .local_name()
+                .map(Str::rc)
+        } else {
+            sig.inspect().cloned()
+        };
         let block = hir::Block::new(vec![chunk]);
         let found_body_t = block.ref_t();
         let ident = match &sig.pat {
@@ -1489,7 +1489,7 @@ impl ASTLowerer {
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
-    fn declare_alias(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
+    fn declare_alias_or_import(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
         let name = if let Some(name) = def.sig.name_as_str() {
             name.clone()
@@ -1510,11 +1510,19 @@ impl ASTLowerer {
                 &name,
             )));
         }
+        #[allow(clippy::let_and_return)]
         let res = match def.sig {
-            ast::Signature::Subr(_sig) => todo!(),
-            ast::Signature::Var(sig) => self.declare_var_alias(sig, def.body),
+            ast::Signature::Subr(sig) => {
+                return Err(LowerErrors::from(LowerError::declare_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    sig.loc(),
+                    self.ctx.caused_by(),
+                )));
+            }
+            ast::Signature::Var(sig) => self.declare_or_import_var(sig, def.body),
         };
-        self.pop_append_errs();
+        // self.pop_append_errs();
         res
     }
 
@@ -1636,7 +1644,7 @@ impl ASTLowerer {
     fn declare_chunk(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias(def)?)),
+            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias_or_import(def)?)),
             ast::Expr::ClassDef(defs) => Err(LowerErrors::from(LowerError::feature_error(
                 self.cfg.input.clone(),
                 defs.loc(),
@@ -1644,6 +1652,14 @@ impl ASTLowerer {
                 self.ctx.caused_by(),
             ))),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
+            ast::Expr::Call(call)
+                if call
+                    .additional_operation()
+                    .map(|op| op.is_import())
+                    .unwrap_or(false) =>
+            {
+                Ok(hir::Expr::Call(self.lower_call(call)?))
+            }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg.input.clone(),
                 line!() as usize,

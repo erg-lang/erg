@@ -17,7 +17,7 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use crate::ty::constructors::{anon, free_var, func, module, mono, poly, proj, subr_t, v_enum};
+use crate::ty::constructors::{anon, free_var, func, mono, poly, proj, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
@@ -116,7 +116,7 @@ impl Context {
         self.locals.get_key_value(name)
     }
 
-    pub(crate) fn get_singular_ctx(
+    pub(crate) fn get_singular_ctx_by_hir_expr(
         &self,
         obj: &hir::Expr,
         namespace: &Str,
@@ -127,9 +127,9 @@ impl Context {
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
+                let ctx = self.get_singular_ctx_by_hir_expr(&attr.obj, namespace)?;
                 let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
-                ctx.get_singular_ctx(&attr, namespace)
+                ctx.get_singular_ctx_by_hir_expr(&attr, namespace)
             }
             // TODO: change error
             _ => Err(TyCheckError::no_var_error(
@@ -178,6 +178,32 @@ impl Context {
         self.get_mut_type(ident.inspect())
             .map(|(_, ctx)| ctx)
             .ok_or(err)
+    }
+
+    pub(crate) fn get_singular_ctx(
+        &self,
+        obj: &ast::Expr,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<&Context> {
+        match obj {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                self.get_singular_ctx_by_ident(ident, namespace)
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                // REVIEW: 両方singularとは限らない?
+                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
+                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
+                ctx.get_singular_ctx(&attr, namespace)
+            }
+            _ => Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &obj.to_string(),
+                None,
+            )),
+        }
     }
 
     pub(crate) fn get_mut_singular_ctx(
@@ -291,7 +317,7 @@ impl Context {
         })
     }
 
-    fn get_import_call_t(
+    /*fn get_import_call_t(
         &self,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
@@ -346,7 +372,7 @@ impl Context {
             py_name: Some(Str::ever("__import__")),
             ..VarInfo::default()
         })
-    }
+    }*/
 
     pub(crate) fn rec_get_var_info(
         &self,
@@ -430,7 +456,7 @@ impl Context {
                 return Err(e);
             }
         }
-        if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
+        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
             match singular_ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
                 Ok(vi) => {
                     return Ok(vi);
@@ -608,7 +634,7 @@ impl Context {
                     }
                 }
             }
-            if let Ok(singular_ctx) = self.get_singular_ctx(obj, namespace) {
+            if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
                 if let Some(vi) = singular_ctx
                     .locals
                     .get(attr_name.inspect())
@@ -1133,13 +1159,14 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
             if local.vis().is_private() {
+                #[allow(clippy::single_match)]
                 match &local.inspect()[..] {
                     "match" => {
                         return self.get_match_call_t(pos_args, kw_args);
                     }
-                    "import" | "pyimport" | "py" => {
+                    /*"import" | "pyimport" | "py" => {
                         return self.get_import_call_t(pos_args, kw_args);
-                    }
+                    }*/
                     // handle assert casting
                     /*"assert" => {
                         if let Some(arg) = pos_args.first() {
@@ -1263,7 +1290,7 @@ impl Context {
         obj: &hir::Expr,
         name: &str,
     ) -> Option<&'a str> {
-        if let Ok(ctx) = self.get_singular_ctx(obj, &self.name) {
+        if let Ok(ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
             }
@@ -1707,10 +1734,16 @@ impl Context {
 
     // TODO: erg std
     pub(crate) fn resolve_path(&self, path: &Path) -> PathBuf {
-        if let Ok(path) = self.cfg.input.resolve(path) {
+        if let Ok(path) = self.cfg.input.local_resolve(path) {
             path
         } else if let Ok(path) = erg_pystd_path()
             .join(format!("{}.d.er", path.display()))
+            .canonicalize()
+        {
+            path
+        } else if let Ok(path) = erg_pystd_path()
+            .join(format!("{}.d", path.display()))
+            .join("__init__.d.er")
             .canonicalize()
         {
             path
@@ -1722,21 +1755,20 @@ impl Context {
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
-        match t {
-            Type::Poly { name, mut params } if &name[..] == "Module" => {
-                let path =
-                    option_enum_unwrap!(params.remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
-                let path = self.resolve_path(Path::new(&path[..]));
-                self.mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(&path))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(&path))
-                    })
-            }
-            _ => None,
+        if t.is_module() {
+            let path =
+                option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
+            let path = self.resolve_path(Path::new(&path[..]));
+            self.mod_cache
+                .as_ref()
+                .and_then(|cache| cache.ref_ctx(&path))
+                .or_else(|| {
+                    self.py_mod_cache
+                        .as_ref()
+                        .and_then(|cache| cache.ref_ctx(&path))
+                })
+        } else {
+            None
         }
     }
 

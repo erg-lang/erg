@@ -7,7 +7,7 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
 
-use erg_parser::ast::DefId;
+use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::free::fresh_varname;
@@ -15,7 +15,6 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type};
 
-use crate::context::OperationKind;
 use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;
 
@@ -34,19 +33,141 @@ impl<'a> Linker<'a> {
         for chunk in main.module.iter_mut() {
             self.replace_import(chunk);
         }
+        for chunk in main.module.iter_mut() {
+            self.resolve_pymod_path(chunk);
+        }
         log!(info "linked: {main}");
         main
+    }
+
+    /// ```erg
+    /// urllib = pyimport "urllib"
+    /// urllib.request.urlopen! "https://example.com"
+    /// ```
+    /// ↓
+    /// ```python
+    /// urllib = __import__("urllib.request")
+    /// import urllib.request
+    /// urllib.request.urlopen("https://example.com")
+    /// ```
+    fn resolve_pymod_path(&self, expr: &mut Expr) {
+        match expr {
+            Expr::Lit(_) => {}
+            Expr::Accessor(acc) => {
+                if matches!(acc, Accessor::Attr(_)) && acc.ref_t().is_py_module() {
+                    let import = Expr::Import(acc.clone());
+                    *expr = Expr::Compound(Block::new(vec![import, mem::take(expr)]));
+                }
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    for elem in arr.elems.pos_args.iter_mut() {
+                        self.resolve_pymod_path(&mut elem.expr);
+                    }
+                }
+                Array::WithLength(arr) => {
+                    self.resolve_pymod_path(&mut arr.elem);
+                    self.resolve_pymod_path(&mut arr.len);
+                }
+                _ => todo!(),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    for elem in tup.elems.pos_args.iter_mut() {
+                        self.resolve_pymod_path(&mut elem.expr);
+                    }
+                }
+            },
+            Expr::Set(set) => match set {
+                Set::Normal(st) => {
+                    for elem in st.elems.pos_args.iter_mut() {
+                        self.resolve_pymod_path(&mut elem.expr);
+                    }
+                }
+                Set::WithLength(st) => {
+                    self.resolve_pymod_path(&mut st.elem);
+                    self.resolve_pymod_path(&mut st.len);
+                }
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dic) => {
+                    for elem in dic.kvs.iter_mut() {
+                        self.resolve_pymod_path(&mut elem.key);
+                        self.resolve_pymod_path(&mut elem.value);
+                    }
+                }
+                other => todo!("{other}"),
+            },
+            Expr::Record(record) => {
+                for attr in record.attrs.iter_mut() {
+                    for chunk in attr.body.block.iter_mut() {
+                        self.resolve_pymod_path(chunk);
+                    }
+                }
+            }
+            Expr::BinOp(binop) => {
+                self.resolve_pymod_path(&mut binop.lhs);
+                self.resolve_pymod_path(&mut binop.rhs);
+            }
+            Expr::UnaryOp(unaryop) => {
+                self.resolve_pymod_path(&mut unaryop.expr);
+            }
+            Expr::Call(call) => {
+                self.resolve_pymod_path(&mut call.obj);
+                for arg in call.args.pos_args.iter_mut() {
+                    self.resolve_pymod_path(&mut arg.expr);
+                }
+                for arg in call.args.kw_args.iter_mut() {
+                    self.resolve_pymod_path(&mut arg.expr);
+                }
+            }
+            Expr::Decl(_decl) => {}
+            Expr::Def(def) => {
+                for chunk in def.body.block.iter_mut() {
+                    self.resolve_pymod_path(chunk);
+                }
+            }
+            Expr::Lambda(lambda) => {
+                for chunk in lambda.body.iter_mut() {
+                    self.resolve_pymod_path(chunk);
+                }
+            }
+            Expr::ClassDef(class_def) => {
+                for def in class_def.methods.iter_mut() {
+                    self.resolve_pymod_path(def);
+                }
+            }
+            Expr::AttrDef(attr_def) => {
+                // REVIEW:
+                for chunk in attr_def.block.iter_mut() {
+                    self.resolve_pymod_path(chunk);
+                }
+            }
+            Expr::TypeAsc(tasc) => self.resolve_pymod_path(&mut tasc.expr),
+            Expr::Code(chunks) | Expr::Compound(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    self.resolve_pymod_path(chunk);
+                }
+            }
+            Expr::Import(_) => unreachable!(),
+        }
     }
 
     fn replace_import(&self, expr: &mut Expr) {
         match expr {
             Expr::Lit(_) => {}
-            Expr::Accessor(acc) => match acc {
-                Accessor::Attr(attr) => {
-                    self.replace_import(&mut attr.obj);
+            Expr::Accessor(acc) => {
+                /*if acc.ref_t().is_py_module() {
+                    let import = Expr::Import(acc.clone());
+                    *expr = Expr::Compound(Block::new(vec![import, mem::take(expr)]));
+                }*/
+                match acc {
+                    Accessor::Attr(attr) => {
+                        self.replace_import(&mut attr.obj);
+                    }
+                    Accessor::Ident(_) => {}
                 }
-                Accessor::Ident(_) => {}
-            },
+            }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
                     for elem in arr.elems.pos_args.iter_mut() {
@@ -108,6 +229,7 @@ impl<'a> Linker<'a> {
                     self.replace_py_import(expr);
                 }
                 _ => {
+                    self.replace_import(&mut call.obj);
                     for arg in call.args.pos_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }
@@ -144,6 +266,7 @@ impl<'a> Linker<'a> {
                     self.replace_import(chunk);
                 }
             }
+            Expr::Import(_) => unreachable!(),
         }
     }
 
@@ -163,7 +286,7 @@ impl<'a> Linker<'a> {
         let path =
             enum_unwrap!(expr.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
         let path = Path::new(&path[..]);
-        let path = self.cfg.input.resolve(path).unwrap();
+        let path = self.cfg.input.local_resolve(path).unwrap();
         // In the case of REPL, entries cannot be used up
         let hir = if self.cfg.input.is_repl() {
             self.mod_cache

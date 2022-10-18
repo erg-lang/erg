@@ -58,12 +58,12 @@ impl Reorderer {
                 }
                 Expr::Methods(methods) => match &methods.class {
                     TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => {
-                        self.link_methods(simple.name.inspect().clone(), &mut new, methods)
+                        self.link_methods(simple.ident.inspect().clone(), &mut new, methods)
                     }
                     TypeSpec::TypeApp { spec, .. } => {
                         if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) = spec.as_ref()
                         {
-                            self.link_methods(simple.name.inspect().clone(), &mut new, methods)
+                            self.link_methods(simple.ident.inspect().clone(), &mut new, methods)
                         } else {
                             let similar_name = self
                                 .def_root_pos_map

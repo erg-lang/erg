@@ -637,7 +637,23 @@ impl Context {
             ast::PreDeclTypeSpec::Simple(simple) => {
                 self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_ctx)
             }
-            _ => todo!(),
+            ast::PreDeclTypeSpec::Attr { namespace, t } => {
+                let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
+                if let Some((typ, _)) = ctx.rec_get_type(t.ident.inspect()) {
+                    // TODO: visibility check
+                    Ok(typ.clone())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        t.loc(),
+                        self.caused_by(),
+                        t.ident.inspect(),
+                        self.get_similar_name(t.ident.inspect()),
+                    )))
+                }
+            }
+            other => todo!("{other}"),
         }
     }
 
@@ -647,7 +663,7 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
     ) -> TyCheckResult<Type> {
-        match &simple.name.inspect()[..] {
+        match &simple.ident.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
             "Nat" => Ok(Type::Nat),
             "Int" => Ok(Type::Int),

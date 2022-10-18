@@ -17,6 +17,27 @@ use erg_common::{fmt_vec_split_with, Str};
 
 use crate::token::{Token, TokenKind};
 
+/// Some Erg functions require additional operation by the compiler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationKind {
+    Import,
+    PyImport,
+    Del,
+    AssertCast,
+}
+
+impl OperationKind {
+    pub const fn is_erg_import(&self) -> bool {
+        matches!(self, Self::Import)
+    }
+    pub const fn is_py_import(&self) -> bool {
+        matches!(self, Self::PyImport)
+    }
+    pub const fn is_import(&self) -> bool {
+        matches!(self, Self::Import | Self::PyImport)
+    }
+}
+
 pub fn fmt_lines<'a, T: NestedDisplay + 'a>(
     mut iter: impl Iterator<Item = &'a T>,
     f: &mut fmt::Formatter<'_>,
@@ -985,6 +1006,15 @@ impl Call {
             .and_then(|pred| option_enum_unwrap!(pred, Expr::BinOp))
             .map(|bin| bin.args[1].as_ref())
     }
+
+    pub fn additional_operation(&self) -> Option<OperationKind> {
+        self.obj.get_name().and_then(|s| match &s[..] {
+            "import" => Some(OperationKind::Import),
+            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "Del" => Some(OperationKind::Del),
+            _ => None,
+        })
+    }
 }
 
 /// e.g. `Data::{x = 1; y = 2}`
@@ -1471,16 +1501,16 @@ impl ConstArgs {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SimpleTypeSpec {
-    pub name: VarName,
+    pub ident: Identifier,
     pub args: ConstArgs, // args can be nested (e.g. Vec Vec Int)
 }
 
 impl fmt::Display for SimpleTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.args.is_empty() {
-            write!(f, "{}", self.name)
+            write!(f, "{}", self.ident)
         } else {
-            write!(f, "{}{}", self.name, self.args)
+            write!(f, "{}{}", self.ident, self.args)
         }
     }
 }
@@ -1488,18 +1518,18 @@ impl fmt::Display for SimpleTypeSpec {
 impl Locational for SimpleTypeSpec {
     fn loc(&self) -> Location {
         if let Some(last) = self.args.kw_args.last() {
-            Location::concat(&self.name, last)
+            Location::concat(&self.ident, last)
         } else if let Some(last) = self.args.pos_args.last() {
-            Location::concat(&self.name, last)
+            Location::concat(&self.ident, last)
         } else {
-            self.name.loc()
+            self.ident.loc()
         }
     }
 }
 
 impl SimpleTypeSpec {
-    pub const fn new(name: VarName, args: ConstArgs) -> Self {
-        Self { name, args }
+    pub const fn new(ident: Identifier, args: ConstArgs) -> Self {
+        Self { ident, args }
     }
 }
 
@@ -1515,12 +1545,12 @@ impl SimpleTypeSpec {
 pub enum PreDeclTypeSpec {
     Simple(SimpleTypeSpec),
     Attr {
-        namespace: Vec<VarName>,
+        namespace: Box<Expr>,
         t: SimpleTypeSpec,
     },
     Subscr {
-        namespace: Vec<VarName>,
-        name: VarName,
+        namespace: Box<Expr>,
+        ident: Identifier,
         index: Token,
     },
 }
@@ -1528,17 +1558,15 @@ pub enum PreDeclTypeSpec {
 impl fmt::Display for PreDeclTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PreDeclTypeSpec::Simple(ts) => write!(f, "{}", ts),
+            PreDeclTypeSpec::Simple(ts) => write!(f, "{ts}"),
             PreDeclTypeSpec::Attr { namespace, t } => {
-                write!(f, "{}.{}", namespace.join("."), t)
+                write!(f, "{namespace}{t}")
             }
             PreDeclTypeSpec::Subscr {
                 namespace,
-                name,
+                ident,
                 index,
-            } => {
-                write!(f, "{}.{}[{}]", namespace.join("."), name, index)
-            }
+            } => write!(f, "{namespace}{ident}[{index}]"),
         }
     }
 }
@@ -1547,10 +1575,10 @@ impl Locational for PreDeclTypeSpec {
     fn loc(&self) -> Location {
         match self {
             Self::Simple(s) => s.loc(),
-            Self::Attr { namespace, t } => Location::concat(&namespace[0], t),
+            Self::Attr { namespace, t } => Location::concat(namespace.as_ref(), t),
             Self::Subscr {
                 namespace, index, ..
-            } => Location::concat(&namespace[0], index),
+            } => Location::concat(namespace.as_ref(), index),
         }
     }
 }

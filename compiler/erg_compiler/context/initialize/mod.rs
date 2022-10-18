@@ -1047,8 +1047,12 @@ impl Context {
         );
         generic_module.register_trait(g_module_t.clone(), generic_module_eq);
         let module_t = module(mono_q_tp("Path"));
+        let py_module_t = py_module(mono_q_tp("Path"));
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
+        let mut py_module =
+            Self::builtin_poly_class("PyModule", vec![PS::named_nd("Path", Str)], 2);
+        py_module.register_superclass(g_module_t.clone(), &generic_module);
         /* Array */
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -1536,7 +1540,8 @@ impl Context {
             Const,
             Some("ModuleType"),
         );
-        self.register_builtin_type(module_t, module, Private, Const, Some("Module"));
+        self.register_builtin_type(module_t, module, Private, Const, Some("ModuleType"));
+        self.register_builtin_type(py_module_t, py_module, Private, Const, Some("ModuleType"));
         self.register_builtin_type(arr_t, array_, Private, Const, Some("list"));
         self.register_builtin_type(set_t, set_, Private, Const, Some("set"));
         self.register_builtin_type(g_dict_t, generic_dict, Private, Const, Some("dict"));
@@ -1708,7 +1713,7 @@ impl Context {
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
             None,
-            module(mono_q_tp("Path")),
+            py_module(mono_q_tp("Path")),
         );
         let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);

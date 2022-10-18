@@ -1,7 +1,9 @@
 math = pyimport "math"
 sys = pyimport "sys"
 sub = pyimport "subprocess"
+urllib = pyimport "urllib"
 
 print! math.pi
+print! urllib.request.urlopen!("https://example.com")
 discard sub.run! ["echo", "hello"], shell := True
 sys.exit 111

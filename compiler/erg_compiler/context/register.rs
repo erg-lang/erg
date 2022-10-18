@@ -1,9 +1,7 @@
 use std::option::Option;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::ty::free::HasLevel;
-use erg_common::config::{ErgConfig, Input};
-use erg_common::env::erg_pystd_path;
+use erg_common::config::ErgConfig;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -12,11 +10,11 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, option_enum_unwrap, set};
 
-use ast::{DefId, Identifier, VarName};
-use erg_parser::ast::{self, Decorator};
+use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
+use erg_parser::ast;
 
 use crate::ty::constructors::{free_var, func, func1, proc, ref_, ref_mut, v_enum};
-use crate::ty::free::{Constraint, Cyclicity, FreeKind};
+use crate::ty::free::{Constraint, Cyclicity, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
 
@@ -37,7 +35,6 @@ use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::TyVarInstContext;
-use super::OperationKind;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
@@ -1041,14 +1038,7 @@ impl Context {
         mod_cache: &SharedModuleCache,
         py_mod_cache: &SharedModuleCache,
     ) -> CompileResult<PathBuf> {
-        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
-            path.pop();
-            path
-        } else {
-            PathBuf::new()
-        };
-        dir.push(format!("{__name__}.er"));
-        let path = match dir.canonicalize() {
+        let path = match self.cfg.input.local_resolve(Path::new(&__name__[..])) {
             Ok(path) => path,
             Err(err) => {
                 let err = TyCheckErrors::from(TyCheckError::import_error(
@@ -1118,28 +1108,12 @@ impl Context {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_os_mod());
                 Ok(builtin_path)
             }
-            "random" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_random_mod());
-                Ok(builtin_path)
-            }
-            "re" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_re_mod());
-                Ok(builtin_path)
-            }
             "socket" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_socket_mod());
                 Ok(builtin_path)
             }
             "sys" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_sys_mod());
-                Ok(builtin_path)
-            }
-            "time" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_time_mod());
-                Ok(builtin_path)
-            }
-            "urllib" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_urllib_mod());
                 Ok(builtin_path)
             }
             _ => self.import_py_mod(mod_name),
@@ -1150,27 +1124,12 @@ impl Context {
         get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
     }
 
-    fn find_decl_in_pystd(__name__: &str) -> std::io::Result<PathBuf> {
-        let mut as_std_path = erg_pystd_path().join(__name__);
-        as_std_path.set_extension("d.er");
-        as_std_path.canonicalize()
-    }
-
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
-            path.pop();
-            path
-        } else {
-            PathBuf::new()
-        };
-        dir.push(format!("{__name__}.d.er"));
-        let path = match dir
-            .canonicalize()
-            .or_else(|_| Self::find_decl_in_pystd(&__name__))
-        {
+        let path = self.resolve_path(Path::new(&__name__[..]));
+        let path = match path.canonicalize() {
             Ok(path) => path,
             Err(err) => {
                 let err = TyCheckError::import_error(

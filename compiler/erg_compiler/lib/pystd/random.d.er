@@ -1,0 +1,3 @@
+.seed!: (a := Num, version := Int) => NoneType
+.randint!: (a: Int, b: Int) => Int
+.choice!: |T: Type, S <: Seq(T)|(seq: S) => T

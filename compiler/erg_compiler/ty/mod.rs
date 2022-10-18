@@ -1800,6 +1800,24 @@ impl Type {
         }
     }
 
+    pub fn is_module(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_module(),
+            Self::Refinement(refine) => refine.t.is_module(),
+            Self::Poly { name, .. } => &name[..] == "PyModule" || &name[..] == "Module",
+            _ => false,
+        }
+    }
+
+    pub fn is_py_module(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_py_module(),
+            Self::Refinement(refine) => refine.t.is_py_module(),
+            Self::Poly { name, .. } => &name[..] == "PyModule",
+            _ => false,
+        }
+    }
+
     pub fn is_quantified(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),

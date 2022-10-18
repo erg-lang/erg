@@ -892,6 +892,7 @@ impl Context {
                 }
                 Ok(())
             }
+            hir::Expr::Import(_) => unreachable!(),
         }
     }
 

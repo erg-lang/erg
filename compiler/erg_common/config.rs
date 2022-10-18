@@ -118,7 +118,7 @@ impl Input {
         }
     }
 
-    pub fn resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = if let Self::File(mut path) = self.clone() {
             path.pop();
             path
@@ -127,10 +127,24 @@ impl Input {
         };
         dir.push(path);
         dir.set_extension("er");
-        dir.canonicalize().or_else(|_| {
-            dir.set_extension("d.er");
-            dir.canonicalize()
-        })
+        dir.canonicalize()
+            .or_else(|_| {
+                dir.pop();
+                dir.push(path);
+                dir.push("__init__.er"); // {path}/__init__.er
+                dir.canonicalize()
+            })
+            .or_else(|_| {
+                dir.pop(); // {path}
+                dir.set_extension("d.er");
+                dir.canonicalize()
+            })
+            .or_else(|_| {
+                dir.pop(); // {path}.d.er
+                dir.push(format!("{}.d", path.display())); // {path}.d
+                dir.push("__init__.d.er"); // {path}.d/__init__.d.er
+                dir.canonicalize()
+            })
     }
 }
 
