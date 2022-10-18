@@ -349,7 +349,7 @@ impl Parser {
         if self.cur_is(TokenKind::AtSign) {
             self.lpop();
             let expr = self
-                .try_reduce_expr(false, false, false)
+                .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             self.level -= 1;
             Ok(Some(Decorator::new(expr)))
@@ -436,7 +436,7 @@ impl Parser {
             Some(semi) if semi.is(Semi) => {
                 self.lpop();
                 let len = self
-                    .try_reduce_expr(false, false, false)
+                    .try_reduce_expr(false, false, false, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
@@ -493,7 +493,7 @@ impl Parser {
         match self.peek() {
             Some(_) => {
                 let expr = self
-                    .try_reduce_expr(false, false, false)
+                    .try_reduce_expr(false, false, false, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosArg::new(expr))
@@ -667,7 +667,6 @@ impl Parser {
                 }
                 if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
-                    // TODO: type specification
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let kw = if let Accessor::Ident(n) = acc {
@@ -680,21 +679,52 @@ impl Parser {
                         return Err(());
                     };
                     let expr = self
-                        .try_reduce_expr(false, in_type_args, false)
+                        .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
-                        .try_reduce_expr(false, in_type_args, false)
+                        .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    Ok(PosOrKwArg::Pos(PosArg::new(expr)))
+                    if self.cur_is(Walrus) {
+                        self.skip();
+                        let (kw, t_spec) = match expr {
+                            Expr::Accessor(Accessor::Ident(n)) => (n.name.into_token(), None),
+                            Expr::TypeAsc(tasc) => {
+                                if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
+                                    let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
+                                    (n.name.into_token(), Some(t_spec))
+                                } else {
+                                    self.next_expr();
+                                    self.level -= 1;
+                                    let err = ParseError::simple_syntax_error(0, tasc.loc());
+                                    self.errs.push(err);
+                                    return Err(());
+                                }
+                            }
+                            _ => {
+                                self.next_expr();
+                                self.level -= 1;
+                                let err = ParseError::simple_syntax_error(0, expr.loc());
+                                self.errs.push(err);
+                                return Err(());
+                            }
+                        };
+                        let expr = self
+                            .try_reduce_expr(false, in_type_args, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        self.level -= 1;
+                        Ok(PosOrKwArg::Kw(KwArg::new(kw, t_spec, expr)))
+                    } else {
+                        self.level -= 1;
+                        Ok(PosOrKwArg::Pos(PosArg::new(expr)))
+                    }
                 }
             }
             Some(_) => {
                 let expr = self
-                    .try_reduce_expr(false, in_type_args, false)
+                    .try_reduce_expr(false, in_type_args, false, false)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(PosOrKwArg::Pos(PosArg::new(expr)))
@@ -731,7 +761,7 @@ impl Parser {
                         None
                     };*/
                     let expr = self
-                        .try_reduce_expr(false, in_type_args, false)
+                        .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec())?;
                     self.level -= 1;
                     Ok(KwArg::new(keyword, None, expr))
@@ -834,7 +864,7 @@ impl Parser {
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
-                .try_reduce_expr(true, false, false)
+                .try_reduce_expr(true, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let block = Block::new(vec![expr]);
             self.level -= 1;
@@ -901,7 +931,7 @@ impl Parser {
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
-                        .try_reduce_expr(false, false, false)
+                        .try_reduce_expr(false, false, false, false)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
@@ -1055,7 +1085,7 @@ impl Parser {
                     };
                     self.skip();
                     let index = self
-                        .try_reduce_expr(false, false, in_brace)
+                        .try_reduce_expr(false, false, in_brace, false)
                         .map_err(|_| self.stack_dec())?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
@@ -1071,7 +1101,7 @@ impl Parser {
                 Some(t) if t.is(Comma) && winding => {
                     let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let tup = self
-                        .try_reduce_tuple(first_elem)
+                        .try_reduce_tuple(first_elem, false)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
@@ -1131,6 +1161,7 @@ impl Parser {
         winding: bool,
         in_type_args: bool,
         in_brace: bool,
+        line_break: bool,
     ) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
@@ -1167,7 +1198,7 @@ impl Parser {
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
-                        .try_reduce_expr(false, in_type_args, in_brace)
+                        .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
@@ -1237,7 +1268,7 @@ impl Parser {
                 Some(t) if t.is(Comma) && winding => {
                     let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let tup = self
-                        .try_reduce_tuple(first_elem)
+                        .try_reduce_tuple(first_elem, line_break)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
@@ -1348,6 +1379,15 @@ impl Parser {
             }
             Some(t) if t.is(LParen) => {
                 let lparen = self.lpop();
+                while self.cur_is(Newline) {
+                    self.skip();
+                }
+                let line_break = if self.cur_is(Indent) {
+                    self.skip();
+                    true
+                } else {
+                    false
+                };
                 if self.cur_is(RParen) {
                     let rparen = self.lpop();
                     let args = Args::new(vec![], vec![], Some((lparen, rparen)));
@@ -1356,8 +1396,14 @@ impl Parser {
                     return Ok(Expr::Tuple(unit));
                 }
                 let mut expr = self
-                    .try_reduce_expr(true, false, false)
+                    .try_reduce_expr(true, false, false, line_break)
                     .map_err(|_| self.stack_dec())?;
+                while self.cur_is(Newline) {
+                    self.skip();
+                }
+                if self.cur_is(Dedent) {
+                    self.skip();
+                }
                 let rparen = self.lpop();
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
@@ -1436,7 +1482,7 @@ impl Parser {
                 Some(t) if t.is(LSqBr) && obj.col_end() == t.col_begin() => {
                     let _l_sqbr = self.lpop();
                     let index = self
-                        .try_reduce_expr(true, false, false)
+                        .try_reduce_expr(true, false, false, false)
                         .map_err(|_| self.stack_dec())?;
                     let r_sqbr = if self.cur_is(RSqBr) {
                         self.lpop()
@@ -1556,7 +1602,7 @@ impl Parser {
         debug_call_info!(self);
         let op = self.lpop();
         let expr = self
-            .try_reduce_expr(false, false, false)
+            .try_reduce_expr(false, false, false, false)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(UnaryOp::new(op, expr))
@@ -1856,7 +1902,7 @@ impl Parser {
                         return Ok(dict);
                     }
                     let key = self
-                        .try_reduce_expr(false, false, true)
+                        .try_reduce_expr(false, false, true, false)
                         .map_err(|_| self.stack_dec())?;
                     if self.cur_is(Colon) {
                         self.skip();
@@ -1889,7 +1935,7 @@ impl Parser {
         if self.cur_is(Semi) {
             self.skip();
             let len = self
-                .try_reduce_expr(false, false, false)
+                .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let r_brace = self.lpop();
             return Ok(Set::WithLength(SetWithLength::new(
@@ -1947,19 +1993,22 @@ impl Parser {
         Err(())
     }
 
-    fn try_reduce_tuple(&mut self, first_elem: Expr) -> ParseResult<Tuple> {
+    fn try_reduce_tuple(&mut self, first_elem: Expr, line_break: bool) -> ParseResult<Tuple> {
         debug_call_info!(self);
         let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
         loop {
             match self.peek() {
                 Some(t) if t.is(Comma) => {
                     self.skip();
+                    while self.cur_is(Newline) && line_break {
+                        self.skip();
+                    }
                     if self.cur_is(Comma) {
                         self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
                         return Err(());
-                    } else if self.cur_is(RParen) {
+                    } else if self.cur_is(Dedent) || self.cur_is(RParen) {
                         break;
                     }
                     match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
@@ -2915,6 +2964,13 @@ impl Parser {
                     let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());
                     Err(err)
                 }
+            }
+            Expr::Lit(lit) => {
+                let mut err = ParseError::simple_syntax_error(line!() as usize, lit.loc());
+                if lit.is(TokenKind::NoneLit) {
+                    err.set_hint("you mean: `NoneType`?");
+                }
+                Err(err)
             }
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());

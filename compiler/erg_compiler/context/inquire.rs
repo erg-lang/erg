@@ -1522,7 +1522,7 @@ impl Context {
                 }
                 let path = name.split("::").next().unwrap_or(name);
                 let path = path.split('.').next().unwrap_or(path);
-                let path = self.cfg.input.resolve(Path::new(path)).ok()?;
+                let path = self.resolve_path(Path::new(path));
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
@@ -1545,7 +1545,7 @@ impl Context {
                 // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
                 let path = name.split("::").next().unwrap_or(name);
                 let path = path.split('.').next().unwrap_or(path);
-                let path = self.cfg.input.resolve(Path::new(path)).ok()?;
+                let path = self.resolve_path(Path::new(path));
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
@@ -1705,6 +1705,20 @@ impl Context {
         }
     }
 
+    // TODO: erg std
+    pub(crate) fn resolve_path(&self, path: &Path) -> PathBuf {
+        if let Ok(path) = self.cfg.input.resolve(path) {
+            path
+        } else if let Ok(path) = erg_pystd_path()
+            .join(format!("{}.d.er", path.display()))
+            .canonicalize()
+        {
+            path
+        } else {
+            PathBuf::from(format!("<builtins>.{}", path.display()))
+        }
+    }
+
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
@@ -1712,18 +1726,7 @@ impl Context {
             Type::Poly { name, mut params } if &name[..] == "Module" => {
                 let path =
                     option_enum_unwrap!(params.remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
-                let path = Path::new(&path[..]);
-                // TODO: erg std
-                let path = if let Ok(path) = self.cfg.input.resolve(path) {
-                    path
-                } else if let Ok(path) = erg_pystd_path()
-                    .join(format!("{}.d.er", path.display()))
-                    .canonicalize()
-                {
-                    path
-                } else {
-                    PathBuf::from(format!("<builtins>.{}", path.display()))
-                };
+                let path = self.resolve_path(Path::new(&path[..]));
                 self.mod_cache
                     .as_ref()
                     .and_then(|cache| cache.ref_ctx(&path))

@@ -1,5 +1,7 @@
 math = pyimport "math"
 sys = pyimport "sys"
+sub = pyimport "subprocess"
 
 print! math.pi
+discard sub.run! ["echo", "hello"], shell := True
 sys.exit 111

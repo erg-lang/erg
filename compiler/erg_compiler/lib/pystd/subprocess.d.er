@@ -1,1 +1,14 @@
-.run!: (args: Str or [Str; _], shell := Bool) => NoneType
+.CompletedProcess: ClassType
+.CompletedProcess.args: Str or [Str; _]
+.CompletedProcess.returncode: Int
+.CompletedProcess.stdout: Bytes or NoneType
+.CompletedProcess.stderr: Bytes or NoneType
+
+.run!: (
+    args: Str or [Str; _],
+    stdin: File! or NoneType := NoneType,
+    stdout: File! or NoneType := NoneType,
+    stderr: File! or NoneType := NoneType,
+    capture_output := Bool,
+    shell := Bool,
+) => .CompletedProcess

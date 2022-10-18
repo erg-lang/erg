@@ -797,11 +797,11 @@ impl Context {
             TypeSpec::PreDeclTy(predecl) => {
                 Ok(self.instantiate_predecl_t(predecl, opt_decl_t, tmp_tv_ctx)?)
             }
-            TypeSpec::And(lhs, rhs) => Ok(self.union(
+            TypeSpec::And(lhs, rhs) => Ok(self.intersection(
                 &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
                 &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),
-            TypeSpec::Or(lhs, rhs) => Ok(self.intersection(
+            TypeSpec::Or(lhs, rhs) => Ok(self.union(
                 &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
                 &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
             )),

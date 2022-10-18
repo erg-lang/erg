@@ -33,6 +33,10 @@ impl LexError {
         Self(core)
     }
 
+    pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
+        self.0.hint = Some(hint.into());
+    }
+
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
         Self::new(ErrorCore::new(
             errno,

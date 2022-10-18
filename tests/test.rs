@@ -2,13 +2,15 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::Runnable;
+use erg_common::traits::{Runnable, Stream};
+
+use erg_compiler::error::CompileErrors;
 
 use erg::dummy::DummyVM;
 
 #[test]
 fn exec_addition() -> Result<(), ()> {
-    expect_failure("tests/addition.er")
+    expect_failure("tests/addition.er", 1)
 }
 
 #[test]
@@ -63,7 +65,7 @@ fn exec_infer_trait() -> Result<(), ()> {
 
 #[test]
 fn exec_move_check() -> Result<(), ()> {
-    expect_failure("examples/move_check.er")
+    expect_failure("examples/move_check.er", 1)
 }
 
 #[test]
@@ -89,17 +91,17 @@ fn exec_record() -> Result<(), ()> {
 
 #[test]
 fn exec_set() -> Result<(), ()> {
-    expect_failure("examples/set.er")
+    expect_failure("examples/set.er", 1)
 }
 
 #[test]
 fn exec_side_effect() -> Result<(), ()> {
-    expect_failure("examples/side_effect.er")
+    expect_failure("examples/side_effect.er", 4)
 }
 
 #[test]
 fn exec_subtyping() -> Result<(), ()> {
-    expect_failure("tests/subtyping.er")
+    expect_failure("tests/subtyping.er", 1)
 }
 
 #[test]
@@ -128,9 +130,7 @@ fn exec_with() -> Result<(), ()> {
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ()> {
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    let mut vm = DummyVM::new(cfg);
-    match vm.exec() {
+    match exec_vm(file_path) {
         Ok(0) => Ok(()),
         Ok(i) => {
             println!("err: end with {i}");
@@ -144,9 +144,7 @@ fn expect_success(file_path: &'static str) -> Result<(), ()> {
 }
 
 fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    let mut vm = DummyVM::new(cfg);
-    match vm.exec() {
+    match exec_vm(file_path) {
         Ok(0) => Err(()),
         Ok(i) => {
             if i == code {
@@ -163,15 +161,41 @@ fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
     }
 }
 
-fn expect_failure(file_path: &'static str) -> Result<(), ()> {
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    let mut vm = DummyVM::new(cfg);
-    match vm.exec() {
+fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
+    match exec_vm(file_path) {
         Ok(0) => Err(()),
         Ok(_) => Ok(()),
         Err(errs) => {
             errs.fmt_all_stderr();
-            Ok(())
+            if errs.len() == errs_len {
+                Ok(())
+            } else {
+                println!("err: error length is not {errs_len} but {}", errs.len());
+                Err(())
+            }
         }
     }
+}
+
+fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
+    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut vm = DummyVM::new(cfg);
+    vm.exec()
+}
+
+#[cfg(target_os = "windows")]
+fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
+    const STACK_SIZE: usize = 4 * 1024 * 1024;
+
+    let child = std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(move || _exec_vm(file_path))
+        .unwrap();
+    // Wait for thread to join
+    child.join().unwrap()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
+    _exec_vm(file_path)
 }
