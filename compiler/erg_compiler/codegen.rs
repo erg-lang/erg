@@ -4,6 +4,7 @@
 use std::fmt;
 use std::process;
 
+use crate::ty::codeobj::MakeFunctionFlags;
 use crate::ty::codeobj::{CodeObj, CodeObjFlags};
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
@@ -21,7 +22,7 @@ use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
 use Opcode::*;
 
-use erg_parser::ast::{ParamPattern, ParamSignature, Params, VarName};
+use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
@@ -29,7 +30,7 @@ use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
-    Identifier, Lambda, Literal, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Identifier, Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
 use crate::ty::free::fresh_varname;
@@ -858,6 +859,18 @@ impl CodeGenerator {
         log!(info "entered {} ({lambda})", fn_name!());
         let mut make_function_flag = 0u8;
         let params = self.gen_param_names(&lambda.params);
+        if !lambda.params.defaults.is_empty() {
+            let defaults_len = lambda.params.defaults.len();
+            lambda
+                .params
+                .defaults
+                .into_iter()
+                .for_each(|default| self.emit_expr(default.default_val));
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(defaults_len as u8);
+            self.stack_dec_n(defaults_len - 1);
+            make_function_flag += MakeFunctionFlags::Defaults as u8;
+        }
         let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
@@ -867,7 +880,7 @@ impl CodeGenerator {
             }
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
-            make_function_flag += 8;
+            make_function_flag += MakeFunctionFlags::Closure as u8;
         }
         self.emit_load_const(code);
         self.emit_load_const("<lambda>");
@@ -875,6 +888,9 @@ impl CodeGenerator {
         self.write_arg(make_function_flag);
         // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
         self.stack_dec();
+        if make_function_flag & MakeFunctionFlags::Defaults as u8 != 0 {
+            self.stack_dec();
+        }
     }
 
     fn emit_unaryop(&mut self, unary: UnaryOp) {
@@ -1671,9 +1687,9 @@ impl CodeGenerator {
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
+        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
-        let self_param = ParamSignature::new(ParamPattern::VarName(self_param), None, None);
+        let self_param = NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
         let params = Params::new(vec![self_param, param], None, vec![], None);
         let subr_sig = SubrSignature::new(ident, params, __new__.clone());
         let mut attrs = vec![];
@@ -1729,7 +1745,7 @@ impl CodeGenerator {
         let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = ParamSignature::new(ParamPattern::VarName(param), None, None);
+        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
         let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None), __new__);
         let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
             Str::from(param_name),

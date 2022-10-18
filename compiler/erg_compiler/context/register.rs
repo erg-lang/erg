@@ -13,9 +13,9 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, option_enum_unwrap, set};
 
 use ast::{DefId, Identifier, VarName};
-use erg_parser::ast;
+use erg_parser::ast::{self, Decorator};
 
-use crate::ty::constructors::{func, func1, proc, ref_, ref_mut, v_enum};
+use crate::ty::constructors::{free_var, func, func1, proc, ref_, ref_mut, v_enum};
 use crate::ty::free::{Constraint, Cyclicity, FreeKind};
 use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
@@ -115,19 +115,23 @@ impl Context {
                 _ => None,
             })
             .collect::<Set<_>>();
-        let t = self.instantiate_sub_sig_t(sig, PreRegister).map_err(|e| {
-            let vi = VarInfo::new(
-                Type::Failure,
-                muty,
-                vis,
-                kind.clone(),
-                Some(comptime_decos.clone()),
-                self.impl_of(),
-                None,
-            );
-            self.decls.insert(sig.ident.name.clone(), vi);
-            e
-        })?;
+        let default_ts =
+            vec![free_var(self.level, Constraint::new_type_of(Type::Type)); sig.params.len()];
+        let t = self
+            .instantiate_sub_sig_t(sig, default_ts, PreRegister)
+            .map_err(|e| {
+                let vi = VarInfo::new(
+                    Type::Failure,
+                    muty,
+                    vis,
+                    kind.clone(),
+                    Some(comptime_decos.clone()),
+                    self.impl_of(),
+                    None,
+                );
+                self.decls.insert(sig.ident.name.clone(), vi);
+                e
+            })?;
         let vi = VarInfo::new(
             t,
             muty,
@@ -190,7 +194,8 @@ impl Context {
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す
     fn assign_param(
         &mut self,
-        sig: &ast::ParamSignature,
+        sig: &ast::NonDefaultParamSignature,
+        default_val_exists: bool,
         outer: Option<ParamIdx>,
         nth: usize,
         opt_decl_t: Option<&ParamTy>,
@@ -222,7 +227,7 @@ impl Context {
                     } else {
                         ParamIdx::Nth(nth)
                     };
-                    let default = if sig.opt_default_val.is_some() {
+                    let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
@@ -262,7 +267,7 @@ impl Context {
                     } else {
                         ParamIdx::Nth(nth)
                     };
-                    let default = if sig.opt_default_val.is_some() {
+                    let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
@@ -301,7 +306,7 @@ impl Context {
                     } else {
                         ParamIdx::Nth(nth)
                     };
-                    let default = if sig.opt_default_val.is_some() {
+                    let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
@@ -324,7 +329,7 @@ impl Context {
 
     pub(crate) fn assign_params(
         &mut self,
-        params: &ast::Params,
+        params: &hir::Params,
         opt_decl_subr_t: Option<SubrType>,
     ) -> TyCheckResult<()> {
         if let Some(decl_subr_t) = opt_decl_subr_t {
@@ -339,7 +344,7 @@ impl Context {
                 .zip(decl_subr_t.non_default_params.iter())
                 .enumerate()
             {
-                self.assign_param(sig, None, nth, Some(pt))?;
+                self.assign_param(sig, false, None, nth, Some(pt))?;
             }
             for (nth, (sig, pt)) in params
                 .defaults
@@ -347,17 +352,14 @@ impl Context {
                 .zip(decl_subr_t.default_params.iter())
                 .enumerate()
             {
-                // TODO: .clone()
-                self.assign_param(sig, None, nth, Some(pt))?;
+                self.assign_param(&sig.sig, true, None, nth, Some(pt))?;
             }
         } else {
-            for (nth, sig) in params
-                .non_defaults
-                .iter()
-                .chain(params.defaults.iter())
-                .enumerate()
-            {
-                self.assign_param(sig, None, nth, None)?;
+            for (nth, sig) in params.non_defaults.iter().enumerate() {
+                self.assign_param(sig, false, None, nth, None)?;
+            }
+            for (nth, sig) in params.defaults.iter().enumerate() {
+                self.assign_param(&sig.sig, true, None, nth, None)?;
             }
         }
         Ok(())
@@ -368,23 +370,24 @@ impl Context {
     /// * AssignError: if `name` has already been registered
     pub(crate) fn assign_subr(
         &mut self,
-        sig: &ast::SubrSignature,
+        ident: &Identifier,
+        decorators: &Set<Decorator>,
         id: DefId,
         body_t: &Type,
     ) -> TyCheckResult<Type> {
         // already defined as const
-        if sig.is_const() {
-            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
+        if ident.is_const() {
+            let vi = self.decls.remove(ident.inspect()).unwrap();
             let t = vi.t.clone();
-            self.locals.insert(sig.ident.name.clone(), vi);
+            self.locals.insert(ident.name.clone(), vi);
             return Ok(t);
         }
-        let muty = if sig.ident.is_const() {
+        let muty = if ident.is_const() {
             Mutability::Const
         } else {
             Mutability::Immutable
         };
-        let name = &sig.ident.name;
+        let name = &ident.name;
         // FIXME: constでない関数
         let t = self
             .get_current_scope_var(name.inspect())
@@ -394,7 +397,7 @@ impl Context {
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
         if let Some(spec_ret_t) = t.return_t() {
-            self.sub_unify(body_t, spec_ret_t, sig.loc(), None)
+            self.sub_unify(body_t, spec_ret_t, ident.loc(), None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -413,7 +416,7 @@ impl Context {
                     )
                 })?;
         }
-        let sub_t = if sig.ident.is_procedural() {
+        let sub_t = if ident.is_procedural() {
             proc(
                 non_default_params.clone(),
                 var_args.cloned(),
@@ -448,7 +451,7 @@ impl Context {
                 return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    sig.loc(),
+                    ident.loc(),
                     self.caused_by(),
                     name.inspect(),
                     &vi.t,
@@ -456,8 +459,7 @@ impl Context {
                 )));
             }
         }
-        let comptime_decos = sig
-            .decorators
+        let comptime_decos = decorators
             .iter()
             .filter_map(|deco| match &deco.0 {
                 ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
@@ -469,7 +471,7 @@ impl Context {
         let vi = VarInfo::new(
             found_t,
             muty,
-            sig.ident.vis(),
+            ident.vis(),
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),
@@ -481,21 +483,25 @@ impl Context {
         Ok(t)
     }
 
-    pub(crate) fn fake_subr_assign(&mut self, sig: &ast::SubrSignature, failure_t: Type) {
+    pub(crate) fn fake_subr_assign(
+        &mut self,
+        ident: &Identifier,
+        decorators: &Set<Decorator>,
+        failure_t: Type,
+    ) {
         // already defined as const
-        if sig.is_const() {
-            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
-            self.locals.insert(sig.ident.name.clone(), vi);
+        if ident.is_const() {
+            let vi = self.decls.remove(ident.inspect()).unwrap();
+            self.locals.insert(ident.name.clone(), vi);
         }
-        let muty = if sig.ident.is_const() {
+        let muty = if ident.is_const() {
             Mutability::Const
         } else {
             Mutability::Immutable
         };
-        let name = &sig.ident.name;
+        let name = &ident.name;
         self.decls.remove(name);
-        let comptime_decos = sig
-            .decorators
+        let comptime_decos = decorators
             .iter()
             .filter_map(|deco| match &deco.0 {
                 ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
@@ -507,7 +513,7 @@ impl Context {
         let vi = VarInfo::new(
             failure_t,
             muty,
-            sig.ident.vis(),
+            ident.vis(),
             VarKind::DoesNotExist,
             Some(comptime_decos),
             self.impl_of(),

@@ -13,8 +13,8 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
     DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
-    Methods, Module, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern,
-    ParamSignature, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
+    Methods, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet,
+    NormalTuple, ParamPattern, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
     ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
     UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
@@ -255,7 +255,7 @@ impl Desugarer {
                                 name.col_end().unwrap() + 1, // HACK: `(name) %x = ...`という形を想定
                             ));
                             let param =
-                                ParamSignature::new(ParamPattern::VarName(param), None, None);
+                                NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
                             let params = Params::new(vec![param], None, vec![], None);
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},

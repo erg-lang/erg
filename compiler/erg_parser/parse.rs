@@ -1985,12 +1985,9 @@ impl Parser {
                             return Err(());
                         }
                         // e.g. (x, y:=1) -> ...
+                        // Syntax error will occur when trying to use it as a tuple
                         PosOrKwArg::Kw(arg) => {
                             args.push_kw(arg);
-                            /*self.level -= 1;
-                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
-                            self.errs.push(err);
-                            return Err(());*/
                         }
                     }
                 }
@@ -2369,7 +2366,7 @@ impl Parser {
         &mut self,
         arg: PosArg,
         allow_self: bool,
-    ) -> ParseResult<ParamSignature> {
+    ) -> ParseResult<NonDefaultParamSignature> {
         debug_call_info!(self);
         let param = self
             .convert_rhs_to_param(arg.expr, allow_self)
@@ -2382,7 +2379,7 @@ impl Parser {
         &mut self,
         expr: Expr,
         allow_self: bool,
-    ) -> ParseResult<ParamSignature> {
+    ) -> ParseResult<NonDefaultParamSignature> {
         debug_call_info!(self);
         match expr {
             Expr::Accessor(Accessor::Ident(ident)) => {
@@ -2394,13 +2391,13 @@ impl Parser {
                 }
                 // FIXME deny: public
                 let pat = ParamPattern::VarName(ident.name);
-                let param = ParamSignature::new(pat, None, None);
+                let param = NonDefaultParamSignature::new(pat, None);
                 self.level -= 1;
                 Ok(param)
             }
             Expr::Lit(lit) => {
                 let pat = ParamPattern::Lit(lit);
-                let param = ParamSignature::new(pat, None, None);
+                let param = NonDefaultParamSignature::new(pat, None);
                 self.level -= 1;
                 Ok(param)
             }
@@ -2409,7 +2406,7 @@ impl Parser {
                     .convert_array_to_param_array_pat(array)
                     .map_err(|_| self.stack_dec())?;
                 let pat = ParamPattern::Array(array_pat);
-                let param = ParamSignature::new(pat, None, None);
+                let param = NonDefaultParamSignature::new(pat, None);
                 self.level -= 1;
                 Ok(param)
             }
@@ -2418,7 +2415,7 @@ impl Parser {
                     .convert_record_to_param_record_pat(record)
                     .map_err(|_| self.stack_dec())?;
                 let pat = ParamPattern::Record(record_pat);
-                let param = ParamSignature::new(pat, None, None);
+                let param = NonDefaultParamSignature::new(pat, None);
                 self.level -= 1;
                 Ok(param)
             }
@@ -2427,7 +2424,7 @@ impl Parser {
                     .convert_tuple_to_param_tuple_pat(tuple)
                     .map_err(|_| self.stack_dec())?;
                 let pat = ParamPattern::Tuple(tuple_pat);
-                let param = ParamSignature::new(pat, None, None);
+                let param = NonDefaultParamSignature::new(pat, None);
                 self.level -= 1;
                 Ok(param)
             }
@@ -2444,7 +2441,7 @@ impl Parser {
                     let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::Ref(var.name);
-                    let param = ParamSignature::new(pat, None, None);
+                    let param = NonDefaultParamSignature::new(pat, None);
                     self.level -= 1;
                     Ok(param)
                 }
@@ -2453,7 +2450,7 @@ impl Parser {
                     let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::RefMut(var.name);
-                    let param = ParamSignature::new(pat, None, None);
+                    let param = NonDefaultParamSignature::new(pat, None);
                     self.level -= 1;
                     Ok(param)
                 }
@@ -2474,11 +2471,14 @@ impl Parser {
         }
     }
 
-    fn convert_kw_arg_to_default_param(&mut self, arg: KwArg) -> ParseResult<ParamSignature> {
+    fn convert_kw_arg_to_default_param(
+        &mut self,
+        arg: KwArg,
+    ) -> ParseResult<DefaultParamSignature> {
         debug_call_info!(self);
         let pat = ParamPattern::VarName(VarName::new(arg.keyword));
-        let expr = Self::validate_const_expr(arg.expr).map_err(|e| self.errs.push(e))?;
-        let param = ParamSignature::new(pat, arg.t_spec, Some(expr));
+        let sig = NonDefaultParamSignature::new(pat, arg.t_spec);
+        let param = DefaultParamSignature::new(sig, arg.expr);
         self.level -= 1;
         Ok(param)
     }
@@ -2532,8 +2532,10 @@ impl Parser {
             Record::Shortened(rec) => {
                 let mut pats = vec![];
                 for ident in rec.idents.into_iter() {
-                    let rhs =
-                        ParamSignature::new(ParamPattern::VarName(ident.name.clone()), None, None);
+                    let rhs = NonDefaultParamSignature::new(
+                        ParamPattern::VarName(ident.name.clone()),
+                        None,
+                    );
                     pats.push(ParamRecordAttr::new(ident.clone(), rhs));
                 }
                 let attrs = ParamRecordAttrs::new(pats);
@@ -2563,13 +2565,13 @@ impl Parser {
         &mut self,
         tasc: TypeAscription,
         allow_self: bool,
-    ) -> ParseResult<ParamSignature> {
+    ) -> ParseResult<NonDefaultParamSignature> {
         debug_call_info!(self);
         let param = self
             .convert_rhs_to_param(*tasc.expr, allow_self)
             .map_err(|_| self.stack_dec())?;
         let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
-        let param = ParamSignature::new(param.pat, Some(t_spec), None);
+        let param = NonDefaultParamSignature::new(param.pat, Some(t_spec));
         self.level -= 1;
         Ok(param)
     }
@@ -2596,7 +2598,7 @@ impl Parser {
                 let arr = self
                     .convert_array_to_param_array_pat(array)
                     .map_err(|_| self.stack_dec())?;
-                let param = ParamSignature::new(ParamPattern::Array(arr), None, None);
+                let param = NonDefaultParamSignature::new(ParamPattern::Array(arr), None);
                 let params = Params::new(vec![param], None, vec![], None);
                 self.level -= 1;
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
@@ -2605,7 +2607,7 @@ impl Parser {
                 let rec = self
                     .convert_record_to_param_record_pat(record)
                     .map_err(|_| self.stack_dec())?;
-                let param = ParamSignature::new(ParamPattern::Record(rec), None, None);
+                let param = NonDefaultParamSignature::new(ParamPattern::Record(rec), None);
                 let params = Params::new(vec![param], None, vec![], None);
                 self.level -= 1;
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
@@ -2626,7 +2628,10 @@ impl Parser {
         }
     }
 
-    fn convert_accessor_to_param_sig(&mut self, accessor: Accessor) -> ParseResult<ParamSignature> {
+    fn convert_accessor_to_param_sig(
+        &mut self,
+        accessor: Accessor,
+    ) -> ParseResult<NonDefaultParamSignature> {
         debug_call_info!(self);
         match accessor {
             Accessor::Ident(ident) => {
@@ -2636,7 +2641,7 @@ impl Parser {
                     ParamPattern::VarName(ident.name)
                 };
                 self.level -= 1;
-                Ok(ParamSignature::new(pat, None, None))
+                Ok(NonDefaultParamSignature::new(pat, None))
             }
             other => {
                 self.level -= 1;
@@ -2806,7 +2811,7 @@ impl Parser {
                 });
         let mut defaults = vec![];
         for param in lambda.sig.params.defaults.into_iter() {
-            let param = match (param.pat, param.t_spec) {
+            let param = match (param.sig.pat, param.sig.t_spec) {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
                     ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
                 }

@@ -94,6 +94,29 @@ impl CodeObjFlags {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum MakeFunctionFlags {
+    None = 0,
+    Defaults = 1,
+    KwDefaults = 2,
+    Annotations = 4,
+    Closure = 8,
+}
+
+impl From<u8> for MakeFunctionFlags {
+    fn from(flags: u8) -> Self {
+        match flags {
+            0 => Self::None,
+            1 => Self::Defaults,
+            2 => Self::KwDefaults,
+            4 => Self::Annotations,
+            8 => Self::Closure,
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Implementation of `PyCodeObject`, see Include/cpython/code.h in CPython for details.
 ///
 /// 各属性をErg側のObjに変換すると遅くなりそうなので、アクサスされたときのみ変換して提供する

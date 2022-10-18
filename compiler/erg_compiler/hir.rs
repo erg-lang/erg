@@ -12,7 +12,7 @@ use erg_common::{
     impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
 
-use erg_parser::ast::{fmt_lines, DefId, DefKind, Params, TypeSpec, VarName};
+use erg_parser::ast::{fmt_lines, DefId, DefKind, NonDefaultParamSignature, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
@@ -1213,6 +1213,115 @@ impl VarSignature {
 
     pub fn vis(&self) -> Visibility {
         self.ident.vis()
+    }
+}
+
+/// Once the default_value is set to Some, all subsequent values must be Some
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DefaultParamSignature {
+    pub sig: NonDefaultParamSignature,
+    pub default_val: Expr,
+}
+
+impl NestedDisplay for DefaultParamSignature {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{} := {}", self.sig, self.default_val,)
+    }
+}
+
+impl_display_from_nested!(DefaultParamSignature);
+
+impl Locational for DefaultParamSignature {
+    fn loc(&self) -> Location {
+        Location::concat(&self.sig, &self.default_val)
+    }
+}
+
+impl DefaultParamSignature {
+    pub const fn new(sig: NonDefaultParamSignature, default_val: Expr) -> Self {
+        Self { sig, default_val }
+    }
+
+    pub const fn inspect(&self) -> Option<&Str> {
+        self.sig.pat.inspect()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Params {
+    pub non_defaults: Vec<NonDefaultParamSignature>,
+    pub var_args: Option<Box<NonDefaultParamSignature>>,
+    pub defaults: Vec<DefaultParamSignature>,
+    pub parens: Option<(Token, Token)>,
+}
+
+impl fmt::Display for Params {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({}, {}, {})",
+            fmt_vec(&self.non_defaults),
+            fmt_option!(pre "...", &self.var_args),
+            fmt_vec(&self.defaults)
+        )
+    }
+}
+
+impl Locational for Params {
+    fn loc(&self) -> Location {
+        // FIXME: varargs
+        if let Some((l, r)) = &self.parens {
+            Location::concat(l, r)
+        } else if !self.non_defaults.is_empty() {
+            Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
+        } else if let Some(var_args) = &self.var_args {
+            if !self.defaults.is_empty() {
+                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
+            } else {
+                var_args.loc()
+            }
+        } else if !self.defaults.is_empty() {
+            Location::concat(&self.defaults[0], self.defaults.last().unwrap())
+        } else {
+            panic!()
+        }
+    }
+}
+
+type RawParams = (
+    Vec<NonDefaultParamSignature>,
+    Option<Box<NonDefaultParamSignature>>,
+    Vec<DefaultParamSignature>,
+    Option<(Token, Token)>,
+);
+
+impl Params {
+    pub const fn new(
+        non_defaults: Vec<NonDefaultParamSignature>,
+        var_args: Option<Box<NonDefaultParamSignature>>,
+        defaults: Vec<DefaultParamSignature>,
+        parens: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            non_defaults,
+            var_args,
+            defaults,
+            parens,
+        }
+    }
+
+    pub fn deconstruct(self) -> RawParams {
+        (self.non_defaults, self.var_args, self.defaults, self.parens)
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.non_defaults.len() + self.defaults.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

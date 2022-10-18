@@ -512,20 +512,32 @@ impl Context {
         let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
-            let pt =
-                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
+            let pt = self.instantiate_param_ty(
+                sig,
+                None,
+                None,
+                Some(&tv_ctx),
+                RegistrationMode::Normal,
+            )?;
             non_default_params.push(pt);
         }
         let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
-            let pt = self.instantiate_param_ty(p, None, Some(&tv_ctx), RegistrationMode::Normal)?;
+            let pt =
+                self.instantiate_param_ty(p, None, None, Some(&tv_ctx), RegistrationMode::Normal)?;
             Some(pt)
         } else {
             None
         };
         let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
         for sig in lambda.sig.params.defaults.iter() {
-            let pt =
-                self.instantiate_param_ty(sig, None, Some(&tv_ctx), RegistrationMode::Normal)?;
+            let expr = self.eval_const_expr(&sig.default_val)?;
+            let pt = self.instantiate_param_ty(
+                &sig.sig,
+                Some(expr.t()),
+                None,
+                Some(&tv_ctx),
+                RegistrationMode::Normal,
+            )?;
             default_params.push(pt);
         }
         // HACK: should avoid cloning

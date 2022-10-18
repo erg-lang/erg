@@ -13,8 +13,8 @@ use erg_common::Str;
 use erg_common::{assume_unreachable, enum_unwrap, set, try_map_mut};
 
 use ast::{
-    ParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec, TypeBoundSpecs,
-    TypeSpec,
+    NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
+    TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
@@ -507,6 +507,7 @@ impl Context {
     pub(crate) fn instantiate_sub_sig_t(
         &self,
         sig: &ast::SubrSignature,
+        default_ts: Vec<Type>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         // -> Result<Type, (Type, TyCheckErrors)> {
@@ -521,22 +522,34 @@ impl Context {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.non_default_params.get(n));
-            non_defaults.push(self.instantiate_param_ty(p, opt_decl_t, Some(&tv_ctx), mode)?);
+            non_defaults.push(self.instantiate_param_ty(
+                p,
+                None,
+                opt_decl_t,
+                Some(&tv_ctx),
+                mode,
+            )?);
         }
         let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
-            Some(self.instantiate_param_ty(var_args, opt_decl_t, Some(&tv_ctx), mode)?)
+            Some(self.instantiate_param_ty(var_args, None, opt_decl_t, Some(&tv_ctx), mode)?)
         } else {
             None
         };
         let mut defaults = vec![];
-        for (n, p) in sig.params.defaults.iter().enumerate() {
+        for ((n, p), default_t) in sig.params.defaults.iter().enumerate().zip(default_ts) {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.default_params.get(n));
-            defaults.push(self.instantiate_param_ty(p, opt_decl_t, Some(&tv_ctx), mode)?);
+            defaults.push(self.instantiate_param_ty(
+                &p.sig,
+                Some(default_t),
+                opt_decl_t,
+                Some(&tv_ctx),
+                mode,
+            )?);
         }
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
@@ -562,7 +575,7 @@ impl Context {
     /// spec_t == Noneかつリテラル推論が不可能なら型変数を発行する
     pub(crate) fn instantiate_param_sig_t(
         &self,
-        sig: &ParamSignature,
+        sig: &NonDefaultParamSignature,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
@@ -599,21 +612,15 @@ impl Context {
 
     pub(crate) fn instantiate_param_ty(
         &self,
-        sig: &ParamSignature,
+        sig: &NonDefaultParamSignature,
+        opt_default_t: Option<Type>,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
         let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_ctx, mode)?;
-        match (sig.inspect(), &sig.opt_default_val) {
-            (Some(name), Some(default)) => {
-                let default = self.instantiate_const_expr(default)?;
-                Ok(ParamTy::kw_default(
-                    name.clone(),
-                    t,
-                    self.get_tp_t(&default)?,
-                ))
-            }
+        match (sig.inspect(), opt_default_t) {
+            (Some(name), Some(default_t)) => Ok(ParamTy::kw_default(name.clone(), t, default_t)),
             (Some(name), None) => Ok(ParamTy::kw(name.clone(), t)),
             (None, None) => Ok(ParamTy::anonymous(t)),
             _ => unreachable!(),

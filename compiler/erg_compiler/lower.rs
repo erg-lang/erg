@@ -759,6 +759,22 @@ impl ASTLowerer {
         Ok(hir::Call::new(class, Some(attr_name), args))
     }
 
+    fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
+        log!(info "entered {}({})", fn_name!(), params);
+        let mut hir_defaults = vec![];
+        for default in params.defaults.into_iter() {
+            let default_val = self.lower_expr(default.default_val)?;
+            hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+        }
+        let hir_params = hir::Params::new(
+            params.non_defaults,
+            params.var_args,
+            hir_defaults,
+            params.parens,
+        );
+        Ok(hir_params)
+    }
+
     /// TODO: varargs
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
@@ -775,7 +791,8 @@ impl ASTLowerer {
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
         let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
         self.ctx.grow(&name, kind, Private, Some(tv_ctx));
-        if let Err(errs) = self.ctx.assign_params(&lambda.sig.params, None) {
+        let params = self.lower_params(lambda.sig.params)?;
+        if let Err(errs) = self.ctx.assign_params(&params, None) {
             self.errs.extend(errs.into_iter());
         }
         if let Err(errs) = self.ctx.preregister(&lambda.body) {
@@ -818,7 +835,7 @@ impl ASTLowerer {
         } else {
             quant(t, bounds)
         };
-        Ok(hir::Lambda::new(id, lambda.sig.params, lambda.op, body, t))
+        Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
@@ -951,7 +968,8 @@ impl ASTLowerer {
             .unwrap_or(Type::Failure);
         match t {
             Type::Subr(t) => {
-                if let Err(errs) = self.ctx.assign_params(&sig.params, Some(t.clone())) {
+                let params = self.lower_params(sig.params)?;
+                if let Err(errs) = self.ctx.assign_params(&params, Some(t.clone())) {
                     self.errs.extend(errs.into_iter());
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
@@ -961,9 +979,9 @@ impl ASTLowerer {
                     Ok(block) => {
                         let found_body_t = block.ref_t();
                         let expect_body_t = t.return_t.as_ref();
-                        if !sig.is_const() {
+                        if !sig.ident.is_const() {
                             if let Err(e) = self.return_t_check(
-                                sig.loc(),
+                                sig.ident.loc(),
                                 sig.ident.inspect(),
                                 expect_body_t,
                                 found_body_t,
@@ -972,20 +990,21 @@ impl ASTLowerer {
                             }
                         }
                         let id = body.id;
-                        let t =
-                            self.ctx
-                                .outer
-                                .as_mut()
-                                .unwrap()
-                                .assign_subr(&sig, id, found_body_t)?;
+                        let t = self.ctx.outer.as_mut().unwrap().assign_subr(
+                            &sig.ident,
+                            &sig.decorators,
+                            id,
+                            found_body_t,
+                        )?;
                         let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                        let sig = hir::SubrSignature::new(ident, sig.params, t);
+                        let sig = hir::SubrSignature::new(ident, params, t);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
                         self.ctx.outer.as_mut().unwrap().assign_subr(
-                            &sig,
+                            &sig.ident,
+                            &sig.decorators,
                             ast::DefId(0),
                             &Type::Failure,
                         )?;
@@ -994,20 +1013,21 @@ impl ASTLowerer {
                 }
             }
             Type::Failure => {
-                if let Err(errs) = self.ctx.assign_params(&sig.params, None) {
+                let params = self.lower_params(sig.params)?;
+                if let Err(errs) = self.ctx.assign_params(&params, None) {
                     self.errs.extend(errs.into_iter());
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
                     self.errs.extend(errs.into_iter());
                 }
-                self.ctx
-                    .outer
-                    .as_mut()
-                    .unwrap()
-                    .fake_subr_assign(&sig, Type::Failure);
+                self.ctx.outer.as_mut().unwrap().fake_subr_assign(
+                    &sig.ident,
+                    &sig.decorators,
+                    Type::Failure,
+                );
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, sig.params, Type::Failure);
+                let sig = hir::SubrSignature::new(ident, params, Type::Failure);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
