@@ -2813,12 +2813,18 @@ impl Parser {
         for param in lambda.sig.params.defaults.into_iter() {
             let param = match (param.sig.pat, param.sig.t_spec) {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
-                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                    let param_spec =
+                        ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec);
+                    let default_spec = Self::expr_to_type_spec(param.default_val)?;
+                    DefaultParamTySpec::new(param_spec, default_spec)
                 }
-                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
-                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(name, ConstArgs::empty())),
-                )),
-                _ => todo!(),
+                (ParamPattern::VarName(name), None) => {
+                    let default_spec = Self::expr_to_type_spec(param.default_val)?;
+                    let param_spec =
+                        ParamTySpec::new(Some(name.into_token()), default_spec.clone());
+                    DefaultParamTySpec::new(param_spec, default_spec)
+                }
+                (l, r) => todo!("{:?} {:?}", l, r),
             };
             defaults.push(param);
         }

@@ -767,14 +767,23 @@ impl Context {
         &self,
         p: &ParamTySpec,
         opt_decl_t: Option<&ParamTy>,
+        default_t: Option<&TypeSpec>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
         let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_ctx, mode)?;
-        Ok(ParamTy::pos(
-            p.name.as_ref().map(|t| t.inspect().to_owned()),
-            t,
-        ))
+        if let Some(default_t) = default_t {
+            Ok(ParamTy::kw_default(
+                p.name.as_ref().unwrap().inspect().to_owned(),
+                t,
+                self.instantiate_typespec(default_t, opt_decl_t, tmp_tv_ctx, mode)?,
+            ))
+        } else {
+            Ok(ParamTy::pos(
+                p.name.as_ref().map(|t| t.inspect().to_owned()),
+                t,
+            ))
+        }
     }
 
     pub(crate) fn instantiate_typespec(
@@ -854,15 +863,23 @@ impl Context {
             }
             TypeSpec::Subr(subr) => {
                 let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
-                    self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode)
+                    self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
                 })?;
                 let var_args = subr
                     .var_args
                     .as_ref()
-                    .map(|p| self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode))
+                    .map(|p| {
+                        self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
+                    })
                     .transpose()?;
                 let defaults = try_map_mut(subr.defaults.iter(), |p| {
-                    self.instantiate_func_param_spec(p, opt_decl_t, tmp_tv_ctx, mode)
+                    self.instantiate_func_param_spec(
+                        &p.param,
+                        opt_decl_t,
+                        Some(&p.default),
+                        tmp_tv_ctx,
+                        mode,
+                    )
                 })?
                 .into_iter()
                 .collect();

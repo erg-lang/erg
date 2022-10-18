@@ -1591,13 +1591,31 @@ impl ParamTySpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DefaultParamTySpec {
+    pub param: ParamTySpec,
+    pub default: TypeSpec,
+}
+
+impl fmt::Display for DefaultParamTySpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} := {}", self.param, self.default)
+    }
+}
+
+impl DefaultParamTySpec {
+    pub const fn new(param: ParamTySpec, default: TypeSpec) -> Self {
+        Self { param, default }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_args: Option<Box<ParamTySpec>>,
-    pub defaults: Vec<ParamTySpec>,
+    pub defaults: Vec<DefaultParamTySpec>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
@@ -1638,7 +1656,7 @@ impl SubrTypeSpec {
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_args: Option<ParamTySpec>,
-        defaults: Vec<ParamTySpec>,
+        defaults: Vec<DefaultParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
