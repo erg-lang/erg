@@ -29,8 +29,8 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, Attribute, BinOp, Block, Call, ClassDef, Def, DefBody, Expr,
-    Identifier, Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
+    Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
 use crate::ty::free::fresh_varname;
@@ -1717,22 +1717,19 @@ impl CodeGenerator {
                 for field in rec.keys() {
                     let obj =
                         Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
-                    let expr = Expr::Accessor(Accessor::Attr(Attribute::new(
-                        obj,
-                        Identifier::bare(
-                            Some(Token::dummy()),
-                            VarName::from_str(field.symbol.clone()),
-                        ),
-                    )));
+                    let expr = obj.attr_expr(Identifier::bare(
+                        Some(Token::dummy()),
+                        VarName::from_str(field.symbol.clone()),
+                    ));
                     let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
                     let dot = if field.vis.is_private() {
                         None
                     } else {
                         Some(Token::dummy())
                     };
-                    let attr = Accessor::Attr(Attribute::new(
-                        obj,
-                        Identifier::bare(dot, VarName::from_str(field.symbol.clone())),
+                    let attr = obj.attr(Identifier::bare(
+                        dot,
+                        VarName::from_str(field.symbol.clone()),
                     ));
                     let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
                     attrs.push(Expr::AttrDef(attr_def));
@@ -1769,12 +1766,8 @@ impl CodeGenerator {
         let mut new_ident =
             Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line));
         new_ident.vi.py_name = Some(Str::ever("__call__"));
-        let class_new = Expr::Accessor(Accessor::attr(class, new_ident));
-        let call = Expr::Call(Call::new(
-            class_new,
-            None,
-            Args::new(vec![arg], None, vec![], None),
-        ));
+        let class_new = class.attr_expr(new_ident);
+        let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
         let block = Block::new(vec![call]);
         let body = DefBody::new(Token::dummy(), block, DefId(0));
         self.emit_subr_def(Some(class_ident.inspect()), sig, body);

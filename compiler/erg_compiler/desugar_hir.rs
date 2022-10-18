@@ -39,7 +39,7 @@ impl HIRDesugarer {
                         .into_iter()
                         .map(|expr| match expr {
                             Expr::Def(def) => {
-                                let acc = Accessor::attr(class.clone(), def.sig.into_ident());
+                                let acc = class.clone().attr(def.sig.into_ident());
                                 let attr_def = AttrDef::new(acc, def.body.block);
                                 Expr::AttrDef(attr_def)
                             }

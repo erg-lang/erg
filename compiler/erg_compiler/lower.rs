@@ -1418,7 +1418,7 @@ impl ASTLowerer {
             expr.loc(),
             Some(&Str::from(expr.to_string())),
         )?;
-        Ok(hir::TypeAscription::new(expr, tasc.t_spec))
+        Ok(expr.type_asc(tasc.t_spec))
     }
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
@@ -1527,8 +1527,7 @@ impl ASTLowerer {
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let obj = self.fake_lower_obj(*attr.obj)?;
                 let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
-                let acc = hir::Accessor::attr(obj, ident);
-                Ok(hir::Expr::Accessor(acc))
+                Ok(obj.attr_expr(ident))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg.input.clone(),
@@ -1596,10 +1595,7 @@ impl ASTLowerer {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
-                Ok(hir::TypeAscription::new(
-                    hir::Expr::Accessor(hir::Accessor::Ident(ident)),
-                    tasc.t_spec,
-                ))
+                Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
@@ -1625,11 +1621,8 @@ impl ASTLowerer {
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
-                let attr = hir::Accessor::attr(obj, ident);
-                Ok(hir::TypeAscription::new(
-                    hir::Expr::Accessor(attr),
-                    tasc.t_spec,
-                ))
+                let attr = obj.attr_expr(ident);
+                Ok(attr.type_asc(tasc.t_spec))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg.input.clone(),

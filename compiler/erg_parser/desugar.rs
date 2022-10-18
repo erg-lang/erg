@@ -15,8 +15,8 @@ use crate::ast::{
     DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
     Methods, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet,
     NormalTuple, ParamPattern, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
-    ShortenedRecord, Signature, SubrSignature, Tuple, TypeAscription, TypeBoundSpecs, TypeSpec,
-    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    ShortenedRecord, Signature, SubrSignature, Tuple, TypeBoundSpecs, TypeSpec, UnaryOp, VarName,
+    VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -201,7 +201,7 @@ impl Desugarer {
             }
             Expr::TypeAsc(tasc) => {
                 let expr = desugar(*tasc.expr);
-                Expr::TypeAsc(TypeAscription::new(expr, tasc.op, tasc.t_spec))
+                expr.type_asc_expr(tasc.op, tasc.t_spec)
             }
             Expr::Methods(method_defs) => {
                 let mut new_defs = vec![];
@@ -323,7 +323,7 @@ impl Desugarer {
             vec![],
             None,
         );
-        let call = Call::new(match_symbol, None, args);
+        let call = match_symbol.call(args);
         (call, return_t_spec)
     }
 
@@ -439,9 +439,7 @@ impl Desugarer {
     ) {
         let obj = Expr::local(buf_name, sig.ln_begin().unwrap(), sig.col_begin().unwrap());
         let acc = match buf_index {
-            BufIndex::Tuple(n) => {
-                Accessor::tuple_attr(obj, Literal::nat(n, sig.ln_begin().unwrap()))
-            }
+            BufIndex::Tuple(n) => obj.tuple_attr(Literal::nat(n, sig.ln_begin().unwrap())),
             BufIndex::Array(n) => {
                 let r_brace = Token::new(
                     TokenKind::RBrace,
@@ -449,13 +447,9 @@ impl Desugarer {
                     sig.ln_begin().unwrap(),
                     sig.col_begin().unwrap(),
                 );
-                Accessor::subscr(
-                    obj,
-                    Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())),
-                    r_brace,
-                )
+                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
             }
-            BufIndex::Record(attr) => Accessor::attr(obj, attr.clone()),
+            BufIndex::Record(attr) => obj.attr(attr.clone()),
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);

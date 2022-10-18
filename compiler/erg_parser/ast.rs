@@ -3222,6 +3222,49 @@ impl Expr {
     pub fn static_local(name: &'static str) -> Self {
         Self::Accessor(Accessor::local(Token::static_symbol(name)))
     }
+
+    pub fn attr(self, ident: Identifier) -> Accessor {
+        Accessor::attr(self, ident)
+    }
+
+    pub fn attr_expr(self, ident: Identifier) -> Self {
+        Self::Accessor(self.attr(ident))
+    }
+
+    pub fn subscr(self, index: Expr, r_sqbr: Token) -> Accessor {
+        Accessor::subscr(self, index, r_sqbr)
+    }
+
+    pub fn subscr_expr(self, index: Expr, r_sqbr: Token) -> Self {
+        Self::Accessor(self.subscr(index, r_sqbr))
+    }
+
+    pub fn tuple_attr(self, index: Literal) -> Accessor {
+        Accessor::tuple_attr(self, index)
+    }
+
+    pub fn tuple_attr_expr(self, index: Literal) -> Self {
+        Self::Accessor(self.tuple_attr(index))
+    }
+
+    pub fn call(self, args: Args) -> Call {
+        match self {
+            Self::Accessor(Accessor::Attr(attr)) => Call::new(*attr.obj, Some(attr.ident), args),
+            other => Call::new(other, None, args),
+        }
+    }
+
+    pub fn call_expr(self, args: Args) -> Self {
+        Self::Call(self.call(args))
+    }
+
+    pub fn type_asc(self, op: Token, t_spec: TypeSpec) -> TypeAscription {
+        TypeAscription::new(self, op, t_spec)
+    }
+
+    pub fn type_asc_expr(self, op: Token, t_spec: TypeSpec) -> Self {
+        Self::TypeAsc(self.type_asc(op, t_spec))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

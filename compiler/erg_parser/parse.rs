@@ -885,7 +885,7 @@ impl Parser {
                 Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
                     let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
                     let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    stack.push(ExprOrOp::Expr(Expr::Call(Call::new(obj, None, args))));
+                    stack.push(ExprOrOp::Expr(obj.call_expr(args)));
                 }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
@@ -934,7 +934,7 @@ impl Parser {
                         .try_reduce_expr(false, false, false, false)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
-                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
+                    let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -985,8 +985,7 @@ impl Parser {
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let ident = Identifier::new(None, VarName::new(symbol));
-                                let acc = Accessor::attr(obj, ident);
-                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                                stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
                         line_break if line_break.is(Newline) => {
@@ -1049,13 +1048,12 @@ impl Parser {
                                 let mut call = Expr::Call(Call::new(obj, Some(ident), args));
                                 while let Some(res) = self.opt_reduce_args(false) {
                                     let args = res.map_err(|_| self.stack_dec())?;
-                                    call = Expr::Call(Call::new(call, None, args));
+                                    call = call.call_expr(args);
                                 }
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
-                                let acc = Accessor::attr(obj, ident);
-                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                                stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
                         line_break if line_break.is(Newline) => {
@@ -1201,7 +1199,7 @@ impl Parser {
                         .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map_err(|_| self.stack_dec())?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
-                    let expr = Expr::TypeAsc(TypeAscription::new(lhs, op, t_spec));
+                    let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -1252,8 +1250,7 @@ impl Parser {
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
-                                let acc = Accessor::attr(obj, ident);
-                                stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
+                                stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
                         other => {
@@ -1353,10 +1350,10 @@ impl Parser {
                     Signature::Var(var) => {
                         let mut last = def.body.block.pop().unwrap();
                         for deco in decos.into_iter() {
-                            last = Expr::Call(Call::new(
-                                deco.into_expr(),
+                            last = deco.into_expr().call_expr(Args::new(
+                                vec![PosArg::new(last)],
+                                vec![],
                                 None,
-                                Args::new(vec![PosArg::new(last)], vec![], None),
                             ));
                         }
                         def.body.block.push(last);
@@ -1501,11 +1498,11 @@ impl Parser {
                     match token.kind {
                         Symbol => {
                             let ident = Identifier::new(Some(vis), VarName::new(token));
-                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                            obj = obj.attr_expr(ident);
                         }
                         NatLit => {
                             let index = Literal::from(token);
-                            obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                            obj = obj.tuple_attr_expr(index);
                         }
                         Newline => {
                             self.restore(token);
@@ -1527,8 +1524,7 @@ impl Parser {
                     token.content = Str::rc(&token.content[1..]);
                     token.kind = NatLit;
                     token.col_begin += 1;
-                    let index = Literal::from(token);
-                    obj = Expr::Accessor(Accessor::tuple_attr(obj, index));
+                    obj = obj.tuple_attr_expr(Literal::from(token));
                 }
                 Some(t) if t.is(DblColon) && obj.col_end() == t.col_begin() => {
                     let vis = self.lpop();
@@ -1536,7 +1532,7 @@ impl Parser {
                     match token.kind {
                         Symbol => {
                             let ident = Identifier::new(None, VarName::new(token));
-                            obj = Expr::Accessor(Accessor::attr(obj, ident));
+                            obj = obj.attr_expr(ident);
                         }
                         LBrace => {
                             self.restore(token);

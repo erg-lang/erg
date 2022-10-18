@@ -1836,6 +1836,33 @@ impl Expr {
     pub fn is_type_asc(&self) -> bool {
         matches!(self, Expr::TypeAsc(_))
     }
+
+    pub fn call(self, args: Args) -> Call {
+        match self {
+            Self::Accessor(Accessor::Attr(attr)) => Call::new(*attr.obj, Some(attr.ident), args),
+            other => Call::new(other, None, args),
+        }
+    }
+
+    pub fn call_expr(self, args: Args) -> Self {
+        Self::Call(self.call(args))
+    }
+
+    pub fn attr(self, ident: Identifier) -> Accessor {
+        Accessor::attr(self, ident)
+    }
+
+    pub fn attr_expr(self, ident: Identifier) -> Self {
+        Self::Accessor(self.attr(ident))
+    }
+
+    pub fn type_asc(self, t_spec: TypeSpec) -> TypeAscription {
+        TypeAscription::new(self, t_spec)
+    }
+
+    pub fn type_asc_expr(self, t_spec: TypeSpec) -> Self {
+        Self::TypeAsc(self.type_asc(t_spec))
+    }
 }
 
 /// Toplevel grammar unit
