@@ -139,4 +139,55 @@ impl Str {
             .map(|c| c.is_uppercase())
             .unwrap_or(false)
     }
+
+    pub fn split_with(&self, seps: &[&str]) -> Vec<&str> {
+        let mut ret = vec![];
+        let mut start = 0;
+        #[allow(unused_assignments)]
+        let mut end = 0;
+        let mut i = 0;
+        while i < self.len() {
+            let mut found = false;
+            for sep in seps {
+                if self[i..].starts_with(sep) {
+                    end = i;
+                    ret.push(&self[start..end]);
+                    start = i + sep.len();
+                    i = start;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                i += 1;
+            }
+        }
+        ret.push(&self[start..]);
+        ret
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_with() {
+        assert_eq!(
+            Str::ever("aa::bb.cc").split_with(&[".", "::"]),
+            vec!["aa", "bb", "cc"]
+        );
+        assert_eq!(
+            Str::ever("aa::bb.cc").split_with(&["::", "."]),
+            vec!["aa", "bb", "cc"]
+        );
+        assert_eq!(
+            Str::ever("aaxxbbyycc").split_with(&["xx", "yy"]),
+            vec!["aa", "bb", "cc"]
+        );
+        assert_ne!(
+            Str::ever("aaxxbbyycc").split_with(&["xx", "yy"]),
+            vec!["aa", "bb", "ff"]
+        );
+    }
 }

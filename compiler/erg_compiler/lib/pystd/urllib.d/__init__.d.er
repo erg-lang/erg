@@ -1,2 +1,2 @@
-.parse = pyimport "./parse"
-.request = pyimport "./request"
+.parse = pyimport "parse"
+.request = pyimport "request"

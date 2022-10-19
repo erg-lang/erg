@@ -1547,9 +1547,15 @@ impl Context {
                 if let Some((_, ctx)) = self.rec_get_mono_type(&typ.local_name()) {
                     return Some(ctx);
                 }
-                let path = name.split("::").next().unwrap_or(name);
-                let path = path.split('.').next().unwrap_or(path);
-                let path = self.resolve_path(Path::new(path));
+                // e.g. http.client.Response -> http.client
+                let mut namespaces = name.split_with(&[".", "::"]);
+                let type_name = namespaces.pop().unwrap(); // Response
+                let path = Path::new(namespaces.remove(0));
+                let mut path = self.resolve_path(path);
+                for p in namespaces.into_iter() {
+                    path = self.push_path(path, Path::new(p));
+                }
+                log!("{}", path.display());
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
@@ -1560,7 +1566,7 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_mono_type(&typ.local_name()) {
+                    if let Some((_, ctx)) = ctx.rec_get_mono_type(type_name) {
                         return Some(ctx);
                     }
                 }
@@ -1570,9 +1576,13 @@ impl Context {
                     return Some(ctx);
                 }
                 // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
-                let path = name.split("::").next().unwrap_or(name);
-                let path = path.split('.').next().unwrap_or(path);
-                let path = self.resolve_path(Path::new(path));
+                let mut namespaces = name.split_with(&[".", "::"]);
+                let type_name = namespaces.pop().unwrap(); // Response
+                let path = Path::new(namespaces.remove(0));
+                let mut path = self.resolve_path(path);
+                for p in namespaces.into_iter() {
+                    path = self.push_path(path, Path::new(p));
+                }
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()
@@ -1583,7 +1593,7 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_poly_type(&typ.local_name()) {
+                    if let Some((_, ctx)) = ctx.rec_get_poly_type(type_name) {
                         return Some(ctx);
                     }
                 }
@@ -1749,6 +1759,23 @@ impl Context {
             path
         } else {
             PathBuf::from(format!("<builtins>.{}", path.display()))
+        }
+    }
+
+    pub(crate) fn push_path(&self, mut path: PathBuf, add: &Path) -> PathBuf {
+        path.pop(); // __init__.d.er
+        if let Ok(path) = path.join(add).canonicalize() {
+            path
+        } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
+            path
+        } else if let Ok(path) = path
+            .join(format!("{}.d", add.display()))
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            path
+        } else {
+            todo!("{} {}", path.display(), add.display())
         }
     }
 

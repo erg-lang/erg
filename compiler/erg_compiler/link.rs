@@ -13,7 +13,7 @@ use erg_parser::token::{Token, TokenKind};
 use crate::ty::free::fresh_varname;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Type};
+use crate::ty::HasType;
 
 use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;
@@ -312,7 +312,7 @@ impl<'a> Linker<'a> {
             let tmp =
                 Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
             let mod_def = Expr::Def(Def::new(
-                Signature::Var(VarSignature::new(tmp.clone(), Type::Uninited)),
+                Signature::Var(VarSignature::new(tmp.clone())),
                 DefBody::new(Token::dummy(), block, DefId(0)),
             ));
             let module = Expr::Accessor(Accessor::Ident(tmp));

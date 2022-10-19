@@ -824,7 +824,20 @@ impl Context {
         expr: &ast::ConstExpr,
     ) -> SingleTyCheckResult<Type> {
         match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => Ok(mono(name.inspect())),
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
+                if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
+                    Ok(typ.clone())
+                } else {
+                    Err(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        name.loc(),
+                        self.caused_by(),
+                        name.inspect(),
+                        self.get_similar_name(name.inspect()),
+                    ))
+                }
+            }
             _ => todo!(),
         }
     }

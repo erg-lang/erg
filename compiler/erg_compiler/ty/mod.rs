@@ -1955,9 +1955,8 @@ impl Type {
     pub fn local_name(&self) -> Str {
         match self {
             Self::Mono(name) | Self::Poly { name, .. } => {
-                let name = name.split("::").last().unwrap_or(name);
-                let name = name.split('.').last().unwrap_or(name);
-                Str::rc(name)
+                let namespaces = name.split_with(&[".", "::"]);
+                Str::rc(namespaces.last().unwrap())
             }
             _ => self.qual_name(),
         }

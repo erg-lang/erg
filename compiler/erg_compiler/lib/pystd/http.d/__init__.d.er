@@ -1,1 +1,1 @@
-.client = pyimport "./client"
+.client = pyimport "client"

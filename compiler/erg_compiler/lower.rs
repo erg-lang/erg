@@ -932,8 +932,9 @@ impl ASTLowerer {
                     body.id,
                     None,
                 )?;
-                let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-                let sig = hir::VarSignature::new(ident, found_body_t.clone());
+                let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+                ident.vi.t = found_body_t.clone();
+                let sig = hir::VarSignature::new(ident);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
             }
@@ -1515,8 +1516,9 @@ impl ASTLowerer {
         };
         let id = body.id;
         self.ctx.assign_var_sig(&sig, found_body_t, id, py_name)?;
-        let ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-        let sig = hir::VarSignature::new(ident, found_body_t.clone());
+        let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+        ident.vi.t = found_body_t.clone();
+        let sig = hir::VarSignature::new(ident);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }

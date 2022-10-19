@@ -29,7 +29,6 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::Literal;
-use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
 use Mutability::*;
 use RegistrationMode::*;
@@ -1016,30 +1015,16 @@ impl Context {
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
         if kind.is_erg_import() {
-            self.import_erg_mod_using_cache(mod_name)
+            self.import_erg_mod(mod_name)
         } else {
             self.import_py_mod(mod_name)
         }
     }
 
-    fn import_erg_mod_using_cache(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
+    fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        #[allow(clippy::match_single_binding)]
-        match &__name__[..] {
-            // TODO: erg builtin modules
-            _ => self.import_erg_mod(__name__, mod_name, mod_cache, py_mod_cache),
-        }
-    }
-
-    fn import_erg_mod(
-        &self,
-        __name__: Str,
-        mod_name: &Literal,
-        mod_cache: &SharedModuleCache,
-        py_mod_cache: &SharedModuleCache,
-    ) -> CompileResult<PathBuf> {
         let path = match self.cfg.input.local_resolve(Path::new(&__name__[..])) {
             Ok(path) => path,
             Err(err) => {
@@ -1097,6 +1082,27 @@ impl Context {
         path == pystd_path
     }
 
+    /// e.g. http.d/client.d.er -> http.client
+    /// math.d.er -> math
+    fn mod_name(&self, path: &Path) -> Str {
+        let mut name = path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .trim_end_matches(".d.er")
+            .to_string();
+        for parent in path.components().rev().skip(1) {
+            let parent = parent.as_os_str().to_str().unwrap();
+            if parent.ends_with(".d") {
+                name = parent.trim_end_matches(".d").to_string() + "." + &name;
+            } else {
+                break;
+            }
+        }
+        Str::from(name)
+    }
+
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
@@ -1137,8 +1143,12 @@ impl Context {
         }
         let cfg = ErgConfig::with_module_path(path.clone());
         let src = cfg.input.read();
-        let mut builder =
-            HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
+        let mut builder = HIRBuilder::new_with_cache(
+            cfg,
+            self.mod_name(&path),
+            mod_cache.clone(),
+            py_mod_cache.clone(),
+        );
         match builder.build(src, "declare") {
             Ok(hir) => {
                 let ctx = builder.pop_mod_ctx();

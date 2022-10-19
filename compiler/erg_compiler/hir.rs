@@ -548,8 +548,8 @@ impl Accessor {
     pub fn local_name(&self) -> Option<&str> {
         match self {
             Self::Ident(ident) => ident.qual_name.as_ref().map(|s| {
-                let name = s.split("::").last().unwrap_or(&s[..]);
-                name.split('.').last().unwrap_or(name)
+                let mut seps = s.split_with(&[".", "::"]);
+                seps.remove(seps.len() - 1)
             }),
             _ => None,
         }
@@ -1200,22 +1200,39 @@ impl Locational for Block {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
-    pub t: Type,
 }
 
 impl NestedDisplay for VarSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}(: {})", self.ident, self.t)
+        write!(f, "{}", self.ident)
     }
 }
 
 impl_display_from_nested!(VarSignature);
 impl_locational!(VarSignature, ident);
-impl_t!(VarSignature);
+
+impl HasType for VarSignature {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        self.ident.ref_t()
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.ident.ref_mut_t()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        self.ident.signature_t()
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        self.ident.signature_mut_t()
+    }
+}
 
 impl VarSignature {
-    pub const fn new(ident: Identifier, t: Type) -> Self {
-        Self { ident, t }
+    pub const fn new(ident: Identifier) -> Self {
+        Self { ident }
     }
 
     pub fn inspect(&self) -> &Str {

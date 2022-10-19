@@ -795,8 +795,8 @@ impl Context {
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
                         hir::Signature::Var(var) => {
-                            var.t =
-                                self.deref_tyvar(mem::take(&mut var.t), Covariant, var.loc())?;
+                            *var.ref_mut_t() =
+                                self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
                             subr.t =
@@ -851,8 +851,8 @@ impl Context {
                 if !def.sig.ref_t().is_quantified() {
                     match &mut def.sig {
                         hir::Signature::Var(var) => {
-                            var.t =
-                                self.deref_tyvar(mem::take(&mut var.t), Covariant, var.loc())?;
+                            *var.ref_mut_t() =
+                                self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
                             subr.t =
