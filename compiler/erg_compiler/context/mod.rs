@@ -821,7 +821,7 @@ impl Context {
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if &self.path()[..] != "<builtins>" {
+        if self.kind != ContextKind::Module || &self.path()[..] != "<builtins>" {
             self.mod_cache
                 .as_ref()
                 .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())

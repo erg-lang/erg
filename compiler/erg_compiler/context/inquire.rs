@@ -1555,7 +1555,6 @@ impl Context {
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
-                log!("{}", path.display());
                 if let Some(ctx) = self
                     .mod_cache
                     .as_ref()

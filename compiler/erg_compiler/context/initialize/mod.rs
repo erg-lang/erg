@@ -1227,6 +1227,15 @@ impl Context {
         /* Bytes */
         let mut bytes = Self::builtin_mono_class("Bytes", 2);
         bytes.register_superclass(Obj, &obj);
+        let decode_t = pr_met(
+            mono("Bytes"),
+            vec![],
+            None,
+            vec![kw("encoding", Str), kw("errors", Str)],
+            Str,
+        );
+        bytes.register_builtin_impl("decode", decode_t, Immutable, Public);
+        /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class("GenericTuple", 1);
         generic_tuple.register_superclass(Obj, &obj);
         let mut tuple_eq =

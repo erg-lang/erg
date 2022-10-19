@@ -6,11 +6,12 @@ use std::process::Command;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
-pub const BUILTIN_PYTHON_MODS: [&str; 15] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 16] = [
     "glob",
     "http",
     "importlib",
     "io",
+    "json",
     "math",
     "os",
     "posix",
@@ -24,11 +25,12 @@ pub const BUILTIN_PYTHON_MODS: [&str; 15] = [
     "urllib",
 ];
 #[cfg(not(unix))]
-pub const BUILTIN_PYTHON_MODS: [&str; 14] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 15] = [
     "glob",
     "http",
     "importlib",
     "io",
+    "json",
     "math",
     "os",
     "random",

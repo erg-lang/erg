@@ -1,0 +1,2 @@
+.load: (fp: File!,) -> Obj
+.loads: (s: Str,) -> Obj
