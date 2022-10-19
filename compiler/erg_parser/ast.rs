@@ -164,10 +164,13 @@ impl_display_from_nested!(Args);
 impl Locational for Args {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.paren {
-            Location::concat(l, r)
-        } else {
-            // TODO: kw, var_args
-            Location::concat(&self.pos_args[0], self.pos_args.last().unwrap())
+            return Location::concat(l, r);
+        }
+        match (self.pos_args.first(), self.kw_args.last()) {
+            (Some(l), Some(r)) => Location::concat(l, r),
+            (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
+            (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
+            _ => unreachable!(),
         }
     }
 }
@@ -2686,7 +2689,6 @@ impl fmt::Display for Params {
 
 impl Locational for Params {
     fn loc(&self) -> Location {
-        // FIXME: varargs
         if let Some((l, r)) = &self.parens {
             Location::concat(l, r)
         } else if !self.non_defaults.is_empty() {

@@ -1,6 +1,14 @@
+_glob = pyimport "glob"
+_importlib = pyimport "importlib"
+_io = pyimport "io"
 math = pyimport "math"
-sys = pyimport "sys"
+_os = pyimport "os"
+_posix = pyimport "posix" # This will be an error on Non-Unix OSs
+_random = pyimport "random"
+_re = pyimport "re"
+_socket = pyimport "socket"
 sub = pyimport "subprocess"
+sys = pyimport "sys"
 urllib = pyimport "urllib"
 
 print! math.pi

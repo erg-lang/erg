@@ -68,11 +68,20 @@ impl TyVarInstContext {
         self_
     }
 
-    pub fn concat(self, other: Self) -> Self {
-        Self {
-            level: self.level.min(other.level), // REVIEW
-            tyvar_instances: self.tyvar_instances.concat(other.tyvar_instances),
-            typaram_instances: self.typaram_instances.concat(other.typaram_instances),
+    pub fn merge(&mut self, outer: &Self) {
+        for (name, ty) in outer.tyvar_instances.iter() {
+            if self.tyvar_instances.contains_key(name) {
+                continue;
+            } else {
+                self.tyvar_instances.insert(name.clone(), ty.clone());
+            }
+        }
+        for (name, ty) in outer.typaram_instances.iter() {
+            if self.typaram_instances.contains_key(name) {
+                continue;
+            } else {
+                self.typaram_instances.insert(name.clone(), ty.clone());
+            }
         }
     }
 
@@ -407,8 +416,10 @@ impl TyVarInstContext {
                 } else {
                     todo!()
                 }
+            } else if let TyParam::FreeVar(fv) = inst {
+                fv.link(&TyParam::t(tv.clone()));
             } else {
-                todo!()
+                todo!("{inst}")
             }
         }
         self.tyvar_instances.insert(name.clone(), tv.clone());
@@ -489,7 +500,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(s) = t_spec {
-            self.instantiate_typespec(s, None, None, mode)?
+            self.instantiate_typespec(s, None, None, mode, false)?
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
@@ -555,7 +566,7 @@ impl Context {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .map(|subr| ParamTy::anonymous(subr.return_t.as_ref().clone()));
-            self.instantiate_typespec(s, opt_decl_t.as_ref(), Some(&tv_ctx), mode)?
+            self.instantiate_typespec(s, opt_decl_t.as_ref(), Some(&tv_ctx), mode, false)?
         } else {
             // preregisterならouter scopeで型宣言(see inference.md)
             let level = if mode == PreRegister {
@@ -581,7 +592,7 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_ctx, mode)?
+            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_ctx, mode, false)?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
@@ -632,10 +643,11 @@ impl Context {
         predecl: &PreDeclTypeSpec,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
         match predecl {
             ast::PreDeclTypeSpec::Simple(simple) => {
-                self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_ctx)
+                self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_ctx, not_found_is_qvar)
             }
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
                 let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
@@ -662,6 +674,7 @@ impl Context {
         simple: &SimpleTypeSpec,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
         match &simple.ident.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
@@ -676,6 +689,10 @@ impl Context {
             "NotImplemented" => Ok(Type::NotImplemented),
             "Inf" => Ok(Type::Inf),
             "NegInf" => Ok(Type::NegInf),
+            "Never" => Ok(Type::Never),
+            "ClassType" => Ok(Type::ClassType),
+            "TraitType" => Ok(Type::TraitType),
+            "Type" => Ok(Type::Type),
             "Array" => {
                 // TODO: kw
                 let mut args = simple.args.pos_args();
@@ -687,6 +704,19 @@ impl Context {
                 } else {
                     Ok(mono("GenericArray"))
                 }
+            }
+            "Ref" => {
+                let mut args = simple.args.pos_args();
+                let first = args.next().unwrap();
+                let t = self.instantiate_const_expr_as_type(&first.expr)?;
+                Ok(ref_(t))
+            }
+            "RefMut" => {
+                // TODO after
+                let mut args = simple.args.pos_args();
+                let first = args.next().unwrap();
+                let t = self.instantiate_const_expr_as_type(&first.expr)?;
+                Ok(ref_mut(t, None))
             }
             other if simple.args.is_empty() => {
                 if let Some(tmp_tv_ctx) = tmp_tv_ctx {
@@ -702,7 +732,9 @@ impl Context {
                     }
                 }
                 if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_simple_t(simple, opt_decl_t, None) {
+                    if let Ok(t) =
+                        outer.instantiate_simple_t(simple, opt_decl_t, None, not_found_is_qvar)
+                    {
                         return Ok(t);
                     }
                 }
@@ -711,6 +743,8 @@ impl Context {
                 }
                 if let Some((typ, _)) = self.rec_get_type(other) {
                     Ok(typ.clone())
+                } else if not_found_is_qvar {
+                    Ok(mono_q(Str::rc(other)))
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_var_error(
                         self.cfg.input.clone(),
@@ -723,16 +757,32 @@ impl Context {
                 }
             }
             other => {
+                let ctx = if let Some((_, ctx)) = self.rec_get_type(other) {
+                    ctx
+                } else {
+                    return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.ident.loc(),
+                        self.caused_by(),
+                        other,
+                        self.get_similar_name(other),
+                    )));
+                };
                 // FIXME: kw args
                 let mut new_params = vec![];
-                for arg in simple.args.pos_args() {
+                for (i, arg) in simple.args.pos_args().enumerate() {
                     match &arg.expr {
                         ast::ConstExpr::Lit(lit) => {
                             new_params.push(TyParam::Value(self.eval_lit(lit)?));
                         }
                         ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                            if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
+                            if &name.inspect()[..] == "_" {
+                                new_params.push(TyParam::erased(ctx.params[i].1.t.clone()));
+                            } else if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
                                 new_params.push(TyParam::t(typ.clone()));
+                            } else if not_found_is_qvar {
+                                new_params.push(mono_q_tp(name.inspect().clone()));
                             } else {
                                 return Err(TyCheckErrors::from(TyCheckError::no_var_error(
                                     self.cfg.input.clone(),
@@ -787,12 +837,12 @@ impl Context {
         tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_ctx, mode)?;
+        let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_ctx, mode, false)?;
         if let Some(default_t) = default_t {
             Ok(ParamTy::kw_default(
                 p.name.as_ref().unwrap().inspect().to_owned(),
                 t,
-                self.instantiate_typespec(default_t, opt_decl_t, tmp_tv_ctx, mode)?,
+                self.instantiate_typespec(default_t, opt_decl_t, tmp_tv_ctx, mode, false)?,
             ))
         } else {
             Ok(ParamTy::pos(
@@ -808,25 +858,35 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_ctx: Option<&TyVarInstContext>,
         mode: RegistrationMode,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
         match spec {
-            TypeSpec::PreDeclTy(predecl) => {
-                Ok(self.instantiate_predecl_t(predecl, opt_decl_t, tmp_tv_ctx)?)
-            }
+            TypeSpec::PreDeclTy(predecl) => Ok(self.instantiate_predecl_t(
+                predecl,
+                opt_decl_t,
+                tmp_tv_ctx,
+                not_found_is_qvar,
+            )?),
             TypeSpec::And(lhs, rhs) => Ok(self.intersection(
-                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
-                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
+                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
             )),
             TypeSpec::Or(lhs, rhs) => Ok(self.union(
-                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
-                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
+                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
             )),
             TypeSpec::Not(lhs, rhs) => Ok(not(
-                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode)?,
+                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
+                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_ctx, mode, not_found_is_qvar)?,
             )),
             TypeSpec::Array(arr) => {
-                let elem_t = self.instantiate_typespec(&arr.ty, opt_decl_t, tmp_tv_ctx, mode)?;
+                let elem_t = self.instantiate_typespec(
+                    &arr.ty,
+                    opt_decl_t,
+                    tmp_tv_ctx,
+                    mode,
+                    not_found_is_qvar,
+                )?;
                 let mut len = self.instantiate_const_expr(&arr.len)?;
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
@@ -834,7 +894,13 @@ impl Context {
                 Ok(array_t(elem_t, len))
             }
             TypeSpec::Set(set) => {
-                let elem_t = self.instantiate_typespec(&set.ty, opt_decl_t, tmp_tv_ctx, mode)?;
+                let elem_t = self.instantiate_typespec(
+                    &set.ty,
+                    opt_decl_t,
+                    tmp_tv_ctx,
+                    mode,
+                    not_found_is_qvar,
+                )?;
                 let mut len = self.instantiate_const_expr(&set.len)?;
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
@@ -844,7 +910,13 @@ impl Context {
             TypeSpec::Tuple(tys) => {
                 let mut inst_tys = vec![];
                 for spec in tys {
-                    inst_tys.push(self.instantiate_typespec(spec, opt_decl_t, tmp_tv_ctx, mode)?);
+                    inst_tys.push(self.instantiate_typespec(
+                        spec,
+                        opt_decl_t,
+                        tmp_tv_ctx,
+                        mode,
+                        not_found_is_qvar,
+                    )?);
                 }
                 Ok(tuple_t(inst_tys))
             }
@@ -878,6 +950,20 @@ impl Context {
                 Ok(int_interval(op, l, r))
             }
             TypeSpec::Subr(subr) => {
+                let mut inner_tv_ctx = if !subr.bounds.is_empty() {
+                    let bounds = self.instantiate_ty_bounds(&subr.bounds, mode)?;
+                    Some(TyVarInstContext::new(self.level, bounds, self))
+                } else {
+                    None
+                };
+                if let (Some(inner), Some(outer)) = (&mut inner_tv_ctx, tmp_tv_ctx) {
+                    inner.merge(outer);
+                }
+                let tmp_tv_ctx = if let Some(inner) = &inner_tv_ctx {
+                    Some(inner)
+                } else {
+                    tmp_tv_ctx
+                };
                 let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
                     self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
                 })?;
@@ -899,8 +985,13 @@ impl Context {
                 })?
                 .into_iter()
                 .collect();
-                let return_t =
-                    self.instantiate_typespec(&subr.return_t, opt_decl_t, tmp_tv_ctx, mode)?;
+                let return_t = self.instantiate_typespec(
+                    &subr.return_t,
+                    opt_decl_t,
+                    tmp_tv_ctx,
+                    mode,
+                    not_found_is_qvar,
+                )?;
                 Ok(subr_t(
                     SubrKind::from(subr.arrow.kind),
                     non_defaults,
@@ -927,12 +1018,12 @@ impl Context {
                 let bound = match spec.op.kind {
                     TokenKind::SubtypeOf => TyBound::subtype_of(
                         mono_q(lhs.inspect().clone()),
-                        self.instantiate_typespec(&spec.t_spec, None, None, mode)?,
+                        self.instantiate_typespec(&spec.t_spec, None, None, mode, true)?,
                     ),
                     TokenKind::SupertypeOf => todo!(),
                     TokenKind::Colon => TyBound::instance(
                         lhs.inspect().clone(),
-                        self.instantiate_typespec(&spec.t_spec, None, None, mode)?,
+                        self.instantiate_typespec(&spec.t_spec, None, None, mode, true)?,
                     ),
                     _ => unreachable!(),
                 };

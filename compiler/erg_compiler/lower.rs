@@ -1048,6 +1048,7 @@ impl ASTLowerer {
                                 None,
                                 None,
                                 RegistrationMode::Normal,
+                                false,
                             )?,
                             tasc.t_spec.loc(),
                         ),
@@ -1059,13 +1060,19 @@ impl ASTLowerer {
                             None,
                             None,
                             RegistrationMode::Normal,
+                            false,
                         )?,
                         Some((impl_trait, loc)),
                     )
                 }
                 other => (
-                    self.ctx
-                        .instantiate_typespec(other, None, None, RegistrationMode::Normal)?,
+                    self.ctx.instantiate_typespec(
+                        other,
+                        None,
+                        None,
+                        RegistrationMode::Normal,
+                        false,
+                    )?,
                     None,
                 ),
             };
@@ -1406,9 +1413,13 @@ impl ASTLowerer {
 
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let t =
-            self.ctx
-                .instantiate_typespec(&tasc.t_spec, None, None, RegistrationMode::Normal)?;
+        let t = self.ctx.instantiate_typespec(
+            &tasc.t_spec,
+            None,
+            None,
+            RegistrationMode::Normal,
+            false,
+        )?;
         let expr = self.lower_expr(*tasc.expr)?;
         self.ctx.sub_unify(
             expr.ref_t(),
@@ -1556,6 +1567,7 @@ impl ASTLowerer {
                     None,
                     None,
                     RegistrationMode::Normal,
+                    false,
                 )?;
                 if ident.is_const() {
                     let vi = VarInfo::new(
@@ -1612,6 +1624,7 @@ impl ASTLowerer {
                     None,
                     None,
                     RegistrationMode::Normal,
+                    false,
                 )?;
                 let namespace = self.ctx.name.clone();
                 let ctx = self

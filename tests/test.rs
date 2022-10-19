@@ -70,7 +70,11 @@ fn exec_move_check() -> Result<(), ()> {
 
 #[test]
 fn exec_pyimport() -> Result<(), ()> {
-    expect_end_with("examples/pyimport.er", 111)
+    if cfg!(unix) {
+        expect_end_with("examples/pyimport.er", 111)
+    } else {
+        expect_failure("examples/pyimport.er", 1)
+    }
 }
 
 #[test]

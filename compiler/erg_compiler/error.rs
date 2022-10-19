@@ -1532,6 +1532,22 @@ impl LowerError {
         )
     }
 
+    pub fn module_env_error(
+        input: Input,
+        errno: usize,
+        mod_name: &str,
+        loc: Location,
+        caused_by: AtomicStr,
+    ) -> Self {
+        let desc = switch_lang!(
+            "japanese" => format!("{mod_name}モジュールはお使いの環境をサポートしていません"),
+            "simplified_chinese" => format!("{mod_name}模块不支持您的环境"),
+            "traditional_chinese" => format!("{mod_name}模塊不支持您的環境"),
+            "english" => format!("module {mod_name} is not supported in your environment"),
+        );
+        Self::file_error(input, errno, desc, loc, caused_by, None)
+    }
+
     pub fn import_error(
         input: Input,
         errno: usize,

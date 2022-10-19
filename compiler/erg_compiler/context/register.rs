@@ -2,6 +2,7 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -563,7 +564,8 @@ impl Context {
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
-                        let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
+                        let spec_t =
+                            self.instantiate_typespec(spec, None, None, PreRegister, false)?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                     }
                     self.pop();
@@ -581,7 +583,7 @@ impl Context {
                     }
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
-                    let spec_t = self.instantiate_typespec(spec, None, None, PreRegister)?;
+                    let spec_t = self.instantiate_typespec(spec, None, None, PreRegister, false)?;
                     self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
                 self.pop();
@@ -1016,7 +1018,7 @@ impl Context {
         if kind.is_erg_import() {
             self.import_erg_mod_using_cache(mod_name)
         } else {
-            self.import_py_mod_using_cache(mod_name)
+            self.import_py_mod(mod_name)
         }
     }
 
@@ -1079,29 +1081,20 @@ impl Context {
         Ok(path)
     }
 
-    fn import_py_mod_using_cache(&mut self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
-        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let builtin_path = PathBuf::from(&format!("<builtins>.{__name__}"));
-        if py_mod_cache.get(&builtin_path).is_some() {
-            return Ok(builtin_path);
-        }
-        // TODO: rewrite all as `d.er`
-        match &__name__[..] {
-            "os" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_os_mod());
-                Ok(builtin_path)
-            }
-            "sys" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_sys_mod());
-                Ok(builtin_path)
-            }
-            _ => self.import_py_mod(mod_name),
-        }
-    }
-
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
         get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
+    }
+
+    fn is_pystd_main_module(&self, path: &Path) -> bool {
+        let mut path = PathBuf::from(path);
+        if path.ends_with("__init__.d.er") {
+            path.pop();
+            path.pop();
+        } else {
+            path.pop();
+        }
+        let pystd_path = erg_pystd_path();
+        path == pystd_path
     }
 
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
@@ -1110,7 +1103,21 @@ impl Context {
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
         let path = self.resolve_path(Path::new(&__name__[..]));
         let path = match path.canonicalize() {
-            Ok(path) => path,
+            Ok(path) => {
+                if self.is_pystd_main_module(path.as_path())
+                    && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
+                {
+                    let err = TyCheckError::module_env_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &__name__,
+                        mod_name.loc(),
+                        self.caused_by(),
+                    );
+                    return Err(TyCheckErrors::from(err));
+                }
+                path
+            }
             Err(err) => {
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
@@ -1182,7 +1189,7 @@ impl Context {
         call: &mut hir::Call,
     ) -> TyCheckResult<()> {
         let cast_to =
-            self.instantiate_typespec(&type_spec, None, None, RegistrationMode::Normal)?;
+            self.instantiate_typespec(&type_spec, None, None, RegistrationMode::Normal, false)?;
         let lhs = enum_unwrap!(
             call.args.get_mut_left_or_key("pred").unwrap(),
             hir::Expr::BinOp

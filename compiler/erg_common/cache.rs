@@ -2,7 +2,9 @@ use std::borrow::{Borrow, ToOwned};
 use std::cell::RefCell;
 use std::hash::Hash;
 use std::rc::Rc;
+use std::thread::LocalKey;
 
+use crate::dict::Dict;
 use crate::set::Set;
 use crate::{RcArray, Str};
 
@@ -70,4 +72,6 @@ impl<T: Hash + Eq> CacheSet<T> {
     }
 }
 
-pub struct CacheDict<T: ?Sized>(RefCell<Set<Rc<T>>>);
+pub struct CacheDict<K, V: ?Sized>(RefCell<Dict<K, Rc<V>>>);
+
+pub struct GlobalCacheDict<K: 'static, V: ?Sized + 'static>(LocalKey<RefCell<CacheDict<K, V>>>);

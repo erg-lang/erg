@@ -1097,11 +1097,19 @@ impl Parser {
                     stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                 }
                 Some(t) if t.is(Comma) && winding => {
-                    let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let first_elem = PosOrKwArg::Pos(PosArg::new(
+                        enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
+                    ));
                     let tup = self
                         .try_reduce_tuple(first_elem, false)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                Some(t) if t.is(Walrus) && winding => {
+                    let tuple = self
+                        .try_reduce_default_parameters(&mut stack, in_brace)
+                        .map_err(|_| self.stack_dec())?;
+                    stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
@@ -1263,11 +1271,19 @@ impl Parser {
                     }
                 }
                 Some(t) if t.is(Comma) && winding => {
-                    let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    let first_elem = PosOrKwArg::Pos(PosArg::new(
+                        enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
+                    ));
                     let tup = self
                         .try_reduce_tuple(first_elem, line_break)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
+                }
+                Some(t) if t.is(Walrus) && winding => {
+                    let tuple = self
+                        .try_reduce_default_parameters(&mut stack, in_brace)
+                        .map_err(|_| self.stack_dec())?;
+                    stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
@@ -1316,6 +1332,48 @@ impl Parser {
             }
             _ => switch_unreachable!(),
         }
+    }
+
+    #[inline]
+    fn try_reduce_default_parameters(
+        &mut self,
+        stack: &mut Vec<ExprOrOp>,
+        in_brace: bool,
+    ) -> ParseResult<Tuple> {
+        debug_call_info!(self);
+        let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+        let (keyword, t_spec) = match first_elem {
+            Expr::Accessor(Accessor::Ident(ident)) => (ident.name.into_token(), None),
+            Expr::TypeAsc(tasc) => {
+                if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
+                    (
+                        ident.name.into_token(),
+                        Some(TypeSpecWithOp::new(tasc.op, tasc.t_spec)),
+                    )
+                } else {
+                    self.level -= 1;
+                    let err = ParseError::simple_syntax_error(line!() as usize, tasc.loc());
+                    self.errs.push(err);
+                    return Err(());
+                }
+            }
+            other => {
+                self.level -= 1;
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                self.errs.push(err);
+                return Err(());
+            }
+        };
+        self.skip(); // :=
+        let rhs = self
+            .try_reduce_expr(false, false, in_brace, false)
+            .map_err(|_| self.stack_dec())?;
+        let first_elem = PosOrKwArg::Kw(KwArg::new(keyword, t_spec, rhs));
+        let tuple = self
+            .try_reduce_tuple(first_elem, false)
+            .map_err(|_| self.stack_dec())?;
+        self.level -= 1;
+        Ok(tuple)
     }
 
     /// "LHS" is the smallest unit that can be the left-hand side of an BinOp.
@@ -1431,6 +1489,30 @@ impl Parser {
                         Ok(Expr::Set(set))
                     }
                 }
+            }
+            Some(t) if t.is(VBar) => {
+                let type_args = self
+                    .try_reduce_type_app_args()
+                    .map_err(|_| self.stack_dec())?;
+                let bounds = self
+                    .convert_type_args_to_bounds(type_args)
+                    .map_err(|_| self.stack_dec())?;
+                let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                let params = self
+                    .convert_args_to_params(args)
+                    .map_err(|_| self.stack_dec())?;
+                if !self.cur_category_is(TC::LambdaOp) {
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
+                let sig = LambdaSignature::new(params, None, bounds);
+                let op = self.lpop();
+                let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                self.counter.inc();
+                self.level -= 1;
+                let lambda = Lambda::new(sig, op, block, self.counter);
+                Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
@@ -1989,9 +2071,12 @@ impl Parser {
         Err(())
     }
 
-    fn try_reduce_tuple(&mut self, first_elem: Expr, line_break: bool) -> ParseResult<Tuple> {
+    fn try_reduce_tuple(&mut self, first_elem: PosOrKwArg, line_break: bool) -> ParseResult<Tuple> {
         debug_call_info!(self);
-        let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
+        let mut args = match first_elem {
+            PosOrKwArg::Pos(pos) => Args::new(vec![pos], vec![], None),
+            PosOrKwArg::Kw(kw) => Args::new(vec![], vec![kw], None),
+        };
         loop {
             match self.peek() {
                 Some(t) if t.is(Comma) => {

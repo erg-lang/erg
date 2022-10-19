@@ -2,7 +2,6 @@
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
 pub mod const_func;
-pub mod py_mods;
 
 use std::path::PathBuf;
 
