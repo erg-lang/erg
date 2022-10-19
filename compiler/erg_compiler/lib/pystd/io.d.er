@@ -1,0 +1,2 @@
+.StringIO!: ClassType
+.StringIO!.getvalue!: (self: Ref(StringIO!),) => Str

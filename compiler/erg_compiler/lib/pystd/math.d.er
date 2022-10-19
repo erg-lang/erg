@@ -1,0 +1,24 @@
+.pi: Float
+.tau: Float
+.e: Float
+.sin: Float -> Float
+.cos: Float -> Float
+.tan: Float -> Float
+.asin: Float -> Float
+.acos: Float -> Float
+.atan: Float -> Float
+.sinh: Float -> Float
+.cosh: Float -> Float
+.tanh: Float -> Float
+.asinh: Float -> Float
+.acosh: Float -> Float
+.atanh: Float -> Float
+.sqrt: Float -> Float
+.exp: Float -> Float
+.log: Float -> Float
+.log2: Float -> Float
+.log10: Float -> Float
+.floor: Float -> Int
+.ceil: Float -> Int
+.trunc: Float -> Int
+.fabs: Float -> Float

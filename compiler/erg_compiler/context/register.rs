@@ -1088,28 +1088,8 @@ impl Context {
         }
         // TODO: rewrite all as `d.er`
         match &__name__[..] {
-            "glob" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_glob_mod());
-                Ok(builtin_path)
-            }
-            "importlib" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_importlib_mod());
-                Ok(builtin_path)
-            }
-            "io" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_io_mod());
-                Ok(builtin_path)
-            }
-            "math" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_math_mod());
-                Ok(builtin_path)
-            }
             "os" => {
                 py_mod_cache.register(builtin_path.clone(), None, Self::init_py_os_mod());
-                Ok(builtin_path)
-            }
-            "socket" => {
-                py_mod_cache.register(builtin_path.clone(), None, Self::init_py_socket_mod());
                 Ok(builtin_path)
             }
             "sys" => {
