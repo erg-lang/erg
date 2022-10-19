@@ -410,6 +410,12 @@ impl Context {
             set! { subtypeof(mono_q("Self"), mono("Writable!")) },
         );
         writable.register_builtin_py_decl("write!", t_write, Public, Some("write"));
+        // TODO: Add required methods
+        let mut filelike = Self::builtin_mono_trait("FileLike", 2);
+        filelike.register_superclass(mono("Readable"), &readable);
+        let mut filelike_mut = Self::builtin_mono_trait("FileLike!", 2);
+        filelike_mut.register_superclass(mono("FileLike"), &filelike);
+        filelike_mut.register_superclass(mono("Writable!"), &writable);
         /* Show */
         let mut show = Self::builtin_mono_trait("Show", 2);
         let t_show = fn0_met(ref_(mono_q("Self")), Str);
@@ -568,6 +574,8 @@ impl Context {
             Const,
             Some("Writable"),
         );
+        self.register_builtin_type(mono("FileLike"), filelike, Private, Const, None);
+        self.register_builtin_type(mono("FileLike!"), filelike_mut, Private, Const, None);
         self.register_builtin_type(mono("Show"), show, Private, Const, None);
         self.register_builtin_type(
             poly("Input", vec![ty_tp(mono_q("T"))]),
@@ -1385,6 +1393,8 @@ impl Context {
             Some("write"),
         );
         file_mut.register_trait(mono("File!"), file_mut_writable);
+        file_mut.register_marker_trait(mono("FileLike"));
+        file_mut.register_marker_trait(mono("FileLike!"));
         /* Array_mut */
         let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
         let mut array_mut_ = Self::builtin_poly_class(

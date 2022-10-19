@@ -1413,6 +1413,7 @@ impl ASTLowerer {
 
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
+        let is_instance_ascription = tasc.is_instance_ascription();
         let t = self.ctx.instantiate_typespec(
             &tasc.t_spec,
             None,
@@ -1420,13 +1421,33 @@ impl ASTLowerer {
             RegistrationMode::Normal,
             false,
         )?;
+        let loc = tasc.loc();
         let expr = self.lower_expr(*tasc.expr)?;
-        self.ctx.sub_unify(
-            expr.ref_t(),
-            &t,
-            expr.loc(),
-            Some(&Str::from(expr.to_string())),
-        )?;
+        if is_instance_ascription {
+            self.ctx.sub_unify(
+                expr.ref_t(),
+                &t,
+                expr.loc(),
+                Some(&Str::from(expr.to_string())),
+            )?;
+        } else {
+            let ctx = self
+                .ctx
+                .get_singular_ctx_by_hir_expr(&expr, &self.ctx.name)?;
+            // REVIEW: need to use subtype_of?
+            if ctx.super_traits.iter().all(|trait_| trait_ != &t)
+                && ctx.super_classes.iter().all(|class| class != &t)
+            {
+                return Err(LowerErrors::from(LowerError::subtyping_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    expr.ref_t(), // FIXME:
+                    &t,
+                    loc,
+                    self.ctx.caused_by(),
+                )));
+            }
+        }
         Ok(expr.type_asc(tasc.t_spec))
     }
 
@@ -1559,6 +1580,7 @@ impl ASTLowerer {
 
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
+        let is_instance_ascription = tasc.is_instance_ascription();
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
@@ -1569,46 +1591,10 @@ impl ASTLowerer {
                     RegistrationMode::Normal,
                     false,
                 )?;
-                if ident.is_const() {
-                    let vi = VarInfo::new(
-                        t.clone(),
-                        Mutability::Const,
-                        ident.vis(),
-                        VarKind::Declared,
-                        None,
-                        None,
-                        Some(py_name.clone()),
-                    );
-                    self.ctx.decls.insert(ident.name.clone(), vi);
-                }
-                self.ctx.assign_var_sig(
-                    &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
-                    &t,
-                    ast::DefId(0),
-                    Some(py_name),
-                )?;
-                match t {
-                    Type::ClassType => {
-                        let ty_obj = GenTypeObj::new(
-                            TypeKind::Class,
-                            mono(format!("{}{ident}", self.ctx.path())),
-                            TypeObj::Builtin(Type::Uninited),
-                            None,
-                            None,
-                        );
-                        self.ctx.register_gen_type(&ident, ty_obj);
-                    }
-                    Type::TraitType => {
-                        let ty_obj = GenTypeObj::new(
-                            TypeKind::Trait,
-                            mono(format!("{}{ident}", self.ctx.path())),
-                            TypeObj::Builtin(Type::Uninited),
-                            None,
-                            None,
-                        );
-                        self.ctx.register_gen_type(&ident, ty_obj);
-                    }
-                    _ => {}
+                if is_instance_ascription {
+                    self.declare_instance(&ident, &t, py_name)?;
+                } else {
+                    self.declare_subtype(&ident, &t)?;
                 }
                 let muty = Mutability::from(&ident.inspect()[..]);
                 let vis = ident.vis();
@@ -1651,6 +1637,72 @@ impl ASTLowerer {
                 other.loc(),
                 self.ctx.caused_by(),
             ))),
+        }
+    }
+
+    fn declare_instance(
+        &mut self,
+        ident: &ast::Identifier,
+        t: &Type,
+        py_name: Str,
+    ) -> LowerResult<()> {
+        if ident.is_const() {
+            let vi = VarInfo::new(
+                t.clone(),
+                Mutability::Const,
+                ident.vis(),
+                VarKind::Declared,
+                None,
+                None,
+                Some(py_name.clone()),
+            );
+            self.ctx.decls.insert(ident.name.clone(), vi);
+        }
+        self.ctx.assign_var_sig(
+            &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
+            t,
+            ast::DefId(0),
+            Some(py_name),
+        )?;
+        match t {
+            Type::ClassType => {
+                let ty_obj = GenTypeObj::new(
+                    TypeKind::Class,
+                    mono(format!("{}{ident}", self.ctx.path())),
+                    TypeObj::Builtin(Type::Uninited),
+                    None,
+                    None,
+                );
+                self.ctx.register_gen_type(ident, ty_obj);
+            }
+            Type::TraitType => {
+                let ty_obj = GenTypeObj::new(
+                    TypeKind::Trait,
+                    mono(format!("{}{ident}", self.ctx.path())),
+                    TypeObj::Builtin(Type::Uninited),
+                    None,
+                    None,
+                );
+                self.ctx.register_gen_type(ident, ty_obj);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn declare_subtype(&mut self, ident: &ast::Identifier, trait_: &Type) -> LowerResult<()> {
+        if let Some((_, ctx)) = self.ctx.get_mut_type(ident.inspect()) {
+            ctx.register_marker_trait(trait_.clone());
+            Ok(())
+        } else {
+            Err(LowerErrors::from(LowerError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.ctx.caused_by(),
+                ident.inspect(),
+                self.ctx.get_similar_name(ident.inspect()),
+            )))
         }
     }
 

@@ -3011,6 +3011,14 @@ impl TypeAscription {
             t_spec,
         }
     }
+
+    pub fn is_instance_ascription(&self) -> bool {
+        self.op.is(TokenKind::Colon)
+    }
+
+    pub fn is_subtype_ascription(&self) -> bool {
+        self.op.is(TokenKind::SubtypeOf)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

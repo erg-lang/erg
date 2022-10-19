@@ -1,4 +1,6 @@
 .TarFile!: ClassType
+.TarFile! <: FileLike
+.TarFile! <: FileLike!
 .TarFile!.open!: (path: PathLike or NoneType := NoneType, mode := Str) => .TarFile!
 .TarFile!.add!: (self: RefMut(.TarFile!), name: PathLike, arcname: PathLike or NoneType := NoneType, recursive := Bool) => NoneType
 .TarFile!.close!: (self: .TarFile!,) => NoneType
@@ -6,5 +8,5 @@
 .TarFile!.getnames: (self: Ref(.TarFile!),) -> [Str; _]
 .TarFile!.list: (self: Ref(.TarFile!), verbose := Bool) -> [Str; _]
 
-.open!: (path: PathLike or NoneType := NoneType, mode := Str) => .TarFile!
+.open!: (path: PathLike or NoneType := NoneType, mode := Str, fileobj: FileLike or NoneType := NoneType) => .TarFile!
 .is_tarfile: (name: Str or File!,) -> Bool

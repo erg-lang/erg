@@ -1870,7 +1870,7 @@ impl Context {
         }
     }
 
-    fn get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
+    pub(crate) fn get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
