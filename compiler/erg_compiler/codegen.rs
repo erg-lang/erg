@@ -951,6 +951,11 @@ impl CodeGenerator {
             }
             TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
             TokenKind::InOp => {
+                // if no-std, always `x in y == True`
+                if self.cfg.no_std {
+                    self.emit_load_const(true);
+                    return;
+                }
                 if !self.in_op_loaded {
                     self.emit_global_import_items(
                         Identifier::public("_erg_std_prelude"),
