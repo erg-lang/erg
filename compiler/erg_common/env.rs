@@ -1,7 +1,8 @@
+use std::env::var;
 use std::path::PathBuf;
 
 fn _erg_path() -> PathBuf {
-    let path = option_env!("ERG_PATH").unwrap_or(env!("CARGO_ERG_PATH"));
+    let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
     PathBuf::from(path).canonicalize().unwrap()
 }
 fn _erg_std_path() -> PathBuf {
