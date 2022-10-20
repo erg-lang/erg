@@ -1,5 +1,6 @@
+.path = pyimport "path"
+
 .name: Str
-.path: GenericModule
 
 .chdir!: (path: PathLike, ) => NoneType
 .getcwd!: () => Str
