@@ -125,6 +125,7 @@ pub struct CodeGenerator {
     cfg: ErgConfig,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
+    in_op_loaded: bool,
     record_type_loaded: bool,
     module_type_loaded: bool,
     abc_loaded: bool,
@@ -138,6 +139,7 @@ impl CodeGenerator {
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,
+            in_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
             abc_loaded: false,
@@ -244,10 +246,12 @@ impl CodeGenerator {
         let value = cons.into();
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
-        if is_bool {
-            self.emit_load_name_instr(Identifier::public("Bool"));
-        } else if is_nat {
-            self.emit_load_name_instr(Identifier::public("Nat"));
+        if !self.cfg.no_std {
+            if is_bool {
+                self.emit_load_name_instr(Identifier::public("Bool"));
+            } else if is_nat {
+                self.emit_load_name_instr(Identifier::public("Nat"));
+            }
         }
         let idx = self
             .mut_cur_block_codeobj()
@@ -261,7 +265,7 @@ impl CodeGenerator {
         self.write_instr(Opcode::LOAD_CONST);
         self.write_arg(idx as u8);
         self.stack_inc();
-        if is_nat {
+        if !self.cfg.no_std && is_nat {
             self.write_instr(Opcode::CALL_FUNCTION);
             self.write_arg(1);
             self.stack_dec();
@@ -947,6 +951,17 @@ impl CodeGenerator {
             }
             TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
             TokenKind::InOp => {
+                if !self.in_op_loaded {
+                    self.emit_global_import_items(
+                        Identifier::public("_erg_std_prelude"),
+                        vec![(
+                            Identifier::public("in_operator"),
+                            Some(Identifier::private("#in_operator")),
+                        )],
+                    );
+                    self.in_op_loaded = true;
+                    // self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
+                }
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
             }
             _ => {}
@@ -1906,14 +1921,6 @@ impl CodeGenerator {
         self.write_arg(1u8);
         self.stack_dec();
         self.emit_pop_top();
-        // escaping
-        self.emit_global_import_items(
-            Identifier::public("_erg_std_prelude"),
-            vec![(
-                Identifier::public("in_operator"),
-                Some(Identifier::private("#in_operator")),
-            )],
-        );
         self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
     }
 
@@ -1963,7 +1970,7 @@ impl CodeGenerator {
             "<module>",
             1,
         ));
-        if !self.prelude_loaded {
+        if !self.cfg.no_std {
             self.load_prelude();
             self.prelude_loaded = true;
         }
