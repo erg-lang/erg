@@ -6,8 +6,8 @@ use std::path::Path;
 
 use erg_common::impl_display_from_debug;
 use erg_common::opcode::CommonOpcode;
-use erg_common::opcode38::Opcode38;
 use erg_common::opcode310::Opcode310;
+use erg_common::opcode38::Opcode38;
 use erg_common::python_util::{detect_magic_number, python_version, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;

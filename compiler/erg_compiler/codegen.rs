@@ -12,7 +12,7 @@ use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode310::Opcode310;
-use erg_common::opcode38::Opcode38 as Opcode38;
+use erg_common::opcode38::Opcode38;
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
