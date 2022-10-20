@@ -9,9 +9,11 @@ use crate::impl_display_from_debug;
 
 /// Based on Python opcodes.
 /// This is represented by u8.
+///
+/// TODO: implement all opcodes
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Ord, Eq)]
 #[repr(u8)]
-pub enum CommonOpcode {
+pub enum Opcode310 {
     POP_TOP = 1,
     ROT_TWO = 2,
     ROT_THREE = 3,
@@ -35,6 +37,20 @@ pub enum CommonOpcode {
     BINARY_TRUE_DIVIDE = 27,
     INPLACE_FLOOR_DIVIDE = 28,
     INPLACE_TRUE_DIVIDE = 29,
+    GET_LEN = 30,
+    MATCH_MAPPING = 31,
+    MATCH_SEQUENCE = 32,
+    MATCH_KEYS = 33,
+    PUSH_EXC_INFO = 35,
+    CHECK_EXC_MATCH = 36,
+    CHECK_EG_MATCH = 37,
+    WITH_EXCEPT_START = 49,
+    GET_AITER = 50,
+    GET_ANEXT = 51,
+    BEFORE_ASYNC_WITH = 52,
+    BEFORE_WITH = 53,
+    END_ASYNC_FOR = 54,
+    // TODO:
     INPLACE_ADD = 55,
     INPLACE_SUBTRACT = 56,
     INPLACE_MULTIPLY = 57,
@@ -47,14 +63,18 @@ pub enum CommonOpcode {
     GET_YIELD_FROM_ITER = 69,
     PRINT_EXPR = 70,
     LOAD_BUILD_CLASS = 71,
+    LOAD_ASSERTION_ERROR = 74,
+    LIST_TO_TUPLE = 82,
     RETURN_VALUE = 83,
     IMPORT_STAR = 84,
+    SETUP_ANNOTATIONS = 85,
     YIELD_VALUE = 86,
     POP_BLOCK = 87,
     POP_EXCEPT = 89,
     /* ↓ These opcodes take an arg */
     STORE_NAME = 90,
     DELETE_NAME = 91,
+    UNPACK_SEQUENCE = 92,
     FOR_ITER = 93,
     UNPACK_EX = 94,
     STORE_ATTR = 95,
@@ -76,6 +96,9 @@ pub enum CommonOpcode {
     POP_JUMP_IF_FALSE = 114,
     POP_JUMP_IF_TRUE = 115,
     LOAD_GLOBAL = 116,
+    IS_OP = 117,
+    CONTAINS_OP = 118,
+    RERAISE = 119,
     LOAD_FAST = 124,
     STORE_FAST = 125,
     DELETE_FAST = 126,
@@ -87,16 +110,64 @@ pub enum CommonOpcode {
     STORE_DEREF = 137,
     CALL_FUNCTION_KW = 141,
     CALL_FUNCTION_EX = 142,
+    SETUP_WITH = 143,
     LOAD_METHOD = 160,
     CALL_METHOD = 161,
+    LIST_EXTEND = 162,
+    // Erg-specific opcodes (must have a unary `ERG_`)
+    // Define in descending order from 219, 255
+    ERG_POP_NTH = 196,
+    ERG_PEEK_NTH = 197, // get ref to the arg-th element from TOS
+    ERG_INC = 198,      // name += 1; arg: typecode
+    ERG_DEC = 199,      // name -= 1
+    ERG_LOAD_FAST_IMMUT = 200,
+    ERG_STORE_FAST_IMMUT = 201,
+    ERG_MOVE_FAST = 202,
+    ERG_CLONE_FAST = 203,
+    ERG_COPY_FAST = 204,
+    ERG_REF_FAST = 205,
+    ERG_REF_MUT_FAST = 206,
+    ERG_MOVE_OUTER = 207,
+    ERG_CLONE_OUTER = 208,
+    ERG_COPY_OUTER = 209,
+    ERG_REF_OUTER = 210,
+    ERG_REF_MUT_OUTER = 211,
+    ERG_LESS_THAN = 212,
+    ERG_LESS_EQUAL = 213,
+    ERG_EQUAL = 214,
+    ERG_NOT_EQUAL = 215,
+    ERG_MAKE_SLOT = 216,
+    ERG_MAKE_TYPE = 217,
+    ERG_MAKE_PURE_FUNCTION = 218,
+    ERG_CALL_PURE_FUNCTION = 219,
+    /* ↑ These opcodes take an arg ↑ */
+    /* ↓ These opcodes take no arg ↓ */
+    // ... = 220,
+    ERG_LOAD_EMPTY_SLOT = 242,
+    ERG_LOAD_EMPTY_STR = 243,
+    ERG_LOAD_1_NAT = 244,
+    ERG_LOAD_1_INT = 245,
+    ERG_LOAD_1_REAL = 246,
+    ERG_LOAD_NONE = 247,
+    ERG_MUTATE = 248, // !x
+    /// `[] =` (it doesn't cause any exceptions)
+    ERG_STORE_SUBSCR = 249,
+    // ... = 250,
+    /// `= []` (it doesn't cause any exceptions)
+    ERG_BINARY_SUBSCR = 251,
+    ERG_BINARY_RANGE = 252,
+    /// `/?` (rhs may be 0, it may cause a runtime panic)
+    ERG_TRY_BINARY_DIVIDE = 253,
+    /// `/` (rhs could not be 0, it doesn't cause any exceptions)
+    ERG_BINARY_TRUE_DIVIDE = 254,
     NOT_IMPLEMENTED = 255,
 }
 
-use CommonOpcode::*;
+use Opcode310::*;
 
-impl_display_from_debug!(CommonOpcode);
+impl_display_from_debug!(Opcode310);
 
-impl From<u8> for CommonOpcode {
+impl From<u8> for Opcode310 {
     fn from(byte: u8) -> Self {
         match byte {
             1 => POP_TOP,
@@ -120,6 +191,19 @@ impl From<u8> for CommonOpcode {
             27 => BINARY_TRUE_DIVIDE,
             28 => INPLACE_FLOOR_DIVIDE,
             29 => INPLACE_TRUE_DIVIDE,
+            30 => GET_LEN,
+            31 => MATCH_MAPPING,
+            32 => MATCH_SEQUENCE,
+            33 => MATCH_KEYS,
+            35 => PUSH_EXC_INFO,
+            36 => CHECK_EXC_MATCH,
+            37 => CHECK_EG_MATCH,
+            49 => WITH_EXCEPT_START,
+            50 => GET_AITER,
+            51 => GET_ANEXT,
+            52 => BEFORE_ASYNC_WITH,
+            53 => BEFORE_WITH,
+            54 => END_ASYNC_FOR,
             55 => INPLACE_ADD,
             56 => INPLACE_SUBTRACT,
             57 => INPLACE_MULTIPLY,
@@ -132,14 +216,18 @@ impl From<u8> for CommonOpcode {
             69 => GET_YIELD_FROM_ITER,
             70 => PRINT_EXPR,
             71 => LOAD_BUILD_CLASS,
+            74 => LOAD_ASSERTION_ERROR,
+            82 => LIST_TO_TUPLE,
             83 => RETURN_VALUE,
             84 => IMPORT_STAR,
+            85 => SETUP_ANNOTATIONS,
             86 => YIELD_VALUE,
             87 => POP_BLOCK,
             89 => POP_EXCEPT,
             /* ↓ These opcodes take an arg */
             90 => STORE_NAME,
             91 => DELETE_NAME,
+            92 => UNPACK_SEQUENCE,
             93 => FOR_ITER,
             94 => UNPACK_EX,
             95 => STORE_ATTR,
@@ -161,6 +249,9 @@ impl From<u8> for CommonOpcode {
             114 => POP_JUMP_IF_FALSE,
             115 => POP_JUMP_IF_TRUE,
             116 => LOAD_GLOBAL,
+            117 => IS_OP,
+            118 => CONTAINS_OP,
+            119 => RERAISE,
             124 => LOAD_FAST,
             125 => STORE_FAST,
             126 => DELETE_FAST,
@@ -172,21 +263,65 @@ impl From<u8> for CommonOpcode {
             137 => STORE_DEREF,
             141 => CALL_FUNCTION_KW,
             142 => CALL_FUNCTION_EX,
+            143 => SETUP_WITH,
             160 => LOAD_METHOD,
             161 => CALL_METHOD,
+            162 => LIST_EXTEND,
+            // Erg-specific opcodes
+            196 => ERG_POP_NTH,
+            197 => ERG_PEEK_NTH,
+            198 => ERG_INC,
+            199 => ERG_DEC,
+            200 => ERG_LOAD_FAST_IMMUT,
+            201 => ERG_STORE_FAST_IMMUT,
+            202 => ERG_MOVE_FAST,
+            203 => ERG_CLONE_FAST,
+            204 => ERG_COPY_FAST,
+            205 => ERG_REF_FAST,
+            206 => ERG_REF_MUT_FAST,
+            207 => ERG_MOVE_OUTER,
+            208 => ERG_CLONE_OUTER,
+            209 => ERG_COPY_OUTER,
+            210 => ERG_REF_OUTER,
+            211 => ERG_REF_MUT_OUTER,
+            212 => ERG_LESS_THAN,
+            213 => ERG_LESS_EQUAL,
+            214 => ERG_EQUAL,
+            215 => ERG_NOT_EQUAL,
+            // ERG_GREATER_THAN is not necessary (can be done by inverting the argument of LESS_THAN)
+            216 => ERG_MAKE_SLOT,
+            217 => ERG_MAKE_TYPE,
+            218 => ERG_MAKE_PURE_FUNCTION,
+            219 => ERG_CALL_PURE_FUNCTION,
+            /* ↑ These opcodes take an arg ↑ */
+            /* ↓ These opcodes take no arg ↓ */
+            // ... = 220,
+            242 => ERG_LOAD_EMPTY_SLOT,
+            243 => ERG_LOAD_EMPTY_STR,
+            244 => ERG_LOAD_1_NAT,
+            245 => ERG_LOAD_1_INT,
+            246 => ERG_LOAD_1_REAL,
+            247 => ERG_LOAD_NONE,
+            248 => ERG_MUTATE,
+            249 => ERG_STORE_SUBSCR,
+            // 250 =>
+            251 => ERG_BINARY_SUBSCR,
+            252 => ERG_BINARY_RANGE,
+            253 => ERG_TRY_BINARY_DIVIDE,
+            254 => ERG_BINARY_TRUE_DIVIDE,
             255 => NOT_IMPLEMENTED,
             other => panic!("not implemented opcode: {other}"),
         }
     }
 }
 
-impl From<CommonOpcode> for u8 {
-    fn from(op: CommonOpcode) -> u8 {
+impl From<Opcode310> for u8 {
+    fn from(op: Opcode310) -> u8 {
         op as u8
     }
 }
 
-impl CommonOpcode {
+impl Opcode310 {
     pub const fn take_arg(&self) -> bool {
         90 <= (*self as u8) && (*self as u8) < 220
     }

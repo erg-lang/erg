@@ -140,7 +140,7 @@ impl Runnable for Compiler {
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let codeobj = self.compile(src, "eval")?;
-        Ok(codeobj.code_info())
+        Ok(codeobj.code_info(Some(self.code_generator.py_version)))
     }
 }
 
@@ -173,7 +173,7 @@ impl Compiler {
         log!(info "the compiling process has started.");
         let hir = self.build_link_desugar(src, mode)?;
         let codeobj = self.code_generator.emit(hir);
-        log!(info "code object:\n{}", codeobj.code_info());
+        log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
         Ok(codeobj)
     }
@@ -187,7 +187,7 @@ impl Compiler {
         let hir = self.build_link_desugar(src, mode)?;
         let last = hir.module.last().cloned();
         let codeobj = self.code_generator.emit(hir);
-        log!(info "code object:\n{}", codeobj.code_info());
+        log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
         Ok((codeobj, last))
     }

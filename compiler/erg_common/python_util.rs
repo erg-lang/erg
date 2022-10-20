@@ -91,6 +91,65 @@ pub fn detect_magic_number() -> u32 {
     get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0])
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PythonVersion {
+    pub major: u8,
+    pub minor: u8,
+    pub micro: u8,
+}
+
+impl PythonVersion {
+    pub const fn new(major: u8, minor: u8, micro: u8) -> Self {
+        Self {
+            major,
+            minor,
+            micro,
+        }
+    }
+
+    pub fn le(&self, other: &Self) -> bool {
+        self.major <= other.major
+            || (self.major == other.major && self.minor <= other.minor)
+            || (self.major == other.major && self.minor == other.minor && self.micro <= other.micro)
+    }
+
+    pub fn minor_is(&self, major: u8, minor: u8) -> bool {
+        self.major == major && self.minor == minor
+    }
+}
+
+pub fn python_version() -> PythonVersion {
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(which_python())
+            .arg("-c")
+            .arg("import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)")
+            .output()
+            .expect("cannot get the python version")
+    } else {
+        let python_command = format!(
+            "{} -c 'import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)'",
+            which_python()
+        );
+        Command::new("sh")
+            .arg("-c")
+            .arg(python_command)
+            .output()
+            .expect("cannot get the python version")
+    };
+    let s_version = String::from_utf8(out.stdout).unwrap();
+    let mut iter = s_version.split(' ');
+    let major = iter.next().unwrap().parse().unwrap();
+    let minor = iter.next().unwrap().parse().unwrap();
+    let micro = iter.next().unwrap().trim_end().parse().unwrap();
+    PythonVersion {
+        major,
+        minor,
+        micro,
+    }
+}
+
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
 pub fn exec_pyc<S: Into<String>>(file: S) -> Option<i32> {
     let mut out = if cfg!(windows) {
