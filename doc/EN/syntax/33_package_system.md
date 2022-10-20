@@ -6,8 +6,8 @@ The entry point for the lib package is `src/lib.er`. Importing a package is equi
 
 A package has a sub-structure called a module, which in Erg is an Erg file or directory composed of Erg files. External Erg files/directories are manipulatable objects as module objects.
 
-In order for a directory to be recognized as a module, it is necessary to place a `(directory name).er` file in the directory.
-This is similar to Python's `__init__.py`, but unlike `__init__.py`, it is placed outside the directory.
+In order for a directory to be recognized as a module, a `__init__.er` file must be placed in the directory.
+This is similar to `__init__.py` in Python.
 
 As an example, consider the following directory structure.
 
@@ -15,15 +15,15 @@ As an example, consider the following directory structure.
 └─┬ ./src
   ├─ app.er
   ├─ foo.er
-  ├─ bar.er
   └─┬ bar
+    ├─ __init__.er
     ├─ baz.er
     └─ qux.er
 ```
 
-You can import `foo` and `bar` modules in `app.er`. The `bar` directory can be recognized as a module because of the `bar.er` file.
+In `app.er` you can import `foo` and `bar` modules. The `bar` directory can be recognized as a module because of the `__init__.er` file.
 A `foo` module is a module consisting of files, and a `bar` module is a module consisting of directories. The `bar` module also contains `baz` and `qux` modules.
-This module is simply an attribute of the `bar` module, and can be accessed from `app.er` as follows.
+This module is simply an attribute of the `bar` module, and can be accessed from `app.er` as follows
 
 ```python
 # app.er
@@ -36,16 +36,16 @@ main args =
     ...
 ```
 
-Note the `/` delimiter for accessing submodules. This is because there can be file names such as `bar.baz.er`.
-Such filenames are discouraged, since the `.er` prefix is meaningful in Erg.
+Note that the delimiter for accessing submodules is `/`. This is because a file name like `bar.baz.er` is possible.
+However, such filenames are discouraged, because in Erg, the identifier immediately preceding the `.er`, the prefix, is meaningful.
 For example, a module for testing. A file ending with `.test.er` is a (white box) test module, which executes a subroutine decorated with `@Test` when the test is run.
 
 ```console
-└─┬ ./src
+└─┬ . /src
   ├─ app.er
   ├─ foo.er
   └─ foo.test.er
-./src
+```
 
 ```python
 # app.er
@@ -55,15 +55,20 @@ main args =
     ...
 ```
 
-Also, files ending in ``.private.er`` are private modules and can only be accessed by modules in the same directory.
+Also, modules that are not reimported in `__init__.er` are private modules and can only be accessed by modules in the same directory.
 
 ```console
 └─┬
   ├─ foo.er
-  ├─ bar.er
   └─┬ bar
-    ├─ baz.private.er
+    ├─ __init__.er
+    ├─ baz.er
     └─ qux.er
+```
+
+```python
+# __init__.py
+.qux = import "qux" # this is public
 ```
 
 ```python
