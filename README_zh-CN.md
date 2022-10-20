@@ -12,8 +12,8 @@
 <br>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D7739ceedd5080f539fc93e4d4384de39f908622b)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=7739ceedd5080f539fc93e4d4384de39f908622b)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D6558d5ca162c97da7baa29d659f0f425fa8fdd3d)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=6558d5ca162c97da7baa29d659f0f425fa8fdd3d)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -156,7 +156,7 @@
 
 ## 要求
 
-[Python3](https://www.python.org/) 解释器是必需的。如果计算机上已安装它，则无需进行任何设置
+[Python3 (3.10.x)](https://www.python.org/) 解释器是必需的。如果计算机上已安装它，则无需进行任何设置
 
 ## 安装
 
