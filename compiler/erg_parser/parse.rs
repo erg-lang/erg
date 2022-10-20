@@ -261,12 +261,12 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                Some(t) if t.is(Indent) => {
+                /*Some(t) if t.is(Indent) => {
                     switch_unreachable!()
                 }
                 Some(t) if t.is(Dedent) => {
                     switch_unreachable!()
-                }
+                }*/
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
@@ -293,7 +293,12 @@ impl Parser {
         }
         assert!(self.cur_is(Newline));
         self.skip();
-        assert!(self.cur_is(Indent));
+        if !self.cur_is(Indent) {
+            let err = self.skip_and_throw_syntax_err("try_reduce_block");
+            self.level -= 1;
+            self.errs.push(err);
+            return Err(());
+        }
         self.skip();
         loop {
             match self.peek() {
@@ -574,7 +579,12 @@ impl Parser {
                     while self.cur_is(Newline) {
                         self.skip();
                     }
-                    debug_power_assert!(self.cur_is(Indent));
+                    if !self.cur_is(Indent) {
+                        let err = self.skip_and_throw_syntax_err("try_reduce_block");
+                        self.level -= 1;
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     self.skip();
                 }
                 Some(t) if t.is(Comma) => {
