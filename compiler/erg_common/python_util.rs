@@ -6,7 +6,7 @@ use std::process::Command;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
-pub const BUILTIN_PYTHON_MODS: [&str; 16] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 17] = [
     "glob",
     "http",
     "importlib",
@@ -23,9 +23,10 @@ pub const BUILTIN_PYTHON_MODS: [&str; 16] = [
     "tarfile",
     "time",
     "urllib",
+    "zipfile",
 ];
 #[cfg(not(unix))]
-pub const BUILTIN_PYTHON_MODS: [&str; 15] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 16] = [
     "glob",
     "http",
     "importlib",
@@ -41,6 +42,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 15] = [
     "tarfile",
     "time",
     "urllib",
+    "zipfile",
 ];
 
 pub fn which_python() -> String {
