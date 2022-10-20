@@ -2018,6 +2018,10 @@ impl VarName {
             .unwrap_or(false)
     }
 
+    pub fn is_raw(&self) -> bool {
+        self.0.content.starts_with('\'')
+    }
+
     pub const fn token(&self) -> &Token {
         &self.0
     }
@@ -2092,6 +2096,10 @@ impl Identifier {
 
     pub fn is_const(&self) -> bool {
         self.name.is_const()
+    }
+
+    pub fn is_raw(&self) -> bool {
+        self.name.is_raw()
     }
 
     pub const fn vis(&self) -> Visibility {

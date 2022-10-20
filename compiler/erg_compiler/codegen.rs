@@ -1648,11 +1648,6 @@ impl CodeGenerator {
                 self.emit_expr(*tasc.expr);
             }
             Expr::Import(acc) => self.emit_import(acc),
-            other => {
-                CompileError::feature_error(self.cfg.input.clone(), other.loc(), "??", "".into())
-                    .write_to_stderr();
-                self.crash("cannot compile this expression at this time");
-            }
         }
     }
 

@@ -1,0 +1,6 @@
+t = 1
+'2t+3' = 2 * t + 3
+assert '2t+3' == 5
+
+'echo'! = print!
+# 'echo' = print! is not permitted

@@ -3,6 +3,8 @@ use std::fmt;
 
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
+#[allow(unused_imports)]
+use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
@@ -547,10 +549,22 @@ impl Accessor {
 
     pub fn local_name(&self) -> Option<&str> {
         match self {
-            Self::Ident(ident) => ident.qual_name.as_ref().map(|s| {
-                let mut seps = s.split_with(&[".", "::"]);
-                seps.remove(seps.len() - 1)
-            }),
+            Self::Ident(ident) => ident
+                .qual_name
+                .as_ref()
+                .map(|s| {
+                    let mut seps = s.split_with(&[".", "::"]);
+                    seps.remove(seps.len() - 1)
+                })
+                .or_else(|| {
+                    let mut raw_parts = ident.name.inspect().split_with(&["'"]);
+                    // "'aaa'".split_with(&["'"]) == ["", "aaa", ""]
+                    if raw_parts.len() == 3 || raw_parts.len() == 4 {
+                        Some(raw_parts.remove(1))
+                    } else {
+                        Some(ident.name.inspect())
+                    }
+                }),
             _ => None,
         }
     }
@@ -1810,7 +1824,6 @@ pub enum Expr {
     UnaryOp(UnaryOp),
     Call(Call),
     Lambda(Lambda),
-    Decl(Decl),
     Def(Def),
     ClassDef(ClassDef),
     AttrDef(AttrDef),
@@ -1820,10 +1833,10 @@ pub enum Expr {
     Import(Accessor),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 
 impl Default for Expr {
     fn default() -> Self {

@@ -130,8 +130,8 @@ impl fmt::Display for VarInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "VarInfo{{t: {}, muty: {:?}, vis: {:?}, kind: {:?}}}",
-            self.t, self.muty, self.vis, self.kind
+            "VarInfo{{t: {}, muty: {:?}, vis: {:?}, kind: {:?}, py_name: {:?}}}",
+            self.t, self.muty, self.vis, self.kind, self.py_name,
         )
     }
 }

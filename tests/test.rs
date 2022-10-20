@@ -83,6 +83,11 @@ fn exec_quantified() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_raw_ident() -> Result<(), ()> {
+    expect_success("examples/raw_ident.er")
+}
+
+#[test]
 fn exec_rec() -> Result<(), ()> {
     // this script is valid but the current code generating process has a bug.
     expect_end_with("tests/rec.er", 1)

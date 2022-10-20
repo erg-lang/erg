@@ -841,10 +841,6 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::Decl(decl) => {
-                decl.t = self.deref_tyvar(mem::take(&mut decl.t), Covariant, decl.loc())?;
-                Ok(())
-            }
             hir::Expr::Def(def) => {
                 // It is not possible to further dereference the quantified type.
                 // TODO: However, it is possible that there are external type variables within the quantified type.

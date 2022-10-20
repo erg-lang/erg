@@ -1,7 +1,7 @@
 .ZipFile!: ClassType
 .ZipFile! <: FileLike!
 
-.ZipFile!.open!: (path: PathLike or NoneType := NoneType, mode := Str) => .ZipFile!
+.ZipFile!.open!: (path: PathLike or FileLike!, mode := Str) => .ZipFile!
 .ZipFile!.add!: (self: RefMut(.ZipFile!), name: PathLike, arcname: PathLike or NoneType := NoneType, recursive := Bool) => NoneType
 .ZipFile!.close!: (self: .ZipFile!,) => NoneType
 .ZipFile!.extractall!: (self: RefMut(.ZipFile!), path := PathLike, members: [Str; _] or NoneType := NoneType, numeric_owner := Bool) => NoneType

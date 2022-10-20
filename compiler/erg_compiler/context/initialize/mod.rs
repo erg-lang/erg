@@ -1641,6 +1641,11 @@ impl Context {
             NoneType,
         );
         let t_bin = nd_func(vec![kw("n", Int)], None, Str);
+        let t_bytes = nd_func(
+            vec![kw("str", Str), kw("encoding", Str)],
+            None,
+            mono("Bytes"),
+        );
         let t_chr = nd_func(
             vec![kw("i", Type::from(value(0usize)..=value(1_114_111usize)))],
             None,
@@ -1742,6 +1747,7 @@ impl Context {
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, Private, Some("ascii"));
         self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
         self.register_builtin_py_impl("bin", t_bin, Immutable, Private, Some("bin"));
+        self.register_builtin_py_impl("bytes", t_bytes, Immutable, Private, Some("bytes"));
         self.register_builtin_py_impl("chr", t_chr, Immutable, Private, Some("chr"));
         self.register_builtin_py_impl("classof", t_classof, Immutable, Private, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, Private, Some("compile"));

@@ -1515,9 +1515,11 @@ impl ASTLowerer {
             _ => unreachable!(),
         };
         let id = body.id;
-        self.ctx.assign_var_sig(&sig, found_body_t, id, py_name)?;
+        self.ctx
+            .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
         let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         ident.vi.t = found_body_t.clone();
+        ident.vi.py_name = py_name;
         let sig = hir::VarSignature::new(ident);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
@@ -1648,6 +1650,10 @@ impl ASTLowerer {
         t: &Type,
         py_name: Str,
     ) -> LowerResult<()> {
+        // .X = 'x': Type
+        if ident.is_raw() {
+            return Ok(());
+        }
         if ident.is_const() {
             let vi = VarInfo::new(
                 t.clone(),
@@ -1693,6 +1699,9 @@ impl ASTLowerer {
     }
 
     fn declare_subtype(&mut self, ident: &ast::Identifier, trait_: &Type) -> LowerResult<()> {
+        if ident.is_raw() {
+            return Ok(());
+        }
         if let Some((_, ctx)) = self.ctx.get_mut_type(ident.inspect()) {
             ctx.register_marker_trait(trait_.clone());
             Ok(())

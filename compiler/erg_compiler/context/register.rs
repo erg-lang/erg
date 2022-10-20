@@ -183,7 +183,7 @@ impl Context {
             self.impl_of(),
             py_name,
         );
-        log!(info "Registered {}::{}: {} {:?}", self.name, ident.name, vi.t, vi.impl_of);
+        log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
         self.locals.insert(ident.name.clone(), vi);
         Ok(())
     }
