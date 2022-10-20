@@ -5,6 +5,7 @@ use std::fmt::Write as _;
 
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
+// use erg_common::dict::Dict as HashMap;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::{
@@ -1766,6 +1767,7 @@ pub enum TypeSpec {
     Array(ArrayTypeSpec),
     Set(SetTypeSpec),
     Tuple(Vec<TypeSpec>),
+    Dict(Vec<(TypeSpec, TypeSpec)>),
     // Dict(),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
@@ -1795,6 +1797,13 @@ impl fmt::Display for TypeSpec {
             Self::Array(arr) => write!(f, "{arr}"),
             Self::Set(set) => write!(f, "{set}"),
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
+            Self::Dict(dict) => {
+                write!(f, "{{")?;
+                for (k, v) in dict {
+                    write!(f, "{k}: {v}, ")?;
+                }
+                write!(f, "}}")
+            }
             Self::Enum(elems) => write!(f, "{{{elems}}}"),
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
@@ -1814,6 +1823,7 @@ impl Locational for TypeSpec {
             Self::Set(set) => set.loc(),
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
+            Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),

@@ -31,8 +31,11 @@ def in_operator(x, y):
         type_check = in_operator(x[0], y[0])
         len_check = len(x) == len(y)
         return type_check and len_check
-    elif type(y) == dict and type(y[0]) == type:
-        NotImplemented
+    elif type(y) == dict and type(next(iter(y.keys()))) == type:
+        # TODO:
+        type_check = True # in_operator(x[next(iter(x.keys()))], next(iter(y.keys())))
+        len_check = len(x) >= len(y)
+        return type_check and len_check
     else:
         return x in y
 
@@ -63,7 +66,15 @@ class Bool(Nat):
         return self.__str__()
 
 class Str(str):
-    pass
+    def __instancecheck__(cls, obj):
+        print(cls, obj)
+        return obj == Str or obj == str
+
+    def try_new(s: str): # -> Result[Nat]
+        if isinstance(s, str):
+            return Str(s)
+        else:
+            return Error("Str can't be other than str")
 
 class Range:
     def __init__(self, start, end):

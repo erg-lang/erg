@@ -3016,6 +3016,21 @@ impl Parser {
         }
     }
 
+    fn dict_to_dict_type_spec(dict: Dict) -> Result<Vec<(TypeSpec, TypeSpec)>, ParseError> {
+        match dict {
+            Dict::Normal(dic) => {
+                let mut kvs = vec![];
+                for kv in dic.kvs.into_iter() {
+                    let key = Self::expr_to_type_spec(kv.key)?;
+                    let value = Self::expr_to_type_spec(kv.value)?;
+                    kvs.push((key, value));
+                }
+                Ok(kvs)
+            }
+            _ => todo!(),
+        }
+    }
+
     pub fn expr_to_type_spec(rhs: Expr) -> Result<TypeSpec, ParseError> {
         match rhs {
             Expr::Accessor(acc) => Self::accessor_to_type_spec(acc),
@@ -3034,6 +3049,10 @@ impl Parser {
             Expr::Set(set) => {
                 let set = Self::set_to_set_type_spec(set)?;
                 Ok(TypeSpec::Set(set))
+            }
+            Expr::Dict(dict) => {
+                let dict = Self::dict_to_dict_type_spec(dict)?;
+                Ok(TypeSpec::Dict(dict))
             }
             Expr::BinOp(bin) => {
                 if bin.op.kind.is_range_op() {

@@ -3,6 +3,7 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::astr::AtomicStr;
+use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 #[allow(unused)]
@@ -932,6 +933,28 @@ impl Context {
                     )?);
                 }
                 Ok(tuple_t(inst_tys))
+            }
+            TypeSpec::Dict(dict) => {
+                let mut inst_tys = dict! {};
+                for (k, v) in dict {
+                    inst_tys.insert(
+                        self.instantiate_typespec(
+                            k,
+                            opt_decl_t,
+                            tmp_tv_ctx,
+                            mode,
+                            not_found_is_qvar,
+                        )?,
+                        self.instantiate_typespec(
+                            v,
+                            opt_decl_t,
+                            tmp_tv_ctx,
+                            mode,
+                            not_found_is_qvar,
+                        )?,
+                    );
+                }
+                Ok(dict_t(inst_tys.into()))
             }
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
