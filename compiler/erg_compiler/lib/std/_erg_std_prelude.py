@@ -67,7 +67,6 @@ class Bool(Nat):
 
 class Str(str):
     def __instancecheck__(cls, obj):
-        print(cls, obj)
         return obj == Str or obj == str
 
     def try_new(s: str): # -> Result[Nat]
@@ -133,10 +132,10 @@ class RangeIterator:
     def __init__(self, rng):
         self.rng = rng
         self.needle = self.rng.start
-        if type(self.rng.start) == int:
+        if issubclass(Nat, type(self.rng.start)):
             if not(self.needle in self.rng):
                 self.needle += 1
-        elif type(self.rng.start) == str:
+        elif issubclass(Str, type(self.rng.start)):
             if not(self.needle in self.rng):
                 self.needle = chr(ord(self.needle) + 1)
         else:
@@ -147,12 +146,12 @@ class RangeIterator:
         return self
 
     def __next__(self):
-        if type(self.rng.start) == int:
+        if issubclass(Nat, type(self.rng.start)):
             if self.needle in self.rng:
                 result = self.needle
                 self.needle += 1
                 return result
-        elif type(self.rng.start) == str:
+        elif issubclass(Str, type(self.rng.start)):
             if self.needle in self.rng:
                 result = self.needle
                 self.needle = chr(ord(self.needle) + 1)

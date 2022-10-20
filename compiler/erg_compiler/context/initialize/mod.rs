@@ -1283,6 +1283,8 @@ impl Context {
         str_iterator.register_superclass(Obj, &obj);
         let mut array_iterator = Self::builtin_poly_class("ArrayIterator", vec![PS::t_nd("T")], 1);
         array_iterator.register_superclass(Obj, &obj);
+        let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
+        range_iterator.register_superclass(Obj, &obj);
         /* Float_mut */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
@@ -1523,6 +1525,15 @@ impl Context {
             Public,
         );
         range.register_trait(range_t.clone(), range_eq);
+        let mut range_iterable =
+            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(mono_q("T"))])), 2);
+        range_iterable.register_builtin_impl(
+            "iter",
+            fn0_met(Str, mono("RangeIterator")),
+            Immutable,
+            Public,
+        );
+        range.register_trait(range_t.clone(), range_iterable);
         /* Proc */
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);
@@ -1588,6 +1599,13 @@ impl Context {
             Private,
             Const,
             Some("array_iterator"),
+        );
+        self.register_builtin_type(
+            poly("RangeIterator", vec![ty_tp(mono_q("T"))]),
+            range_iterator,
+            Private,
+            Const,
+            Some("RangeIterator"),
         );
         self.register_builtin_type(mono("Int!"), int_mut, Private, Const, Some("int"));
         self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const, Some("Nat"));

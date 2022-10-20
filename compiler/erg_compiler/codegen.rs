@@ -947,9 +947,17 @@ impl CodeGenerator {
         match &bin.op.kind {
             // l..<r == range(l, r)
             TokenKind::RightOpen => {
-                self.emit_load_name_instr(Identifier::public("range"));
+                self.emit_load_name_instr(Identifier::public("RightOpenRange"));
             }
-            TokenKind::LeftOpen | TokenKind::Closed | TokenKind::Open => todo!(),
+            TokenKind::LeftOpen => {
+                self.emit_load_name_instr(Identifier::public("LeftOpenRange"));
+            }
+            TokenKind::Closed => {
+                self.emit_load_name_instr(Identifier::public("ClosedRange"));
+            }
+            TokenKind::Open => {
+                self.emit_load_name_instr(Identifier::public("OpenRange"));
+            }
             TokenKind::InOp => {
                 // if no-std, always `x in y == True`
                 if self.cfg.no_std {
@@ -1056,6 +1064,7 @@ impl CodeGenerator {
 
     fn emit_if_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
+        let init_stack_len = self.cur_block().stack_len;
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.cur_block().lasti;
@@ -1065,8 +1074,8 @@ impl CodeGenerator {
         match args.remove(0) {
             // then block
             Expr::Lambda(lambda) => {
-                let params = self.gen_param_names(&lambda.params);
-                self.emit_frameless_block(lambda.body, params);
+                // let params = self.gen_param_names(&lambda.params);
+                self.emit_frameless_block(lambda.body, vec![]);
             }
             other => {
                 self.emit_expr(other);
@@ -1080,8 +1089,8 @@ impl CodeGenerator {
             self.edit_code(idx_pop_jump_if_false + 1, idx_else_begin / 2);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
-                    let params = self.gen_param_names(&lambda.params);
-                    self.emit_frameless_block(lambda.body, params);
+                    // let params = self.gen_param_names(&lambda.params);
+                    self.emit_frameless_block(lambda.body, vec![]);
                 }
                 other => {
                     self.emit_expr(other);
@@ -1090,15 +1099,18 @@ impl CodeGenerator {
             let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.cur_block().lasti;
             self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
-            self.stack_dec();
-            // self.stack_dec();
+            // FIXME: this is a hack to make sure the stack is balanced
+            while self.cur_block().stack_len != init_stack_len + 1 {
+                self.stack_dec();
+            }
         } else {
             // no else block
             let idx_end = self.cur_block().lasti;
             self.edit_code(idx_pop_jump_if_false + 1, idx_end / 2);
             self.emit_load_const(ValueObj::None);
-            self.stack_dec();
-            self.stack_dec();
+            while self.cur_block().stack_len != init_stack_len + 1 {
+                self.stack_dec();
+            }
         }
     }
 
@@ -1110,18 +1122,24 @@ impl CodeGenerator {
         self.write_arg(0);
         let idx_for_iter = self.cur_block().lasti;
         self.write_instr(FOR_ITER);
+        self.stack_inc();
         // FOR_ITER pushes a value onto the stack, but we can't know how many
         // but after executing this instruction, stack_len should be 1
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let init_stack_len = self.cur_block().stack_len;
         let params = self.gen_param_names(&lambda.params);
-        self.emit_frameless_block(lambda.body, params); // ここでPOPされる
+        self.emit_frameless_block(lambda.body, params);
+        if self.cur_block().stack_len >= init_stack_len {
+            self.emit_pop_top();
+        }
         self.write_instr(JUMP_ABSOLUTE);
         self.write_arg((idx_for_iter / 2) as u8);
         let idx_end = self.cur_block().lasti;
         self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
-        self.emit_pop_top();
+        // self.emit_pop_top();
+        self.stack_dec();
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1661,11 +1679,10 @@ impl CodeGenerator {
                 Name,
             );
         }
+        let init_stack_len = self.cur_block().stack_len;
         for expr in block.into_iter() {
             self.emit_expr(expr);
-            // TODO: discard
-            // 最終的に帳尻を合わせる(コード生成の順番的にスタックの整合性が一時的に崩れる場合がある)
-            if self.cur_block().stack_len == 1 {
+            if self.cur_block().stack_len > init_stack_len {
                 self.emit_pop_top();
             }
         }
@@ -1681,10 +1698,11 @@ impl CodeGenerator {
                 Name,
             );
         }
+        let init_stack_len = self.cur_block().stack_len;
         for expr in block.into_iter() {
             self.emit_expr(expr);
             // __exit__, __enter__() are on the stack
-            if self.cur_block().stack_len != 2 {
+            if self.cur_block().stack_len > init_stack_len {
                 self.emit_pop_top();
             }
         }
@@ -1852,19 +1870,20 @@ impl CodeGenerator {
             &name,
             firstlineno,
         ));
+        let init_stack_len = self.cur_block().stack_len;
         for expr in block.into_iter() {
             self.emit_expr(expr);
             // NOTE: 各行のトップレベルでは0個または1個のオブジェクトが残っている
             // Pythonの場合使わなかったオブジェクトはそのまま捨てられるが、Ergではdiscardを使う必要がある
             // TODO: discard
-            if self.cur_block().stack_len == 1 {
+            if self.cur_block().stack_len > init_stack_len {
                 self.emit_pop_top();
             }
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
-        if self.cur_block().stack_len == 0 {
+        if self.cur_block().stack_len == init_stack_len {
             self.emit_load_const(ValueObj::None);
-        } else if self.cur_block().stack_len > 1 {
+        } else if self.cur_block().stack_len > init_stack_len + 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
             CompileError::stack_bug(
