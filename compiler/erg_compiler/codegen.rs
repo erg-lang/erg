@@ -1091,7 +1091,7 @@ impl CodeGenerator {
             let idx_end = self.cur_block().lasti;
             self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
             self.stack_dec();
-            self.stack_dec();
+            // self.stack_dec();
         } else {
             // no else block
             let idx_end = self.cur_block().lasti;
