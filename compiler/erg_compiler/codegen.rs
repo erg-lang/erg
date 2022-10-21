@@ -1138,8 +1138,31 @@ impl CodeGenerator {
         self.write_arg((idx_for_iter / 2) as u8);
         let idx_end = self.cur_block().lasti;
         self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
-        // self.emit_pop_top();
         self.stack_dec();
+        self.emit_load_const(ValueObj::None);
+    }
+
+    fn emit_while_instr(&mut self, mut args: Args) {
+        log!(info "entered {} ({})", fn_name!(), args);
+        let cond = args.remove(0);
+        self.emit_expr(cond.clone());
+        let idx_while = self.cur_block().lasti;
+        self.write_instr(POP_JUMP_IF_FALSE);
+        self.write_arg(0);
+        self.stack_dec();
+        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let init_stack_len = self.cur_block().stack_len;
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_frameless_block(lambda.body, params);
+        if self.cur_block().stack_len > init_stack_len {
+            self.emit_pop_top();
+        }
+        self.emit_expr(cond);
+        self.write_instr(POP_JUMP_IF_TRUE);
+        self.write_arg(((idx_while + 2) / 2) as u8);
+        self.stack_dec();
+        let idx_end = self.cur_block().lasti;
+        self.edit_code(idx_while + 1, idx_end / 2);
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1316,6 +1339,7 @@ impl CodeGenerator {
             "Del" => self.emit_del_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
+            "while!" => self.emit_while_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             "with!" => self.emit_with_instr(args),
