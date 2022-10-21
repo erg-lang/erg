@@ -129,6 +129,10 @@ pub enum ValueObj {
     Dict(Dict<ValueObj, ValueObj>),
     Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
+    DataClass {
+        name: Str,
+        fields: Dict<Field, ValueObj>,
+    },
     Code(Box<CodeObj>),
     Subr(ConstSubr),
     Type(TypeObj),
@@ -199,6 +203,16 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
+            Self::DataClass { name, fields } => {
+                write!(f, "{name} {{")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Subr(subr) => write!(f, "{subr}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
@@ -247,6 +261,10 @@ impl Hash for ValueObj {
             Self::Set(st) => st.hash(state),
             Self::Code(code) => code.hash(state),
             Self::Record(rec) => rec.hash(state),
+            Self::DataClass { name, fields } => {
+                name.hash(state);
+                fields.hash(state);
+            }
             Self::Subr(subr) => subr.hash(state),
             Self::Type(t) => t.hash(state),
             Self::None => {
@@ -538,6 +556,7 @@ impl ValueObj {
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
+            Self::DataClass { name, .. } => Type::Mono(name.clone()),
             Self::Subr(subr) => subr.sig_t().clone(),
             Self::Type(t_obj) => match t_obj {
                 // TODO: builtin

@@ -1534,6 +1534,7 @@ impl Context {
         // range.register_superclass(Obj, &obj);
         range.register_superclass(Type, &type_);
         range.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
+        range.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
         let mut range_eq = Self::builtin_methods(Some(poly("Eq", vec![ty_tp(range_t.clone())])), 2);
         range_eq.register_builtin_impl(
             "__eq__",
@@ -1551,6 +1552,15 @@ impl Context {
             Public,
         );
         range.register_trait(range_t.clone(), range_iterable);
+        let range_getitem_t = fn1_kw_met(range_t.clone(), anon(mono_q("T")), mono_q("T"));
+        let range_getitem_t = quant(range_getitem_t, set! { static_instance("T", Type) });
+        let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            "__getitem__",
+            __range_getitem__,
+            range_getitem_t,
+            None,
+        )));
+        range.register_builtin_const("__getitem__", Public, get_item);
         /* Proc */
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);

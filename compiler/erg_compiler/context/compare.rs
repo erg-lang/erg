@@ -784,6 +784,13 @@ impl Context {
             (_, TyParam::FreeVar(fv), _) if fv.is_linked() => {
                 self.supertype_of_tp(lp, &fv.crack(), variance)
             }
+            // _: Type :> T == true
+            (TyParam::Erased(t), TyParam::Type(_), _)
+            | (TyParam::Type(_), TyParam::Erased(t), _)
+                if t.as_ref() == &Type =>
+            {
+                true
+            }
             (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => self.subtype_of(l, r),
             (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
                 // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }

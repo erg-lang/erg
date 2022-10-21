@@ -9,6 +9,8 @@ use crate::ty::ValueArgs;
 use erg_common::astr::AtomicStr;
 use erg_common::color::{RED, RESET, YELLOW};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::str::Str;
+use erg_common::vis::Field;
 
 /// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
@@ -227,6 +229,30 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
             ErrorKind::IndexError,
             Location::Unknown,
             AtomicStr::from(format!("{_self} has no key {index}",)),
+            None,
+        ))
+    }
+}
+
+pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let (_name, fields) = enum_unwrap!(
+        args.remove_left_or_key("Self").unwrap(),
+        ValueObj::DataClass { name, fields }
+    );
+    let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
+    let start = fields.get(&Field::private(Str::ever("start"))).unwrap();
+    let start = *enum_unwrap!(start, ValueObj::Nat);
+    let end = fields.get(&Field::private(Str::ever("end"))).unwrap();
+    let end = *enum_unwrap!(end, ValueObj::Nat);
+    // FIXME <= if inclusive
+    if start + index < end {
+        Ok(ValueObj::Nat(start + index))
+    } else {
+        Err(ErrorCore::new(
+            line!() as usize,
+            ErrorKind::IndexError,
+            Location::Unknown,
+            AtomicStr::from(format!("Index out of range: {}", index)),
             None,
         ))
     }

@@ -1104,6 +1104,21 @@ impl Context {
                 self.sub_unify_tp(lhs, lhs2, variance, loc, allow_divergence)?;
                 self.sub_unify_tp(rhs, rhs2, variance, loc, allow_divergence)
             }
+            (l, TyParam::Erased(t)) => {
+                let sub_t = self.get_tp_t(l)?;
+                if self.subtype_of(&sub_t, t) {
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &sub_t,
+                        t,
+                        loc,
+                        self.caused_by(),
+                    )))
+                }
+            }
             (l, r) => panic!("type-parameter unification failed:\nl:{l}\nr: {r}"),
         }
     }
@@ -1123,6 +1138,10 @@ impl Context {
                 *l.borrow_mut() = r.clone();
                 Ok(())
             }
+            /*(TyParam::Value(ValueObj::Mut(l)), TyParam::Erased(_)) => {
+                *l.borrow_mut() = after.clone();
+                Ok(())
+            }*/
             (TyParam::Type(l), TyParam::Type(r)) => self.reunify(l, r, loc),
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
