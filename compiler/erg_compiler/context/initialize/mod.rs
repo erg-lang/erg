@@ -130,8 +130,13 @@ impl Context {
         }
     }
 
-    fn register_builtin_immutable_private_var(&mut self, name: &'static str, t: Type) {
-        self.register_builtin_impl(name, t, Immutable, Private);
+    fn register_builtin_immutable_private_var(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        py_name: Option<&'static str>,
+    ) {
+        self.register_builtin_py_impl(name, t, Immutable, Private, py_name);
     }
 
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
@@ -359,10 +364,22 @@ impl Context {
 
     fn init_builtin_consts(&mut self) {
         // TODO: this is not a const, but a special property
-        self.register_builtin_immutable_private_var("__name__", Str);
-        self.register_builtin_immutable_private_var("license", mono("_sitebuiltins._Printer"));
-        self.register_builtin_immutable_private_var("credits", mono("_sitebuiltins._Printer"));
-        self.register_builtin_immutable_private_var("copyright", mono("_sitebuiltins._Printer"));
+        self.register_builtin_immutable_private_var("__name__", Str, Some("__name__"));
+        self.register_builtin_immutable_private_var(
+            "license",
+            mono("_sitebuiltins._Printer"),
+            Some("license"),
+        );
+        self.register_builtin_immutable_private_var(
+            "credits",
+            mono("_sitebuiltins._Printer"),
+            Some("credits"),
+        );
+        self.register_builtin_immutable_private_var(
+            "copyright",
+            mono("_sitebuiltins._Printer"),
+            Some("copyright"),
+        );
     }
 
     /// see std/prelude.er

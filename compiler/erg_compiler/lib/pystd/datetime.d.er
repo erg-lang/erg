@@ -1,0 +1,11 @@
+.Date = 'date': ClassType
+.Date.today!: () => .Date
+.Date.min: .Date
+.Date.max: .Date
+.Time = 'time': ClassType
+.DateTime = 'dateTime': ClassType
+.DateTime.today!: () => .DateTime
+.DateTime.now!: (tz := .TZInfo or NoneType) => .DateTime
+.TimeDelta = 'timedelta': ClassType
+.TZInfo = 'tzinfo': ClassType
+.TimeZone = 'timezone': ClassType

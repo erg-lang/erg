@@ -165,7 +165,17 @@ impl Context {
         };
         // already defined as const
         if sig.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap();
+            let vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
+                VarInfo::new(
+                    body_t.clone(),
+                    Mutability::Const,
+                    sig.vis(),
+                    VarKind::Declared,
+                    None,
+                    self.impl_of(),
+                    py_name,
+                )
+            });
             self.locals.insert(ident.name.clone(), vi);
             return Ok(());
         }
