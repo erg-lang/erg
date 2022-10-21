@@ -1768,7 +1768,7 @@ pub enum TypeSpec {
     Set(SetTypeSpec),
     Tuple(Vec<TypeSpec>),
     Dict(Vec<(TypeSpec, TypeSpec)>),
-    // Dict(),
+    Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
     Not(Box<TypeSpec>, Box<TypeSpec>),
@@ -1799,8 +1799,15 @@ impl fmt::Display for TypeSpec {
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
-                for (k, v) in dict {
+                for (k, v) in dict.iter() {
                     write!(f, "{k}: {v}, ")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (k, v) in rec.iter() {
+                    write!(f, "{k} = {v}; ")?;
                 }
                 write!(f, "}}")
             }
@@ -1824,6 +1831,7 @@ impl Locational for TypeSpec {
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
             Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
+            Self::Record(rec) => Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1),
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),

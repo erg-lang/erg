@@ -3046,6 +3046,38 @@ impl Parser {
         }
     }
 
+    fn record_to_record_type_spec(
+        record: Record,
+    ) -> Result<Vec<(Identifier, TypeSpec)>, ParseError> {
+        match record {
+            Record::Normal(rec) => {
+                let mut rec_spec = vec![];
+                for mut def in rec.attrs.into_iter() {
+                    let ident = def.sig.ident().unwrap().clone();
+                    // TODO: check block.len() == 1
+                    let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
+                    rec_spec.push((ident, value));
+                }
+                Ok(rec_spec)
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<Vec<TypeSpec>, ParseError> {
+        match tuple {
+            Tuple::Normal(tup) => {
+                let mut tup_spec = vec![];
+                let (elems, ..) = tup.elems.deconstruct();
+                for elem in elems.into_iter() {
+                    let value = Self::expr_to_type_spec(elem.expr)?;
+                    tup_spec.push(value);
+                }
+                Ok(tup_spec)
+            }
+        }
+    }
+
     pub fn expr_to_type_spec(rhs: Expr) -> Result<TypeSpec, ParseError> {
         match rhs {
             Expr::Accessor(acc) => Self::accessor_to_type_spec(acc),
@@ -3068,6 +3100,14 @@ impl Parser {
             Expr::Dict(dict) => {
                 let dict = Self::dict_to_dict_type_spec(dict)?;
                 Ok(TypeSpec::Dict(dict))
+            }
+            Expr::Record(rec) => {
+                let rec = Self::record_to_record_type_spec(rec)?;
+                Ok(TypeSpec::Record(rec))
+            }
+            Expr::Tuple(tup) => {
+                let tup = Self::tuple_to_tuple_type_spec(tup)?;
+                Ok(TypeSpec::Tuple(tup))
             }
             Expr::BinOp(bin) => {
                 if bin.op.kind.is_range_op() {

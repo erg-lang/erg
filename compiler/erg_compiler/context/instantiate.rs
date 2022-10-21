@@ -956,6 +956,22 @@ impl Context {
                 }
                 Ok(dict_t(inst_tys.into()))
             }
+            TypeSpec::Record(rec) => {
+                let mut inst_tys = dict! {};
+                for (k, v) in rec {
+                    inst_tys.insert(
+                        k.into(),
+                        self.instantiate_typespec(
+                            v,
+                            opt_decl_t,
+                            tmp_tv_ctx,
+                            mode,
+                            not_found_is_qvar,
+                        )?,
+                    );
+                }
+                Ok(Type::Record(inst_tys))
+            }
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
                 let mut new_set = set! {};
