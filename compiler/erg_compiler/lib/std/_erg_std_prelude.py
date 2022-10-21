@@ -26,13 +26,13 @@ def in_operator(x, y):
             return True
         # TODO: trait check
         return False
-    elif (type(y) == list or type(y) == set) \
+    elif (issubclass(type(y), list) or issubclass(type(y), set)) \
         and (type(y[0]) == type or issubclass(type(y[0]), Range)):
         # FIXME:
         type_check = in_operator(x[0], y[0])
         len_check = len(x) == len(y)
         return type_check and len_check
-    elif type(y) == dict and type(next(iter(y.keys()))) == type:
+    elif issubclass(type(y), dict) and issubclass(type(next(iter(y.keys()))), type):
         # TODO:
         type_check = True # in_operator(x[next(iter(x.keys()))], next(iter(y.keys())))
         len_check = len(x) >= len(y)
@@ -68,7 +68,7 @@ class Bool(Nat):
 
 class Str(str):
     def __instancecheck__(cls, obj):
-        return obj == Str or obj == str
+        return isinstance(obj, str)
 
     def try_new(s: str): # -> Result[Nat]
         if isinstance(s, str):
