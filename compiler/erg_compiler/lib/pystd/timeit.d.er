@@ -1,0 +1,1 @@
+.timeit: (stmt: Str or Proc, setup := Str or Proc, number := Nat) -> Float
