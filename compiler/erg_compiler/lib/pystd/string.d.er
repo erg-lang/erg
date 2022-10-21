@@ -1,0 +1,10 @@
+.ascii_letters: Str
+.ascii_lowercase: Str
+.ascii_uppercase: Str
+.digits: Str
+.hexdigits: Str
+.octdigits: Str
+.punctuation: Str
+.printable: Str
+.whitespace: Str
+.Formatter: ClassType

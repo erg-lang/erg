@@ -218,7 +218,7 @@ impl From<&str> for ErrorKind {
 }
 
 /// points the location (of an error) in a code
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Location {
     RangePair {
         ln_first: (usize, usize),
@@ -234,6 +234,7 @@ pub enum Location {
     },
     LineRange(usize, usize),
     Line(usize),
+    #[default]
     Unknown,
 }
 

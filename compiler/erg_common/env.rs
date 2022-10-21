@@ -3,24 +3,30 @@ use std::path::PathBuf;
 
 fn _erg_path() -> PathBuf {
     let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
-    PathBuf::from(path).canonicalize().unwrap()
+    PathBuf::from(path)
+        .canonicalize()
+        .expect("ERG_PATH not found")
 }
 fn _erg_std_path() -> PathBuf {
-    _erg_path().join("lib").join("std").canonicalize().unwrap()
+    _erg_path()
+        .join("lib")
+        .join("std")
+        .canonicalize()
+        .expect("ERG_PATH/lib/std not found")
 }
 fn _erg_pystd_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("pystd")
         .canonicalize()
-        .unwrap()
+        .expect("ERG_PATH/lib/pystd not found")
 }
 fn _erg_external_lib_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("external")
         .canonicalize()
-        .unwrap()
+        .expect("ERG_PATH/lib/external not found")
 }
 
 thread_local! {

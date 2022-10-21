@@ -148,7 +148,7 @@ impl Parser {
     }
 
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
-        let loc = self.peek().unwrap().loc();
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
         ParseError::simple_syntax_error(0, loc)
@@ -233,7 +233,7 @@ impl Parser {
             }
         };
         if !self.cur_is(EOF) {
-            let loc = self.peek().unwrap().loc();
+            let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
             self.errs
                 .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
             return Err(mem::take(&mut self.errs));
