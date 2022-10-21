@@ -166,3 +166,8 @@ class RangeIterator:
         raise StopIteration
 
 Iterator.register(RangeIterator)
+
+class Array(list):
+    def push(self, value):
+        self.append(value)
+        return self

@@ -1448,6 +1448,43 @@ impl CodeGenerator {
         self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
     }
 
+    // TODO: list comprehension
+    fn emit_array(&mut self, array: Array) {
+        if !self.cfg.no_std {
+            self.emit_load_name_instr(Identifier::public("Array"));
+        }
+        match array {
+            Array::Normal(mut arr) => {
+                let len = arr.elems.len();
+                while let Some(arg) = arr.elems.try_remove_pos(0) {
+                    self.emit_expr(arg.expr);
+                }
+                self.write_instr(BUILD_LIST);
+                self.write_arg(len as u8);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(len - 1);
+                }
+            }
+            Array::WithLength(arr) => {
+                self.emit_expr(*arr.elem);
+                self.write_instr(BUILD_LIST);
+                self.write_arg(1u8);
+                self.emit_expr(*arr.len);
+                self.write_instr(BINARY_MULTIPLY);
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            other => todo!("{other}"),
+        }
+        if !self.cfg.no_std {
+            self.write_instr(CALL_FUNCTION);
+            self.write_arg(1);
+            self.stack_dec();
+        }
+    }
+
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
@@ -1555,32 +1592,7 @@ impl CodeGenerator {
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
-            // TODO: list comprehension
-            Expr::Array(arr) => match arr {
-                Array::Normal(mut arr) => {
-                    let len = arr.elems.len();
-                    while let Some(arg) = arr.elems.try_remove_pos(0) {
-                        self.emit_expr(arg.expr);
-                    }
-                    self.write_instr(BUILD_LIST);
-                    self.write_arg(len as u8);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(len - 1);
-                    }
-                }
-                Array::WithLength(arr) => {
-                    self.emit_expr(*arr.elem);
-                    self.write_instr(BUILD_LIST);
-                    self.write_arg(1u8);
-                    self.emit_expr(*arr.len);
-                    self.write_instr(BINARY_MULTIPLY);
-                    self.write_arg(0);
-                    self.stack_dec();
-                }
-                other => todo!("{other}"),
-            },
+            Expr::Array(arr) => self.emit_array(arr),
             // TODO: tuple comprehension
             // TODO: tuples can be const
             Expr::Tuple(tup) => match tup {

@@ -1090,13 +1090,25 @@ impl Context {
             vec![kw("rhs", array_t(mono_q("T"), m.clone()))],
             None,
             vec![],
-            array_t(mono_q("T"), n + m),
+            array_t(mono_q("T"), n.clone() + m),
         );
         let t = quant(
             t,
             set! {static_instance("T", Type), static_instance("N", Nat), static_instance("M", Nat)},
         );
         array_.register_builtin_py_impl("concat", t, Immutable, Public, Some("__add__"));
+        let t = fn_met(
+            arr_t.clone(),
+            vec![kw("elem", mono_q("T"))],
+            None,
+            vec![],
+            array_t(mono_q("T"), n + value(1usize)),
+        );
+        let t = quant(
+            t,
+            set! {static_instance("T", Type), static_instance("N", Nat)},
+        );
+        array_.register_builtin_impl("push", t, Immutable, Public);
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
         //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
