@@ -65,7 +65,7 @@
 - [Decorator](./29_decorator.md)
 - [Error Handling](./30_error_handling.md)
 - [Pipeline](./31_pipeline.md)
-- [Integration With Python](./32_integration_with_python.md)
+- [Integration With Python](./32_integration_with_Python.md)
 - [Package System](./33_package_system.md)
 - [Generator](./34_generator.md)
 - [Index](./indexes.md)
