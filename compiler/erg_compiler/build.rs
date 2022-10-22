@@ -16,11 +16,15 @@ fn main() -> std::io::Result<()> {
         .to_string()
         + "/.erg";
     if !path::Path::new(&erg_path).exists() {
-        fs::create_dir(&erg_path)?;
+        fs::create_dir(&erg_path).unwrap_or_else(|_| {
+            eprintln!("failed to create the directory: {erg_path}");
+        });
     }
     println!("cargo:rustc-env=CARGO_ERG_PATH={erg_path}");
     // create a std library in ".erg"
-    copy_dir(&erg_path, "lib")?;
+    copy_dir(&erg_path, "lib").unwrap_or_else(|_| {
+        eprintln!("failed to copy the std library to {erg_path}");
+    });
     Ok(())
 }
 
