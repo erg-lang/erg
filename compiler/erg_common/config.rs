@@ -309,12 +309,17 @@ impl ErgConfig {
                         .parse::<u8>()
                         .expect("the value of `--verbose` is not a number");
                 }
-                "-V" | "--version" => {
+                "-v" | "-V" | "--version" => {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
-                    panic!("invalid option: {other}");
+                    println!("invalid option: {other}\n");
+                    println!("{}", command_message());
+                    if let "--mode" = args.next().as_ref().map(|s| &s[..]).unwrap_or("") {
+                        println!("{}", mode_message());
+                    }
+                    process::exit(0);
                 }
                 _ => {
                     cfg.input = Input::File(
