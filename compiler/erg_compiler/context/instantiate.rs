@@ -19,6 +19,7 @@ use ast::{
 };
 use erg_parser::ast;
 use erg_parser::token::TokenKind;
+use erg_parser::Parser;
 
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, Cyclicity, FreeTyVar};
@@ -29,7 +30,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::{Context, RegistrationMode};
-use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 use crate::AccessKind;
 use RegistrationMode::*;
@@ -323,6 +324,7 @@ impl TyVarInstContext {
 
     fn instantiate_qtp(&mut self, quantified: TyParam) -> TyParam {
         match quantified {
+            TyParam::FreeVar(fv) if fv.is_linked() => self.instantiate_qtp(fv.crack().clone()),
             TyParam::MonoQVar(n) => {
                 if let Some(t) = self.get_typaram(&n) {
                     t.clone()
@@ -453,13 +455,9 @@ impl TyVarInstContext {
 
     pub(crate) fn get_tyvar(&self, name: &str) -> Option<&Type> {
         self.tyvar_instances.get(name).or_else(|| {
-            self.typaram_instances.get(name).map(|t| {
-                if let TyParam::Type(t) = t {
-                    t.as_ref()
-                } else {
-                    todo!("{t}")
-                }
-            })
+            self.typaram_instances
+                .get(name)
+                .map(|tp| <&Type>::try_from(tp).unwrap())
         })
     }
 
@@ -651,6 +649,14 @@ impl Context {
                 self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_ctx, not_found_is_qvar)
             }
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
+                if let Ok(namespace) = Parser::validate_const_expr(namespace.as_ref().clone()) {
+                    if let Ok(namespace) =
+                        self.instantiate_const_expr_as_type(&namespace, None, tmp_tv_ctx)
+                    {
+                        let rhs = t.ident.inspect();
+                        return Ok(proj(namespace, rhs));
+                    }
+                }
                 let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
                 if let Some((typ, _)) = ctx.rec_get_type(t.ident.inspect()) {
                     // TODO: visibility check
@@ -698,9 +704,9 @@ impl Context {
                 // TODO: kw
                 let mut args = simple.args.pos_args();
                 if let Some(first) = args.next() {
-                    let t = self.instantiate_const_expr_as_type(&first.expr)?;
+                    let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_ctx)?;
                     let len = args.next().unwrap();
-                    let len = self.instantiate_const_expr(&len.expr)?;
+                    let len = self.instantiate_const_expr(&len.expr, None, tmp_tv_ctx)?;
                     Ok(array_t(t, len))
                 } else {
                     Ok(mono("GenericArray"))
@@ -709,14 +715,14 @@ impl Context {
             "Ref" => {
                 let mut args = simple.args.pos_args();
                 let first = args.next().unwrap();
-                let t = self.instantiate_const_expr_as_type(&first.expr)?;
+                let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_ctx)?;
                 Ok(ref_(t))
             }
             "RefMut" => {
                 // TODO after
                 let mut args = simple.args.pos_args();
                 let first = args.next().unwrap();
-                let t = self.instantiate_const_expr_as_type(&first.expr)?;
+                let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_ctx)?;
                 Ok(ref_mut(t, None))
             }
             other if simple.args.is_empty() => {
@@ -773,32 +779,16 @@ impl Context {
                 // FIXME: kw args
                 let mut new_params = vec![];
                 for (i, arg) in simple.args.pos_args().enumerate() {
-                    match &arg.expr {
-                        ast::ConstExpr::Lit(lit) => {
-                            new_params.push(TyParam::Value(self.eval_lit(lit)?));
+                    let params = self.instantiate_const_expr(&arg.expr, Some((ctx, i)), tmp_tv_ctx);
+                    let params = params.or_else(|e| {
+                        if not_found_is_qvar {
+                            // TODO:
+                            Ok(mono_q_tp(arg.expr.to_string()))
+                        } else {
+                            Err(e)
                         }
-                        ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                            if &name.inspect()[..] == "_" {
-                                new_params.push(TyParam::erased(ctx.params[i].1.t.clone()));
-                            } else if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
-                                new_params.push(TyParam::t(typ.clone()));
-                            } else if not_found_is_qvar {
-                                new_params.push(mono_q_tp(name.inspect().clone()));
-                            } else {
-                                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    name.loc(),
-                                    self.caused_by(),
-                                    name.inspect(),
-                                    self.get_similar_name(name.inspect()),
-                                )));
-                            }
-                        }
-                        other => {
-                            todo!("instantiating {other}")
-                        }
-                    }
+                    })?;
+                    new_params.push(params);
                 }
                 // FIXME: non-builtin
                 Ok(poly(Str::rc(other), new_params))
@@ -806,15 +796,48 @@ impl Context {
         }
     }
 
-    pub(crate) fn instantiate_const_expr(&self, expr: &ast::ConstExpr) -> TyCheckResult<TyParam> {
+    pub(crate) fn instantiate_const_expr(
+        &self,
+        expr: &ast::ConstExpr,
+        erased_idx: Option<(&Context, usize)>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
+    ) -> TyCheckResult<TyParam> {
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
                 if &name.inspect()[..] == "_" {
-                    Ok(TyParam::erased(Type::Uninited))
-                } else {
-                    Ok(TyParam::Mono(name.inspect().clone()))
+                    let t = if let Some((ctx, i)) = erased_idx {
+                        ctx.params[i].1.t.clone()
+                    } else {
+                        Type::Uninited
+                    };
+                    return Ok(TyParam::erased(t));
                 }
+                if let Some(tmp_tv_ctx) = tmp_tv_ctx {
+                    if let Ok(tp) =
+                        self.instantiate_tp(mono_q_tp(name.inspect()), tmp_tv_ctx, name.loc())
+                    {
+                        return Ok(tp);
+                    }
+                }
+                if let Some(tv_ctx) = &self.tv_ctx {
+                    if let Some(t) = tv_ctx.get_qvar(mono_q(name.inspect())) {
+                        return Ok(TyParam::t(t));
+                    } else if let Some(tp) = tv_ctx.get_typaram(name.inspect()) {
+                        return Ok(tp.clone());
+                    }
+                }
+                if let Some(value) = self.rec_get_const_obj(name.inspect()) {
+                    return Ok(TyParam::Value(value.clone()));
+                }
+                Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    name.loc(),
+                    self.caused_by(),
+                    name.inspect(),
+                    self.get_similar_name(name.inspect()),
+                )))
             }
             _ => todo!(),
         }
@@ -823,23 +846,13 @@ impl Context {
     pub(crate) fn instantiate_const_expr_as_type(
         &self,
         expr: &ast::ConstExpr,
-    ) -> SingleTyCheckResult<Type> {
-        match expr {
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                if let Some((typ, _)) = self.rec_get_type(name.inspect()) {
-                    Ok(typ.clone())
-                } else {
-                    Err(TyCheckError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        name.loc(),
-                        self.caused_by(),
-                        name.inspect(),
-                        self.get_similar_name(name.inspect()),
-                    ))
-                }
-            }
-            _ => todo!(),
+        erased_idx: Option<(&Context, usize)>,
+        tmp_tv_ctx: Option<&TyVarInstContext>,
+    ) -> TyCheckResult<Type> {
+        match self.instantiate_const_expr(expr, erased_idx, tmp_tv_ctx)? {
+            TyParam::Type(t) => Ok(*t),
+            TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
+            other => todo!("{other}"),
         }
     }
 
@@ -901,13 +914,13 @@ impl Context {
                     mode,
                     not_found_is_qvar,
                 )?;
-                let mut len = self.instantiate_const_expr(&arr.len)?;
+                let mut len = self.instantiate_const_expr(&arr.len, None, tmp_tv_ctx)?;
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
                 }
                 Ok(array_t(elem_t, len))
             }
-            TypeSpec::Set(set) => {
+            TypeSpec::SetWithLen(set) => {
                 let elem_t = self.instantiate_typespec(
                     &set.ty,
                     opt_decl_t,
@@ -915,7 +928,7 @@ impl Context {
                     mode,
                     not_found_is_qvar,
                 )?;
-                let mut len = self.instantiate_const_expr(&set.len)?;
+                let mut len = self.instantiate_const_expr(&set.len, None, tmp_tv_ctx)?;
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
                 }
@@ -976,13 +989,12 @@ impl Context {
             TypeSpec::Enum(set) => {
                 let mut new_set = set! {};
                 for arg in set.pos_args() {
-                    if let ast::ConstExpr::Lit(lit) = &arg.expr {
-                        new_set.insert(self.eval_lit(lit)?);
-                    } else {
-                        todo!()
-                    }
+                    new_set.insert(self.instantiate_const_expr(&arg.expr, None, tmp_tv_ctx)?);
                 }
-                Ok(v_enum(new_set))
+                let ty = new_set.iter().fold(Type::Never, |t, tp| {
+                    self.union(&t, &self.get_tp_t(tp).unwrap())
+                });
+                Ok(tp_enum(ty, new_set))
             }
             TypeSpec::Interval { op, lhs, rhs } => {
                 let op = match op.kind {
@@ -992,9 +1004,9 @@ impl Context {
                     TokenKind::Open => IntervalOp::Open,
                     _ => assume_unreachable!(),
                 };
-                let l = self.instantiate_const_expr(lhs)?;
+                let l = self.instantiate_const_expr(lhs, None, tmp_tv_ctx)?;
                 let l = self.eval_tp(&l)?;
-                let r = self.instantiate_const_expr(rhs)?;
+                let r = self.instantiate_const_expr(rhs, None, tmp_tv_ctx)?;
                 let r = self.eval_tp(&r)?;
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
@@ -1106,20 +1118,16 @@ impl Context {
         match quantified {
             TyParam::MonoQVar(n) => {
                 if let Some(tp) = tmp_tv_ctx.get_typaram(&n) {
-                    Ok(tp.clone())
+                    return Ok(tp.clone());
                 } else if let Some(t) = tmp_tv_ctx.get_tyvar(&n) {
-                    Ok(TyParam::t(t.clone()))
-                } else if let Some(tv_ctx) = &self.tv_ctx {
-                    tv_ctx.get_qtp(TyParam::MonoQVar(n.clone())).ok_or_else(|| {
-                        TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            &n,
-                            loc,
-                            AtomicStr::ever("?"),
-                        ))
-                    })
-                } else if let Some(outer) = &self.outer {
+                    return Ok(TyParam::t(t.clone()));
+                }
+                if let Some(tv_ctx) = &self.tv_ctx {
+                    if let Some(tp) = tv_ctx.get_qtp(TyParam::MonoQVar(n.clone())) {
+                        return Ok(tp);
+                    }
+                }
+                if let Some(outer) = &self.outer {
                     outer.instantiate_tp(TyParam::MonoQVar(n), tmp_tv_ctx, loc)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
@@ -1130,6 +1138,38 @@ impl Context {
                         AtomicStr::ever("?"),
                     )))
                 }
+            }
+            TyParam::Dict(dict) => {
+                let dict = dict
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let k = self.instantiate_tp(k, tmp_tv_ctx, loc)?;
+                        let v = self.instantiate_tp(v, tmp_tv_ctx, loc)?;
+                        Ok((k, v))
+                    })
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Dict(dict))
+            }
+            TyParam::Array(arr) => {
+                let arr = arr
+                    .into_iter()
+                    .map(|v| self.instantiate_tp(v, tmp_tv_ctx, loc))
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Array(arr))
+            }
+            TyParam::Set(set) => {
+                let set = set
+                    .into_iter()
+                    .map(|v| self.instantiate_tp(v, tmp_tv_ctx, loc))
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Set(set))
+            }
+            TyParam::Tuple(tup) => {
+                let tup = tup
+                    .into_iter()
+                    .map(|v| self.instantiate_tp(v, tmp_tv_ctx, loc))
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Tuple(tup))
             }
             TyParam::UnaryOp { op, val } => {
                 let res = self.instantiate_tp(*val, tmp_tv_ctx, loc)?;
@@ -1179,10 +1219,10 @@ impl Context {
         match unbound {
             MonoQVar(n) => {
                 if let Some(t) = tmp_tv_ctx.get_tyvar(&n) {
-                    Ok(t.clone())
+                    return Ok(t.clone());
                 } else if let Some(tp) = tmp_tv_ctx.get_typaram(&n) {
                     if let TyParam::Type(t) = tp {
-                        Ok(*t.clone())
+                        return Ok(*t.clone());
                     } else {
                         todo!(
                             "typaram_insts: {}\ntyvar_insts:{}\n{tp}",
@@ -1190,25 +1230,19 @@ impl Context {
                             tmp_tv_ctx.tyvar_instances,
                         )
                     }
-                } else if let Some(tv_ctx) = &self.tv_ctx {
-                    tv_ctx.get_qvar(MonoQVar(n.clone())).ok_or_else(|| {
-                        TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            &n,
-                            loc,
-                            AtomicStr::ever("?"),
-                        ))
-                    })
-                } else {
-                    Err(TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        &n,
-                        loc,
-                        AtomicStr::ever("?"),
-                    )))
                 }
+                if let Some(tv_ctx) = &self.tv_ctx {
+                    if let Some(t) = tv_ctx.get_qvar(MonoQVar(n.clone())) {
+                        return Ok(t);
+                    }
+                }
+                Err(TyCheckErrors::from(TyCheckError::tyvar_not_defined_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &n,
+                    loc,
+                    AtomicStr::ever("?"),
+                )))
             }
             PolyQVar { name, mut params } => {
                 for param in params.iter_mut() {

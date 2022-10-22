@@ -2840,7 +2840,7 @@ impl Parser {
 
 // The APIs defined below are also used by `ASTLowerer` to interpret expressions as types.
 impl Parser {
-    fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
+    pub fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Ident(local)) => {
@@ -3016,17 +3016,21 @@ impl Parser {
         }
     }
 
-    fn set_to_set_type_spec(set: Set) -> Result<SetTypeSpec, ParseError> {
+    fn set_to_set_type_spec(set: Set) -> Result<TypeSpec, ParseError> {
         match set {
-            Set::Normal(arr) => {
-                // TODO: add hint
-                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
-                Err(err)
+            Set::Normal(set) => {
+                let mut elem_ts = vec![];
+                let (elems, .., paren) = set.elems.deconstruct();
+                for elem in elems.into_iter() {
+                    let const_expr = Self::validate_const_expr(elem.expr)?;
+                    elem_ts.push(ConstPosArg::new(const_expr));
+                }
+                Ok(TypeSpec::Enum(ConstArgs::new(elem_ts, vec![], paren)))
             }
             Set::WithLength(set) => {
                 let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
                 let len = Self::validate_const_expr(*set.len)?;
-                Ok(SetTypeSpec::new(t_spec, len))
+                Ok(TypeSpec::SetWithLen(SetWithLenTypeSpec::new(t_spec, len)))
             }
         }
     }
@@ -3095,7 +3099,7 @@ impl Parser {
             }
             Expr::Set(set) => {
                 let set = Self::set_to_set_type_spec(set)?;
-                Ok(TypeSpec::Set(set))
+                Ok(set)
             }
             Expr::Dict(dict) => {
                 let dict = Self::dict_to_dict_type_spec(dict)?;

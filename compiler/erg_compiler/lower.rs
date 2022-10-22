@@ -21,7 +21,7 @@ use erg_parser::Parser;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
 };
-use crate::ty::free::Constraint;
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
@@ -1595,6 +1595,8 @@ impl ASTLowerer {
                     RegistrationMode::Normal,
                     false,
                 )?;
+                t.lift();
+                let t = self.ctx.generalize_t(t);
                 if is_instance_ascription {
                     self.declare_instance(&ident, &t, py_name)?;
                 } else {

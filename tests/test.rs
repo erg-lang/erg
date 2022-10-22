@@ -14,6 +14,11 @@ fn exec_addition() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_advanced_type_spec() -> Result<(), ()> {
+    expect_success("tests/advanced_type_spec.er")
+}
+
+#[test]
 fn exec_assert_cast() -> Result<(), ()> {
     expect_success("examples/assert_cast.er")
 }

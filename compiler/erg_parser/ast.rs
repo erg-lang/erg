@@ -1079,7 +1079,7 @@ pub struct ConstLocal {
 
 impl NestedDisplay for ConstLocal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.symbol)
+        write!(f, "{}", self.symbol.content)
     }
 }
 
@@ -1514,7 +1514,7 @@ impl fmt::Display for SimpleTypeSpec {
         if self.args.is_empty() {
             write!(f, "{}", self.ident)
         } else {
-            write!(f, "{}{}", self.ident, self.args)
+            write!(f, "{}({})", self.ident, self.args)
         }
     }
 }
@@ -1728,20 +1728,20 @@ impl ArrayTypeSpec {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SetTypeSpec {
+pub struct SetWithLenTypeSpec {
     pub ty: Box<TypeSpec>,
     pub len: ConstExpr,
 }
 
-impl fmt::Display for SetTypeSpec {
+impl fmt::Display for SetWithLenTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{}; {}}}", self.ty, self.len)
     }
 }
 
-impl_locational!(SetTypeSpec, ty, len);
+impl_locational!(SetWithLenTypeSpec, ty, len);
 
-impl SetTypeSpec {
+impl SetWithLenTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
         Self {
             ty: Box::new(ty),
@@ -1765,7 +1765,7 @@ pub enum TypeSpec {
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
     Array(ArrayTypeSpec),
-    Set(SetTypeSpec),
+    SetWithLen(SetWithLenTypeSpec),
     Tuple(Vec<TypeSpec>),
     Dict(Vec<(TypeSpec, TypeSpec)>),
     Record(Vec<(Identifier, TypeSpec)>),
@@ -1795,7 +1795,7 @@ impl fmt::Display for TypeSpec {
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
-            Self::Set(set) => write!(f, "{set}"),
+            Self::SetWithLen(set) => write!(f, "{set}"),
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
@@ -1827,7 +1827,7 @@ impl Locational for TypeSpec {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
             Self::Array(arr) => arr.loc(),
-            Self::Set(set) => set.loc(),
+            Self::SetWithLen(set) => set.loc(),
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
             Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),

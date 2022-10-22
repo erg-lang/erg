@@ -374,6 +374,33 @@ impl TryFrom<&ValueObj> for f64 {
     }
 }
 
+impl TryFrom<ValueObj> for Type {
+    type Error = ();
+    fn try_from(val: ValueObj) -> Result<Type, ()> {
+        match val {
+            ValueObj::Type(t) => match t {
+                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Generated(gen) => Ok(gen.t),
+            },
+            ValueObj::Mut(v) => Type::try_from(v.borrow().clone()).map_err(|_| ()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a ValueObj> for &'a Type {
+    type Error = ();
+    fn try_from(val: &'a ValueObj) -> Result<Self, ()> {
+        match val {
+            ValueObj::Type(t) => match t {
+                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Generated(gen) => Ok(&gen.t),
+            },
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasType for ValueObj {
     fn ref_t(&self) -> &Type {
         panic!("cannot get reference of the const")

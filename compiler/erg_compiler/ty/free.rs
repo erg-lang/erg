@@ -394,6 +394,9 @@ impl<T> Free<T> {
     pub fn as_ptr(&self) -> *mut FreeKind<T> {
         self.0.as_ptr()
     }
+    pub fn forced_as_ref(&self) -> &FreeKind<T> {
+        unsafe { self.as_ptr().as_ref() }.unwrap()
+    }
     pub fn force_replace(&self, new: FreeKind<T>) {
         // prevent linking to self
         if addr_eq!(*self.borrow(), new) {

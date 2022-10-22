@@ -113,6 +113,12 @@ impl Context {
                     return self.same_type_of(t, &other_t);
                 }
             },
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
+                return self.same_type_of(l.typ(), r.as_ref());
+            }
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
+                return self.same_type_of(l.as_ref(), r.typ());
+            }
             (l, r) if l == r => {
                 return true;
             }
@@ -567,8 +573,9 @@ impl Context {
             // ({I: Int | I >= 0} :> {I: Int | I >= 1}) == true,
             // ({I: Int | I >= 0} :> {N: Nat | N >= 1}) == true,
             // ({I: Int | I > 1 or I < -1} :> {I: Int | I >= 0}) == false,
+            // {1, 2, 3} :> {1, } == true
             (Refinement(l), Refinement(r)) => {
-                if !self.supertype_of(&l.t, &r.t) {
+                if !self.supertype_of(&l.t, &r.t) && !self.supertype_of(&r.t, &l.t) {
                     return false;
                 }
                 let mut r_preds_clone = r.preds.clone();
@@ -777,6 +784,9 @@ impl Context {
     }
 
     fn supertype_of_tp(&self, lp: &TyParam, rp: &TyParam, variance: Variance) -> bool {
+        if lp == rp {
+            return true;
+        }
         match (lp, rp, variance) {
             (TyParam::FreeVar(fv), _, _) if fv.is_linked() => {
                 self.supertype_of_tp(&fv.crack(), rp, variance)

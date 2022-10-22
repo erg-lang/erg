@@ -181,11 +181,10 @@ impl Context {
         }
         self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
         let muty = Mutability::from(&ident.inspect()[..]);
-        let generalized = self.generalize_t(body_t.clone());
         self.decls.remove(ident.inspect());
         let vis = ident.vis();
         let vi = VarInfo::new(
-            generalized,
+            body_t.clone(),
             muty,
             vis,
             VarKind::Defined(id),

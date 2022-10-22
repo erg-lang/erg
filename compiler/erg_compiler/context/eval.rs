@@ -224,10 +224,13 @@ impl<'c> SubstContext<'c> {
             Type::FreeVar(fv) => {
                 if let Some(name) = fv.unbound_name() {
                     if let Some(tp) = self.params.get(&name) {
-                        if let TyParam::Type(t) = tp {
-                            self.ctx.sub_unify(param_t, t, Location::Unknown, None)?;
-                        } else {
-                            panic!()
+                        match Type::try_from(tp.clone()) {
+                            Ok(t) => {
+                                self.ctx.sub_unify(param_t, &t, Location::Unknown, None)?;
+                            }
+                            Err(_) => {
+                                todo!("")
+                            }
                         }
                     }
                 }
@@ -1254,6 +1257,13 @@ impl Context {
     /// NOTE: lとrが型の場合はContextの方で判定する
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
+            (TyParam::Type(l), _) if l.is_unbound_var() => {
+                self.subtype_of(&self.get_tp_t(rhs).unwrap(), &Type::Type)
+            }
+            (_, TyParam::Type(r)) if r.is_unbound_var() => {
+                let lhs = self.get_tp_t(lhs).unwrap();
+                self.subtype_of(&lhs, &Type::Type)
+            }
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::Value(l), TyParam::Value(r)) => l == r,
             (TyParam::Erased(l), TyParam::Erased(r)) => l == r,
@@ -1287,7 +1297,7 @@ impl Context {
             (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
             (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
             (TyParam::MonoQVar(_), _) | (_, TyParam::MonoQVar(_)) => false,
-            (l, r) => todo!("l: {l}, r: {r}"),
+            (l, r) => todo!("l: {l:?}, r: {r:?}"),
         }
     }
 }

@@ -482,6 +482,22 @@ impl TryFrom<TyParam> for Type {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => Type::try_from(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
+            TyParam::Value(v) => Type::try_from(v),
+            // TODO: Array, Dict, Set
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a TyParam> for &'a Type {
+    type Error = ();
+    fn try_from(tp: &'a TyParam) -> Result<&'a Type, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                <&'a Type>::try_from(fv.forced_as_ref().linked().unwrap())
+            }
+            TyParam::Type(t) => Ok(t.as_ref()),
+            TyParam::Value(v) => <&Type>::try_from(v),
             // TODO: Array, Dict, Set
             _ => Err(()),
         }

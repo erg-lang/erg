@@ -68,6 +68,7 @@ impl Context {
                 }
                 _ => assume_unreachable!(),
             },
+            TyParam::FreeVar(_) => free,
             other if other.has_no_unbound_var() => other,
             other => todo!("{other}"),
         }
@@ -241,6 +242,15 @@ impl Context {
                     after,
                 )
             }
+            Refinement(refine) => {
+                let t = self.generalize_t_inner(*refine.t, variance, bounds, lazy_inits);
+                let preds = refine
+                    .preds
+                    .into_iter()
+                    .map(|pred| self.generalize_pred(pred, variance, bounds, lazy_inits))
+                    .collect();
+                refinement(refine.var, t, preds)
+            }
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
@@ -311,6 +321,35 @@ impl Context {
                 }
                 Constraint::Uninited => unreachable!(),
             }
+        }
+    }
+
+    fn generalize_pred(
+        &self,
+        pred: Predicate,
+        variance: Variance,
+        bounds: &mut Set<TyBound>,
+        lazy_inits: &mut Set<Str>,
+    ) -> Predicate {
+        match pred {
+            Predicate::Const(_) => pred,
+            Predicate::Equal { lhs, rhs } => {
+                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                Predicate::eq(lhs, rhs)
+            }
+            Predicate::GreaterEqual { lhs, rhs } => {
+                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                Predicate::ge(lhs, rhs)
+            }
+            Predicate::LessEqual { lhs, rhs } => {
+                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                Predicate::le(lhs, rhs)
+            }
+            Predicate::NotEqual { lhs, rhs } => {
+                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                Predicate::ne(lhs, rhs)
+            }
+            other => todo!("{other}"),
         }
     }
 
