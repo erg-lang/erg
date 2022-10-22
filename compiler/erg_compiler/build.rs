@@ -5,6 +5,9 @@ use std::fs;
 use std::path;
 
 fn main() -> std::io::Result<()> {
+    if env::var("ERG_PATH").is_ok() && !cfg!(feature = "debug") {
+        return Ok(());
+    }
     // Create a ".erg" directory
     let erg_path = env::home_dir()
         .expect("failed to get the location of the home dir")
