@@ -47,7 +47,7 @@ body:
 
   - type: dropdown
     attributes:
-      label: os
+      label: OS
       options:
         - Windows 10
         - Windows 11
