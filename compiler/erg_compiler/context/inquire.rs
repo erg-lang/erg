@@ -17,7 +17,7 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use crate::ty::constructors::{anon, free_var, func, mono, poly, proj, subr_t};
+use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
@@ -234,6 +234,7 @@ impl Context {
 
     fn get_match_call_t(
         &self,
+        kind: SubrKind,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<VarInfo> {
@@ -310,7 +311,11 @@ impl Context {
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
-        let t = func(param_ts, None, vec![], return_t);
+        let t = if kind.is_func() {
+            func(param_ts, None, vec![], return_t)
+        } else {
+            proc(param_ts, None, vec![], return_t)
+        };
         Ok(VarInfo {
             t,
             ..VarInfo::default()
@@ -1162,7 +1167,10 @@ impl Context {
                 #[allow(clippy::single_match)]
                 match &local.inspect()[..] {
                     "match" => {
-                        return self.get_match_call_t(pos_args, kw_args);
+                        return self.get_match_call_t(SubrKind::Func, pos_args, kw_args);
+                    }
+                    "match!" => {
+                        return self.get_match_call_t(SubrKind::Proc, pos_args, kw_args);
                     }
                     /*"import" | "pyimport" | "py" => {
                         return self.get_import_call_t(pos_args, kw_args);

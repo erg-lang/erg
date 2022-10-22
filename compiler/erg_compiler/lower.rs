@@ -590,7 +590,9 @@ impl ASTLowerer {
     fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
         // `match` is an untypable special form
         // `match`は型付け不可能な特殊形式
-        let (vi, __name__) = if ident.vis().is_private() && &ident.inspect()[..] == "match" {
+        let (vi, __name__) = if ident.vis().is_private()
+            && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
+        {
             (VarInfo::default(), None)
         } else {
             (

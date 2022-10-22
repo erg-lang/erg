@@ -1068,6 +1068,13 @@ impl SubrKind {
             Self::Proc => Str::ever("=>"),
         }
     }
+
+    pub fn is_func(&self) -> bool {
+        matches!(self, Self::Func)
+    }
+    pub fn is_proc(&self) -> bool {
+        matches!(self, Self::Proc)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

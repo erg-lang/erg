@@ -988,7 +988,7 @@ impl Call {
     pub fn is_match(&self) -> bool {
         self.obj
             .get_name()
-            .map(|s| &s[..] == "match")
+            .map(|s| &s[..] == "match" || &s[..] == "match!")
             .unwrap_or(false)
     }
 

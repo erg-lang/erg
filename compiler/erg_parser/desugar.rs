@@ -300,6 +300,7 @@ impl Desugarer {
         (call, return_t_spec)
     }
 
+    // TODO: procedural match
     fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
         let sig = enum_unwrap!(previous.sig, Signature::Subr);
