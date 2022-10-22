@@ -183,7 +183,7 @@ impl Context {
                 } else {
                     r.clone()
                 };
-                if l == r {
+                if self.same_type_of(&l, &r) {
                     fv.forced_link(&l);
                     FreeVar(fv)
                 } else if r != Obj && self.is_class(&r) && variance == Contravariant {

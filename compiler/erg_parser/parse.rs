@@ -2724,6 +2724,11 @@ impl Parser {
     fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         match rhs {
+            Expr::Lit(lit) => {
+                let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
+                let params = Params::new(vec![param], None, vec![], None);
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
             Expr::Accessor(accessor) => {
                 let param = self
                     .convert_accessor_to_param_sig(accessor)

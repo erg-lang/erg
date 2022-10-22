@@ -1762,6 +1762,7 @@ impl SetWithLenTypeSpec {
 /// * TypeApp: F|...|
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
+    Infer(Token),
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
     Array(ArrayTypeSpec),
@@ -1790,6 +1791,7 @@ pub enum TypeSpec {
 impl fmt::Display for TypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Infer(_) => write!(f, "?"),
             Self::PreDeclTy(ty) => write!(f, "{ty}"),
             Self::And(lhs, rhs) => write!(f, "{lhs} and {rhs}"),
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
@@ -1822,6 +1824,7 @@ impl fmt::Display for TypeSpec {
 impl Locational for TypeSpec {
     fn loc(&self) -> Location {
         match self {
+            Self::Infer(t) => t.loc(),
             Self::PreDeclTy(sig) => sig.loc(),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
@@ -1862,6 +1865,17 @@ impl TypeSpec {
             spec: Box::new(spec),
             args,
         }
+    }
+
+    pub fn enum_t_spec(elems: Vec<Literal>) -> Self {
+        Self::Enum(ConstArgs::new(
+            elems
+                .into_iter()
+                .map(|lit| ConstPosArg::new(ConstExpr::Lit(lit)))
+                .collect(),
+            vec![],
+            None,
+        ))
     }
 }
 

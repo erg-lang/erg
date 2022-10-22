@@ -595,6 +595,8 @@ impl Context {
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
+                ast::ParamPattern::Discard(_) => Type::Obj,
+                // ast::ParamPattern::VarName(name) if &name.inspect()[..] == "_" => Type::Obj,
                 // TODO: Array<Lit>
                 _ => {
                     let level = if mode == PreRegister {
@@ -888,6 +890,7 @@ impl Context {
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
         match spec {
+            TypeSpec::Infer(_) => Ok(free_var(self.level, Constraint::new_type_of(Type))),
             TypeSpec::PreDeclTy(predecl) => Ok(self.instantiate_predecl_t(
                 predecl,
                 opt_decl_t,

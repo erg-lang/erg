@@ -1,0 +1,11 @@
+sum2 [x, y]: [Nat; 2] =
+    x + y
+
+print! sum2 [1, 2]
+
+x = match "c" + "":
+    "a" -> 1
+    "b" -> 2
+    _ -> 3
+
+print! x

@@ -1253,6 +1253,9 @@ impl CodeGenerator {
                     todo!("default values in match are not supported yet")
                 }
             }
+            ParamPattern::Discard(_) => {
+                self.emit_pop_top();
+            }
             _other => {
                 todo!()
             }
