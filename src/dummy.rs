@@ -124,7 +124,8 @@ impl Runnable for DummyVM {
                 let mut buf = [0; 1024];
                 match self.stream.as_mut().unwrap().read(&mut buf) {
                     Result::Ok(n) => {
-                        let s = std::str::from_utf8(&buf[..n]).unwrap();
+                        let s = std::str::from_utf8(&buf[..n])
+                            .expect("failed to parse the response, maybe the output is too long");
                         if s == "[Exception] SystemExit" {
                             return Err(EvalErrors::from(EvalError::system_exit()));
                         }
