@@ -1,0 +1,5 @@
+.parser = pyimport "parser"
+.entities = pyimport "entities"
+
+.escape: (s: Str, quote := Bool) -> Str
+.unescape: (s: Str,) -> Str
