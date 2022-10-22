@@ -3,9 +3,11 @@ sum2 [x, y]: [Nat; 2] =
 
 print! sum2 [1, 2]
 
-x = match "a" + "":
+s = "a" + ""
+
+n = match s:
     "a" -> 1
     "b" -> 2
     _ -> unreachable()
 
-print! x
+print! n
