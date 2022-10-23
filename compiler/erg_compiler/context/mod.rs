@@ -189,7 +189,8 @@ impl_display_from_debug!(Variance);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
-    pub(crate) name: Option<&'static str>, // TODO: nested
+    pub(crate) name: Option<&'static str>,
+    // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub default_info: DefaultInfo,
 }
