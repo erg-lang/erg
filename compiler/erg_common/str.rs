@@ -105,8 +105,8 @@ impl Borrow<str> for Str {
     #[inline]
     fn borrow(&self) -> &str {
         match self {
-            Str::Rc(s) => s.borrow(),
-            Str::Static(s) => s,
+            Str::Rc(s) => &s[..],
+            Str::Static(s) => *s,
         }
     }
 }
@@ -171,6 +171,11 @@ impl Str {
 mod tests {
     use super::*;
 
+    use crate::dict;
+    // use crate::dict::Dict;
+
+    use crate::vis::Field;
+
     #[test]
     fn test_split_with() {
         assert_eq!(
@@ -189,5 +194,18 @@ mod tests {
             Str::ever("aaxxbbyycc").split_with(&["xx", "yy"]),
             vec!["aa", "bb", "ff"]
         );
+    }
+
+    #[test]
+    fn test_std_key() {
+        let dict = dict! {Str::ever("a") => 1, Str::rc("b") => 2};
+        assert_eq!(dict.get("a"), Some(&1));
+        assert_eq!(dict.get("b"), Some(&2));
+        assert_eq!(dict.get(&Str::ever("b")), Some(&2));
+        assert_eq!(dict.get(&Str::rc("b")), Some(&2));
+
+        let dict = dict! {Field::private(Str::ever("a")) => 1, Field::public(Str::ever("b")) => 2};
+        assert_eq!(dict.get("a"), Some(&1));
+        assert_eq!(dict.get("b"), Some(&2));
     }
 }

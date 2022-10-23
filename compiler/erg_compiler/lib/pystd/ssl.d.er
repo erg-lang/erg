@@ -1,0 +1,12 @@
+.SSLContext: ClassType
+.create_default_context!: () => .SSLContext
+
+.SSLError: ClassType
+
+.SSLSocket: ClassType
+.SSLSocket <: FileLike!
+
+.rand_bytes! = 'RAND_bytes': (num: Nat,) => Bytes
+.rand_pseudo_bytes! = 'RAND_pseudo_bytes': (num: Nat,) => Bytes
+.rand_status! = 'RAND_status': () => Bool
+.rand_add! = 'RAND_add': (bytes: Bytes, entropy: Float,) => NoneType

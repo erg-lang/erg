@@ -4,13 +4,11 @@ use erg_common::enum_unwrap;
 
 use crate::context::Context;
 use crate::ty::constructors::{and, mono};
-use crate::ty::value::{EvalValueResult, TypeKind, TypeObj, ValueObj};
+use crate::ty::value::{EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::ValueArgs;
 use erg_common::astr::AtomicStr;
 use erg_common::color::{RED, RESET, YELLOW};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
-use erg_common::str::Str;
-use erg_common::vis::Field;
 
 /// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
@@ -39,7 +37,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(TypeKind::Class, t, require, impls, None))
+    Ok(ValueObj::gen_t(GenTypeObj::class(t, require, impls)))
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
@@ -71,13 +69,9 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(
-        TypeKind::Subclass,
-        t,
-        sup,
-        impls,
-        additional,
-    ))
+    Ok(ValueObj::gen_t(GenTypeObj::inherited(
+        t, sup, impls, additional,
+    )))
 }
 
 /// Class: ClassType -> ClassType (with `InheritableType`)
@@ -94,17 +88,18 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
     })?;
     match class {
         ValueObj::Type(TypeObj::Generated(mut gen)) => {
-            if let Some(typ) = &mut gen.impls {
-                match typ.as_mut() {
-                    TypeObj::Generated(gen) => {
-                        gen.t = and(mem::take(&mut gen.t), mono("InheritableType"));
+            if let Some(typ) = gen.impls_mut() {
+                match typ.as_mut().map(|x| x.as_mut()) {
+                    Some(TypeObj::Generated(gen)) => {
+                        *gen.typ_mut() = and(mem::take(gen.typ_mut()), mono("InheritableType"));
                     }
-                    TypeObj::Builtin(t) => {
+                    Some(TypeObj::Builtin(t)) => {
                         *t = and(mem::take(t), mono("InheritableType"));
                     }
+                    _ => {
+                        *typ = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
+                    }
                 }
-            } else {
-                gen.impls = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
             }
             Ok(ValueObj::Type(TypeObj::Generated(gen)))
         }
@@ -139,7 +134,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(TypeKind::Trait, t, require, impls, None))
+    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, require, impls)))
 }
 
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
@@ -171,13 +166,9 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(
-        TypeKind::Subtrait,
-        t,
-        sup,
-        impls,
-        additional,
-    ))
+    Ok(ValueObj::gen_t(GenTypeObj::subsumed(
+        t, sup, impls, additional,
+    )))
 }
 
 pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
@@ -240,9 +231,9 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
         ValueObj::DataClass { name, fields }
     );
     let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
-    let start = fields.get(&Field::private(Str::ever("start"))).unwrap();
+    let start = fields.get("start").unwrap();
     let start = *enum_unwrap!(start, ValueObj::Nat);
-    let end = fields.get(&Field::private(Str::ever("end"))).unwrap();
+    let end = fields.get("end").unwrap();
     let end = *enum_unwrap!(end, ValueObj::Nat);
     // FIXME <= if inclusive
     if start + index < end {

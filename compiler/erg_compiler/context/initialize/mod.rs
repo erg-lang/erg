@@ -923,7 +923,6 @@ impl Context {
         bool_.register_superclass(Nat, &nat);
         // class("Rational"),
         // class("Integral"),
-        // TODO: And, Or trait
         bool_.register_builtin_impl("__and__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_builtin_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_marker_trait(mono("Num"));
@@ -2090,8 +2089,10 @@ impl Context {
         self.register_builtin_impl("__le__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__gt__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__ge__", op_t, Const, Private);
-        self.register_builtin_impl("__and__", bin_op(Bool, Bool, Bool), Const, Private);
-        self.register_builtin_impl("__or__", bin_op(Bool, Bool, Bool), Const, Private);
+        let op_t = bin_op(mono_q("T"), mono_q("T"), mono_q("T"));
+        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), or(Bool, Type))});
+        self.register_builtin_impl("__and__", op_t.clone(), Const, Private);
+        self.register_builtin_impl("__or__", op_t, Const, Private);
         let t = mono_q("T");
         let op_t = bin_op(t.clone(), t.clone(), range(t.clone()));
         let op_t = quant(op_t, set! {subtypeof(t, mono("Ord"))});
@@ -2165,6 +2166,21 @@ impl Context {
         // ord.register_impl("__le__", op_t.clone(), Const, Public);
         // ord.register_impl("__gt__", op_t.clone(), Const, Public);
         // ord.register_impl("__ge__", op_t,         Const, Public);
+        let t = mono_q("T");
+        let u = mono_q("U");
+        let base = or(t.clone(), u.clone());
+        let params = vec![PS::named_nd("T", Type), PS::named_nd("U", Type)];
+        let mut union_eq = Self::builtin_poly_patch("UnionEq", base.clone(), params, 1);
+        let mut union_eq_impl =
+            Self::builtin_methods(Some(poly("Eq", vec![ty_tp(base.clone())])), 1);
+        let op_t = fn1_met(base.clone(), base.clone(), Bool);
+        let op_t = quant(
+            op_t,
+            set! {subtypeof(t.clone(), poly("Eq", vec![ty_tp(t)])), subtypeof(u.clone(), poly("Eq", vec![ty_tp(u)]))},
+        );
+        union_eq_impl.register_builtin_impl("__eq__", op_t, Const, Public);
+        union_eq.register_trait(base, union_eq_impl);
+        self.register_builtin_patch("UnionEq", union_eq, Private, Const);
     }
 
     pub(crate) fn init_builtins(mod_cache: &SharedModuleCache) {

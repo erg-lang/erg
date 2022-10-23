@@ -6,6 +6,7 @@ use std::process;
 
 use crate::ty::codeobj::MakeFunctionFlags;
 use crate::ty::codeobj::{CodeObj, CodeObjFlags};
+use crate::ty::value::GenTypeObj;
 use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
@@ -35,7 +36,6 @@ use crate::hir::{
     VarSignature, HIR,
 };
 use crate::ty::free::fresh_varname;
-use crate::ty::value::TypeKind;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
 use AccessKind::*;
@@ -783,8 +783,8 @@ impl CodeGenerator {
     fn emit_class_def(&mut self, class_def: ClassDef) {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
         let ident = class_def.sig.ident().clone();
-        let kind = class_def.kind;
         let require_or_sup = class_def.require_or_sup.clone();
+        let obj = class_def.obj.clone();
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
@@ -795,7 +795,7 @@ impl CodeGenerator {
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
-        let subclasses_len = self.emit_require_type(kind, *require_or_sup);
+        let subclasses_len = self.emit_require_type(obj, *require_or_sup);
         self.write_instr(CALL_FUNCTION);
         self.write_arg(2 + subclasses_len as u8);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
@@ -807,11 +807,11 @@ impl CodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     /// Y = Inherit X => class Y(X): ...
-    fn emit_require_type(&mut self, kind: TypeKind, require_or_sup: Expr) -> usize {
-        log!(info "entered {} ({kind:?}, {require_or_sup})", fn_name!());
-        match kind {
-            TypeKind::Class => 0,
-            TypeKind::Subclass => {
+    fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Expr) -> usize {
+        log!(info "entered {} ({obj}, {require_or_sup})", fn_name!());
+        match obj {
+            GenTypeObj::Class(_) => 0,
+            GenTypeObj::Subclass(_) => {
                 self.emit_expr(require_or_sup);
                 1 // TODO: not always 1
             }

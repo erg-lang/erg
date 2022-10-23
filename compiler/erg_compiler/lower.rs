@@ -23,7 +23,7 @@ use crate::ty::constructors::{
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
-use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarInstContext;
@@ -1156,7 +1156,7 @@ impl ASTLowerer {
         };
         let require_or_sup = self.get_require_or_sup(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
-            type_obj.kind,
+            type_obj.clone(),
             hir_def.sig,
             require_or_sup,
             need_to_gen_new,
@@ -1173,8 +1173,8 @@ impl ASTLowerer {
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
     ) {
-        if let TypeObj::Generated(gen) = type_obj.require_or_sup.as_ref() {
-            if let Some(impls) = gen.impls.as_ref() {
+        if let TypeObj::Generated(gen) = type_obj.require_or_sup().unwrap() {
+            if let Some(impls) = gen.impls() {
                 if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
                         cfg.input.clone(),
@@ -1246,7 +1246,7 @@ impl ASTLowerer {
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
-                        TypeObj::Generated(gen) => match gen.require_or_sup.as_ref().typ() {
+                        TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
                                 for (field, field_typ) in attrs.iter() {
                                     if let Some((name, vi)) = self.ctx.get_local_kv(&field.symbol) {
@@ -1678,21 +1678,17 @@ impl ASTLowerer {
         )?;
         match t {
             Type::ClassType => {
-                let ty_obj = GenTypeObj::new(
-                    TypeKind::Class,
+                let ty_obj = GenTypeObj::class(
                     mono(format!("{}{ident}", self.ctx.path())),
                     TypeObj::Builtin(Type::Uninited),
-                    None,
                     None,
                 );
                 self.ctx.register_gen_type(ident, ty_obj);
             }
             Type::TraitType => {
-                let ty_obj = GenTypeObj::new(
-                    TypeKind::Trait,
+                let ty_obj = GenTypeObj::trait_(
                     mono(format!("{}{ident}", self.ctx.path())),
                     TypeObj::Builtin(Type::Uninited),
-                    None,
                     None,
                 );
                 self.ctx.register_gen_type(ident, ty_obj);

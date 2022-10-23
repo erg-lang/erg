@@ -21,7 +21,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
-use crate::ty::value::{TypeKind, ValueObj};
+use crate::ty::value::{GenTypeObj, ValueObj};
 use crate::ty::{HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
@@ -1667,7 +1667,7 @@ impl Methods {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassDef {
-    pub kind: TypeKind,
+    pub obj: GenTypeObj,
     pub sig: Signature,
     pub require_or_sup: Box<Expr>,
     /// The type of `new` that is automatically defined if not defined
@@ -1708,7 +1708,7 @@ impl HasType for ClassDef {
 
 impl ClassDef {
     pub fn new(
-        kind: TypeKind,
+        obj: GenTypeObj,
         sig: Signature,
         require_or_sup: Expr,
         need_to_gen_new: bool,
@@ -1716,7 +1716,7 @@ impl ClassDef {
         methods: Block,
     ) -> Self {
         Self {
-            kind,
+            obj,
             sig,
             require_or_sup: Box::new(require_or_sup),
             need_to_gen_new,

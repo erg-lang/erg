@@ -16,7 +16,7 @@ use erg_parser::ast;
 
 use crate::ty::constructors::{free_var, func, func1, proc, ref_, ref_mut, v_enum};
 use crate::ty::free::{Constraint, Cyclicity, FreeKind, HasLevel};
-use crate::ty::value::{GenTypeObj, TypeKind, TypeObj, ValueObj};
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
@@ -747,12 +747,12 @@ impl Context {
     }
 
     pub(crate) fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
-        match gen.kind {
-            TypeKind::Class => {
-                if gen.t.is_monomorphic() {
+        match gen {
+            GenTypeObj::Class(_) => {
+                if gen.typ().is_monomorphic() {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
-                        gen.t.qual_name(),
+                        gen.typ().qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -767,8 +767,8 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let require = gen.require_or_sup.typ().clone();
-                    let new_t = func1(require, gen.t.clone());
+                    let require = gen.require_or_sup().unwrap().typ().clone();
+                    let new_t = func1(require, gen.typ().clone());
                     methods.register_fixed_auto_impl(
                         "__new__",
                         new_t.clone(),
@@ -779,18 +779,18 @@ impl Context {
                     // 必要なら、ユーザーが独自に上書きする
                     methods.register_auto_impl("new", new_t, Immutable, Public, None);
                     ctx.methods_list
-                        .push((ClassDefType::Simple(gen.t.clone()), methods));
+                        .push((ClassDefType::Simple(gen.typ().clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
                     todo!("polymorphic type definition is not supported yet");
                 }
             }
-            TypeKind::Subclass => {
-                if gen.t.is_monomorphic() {
-                    let super_classes = vec![gen.require_or_sup.typ().clone()];
+            GenTypeObj::Subclass(_) => {
+                if gen.typ().is_monomorphic() {
+                    let super_classes = vec![gen.require_or_sup().unwrap().typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
-                        gen.t.qual_name(),
+                        gen.typ().qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
@@ -812,21 +812,21 @@ impl Context {
                         self.level,
                     );
                     if let Some(sup) =
-                        self.rec_get_const_obj(&gen.require_or_sup.typ().local_name())
+                        self.rec_get_const_obj(&gen.require_or_sup().unwrap().typ().local_name())
                     {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
                         let param_t = match sup {
                             TypeObj::Builtin(t) => t,
-                            TypeObj::Generated(t) => t.require_or_sup.as_ref().typ(),
+                            TypeObj::Generated(t) => t.require_or_sup().unwrap().typ(),
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
-                        let param_t = if let Some(additional) = &gen.additional {
+                        let param_t = if let Some(additional) = gen.additional() {
                             self.intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
                         };
-                        let new_t = func1(param_t, gen.t.clone());
+                        let new_t = func1(param_t, gen.typ().clone());
                         methods.register_fixed_auto_impl(
                             "__new__",
                             new_t.clone(),
@@ -837,7 +837,7 @@ impl Context {
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl("new", new_t, Immutable, Public, None);
                         ctx.methods_list
-                            .push((ClassDefType::Simple(gen.t.clone()), methods));
+                            .push((ClassDefType::Simple(gen.typ().clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const);
                     } else {
                         todo!("super class not found")
@@ -846,17 +846,17 @@ impl Context {
                     todo!("polymorphic type definition is not supported yet");
                 }
             }
-            TypeKind::Trait => {
-                if gen.t.is_monomorphic() {
+            GenTypeObj::Trait(_) => {
+                if gen.typ().is_monomorphic() {
                     let mut ctx = Self::mono_trait(
-                        gen.t.qual_name(),
+                        gen.typ().qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
                         2,
                         self.level,
                     );
-                    let require = enum_unwrap!(gen.require_or_sup.as_ref(), TypeObj::Builtin:(Type::Record:(_)));
+                    let require = enum_unwrap!(gen.require_or_sup().unwrap(), TypeObj::Builtin:(Type::Record:(_)));
                     for (field, t) in require.iter() {
                         let muty = if field.is_const() {
                             Mutability::Const
@@ -880,19 +880,21 @@ impl Context {
                     todo!("polymorphic type definition is not supported yet");
                 }
             }
-            TypeKind::Subtrait => {
-                if gen.t.is_monomorphic() {
-                    let super_classes = vec![gen.require_or_sup.typ().clone()];
+            GenTypeObj::Subtrait(_) => {
+                if gen.typ().is_monomorphic() {
+                    let super_classes = vec![gen.require_or_sup().unwrap().typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
-                        gen.t.qual_name(),
+                        gen.typ().qual_name(),
                         self.cfg.clone(),
                         self.mod_cache.clone(),
                         self.py_mod_cache.clone(),
                         2,
                         self.level,
                     );
-                    let additional = gen.additional.as_ref().map(|additional| enum_unwrap!(additional.as_ref(), TypeObj::Builtin:(Type::Record:(_))));
+                    let additional = gen.additional().map(
+                        |additional| enum_unwrap!(additional, TypeObj::Builtin:(Type::Record:(_))),
+                    );
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
                             let muty = if field.is_const() {
@@ -966,7 +968,7 @@ impl Context {
         } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
             panic!("{ident} has already been registered as const");
         } else {
-            let t = gen.t.clone();
+            let t = gen.typ().clone();
             let meta_t = gen.meta_type();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));

@@ -1972,8 +1972,20 @@ impl Decorator {
 }
 
 /// symbol as a left value
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct VarName(Token);
+
+impl PartialEq for VarName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl std::hash::Hash for VarName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
 
 impl Borrow<str> for VarName {
     #[inline]

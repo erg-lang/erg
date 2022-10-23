@@ -23,7 +23,7 @@ use crate::ty::constructors::{
     array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
 use crate::ty::typaram::{OpKind, TyParam};
-use crate::ty::value::ValueObj;
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, TyBound, Type, UserConstSubr, ValueArgs};
 
 use crate::context::instantiate::TyVarInstContext;
@@ -713,7 +713,27 @@ impl Context {
                     line!(),
                 ))
             }),
+            Or => match (lhs, rhs) {
+                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l || r)),
+                (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_or_type(lhs, rhs)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
             other => todo!("{other}"),
+        }
+    }
+
+    fn eval_or_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
+        match (lhs, rhs) {
+            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => ValueObj::builtin_t(self.union(&l, &r)),
+            (lhs, rhs) => ValueObj::gen_t(GenTypeObj::union(
+                self.union(lhs.typ(), rhs.typ()),
+                lhs,
+                rhs,
+            )),
         }
     }
 
