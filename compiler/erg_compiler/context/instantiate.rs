@@ -730,7 +730,7 @@ impl Context {
             other if simple.args.is_empty() => {
                 if let Some(tmp_tv_ctx) = tmp_tv_ctx {
                     if let Ok(t) =
-                        self.instantiate_t(mono_q(Str::rc(other)), tmp_tv_ctx, simple.loc())
+                        self.instantiate_t_inner(mono_q(Str::rc(other)), tmp_tv_ctx, simple.loc())
                     {
                         return Ok(t);
                     }
@@ -1190,14 +1190,14 @@ impl Context {
                 }*/
                 // 'T -> ?T
                 if t.is_mono_q() {
-                    let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
+                    let t = self.instantiate_t_inner(*t, tmp_tv_ctx, loc)?;
                     Ok(TyParam::t(t))
                 }
                 // K('U) -> K(?U)
                 else {
                     let ctx = self.get_nominal_type_ctx(&t).unwrap();
                     let tv_ctx = TyVarInstContext::new(self.level, ctx.bounds(), self);
-                    let t = self.instantiate_t(*t, &tv_ctx, loc)?;
+                    let t = self.instantiate_t_inner(*t, &tv_ctx, loc)?;
                     Ok(TyParam::t(t))
                 }
             }
@@ -1213,7 +1213,7 @@ impl Context {
     }
 
     /// 'T -> ?T (quantified to free)
-    pub(crate) fn instantiate_t(
+    pub(crate) fn instantiate_t_inner(
         &self,
         unbound: Type,
         tmp_tv_ctx: &TyVarInstContext,
@@ -1254,7 +1254,7 @@ impl Context {
                 Ok(poly_q(name, params))
             }
             Refinement(mut refine) => {
-                refine.t = Box::new(self.instantiate_t(*refine.t, tmp_tv_ctx, loc)?);
+                refine.t = Box::new(self.instantiate_t_inner(*refine.t, tmp_tv_ctx, loc)?);
                 let mut new_preds = set! {};
                 for mut pred in refine.preds.into_iter() {
                     for tp in pred.typarams_mut() {
@@ -1267,16 +1267,18 @@ impl Context {
             }
             Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
-                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
+                    *pt.typ_mut() =
+                        self.instantiate_t_inner(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
                 }
                 if let Some(var_args) = subr.var_params.as_mut() {
                     *var_args.typ_mut() =
-                        self.instantiate_t(mem::take(var_args.typ_mut()), tmp_tv_ctx, loc)?;
+                        self.instantiate_t_inner(mem::take(var_args.typ_mut()), tmp_tv_ctx, loc)?;
                 }
                 for pt in subr.default_params.iter_mut() {
-                    *pt.typ_mut() = self.instantiate_t(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
+                    *pt.typ_mut() =
+                        self.instantiate_t_inner(mem::take(pt.typ_mut()), tmp_tv_ctx, loc)?;
                 }
-                let return_t = self.instantiate_t(*subr.return_t, tmp_tv_ctx, loc)?;
+                let return_t = self.instantiate_t_inner(*subr.return_t, tmp_tv_ctx, loc)?;
                 let res = subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -1288,23 +1290,23 @@ impl Context {
             }
             Record(mut dict) => {
                 for v in dict.values_mut() {
-                    *v = self.instantiate_t(mem::take(v), tmp_tv_ctx, loc)?;
+                    *v = self.instantiate_t_inner(mem::take(v), tmp_tv_ctx, loc)?;
                 }
                 Ok(Type::Record(dict))
             }
             Ref(t) => {
-                let t = self.instantiate_t(*t, tmp_tv_ctx, loc)?;
+                let t = self.instantiate_t_inner(*t, tmp_tv_ctx, loc)?;
                 Ok(ref_(t))
             }
             RefMut { before, after } => {
-                let before = self.instantiate_t(*before, tmp_tv_ctx, loc)?;
+                let before = self.instantiate_t_inner(*before, tmp_tv_ctx, loc)?;
                 let after = after
-                    .map(|aft| self.instantiate_t(*aft, tmp_tv_ctx, loc))
+                    .map(|aft| self.instantiate_t_inner(*aft, tmp_tv_ctx, loc))
                     .transpose()?;
                 Ok(ref_mut(before, after))
             }
             Proj { lhs, rhs } => {
-                let lhs = self.instantiate_t(*lhs, tmp_tv_ctx, loc)?;
+                let lhs = self.instantiate_t_inner(*lhs, tmp_tv_ctx, loc)?;
                 Ok(proj(lhs, rhs))
             }
             ProjCall {
@@ -1328,29 +1330,29 @@ impl Context {
                 panic!("a quantified type should not be instantiated, instantiate the inner type")
             }
             FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_t(fv.crack().clone(), tmp_tv_ctx, loc)
+                self.instantiate_t_inner(fv.crack().clone(), tmp_tv_ctx, loc)
             }
             FreeVar(fv) => {
                 let (sub, sup) = fv.get_bound_types().unwrap();
-                let sub = self.instantiate_t(sub, tmp_tv_ctx, loc)?;
-                let sup = self.instantiate_t(sup, tmp_tv_ctx, loc)?;
+                let sub = self.instantiate_t_inner(sub, tmp_tv_ctx, loc)?;
+                let sup = self.instantiate_t_inner(sup, tmp_tv_ctx, loc)?;
                 let new_constraint = Constraint::new_sandwiched(sub, sup, fv.cyclicity());
                 fv.update_constraint(new_constraint);
                 Ok(FreeVar(fv))
             }
             And(l, r) => {
-                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
+                let l = self.instantiate_t_inner(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t_inner(*r, tmp_tv_ctx, loc)?;
                 Ok(self.intersection(&l, &r))
             }
             Or(l, r) => {
-                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
+                let l = self.instantiate_t_inner(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t_inner(*r, tmp_tv_ctx, loc)?;
                 Ok(self.union(&l, &r))
             }
             Not(l, r) => {
-                let l = self.instantiate_t(*l, tmp_tv_ctx, loc)?;
-                let r = self.instantiate_t(*r, tmp_tv_ctx, loc)?;
+                let l = self.instantiate_t_inner(*l, tmp_tv_ctx, loc)?;
+                let r = self.instantiate_t_inner(*r, tmp_tv_ctx, loc)?;
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
@@ -1362,7 +1364,8 @@ impl Context {
         match quantified {
             Quantified(quant) => {
                 let tmp_tv_ctx = TyVarInstContext::new(self.level, quant.bounds, self);
-                let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
+                let t =
+                    self.instantiate_t_inner(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
@@ -1385,7 +1388,8 @@ impl Context {
             Refinement(refine) if refine.t.is_quantified() => {
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let tmp_tv_ctx = TyVarInstContext::new(self.level, quant.bounds, self);
-                let t = self.instantiate_t(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
+                let t =
+                    self.instantiate_t_inner(*quant.unbound_callable, &tmp_tv_ctx, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {

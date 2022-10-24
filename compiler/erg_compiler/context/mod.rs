@@ -700,9 +700,10 @@ impl Context {
 
     #[allow(clippy::too_many_arguments)]
     #[inline]
-    pub fn poly_patch<S: Into<Str>>(
+    pub fn poly_glue_patch<S: Into<Str>>(
         name: S,
         base: Type,
+        impls: Type,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
@@ -713,7 +714,7 @@ impl Context {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::Patch(base),
+            ContextKind::GluePatch(TraitInstance::new(base, impls)),
             params,
             None,
             mod_cache,
@@ -724,15 +725,17 @@ impl Context {
     }
 
     #[inline]
-    pub fn builtin_poly_patch<S: Into<Str>>(
+    pub fn builtin_poly_glue_patch<S: Into<Str>>(
         name: S,
         base: Type,
+        impls: Type,
         params: Vec<ParamSpec>,
         capacity: usize,
     ) -> Self {
-        Self::poly_patch(
+        Self::poly_glue_patch(
             name,
             base,
+            impls,
             params,
             ErgConfig::default(),
             None,

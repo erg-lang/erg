@@ -2136,15 +2136,16 @@ impl Context {
             PS::named_nd("P", Int),
         ];
         let class = Type::from(&m..=&n);
+        let impls = poly("Add", vec![TyParam::from(&o..=&p)]);
         // Interval is a bounding patch connecting M..N and (Add(O..P, M+O..N..P), Sub(O..P, M-P..N-O))
-        let mut interval = Self::builtin_poly_patch("Interval", class.clone(), params, 2);
+        let mut interval =
+            Self::builtin_poly_glue_patch("Interval", class.clone(), impls.clone(), params, 2);
         let op_t = fn1_met(
             class.clone(),
             Type::from(&o..=&p),
             Type::from(m.clone() + o.clone()..=n.clone() + p.clone()),
         );
-        let mut interval_add =
-            Self::builtin_methods(Some(poly("Add", vec![TyParam::from(&o..=&p)])), 2);
+        let mut interval_add = Self::builtin_methods(Some(impls), 2);
         interval_add.register_builtin_impl("__add__", op_t, Const, Public);
         interval_add.register_builtin_const(
             "Output",
@@ -2174,10 +2175,11 @@ impl Context {
         let t = mono_q("T");
         let u = mono_q("U");
         let base = or(t.clone(), u.clone());
+        let impls = poly("Eq", vec![ty_tp(base.clone())]);
         let params = vec![PS::named_nd("T", Type), PS::named_nd("U", Type)];
-        let mut union_eq = Self::builtin_poly_patch("UnionEq", base.clone(), params, 1);
-        let mut union_eq_impl =
-            Self::builtin_methods(Some(poly("Eq", vec![ty_tp(base.clone())])), 1);
+        let mut union_eq =
+            Self::builtin_poly_glue_patch("UnionEq", base.clone(), impls.clone(), params, 1);
+        let mut union_eq_impl = Self::builtin_methods(Some(impls), 1);
         let op_t = fn1_met(base.clone(), base.clone(), Bool);
         let op_t = quant(
             op_t,

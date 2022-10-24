@@ -175,7 +175,7 @@ impl<'c> SubstContext<'c> {
 
     pub fn substitute(&self, quant_t: Type) -> TyCheckResult<Type> {
         let tv_ctx = TyVarInstContext::new(self.ctx.level, self.bounds.clone(), self.ctx);
-        let inst = self.ctx.instantiate_t(quant_t, &tv_ctx, self.loc)?;
+        let inst = self.ctx.instantiate_t_inner(quant_t, &tv_ctx, self.loc)?;
         for param in inst.typarams() {
             self.substitute_tp(&param)?;
         }

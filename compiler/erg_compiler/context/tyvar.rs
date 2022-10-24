@@ -171,14 +171,14 @@ impl Context {
                 // the input type of `is_class` must not be quantified (if the type is Proj). So instantiate it here.
                 let l = if l.has_qvar() {
                     let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                    self.instantiate_t(l.clone(), &tv_ctx, Location::Unknown)
+                    self.instantiate_t_inner(l.clone(), &tv_ctx, Location::Unknown)
                         .unwrap()
                 } else {
                     l.clone()
                 };
                 let r = if r.has_qvar() {
                     let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                    self.instantiate_t(r.clone(), &tv_ctx, Location::Unknown)
+                    self.instantiate_t_inner(r.clone(), &tv_ctx, Location::Unknown)
                         .unwrap()
                 } else {
                     r.clone()
@@ -637,7 +637,7 @@ impl Context {
             let sub_type = if inst.sub_type.has_qvar() {
                 let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
                 let tv_ctx = TyVarInstContext::new(self.level, sub_ctx.bounds(), self);
-                self.instantiate_t(inst.sub_type, &tv_ctx, Location::Unknown)
+                self.instantiate_t_inner(inst.sub_type, &tv_ctx, Location::Unknown)
                     .unwrap()
             } else {
                 inst.sub_type
@@ -645,7 +645,7 @@ impl Context {
             let sup_trait = if inst.sup_trait.has_qvar() {
                 let sup_ctx = self.get_nominal_type_ctx(&inst.sup_trait).unwrap();
                 let tv_ctx = TyVarInstContext::new(self.level, sup_ctx.bounds(), self);
-                self.instantiate_t(inst.sup_trait, &tv_ctx, Location::Unknown)
+                self.instantiate_t_inner(inst.sup_trait, &tv_ctx, Location::Unknown)
                     .unwrap()
             } else {
                 inst.sup_trait

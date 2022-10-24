@@ -628,7 +628,7 @@ impl Context {
                 // REVIEW: maybe this should be `unreachable`
                 let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
                 let q_callable = self
-                    .instantiate_t(
+                    .instantiate_t_inner(
                         q.unbound_callable.as_ref().clone(),
                         &tmp_tv_ctx,
                         Location::Unknown,
@@ -640,7 +640,7 @@ impl Context {
                 // REVIEW: maybe this should be `unreachable`
                 let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
                 let q_callable = self
-                    .instantiate_t(
+                    .instantiate_t_inner(
                         q.unbound_callable.as_ref().clone(),
                         &tmp_tv_ctx,
                         Location::Unknown,
