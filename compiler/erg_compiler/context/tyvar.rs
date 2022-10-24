@@ -637,8 +637,13 @@ impl Context {
             let sub_type = if inst.sub_type.has_qvar() {
                 let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
                 let tv_ctx = TyVarInstContext::new(self.level, sub_ctx.bounds(), self);
-                self.instantiate_t_inner(inst.sub_type, &tv_ctx, Location::Unknown)
-                    .unwrap()
+                if let Ok(t) =
+                    self.instantiate_t_inner(inst.sub_type.clone(), &tv_ctx, Location::Unknown)
+                {
+                    t
+                } else {
+                    continue;
+                }
             } else {
                 inst.sub_type
             };
@@ -1414,10 +1419,6 @@ impl Context {
             )));
         }
         match (maybe_sub, maybe_sup) {
-            (Type::FreeVar(lfv), _) if lfv.is_linked() =>
-                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name),
-            (_, Type::FreeVar(rfv)) if rfv.is_linked() =>
-                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name),
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
@@ -1455,6 +1456,10 @@ impl Context {
                 }
                 Ok(())
             }
+            (Type::FreeVar(lfv), _) if lfv.is_linked() =>
+                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name),
+            (_, Type::FreeVar(rfv)) if rfv.is_linked() =>
+                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name),
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
                 let rfv_ref = unsafe { rfv.as_ptr().as_mut().unwrap() };
@@ -1473,13 +1478,18 @@ impl Context {
                         // sub = union(l, sub) if max does not exist
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
+                        // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                         Constraint::Sandwiched { sub, sup, cyclicity } => {
                             /*if let Some(new_sub) = self.max(maybe_sub, sub) {
                                 *constraint =
                                     Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
                             } else {*/
                             let new_sub = self.union(maybe_sub, sub);
-                            *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
+                            if sup.contains_union(&new_sub) {
+                                rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                            } else {
+                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
+                            }
                             // }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)

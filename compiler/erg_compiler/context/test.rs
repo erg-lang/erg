@@ -4,7 +4,7 @@ use erg_common::Str;
 // use erg_common::error::Location;
 use erg_common::{enum_unwrap, set};
 
-use crate::ty::constructors::{func1, mono_q, poly, quant, refinement};
+use crate::ty::constructors::{func1, mono, mono_q, poly, quant, refinement};
 use crate::ty::typaram::TyParam;
 use crate::ty::{Predicate, TyBound, Type};
 use Type::*;
@@ -48,7 +48,7 @@ impl Context {
 
     pub fn test_instantiation_and_generalization(&self) -> Result<(), ()> {
         let t = mono_q("T");
-        let eq = poly("Eq", vec![TyParam::t(t.clone())]);
+        let eq = mono("Eq");
         let bound = TyBound::subtype_of(t.clone(), eq);
         let bounds = set! {bound};
         let unbound_t = func1(t.clone(), t);

@@ -24,7 +24,7 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
+use crate::context::{Context, RegistrationMode, TypeRelationInstance, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
@@ -1695,7 +1695,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
         match t {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
@@ -1710,7 +1710,7 @@ impl Context {
                     let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TraitInstance::new(lti.sub_type.clone(), sup_trait));
+                    isec.insert(TypeRelationInstance::new(lti.sub_type.clone(), sup_trait));
                 }
                 isec
             }
@@ -1724,7 +1724,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
         let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
             impls.clone()
         } else {
@@ -1744,6 +1744,14 @@ impl Context {
             outer._rec_get_patch(name)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn _all_patches(&self) -> Vec<&Context> {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            [outer._all_patches(), self.patches.values().collect()].concat()
+        } else {
+            self.patches.values().collect()
         }
     }
 

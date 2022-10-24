@@ -13,9 +13,11 @@ A typical Union is the `Option` type. The `Option` type is a `T or NoneType` pat
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)
 
-# Implicitly become `T != NoneType`
 Option T = T or NoneType
 ```
+
+Note that Union types are commutative but not associative. That is, `X or Y or Z` is `(X or Y) or Z`, not `X or (Y or Z)`.
+Allowing this would result in, for example, `Int or Option(Str)`, `Option(Int) or Str` and `Option(Int or Str)` being of the same type.
 
 ## Intersection
 

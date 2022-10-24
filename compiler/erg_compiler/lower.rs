@@ -27,7 +27,7 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::instantiate::TyVarInstContext;
-use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TraitInstance};
+use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TypeRelationInstance};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
@@ -411,9 +411,8 @@ impl ASTLowerer {
         Ok(normal_set)
         */
         let elems = hir::Args::from(new_set);
-        let sup = poly("Eq", vec![TyParam::t(elem_t.clone())]);
         // check if elem_t is Eq
-        if let Err(errs) = self.ctx.sub_unify(&elem_t, &sup, elems.loc(), None) {
+        if let Err(errs) = self.ctx.sub_unify(&elem_t, &mono("Eq"), elems.loc(), None) {
             self.errs.extend(errs.into_iter());
         }
         Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
@@ -514,10 +513,9 @@ impl ASTLowerer {
             new_kvs.push(hir::KeyValue::new(key, value));
         }
         for key_t in union.keys() {
-            let sup = poly("Eq", vec![TyParam::t(key_t.clone())]);
             let loc = Location::concat(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
-            if let Err(errs) = self.ctx.sub_unify(key_t, &sup, loc, None) {
+            if let Err(errs) = self.ctx.sub_unify(key_t, &mono("Eq"), loc, None) {
                 self.errs.extend(errs.into_iter());
             }
         }
@@ -1239,8 +1237,23 @@ impl ASTLowerer {
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
             // assume the class has implemented the trait, regardless of whether the implementation is correct
-            let trait_ctx = self.ctx.get_nominal_type_ctx(&impl_trait).unwrap().clone();
-            let (_, class_ctx) = self.ctx.get_mut_nominal_type_ctx(class).unwrap();
+            let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(&impl_trait) {
+                trait_ctx.clone()
+            } else {
+                // TODO: maybe parameters are wrong
+                return Err(LowerError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    loc,
+                    self.ctx.caused_by(),
+                    &impl_trait.local_name(),
+                    None,
+                ));
+            };
+            let (_, class_ctx) = self
+                .ctx
+                .get_mut_nominal_type_ctx(class)
+                .unwrap_or_else(|| todo!("{class} not found"));
             class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             let mut unverified_names = self.ctx.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
@@ -1354,11 +1367,11 @@ impl ASTLowerer {
         let trait_impls = &mut self.ctx.outer.as_mut().unwrap().trait_impls;
         // TODO: polymorphic trait
         if let Some(impls) = trait_impls.get_mut(&trait_.qual_name()) {
-            impls.insert(TraitInstance::new(class.clone(), trait_.clone()));
+            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
         } else {
             trait_impls.insert(
                 trait_.qual_name(),
-                set! {TraitInstance::new(class.clone(), trait_.clone())},
+                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
             );
         }
     }

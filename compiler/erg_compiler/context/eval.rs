@@ -136,9 +136,11 @@ impl<'c> SubstContext<'c> {
     ///
     /// `ctx` is used to obtain information on the names and variance of the parameters.
     pub fn new(substituted: &Type, ctx: &'c Context, loc: Location) -> Self {
-        let ty_ctx = ctx
-            .get_nominal_type_ctx(substituted)
-            .unwrap_or_else(|| todo!("{substituted} not found"));
+        Self::try_new(substituted, ctx, loc).unwrap()
+    }
+
+    pub fn try_new(substituted: &Type, ctx: &'c Context, loc: Location) -> Option<Self> {
+        let ty_ctx = ctx.get_nominal_type_ctx(substituted)?;
         let bounds = ty_ctx.type_params_bounds();
         let param_names = ty_ctx.params.iter().map(|(opt_name, _)| {
             opt_name
@@ -146,13 +148,14 @@ impl<'c> SubstContext<'c> {
                 .map_or_else(|| Str::ever("_"), |n| n.inspect().clone())
         });
         if param_names.len() != substituted.typarams().len() {
-            let param_names = param_names.collect::<Vec<_>>();
+            /*let param_names = param_names.collect::<Vec<_>>();
             panic!(
                 "{} param_names: {param_names:?} != {} substituted_params: [{}]",
                 ty_ctx.name,
                 substituted.qual_name(),
                 erg_common::fmt_vec(&substituted.typarams())
-            );
+            );*/
+            return None;
         }
         let params = param_names
             .zip(substituted.typarams().into_iter())
@@ -165,12 +168,12 @@ impl<'c> SubstContext<'c> {
             }
         }
         // REVIEW: 順番は保証されるか? 引数がunnamed_paramsに入る可能性は?
-        SubstContext {
+        Some(SubstContext {
             ctx,
             bounds,
             params,
             loc,
-        }
+        })
     }
 
     pub fn substitute(&self, quant_t: Type) -> TyCheckResult<Type> {
@@ -229,7 +232,7 @@ impl<'c> SubstContext<'c> {
                                 self.ctx.sub_unify(param_t, &t, Location::Unknown, None)?;
                             }
                             Err(_) => {
-                                todo!("")
+                                todo!("{tp}")
                             }
                         }
                     }
@@ -276,7 +279,7 @@ impl<'c> SubstContext<'c> {
                     self.substitute_tp(param)?;
                 }
             }
-            t => todo!("{t:?}"),
+            _t => {}
         }
         Ok(())
     }

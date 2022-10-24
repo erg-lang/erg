@@ -1384,9 +1384,11 @@ impl LimitedDisplay for Type {
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::Or(lhs, rhs) => {
+                write!(f, "(")?;
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " or ")?;
-                rhs.limited_fmt(f, limit - 1)
+                rhs.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
             }
             Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
@@ -1973,6 +1975,14 @@ impl Type {
     pub fn contains_intersec(&self, typ: &Type) -> bool {
         match self {
             Type::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),
+            _ => self == typ,
+        }
+    }
+
+    /// assert!((A or B).contains_union(B))
+    pub fn contains_union(&self, typ: &Type) -> bool {
+        match self {
+            Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
             _ => self == typ,
         }
     }

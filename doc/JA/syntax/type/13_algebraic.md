@@ -15,9 +15,11 @@ Union型では型について複数の可能性を与える事ができる。名
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)
 
-# 暗黙に`T != NoneType`となる
 Option T = T or NoneType
 ```
+
+Union型は可換ですが結合的ではないことに注意してください。すなわち、`X or Y or Z`は`(X or Y) or Z`であって`X or (Y or Z)`とはなりません。
+これを認めると、例えば`Int or Option(Str)`と`Option(Int) or Str`と`Option(Int or Str)`が同じ型になってしまいます。
 
 ## 交差型
 

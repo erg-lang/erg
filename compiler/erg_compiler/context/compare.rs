@@ -21,7 +21,7 @@ use Type::*;
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
 use crate::context::eval::SubstContext;
 use crate::context::instantiate::TyVarInstContext;
-use crate::context::{Context, TraitInstance, Variance};
+use crate::context::{Context, TypeRelationInstance, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -258,31 +258,51 @@ impl Context {
             self.register_cache(lhs, rhs, judge);
             return judge;
         }
-        // FIXME: rec_get_patch
-        for patch in self.patches.values() {
-            if let ContextKind::GluePatch(tr_inst) = &patch.kind {
-                if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
-                    todo!("{tr_inst}");
-                } else {
-                    // e.g.
-                    // P = Patch X, Impl: Ord
-                    // Rhs <: X => Rhs <: Ord
-                    // Ord <: Lhs => Rhs <: Ord <: Lhs
-                    if self.supertype_of(&tr_inst.sub_type, rhs)
-                        && self.subtype_of(&tr_inst.sup_trait, lhs)
-                    {
-                        self.register_cache(lhs, rhs, true);
-                        return true;
-                    }
-                }
-            }
-        }
+        /*if self._find_compatible_patch(lhs, rhs).is_some() {
+            self.register_cache(lhs, rhs, true);
+            return true;
+        }*/
         self.register_cache(lhs, rhs, false);
         false
     }
 
     fn nominal_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.nominal_supertype_of(rhs, lhs)
+    }
+
+    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<Str> {
+        let subst_ctx = SubstContext::try_new(sub, self, Location::Unknown)?;
+        for patch in self._all_patches().into_iter() {
+            if let ContextKind::GluePatch(tr_inst) = &patch.kind {
+                if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
+                    if let (Ok(sub_type), Ok(sup_trait)) = (
+                        subst_ctx.substitute(tr_inst.sub_type.clone()),
+                        subst_ctx.substitute(tr_inst.sup_trait.clone()),
+                    ) {
+                        let l1 = self.subtype_of(sub, &sub_type);
+                        let l2 = self.subtype_of(&sup_trait, sup);
+                        if l1 && l2 {
+                            return Some(patch.name.clone());
+                        }
+                    }
+                } else {
+                    // e.g.
+                    // P = Patch X, Impl: Y
+                    // # => TypeRelationInstance { X <: Y }
+                    // X <: Y => Sub <: Y (if Sub <: X)
+                    // X <: Y => X <: Sup (if Y <: Sup)
+                    // # => OK if Sub <: X and Y <: Sup
+                    // Rhs <: X => Rhs <: Ord
+                    // Ord <: Lhs => Rhs <: Ord <: Lhs
+                    if self.subtype_of(sub, &tr_inst.sub_type)
+                        && self.subtype_of(&tr_inst.sup_trait, sup)
+                    {
+                        return Some(patch.name.clone());
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
@@ -321,6 +341,7 @@ impl Context {
 
     // e.g. Eq(Nat) :> Nat
     // Nat.super_traits = [Add(Nat), Eq(Nat), Sub(Float), ...]
+    // e.g. Eq :> ?L or ?R (if ?L <: Eq and ?R <: Eq)
     fn traits_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
         if !self.is_trait(lhs) {
             return (Maybe, false);
@@ -369,7 +390,7 @@ impl Context {
 
     /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
     /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TraitInstance) -> bool {
+    fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TypeRelationInstance) -> bool {
         let (_sub, sup) = free.get_bound_types().unwrap();
         log!(info "{free}");
         free.forced_undoable_link(&inst_pair.sub_type);
@@ -648,11 +669,20 @@ impl Context {
                     .unwrap();
                 self.structural_supertype_of(l, &q_callable)
             }
+            // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
+            (Or(l_1, l_2), Or(r_1, r_2)) => {
+                (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
+                    || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
+            }
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             // (Num or Show) :> Show == Num :> Show || Show :> Num == true
             (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
             (lhs, Or(l_or, r_or)) => self.supertype_of(lhs, l_or) && self.supertype_of(lhs, r_or),
+            (And(l_1, l_2), And(r_1, r_2)) => {
+                (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
+                    || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
+            }
             // (Num and Show) :> Show == false
             (And(l_and, r_and), rhs) => {
                 self.supertype_of(l_and, rhs) && self.supertype_of(r_and, rhs)

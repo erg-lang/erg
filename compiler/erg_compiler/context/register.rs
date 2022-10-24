@@ -21,7 +21,8 @@ use crate::ty::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode, TraitInstance,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode,
+    TypeRelationInstance,
 };
 use crate::error::readable_name;
 use crate::error::{
@@ -988,11 +989,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TypeRelationInstance::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.qual_name(),
-                        set![TraitInstance::new(t.clone(), impl_trait.clone())],
+                        set![TypeRelationInstance::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
