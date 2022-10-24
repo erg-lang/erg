@@ -380,6 +380,11 @@ impl Context {
             mono("_sitebuiltins._Printer"),
             Some("copyright"),
         );
+        self.register_builtin_immutable_private_var("True", Bool, Some("True"));
+        self.register_builtin_immutable_private_var("False", Bool, Some("False"));
+        self.register_builtin_immutable_private_var("None", NoneType, Some("None"));
+        self.register_builtin_immutable_private_var("NotImplemented", NotImplemented, None);
+        self.register_builtin_immutable_private_var("Ellipsis", Ellipsis, None);
     }
 
     /// see std/prelude.er

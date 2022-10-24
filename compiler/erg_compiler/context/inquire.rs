@@ -399,16 +399,24 @@ impl Context {
             }
         }
         if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            return parent.rec_get_var_info(ident, acc_kind, input, namespace);
+            if let Ok(vi) = parent.rec_get_var_info(ident, acc_kind, input, namespace) {
+                Ok(vi)
+            } else {
+                Err(TyCheckError::no_var_error(
+                    input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.into(),
+                    ident.inspect(),
+                    self.get_similar_name(ident.inspect()),
+                ))
+            }
+        } else {
+            Err(TyCheckError::dummy(
+                self.cfg.input.clone(),
+                line!() as usize,
+            ))
         }
-        Err(TyCheckError::no_var_error(
-            input.clone(),
-            line!() as usize,
-            ident.loc(),
-            namespace.into(),
-            ident.inspect(),
-            self.get_similar_name(ident.inspect()),
-        ))
     }
 
     pub(crate) fn rec_get_decl_info(
@@ -1271,24 +1279,8 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
-        match name {
-            "true" => return Some("True"),
-            "false" => return Some("False"),
-            "Null" | "Nil" | "null" | "nil" | "none" => return Some("None"),
-            "del" => return Some("Del"),
-            "int" => return Some("Int"),
-            "nat" => return Some("Nat"),
-            "str" => return Some("Str"),
-            "bool" => return Some("Bool"),
-            _ => {}
-        }
-        let name = readable_name(name);
-        // REVIEW: add decls?
         get_similar_name(
-            self.params
-                .iter()
-                .filter_map(|(opt_name, _)| opt_name.as_ref().map(|n| &n.inspect()[..]))
-                .chain(self.locals.keys().map(|name| &name.inspect()[..])),
+            self.dir().into_iter().map(|(vn, _)| &vn.inspect()[..]),
             name,
         )
     }
@@ -1557,6 +1549,9 @@ impl Context {
                 }
                 // e.g. http.client.Response -> http.client
                 let mut namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() < 2 {
+                    return None;
+                }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
                 let mut path = self.resolve_path(path);
@@ -1584,6 +1579,9 @@ impl Context {
                 }
                 // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
                 let mut namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() < 2 {
+                    return None;
+                }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
                 let mut path = self.resolve_path(path);

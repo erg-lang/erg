@@ -34,18 +34,38 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
     table[l_len][r_len]
 }
 
-pub fn get_similar_name<'a, I: Iterator<Item = &'a str>>(
+pub fn get_similar_name<'a, I: Iterator<Item = &'a str> + Clone>(
     candidates: I,
     name: &str,
 ) -> Option<&'a str> {
-    if name.len() <= 1 {
-        return None;
-    }
     let most_similar_name = candidates.min_by_key(|v| levenshtein(v, name))?;
     let len = most_similar_name.len();
-    if levenshtein(most_similar_name, name) >= len / 2 {
+    let dist = levenshtein(most_similar_name, name) as f64;
+    if dist >= (len as f64).sqrt() {
         None
     } else {
         Some(most_similar_name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::levenshtein::get_similar_name;
+
+    #[test]
+    fn test_get_similar_name() {
+        assert_eq!(get_similar_name(["a", "b", "c"].into_iter(), "k"), None);
+        assert_eq!(
+            get_similar_name(["True", "b", "c"].into_iter(), "true"),
+            Some("True")
+        );
+        assert_eq!(
+            get_similar_name(["True", "b", "c"].into_iter(), "truth"),
+            None
+        );
+        assert_eq!(
+            get_similar_name(["True", "False", "c"].into_iter(), "Felze"),
+            Some("False")
+        );
     }
 }

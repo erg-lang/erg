@@ -76,8 +76,10 @@ macro_rules! switch_lang {
 /// 2重のunwrapまでサポート
 /// :は制限を回避するためのdummy token
 /// ```
-/// let i: IntObj = enum_unwrap!(obj, Obj::Int);
-/// let i: i32 = enum_unwrap!(obj, Obj::Int:(IntObj:(_)));
+/// # use erg_common::enum_unwrap;
+/// use erg_common::Str;
+/// let i: i32 = enum_unwrap!(Some(1), Some);
+/// let s: &str = enum_unwrap!(Some(Str::ever("a")), Some:(Str::Static:(_)));
 /// ```
 #[macro_export]
 macro_rules! enum_unwrap {
@@ -110,11 +112,12 @@ macro_rules! option_enum_unwrap {
 }
 
 /// ```rust
-/// assert fmt_option!(Some(1)) == "1"
-/// assert fmt_option!(None) == ""
-/// assert fmt_option!(None, else 1) == "1"
-/// assert fmt_option!(Some(1), post ",") == "1,"
-/// assert fmt_option!("[", Some(1), "]") == "[1]"
+/// # use erg_common::fmt_option;
+/// assert_eq!(fmt_option!(Some(1)), "1");
+/// assert_eq!(fmt_option!(None::<i32>), "");
+/// assert_eq!(fmt_option!(None::<i32>, else 1), "1");
+/// assert_eq!(fmt_option!(Some(1), post ","), "1,");
+/// assert_eq!(fmt_option!("[", Some(1), "]"), "[1]");
 /// ```
 #[macro_export]
 macro_rules! fmt_option {

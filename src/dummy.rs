@@ -90,7 +90,7 @@ impl Runnable for DummyVM {
                     panic!("{}", format!("Read error: {e}"));
                 }
             }
-            remove_file("o.pyc").unwrap();
+            remove_file("o.pyc").unwrap_or(());
         }
     }
 
