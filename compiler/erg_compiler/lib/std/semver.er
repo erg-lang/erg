@@ -18,7 +18,7 @@
     ]#
 .Version|.Version <: Eq|.
     __eq__ self, other: .Version =
-        self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == "" # other.pre
+        self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == other.pre
 
 if! __name__ == "__main__", do!:
     v = .Version.new(0, 0, 1)
