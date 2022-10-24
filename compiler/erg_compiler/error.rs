@@ -1236,7 +1236,6 @@ impl LowerError {
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),
@@ -1273,7 +1272,6 @@ impl LowerError {
         similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
                 "simplified_chinese" => format!("具有相同名称的属性: {n}"),
@@ -1312,7 +1310,6 @@ impl LowerError {
         similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
                 "simplified_chinese" => format!("具有相同名称的属性: {n}"),
