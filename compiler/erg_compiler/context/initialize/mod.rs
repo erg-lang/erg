@@ -850,7 +850,7 @@ impl Context {
             "times!",
             pr_met(
                 Nat,
-                vec![kw("p", nd_proc(vec![], None, NoneType))],
+                vec![kw("proc", nd_proc(vec![], None, NoneType))],
                 None,
                 vec![],
                 NoneType,
