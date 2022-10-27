@@ -21,3 +21,6 @@
 # Nix
 .direnv
 result
+
+# Erg
+test.er
