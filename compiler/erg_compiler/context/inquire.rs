@@ -1320,15 +1320,9 @@ impl Context {
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
         let in_inout = |t: &Type, name: &VarName| {
             (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
-                && t.inner_ts()
+                && t.typarams()
                     .first()
-                    .map(|inner| {
-                        if cfg!(feature = "debug") {
-                            inner.qual_name().trim_start_matches('\'') == &name.inspect()[..]
-                        } else {
-                            &inner.qual_name() == name.inspect()
-                        }
-                    })
+                    .map(|inner| &inner.qual_name().unwrap() == name.inspect())
                     .unwrap_or(false)
         };
         self.params

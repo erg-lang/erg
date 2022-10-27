@@ -19,7 +19,7 @@ use erg_parser::token::{Token, TokenKind};
 use crate::ty::constructors::dict_t;
 use crate::ty::constructors::proj_call;
 use crate::ty::constructors::{
-    array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
+    array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -29,6 +29,7 @@ use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, Va
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
+use super::instantiate::TyVarCache;
 use super::Variance;
 
 #[inline]
@@ -568,36 +569,40 @@ impl Context {
     pub(crate) fn eval_bin_tp(
         &self,
         op: OpKind,
-        lhs: &TyParam,
-        rhs: &TyParam,
+        lhs: TyParam,
+        rhs: TyParam,
     ) -> EvalResult<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
-                .eval_bin(op, lhs.borrow().clone(), rhs.clone())
+                .eval_bin(op, lhs.borrow().clone(), rhs)
                 .map(|v| TyParam::Value(ValueObj::Mut(Shared::new(v)))),
-            (TyParam::Value(lhs), TyParam::Value(rhs)) => self
-                .eval_bin(op, lhs.clone(), rhs.clone())
-                .map(TyParam::value),
-            (TyParam::FreeVar(fv), r) if fv.is_linked() => self.eval_bin_tp(op, &*fv.crack(), r),
+            (TyParam::Value(lhs), TyParam::Value(rhs)) => {
+                self.eval_bin(op, lhs, rhs).map(TyParam::value)
+            }
+            (TyParam::FreeVar(fv), r) if fv.is_linked() => {
+                self.eval_bin_tp(op, fv.crack().clone(), r)
+            }
             (TyParam::FreeVar(_), _) if op.is_comparison() => Ok(TyParam::value(true)),
             // _: Nat <= 10 => true
             // TODO: maybe this is wrong, we should do the type-checking of `<=`
-            (TyParam::Erased(t), _)
-                if op.is_comparison() && self.supertype_of(t, &self.get_tp_t(rhs).unwrap()) =>
+            (TyParam::Erased(t), rhs)
+                if op.is_comparison() && self.supertype_of(&t, &self.get_tp_t(&rhs).unwrap()) =>
             {
                 Ok(TyParam::value(true))
             }
-            (TyParam::FreeVar(_), _) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
-            (l, TyParam::FreeVar(fv)) if fv.is_linked() => self.eval_bin_tp(op, l, &*fv.crack()),
+            (l, TyParam::FreeVar(fv)) if fv.is_linked() => {
+                self.eval_bin_tp(op, l, fv.crack().clone())
+            }
             (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
             // 10 <= _: Nat => true
-            (_, TyParam::Erased(t))
-                if op.is_comparison() && self.supertype_of(&self.get_tp_t(lhs).unwrap(), t) =>
+            (lhs, TyParam::Erased(t))
+                if op.is_comparison() && self.supertype_of(&self.get_tp_t(&lhs).unwrap(), &t) =>
             {
                 Ok(TyParam::value(true))
             }
-            (_, TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs.clone(), rhs.clone())),
-            (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e.clone()),
+            (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
+            (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
+            (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
             (l, r) => todo!("{l:?} {op} {r:?}"),
         }
     }
@@ -612,39 +617,37 @@ impl Context {
         }
     }
 
-    fn eval_unary_tp(&self, op: OpKind, val: &TyParam) -> EvalResult<TyParam> {
+    fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
         match val {
-            TyParam::Value(c) => self.eval_unary_val(op, c.clone()).map(TyParam::Value),
-            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, &*fv.crack()),
-            e @ TyParam::Erased(_) => Ok(e.clone()),
+            TyParam::Value(c) => self.eval_unary_val(op, c).map(TyParam::Value),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, fv.crack().clone()),
+            e @ TyParam::Erased(_) => Ok(e),
             TyParam::FreeVar(fv) if fv.is_unbound() => {
                 let t = fv.get_type().unwrap();
                 if op == OpKind::Mutate {
                     let constr = Constraint::new_type_of(t.mutate());
-                    Ok(TyParam::named_free_var(
-                        fv.unbound_name().unwrap(),
-                        fv.level().unwrap(),
-                        constr,
-                    ))
+                    fv.update_constraint(constr);
+                    let tp = TyParam::FreeVar(fv);
+                    Ok(tp)
                 } else {
-                    todo!("{op} {val}")
+                    todo!("{op} {fv}")
                 }
             }
             other => todo!("{op} {other}"),
         }
     }
 
-    fn eval_app(&self, _name: &Str, _args: &[TyParam]) -> EvalResult<TyParam> {
+    fn eval_app(&self, _name: Str, _args: Vec<TyParam>) -> EvalResult<TyParam> {
         todo!()
     }
 
     /// 量化変数などはそのまま返す
-    pub(crate) fn eval_tp(&self, p: &TyParam) -> EvalResult<TyParam> {
+    pub(crate) fn eval_tp(&self, p: TyParam) -> EvalResult<TyParam> {
         match p {
-            TyParam::FreeVar(fv) if fv.is_quanted() || fv.is_unbound() => Ok(p.clone()),
-            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(&fv.crack()),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(fv.crack().clone()),
+            TyParam::FreeVar(_) => Ok(p),
             TyParam::Mono(name) => self
-                .rec_get_const_obj(name)
+                .rec_get_const_obj(&name)
                 .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| {
                     EvalErrors::from(EvalError::unreachable(
@@ -653,8 +656,8 @@ impl Context {
                         line!(),
                     ))
                 }),
-            TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(*op, lhs, rhs),
-            TyParam::UnaryOp { op, val } => self.eval_unary_tp(*op, val),
+            TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(op, *lhs, *rhs),
+            TyParam::UnaryOp { op, val } => self.eval_unary_tp(op, *val),
             TyParam::App { name, args } => self.eval_app(name, args),
             TyParam::Array(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
@@ -672,7 +675,7 @@ impl Context {
             }
             TyParam::Dict(dic) => {
                 let mut new_dic = dict! {};
-                for (k, v) in dic.iter() {
+                for (k, v) in dic.into_iter() {
                     new_dic.insert(self.eval_tp(k)?, self.eval_tp(v)?);
                 }
                 Ok(TyParam::Dict(new_dic))
@@ -745,7 +748,7 @@ impl Context {
             }
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
-                    *p = self.eval_tp(&mem::take(p))?;
+                    *p = self.eval_tp(mem::take(p))?;
                 }
                 Ok(poly(name, params))
             }
@@ -948,10 +951,22 @@ impl Context {
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
                 let (quant_sub, _) = self.rec_get_type(&sub.local_name()).unwrap();
+                if let Some(sup) = opt_sup {
+                    if let Some(quant_sup) = methods.impl_of() {
+                        self.substitute_typarams(&quant_sup, sup);
+                    }
+                }
                 self.substitute_typarams(quant_sub, sub);
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
-                self.undo_substitute_typarams(quant_sub);
-                return res;
+                if let Some(t) = res {
+                    let mut tv_cache = TyVarCache::new(self.level, self);
+                    let t = self.detach(t, &mut tv_cache);
+                    self.undo_substitute_typarams(quant_sub);
+                    if let Some(quant_sup) = methods.impl_of() {
+                        self.undo_substitute_typarams(&quant_sup);
+                    }
+                    return Some(t);
+                }
             } else {
                 todo!()
             }
@@ -959,31 +974,104 @@ impl Context {
         None
     }
 
+    /// e.g.
+    /// F((Int), 3) => F(Int, 3)
+    /// F(?T, ?T) => F(?1, ?1)
+    fn detach(&self, ty: Type, tv_cache: &mut TyVarCache) -> Type {
+        match ty {
+            Type::FreeVar(fv) if fv.is_linked() => self.detach(fv.crack().clone(), tv_cache),
+            Type::FreeVar(fv) => {
+                let new_fv = fv.detach();
+                let name = new_fv.unbound_name().unwrap();
+                if let Some(t) = tv_cache.get_tyvar(&name) {
+                    t.clone()
+                } else {
+                    let tv = Type::FreeVar(new_fv);
+                    tv_cache.push_or_init_tyvar(&name, &tv);
+                    tv
+                }
+            }
+            Type::Poly { name, params } => {
+                let mut new_params = vec![];
+                for param in params {
+                    new_params.push(self.detach_tp(param, tv_cache));
+                }
+                poly(name, new_params)
+            }
+            _ => ty,
+        }
+    }
+
+    fn detach_tp(&self, tp: TyParam, tv_cache: &mut TyVarCache) -> TyParam {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => self.detach_tp(fv.crack().clone(), tv_cache),
+            TyParam::FreeVar(fv) => {
+                let new_fv = fv.detach();
+                let name = new_fv.unbound_name().unwrap();
+                if let Some(tp) = tv_cache.get_typaram(&name) {
+                    tp.clone()
+                } else {
+                    let tp = TyParam::FreeVar(new_fv);
+                    tv_cache.push_or_init_typaram(&name, &tp);
+                    tp
+                }
+            }
+            TyParam::Type(t) => TyParam::t(self.detach(*t, tv_cache)),
+            _ => tp,
+        }
+    }
+
     /// e.g. qt: Array(T, N), st: Array(Int, 3)
-    fn substitute_typarams(&self, qt: &Type, st: &Type) {
+    pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) {
         let qtps = qt.typarams();
         let stps = st.typarams();
-        debug_assert_eq!(qtps.len(), stps.len());
+        if qtps.len() != stps.len() {
+            log!(err "{} {}", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
+            return; // TODO: e.g. Sub(Int) / Eq and Sub(?T)
+        }
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
             match qtp {
-                TyParam::FreeVar(fv) if fv.is_quanted() => fv.undoable_link(&stp),
-                TyParam::Type(t) if t.is_mono_q() => {
+                TyParam::FreeVar(fv) if fv.is_generalized() => {
+                    if !stp.is_generalized() {
+                        fv.undoable_link(&stp);
+                    }
+                }
+                TyParam::Type(t) if t.is_generalized() => {
                     let qt = enum_unwrap!(t.as_ref(), Type::FreeVar);
                     let st = enum_unwrap!(stp, TyParam::Type);
-                    qt.undoable_link(&st);
+                    if !st.is_generalized() {
+                        qt.undoable_link(&st);
+                    }
+                }
+                TyParam::Type(qt) => {
+                    let st = enum_unwrap!(stp, TyParam::Type);
+                    let st = if st.typarams_len() != qt.typarams_len() {
+                        let st = enum_unwrap!(*st, Type::FreeVar);
+                        st.get_sub().unwrap()
+                    } else {
+                        *st
+                    };
+                    if !st.is_generalized() {
+                        self.substitute_typarams(&qt, &st);
+                    }
                 }
                 _ => {}
             }
         }
     }
 
-    fn undo_substitute_typarams(&self, qt: &Type) {
-        for tp in qt.typarams().into_iter() {
+    pub(crate) fn undo_substitute_typarams(&self, substituted: &Type) {
+        for tp in substituted.typarams().into_iter() {
             match tp {
-                TyParam::FreeVar(fv) => fv.undo(),
+                TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
                 TyParam::Type(t) if t.is_free_var() => {
-                    let qt = enum_unwrap!(t.as_ref(), Type::FreeVar);
-                    qt.undo();
+                    let subst = enum_unwrap!(t.as_ref(), Type::FreeVar);
+                    if subst.is_undoable_linked() {
+                        subst.undo();
+                    }
+                }
+                TyParam::Type(t) => {
+                    self.undo_substitute_typarams(&t);
                 }
                 _ => {}
             }
@@ -1083,10 +1171,10 @@ impl Context {
     pub(crate) fn eval_pred(&self, p: Predicate) -> EvalResult<Predicate> {
         match p {
             Predicate::Value(_) | Predicate::Const(_) => Ok(p),
-            Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(&rhs)?)),
-            Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(&rhs)?)),
-            Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(&rhs)?)),
-            Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(&rhs)?)),
+            Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(rhs)?)),
+            Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
+            Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),
+            Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(rhs)?)),
             Predicate::And(l, r) => Ok(Predicate::and(self.eval_pred(*l)?, self.eval_pred(*r)?)),
             Predicate::Or(l, r) => Ok(Predicate::or(self.eval_pred(*l)?, self.eval_pred(*r)?)),
             Predicate::Not(l, r) => Ok(Predicate::not(self.eval_pred(*l)?, self.eval_pred(*r)?)),
@@ -1094,16 +1182,17 @@ impl Context {
     }
 
     pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
-        let p = self.eval_tp(p)?;
+        let p = self.eval_tp(p.clone())?;
         match p {
             TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
             TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(&fv.crack()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
-                    todo!()
+                    todo!() // Type
                 }
             }
             TyParam::Type(typ) => Ok(self.meta_type(&typ)),
@@ -1122,6 +1211,13 @@ impl Context {
                 let t = array_t(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }
+            TyParam::Tuple(tps) => {
+                let mut tps_t = vec![];
+                for tp in tps {
+                    tps_t.push(self.get_tp_t(&tp)?);
+                }
+                Ok(tuple_t(tps_t))
+            }
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
             TyParam::UnaryOp { op, val } => match op {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
@@ -1136,7 +1232,7 @@ impl Context {
     }
 
     pub(crate) fn _get_tp_class(&self, p: &TyParam) -> EvalResult<Type> {
-        let p = self.eval_tp(p)?;
+        let p = self.eval_tp(p.clone())?;
         match p {
             TyParam::Value(v) => Ok(v.class()),
             TyParam::Erased(t) => Ok((*t).clone()),

@@ -385,7 +385,7 @@ impl fmt::Debug for ValueObj {
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
-            Self::Mut(v) => write!(f, "!{:?}", v.borrow()),
+            Self::Mut(v) => write!(f, "<mut {}>", v.borrow()),
             Self::Illegal => write!(f, "<illegal>"),
         }
     }

@@ -327,25 +327,13 @@ impl Context {
         }
         if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
-                let rhs_sup = if rhs_sup.has_qvar() {
-                    let rhs = match rhs {
-                        Type::Ref(t) => t,
-                        Type::RefMut { before, .. } => before,
-                        other => other,
-                    };
-                    // let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-                    // subst_ctx.substitute(rhs_sup.clone()).unwrap()
-                    rhs.clone()
-                } else {
-                    rhs_sup.clone()
-                };
                 // Not `supertype_of` (only structures are compared)
-                match self.cheap_supertype_of(lhs, &rhs_sup) {
+                match self.cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
-                        if self.structural_supertype_of(lhs, &rhs_sup) {
+                        if self.structural_supertype_of(lhs, rhs_sup) {
                             return (Absolutely, true);
                         }
                     }
@@ -584,12 +572,8 @@ impl Context {
                 }
                 self.supertype_of(&l.t, r)
             }
-            (Quantified(q), r) => {
-                self.supertype_of(q, r)
-            }
-            (l, Quantified(q)) => {
-                self.structural_supertype_of(l, q)
-            }
+            (Quantified(q), r) => self.supertype_of(q, r),
+            (l, Quantified(q)) => self.structural_supertype_of(l, q),
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             (Or(l_1, l_2), Or(r_1, r_2)) => {
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
@@ -638,8 +622,8 @@ impl Context {
                 if &ln[..] == "Array" || &ln[..] == "Set" {
                     let lt = self.convert_tp_into_ty(lparams[0].clone()).unwrap();
                     let rt = self.convert_tp_into_ty(rparams[0].clone()).unwrap();
-                    let llen = &lparams[1];
-                    let rlen = &rparams[1];
+                    let llen = lparams[1].clone();
+                    let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
                         && self
                             .eval_bin_tp(OpKind::Le, llen, rlen)
@@ -800,7 +784,7 @@ impl Context {
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
-                if let Ok(l) = self.eval_bin_tp(*op, lhs, rhs) {
+                if let Ok(l) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
                     self.try_cmp(&l, r)
                 } else { Some(Any) }
             },

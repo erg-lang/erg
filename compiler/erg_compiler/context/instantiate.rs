@@ -109,22 +109,16 @@ impl TyVarCache {
             // T<inst> is uninitialized
             // T<inst>.link(T<tv>);
             // T <: Eq(T <: Eq(T <: ...))
-            if let Type::FreeVar(fv_inst) = inst {
-                fv_inst.link(tv);
-            } else {
-                todo!()
-            }
+            let inst = enum_unwrap!(inst, Type::FreeVar);
+            inst.link(tv);
         } else if let Some(inst) = self.typaram_instances.get(name) {
             if let TyParam::Type(inst) = inst {
-                if let Type::FreeVar(fv_inst) = inst.as_ref() {
-                    fv_inst.link(tv);
-                } else {
-                    todo!()
-                }
+                let fv_inst = enum_unwrap!(inst.as_ref(), Type::FreeVar);
+                fv_inst.link(tv);
             } else if let TyParam::FreeVar(fv) = inst {
                 fv.link(&TyParam::t(tv.clone()));
             } else {
-                todo!("{inst}")
+                unreachable!()
             }
         }
         self.tyvar_instances.insert(name.clone(), tv.clone());
@@ -734,9 +728,9 @@ impl Context {
                     _ => assume_unreachable!(),
                 };
                 let l = self.instantiate_const_expr(lhs, None, tmp_tv_cache)?;
-                let l = self.eval_tp(&l)?;
+                let l = self.eval_tp(l)?;
                 let r = self.instantiate_const_expr(rhs, None, tmp_tv_cache)?;
-                let r = self.eval_tp(&r)?;
+                let r = self.eval_tp(r)?;
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
@@ -851,7 +845,7 @@ impl Context {
         loc: Location,
     ) -> TyCheckResult<TyParam> {
         match quantified {
-            TyParam::FreeVar(fv) if fv.is_quanted() => {
+            TyParam::FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
                     Ok(tp.clone())
@@ -935,7 +929,7 @@ impl Context {
         loc: Location,
     ) -> TyCheckResult<Type> {
         match unbound {
-            FreeVar(fv) if fv.is_quanted() => {
+            FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
                     Ok(t.clone())

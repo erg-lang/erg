@@ -88,18 +88,24 @@ impl Context {
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
                 let constr = fv.constraint().unwrap();
-                // |Int <: T <: Int| T -> T ==> Int -> Int
-                let (l, r) = constr.get_sub_sup().unwrap();
-                if self.same_type_of(l, r) {
-                    fv.forced_link(l);
-                    FreeVar(fv)
-                } else if r != &Obj && self.is_class(r) && variance == Contravariant {
-                    // |T <: Bool| T -> Int ==> Bool -> Int
-                    r.clone()
-                } else if l != &Never && self.is_class(l) && variance == Covariant {
-                    // |T :> Int| X -> T ==> X -> Int
-                    l.clone()
+                if let Some((l, r)) = constr.get_sub_sup() {
+                    // |Int <: T <: Int| T -> T ==> Int -> Int
+                    if self.same_type_of(l, r) {
+                        fv.forced_link(l);
+                        FreeVar(fv)
+                    } else if r != &Obj && self.is_class(r) && variance == Contravariant {
+                        // |T <: Bool| T -> Int ==> Bool -> Int
+                        r.clone()
+                    } else if l != &Never && self.is_class(l) && variance == Covariant {
+                        // |T :> Int| X -> T ==> X -> Int
+                        l.clone()
+                    } else {
+                        self.generalize_constraint(&fv.crack_constraint(), variance);
+                        fv.generalize();
+                        Type::FreeVar(fv)
+                    }
                 } else {
+                    // ?S(: Str) => 'S
                     self.generalize_constraint(&fv.crack_constraint(), variance);
                     fv.generalize();
                     Type::FreeVar(fv)
@@ -291,12 +297,10 @@ impl Context {
         loc: Location,
     ) -> SingleTyCheckResult<Constraint> {
         match constraint {
-            Constraint::Sandwiched { sub, sup } => {
-                Ok(Constraint::new_sandwiched(
-                    self.deref_tyvar(sub, variance, loc)?,
-                    self.deref_tyvar(sup, variance, loc)?,
-                ))
-            }
+            Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
+                self.deref_tyvar(sub, variance, loc)?,
+                self.deref_tyvar(sup, variance, loc)?,
+            )),
             Constraint::TypeOf(t) => {
                 Ok(Constraint::new_type_of(self.deref_tyvar(t, variance, loc)?))
             }
@@ -1232,8 +1236,8 @@ impl Context {
             )));
         }
         match (maybe_sub, maybe_sup) {
-            (Type::FreeVar(fv), _) if fv.is_quanted() => todo!("{maybe_sub}, {maybe_sup}"),
-            (_, Type::FreeVar(fv)) if fv.is_quanted() => todo!("{maybe_sub}, {maybe_sup}"),
+            (Type::FreeVar(fv), _) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
+            (_, Type::FreeVar(fv)) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))

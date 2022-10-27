@@ -1486,14 +1486,6 @@ impl Type {
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
 
-    pub fn is_mono_q(&self) -> bool {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_q(),
-            Self::FreeVar(fv) if fv.is_quanted() => true,
-            _ => false,
-        }
-    }
-
     /// 本来は型環境が必要
     pub fn mutate(self) -> Self {
         match self {
@@ -1508,7 +1500,8 @@ impl Type {
             Self::Float => mono("Float!"),
             Self::Bool => mono("Bool!"),
             Self::Str => mono("Str!"),
-            _ => todo!(),
+            other if other.is_mut_type() => other,
+            _t => todo!("{_t}"),
         }
     }
 
@@ -1748,13 +1741,7 @@ impl Type {
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.qual_name(),
-                FreeKind::NamedUnbound { name, .. } => {
-                    if cfg!(feature = "debug") {
-                        Str::from(format!("'{name}"))
-                    } else {
-                        name.clone()
-                    }
-                }
+                FreeKind::NamedUnbound { name, .. } => name.clone(),
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
             },
             Self::Proj { .. } => Str::ever("Proj"),
@@ -1804,7 +1791,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => {
                 fv.forced_as_ref().linked().unwrap().q_constraint()
             }
-            Self::FreeVar(fv) if fv.is_quanted() => fv.constraint(),
+            Self::FreeVar(fv) if fv.is_generalized() => fv.constraint(),
             _ => None,
         }
     }
@@ -1872,7 +1859,7 @@ impl Type {
     /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_quanted() => true,
+            Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
                     if let Some((sub, sup)) = fv.get_subsup() {

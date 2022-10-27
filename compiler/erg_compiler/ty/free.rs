@@ -53,7 +53,7 @@ pub trait HasLevel {
     fn generalize(&self) {
         self.set_level(GENERIC_LEVEL);
     }
-    fn is_quanted(&self) -> bool {
+    fn is_generalized(&self) -> bool {
         self.level() == Some(GENERIC_LEVEL)
     }
 }
@@ -425,7 +425,7 @@ impl<T: HasLevel> HasLevel for Free<T> {
     }
 }
 
-impl<T: Clone + HasLevel> Free<T> {
+impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
         Self(Shared::new(f))
     }
@@ -513,7 +513,7 @@ impl<T: Clone + HasLevel> Free<T> {
                 let prev = *previous.clone();
                 self.force_replace(prev);
             }
-            _ => panic!("cannot undo"),
+            other => panic!("cannot undo: {other}"),
         }
     }
 
@@ -537,6 +537,13 @@ impl<T: Clone + HasLevel> Free<T> {
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
             }
+        }
+    }
+
+    pub fn detach(&self) -> Self {
+        match self.clone().unwrap_unbound() {
+            (Some(name), lev, constraint) => Self::new_named_unbound(name, lev, constraint),
+            (None, lev, constraint) => Self::new_unbound(lev, constraint),
         }
     }
 
@@ -566,6 +573,10 @@ impl<T: Clone + HasLevel> Free<T> {
             FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
         )
     }
+
+    pub fn is_undoable_linked(&self) -> bool {
+        matches!(&*self.borrow(), FreeKind::UndoableLinked { .. })
+    }
 }
 
 impl<T: CanbeFree> Free<T> {
@@ -575,6 +586,10 @@ impl<T: CanbeFree> Free<T> {
 
     pub fn get_sup(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_super().cloned())
+    }
+
+    pub fn get_sub(&self) -> Option<Type> {
+        self.constraint().and_then(|c| c.get_sub().cloned())
     }
 
     pub fn get_subsup(&self) -> Option<(Type, Type)> {

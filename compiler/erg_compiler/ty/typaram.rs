@@ -645,7 +645,7 @@ impl TyParam {
         match self {
             Self::Type(t) => Some(t.qual_name()),
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
-            Self::FreeVar(fv) if fv.is_quanted() => fv.unbound_name(),
+            Self::FreeVar(fv) if fv.is_generalized() => fv.unbound_name(),
             Self::Mono(name) => Some(name.clone()),
             _ => None,
         }
@@ -712,7 +712,7 @@ impl TyParam {
 
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_quanted() => true,
+            Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
                     false

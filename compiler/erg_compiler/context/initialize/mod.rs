@@ -1206,8 +1206,7 @@ impl Context {
         tuple_.register_marker_trait(poly("Output", vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let return_t = proj_call(Ts, "__getitem__", vec![N.clone()]);
-        let tuple_getitem_t =
-            fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N.clone()}), return_t).quantify();
+        let tuple_getitem_t = fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             "__Tuple_getitem__",
             tuple_getitem_t,
@@ -1351,7 +1350,8 @@ impl Context {
         file_mut.register_marker_trait(mono("FileLike"));
         file_mut.register_marker_trait(mono("FileLike!"));
         /* Array! */
-        let array_mut_t = poly("Array!", vec![ty_tp(T.clone()), N.clone().mutate()]);
+        let N_MUT = mono_q_tp("N", instanceof(mono("Nat!")));
+        let array_mut_t = poly("Array!", vec![ty_tp(T.clone()), N_MUT.clone()]);
         let mut array_mut_ = Self::builtin_poly_class(
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
@@ -1363,7 +1363,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     "Array!",
-                    vec![ty_tp(T.clone()), N.clone().mutate() + value(1usize)],
+                    vec![ty_tp(T.clone()), N_MUT.clone() + value(1usize)],
                 )),
             ),
             vec![kw("elem", T.clone())],
@@ -1397,7 +1397,7 @@ impl Context {
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
         /* Set! */
-        let set_mut_t = poly("Set!", vec![ty_tp(T.clone()), N.mutate()]);
+        let set_mut_t = poly("Set!", vec![ty_tp(T.clone()), N_MUT]);
         let mut set_mut_ = Self::builtin_poly_class(
             "Set!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
