@@ -560,48 +560,6 @@ impl HasLevel for TyParam {
             _ => {}
         }
     }
-
-    /*fn lift(&self) {
-        match self {
-            Self::Type(t) => t.lift(),
-            Self::FreeVar(fv) if !fv.is_quanted() => fv.lift(),
-            Self::Dict(ts) => {
-                for (k, v) in ts.iter() {
-                    k.lift();
-                    v.lift();
-                }
-            }
-            Self::Array(ts) => {
-                for t in ts.iter() {
-                    t.lift();
-                }
-            }
-            Self::Tuple(ts) => {
-                for t in ts.iter() {
-                    t.lift();
-                }
-            }
-            Self::Set(ts) => {
-                for t in ts.iter() {
-                    t.lift();
-                }
-            }
-            Self::UnaryOp { val, .. } => val.lift(),
-            Self::BinOp { lhs, rhs, .. } => {
-                lhs.lift();
-                rhs.lift();
-            }
-            Self::App { args, .. } => {
-                for arg in args.iter() {
-                    arg.lift();
-                }
-            }
-            Self::Proj { obj, .. } => {
-                obj.lift();
-            }
-            _ => {}
-        }
-    }*/
 }
 
 impl TyParam {

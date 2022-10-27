@@ -20,7 +20,7 @@ use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
 use crate::ty::constructors::*;
-use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
@@ -110,14 +110,14 @@ impl TyVarCache {
             // T<inst>.link(T<tv>);
             // T <: Eq(T <: Eq(T <: ...))
             if let Type::FreeVar(fv_inst) = inst {
-                self.check_cyclicity_and_link(name, fv_inst, tv);
+                fv_inst.link(tv);
             } else {
                 todo!()
             }
         } else if let Some(inst) = self.typaram_instances.get(name) {
             if let TyParam::Type(inst) = inst {
                 if let Type::FreeVar(fv_inst) = inst.as_ref() {
-                    self.check_cyclicity_and_link(name, fv_inst, tv);
+                    fv_inst.link(tv);
                 } else {
                     todo!()
                 }
@@ -128,11 +128,6 @@ impl TyVarCache {
             }
         }
         self.tyvar_instances.insert(name.clone(), tv.clone());
-    }
-
-    fn check_cyclicity_and_link(&self, _name: &str, fv_inst: &FreeTyVar, tv: &Type) {
-        /*let (sub, sup) = enum_unwrap!(tv, Type::FreeVar).get_subsup().unwrap();*/
-        fv_inst.link(tv);
     }
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &Str, tp: &TyParam) {

@@ -62,19 +62,7 @@ impl Context {
         if maybe_unbound_t.has_qvar() {
             // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
             // However, the current Erg cannot handle existential types, so it quantifies anyway
-            /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
-                let mut tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                let inst = Self::instantiate_t(
-                    maybe_unbound_t,
-                    &mut tv_ctx,
-                    Location::Unknown,
-                )
-                .unwrap();
-                inst.lift();
-                self.deref_tyvar(inst, Location::Unknown).unwrap()
-            } else { */
             maybe_unbound_t.quantify()
-            // }
         } else {
             maybe_unbound_t
         }
@@ -88,7 +76,6 @@ impl Context {
     /// generalize_t(?T(<: TraitX) -> Int) == TraitX -> Int // 戻り値に現れないなら量化しない
     /// ```
     fn generalize_t_inner(&self, free_type: Type, variance: Variance) -> Type {
-        log!(err "{free_type}");
         match free_type {
             FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
@@ -113,10 +100,8 @@ impl Context {
                     // |T :> Int| X -> T ==> X -> Int
                     l.clone()
                 } else {
-                    log!(err "{fv}");
                     self.generalize_constraint(&fv.crack_constraint(), variance);
                     fv.generalize();
-                    log!(err "{fv}");
                     Type::FreeVar(fv)
                 }
             }
@@ -307,13 +292,6 @@ impl Context {
     ) -> SingleTyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched { sub, sup } => {
-                /*if cyclic.is_cyclic() {
-                    return Err(TyCheckError::dummy_infer_error(
-                        self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
-                    ));
-                }*/
                 Ok(Constraint::new_sandwiched(
                     self.deref_tyvar(sub, variance, loc)?,
                     self.deref_tyvar(sup, variance, loc)?,
@@ -348,9 +326,6 @@ impl Context {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    /*if fv.cyclicity().is_super_cyclic() {
-                        fv.forced_link(&sub_t);
-                    }*/
                     if self.is_trait(&super_t) {
                         self.check_trait_impl(&sub_t, &super_t, loc)?;
                     }
@@ -532,11 +507,6 @@ impl Context {
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        /*let subst_ctx = if self.get_nominal_type_ctx(class).is_some() {
-            SubstContext::new(class, self, Location::Unknown)
-        } else {
-            return false;
-        };*/
         for inst in self.get_trait_impls(trait_).into_iter() {
             if self.supertype_of(&inst.sub_type, class)
                 && self.supertype_of(&inst.sup_trait, trait_)
@@ -1433,13 +1403,7 @@ impl Context {
                 // e.g. Set(?T) <: Eq(Set(?T))
                 if ln != rn {
                     if let Some(sub_ctx) = self.get_nominal_type_ctx(maybe_sub) {
-                        // let subst_ctx = SubstContext::new(maybe_sub, self, loc);
                         for sup_trait in sub_ctx.super_traits.iter() {
-                            /*let sup_trait = if sup_trait.has_qvar() {
-                                subst_ctx.substitute(sup_trait.clone())?
-                            } else {
-                                sup_trait.clone()
-                            };*/
                             if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;

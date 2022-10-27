@@ -417,46 +417,6 @@ impl<T: HasLevel> HasLevel for Free<T> {
         }
     }
 
-    /*pub fn lower(&self, level: Level) {
-        if level < self.level().unwrap() {
-            self.set_level(level);
-        }
-    }
-
-    pub fn generalize(&self) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound {
-                lev, constraint, ..
-            }
-            | FreeKind::NamedUnbound {
-                lev, constraint, ..
-            } => {
-                *lev = GENERIC_LEVEL;
-                constraint.generalize();
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.generalize();
-            }
-        }
-    }
-
-    pub fn lift(&self) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound {
-                lev, constraint, ..
-            }
-            | FreeKind::NamedUnbound {
-                lev, constraint, ..
-            } => {
-                *lev += 1;
-                constraint.lift();
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.lift();
-            }
-        }
-    }*/
-
     fn level(&self) -> Option<Level> {
         match &*self.borrow() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),

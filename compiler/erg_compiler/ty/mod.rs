@@ -343,38 +343,6 @@ impl HasLevel for Predicate {
             }
         }
     }
-
-    /*fn set_level(&self, level: usize) {
-        match self {
-            Self::Value(_) | Self::Const(_) => {}
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => {
-                rhs.set_level(level);
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.set_level(level);
-                rhs.set_level(level);
-            }
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::Value(_) | Self::Const(_) => {}
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => {
-                rhs.lift();
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.lift();
-                rhs.lift();
-            }
-        }
-    }*/
 }
 
 impl Predicate {
@@ -1506,70 +1474,6 @@ impl HasLevel for Type {
             _ => {}
         }
     }
-
-    /*fn lift(&self) {
-        match self {
-            Self::FreeVar(v) if !v.is_quanted() => v.lift(),
-            Self::Ref(t) => t.lift(),
-            Self::RefMut { before, after } => {
-                before.lift();
-                if let Some(after) = after {
-                    after.lift();
-                }
-            }
-            Self::Callable { param_ts, return_t } => {
-                for p in param_ts.iter() {
-                    p.lift();
-                }
-                return_t.lift();
-            }
-            Self::Subr(subr) => {
-                for pt in subr.non_default_params.iter() {
-                    pt.typ().lift();
-                }
-                if let Some(pt) = subr.var_params.as_ref() {
-                    pt.typ().lift();
-                }
-                for pt in subr.default_params.iter() {
-                    pt.typ().lift();
-                }
-                subr.return_t.lift();
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.lift();
-                rhs.lift();
-            }
-            Self::Record(attrs) => {
-                for t in attrs.values() {
-                    t.lift();
-                }
-            }
-            Self::Poly { params, .. } => {
-                for p in params.iter() {
-                    p.lift();
-                }
-            }
-            Self::Proj { lhs, .. } => {
-                lhs.lift();
-            }
-            Self::ProjCall { lhs, args, .. } => {
-                lhs.lift();
-                for a in args.iter() {
-                    a.lift();
-                }
-            }
-            Self::Refinement(refine) => {
-                refine.t.lift();
-                for pred in refine.preds.iter() {
-                    pred.lift();
-                }
-            }
-            Self::Quantified(quant) => {
-                quant.lift();
-            }
-            _ => {}
-        }
-    }*/
 }
 
 impl Type {

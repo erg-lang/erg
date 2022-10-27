@@ -444,17 +444,8 @@ impl Context {
                 body_t.clone(),
             )
         };
-        log!(err "{sub_t}");
         sub_t.lift();
-        log!(err "{sub_t}");
         let found_t = self.generalize_t(sub_t);
-        /*if let Some(mut vi) = self.decls.remove(name) {
-            if vi.t.has_unbound_var() {
-                vi.t.lift();
-                vi.t = self.generalize_t(vi.t.clone());
-            }
-            self.decls.insert(name.clone(), vi);
-        }*/
         if let Some(vi) = self.decls.remove(name) {
             if !self.supertype_of(&vi.t, &found_t) {
                 return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(

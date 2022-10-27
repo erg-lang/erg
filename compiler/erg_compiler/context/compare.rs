@@ -5,7 +5,7 @@ use erg_common::error::MultiErrorDisplay;
 
 use crate::ty::constructors::{and, or};
 use crate::ty::free::fresh_varname;
-use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
+use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -19,9 +19,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
-// use crate::context::eval::SubstContext;
-// use crate::context::instantiate::TyVarCache;
-use crate::context::{Context, TypeRelationInstance, Variance};
+use crate::context::{Context, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -358,31 +356,6 @@ impl Context {
         (Maybe, false)
     }
 
-    /// ```python
-    /// assert sup_conforms(?E(<: Eq(?E)), arg: Nat, sup_trait: Eq(Nat))
-    /// assert sup_conforms(?E(<: Eq(?R)), arg: T, sup_trait: Eq(U))
-    /// ```
-    fn _sup_conforms(&self, free: &FreeTyVar, arg: &Type, sup_trait: &Type) -> bool {
-        let (_sub, sup) = free.get_subsup().unwrap();
-        free.forced_undoable_link(arg);
-        let judge = self.supertype_of(&sup, sup_trait);
-        free.undo();
-        judge
-    }
-
-    /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
-    /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TypeRelationInstance) -> bool {
-        let (_sub, sup) = free.get_subsup().unwrap();
-        log!(info "{free}");
-        free.forced_undoable_link(&inst_pair.sub_type);
-        log!(info "{free}");
-        let judge = self.subtype_of(&sup, &inst_pair.sup_trait);
-        free.undo();
-        log!(info "{free}");
-        judge
-    }
-
     /// lhs :> rhs?
     /// ```python
     /// assert supertype_of(Int, Nat) # i: Int = 1 as Nat
@@ -482,12 +455,6 @@ impl Context {
                     res
                 }
             },
-            /*(MonoQVar{ constr, .. }, rhs) | (PolyQVar { constr, .. }, rhs) => {
-                self.is_super_constr(constr, rhs)
-            }
-            (lhs, MonoQVar{ constr, .. }) | (lhs, PolyQVar { constr, .. }) => {
-                self.is_sub_constr(lhs, constr)
-            }*/
             (Type::Record(lhs), Type::Record(rhs)) => {
                 for (k, l) in lhs.iter() {
                     if let Some(r) = rhs.get(k) {
@@ -618,28 +585,9 @@ impl Context {
                 self.supertype_of(&l.t, r)
             }
             (Quantified(q), r) => {
-                // REVIEW: maybe this should be `unreachable`
-                /*let tmp_tv_ctx = TyVarCache::new(self.level, q.bounds.clone(), self);
-                let q_callable = self
-                    .instantiate_t_inner(
-                        q.unbound_callable.as_ref().clone(),
-                        &tmp_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();*/
                 self.supertype_of(q, r)
             }
             (l, Quantified(q)) => {
-                // REVIEW: maybe this should be `unreachable`
-                /*let tmp_tv_ctx = TyVarCache::new(self.level, q.bounds.clone(), self);
-                let q_callable = self
-                    .instantiate_t_inner(
-                        q.unbound_callable.as_ref().clone(),
-                        &tmp_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();
-                */
                 self.structural_supertype_of(l, q)
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
@@ -774,35 +722,6 @@ impl Context {
             Constraint::Uninited => unreachable!(),
         }
     }*/
-
-    pub(crate) fn _cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
-        // let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-        if let Some(super_traits) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_traits) {
-            for super_trait in super_traits {
-                /*let sup_trait = if super_trait.has_qvar() {
-                    subst_ctx.substitute(super_trait.clone()).unwrap()
-                } else {
-                    super_trait.clone()
-                };*/
-                if self._sup_conforms(lhs, rhs, super_trait) {
-                    return true;
-                }
-            }
-        }
-        if let Some(super_classes) = self._get_super_classes(rhs) {
-            for super_class in super_classes {
-                /*let sup_class = if super_class.has_qvar() {
-                    subst_ctx.substitute(super_class).unwrap()
-                } else {
-                    super_class
-                };*/
-                if self._cyclic_supertype_of(lhs, &super_class) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
 
     pub(crate) fn poly_supertype_of(
         &self,

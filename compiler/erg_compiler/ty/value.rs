@@ -27,18 +27,6 @@ use super::{ConstSubr, HasType, Predicate, Type};
 pub type EvalValueError = ErrorCore;
 pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
-/*
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TypeKind {
-    Class,
-    Subclass,
-    Trait,
-    Subtrait,
-    StructuralTrait,
-    Union,
-    Intersec,
-}*/
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClassTypeObj {
     pub t: Type,
