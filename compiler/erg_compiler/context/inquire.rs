@@ -21,10 +21,10 @@ use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, subr
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
+use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TypeRelationInstance, Variance};
+use crate::context::{Context, RegistrationMode, TypeRelationInstance, Variance, TyVarCache};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
@@ -282,8 +282,9 @@ impl Context {
                         .unwrap_or(0),
                 )));
             }
+            let mut dummy_tv_cache = TyVarCache::new(self.level, self);
             let rhs =
-                self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, None, Normal)?;
+                self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, &mut dummy_tv_cache, Normal)?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -1307,22 +1308,23 @@ impl Context {
         None
     }
 
-    pub(crate) fn type_params_bounds(&self) -> Set<TyBound> {
-        self.params
-            .iter()
-            .filter(|(opt_name, vi)| vi.kind.is_parameter() && opt_name.is_some())
-            .map(|(name, vi)| {
-                TyBound::instance(name.as_ref().unwrap().inspect().clone(), vi.t.clone())
-            })
-            .collect()
-    }
-
     // selfが示す型が、各パラメータTypeに対してどのような変性Varianceを持つかを返す
     // 特に指定されない型に対してはInvariant
     // e.g. K(T, U) = Class(..., Impl: F(T) and Output(U) and Input(T))
     // -> K.variance() == vec![Contravariant, Covariant]
     // TODO: support keyword arguments
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
+        let in_inout = |t: &Type, name: &VarName| {
+            (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
+                && t.inner_ts()
+                    .first()
+                    .map(|inner| if cfg!(feature = "debug") {
+                        inner.qual_name().trim_start_matches('\'') == &name.inspect()[..]
+                    } else {
+                        &inner.qual_name() == name.inspect()
+                    })
+                    .unwrap_or(false)
+        };
         self.params
             .iter()
             .map(|(opt_name, _)| {
@@ -1332,13 +1334,7 @@ impl Context {
                         .super_traits
                         .iter()
                         .chain(self.super_classes.iter())
-                        .find(|t| {
-                            (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
-                                && t.inner_ts()
-                                    .first()
-                                    .map(|t| &t.qual_name() == name.inspect())
-                                    .unwrap_or(false)
-                        })
+                        .find(|t| in_inout(t, name))
                     {
                         match &t.qual_name()[..] {
                             "Output" => Variance::Covariant,
@@ -1351,17 +1347,6 @@ impl Context {
                 } else {
                     Variance::Invariant
                 }
-            })
-            .collect()
-    }
-
-    pub(crate) fn bounds(&self) -> Set<TyBound> {
-        self.params
-            .iter()
-            .filter_map(|(opt_name, vi)| {
-                opt_name
-                    .as_ref()
-                    .map(|name| TyBound::instance(name.inspect().clone(), vi.t.clone()))
             })
             .collect()
     }
@@ -1445,8 +1430,8 @@ impl Context {
             // TODO
             Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
                 (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
-                    let (_lsub, lsup) = l.get_bound_types().unwrap();
-                    let (_rsub, rsup) = r.get_bound_types().unwrap();
+                    let (_lsub, lsup) = l.get_subsup().unwrap();
+                    let (_rsub, rsup) = r.get_subsup().unwrap();
                     self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
                 }
                 (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
@@ -1483,7 +1468,7 @@ impl Context {
     }
 
     /// if `typ` is a refinement type, include the base type (refine.t)
-    pub(crate) fn get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+    pub(crate) fn _get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ).map(|ctx| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
@@ -1829,11 +1814,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
+    pub(crate) fn _rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
             Some(impls)
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_const_param_defaults(name)
+            outer._rec_get_const_param_defaults(name)
         } else {
             None
         }
@@ -2099,6 +2084,22 @@ impl Context {
                     false
                 }
             }
+        }
+    }
+
+    /// Int.meta_type() == ClassType (<: Type)
+    /// Show.meta_type() == TraitType (<: Type)
+    /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
+    pub fn meta_type(&self, typ: &Type) -> Type {
+        match typ {
+            Type::Poly { name, params } => {
+                poly(name.clone(), params.iter().map(|tp| if let Ok(t) = self.convert_tp_into_ty(tp.clone()) {
+                    TyParam::t(self.meta_type(&t))
+                } else {
+                    tp.clone()
+                }).collect())
+            }
+            _ => Type,
         }
     }
 }

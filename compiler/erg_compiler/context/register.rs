@@ -9,13 +9,13 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, log, option_enum_unwrap, set};
+use erg_common::{enum_unwrap, get_hash, log, set};
 
 use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
 use erg_parser::ast;
 
 use crate::ty::constructors::{free_var, func, func1, proc, ref_, ref_mut, v_enum};
-use crate::ty::free::{Constraint, Cyclicity, FreeKind, HasLevel};
+use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
 
@@ -35,7 +35,7 @@ use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
 
-use super::instantiate::TyVarInstContext;
+use super::instantiate::TyVarCache;
 
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
@@ -224,7 +224,8 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
+                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -263,7 +264,8 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
+                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -302,7 +304,8 @@ impl Context {
                     )))
                 } else {
                     // ok, not defined
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, None, Normal)?;
+                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -438,21 +441,17 @@ impl Context {
                 body_t.clone(),
             )
         };
+        log!(err "{sub_t}");
         sub_t.lift();
+        log!(err "{sub_t}");
         let found_t = self.generalize_t(sub_t);
-        if let Some(mut vi) = self.decls.remove(name) {
-            let bounds = if let Some(quant) = option_enum_unwrap!(&found_t, Type::Quantified) {
-                quant.bounds.clone()
-            } else {
-                set! {}
-            };
+        /*if let Some(mut vi) = self.decls.remove(name) {
             if vi.t.has_unbound_var() {
                 vi.t.lift();
-                vi.t = self.generalize_t_given_bounds(vi.t.clone(), bounds);
-                // vi.t = self.generalize_t(vi.t.clone());
+                vi.t = self.generalize_t(vi.t.clone());
             }
             self.decls.insert(name.clone(), vi);
-        }
+        }*/
         if let Some(vi) = self.decls.remove(name) {
             if !self.supertype_of(&vi.t, &found_t) {
                 return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(
@@ -561,10 +560,9 @@ impl Context {
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
-                    let bounds = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-                    let tv_ctx = TyVarInstContext::new(self.level, bounds, self);
+                    let tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
                     let vis = def.sig.vis();
-                    self.grow(__name__, ContextKind::Proc, vis, Some(tv_ctx));
+                    self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err(e) => {
@@ -573,8 +571,9 @@ impl Context {
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
+                        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                         let spec_t =
-                            self.instantiate_typespec(spec, None, None, PreRegister, false)?;
+                            self.instantiate_typespec(spec, None, &mut dummy_tv_cache, PreRegister, false)?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                     }
                     self.pop();
@@ -592,7 +591,8 @@ impl Context {
                     }
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
-                    let spec_t = self.instantiate_typespec(spec, None, None, PreRegister, false)?;
+                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+                    let spec_t = self.instantiate_typespec(spec, None, &mut dummy_tv_cache, PreRegister, false)?;
                     self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
                 self.pop();
@@ -1210,8 +1210,9 @@ impl Context {
         type_spec: ast::TypeSpec,
         call: &mut hir::Call,
     ) -> TyCheckResult<()> {
+        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
         let cast_to =
-            self.instantiate_typespec(&type_spec, None, None, RegistrationMode::Normal, false)?;
+            self.instantiate_typespec(&type_spec, None, &mut dummy_tv_cache, RegistrationMode::Normal, false)?;
         let lhs = enum_unwrap!(
             call.args.get_mut_left_or_key("pred").unwrap(),
             hir::Expr::BinOp
@@ -1233,11 +1234,11 @@ impl Context {
                 }
                 match lhs.ref_t() {
                     Type::FreeVar(fv) if fv.is_linked() => {
-                        let constraint = Constraint::new_subtype_of(cast_to, Cyclicity::Not);
+                        let constraint = Constraint::new_subtype_of(cast_to);
                         fv.replace(FreeKind::new_unbound(self.level, constraint));
                     }
                     Type::FreeVar(fv) => {
-                        let new_constraint = Constraint::new_subtype_of(cast_to, Cyclicity::Not);
+                        let new_constraint = Constraint::new_subtype_of(cast_to);
                         fv.update_constraint(new_constraint);
                     }
                     _ => {

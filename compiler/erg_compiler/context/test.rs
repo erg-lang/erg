@@ -2,14 +2,15 @@
 use erg_common::error::Location;
 use erg_common::Str;
 // use erg_common::error::Location;
-use erg_common::{enum_unwrap, set};
+use erg_common::{set};
 
-use crate::ty::constructors::{func1, mono, mono_q, poly, quant, refinement};
+use crate::ty::constructors::{func1, mono, mono_q, poly, refinement};
+use crate::ty::free::{Constraint};
 use crate::ty::typaram::TyParam;
-use crate::ty::{Predicate, TyBound, Type};
+use crate::ty::{Predicate, Type};
 use Type::*;
 
-use crate::context::instantiate::TyVarInstContext;
+use crate::context::instantiate::TyVarCache;
 use crate::context::Context;
 
 impl Context {
@@ -47,35 +48,19 @@ impl Context {
     }
 
     pub fn test_instantiation_and_generalization(&self) -> Result<(), ()> {
-        let t = mono_q("T");
-        let eq = mono("Eq");
-        let bound = TyBound::subtype_of(t.clone(), eq);
-        let bounds = set! {bound};
-        let unbound_t = func1(t.clone(), t);
-        let quantified = quant(unbound_t.clone(), bounds.clone());
+        let t = mono_q("T", Constraint::new_subtype_of(mono("Eq")));
+        let unbound = func1(t.clone(), t);
+        let quantified = unbound.clone().quantify();
         println!("quantified      : {quantified}");
-        let tv_ctx = TyVarInstContext::new(self.level + 1, bounds, self);
-        println!("tv_ctx: {tv_ctx}");
+        let mut tv_cache = TyVarCache::new(self.level + 1, self);
+        println!("tv_cache: {tv_cache}");
         let inst = self
-            .instantiate_t_inner(unbound_t, &tv_ctx, Location::Unknown)
+            .instantiate_t_inner(unbound, &mut tv_cache, Location::Unknown)
             .map_err(|_| ())?;
         println!("inst: {inst}");
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
         assert_eq!(quantified, quantified_again);
-        let unbound_t = *enum_unwrap!(quantified_again, Type::Quantified).unbound_callable;
-        // 同じtv_ctxで2回instantiateしないこと
-        let inst = self
-            .instantiate_t_inner(unbound_t, &tv_ctx, Location::Unknown)
-            .map_err(|_| ())?; // (?T(<: Eq('T))[2]) -> ?T(<: Eq('T))[2]
-        println!("inst: {inst}");
-        let quantified_again = self.generalize_t(inst);
-        println!("quantified_again: {quantified_again}");
-        if quantified_again == quantified {
-            // 結果的に同じにはなる
-            Ok(())
-        } else {
-            Err(())
-        }
+        Ok(())
     }
 }

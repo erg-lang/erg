@@ -1,8 +1,9 @@
 p = (1, 2)
 assert p.0 == 1
 
-q = (1, True)
+q = (1, True, "a")
 assert q.1
+assert q.2 == "a"
 
 i, j = 0, 1
 assert i == 0

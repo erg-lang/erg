@@ -18,15 +18,15 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
+use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::instantiate::TyVarInstContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TypeRelationInstance};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
@@ -784,11 +784,10 @@ impl ASTLowerer {
         } else {
             ContextKind::Func
         };
-        let bounds = self
+        let tv_cache = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
-        self.ctx.grow(&name, kind, Private, Some(tv_ctx));
+        self.ctx.grow(&name, kind, Private, Some(tv_cache));
         let params = self.lower_params(lambda.sig.params)?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
             self.errs.extend(errs.into_iter());
@@ -815,23 +814,16 @@ impl ASTLowerer {
             .into_iter()
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        let bounds = self
-            .ctx
-            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
-            .map_err(|e| {
-                self.pop_append_errs();
-                e
-            })?;
         self.pop_append_errs();
         let t = if is_procedural {
             proc(non_default_params, None, default_params, body.t())
         } else {
             func(non_default_params, None, default_params, body.t())
         };
-        let t = if bounds.is_empty() {
-            t
+        let t = if t.has_qvar() {
+            t.quantify()
         } else {
-            quant(t, bounds)
+            t
         };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
@@ -870,11 +862,10 @@ impl ASTLowerer {
         let vis = def.sig.vis();
         let res = match def.sig {
             ast::Signature::Subr(sig) => {
-                let bounds = self
+                let tv_cache = self
                     .ctx
                     .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
-                let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
-                self.ctx.grow(&name, kind, vis, Some(tv_ctx));
+                self.ctx.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
             }
             ast::Signature::Var(sig) => {
@@ -1038,6 +1029,7 @@ impl ASTLowerer {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         for mut methods in class_def.methods_list.into_iter() {
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
@@ -1047,7 +1039,7 @@ impl ASTLowerer {
                             self.ctx.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
-                                None,
+                                &mut dummy_tv_cache,
                                 RegistrationMode::Normal,
                                 false,
                             )?,
@@ -1059,7 +1051,7 @@ impl ASTLowerer {
                         self.ctx.instantiate_typespec(
                             spec,
                             None,
-                            None,
+                            &mut dummy_tv_cache,
                             RegistrationMode::Normal,
                             false,
                         )?,
@@ -1070,7 +1062,7 @@ impl ASTLowerer {
                     self.ctx.instantiate_typespec(
                         other,
                         None,
-                        None,
+                        &mut dummy_tv_cache,
                         RegistrationMode::Normal,
                         false,
                     )?,
@@ -1430,10 +1422,11 @@ impl ASTLowerer {
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
         let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         let t = self.ctx.instantiate_typespec(
             &tasc.t_spec,
             None,
-            None,
+            &mut dummy_tv_cache,
             RegistrationMode::Normal,
             false,
         )?;
@@ -1600,13 +1593,14 @@ impl ASTLowerer {
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    None,
+                    &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
                 )?;
@@ -1629,7 +1623,7 @@ impl ASTLowerer {
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    None,
+                    &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
                 )?;

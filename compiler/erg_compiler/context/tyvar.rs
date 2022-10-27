@@ -3,19 +3,18 @@ use std::mem;
 use std::option::Option;
 
 use erg_common::error::Location;
-use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name, log, set};
+use erg_common::{assume_unreachable, fn_name, log};
 
 use crate::ty::constructors::*;
-use crate::ty::free::{Constraint, Cyclicity, FreeKind};
+use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Predicate, TyBound, Type};
+use crate::ty::{HasType, Predicate, Type};
 
-use crate::context::eval::SubstContext;
-use crate::context::{Context, TyVarInstContext, Variance};
+// use crate::context::eval::SubstContext;
+use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 
@@ -26,8 +25,6 @@ use Variance::*;
 
 impl Context {
     pub const TOP_LEVEL: usize = 1;
-    // HACK: see doc/compiler/inference.md for details
-    pub const GENERIC_LEVEL: usize = usize::MAX;
 
     /// 型を非依存化する
     fn _independentise(_t: Type, _ts: &[Type]) -> Type {
@@ -38,35 +35,24 @@ impl Context {
         &self,
         free: TyParam,
         variance: Variance,
-        bounds: &mut Set<TyBound>,
-        lazy_inits: &mut Set<Str>,
     ) -> TyParam {
         match free {
             TyParam::Type(t) => {
-                TyParam::t(self.generalize_t_inner(*t, variance, bounds, lazy_inits))
+                TyParam::t(self.generalize_t_inner(*t, variance))
             }
             TyParam::FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
-                    *tp = self.generalize_tp(tp.clone(), variance, bounds, lazy_inits);
+                    *tp = self.generalize_tp(tp.clone(), variance);
                 } else {
                     assume_unreachable!()
                 }
                 TyParam::FreeVar(v)
             }
             // TODO: Polymorphic generalization
-            TyParam::FreeVar(fv) if fv.level() > Some(self.level) => match &*fv.borrow() {
-                FreeKind::Unbound { id, constraint, .. } => {
-                    let name = format!("%{id}");
-                    self.generalize_constraint(&name, constraint, variance, bounds, lazy_inits);
-                    TyParam::mono_q(name)
-                }
-                FreeKind::NamedUnbound {
-                    name, constraint, ..
-                } => {
-                    self.generalize_constraint(name, constraint, variance, bounds, lazy_inits);
-                    TyParam::mono_q(name)
-                }
-                _ => assume_unreachable!(),
+            TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {
+                self.generalize_constraint(&fv.crack_constraint(), variance);
+                fv.generalize();
+                TyParam::FreeVar(fv)
             },
             TyParam::FreeVar(_) => free,
             other if other.has_no_unbound_var() => other,
@@ -78,13 +64,8 @@ impl Context {
         if cfg!(feature = "debug") && free_type.has_qvar() {
             panic!("{free_type} has qvars")
         }
-        let mut bounds = set! {};
-        let mut lazy_inits = set! {};
-        let maybe_unbound_t =
-            self.generalize_t_inner(free_type, Covariant, &mut bounds, &mut lazy_inits);
-        if bounds.is_empty() {
-            maybe_unbound_t
-        } else {
+        let maybe_unbound_t = self.generalize_t_inner(free_type, Covariant);
+        if maybe_unbound_t.has_qvar() {
             // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
             // However, the current Erg cannot handle existential types, so it quantifies anyway
             /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
@@ -98,37 +79,10 @@ impl Context {
                 inst.lift();
                 self.deref_tyvar(inst, Location::Unknown).unwrap()
             } else { */
-            quant(maybe_unbound_t, bounds)
+            maybe_unbound_t.quantify()
             // }
-        }
-    }
-
-    pub(crate) fn generalize_t_given_bounds(
-        &self,
-        free_type: Type,
-        mut bounds: Set<TyBound>,
-    ) -> Type {
-        let mut lazy_inits = set! {};
-        let maybe_unbound_t =
-            self.generalize_t_inner(free_type, Covariant, &mut bounds, &mut lazy_inits);
-        if bounds.is_empty() {
-            maybe_unbound_t
         } else {
-            // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
-            // However, the current Erg cannot handle existential types, so it quantifies anyway
-            /*if !maybe_unbound_t.return_t().unwrap().has_qvar() {
-                let mut tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                let inst = Self::instantiate_t(
-                    maybe_unbound_t,
-                    &mut tv_ctx,
-                    Location::Unknown,
-                )
-                .unwrap();
-                inst.lift();
-                self.deref_tyvar(inst, Location::Unknown).unwrap()
-            } else { */
-            quant(maybe_unbound_t, bounds)
-            // }
+            maybe_unbound_t
         }
     }
 
@@ -143,13 +97,12 @@ impl Context {
         &self,
         free_type: Type,
         variance: Variance,
-        bounds: &mut Set<TyBound>,
-        lazy_inits: &mut Set<Str>,
     ) -> Type {
+        log!(err "{free_type}");
         match free_type {
             FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
-                    *t = self.generalize_t_inner(t.clone(), variance, bounds, lazy_inits);
+                    *t = self.generalize_t_inner(t.clone(), variance);
                 } else {
                     assume_unreachable!()
                 }
@@ -157,44 +110,24 @@ impl Context {
             }
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
-                let (name, constraint) = match &*fv.borrow() {
-                    FreeKind::Unbound { id, constraint, .. } => {
-                        (Str::from(format!("%{id}")), constraint.clone())
-                    }
-                    FreeKind::NamedUnbound {
-                        name, constraint, ..
-                    } => (name.clone(), constraint.clone()),
-                    _ => assume_unreachable!(),
-                };
+                let constr = fv.constraint().unwrap();
                 // |Int <: T <: Int| T -> T ==> Int -> Int
-                let (l, r) = constraint.get_sub_sup().unwrap();
-                // the input type of `is_class` must not be quantified (if the type is Proj). So instantiate it here.
-                let l = if l.has_qvar() {
-                    let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                    self.instantiate_t_inner(l.clone(), &tv_ctx, Location::Unknown)
-                        .unwrap()
-                } else {
-                    l.clone()
-                };
-                let r = if r.has_qvar() {
-                    let tv_ctx = TyVarInstContext::new(self.level, bounds.clone(), self);
-                    self.instantiate_t_inner(r.clone(), &tv_ctx, Location::Unknown)
-                        .unwrap()
-                } else {
-                    r.clone()
-                };
-                if self.same_type_of(&l, &r) {
-                    fv.forced_link(&l);
+                let (l, r) = constr.get_sub_sup().unwrap();
+                if self.same_type_of(l, r) {
+                    fv.forced_link(l);
                     FreeVar(fv)
-                } else if r != Obj && self.is_class(&r) && variance == Contravariant {
+                } else if r != &Obj && self.is_class(r) && variance == Contravariant {
                     // |T <: Bool| T -> Int ==> Bool -> Int
-                    r
-                } else if l != Never && self.is_class(&l) && variance == Covariant {
+                    r.clone()
+                } else if l != &Never && self.is_class(l) && variance == Covariant {
                     // |T :> Int| X -> T ==> X -> Int
-                    l
+                    l.clone()
                 } else {
-                    self.generalize_constraint(&name, &constraint, variance, bounds, lazy_inits);
-                    mono_q(name)
+                    log!(err "{fv}");
+                    self.generalize_constraint(&fv.crack_constraint(), variance);
+                    fv.generalize();
+                    log!(err "{fv}");
+                    Type::FreeVar(fv)
                 }
             }
             Subr(mut subr) => {
@@ -202,28 +135,22 @@ impl Context {
                     *nd_param.typ_mut() = self.generalize_t_inner(
                         mem::take(nd_param.typ_mut()),
                         Contravariant,
-                        bounds,
-                        lazy_inits,
                     );
                 });
                 if let Some(var_args) = &mut subr.var_params {
                     *var_args.typ_mut() = self.generalize_t_inner(
                         mem::take(var_args.typ_mut()),
                         Contravariant,
-                        bounds,
-                        lazy_inits,
                     );
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
                     *d_param.typ_mut() = self.generalize_t_inner(
                         mem::take(d_param.typ_mut()),
                         Contravariant,
-                        bounds,
-                        lazy_inits,
                     );
                 });
                 let return_t =
-                    self.generalize_t_inner(*subr.return_t, Covariant, bounds, lazy_inits);
+                    self.generalize_t_inner(*subr.return_t, Covariant);
                 subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -233,33 +160,33 @@ impl Context {
                 )
             }
             Callable { .. } => todo!(),
-            Ref(t) => ref_(self.generalize_t_inner(*t, variance, bounds, lazy_inits)),
+            Ref(t) => ref_(self.generalize_t_inner(*t, variance)),
             RefMut { before, after } => {
                 let after =
-                    after.map(|aft| self.generalize_t_inner(*aft, variance, bounds, lazy_inits));
+                    after.map(|aft| self.generalize_t_inner(*aft, variance));
                 ref_mut(
-                    self.generalize_t_inner(*before, variance, bounds, lazy_inits),
+                    self.generalize_t_inner(*before, variance),
                     after,
                 )
             }
             Refinement(refine) => {
-                let t = self.generalize_t_inner(*refine.t, variance, bounds, lazy_inits);
+                let t = self.generalize_t_inner(*refine.t, variance);
                 let preds = refine
                     .preds
                     .into_iter()
-                    .map(|pred| self.generalize_pred(pred, variance, bounds, lazy_inits))
+                    .map(|pred| self.generalize_pred(pred, variance))
                     .collect();
                 refinement(refine.var, t, preds)
             }
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
-                    .map(|p| self.generalize_tp(mem::take(p), variance, bounds, lazy_inits))
+                    .map(|p| self.generalize_tp(mem::take(p), variance))
                     .collect::<Vec<_>>();
                 poly(name, params)
             }
             Proj { lhs, rhs } => {
-                let lhs = self.generalize_t_inner(*lhs, variance, bounds, lazy_inits);
+                let lhs = self.generalize_t_inner(*lhs, variance);
                 proj(lhs, rhs)
             }
             ProjCall {
@@ -267,27 +194,27 @@ impl Context {
                 attr_name,
                 mut args,
             } => {
-                let lhs = self.generalize_tp(*lhs, variance, bounds, lazy_inits);
+                let lhs = self.generalize_tp(*lhs, variance);
                 for arg in args.iter_mut() {
-                    *arg = self.generalize_tp(mem::take(arg), variance, bounds, lazy_inits);
+                    *arg = self.generalize_tp(mem::take(arg), variance);
                 }
                 proj_call(lhs, attr_name, args)
             }
             And(l, r) => {
-                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance);
+                let r = self.generalize_t_inner(*r, variance);
                 // not `self.intersection` because types are generalized
                 and(l, r)
             }
             Or(l, r) => {
-                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance);
+                let r = self.generalize_t_inner(*r, variance);
                 // not `self.union` because types are generalized
                 or(l, r)
             }
             Not(l, r) => {
-                let l = self.generalize_t_inner(*l, variance, bounds, lazy_inits);
-                let r = self.generalize_t_inner(*r, variance, bounds, lazy_inits);
+                let l = self.generalize_t_inner(*l, variance);
+                let r = self.generalize_t_inner(*r, variance);
                 not(l, r)
             }
             // REVIEW: その他何でもそのまま通していいのか?
@@ -295,32 +222,22 @@ impl Context {
         }
     }
 
-    fn generalize_constraint<S: Into<Str>>(
+    fn generalize_constraint(
         &self,
-        name: S,
         constraint: &Constraint,
         variance: Variance,
-        bounds: &mut Set<TyBound>,
-        lazy_inits: &mut Set<Str>,
-    ) {
-        let name = name.into();
-        //  Quantify types with type boundaries only at the top level
-        // トップレベルでのみ、型境界付きで量化する
-        if !lazy_inits.contains(&name[..]) {
-            lazy_inits.insert(name.clone());
-            match constraint {
-                Constraint::Sandwiched { sub, sup, .. } => {
-                    let sub = self.generalize_t_inner(sub.clone(), variance, bounds, lazy_inits);
-                    let sup = self.generalize_t_inner(sup.clone(), variance, bounds, lazy_inits);
-                    // let bs = sub_bs.concat(sup_bs);
-                    bounds.insert(TyBound::sandwiched(sub, mono_q(name), sup));
-                }
-                Constraint::TypeOf(t) => {
-                    let t = self.generalize_t_inner(t.clone(), variance, bounds, lazy_inits);
-                    bounds.insert(TyBound::instance(Str::rc(&name[..]), t));
-                }
-                Constraint::Uninited => unreachable!(),
+    ) -> Constraint {
+        match constraint {
+            Constraint::Sandwiched { sub, sup, .. } => {
+                let sub = self.generalize_t_inner(sub.clone(), variance);
+                let sup = self.generalize_t_inner(sup.clone(), variance);
+                Constraint::new_sandwiched(sub, sup)
             }
+            Constraint::TypeOf(t) => {
+                let t = self.generalize_t_inner(t.clone(), variance);
+                Constraint::new_type_of(t)
+            }
+            Constraint::Uninited => unreachable!(),
         }
     }
 
@@ -328,25 +245,23 @@ impl Context {
         &self,
         pred: Predicate,
         variance: Variance,
-        bounds: &mut Set<TyBound>,
-        lazy_inits: &mut Set<Str>,
     ) -> Predicate {
         match pred {
             Predicate::Const(_) => pred,
             Predicate::Equal { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                let rhs = self.generalize_tp(rhs, variance);
                 Predicate::eq(lhs, rhs)
             }
             Predicate::GreaterEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                let rhs = self.generalize_tp(rhs, variance);
                 Predicate::ge(lhs, rhs)
             }
             Predicate::LessEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                let rhs = self.generalize_tp(rhs, variance);
                 Predicate::le(lhs, rhs)
             }
             Predicate::NotEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance, bounds, lazy_inits);
+                let rhs = self.generalize_tp(rhs, variance);
                 Predicate::ne(lhs, rhs)
             }
             other => todo!("{other}"),
@@ -376,8 +291,15 @@ impl Context {
                 }
                 Ok(TyParam::App { name, args })
             }
-            TyParam::BinOp { .. } => todo!(),
-            TyParam::UnaryOp { .. } => todo!(),
+            TyParam::BinOp { op, lhs, rhs } => {
+                let lhs = self.deref_tp(*lhs, variance, loc)?;
+                let rhs = self.deref_tp(*rhs, variance, loc)?;
+                Ok(TyParam::BinOp { op, lhs: Box::new(lhs), rhs: Box::new(rhs) })
+            },
+            TyParam::UnaryOp { op, val } => {
+                let val = self.deref_tp(*val, variance, loc)?;
+                Ok(TyParam::UnaryOp { op, val: Box::new(val) })
+            },
             TyParam::Array(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
@@ -393,8 +315,6 @@ impl Context {
                 Ok(TyParam::Tuple(new_tps))
             }
             TyParam::Proj { .. }
-            | TyParam::MonoQVar(_)
-            | TyParam::PolyQVar { .. }
             | TyParam::Failure
                 if self.level == 0 =>
             {
@@ -418,19 +338,17 @@ impl Context {
             Constraint::Sandwiched {
                 sub,
                 sup,
-                cyclicity: cyclic,
             } => {
-                if cyclic.is_cyclic() {
+                /*if cyclic.is_cyclic() {
                     return Err(TyCheckError::dummy_infer_error(
                         self.cfg.input.clone(),
                         fn_name!(),
                         line!(),
                     ));
-                }
+                }*/
                 Ok(Constraint::new_sandwiched(
                     self.deref_tyvar(sub, variance, loc)?,
                     self.deref_tyvar(sup, variance, loc)?,
-                    cyclic,
                 ))
             }
             Constraint::TypeOf(t) => {
@@ -460,11 +378,11 @@ impl Context {
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub_t, super_t) = fv.get_bound_types().unwrap();
+                let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    if fv.cyclicity().is_super_cyclic() {
+                    /*if fv.cyclicity().is_super_cyclic() {
                         fv.forced_link(&sub_t);
-                    }
+                    }*/
                     if self.is_trait(&super_t) {
                         self.check_trait_impl(&sub_t, &super_t, loc)?;
                     }
@@ -634,28 +552,7 @@ impl Context {
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            let sub_type = if inst.sub_type.has_qvar() {
-                let sub_ctx = self.get_nominal_type_ctx(&inst.sub_type).unwrap();
-                let tv_ctx = TyVarInstContext::new(self.level, sub_ctx.bounds(), self);
-                if let Ok(t) =
-                    self.instantiate_t_inner(inst.sub_type.clone(), &tv_ctx, Location::Unknown)
-                {
-                    t
-                } else {
-                    continue;
-                }
-            } else {
-                inst.sub_type
-            };
-            let sup_trait = if inst.sup_trait.has_qvar() {
-                let sup_ctx = self.get_nominal_type_ctx(&inst.sup_trait).unwrap();
-                let tv_ctx = TyVarInstContext::new(self.level, sup_ctx.bounds(), self);
-                self.instantiate_t_inner(inst.sup_trait, &tv_ctx, Location::Unknown)
-                    .unwrap()
-            } else {
-                inst.sup_trait
-            };
-            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
+            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&inst.sup_trait, trait_) {
                 super_exists = true;
                 break;
             }
@@ -665,33 +562,13 @@ impl Context {
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        let subst_ctx = if self.get_nominal_type_ctx(class).is_some() {
+        /*let subst_ctx = if self.get_nominal_type_ctx(class).is_some() {
             SubstContext::new(class, self, Location::Unknown)
         } else {
             return false;
-        };
+        };*/
         for inst in self.get_trait_impls(trait_).into_iter() {
-            let sub_type = if inst.sub_type.has_qvar() {
-                if let Ok(t) = subst_ctx.substitute(inst.sub_type.clone()) {
-                    t
-                } else {
-                    // no relation
-                    continue;
-                }
-            } else {
-                inst.sub_type
-            };
-            let sup_trait = if inst.sup_trait.has_qvar() {
-                if let Ok(t) = subst_ctx.substitute(inst.sup_trait.clone()) {
-                    t
-                } else {
-                    // no relation
-                    continue;
-                }
-            } else {
-                inst.sup_trait
-            };
-            if self.supertype_of(&sub_type, class) && self.supertype_of(&sup_trait, trait_) {
+            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&inst.sup_trait, trait_) {
                 super_exists = true;
                 break;
             }
@@ -727,7 +604,7 @@ impl Context {
                 self.coerce(&fv.crack());
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
-                let (sub, _sup) = fv.get_bound_types().unwrap();
+                let (sub, _sup) = fv.get_subsup().unwrap();
                 fv.link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
@@ -981,7 +858,7 @@ impl Context {
                 self.occur(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
-            (Type::Poly { params, .. } | Type::PolyQVar { params, .. }, Type::FreeVar(fv))
+            (Type::Poly { params, .. }, Type::FreeVar(fv))
                 if fv.is_unbound() =>
             {
                 for param in params.iter().filter_map(|tp| {
@@ -995,7 +872,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Poly { params, .. } | Type::PolyQVar { params, .. })
+            (Type::FreeVar(fv), Type::Poly { params, .. })
                 if fv.is_unbound() =>
             {
                 for param in params.iter().filter_map(|tp| {
@@ -1050,7 +927,6 @@ impl Context {
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
                 let fv_t = fv
-                    .borrow()
                     .constraint()
                     .unwrap()
                     .get_type()
@@ -1060,11 +936,11 @@ impl Context {
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
+                        let new_constraint = Constraint::new_subtype_of(tp_t);
                         if self.is_sub_constraint_of(
-                            fv.borrow().constraint().unwrap(),
+                            &fv.constraint().unwrap(),
                             &new_constraint,
-                        ) || fv.borrow().constraint().unwrap().get_type() == Some(&Type)
+                        ) || fv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             fv.update_constraint(new_constraint);
                         }
@@ -1095,7 +971,6 @@ impl Context {
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
                 let fv_t = fv
-                    .borrow()
                     .constraint()
                     .unwrap()
                     .get_type()
@@ -1105,11 +980,11 @@ impl Context {
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
-                        let new_constraint = Constraint::new_subtype_of(tp_t, Cyclicity::Not);
+                        let new_constraint = Constraint::new_subtype_of(tp_t);
                         if self.is_sub_constraint_of(
-                            fv.borrow().constraint().unwrap(),
+                            &fv.constraint().unwrap(),
                             &new_constraint,
-                        ) || fv.borrow().constraint().unwrap().get_type() == Some(&Type)
+                        ) || fv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             fv.update_constraint(new_constraint);
                         }
@@ -1162,6 +1037,16 @@ impl Context {
                         self.caused_by(),
                     )))
                 }
+            }
+            (l, TyParam::Type(r)) => {
+                let l = self.convert_tp_into_ty(l.clone()).unwrap_or_else(|_| todo!("{l} cannot be a type"));
+                self.sub_unify(&l, r, loc, None)?;
+                Ok(())
+            }
+            (TyParam::Type(l), r) => {
+                let r = self.convert_tp_into_ty(r.clone()).unwrap_or_else(|_| todo!("{r} cannot be a type"));
+                self.sub_unify(l, &r, loc, None)?;
+                Ok(())
             }
             (l, r) => panic!("type-parameter unification failed:\nl:{l}\nr: {r}"),
         }
@@ -1419,6 +1304,8 @@ impl Context {
             )));
         }
         match (maybe_sub, maybe_sup) {
+            (Type::FreeVar(fv), _) if fv.is_quanted() => todo!("{maybe_sub}, {maybe_sup}"),
+            (_, Type::FreeVar(fv)) if fv.is_quanted() => todo!("{maybe_sub}, {maybe_sup}"),
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
@@ -1429,14 +1316,11 @@ impl Context {
             (Type::FreeVar(lfv), Type::FreeVar(rfv))
                 if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
             {
-                let (lsub, lsup) = lfv.get_bound_types().unwrap();
-                let l_cyc = lfv.cyclicity();
-                let (rsub, rsup) = rfv.get_bound_types().unwrap();
-                let r_cyc = rfv.cyclicity();
-                let cyclicity = l_cyc.combine(r_cyc);
+                let (lsub, lsup) = lfv.get_subsup().unwrap();
+                let (rsub, rsup) = rfv.get_subsup().unwrap();
                 let intersec = self.intersection(&lsup, &rsup);
                 let new_constraint = if intersec != Type::Never {
-                    Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec, cyclicity)
+                    Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec)
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.cfg.input.clone(),
@@ -1479,7 +1363,7 @@ impl Context {
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                         // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
-                        Constraint::Sandwiched { sub, sup, cyclicity } => {
+                        Constraint::Sandwiched { sub, sup } => {
                             /*if let Some(new_sub) = self.max(maybe_sub, sub) {
                                 *constraint =
                                     Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
@@ -1488,14 +1372,14 @@ impl Context {
                             if sup.contains_union(&new_sub) {
                                 rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                             } else {
-                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup), *cyclicity);
+                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup));
                             }
                             // }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
                             if self.supertype_of(&Type, ty) {
-                                *constraint = Constraint::new_supertype_of(maybe_sub.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_supertype_of(maybe_sub.clone());
                             } else {
                                 todo!()
                             }
@@ -1521,20 +1405,20 @@ impl Context {
                         // * sub_unify(?T(:> Nat,   <: Obj), Int): (?T(:> Nat,   <: Int))
                         // sup = union(sup, r) if min does not exist
                         // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
-                        Constraint::Sandwiched { sub, sup, cyclicity } => {
+                        Constraint::Sandwiched { sub, sup } => {
                             // REVIEW: correct?
                             if let Some(new_sup) = self.min(sup, maybe_sup) {
                                 *constraint =
-                                    Constraint::new_sandwiched(mem::take(sub), new_sup.clone(), *cyclicity);
+                                    Constraint::new_sandwiched(mem::take(sub), new_sup.clone());
                             } else {
                                 let new_sup = self.union(sup, maybe_sup);
-                                *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup, *cyclicity);
+                                *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup);
                             }
                         }
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
                         Constraint::TypeOf(ty) => {
                             if self.supertype_of(&Type, ty) {
-                                *constraint = Constraint::new_subtype_of(maybe_sup.clone(), Cyclicity::Not);
+                                *constraint = Constraint::new_subtype_of(maybe_sup.clone());
                             } else {
                                 todo!()
                             }
@@ -1591,14 +1475,14 @@ impl Context {
                 // e.g. Set(?T) <: Eq(Set(?T))
                 if ln != rn {
                     if let Some(sub_ctx) = self.get_nominal_type_ctx(maybe_sub) {
-                        let subst_ctx = SubstContext::new(maybe_sub, self, loc);
+                        // let subst_ctx = SubstContext::new(maybe_sub, self, loc);
                         for sup_trait in sub_ctx.super_traits.iter() {
-                            let sup_trait = if sup_trait.has_qvar() {
+                            /*let sup_trait = if sup_trait.has_qvar() {
                                 subst_ctx.substitute(sup_trait.clone())?
                             } else {
                                 sup_trait.clone()
-                            };
-                            if self.supertype_of(maybe_sup, &sup_trait) {
+                            };*/
+                            if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
                                 }
