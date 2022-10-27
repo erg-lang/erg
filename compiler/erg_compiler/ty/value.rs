@@ -251,8 +251,8 @@ pub enum TypeObj {
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeObj::Builtin(t) => write!(f, "<builtin type {t}>"),
-            TypeObj::Generated(t) => write!(f, "<type {t}>"),
+            TypeObj::Builtin(t) => write!(f, "<type {t}>"),
+            TypeObj::Generated(t) => write!(f, "<user type {t}>"),
         }
     }
 }
