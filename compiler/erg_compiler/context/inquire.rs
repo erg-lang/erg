@@ -1412,8 +1412,11 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {
-                let sup = fv.get_sup().unwrap();
-                self.get_nominal_super_type_ctxs(&sup)
+                if let Some(sup) = fv.get_sup() {
+                    self.get_nominal_super_type_ctxs(&sup)
+                } else {
+                    self.get_nominal_super_type_ctxs(&Type)
+                }
             }
             Type::And(l, r) => {
                 match (
@@ -2087,6 +2090,7 @@ impl Context {
         }
     }
 
+    // TODO:
     /// Int.meta_type() == ClassType (<: Type)
     /// Show.meta_type() == TraitType (<: Type)
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)

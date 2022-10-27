@@ -257,10 +257,6 @@ impl Context {
             self.register_cache(lhs, rhs, judge);
             return judge;
         }
-        /*if self._find_compatible_patch(lhs, rhs).is_some() {
-            self.register_cache(lhs, rhs, true);
-            return true;
-        }*/
         self.register_cache(lhs, rhs, false);
         false
     }
@@ -269,14 +265,13 @@ impl Context {
         self.nominal_supertype_of(rhs, lhs)
     }
 
-    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<Str> {
-        // let subst_ctx = SubstContext::try_new(sub, self, Location::Unknown)?;
+    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
         for patch in self._all_patches().into_iter() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if self.subtype_of(sub, &tr_inst.sub_type)
                     && self.subtype_of(&tr_inst.sup_trait, sup)
                 {
-                    return Some(patch.name.clone());
+                    return Some(patch);
                 }
             }
         }
@@ -436,11 +431,14 @@ impl Context {
                 }
                 FreeKind::Unbound { constraint: _, .. }
                 | FreeKind::NamedUnbound { constraint: _, .. } => {
-                    let (sub, _sup) = rfv.get_subsup().unwrap();
-                    rfv.forced_undoable_link(lhs);
-                    let res = self.supertype_of(lhs, &sub);
-                    rfv.undo();
-                    res
+                    if let Some((sub, _sup)) = rfv.get_subsup() {
+                        rfv.forced_undoable_link(lhs);
+                        let res = self.supertype_of(lhs, &sub);
+                        rfv.undo();
+                        res
+                    } else {
+                        todo!("{lhs} / {rhs}");
+                    }
                 }
             },
             (Type::Record(lhs), Type::Record(rhs)) => {
@@ -659,53 +657,6 @@ impl Context {
             (_l, _r) => false,
         }
     }
-
-    /*fn is_super_constr(&self, constr: &Constraint, rhs: &Type) -> bool {
-        match constr {
-            // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
-            // `(?T <: Eq(?T)) :> Nat` can be true, but this requires special judgment
-            // `(?T :> X) :> Y` is true
-            // `(?T :> Str) :> Int` is true (?T :> Str or Int)
-            // `(Nat <: ?T <: Ratio) :> Nat` can be true
-            Constraint::Sandwiched { sup, .. } => self.supertype_of(sup, rhs),
-            // (?v: Type, rhs): OK
-            // (?v: Nat, rhs): Something wrong
-            // Class <: Type, but Nat <!: Type (Nat: Type)
-            Constraint::TypeOf(t) => {
-                if self.supertype_of(&Type, t) {
-                    true
-                } else {
-                    panic!()
-                }
-            }
-            Constraint::Uninited => unreachable!(),
-        }
-    }
-
-    fn is_sub_constr(&self, lhs: &Type, constr: &Constraint) -> bool {
-        match constr {
-            // ?T cannot be `Never`
-            // `Nat :> (?T <: Int)` can be true
-            // `Int :> (?T <: Nat)` can be true
-            // * so sup is unrelated
-            // `Str :> (?T <: Int)` is false
-            // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
-            // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
-            //  Eq(Int) :> ?M(:> Int, <: Mul(?M) and Add(?M))
-            Constraint::Sandwiched {
-                sub,
-                sup: _,
-            } => self.supertype_of(lhs, sub),
-            Constraint::TypeOf(t) => {
-                if self.supertype_of(&Type, t) {
-                    true
-                } else {
-                    panic!()
-                }
-            }
-            Constraint::Uninited => unreachable!(),
-        }
-    }*/
 
     pub(crate) fn poly_supertype_of(
         &self,

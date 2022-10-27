@@ -20,6 +20,7 @@ use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
 use crate::ty::constructors::*;
+use crate::ty::free::CanbeFree;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -834,6 +835,30 @@ impl Context {
         let mut tv_cache = TyVarCache::new(self.level, self);
         for bound in bounds.iter() {
             self.instantiate_ty_bound(bound, &mut tv_cache, mode)?;
+        }
+        for tv in tv_cache.tyvar_instances.values() {
+            if tv.constraint().unwrap().is_uninited() {
+                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    bounds.loc(),
+                    self.caused_by(),
+                    &tv.local_name(),
+                    self.get_similar_name(&tv.local_name()),
+                )));
+            }
+        }
+        for tp in tv_cache.typaram_instances.values() {
+            if tp.constraint().unwrap().is_uninited() {
+                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    bounds.loc(),
+                    self.caused_by(),
+                    &tp.to_string(),
+                    self.get_similar_name(&tp.to_string()),
+                )));
+            }
         }
         Ok(tv_cache)
     }
