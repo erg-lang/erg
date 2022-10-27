@@ -16,8 +16,8 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
-use crate::ty::free::Constraint;
 use crate::ty::free::fresh_varname;
+use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -426,13 +426,7 @@ impl Context {
         /* Readable */
         let mut readable = Self::builtin_mono_trait("Readable!", 2);
         let Slf = mono_q("Self", subtypeof(mono("Readable!")));
-        let t_read = pr_met(
-            ref_mut(Slf, None),
-            vec![],
-            None,
-            vec![kw("n", Int)],
-            Str,
-        ).quantify();
+        let t_read = pr_met(ref_mut(Slf, None), vec![], None, vec![kw("n", Int)], Str).quantify();
         readable.register_builtin_py_decl("read!", t_read, Public, Some("read"));
         /* Writable */
         let mut writable = Self::builtin_mono_trait("Writable!", 2);
@@ -473,11 +467,7 @@ impl Context {
         let mut ord = Self::builtin_mono_trait("Ord", 2);
         ord.register_superclass(mono("Eq"), &eq);
         let Slf = mono_q("Self", subtypeof(mono("Ord")));
-        let op_t = fn1_met(
-            Slf.clone(),
-            Slf,
-            or(mono("Ordering"), NoneType),
-        ).quantify();
+        let op_t = fn1_met(Slf.clone(), Slf, or(mono("Ordering"), NoneType)).quantify();
         ord.register_builtin_decl("__cmp__", op_t, Public);
         // FIXME: poly trait
         /* Num */
@@ -1041,7 +1031,8 @@ impl Context {
             None,
             vec![],
             array_t(T.clone(), N.clone() + M.clone()),
-        ).quantify();
+        )
+        .quantify();
         array_.register_builtin_py_impl("concat", t.clone(), Immutable, Public, Some("__add__"));
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
@@ -1060,7 +1051,8 @@ impl Context {
             None,
             vec![],
             array_t(T.clone(), N.clone() + value(1usize)),
-        ).quantify();
+        )
+        .quantify();
         array_.register_builtin_impl("push", t, Immutable, Public);
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type = ValueObj::builtin_t(poly(
@@ -1075,11 +1067,8 @@ impl Context {
             set! { Predicate::le(var, N.clone() - value(1usize)) },
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
-        let array_getitem_t = fn1_kw_met(
-            array_t(T.clone(), N.clone()),
-            anon(input),
-            T.clone(),
-        ).quantify();
+        let array_getitem_t =
+            fn1_kw_met(array_t(T.clone(), N.clone()), anon(input), T.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __array_getitem__,
@@ -1127,7 +1116,8 @@ impl Context {
             None,
             vec![],
             array_t(T.clone(), N.clone() + M),
-        ).quantify();
+        )
+        .quantify();
         set_.register_builtin_impl("concat", t, Immutable, Public);
         let mut_type = ValueObj::builtin_t(poly(
             "Set!",
@@ -1173,7 +1163,8 @@ impl Context {
             dict_t.clone(),
             T.clone(),
             proj_call(D, "__getitem__", vec![ty_tp(T.clone())]),
-        ).quantify();
+        )
+        .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __dict_getitem__,
@@ -1206,17 +1197,17 @@ impl Context {
         let Ts = mono_q_tp("Ts", instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let tuple_t = poly("Tuple", vec![Ts.clone()]);
-        let mut tuple_ =
-            Self::builtin_poly_class("Tuple", vec![PS::named_nd("Ts", array_t(Type, N.clone()))], 2);
+        let mut tuple_ = Self::builtin_poly_class(
+            "Tuple",
+            vec![PS::named_nd("Ts", array_t(Type, N.clone()))],
+            2,
+        );
         tuple_.register_superclass(mono("GenericTuple"), &generic_tuple);
         tuple_.register_marker_trait(poly("Output", vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let return_t = proj_call(Ts, "__getitem__", vec![N.clone()]);
-        let tuple_getitem_t = fn1_met(
-            tuple_t.clone(),
-            tp_enum(Nat, set! {N.clone()}),
-            return_t,
-        ).quantify();
+        let tuple_getitem_t =
+            fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N.clone()}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             "__Tuple_getitem__",
             tuple_getitem_t,
@@ -1379,7 +1370,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        ).quantify();
+        )
+        .quantify();
         array_mut_.register_builtin_py_impl("push!", t, Immutable, Public, Some("append"));
         let t = pr_met(
             array_mut_t.clone(),
@@ -1387,7 +1379,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        ).quantify();
+        )
+        .quantify();
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
             "f",
@@ -1424,7 +1417,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        ).quantify();
+        )
+        .quantify();
         set_mut_.register_builtin_py_impl("add!", t, Immutable, Public, Some("add"));
         let t = pr_met(
             set_mut_t.clone(),
@@ -1432,7 +1426,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        ).quantify();
+        )
+        .quantify();
         set_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
             "f",
@@ -1628,7 +1623,8 @@ impl Context {
             ],
             None,
             T.clone(),
-        ).quantify();
+        )
+        .quantify();
         let t_discard = nd_func(vec![kw("obj", Obj)], None, NoneType);
         let t_if = func(
             vec![
@@ -1642,12 +1638,14 @@ impl Context {
                 nd_func(vec![], None, NoneType),
             )],
             or(T, U),
-        ).quantify();
+        )
+        .quantify();
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
             module(Path.clone()),
-        ).quantify();
+        )
+        .quantify();
         let t_isinstance = nd_func(
             vec![
                 kw("object", Obj),
@@ -1686,16 +1684,13 @@ impl Context {
         let M = mono_q("M", Constraint::Uninited);
         let M = mono_q("M", instanceof(poly("Mul", vec![ty_tp(M)])));
         // TODO: mod
-        let t_pow = nd_func(
-            vec![kw("base", M.clone()), kw("exp", M.clone())],
-            None,
-            M,
-        ).quantify();
+        let t_pow = nd_func(vec![kw("base", M.clone()), kw("exp", M.clone())], None, M).quantify();
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
             py_module(Path),
-        ).quantify();
+        )
+        .quantify();
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
@@ -1850,7 +1845,8 @@ impl Context {
             None,
             vec![kw("else", nd_proc(vec![], None, T.clone()))],
             or(T.clone(), NoneType),
-        ).quantify();
+        )
+        .quantify();
         let t_for = nd_proc(
             vec![
                 kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
@@ -1858,7 +1854,8 @@ impl Context {
             ],
             None,
             NoneType,
-        ).quantify();
+        )
+        .quantify();
         let t_globals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
@@ -1883,7 +1880,8 @@ impl Context {
                 // param_t("opener", option),
             ],
             mono("File!"),
-        ).quantify();
+        )
+        .quantify();
         // TODO: T <: With
         let t_with = nd_proc(
             vec![
@@ -1892,7 +1890,8 @@ impl Context {
             ],
             None,
             U,
-        ).quantify();
+        )
+        .quantify();
         self.register_builtin_py_impl("dir!", t_dir, Immutable, Private, Some("dir"));
         self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
         self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
@@ -1915,7 +1914,8 @@ impl Context {
             vec![kw("lhs", L.clone()), kw("rhs", R.clone())],
             None,
             proj(L, "Output"),
-        ).quantify();
+        )
+        .quantify();
         self.register_builtin_impl("__add__", op_t, Const, Private);
         let L = mono_q("L", subtypeof(poly("Sub", params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();

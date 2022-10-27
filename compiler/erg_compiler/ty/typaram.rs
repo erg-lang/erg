@@ -11,7 +11,7 @@ use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
 
 use super::constructors::int_interval;
-use super::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level, CanbeFree, GENERIC_LEVEL};
+use super::free::{CanbeFree, Constraint, FreeKind, FreeTyParam, HasLevel, Level, GENERIC_LEVEL};
 use super::value::ValueObj;
 use super::Type;
 
@@ -192,7 +192,7 @@ impl PartialEq for TyParam {
                 Self::App {
                     name: rn,
                     args: rps,
-                }
+                },
             ) => ln == rn && lps == rps,
             (
                 Self::UnaryOp { op, val },
@@ -310,11 +310,19 @@ impl LimitedDisplay for TyParam {
 
 impl CanbeFree for TyParam {
     fn unbound_name(&self) -> Option<Str> {
-        if let TyParam::FreeVar(fv) = self { fv.unbound_name() } else { None }
+        if let TyParam::FreeVar(fv) = self {
+            fv.unbound_name()
+        } else {
+            None
+        }
     }
 
     fn constraint(&self) -> Option<Constraint> {
-        if let TyParam::FreeVar(fv) = self { fv.constraint() } else { None }
+        if let TyParam::FreeVar(fv) = self {
+            fv.constraint()
+        } else {
+            None
+        }
     }
 
     fn update_constraint(&self, new_constraint: Constraint) {
@@ -493,17 +501,17 @@ impl HasLevel for TyParam {
         match self {
             Self::Type(t) => t.level(),
             Self::FreeVar(fv) => fv.level(),
-            Self::Array(tps)
-            | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::Array(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
             Self::Dict(tps) => tps
                 .iter()
                 .map(|(k, v)| {
-                    k.level().unwrap_or(GENERIC_LEVEL)
+                    k.level()
+                        .unwrap_or(GENERIC_LEVEL)
                         .min(v.level().unwrap_or(GENERIC_LEVEL))
                 })
                 .min(),
             Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
-            Self::Proj{ obj, .. } => obj.level(),
+            Self::Proj { obj, .. } => obj.level(),
             Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
             Self::UnaryOp { val, .. } => val.level(),
             Self::BinOp { lhs, rhs, .. } => lhs.level().and_then(|l| rhs.level().map(|r| l.min(r))),
@@ -723,22 +731,24 @@ impl TyParam {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if !fv.constraint_is_uninited() => set!{ (fv.unbound_name().unwrap(), fv.constraint().unwrap()) },
-            Self::FreeVar(fv) if fv.is_linked() => {
-                fv.forced_as_ref().linked().unwrap().qvars()
+            Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
+                set! { (fv.unbound_name().unwrap(), fv.constraint().unwrap()) }
             }
+            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::Type(t) => t.qvars(),
             Self::Proj { obj, .. } => obj.qvars(),
-            Self::Array(ts) | Self::Tuple(ts) =>
-                ts.iter().fold(set!{}, |acc, t| acc.concat(t.qvars())),
-            Self::Set(ts) => ts.iter().fold(set!{}, |acc, t| acc.concat(t.qvars())),
-            Self::Dict(ts) =>
-                ts.iter().fold(set!{}, |acc, (k, v)| acc.concat(k.qvars().concat(v.qvars()))),
+            Self::Array(ts) | Self::Tuple(ts) => {
+                ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars()))
+            }
+            Self::Set(ts) => ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars())),
+            Self::Dict(ts) => ts.iter().fold(set! {}, |acc, (k, v)| {
+                acc.concat(k.qvars().concat(v.qvars()))
+            }),
             Self::UnaryOp { val, .. } => val.qvars(),
             Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
-            Self::App { args, .. } => args.iter().fold(set!{}, |acc, p| acc.concat(p.qvars())),
+            Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
             Self::Erased(t) => t.qvars(),
-            _ => set!{},
+            _ => set! {},
         }
     }
 
@@ -804,9 +814,7 @@ impl TyParam {
                 .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
-            Self::App { args, .. } => {
-                args.iter().any(|p| p.has_unbound_var())
-            }
+            Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),
             Self::Erased(t) => t.has_unbound_var(),
             _ => false,
         }

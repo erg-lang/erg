@@ -31,15 +31,9 @@ impl Context {
         todo!()
     }
 
-    fn generalize_tp(
-        &self,
-        free: TyParam,
-        variance: Variance,
-    ) -> TyParam {
+    fn generalize_tp(&self, free: TyParam, variance: Variance) -> TyParam {
         match free {
-            TyParam::Type(t) => {
-                TyParam::t(self.generalize_t_inner(*t, variance))
-            }
+            TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, variance)),
             TyParam::FreeVar(v) if v.is_linked() => {
                 if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
                     *tp = self.generalize_tp(tp.clone(), variance);
@@ -53,7 +47,7 @@ impl Context {
                 self.generalize_constraint(&fv.crack_constraint(), variance);
                 fv.generalize();
                 TyParam::FreeVar(fv)
-            },
+            }
             TyParam::FreeVar(_) => free,
             other if other.has_no_unbound_var() => other,
             other => todo!("{other}"),
@@ -93,11 +87,7 @@ impl Context {
     /// generalize_t(?T(<: Eq(?T(<: Eq(?T(<: ...)))) -> ?T) == |'T <: Eq('T)| 'T -> 'T
     /// generalize_t(?T(<: TraitX) -> Int) == TraitX -> Int // 戻り値に現れないなら量化しない
     /// ```
-    fn generalize_t_inner(
-        &self,
-        free_type: Type,
-        variance: Variance,
-    ) -> Type {
+    fn generalize_t_inner(&self, free_type: Type, variance: Variance) -> Type {
         log!(err "{free_type}");
         match free_type {
             FreeVar(v) if v.is_linked() => {
@@ -132,25 +122,18 @@ impl Context {
             }
             Subr(mut subr) => {
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
-                    *nd_param.typ_mut() = self.generalize_t_inner(
-                        mem::take(nd_param.typ_mut()),
-                        Contravariant,
-                    );
+                    *nd_param.typ_mut() =
+                        self.generalize_t_inner(mem::take(nd_param.typ_mut()), Contravariant);
                 });
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() = self.generalize_t_inner(
-                        mem::take(var_args.typ_mut()),
-                        Contravariant,
-                    );
+                    *var_args.typ_mut() =
+                        self.generalize_t_inner(mem::take(var_args.typ_mut()), Contravariant);
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
-                    *d_param.typ_mut() = self.generalize_t_inner(
-                        mem::take(d_param.typ_mut()),
-                        Contravariant,
-                    );
+                    *d_param.typ_mut() =
+                        self.generalize_t_inner(mem::take(d_param.typ_mut()), Contravariant);
                 });
-                let return_t =
-                    self.generalize_t_inner(*subr.return_t, Covariant);
+                let return_t = self.generalize_t_inner(*subr.return_t, Covariant);
                 subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -162,12 +145,8 @@ impl Context {
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t_inner(*t, variance)),
             RefMut { before, after } => {
-                let after =
-                    after.map(|aft| self.generalize_t_inner(*aft, variance));
-                ref_mut(
-                    self.generalize_t_inner(*before, variance),
-                    after,
-                )
+                let after = after.map(|aft| self.generalize_t_inner(*aft, variance));
+                ref_mut(self.generalize_t_inner(*before, variance), after)
             }
             Refinement(refine) => {
                 let t = self.generalize_t_inner(*refine.t, variance);
@@ -222,11 +201,7 @@ impl Context {
         }
     }
 
-    fn generalize_constraint(
-        &self,
-        constraint: &Constraint,
-        variance: Variance,
-    ) -> Constraint {
+    fn generalize_constraint(&self, constraint: &Constraint, variance: Variance) -> Constraint {
         match constraint {
             Constraint::Sandwiched { sub, sup, .. } => {
                 let sub = self.generalize_t_inner(sub.clone(), variance);
@@ -241,11 +216,7 @@ impl Context {
         }
     }
 
-    fn generalize_pred(
-        &self,
-        pred: Predicate,
-        variance: Variance,
-    ) -> Predicate {
+    fn generalize_pred(&self, pred: Predicate, variance: Variance) -> Predicate {
         match pred {
             Predicate::Const(_) => pred,
             Predicate::Equal { lhs, rhs } => {
@@ -294,12 +265,19 @@ impl Context {
             TyParam::BinOp { op, lhs, rhs } => {
                 let lhs = self.deref_tp(*lhs, variance, loc)?;
                 let rhs = self.deref_tp(*rhs, variance, loc)?;
-                Ok(TyParam::BinOp { op, lhs: Box::new(lhs), rhs: Box::new(rhs) })
-            },
+                Ok(TyParam::BinOp {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+            }
             TyParam::UnaryOp { op, val } => {
                 let val = self.deref_tp(*val, variance, loc)?;
-                Ok(TyParam::UnaryOp { op, val: Box::new(val) })
-            },
+                Ok(TyParam::UnaryOp {
+                    op,
+                    val: Box::new(val),
+                })
+            }
             TyParam::Array(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
@@ -314,16 +292,9 @@ impl Context {
                 }
                 Ok(TyParam::Tuple(new_tps))
             }
-            TyParam::Proj { .. }
-            | TyParam::Failure
-                if self.level == 0 =>
-            {
-                Err(TyCheckError::dummy_infer_error(
-                    self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
-                ))
-            }
+            TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(
+                TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
+            ),
             t => Ok(t),
         }
     }
@@ -335,10 +306,7 @@ impl Context {
         loc: Location,
     ) -> SingleTyCheckResult<Constraint> {
         match constraint {
-            Constraint::Sandwiched {
-                sub,
-                sup,
-            } => {
+            Constraint::Sandwiched { sub, sup } => {
                 /*if cyclic.is_cyclic() {
                     return Err(TyCheckError::dummy_infer_error(
                         self.cfg.input.clone(),
@@ -552,7 +520,9 @@ impl Context {
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&inst.sup_trait, trait_) {
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
+            {
                 super_exists = true;
                 break;
             }
@@ -568,7 +538,9 @@ impl Context {
             return false;
         };*/
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class) && self.supertype_of(&inst.sup_trait, trait_) {
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
+            {
                 super_exists = true;
                 break;
             }
@@ -858,9 +830,7 @@ impl Context {
                 self.occur(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
-            (Type::Poly { params, .. }, Type::FreeVar(fv))
-                if fv.is_unbound() =>
-            {
+            (Type::Poly { params, .. }, Type::FreeVar(fv)) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -872,9 +842,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Poly { params, .. })
-                if fv.is_unbound() =>
-            {
+            (Type::FreeVar(fv), Type::Poly { params, .. }) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -926,21 +894,14 @@ impl Context {
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = fv
-                    .constraint()
-                    .unwrap()
-                    .get_type()
-                    .unwrap()
-                    .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let fv_t = fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(
-                            &fv.constraint().unwrap(),
-                            &new_constraint,
-                        ) || fv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&fv.constraint().unwrap(), &new_constraint)
+                            || fv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             fv.update_constraint(new_constraint);
                         }
@@ -970,21 +931,14 @@ impl Context {
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = fv
-                    .constraint()
-                    .unwrap()
-                    .get_type()
-                    .unwrap()
-                    .clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let fv_t = fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if fv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(
-                            &fv.constraint().unwrap(),
-                            &new_constraint,
-                        ) || fv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&fv.constraint().unwrap(), &new_constraint)
+                            || fv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             fv.update_constraint(new_constraint);
                         }
@@ -1039,12 +993,16 @@ impl Context {
                 }
             }
             (l, TyParam::Type(r)) => {
-                let l = self.convert_tp_into_ty(l.clone()).unwrap_or_else(|_| todo!("{l} cannot be a type"));
+                let l = self
+                    .convert_tp_into_ty(l.clone())
+                    .unwrap_or_else(|_| todo!("{l} cannot be a type"));
                 self.sub_unify(&l, r, loc, None)?;
                 Ok(())
             }
             (TyParam::Type(l), r) => {
-                let r = self.convert_tp_into_ty(r.clone()).unwrap_or_else(|_| todo!("{r} cannot be a type"));
+                let r = self
+                    .convert_tp_into_ty(r.clone())
+                    .unwrap_or_else(|_| todo!("{r} cannot be a type"));
                 self.sub_unify(l, &r, loc, None)?;
                 Ok(())
             }

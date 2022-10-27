@@ -24,7 +24,7 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TypeRelationInstance, Variance, TyVarCache};
+use crate::context::{Context, RegistrationMode, TyVarCache, TypeRelationInstance, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
@@ -283,8 +283,12 @@ impl Context {
                 )));
             }
             let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-            let rhs =
-                self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, &mut dummy_tv_cache, Normal)?;
+            let rhs = self.instantiate_param_sig_t(
+                &lambda.params.non_defaults[0],
+                None,
+                &mut dummy_tv_cache,
+                Normal,
+            )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -1318,10 +1322,12 @@ impl Context {
             (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
                 && t.inner_ts()
                     .first()
-                    .map(|inner| if cfg!(feature = "debug") {
-                        inner.qual_name().trim_start_matches('\'') == &name.inspect()[..]
-                    } else {
-                        &inner.qual_name() == name.inspect()
+                    .map(|inner| {
+                        if cfg!(feature = "debug") {
+                            inner.qual_name().trim_start_matches('\'') == &name.inspect()[..]
+                        } else {
+                            &inner.qual_name() == name.inspect()
+                        }
                     })
                     .unwrap_or(false)
         };
@@ -2092,13 +2098,19 @@ impl Context {
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
-            Type::Poly { name, params } => {
-                poly(name.clone(), params.iter().map(|tp| if let Ok(t) = self.convert_tp_into_ty(tp.clone()) {
-                    TyParam::t(self.meta_type(&t))
-                } else {
-                    tp.clone()
-                }).collect())
-            }
+            Type::Poly { name, params } => poly(
+                name.clone(),
+                params
+                    .iter()
+                    .map(|tp| {
+                        if let Ok(t) = self.convert_tp_into_ty(tp.clone()) {
+                            TyParam::t(self.meta_type(&t))
+                        } else {
+                            tp.clone()
+                        }
+                    })
+                    .collect(),
+            ),
             _ => Type,
         }
     }

@@ -2,10 +2,10 @@
 use erg_common::error::Location;
 use erg_common::Str;
 // use erg_common::error::Location;
-use erg_common::{set};
+use erg_common::set;
 
 use crate::ty::constructors::{func1, mono, mono_q, poly, refinement};
-use crate::ty::free::{Constraint};
+use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::{Predicate, Type};
 use Type::*;

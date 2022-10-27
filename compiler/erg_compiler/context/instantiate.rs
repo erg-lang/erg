@@ -81,17 +81,20 @@ impl TyVarCache {
         }
     }
 
-    fn instantiate_constraint(&mut self, constr: Constraint, ctx: &Context, loc: Location) -> TyCheckResult<Constraint> {
+    fn instantiate_constraint(
+        &mut self,
+        constr: Constraint,
+        ctx: &Context,
+        loc: Location,
+    ) -> TyCheckResult<Constraint> {
         match constr {
-            Constraint::Sandwiched { sub, sup } => {
-                Ok(Constraint::new_sandwiched(
-                    ctx.instantiate_t_inner(sub, self, loc)?,
-                    ctx.instantiate_t_inner(sup, self, loc)?,
-                ))
-            }
-            Constraint::TypeOf(t)=> {
-                Ok(Constraint::new_type_of(ctx.instantiate_t_inner(t, self, loc)?))
-            }
+            Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
+                ctx.instantiate_t_inner(sub, self, loc)?,
+                ctx.instantiate_t_inner(sup, self, loc)?,
+            )),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(
+                ctx.instantiate_t_inner(t, self, loc)?,
+            )),
             Constraint::Uninited => Ok(Constraint::Uninited),
         }
     }
@@ -435,9 +438,12 @@ impl Context {
                     }
                 }
                 if let Some(outer) = &self.outer {
-                    if let Ok(t) =
-                        outer.instantiate_simple_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-                    {
+                    if let Ok(t) = outer.instantiate_simple_t(
+                        simple,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    ) {
                         return Ok(t);
                     }
                 }
@@ -477,11 +483,16 @@ impl Context {
                 // FIXME: kw args
                 let mut new_params = vec![];
                 for (i, arg) in simple.args.pos_args().enumerate() {
-                    let params = self.instantiate_const_expr(&arg.expr, Some((ctx, i)), tmp_tv_cache);
+                    let params =
+                        self.instantiate_const_expr(&arg.expr, Some((ctx, i)), tmp_tv_cache);
                     let params = params.or_else(|e| {
                         if not_found_is_qvar {
                             let name = Str::from(arg.expr.to_string());
-                            let tp = TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
+                            let tp = TyParam::named_free_var(
+                                name.clone(),
+                                self.level,
+                                Constraint::Uninited,
+                            );
                             tmp_tv_cache.push_or_init_typaram(&name, &tp);
                             Ok(tp)
                         } else {
@@ -594,12 +605,36 @@ impl Context {
                 not_found_is_qvar,
             )?),
             TypeSpec::And(lhs, rhs) => Ok(self.intersection(
-                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
-                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
+                &self.instantiate_typespec(
+                    lhs,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?,
+                &self.instantiate_typespec(
+                    rhs,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?,
             )),
             TypeSpec::Or(lhs, rhs) => Ok(self.union(
-                &self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
-                &self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
+                &self.instantiate_typespec(
+                    lhs,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?,
+                &self.instantiate_typespec(
+                    rhs,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?,
             )),
             TypeSpec::Not(lhs, rhs) => Ok(not(
                 self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
@@ -779,16 +814,21 @@ impl Context {
         // TODO: 高階型変数
         match bound {
             TypeBoundSpec::NonDefault { lhs, spec } => {
-                let constr = match spec.op.kind {
-                    TokenKind::SubtypeOf => Constraint::new_subtype_of(
-                        self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
-                    ),
-                    TokenKind::SupertypeOf => todo!(),
-                    TokenKind::Colon => Constraint::new_type_of(
-                        self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
-                    ),
-                    _ => unreachable!(),
-                };
+                let constr =
+                    match spec.op.kind {
+                        TokenKind::SubtypeOf => Constraint::new_subtype_of(
+                            self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
+                        ),
+                        TokenKind::SupertypeOf => todo!(),
+                        TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec(
+                            &spec.t_spec,
+                            None,
+                            tv_cache,
+                            mode,
+                            true,
+                        )?),
+                        _ => unreachable!(),
+                    };
                 let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
                 tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
             }
@@ -901,10 +941,7 @@ impl Context {
     ) -> TyCheckResult<Type> {
         match unbound {
             FreeVar(fv) if fv.is_quanted() => {
-                let (name, constr) = (
-                    fv.unbound_name().unwrap(),
-                    fv.constraint().unwrap()
-                );
+                let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
                     Ok(t.clone())
                 } else if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
@@ -1050,8 +1087,7 @@ impl Context {
         match quantified {
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t =
-                    self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
+                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
@@ -1074,8 +1110,7 @@ impl Context {
             Refinement(refine) if refine.t.is_quantified() => {
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t =
-                    self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
+                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {

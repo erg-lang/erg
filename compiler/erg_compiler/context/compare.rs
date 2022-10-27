@@ -1,7 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::{MultiErrorDisplay};
+use erg_common::error::MultiErrorDisplay;
 
 use crate::ty::constructors::{and, or};
 use crate::ty::free::fresh_varname;
@@ -466,24 +466,22 @@ impl Context {
                             let rhs_meta = self.meta_type(rhs);
                             self.supertype_of(&lfvt, &rhs_meta)
                         }
-                    },
-                }
-            }
-            (lhs, FreeVar(rfv)) => {
-                match &*rfv.borrow() {
-                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                        self.supertype_of(lhs, t)
                     }
-                    FreeKind::Unbound { constraint: _, .. }
-                    | FreeKind::NamedUnbound { constraint: _, .. } => {
-                        let (sub, _sup) = rfv.get_subsup().unwrap();
-                        rfv.forced_undoable_link(lhs);
-                        let res = self.supertype_of(lhs, &sub);
-                        rfv.undo();
-                        res
-                    },
                 }
             }
+            (lhs, FreeVar(rfv)) => match &*rfv.borrow() {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                    self.supertype_of(lhs, t)
+                }
+                FreeKind::Unbound { constraint: _, .. }
+                | FreeKind::NamedUnbound { constraint: _, .. } => {
+                    let (sub, _sup) = rfv.get_subsup().unwrap();
+                    rfv.forced_undoable_link(lhs);
+                    let res = self.supertype_of(lhs, &sub);
+                    rfv.undo();
+                    res
+                }
+            },
             /*(MonoQVar{ constr, .. }, rhs) | (PolyQVar { constr, .. }, rhs) => {
                 self.is_super_constr(constr, rhs)
             }

@@ -86,10 +86,7 @@ impl LimitedDisplay for Constraint {
             return write!(f, "...");
         }
         match self {
-            Self::Sandwiched {
-                sub,
-                sup,
-            } => match (sub == &Type::Never, sup == &Type::Obj) {
+            Self::Sandwiched { sub, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
                 (true, true) => {
                     write!(f, ": Type")?;
                     if cfg!(feature = "debug") {
@@ -126,10 +123,7 @@ impl LimitedDisplay for Constraint {
 
 impl Constraint {
     pub const fn new_sandwiched(sub: Type, sup: Type) -> Self {
-        Self::Sandwiched {
-            sub,
-            sup,
-        }
+        Self::Sandwiched { sub, sup }
     }
 
     pub fn new_type_of(t: Type) -> Self {
@@ -215,8 +209,7 @@ impl<T: CanbeFree> Free<T> {
         match &*self.borrow() {
             FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
             FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
-            FreeKind::Linked(t)
-            | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
         }
     }
 
@@ -617,13 +610,11 @@ impl<T: Clone + HasLevel> Free<T> {
 
 impl<T: CanbeFree> Free<T> {
     pub fn get_type(&self) -> Option<Type> {
-        self.constraint()
-            .and_then(|c| c.get_type().cloned())
+        self.constraint().and_then(|c| c.get_type().cloned())
     }
 
     pub fn get_sup(&self) -> Option<Type> {
-        self.constraint()
-            .and_then(|c| c.get_super().cloned())
+        self.constraint().and_then(|c| c.get_super().cloned())
     }
 
     pub fn get_subsup(&self) -> Option<(Type, Type)> {
@@ -639,11 +630,15 @@ impl<T: CanbeFree> Free<T> {
     }
 
     pub fn constraint_is_typeof(&self) -> bool {
-        self.constraint().map(|c| c.get_type().is_some()).unwrap_or(false)
+        self.constraint()
+            .map(|c| c.get_type().is_some())
+            .unwrap_or(false)
     }
 
     pub fn constraint_is_sandwiched(&self) -> bool {
-        self.constraint().map(|c| c.get_sub_sup().is_some()).unwrap_or(false)
+        self.constraint()
+            .map(|c| c.get_sub_sup().is_some())
+            .unwrap_or(false)
     }
 
     pub fn constraint_is_uninited(&self) -> bool {
@@ -658,8 +653,7 @@ impl<T: CanbeFree> Free<T> {
                 }
                 *constraint = new_constraint;
             }
-            FreeKind::Linked(t)
-            | FreeKind::UndoableLinked { t, .. } => {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                 t.update_constraint(new_constraint);
             }
         }

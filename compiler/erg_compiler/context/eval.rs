@@ -16,15 +16,15 @@ use OpKind::*;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use crate::ty::constructors::{dict_t};
+use crate::ty::constructors::dict_t;
 use crate::ty::constructors::proj_call;
 use crate::ty::constructors::{
     array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, v_enum,
 };
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
-use crate::ty::free::{Constraint, HasLevel};
 
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
@@ -514,7 +514,8 @@ impl Context {
 
     /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
-        let mut tmp_tv_cache = self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+        let mut tmp_tv_cache =
+            self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
             let pt = self.instantiate_param_ty(
@@ -527,8 +528,13 @@ impl Context {
             non_default_params.push(pt);
         }
         let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
-            let pt =
-                self.instantiate_param_ty(p, None, None, &mut tmp_tv_cache, RegistrationMode::Normal)?;
+            let pt = self.instantiate_param_ty(
+                p,
+                None,
+                None,
+                &mut tmp_tv_cache,
+                RegistrationMode::Normal,
+            )?;
             Some(pt)
         } else {
             None
@@ -795,11 +801,15 @@ impl Context {
                 let t = fv.get_type().unwrap();
                 if op == OpKind::Mutate {
                     let constr = Constraint::new_type_of(t.mutate());
-                    Ok(TyParam::named_free_var(fv.unbound_name().unwrap(), fv.level().unwrap(), constr))
+                    Ok(TyParam::named_free_var(
+                        fv.unbound_name().unwrap(),
+                        fv.level().unwrap(),
+                        constr,
+                    ))
                 } else {
                     todo!("{op} {val}")
                 }
-            },
+            }
             other => todo!("{op} {other}"),
         }
     }
@@ -847,9 +857,7 @@ impl Context {
                 }
                 Ok(TyParam::Dict(new_dic))
             }
-            TyParam::Type(_)
-            | TyParam::Erased(_)
-            | TyParam::Value(_) => Ok(p.clone()),
+            TyParam::Type(_) | TyParam::Erased(_) | TyParam::Value(_) => Ok(p.clone()),
             _other => Err(EvalErrors::from(EvalError::feature_error(
                 self.cfg.input.clone(),
                 Location::Unknown,
@@ -1054,7 +1062,7 @@ impl Context {
                     t = self.union(&t, &elem_t);
                 }
                 Ok(array_t(t, TyParam::value(len)))
-            },
+            }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_ty(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Value(v) => Type::try_from(v),
@@ -1143,8 +1151,8 @@ impl Context {
                     let qt = enum_unwrap!(t.as_ref(), Type::FreeVar);
                     let st = enum_unwrap!(stp, TyParam::Type);
                     qt.undoable_link(&st);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
     }
@@ -1156,8 +1164,8 @@ impl Context {
                 TyParam::Type(t) if t.is_free_var() => {
                     let qt = enum_unwrap!(t.as_ref(), Type::FreeVar);
                     qt.undo();
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
     }
@@ -1217,9 +1225,7 @@ impl Context {
             }
         }
         if lhs.is_unbound_var() {
-            let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar)
-                .get_subsup()
-                .unwrap();
+            let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar).get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),

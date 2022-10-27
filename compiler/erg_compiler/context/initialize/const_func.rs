@@ -172,7 +172,9 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
 }
 
 pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-    let slf = ctx.convert_value_into_array(args.remove_left_or_key("Self").unwrap()).unwrap();
+    let slf = ctx
+        .convert_value_into_array(args.remove_left_or_key("Self").unwrap())
+        .unwrap();
     let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
     if let Some(v) = slf.get(index as usize) {
         Ok(v.clone())

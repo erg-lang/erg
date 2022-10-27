@@ -225,7 +225,8 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -265,7 +266,8 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -305,7 +307,8 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t =
+                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -572,8 +575,13 @@ impl Context {
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t =
-                            self.instantiate_typespec(spec, None, &mut dummy_tv_cache, PreRegister, false)?;
+                        let spec_t = self.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            PreRegister,
+                            false,
+                        )?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                     }
                     self.pop();
@@ -592,7 +600,13 @@ impl Context {
                 };
                 if let Some(spec) = sig.t_spec.as_ref() {
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_typespec(spec, None, &mut dummy_tv_cache, PreRegister, false)?;
+                    let spec_t = self.instantiate_typespec(
+                        spec,
+                        None,
+                        &mut dummy_tv_cache,
+                        PreRegister,
+                        false,
+                    )?;
                     self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
                 self.pop();
@@ -1211,8 +1225,13 @@ impl Context {
         call: &mut hir::Call,
     ) -> TyCheckResult<()> {
         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-        let cast_to =
-            self.instantiate_typespec(&type_spec, None, &mut dummy_tv_cache, RegistrationMode::Normal, false)?;
+        let cast_to = self.instantiate_typespec(
+            &type_spec,
+            None,
+            &mut dummy_tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )?;
         let lhs = enum_unwrap!(
             call.args.get_mut_left_or_key("pred").unwrap(),
             hir::Expr::BinOp

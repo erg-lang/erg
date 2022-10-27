@@ -820,11 +820,7 @@ impl ASTLowerer {
         } else {
             func(non_default_params, None, default_params, body.t())
         };
-        let t = if t.has_qvar() {
-            t.quantify()
-        } else {
-            t
-        };
+        let t = if t.has_qvar() { t.quantify() } else { t };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 

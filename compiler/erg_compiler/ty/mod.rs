@@ -26,7 +26,7 @@ use erg_parser::token::TokenKind;
 
 use self::constructors::{int_interval, mono};
 use self::free::{
-    fresh_varname, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, CanbeFree, GENERIC_LEVEL,
+    fresh_varname, CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use self::typaram::{IntervalOp, TyParam};
 use self::value::value_set::*;
@@ -477,14 +477,12 @@ impl Predicate {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::Value(_) | Self::Const(_) => set!{},
+            Self::Value(_) | Self::Const(_) => set! {},
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.qvars(),
-            Self::And(lhs, rhs)
-            | Self::Or(lhs, rhs)
-            | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
                 lhs.qvars().concat(rhs.qvars())
             }
         }
@@ -1200,7 +1198,7 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, "|")?;
                 quantified.limited_fmt(f, limit - 1)
-            },
+            }
             Self::And(lhs, rhs) => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " and ")?;
@@ -1254,11 +1252,19 @@ impl LimitedDisplay for Type {
 
 impl CanbeFree for Type {
     fn unbound_name(&self) -> Option<Str> {
-        if let Type::FreeVar(fv) = self { fv.unbound_name() } else { None }
+        if let Type::FreeVar(fv) = self {
+            fv.unbound_name()
+        } else {
+            None
+        }
     }
 
     fn constraint(&self) -> Option<Constraint> {
-        if let Type::FreeVar(fv) = self { fv.constraint() } else { None }
+        if let Type::FreeVar(fv) = self {
+            fv.constraint()
+        } else {
+            None
+        }
     }
 
     fn update_constraint(&self, new_constraint: Constraint) {
@@ -1339,9 +1345,7 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
-            Self::Poly { params, .. } => {
-                params.iter().filter_map(get_t_from_tp).collect()
-            }
+            Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
     }
@@ -1367,7 +1371,11 @@ impl HasLevel for Type {
                 }
             }
             Self::Callable { param_ts, return_t } => {
-                let min = param_ts.iter().filter_map(|t| t.level()).min().unwrap_or(GENERIC_LEVEL);
+                let min = param_ts
+                    .iter()
+                    .filter_map(|t| t.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
                 let min = return_t.level().unwrap_or(GENERIC_LEVEL).min(min);
                 if min == GENERIC_LEVEL {
                     None
@@ -1376,9 +1384,17 @@ impl HasLevel for Type {
                 }
             }
             Self::Subr(subr) => {
-                let nd_min = subr.non_default_params.iter().filter_map(|p| p.typ().level()).min();
+                let nd_min = subr
+                    .non_default_params
+                    .iter()
+                    .filter_map(|p| p.typ().level())
+                    .min();
                 let v_min = subr.var_params.iter().filter_map(|p| p.typ().level()).min();
-                let d_min = subr.default_params.iter().filter_map(|p| p.typ().level()).min();
+                let d_min = subr
+                    .default_params
+                    .iter()
+                    .filter_map(|p| p.typ().level())
+                    .min();
                 let ret_min = subr.return_t.level();
                 [nd_min, v_min, d_min, ret_min]
                     .iter()
@@ -1386,25 +1402,26 @@ impl HasLevel for Type {
                     .min()
             }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                let l = lhs.level().unwrap_or(GENERIC_LEVEL).min(rhs.level().unwrap_or(GENERIC_LEVEL));
+                let l = lhs
+                    .level()
+                    .unwrap_or(GENERIC_LEVEL)
+                    .min(rhs.level().unwrap_or(GENERIC_LEVEL));
                 if l == GENERIC_LEVEL {
                     None
                 } else {
                     Some(l)
                 }
             }
-            Self::Record(attrs) => {
-                attrs.values().filter_map(|t| t.level()).min()
-            }
-            Self::Poly { params, .. } => {
-                params.iter().filter_map(|p| p.level()).min()
-            }
-            Self::Proj { lhs, .. } => {
-                lhs.level()
-            }
+            Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
+            Self::Poly { params, .. } => params.iter().filter_map(|p| p.level()).min(),
+            Self::Proj { lhs, .. } => lhs.level(),
             Self::ProjCall { lhs, args, .. } => {
                 let lev = lhs.level().unwrap_or(GENERIC_LEVEL);
-                let min = args.iter().filter_map(|tp| tp.level()).min().unwrap_or(GENERIC_LEVEL);
+                let min = args
+                    .iter()
+                    .filter_map(|tp| tp.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
                 let min = lev.min(min);
                 if min == GENERIC_LEVEL {
                     None
@@ -1414,7 +1431,12 @@ impl HasLevel for Type {
             }
             Self::Refinement(refine) => {
                 let lev = refine.t.level().unwrap_or(GENERIC_LEVEL);
-                let min = refine.preds.iter().filter_map(|p| p.level()).min().unwrap_or(GENERIC_LEVEL);
+                let min = refine
+                    .preds
+                    .iter()
+                    .filter_map(|p| p.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
                 let min = lev.min(min);
                 if min == GENERIC_LEVEL {
                     None
@@ -1422,9 +1444,7 @@ impl HasLevel for Type {
                     Some(min)
                 }
             }
-            Self::Quantified(quant) => {
-                quant.level()
-            }
+            Self::Quantified(quant) => quant.level(),
             _ => None,
         }
     }
@@ -1642,9 +1662,9 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::Mono(name)
-            | Self::Poly { name, .. }
-            | Self::Proj { rhs: name, .. } => name.ends_with('!'),
+            Self::Mono(name) | Self::Poly { name, .. } | Self::Proj { rhs: name, .. } => {
+                name.ends_with('!')
+            }
             Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
@@ -1830,7 +1850,7 @@ impl Type {
                     } else {
                         name.clone()
                     }
-                },
+                }
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
             },
             Self::Proj { .. } => Str::ever("Proj"),
@@ -1877,7 +1897,9 @@ impl Type {
 
     pub fn q_constraint(&self) -> Option<Constraint> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().q_constraint(),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().unwrap().q_constraint()
+            }
             Self::FreeVar(fv) if fv.is_quanted() => fv.constraint(),
             _ => None,
         }
@@ -1908,39 +1930,45 @@ impl Type {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if !fv.constraint_is_uninited() => set!{
+            Self::FreeVar(fv) if !fv.constraint_is_uninited() => set! {
                 (fv.unbound_name().unwrap(), fv.constraint().unwrap())
             },
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::Ref(t) => t.qvars(),
-            Self::RefMut { before, after } => {
-                before.qvars().concat(after.as_ref().map(|t| t.qvars()).unwrap_or_else(|| set!{}))
-            }
+            Self::RefMut { before, after } => before
+                .qvars()
+                .concat(after.as_ref().map(|t| t.qvars()).unwrap_or_else(|| set! {})),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.qvars().concat(rhs.qvars())
             }
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().fold(set!{}, |acc, t| acc.concat(t.qvars())).concat(return_t.qvars())
-            }
+            Self::Callable { param_ts, return_t } => param_ts
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars()))
+                .concat(return_t.qvars()),
             Self::Subr(subr) => subr.qvars(),
-            Self::Record(r) => r.values().fold(set!{}, |acc, t| acc.concat(t.qvars())),
-            Self::Refinement(refine) => {
-                refine.t.qvars().concat(refine.preds.iter().fold(set!{}, |acc, pred| acc.concat(pred.qvars())))
-            }
+            Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
+            Self::Refinement(refine) => refine.t.qvars().concat(
+                refine
+                    .preds
+                    .iter()
+                    .fold(set! {}, |acc, pred| acc.concat(pred.qvars())),
+            ),
             Self::Quantified(quant) => quant.qvars(),
-            Self::Poly { params, .. } => params.iter().fold(set!{}, |acc, tp| acc.concat(tp.qvars())),
+            Self::Poly { params, .. } => params
+                .iter()
+                .fold(set! {}, |acc, tp| acc.concat(tp.qvars())),
             Self::Proj { lhs, .. } => lhs.qvars(),
-            Self::ProjCall { lhs, args, .. } => {
-                lhs.qvars().concat(args.iter().fold(set!{}, |acc, tp| acc.concat(tp.qvars())))
-            }
-            _ => set!{},
+            Self::ProjCall { lhs, args, .. } => lhs
+                .qvars()
+                .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
+            _ => set! {},
         }
     }
 
     /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_quanted()=> true,
+            Self::FreeVar(fv) if fv.is_quanted() => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
                     if let Some((sub, sup)) = fv.get_subsup() {
@@ -2016,9 +2044,7 @@ impl Type {
                 refine.t.is_cachable() && refine.preds.iter().all(|p| p.is_cachable())
             }
             Self::Quantified(quant) => quant.is_cachable(),
-            Self::Poly { params, .. } => {
-                params.iter().all(|p| p.is_cachable())
-            }
+            Self::Poly { params, .. } => params.iter().all(|p| p.is_cachable()),
             Self::Proj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
@@ -2064,9 +2090,7 @@ impl Type {
                 refine.t.has_unbound_var() || refine.preds.iter().any(|p| p.has_unbound_var())
             }
             Self::Quantified(quant) => quant.has_unbound_var(),
-            Self::Poly { params, .. } => {
-                params.iter().any(|p| p.has_unbound_var())
-            }
+            Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
             Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
@@ -2206,8 +2230,7 @@ impl Type {
                 let name = fv.unbound_name().unwrap();
                 let level = fv.level().unwrap();
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    let constraint =
-                        Constraint::new_sandwiched(sub.derefine(), sup.derefine());
+                    let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
                     // not `.update_constraint`
                     Self::FreeVar(Free::new_named_unbound(name, level, constraint))
                 } else {
