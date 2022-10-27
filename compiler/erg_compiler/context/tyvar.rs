@@ -1412,6 +1412,7 @@ impl Context {
                 loc,
                 self.caused_by(),
                 param_name.unwrap_or(&Str::ever("_")),
+                None,
                 maybe_sup,
                 maybe_sub,
                 self.get_candidates(maybe_sub),
