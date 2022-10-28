@@ -27,18 +27,6 @@ use super::{ConstSubr, HasType, Predicate, Type};
 pub type EvalValueError = ErrorCore;
 pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
-/*
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TypeKind {
-    Class,
-    Subclass,
-    Trait,
-    Subtrait,
-    StructuralTrait,
-    Union,
-    Intersec,
-}*/
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClassTypeObj {
     pub t: Type,
@@ -263,8 +251,8 @@ pub enum TypeObj {
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeObj::Builtin(t) => write!(f, "<builtin type {t}>"),
-            TypeObj::Generated(t) => write!(f, "<type {t}>"),
+            TypeObj::Builtin(t) => write!(f, "<type {t}>"),
+            TypeObj::Generated(t) => write!(f, "<user type {t}>"),
         }
     }
 }
@@ -397,7 +385,7 @@ impl fmt::Debug for ValueObj {
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
-            Self::Mut(v) => write!(f, "!{:?}", v.borrow()),
+            Self::Mut(v) => write!(f, "<mut {}>", v.borrow()),
             Self::Illegal => write!(f, "<illegal>"),
         }
     }

@@ -39,7 +39,7 @@ use ast::{DefId, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarInstContext};
+use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -363,7 +363,7 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) py_mod_cache: Option<SharedModuleCache>,
-    pub(crate) tv_ctx: Option<TyVarInstContext>,
+    pub(crate) tv_cache: Option<TyVarCache>,
     pub(crate) level: usize,
 }
 
@@ -477,7 +477,7 @@ impl Context {
             poly_types: Dict::default(),
             mod_cache,
             py_mod_cache,
-            tv_ctx: None,
+            tv_cache: None,
             patches: Dict::default(),
             level,
         }
@@ -839,7 +839,7 @@ impl Context {
         name: &str,
         kind: ContextKind,
         vis: Visibility,
-        tv_ctx: Option<TyVarInstContext>,
+        tv_cache: Option<TyVarCache>,
     ) {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
@@ -851,7 +851,7 @@ impl Context {
         self.cfg = self.get_outer().unwrap().cfg.clone();
         self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
         self.py_mod_cache = self.get_outer().unwrap().py_mod_cache.clone();
-        self.tv_ctx = tv_ctx;
+        self.tv_cache = tv_cache;
         self.name = name.into();
         self.kind = kind;
     }

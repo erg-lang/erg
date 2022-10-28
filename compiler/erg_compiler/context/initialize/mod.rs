@@ -1,6 +1,8 @@
 //! defines type information for builtin objects (in `Context`)
 //!
 //! 組み込みオブジェクトの型情報を(Contextに)定義
+#![allow(non_snake_case)]
+
 pub mod const_func;
 
 use std::path::PathBuf;
@@ -15,6 +17,7 @@ use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
 use crate::ty::free::fresh_varname;
+use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -407,10 +410,10 @@ impl Context {
         let inheritable_type = Self::builtin_mono_trait("InheritableType", 2);
         let named = Self::builtin_mono_trait("Named", 2);
         let mut mutable = Self::builtin_mono_trait("Mutable", 2);
-        let immut_t = proj(mono_q("Self"), "ImmutType");
+        let Slf = mono_q("Self", subtypeof(mono("Immutizable")));
+        let immut_t = proj(Slf.clone(), "ImmutType");
         let f_t = func(vec![kw("old", immut_t.clone())], None, vec![], immut_t);
-        let t = pr1_met(ref_mut(mono_q("Self"), None), f_t, NoneType);
-        let t = quant(t, set! { subtypeof(mono_q("Self"), mono("Immutizable")) });
+        let t = pr1_met(ref_mut(Slf, None), f_t, NoneType).quantify();
         mutable.register_builtin_decl("update!", t, Public);
         // REVIEW: Immutatable?
         let mut immutizable = Self::builtin_mono_trait("Immutizable", 2);
@@ -422,25 +425,13 @@ impl Context {
         let pathlike = Self::builtin_mono_trait("PathLike", 2);
         /* Readable */
         let mut readable = Self::builtin_mono_trait("Readable!", 2);
-        let t_read = pr_met(
-            ref_mut(mono_q("Self"), None),
-            vec![],
-            None,
-            vec![kw("n", Int)],
-            Str,
-        );
-        let t_read = quant(
-            t_read,
-            set! { subtypeof(mono_q("Self"), mono("Readable!")) },
-        );
+        let Slf = mono_q("Self", subtypeof(mono("Readable!")));
+        let t_read = pr_met(ref_mut(Slf, None), vec![], None, vec![kw("n", Int)], Str).quantify();
         readable.register_builtin_py_decl("read!", t_read, Public, Some("read"));
         /* Writable */
         let mut writable = Self::builtin_mono_trait("Writable!", 2);
-        let t_write = pr1_kw_met(ref_mut(mono_q("Self"), None), kw("s", Str), Nat);
-        let t_write = quant(
-            t_write,
-            set! { subtypeof(mono_q("Self"), mono("Writable!")) },
-        );
+        let Slf = mono_q("Self", subtypeof(mono("Writable!")));
+        let t_write = pr1_kw_met(ref_mut(Slf, None), kw("s", Str), Nat).quantify();
         writable.register_builtin_py_decl("write!", t_write, Public, Some("write"));
         // TODO: Add required methods
         let mut filelike = Self::builtin_mono_trait("FileLike", 2);
@@ -450,39 +441,33 @@ impl Context {
         filelike_mut.register_superclass(mono("Writable!"), &writable);
         /* Show */
         let mut show = Self::builtin_mono_trait("Show", 2);
-        let t_show = fn0_met(ref_(mono_q("Self")), Str);
-        let t_show = quant(t_show, set! { subtypeof(mono_q("Self"), mono("Show")) });
+        let Slf = mono_q("Self", subtypeof(mono("Show")));
+        let t_show = fn0_met(ref_(Slf), Str).quantify();
         show.register_builtin_py_decl("to_str", t_show, Public, Some("__str__"));
         /* In */
         let mut in_ = Self::builtin_poly_trait("In", vec![PS::t("T", NonDefault)], 2);
         let params = vec![PS::t("T", NonDefault)];
         let input = Self::builtin_poly_trait("Input", params.clone(), 2);
         let output = Self::builtin_poly_trait("Output", params, 2);
-        in_.register_superclass(poly("Input", vec![ty_tp(mono_q("T"))]), &input);
-        let op_t = fn1_met(mono_q("T"), mono_q("I"), Bool);
-        let op_t = quant(
-            op_t,
-            set! { static_instance("T", Type), subtypeof(mono_q("I"), poly("In", vec![ty_tp(mono_q("T"))])) },
-        );
+        let T = mono_q("T", instanceof(Type));
+        let I = mono_q("I", subtypeof(poly("In", vec![ty_tp(T.clone())])));
+        in_.register_superclass(poly("Input", vec![ty_tp(T.clone())]), &input);
+        let op_t = fn1_met(T.clone(), I, Bool).quantify();
         in_.register_builtin_decl("__in__", op_t, Public);
         /* Eq */
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
         // use `l - r < EPSILON` to check if two floats are almost equal
         let mut eq = Self::builtin_mono_trait("Eq", 2);
-        // __eq__: |Self <: Eq| Self.(Self) -> Bool
-        let op_t = fn1_met(mono_q("Self"), mono_q("Self"), Bool);
-        let op_t = quant(op_t, set! { subtypeof(mono_q("Self"), mono("Eq")) });
+        let Slf = mono_q("Self", subtypeof(mono("Eq")));
+        // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
+        let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
         eq.register_builtin_decl("__eq__", op_t, Public);
         /* Ord */
         let mut ord = Self::builtin_mono_trait("Ord", 2);
         ord.register_superclass(mono("Eq"), &eq);
-        let op_t = fn1_met(
-            mono_q("Self"),
-            mono_q("Self"),
-            or(mono("Ordering"), NoneType),
-        );
-        let op_t = quant(op_t, set! { subtypeof(mono_q("Self"), mono("Ord")) });
+        let Slf = mono_q("Self", subtypeof(mono("Ord")));
+        let op_t = fn1_met(Slf.clone(), Slf, or(mono("Ordering"), NoneType)).quantify();
         ord.register_builtin_decl("__cmp__", op_t, Public);
         // FIXME: poly trait
         /* Num */
@@ -494,75 +479,57 @@ impl Context {
         ], */
         /* Seq */
         let mut seq = Self::builtin_poly_trait("Seq", vec![PS::t("T", NonDefault)], 2);
-        seq.register_superclass(poly("Output", vec![ty_tp(mono_q("T"))]), &output);
-        let self_t = mono_q("Self");
-        let t = fn0_met(self_t.clone(), Nat);
-        let t = quant(
-            t,
-            set! {subtypeof(self_t.clone(), poly("Seq", vec![TyParam::erased(Type)]))},
-        );
+        seq.register_superclass(poly("Output", vec![ty_tp(T.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Seq", vec![TyParam::erased(Type)])));
+        let t = fn0_met(Slf.clone(), Nat).quantify();
         seq.register_builtin_decl("len", t, Public);
-        let t = fn1_met(self_t.clone(), Nat, mono_q("T"));
-        let t = quant(
-            t,
-            set! {subtypeof(self_t, poly("Seq", vec![ty_tp(mono_q("T"))])), static_instance("T", Type)},
-        );
+        let t = fn1_met(Slf, Nat, T.clone()).quantify();
         // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
         seq.register_builtin_decl("get", t, Public);
         /* Iterable */
         let mut iterable = Self::builtin_poly_trait("Iterable", vec![PS::t("T", NonDefault)], 2);
-        iterable.register_superclass(poly("Output", vec![ty_tp(mono_q("T"))]), &output);
-        let self_t = mono_q("Self");
-        let t = fn0_met(self_t.clone(), proj(self_t.clone(), "Iter"));
-        let t = quant(
-            t,
-            set! {subtypeof(self_t, poly("Iterable", vec![ty_tp(mono_q("T"))]))},
-        );
+        iterable.register_superclass(poly("Output", vec![ty_tp(T.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Iterable", vec![ty_tp(T.clone())])));
+        let t = fn0_met(Slf.clone(), proj(Slf, "Iter")).quantify();
         iterable.register_builtin_decl("iter", t, Public);
         iterable.register_builtin_decl("Iter", Type, Public);
-        let r = mono_q("R");
-        let r_bound = static_instance("R", Type);
+        let R = mono_q("R", instanceof(Type));
         let params = vec![PS::t("R", WithDefault)];
-        let ty_params = vec![ty_tp(mono_q("R"))];
+        let ty_params = vec![ty_tp(R.clone())];
         /* Num */
         let mut add = Self::builtin_poly_trait("Add", params.clone(), 2);
         // Rについて共変(__add__の型とは関係ない)
-        add.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let self_bound = subtypeof(mono_q("Self"), poly("Add", ty_params.clone()));
-        let op_t = fn1_met(mono_q("Self"), r.clone(), proj(mono_q("Self"), "Output"));
-        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
+        add.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Add", ty_params.clone())));
+        let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, "Output")).quantify();
         add.register_builtin_decl("__add__", op_t, Public);
         add.register_builtin_decl("Output", Type, Public);
         /* Sub */
         let mut sub = Self::builtin_poly_trait("Sub", params.clone(), 2);
-        sub.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let op_t = fn1_met(mono_q("Self"), r.clone(), proj(mono_q("Self"), "Output"));
-        let self_bound = subtypeof(mono_q("Self"), poly("Sub", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
+        sub.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Sub", ty_params.clone())));
+        let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, "Output")).quantify();
         sub.register_builtin_decl("__sub__", op_t, Public);
         sub.register_builtin_decl("Output", Type, Public);
         /* Mul */
         let mut mul = Self::builtin_poly_trait("Mul", params.clone(), 2);
-        mul.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let op_t = fn1_met(mono_q("Self"), r.clone(), proj(mono_q("Self"), "Output"));
-        let self_bound = subtypeof(mono_q("Self"), poly("Mul", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
+        mul.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Mul", ty_params.clone())));
+        let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, "Output")).quantify();
         mul.register_builtin_decl("__mul__", op_t, Public);
         mul.register_builtin_decl("Output", Type, Public);
         /* Div */
         let mut div = Self::builtin_poly_trait("Div", params.clone(), 2);
-        div.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let op_t = fn1_met(mono_q("Self"), r.clone(), proj(mono_q("Self"), "Output"));
-        let self_bound = subtypeof(mono_q("Self"), poly("Div", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound.clone(), self_bound});
+        div.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("Div", ty_params.clone())));
+        let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, "Output")).quantify();
         div.register_builtin_decl("__div__", op_t, Public);
         div.register_builtin_decl("Output", Type, Public);
         /* FloorDiv */
         let mut floor_div = Self::builtin_poly_trait("FloorDiv", params, 2);
-        floor_div.register_superclass(poly("Output", vec![ty_tp(mono_q("R"))]), &output);
-        let op_t = fn1_met(mono_q("Self"), r, proj(mono_q("Self"), "Output"));
-        let self_bound = subtypeof(mono_q("Self"), poly("FloorDiv", ty_params.clone()));
-        let op_t = quant(op_t, set! {r_bound, self_bound});
+        floor_div.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
+        let Slf = mono_q("Self", subtypeof(poly("FloorDiv", ty_params.clone())));
+        let op_t = fn1_met(Slf.clone(), R, proj(Slf.clone(), "Output")).quantify();
         floor_div.register_builtin_decl("__floordiv__", op_t, Public);
         floor_div.register_builtin_decl("Output", Type, Public);
         self.register_builtin_type(mono("Unpack"), unpack, Private, Const, None);
@@ -596,21 +563,21 @@ impl Context {
         self.register_builtin_type(mono("FileLike!"), filelike_mut, Private, Const, None);
         self.register_builtin_type(mono("Show"), show, Private, Const, None);
         self.register_builtin_type(
-            poly("Input", vec![ty_tp(mono_q("T"))]),
+            poly("Input", vec![ty_tp(T.clone())]),
             input,
             Private,
             Const,
             None,
         );
         self.register_builtin_type(
-            poly("Output", vec![ty_tp(mono_q("T"))]),
+            poly("Output", vec![ty_tp(T.clone())]),
             output,
             Private,
             Const,
             None,
         );
         self.register_builtin_type(
-            poly("In", vec![ty_tp(mono_q("T"))]),
+            poly("In", vec![ty_tp(T.clone())]),
             in_,
             Private,
             Const,
@@ -620,14 +587,14 @@ impl Context {
         self.register_builtin_type(mono("Ord"), ord, Private, Const, None);
         self.register_builtin_type(mono("Num"), num, Private, Const, None);
         self.register_builtin_type(
-            poly("Seq", vec![ty_tp(mono_q("T"))]),
+            poly("Seq", vec![ty_tp(T.clone())]),
             seq,
             Private,
             Const,
             None,
         );
         self.register_builtin_type(
-            poly("Iterable", vec![ty_tp(mono_q("T"))]),
+            poly("Iterable", vec![ty_tp(T)]),
             iterable,
             Private,
             Const,
@@ -640,31 +607,36 @@ impl Context {
         self.register_builtin_type(poly("FloorDiv", ty_params), floor_div, Private, Const, None);
         self.register_const_param_defaults(
             "Add",
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
         );
         self.register_const_param_defaults(
             "Sub",
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
         );
         self.register_const_param_defaults(
             "Mul",
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
         );
         self.register_const_param_defaults(
             "Div",
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
         );
         self.register_const_param_defaults(
             "FloorDiv",
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(mono_q("Self")))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf))],
         );
     }
 
     fn init_builtin_classes(&mut self) {
+        let T = mono_q("T", instanceof(Type));
+        let L = mono_q("L", instanceof(Type));
+        let R = mono_q("R", instanceof(Type));
+        let N = mono_q_tp("N", instanceof(Nat));
+        let M = mono_q_tp("M", instanceof(Nat));
         /* Obj */
         let mut obj = Self::builtin_mono_class("Obj", 2);
-        let t = fn0_met(mono_q("Self"), mono_q("Self"));
-        let t = quant(t, set! {subtypeof(mono_q("Self"), Obj)});
+        let Slf = mono_q("Self", subtypeof(Obj));
+        let t = fn0_met(Slf.clone(), Slf).quantify();
         obj.register_builtin_impl("clone", t, Const, Public);
         obj.register_builtin_impl("__module__", Str, Const, Public);
         obj.register_builtin_impl("__sizeof__", fn0_met(Obj, Nat), Const, Public);
@@ -1039,8 +1011,9 @@ impl Context {
             Public,
         );
         generic_module.register_trait(g_module_t.clone(), generic_module_eq);
-        let module_t = module(mono_q_tp("Path"));
-        let py_module_t = py_module(mono_q_tp("Path"));
+        let Path = mono_q_tp("Path", instanceof(Str));
+        let module_t = module(Path.clone());
+        let py_module_t = py_module(Path);
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module =
@@ -1050,66 +1023,52 @@ impl Context {
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
         array_.register_superclass(Obj, &obj);
-        array_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
-        let n = mono_q_tp("N");
-        let m = mono_q_tp("M");
-        let arr_t = array_t(mono_q("T"), n.clone());
+        array_.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        let arr_t = array_t(T.clone(), N.clone());
         let t = fn_met(
             arr_t.clone(),
-            vec![kw("rhs", array_t(mono_q("T"), m.clone()))],
+            vec![kw("rhs", array_t(T.clone(), M.clone()))],
             None,
             vec![],
-            array_t(mono_q("T"), n.clone() + m),
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", Nat), static_instance("M", Nat)},
-        );
-        array_.register_builtin_py_impl("concat", t, Immutable, Public, Some("__add__"));
-        let t = fn_met(
-            arr_t.clone(),
-            vec![kw("elem", mono_q("T"))],
-            None,
-            vec![],
-            array_t(mono_q("T"), n + value(1usize)),
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", Nat)},
-        );
-        array_.register_builtin_impl("push", t, Immutable, Public);
+            array_t(T.clone(), N.clone() + M.clone()),
+        )
+        .quantify();
+        array_.register_builtin_py_impl("concat", t.clone(), Immutable, Public, Some("__add__"));
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
         //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
-        /*
-        let mut array_add = Self::builtin_methods("Add", 2);
+        let mut array_add = Self::builtin_methods(
+            Some(poly("Add", vec![ty_tp(array_t(T.clone(), M.clone()))])),
+            2,
+        );
         array_add.register_builtin_impl("__add__", t, Immutable, Public);
-        let out_t = array_t(mono_q("T"), n + m.clone());
+        let out_t = array_t(T.clone(), N.clone() + M.clone());
         array_add.register_builtin_const("Output", Public, ValueObj::builtin_t(out_t));
-        array_.register_trait(arr_t.clone(), poly("Add", vec![ty_tp(array_t(mono_q("T"), m))]), array_add);
-        */
+        array_.register_trait(arr_t.clone(), array_add);
+        let t = fn_met(
+            arr_t.clone(),
+            vec![kw("elem", T.clone())],
+            None,
+            vec![],
+            array_t(T.clone(), N.clone() + value(1usize)),
+        )
+        .quantify();
+        array_.register_builtin_impl("push", t, Immutable, Public);
+        // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type = ValueObj::builtin_t(poly(
             "Array!",
-            vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
+            vec![TyParam::t(T.clone()), N.clone().mutate()],
         ));
-        // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         array_.register_builtin_const("MutType!", Public, mut_type);
         let var = Str::from(fresh_varname());
         let input = refinement(
             var.clone(),
             Nat,
-            set! { Predicate::le(var, mono_q_tp("N") - value(1usize)) },
+            set! { Predicate::le(var, N.clone() - value(1usize)) },
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
-        let array_getitem_t = fn1_kw_met(
-            array_t(mono_q("T"), mono_q_tp("N")),
-            anon(input),
-            mono_q("T"),
-        );
-        let array_getitem_t = quant(
-            array_getitem_t,
-            set! { static_instance("T", Type), static_instance("N", Nat) },
-        );
+        let array_getitem_t =
+            fn1_kw_met(array_t(T.clone(), N.clone()), anon(input), T.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __array_getitem__,
@@ -1126,7 +1085,7 @@ impl Context {
         );
         array_.register_trait(arr_t.clone(), array_eq);
         array_.register_marker_trait(mono("Mutizable"));
-        array_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
+        array_.register_marker_trait(poly("Seq", vec![ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono("Show")), 1);
         array_show.register_builtin_py_impl(
             "to_str",
@@ -1137,7 +1096,7 @@ impl Context {
         );
         array_.register_trait(arr_t.clone(), array_show);
         let mut array_iterable =
-            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(mono_q("T"))])), 2);
+            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
         array_iterable.register_builtin_impl(
             "iter",
             fn0_met(Str, mono("ArrayIterator")),
@@ -1148,26 +1107,21 @@ impl Context {
         /* Set */
         let mut set_ =
             Self::builtin_poly_class("Set", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
-        let n = mono_q_tp("N");
-        let m = mono_q_tp("M");
-        let set_t = set_t(mono_q("T"), n.clone());
+        let set_t = set_t(T.clone(), N.clone());
         set_.register_superclass(Obj, &obj);
-        set_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
+        set_.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let t = fn_met(
             set_t.clone(),
-            vec![kw("rhs", array_t(mono_q("T"), m.clone()))],
+            vec![kw("rhs", array_t(T.clone(), M.clone()))],
             None,
             vec![],
-            array_t(mono_q("T"), n + m),
-        );
-        let t = quant(
-            t,
-            set! {static_instance("N", Nat), static_instance("M", Nat)},
-        );
+            array_t(T.clone(), N.clone() + M),
+        )
+        .quantify();
         set_.register_builtin_impl("concat", t, Immutable, Public);
         let mut_type = ValueObj::builtin_t(poly(
             "Set!",
-            vec![TyParam::t(mono_q("T")), TyParam::mono_q("N").mutate()],
+            vec![TyParam::t(T.clone()), N.clone().mutate()],
         ));
         set_.register_builtin_const("MutType!", Public, mut_type);
         let mut set_eq = Self::builtin_methods(Some(mono("Eq")), 2);
@@ -1179,7 +1133,7 @@ impl Context {
         );
         set_.register_trait(set_t.clone(), set_eq);
         set_.register_marker_trait(mono("Mutizable"));
-        set_.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
+        set_.register_marker_trait(poly("Seq", vec![ty_tp(T.clone())]));
         let mut set_show = Self::builtin_methods(Some(mono("Show")), 1);
         set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
         set_.register_trait(set_t.clone(), set_show);
@@ -1194,26 +1148,23 @@ impl Context {
             Public,
         );
         generic_dict.register_trait(g_dict_t.clone(), generic_dict_eq);
+        let D = mono_q_tp("D", instanceof(mono("GenericDict")));
         // .get: _: T -> T or None
-        let dict_get_t = fn1_met(g_dict_t.clone(), mono_q("T"), or(mono_q("T"), NoneType));
-        let dict_get_t = quant(dict_get_t, set! {static_instance("T", Type)});
+        let dict_get_t = fn1_met(g_dict_t.clone(), T.clone(), or(T.clone(), NoneType)).quantify();
         generic_dict.register_builtin_impl("get", dict_get_t, Immutable, Public);
-        let dict_t = poly("Dict", vec![mono_q_tp("D")]);
+        let dict_t = poly("Dict", vec![D.clone()]);
         let mut dict_ =
             // TODO: D <: GenericDict
             Self::builtin_poly_class("Dict", vec![PS::named_nd("D", mono("GenericDict"))], 10);
         dict_.register_superclass(g_dict_t.clone(), &generic_dict);
-        dict_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("D"))]));
+        dict_.register_marker_trait(poly("Output", vec![D.clone()]));
         // __getitem__: _: T -> D[T]
         let dict_getitem_t = fn1_met(
             dict_t.clone(),
-            mono_q("T"),
-            proj_call(mono_q_tp("D"), "__getitem__", vec![ty_tp(mono_q("T"))]),
-        );
-        let dict_getitem_t = quant(
-            dict_getitem_t,
-            set! {static_instance("D", mono("GenericDict")), static_instance("T", Type)},
-        );
+            T.clone(),
+            proj_call(D, "__getitem__", vec![ty_tp(T.clone())]),
+        )
+        .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __dict_getitem__,
@@ -1243,23 +1194,19 @@ impl Context {
             Public,
         );
         generic_tuple.register_trait(mono("GenericTuple"), tuple_eq);
+        let Ts = mono_q_tp("Ts", instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
-        let tuple_t = poly("Tuple", vec![mono_q_tp("Ts")]);
-        let mut tuple_ =
-            Self::builtin_poly_class("Tuple", vec![PS::named_nd("Ts", mono_q("Ts"))], 2);
+        let tuple_t = poly("Tuple", vec![Ts.clone()]);
+        let mut tuple_ = Self::builtin_poly_class(
+            "Tuple",
+            vec![PS::named_nd("Ts", array_t(Type, N.clone()))],
+            2,
+        );
         tuple_.register_superclass(mono("GenericTuple"), &generic_tuple);
-        tuple_.register_marker_trait(poly("Output", vec![ty_tp(mono_q("Ts"))]));
+        tuple_.register_marker_trait(poly("Output", vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
-        let return_t = proj_call(mono_q_tp("Ts"), "__getitem__", vec![mono_q_tp("N")]);
-        let tuple_getitem_t = fn1_met(
-            tuple_t.clone(),
-            tp_enum(Nat, set! {mono_q_tp("N")}),
-            return_t,
-        );
-        let tuple_getitem_t = quant(
-            tuple_getitem_t,
-            set! {static_instance("Ts", array_t(Type, mono_q_tp("N"))), static_instance("N", Nat)},
-        );
+        let return_t = proj_call(Ts, "__getitem__", vec![N.clone()]);
+        let tuple_getitem_t = fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             "__Tuple_getitem__",
             tuple_getitem_t,
@@ -1271,7 +1218,7 @@ impl Context {
         let mut record = Self::builtin_mono_class("Record", 2);
         record.register_superclass(Obj, &obj);
         /* Or (true or type) */
-        let or_t = poly("Or", vec![ty_tp(mono_q("L")), ty_tp(mono_q("R"))]);
+        let or_t = poly("Or", vec![ty_tp(L), ty_tp(R)]);
         let mut or = Self::builtin_poly_class("Or", vec![PS::t_nd("L"), PS::t_nd("R")], 2);
         or.register_superclass(Obj, &obj);
         /* Iterators */
@@ -1402,8 +1349,9 @@ impl Context {
         file_mut.register_trait(mono("File!"), file_mut_writable);
         file_mut.register_marker_trait(mono("FileLike"));
         file_mut.register_marker_trait(mono("FileLike!"));
-        /* Array_mut */
-        let array_mut_t = poly("Array!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
+        /* Array! */
+        let N_MUT = mono_q_tp("N", instanceof(mono("Nat!")));
+        let array_mut_t = poly("Array!", vec![ty_tp(T.clone()), N_MUT.clone()]);
         let mut array_mut_ = Self::builtin_poly_class(
             "Array!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
@@ -1415,30 +1363,24 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     "Array!",
-                    vec![ty_tp(mono_q("T")), mono_q_tp("N") + value(1usize)],
+                    vec![ty_tp(T.clone()), N_MUT.clone() + value(1usize)],
                 )),
             ),
-            vec![kw("elem", mono_q("T"))],
+            vec![kw("elem", T.clone())],
             None,
             vec![],
             NoneType,
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
-        );
+        )
+        .quantify();
         array_mut_.register_builtin_py_impl("push!", t, Immutable, Public, Some("append"));
         let t = pr_met(
             array_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(mono_q("T"))], None, mono_q("T")))],
+            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
-        );
+        )
+        .quantify();
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
             "f",
@@ -1454,8 +1396,8 @@ impl Context {
         let mut array_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
-        /* Set_mut */
-        let set_mut_t = poly("Set!", vec![ty_tp(mono_q("T")), mono_q_tp("N")]);
+        /* Set! */
+        let set_mut_t = poly("Set!", vec![ty_tp(T.clone()), N_MUT]);
         let mut set_mut_ = Self::builtin_poly_class(
             "Set!",
             vec![PS::t_nd("T"), PS::named_nd("N", mono("Nat!"))],
@@ -1468,30 +1410,24 @@ impl Context {
                 set_mut_t.clone(),
                 Some(poly(
                     "Set!",
-                    vec![ty_tp(mono_q("T")), TyParam::erased(mono("Nat!"))],
+                    vec![ty_tp(T.clone()), TyParam::erased(mono("Nat!"))],
                 )),
             ),
-            vec![kw("elem", mono_q("T"))],
+            vec![kw("elem", T.clone())],
             None,
             vec![],
             NoneType,
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
-        );
+        )
+        .quantify();
         set_mut_.register_builtin_py_impl("add!", t, Immutable, Public, Some("add"));
         let t = pr_met(
             set_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(mono_q("T"))], None, mono_q("T")))],
+            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
-        );
-        let t = quant(
-            t,
-            set! {static_instance("T", Type), static_instance("N", mono("Nat!"))},
-        );
+        )
+        .quantify();
         set_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
             "f",
@@ -1508,12 +1444,12 @@ impl Context {
         set_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         set_mut_.register_trait(set_mut_t.clone(), set_mut_mutable);
         /* Range */
-        let range_t = poly("Range", vec![TyParam::t(mono_q("T"))]);
+        let range_t = poly("Range", vec![TyParam::t(T.clone())]);
         let mut range = Self::builtin_poly_class("Range", vec![PS::t_nd("T")], 2);
         // range.register_superclass(Obj, &obj);
         range.register_superclass(Type, &type_);
-        range.register_marker_trait(poly("Output", vec![ty_tp(mono_q("T"))]));
-        range.register_marker_trait(poly("Seq", vec![ty_tp(mono_q("T"))]));
+        range.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        range.register_marker_trait(poly("Seq", vec![ty_tp(T.clone())]));
         let mut range_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         range_eq.register_builtin_impl(
             "__eq__",
@@ -1523,7 +1459,7 @@ impl Context {
         );
         range.register_trait(range_t.clone(), range_eq);
         let mut range_iterable =
-            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(mono_q("T"))])), 2);
+            Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
         range_iterable.register_builtin_impl(
             "iter",
             fn0_met(Str, mono("RangeIterator")),
@@ -1531,8 +1467,7 @@ impl Context {
             Public,
         );
         range.register_trait(range_t.clone(), range_iterable);
-        let range_getitem_t = fn1_kw_met(range_t.clone(), anon(mono_q("T")), mono_q("T"));
-        let range_getitem_t = quant(range_getitem_t, set! { static_instance("T", Type) });
+        let range_getitem_t = fn1_kw_met(range_t.clone(), anon(T.clone()), T.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             "__getitem__",
             __range_getitem__,
@@ -1600,14 +1535,14 @@ impl Context {
             Some("str_iterator"),
         );
         self.register_builtin_type(
-            poly("ArrayIterator", vec![ty_tp(mono_q("T"))]),
+            poly("ArrayIterator", vec![ty_tp(T.clone())]),
             array_iterator,
             Private,
             Const,
             Some("array_iterator"),
         );
         self.register_builtin_type(
-            poly("RangeIterator", vec![ty_tp(mono_q("T"))]),
+            poly("RangeIterator", vec![ty_tp(T)]),
             range_iterator,
             Private,
             Const,
@@ -1656,6 +1591,9 @@ impl Context {
     }
 
     fn init_builtin_funcs(&mut self) {
+        let T = mono_q("T", instanceof(Type));
+        let U = mono_q("U", instanceof(Type));
+        let Path = mono_q_tp("Path", instanceof(Str));
         let t_abs = nd_func(vec![kw("n", mono("Num"))], None, Nat);
         let t_ascii = nd_func(vec![kw("object", Obj)], None, Str);
         let t_assert = func(
@@ -1680,37 +1618,34 @@ impl Context {
         let t_cond = nd_func(
             vec![
                 kw("condition", Bool),
-                kw("then", mono_q("T")),
-                kw("else", mono_q("T")),
+                kw("then", T.clone()),
+                kw("else", T.clone()),
             ],
             None,
-            mono_q("T"),
-        );
-        let t_cond = quant(t_cond, set! {static_instance("T", Type)});
+            T.clone(),
+        )
+        .quantify();
         let t_discard = nd_func(vec![kw("obj", Obj)], None, NoneType);
         let t_if = func(
             vec![
                 kw("cond", Bool),
-                kw("then", nd_func(vec![], None, mono_q("T"))),
+                kw("then", nd_func(vec![], None, T.clone())),
             ],
             None,
             vec![kw_default(
                 "else",
-                nd_func(vec![], None, mono_q("U")),
+                nd_func(vec![], None, U.clone()),
                 nd_func(vec![], None, NoneType),
             )],
-            or(mono_q("T"), mono_q("U")),
-        );
-        let t_if = quant(
-            t_if,
-            set! {static_instance("T", Type), static_instance("U", Type)},
-        );
+            or(T, U),
+        )
+        .quantify();
         let t_import = nd_func(
-            vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
+            vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            module(mono_q_tp("Path")),
-        );
-        let t_import = quant(t_import, set! {static_instance("Path", Str)});
+            module(Path.clone()),
+        )
+        .quantify();
         let t_isinstance = nd_func(
             vec![
                 kw("object", Obj),
@@ -1746,23 +1681,16 @@ impl Context {
         let t_oct = nd_func(vec![kw("x", Int)], None, Str);
         let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
         let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
-        let m = mono_q("M");
+        let M = mono_q("M", Constraint::Uninited);
+        let M = mono_q("M", instanceof(poly("Mul", vec![ty_tp(M)])));
         // TODO: mod
-        let t_pow = nd_func(
-            vec![kw("base", m.clone()), kw("exp", m.clone())],
-            None,
-            m.clone(),
-        );
-        let t_pow = quant(
-            t_pow,
-            set! {static_instance("M", poly("Mul", vec![ty_tp(m)]))},
-        );
+        let t_pow = nd_func(vec![kw("base", M.clone()), kw("exp", M.clone())], None, M).quantify();
         let t_pyimport = nd_func(
-            vec![anon(tp_enum(Str, set! {mono_q_tp("Path")}))],
+            vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            py_module(mono_q_tp("Path")),
-        );
-        let t_pyimport = quant(t_pyimport, set! {static_instance("Path", Str)});
+            py_module(Path),
+        )
+        .quantify();
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
@@ -1888,6 +1816,8 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
+        let T = mono_q("T", instanceof(Type));
+        let U = mono_q("U", instanceof(Type));
         let t_dir = proc(
             vec![kw("obj", ref_(Obj))],
             None,
@@ -1910,22 +1840,22 @@ impl Context {
         let t_if = proc(
             vec![
                 kw("cond", Bool),
-                kw("then", nd_proc(vec![], None, mono_q("T"))),
+                kw("then", nd_proc(vec![], None, T.clone())),
             ],
             None,
-            vec![kw("else", nd_proc(vec![], None, mono_q("T")))],
-            or(mono_q("T"), NoneType),
-        );
-        let t_if = quant(t_if, set! {static_instance("T", Type)});
+            vec![kw("else", nd_proc(vec![], None, T.clone()))],
+            or(T.clone(), NoneType),
+        )
+        .quantify();
         let t_for = nd_proc(
             vec![
-                kw("iterable", poly("Iterable", vec![ty_tp(mono_q("T"))])),
-                kw("p", nd_proc(vec![anon(mono_q("T"))], None, NoneType)),
+                kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
+                kw("p", nd_proc(vec![anon(T.clone())], None, NoneType)),
             ],
             None,
             NoneType,
-        );
-        let t_for = quant(t_for, set! {static_instance("T", Type)});
+        )
+        .quantify();
         let t_globals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
@@ -1936,8 +1866,9 @@ impl Context {
             None,
             NoneType,
         );
+        let P = mono_q("P", subtypeof(mono("PathLike")));
         let t_open = proc(
-            vec![kw("file", mono_q("P"))],
+            vec![kw("file", P)],
             None,
             vec![
                 kw("mode", Str),
@@ -1949,21 +1880,18 @@ impl Context {
                 // param_t("opener", option),
             ],
             mono("File!"),
-        );
-        let t_open = quant(t_open, set! {subtypeof(mono_q("P"), mono("PathLike"))});
+        )
+        .quantify();
         // TODO: T <: With
         let t_with = nd_proc(
             vec![
-                kw("obj", mono_q("T")),
-                kw("p!", nd_proc(vec![anon(mono_q("T"))], None, mono_q("U"))),
+                kw("obj", T.clone()),
+                kw("p!", nd_proc(vec![anon(T)], None, U.clone())),
             ],
             None,
-            mono_q("U"),
-        );
-        let t_with = quant(
-            t_with,
-            set! {static_instance("T", Type), static_instance("U", Type)},
-        );
+            U,
+        )
+        .quantify();
         self.register_builtin_py_impl("dir!", t_dir, Immutable, Private, Some("dir"));
         self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
         self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
@@ -1979,113 +1907,77 @@ impl Context {
 
     fn init_builtin_operators(&mut self) {
         /* binary */
-        let l = mono_q("L");
-        let r = mono_q("R");
-        let params = vec![ty_tp(mono_q("R"))];
+        let R = mono_q("R", instanceof(Type));
+        let params = vec![ty_tp(R.clone())];
+        let L = mono_q("L", subtypeof(poly("Add", params.clone())));
         let op_t = nd_func(
-            vec![kw("lhs", l.clone()), kw("rhs", r.clone())],
+            vec![kw("lhs", L.clone()), kw("rhs", R.clone())],
             None,
-            proj(mono_q("L"), "Output"),
-        );
-        let op_t = quant(
-            op_t,
-            set! {
-                static_instance("R", Type),
-                subtypeof(l.clone(), poly("Add", params.clone()))
-            },
-        );
+            proj(L, "Output"),
+        )
+        .quantify();
         self.register_builtin_impl("__add__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r.clone(), proj(mono_q("L"), "Output"));
-        let op_t = quant(
-            op_t,
-            set! {
-                static_instance("R", Type),
-                subtypeof(l.clone(), poly("Sub", params.clone()))
-            },
-        );
+        let L = mono_q("L", subtypeof(poly("Sub", params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
         self.register_builtin_impl("__sub__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r.clone(), proj(mono_q("L"), "Output"));
-        let op_t = quant(
-            op_t,
-            set! {
-                static_instance("R", Type),
-                subtypeof(l.clone(), poly("Mul", params.clone()))
-            },
-        );
+        let L = mono_q("L", subtypeof(poly("Mul", params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
         self.register_builtin_impl("__mul__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r.clone(), proj(mono_q("L"), "Output"));
-        let op_t = quant(
-            op_t,
-            set! {
-                static_instance("R", Type),
-                subtypeof(l.clone(), poly("Div", params.clone()))
-            },
-        );
+        let L = mono_q("L", subtypeof(poly("Div", params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
         self.register_builtin_impl("__div__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), r, proj(mono_q("L"), "Output"));
-        let op_t = quant(
-            op_t,
-            set! {
-                static_instance("R", Type),
-                subtypeof(l.clone(), poly("FloorDiv", params))
-            },
-        );
+        let L = mono_q("L", subtypeof(poly("FloorDiv", params)));
+        let op_t = bin_op(L.clone(), R, proj(L, "Output")).quantify();
         self.register_builtin_impl("__floordiv__", op_t, Const, Private);
-        let m = mono_q("M");
-        let op_t = bin_op(m.clone(), m.clone(), proj(m.clone(), "PowOutput"));
-        let op_t = quant(op_t, set! {subtypeof(m, poly("Mul", vec![]))});
+        let P = mono_q("P", Constraint::Uninited);
+        let P = mono_q("P", subtypeof(poly("Mul", vec![ty_tp(P)])));
+        let op_t = bin_op(P.clone(), P.clone(), proj(P, "PowOutput")).quantify();
         // TODO: add bound: M == M.Output
         self.register_builtin_impl("__pow__", op_t, Const, Private);
-        let d = mono_q("D");
-        let op_t = bin_op(d.clone(), d.clone(), proj(d.clone(), "ModOutput"));
-        let op_t = quant(op_t, set! {subtypeof(d, poly("Div", vec![]))});
+        let M = mono_q("M", Constraint::Uninited);
+        let M = mono_q("M", subtypeof(poly("Div", vec![ty_tp(M)])));
+        let op_t = bin_op(M.clone(), M.clone(), proj(M, "ModOutput")).quantify();
         self.register_builtin_impl("__mod__", op_t, Const, Private);
-        let e = mono_q("E");
-        let op_t = bin_op(e.clone(), e.clone(), Bool);
-        let op_t = quant(op_t, set! {subtypeof(e, mono("Eq"))});
+        let E = mono_q("E", subtypeof(mono("Eq")));
+        let op_t = bin_op(E.clone(), E, Bool).quantify();
         self.register_builtin_impl("__eq__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__ne__", op_t, Const, Private);
-        let op_t = bin_op(l.clone(), l.clone(), Bool);
-        let op_t = quant(op_t, set! { subtypeof(l, mono("Ord")) });
+        let O = mono_q("O", subtypeof(mono("Ord")));
+        let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
         self.register_builtin_impl("__lt__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__le__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__gt__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__ge__", op_t, Const, Private);
-        let op_t = bin_op(mono_q("T"), mono_q("T"), mono_q("T"));
-        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), or(Bool, Type))});
+        let BT = mono_q("BT", subtypeof(or(Bool, Type)));
+        let op_t = bin_op(BT.clone(), BT.clone(), BT).quantify();
         self.register_builtin_impl("__and__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__or__", op_t, Const, Private);
-        let t = mono_q("T");
-        let op_t = bin_op(t.clone(), t.clone(), range(t.clone()));
-        let op_t = quant(op_t, set! {subtypeof(t, mono("Ord"))});
+        let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
         self.register_builtin_decl("__rng__", op_t.clone(), Private);
         self.register_builtin_decl("__lorng__", op_t.clone(), Private);
         self.register_builtin_decl("__rorng__", op_t.clone(), Private);
         self.register_builtin_decl("__orng__", op_t, Private);
         // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
-        let op_t = bin_op(mono_q("I"), mono_q("T"), Bool);
-        let op_t = quant(
-            op_t,
-            set! { static_instance("T", Type), subtypeof(mono_q("I"), poly("In", vec![ty_tp(mono_q("T"))])) },
-        );
+        let T = mono_q("T", instanceof(Type));
+        let I = mono_q("I", subtypeof(poly("In", vec![ty_tp(T.clone())])));
+        let op_t = bin_op(I, T, Bool).quantify();
         self.register_builtin_impl("__in__", op_t, Const, Private);
         /* unary */
         // TODO: Boolの+/-は警告を出したい
-        let op_t = func1(mono_q("T"), proj(mono_q("T"), "MutType!"));
-        let op_t = quant(op_t, set! {subtypeof(mono_q("T"), mono("Mutizable"))});
+        let M = mono_q("M", subtypeof(mono("Mutizable")));
+        let op_t = func1(M.clone(), proj(M, "MutType!")).quantify();
         self.register_builtin_impl("__mutate__", op_t, Const, Private);
-        let n = mono_q("N");
-        let op_t = func1(n.clone(), n.clone());
-        let op_t = quant(op_t, set! {subtypeof(n, mono("Num"))});
+        let N = mono_q("N", subtypeof(mono("Num")));
+        let op_t = func1(N.clone(), N).quantify();
         self.register_builtin_decl("__pos__", op_t.clone(), Private);
         self.register_builtin_decl("__neg__", op_t, Private);
     }
 
     fn init_builtin_patches(&mut self) {
-        let m = mono_q_tp("M");
-        let n = mono_q_tp("N");
-        let o = mono_q_tp("O");
-        let p = mono_q_tp("P");
+        let m = mono_q_tp("M", instanceof(Int));
+        let n = mono_q_tp("N", instanceof(Int));
+        let o = mono_q_tp("O", instanceof(Int));
+        let p = mono_q_tp("P", instanceof(Int));
         let params = vec![
             PS::named_nd("M", Int),
             PS::named_nd("N", Int),
@@ -2129,15 +2021,14 @@ impl Context {
         // ord.register_impl("__le__", op_t.clone(), Const, Public);
         // ord.register_impl("__gt__", op_t.clone(), Const, Public);
         // ord.register_impl("__ge__", op_t,         Const, Public);
-        let t = mono_q("L");
-        let base = or(t.clone(), NoneType);
+        let E = mono_q("E", subtypeof(mono("Eq")));
+        let base = or(E, NoneType);
         let impls = mono("Eq");
-        let params = vec![PS::named_nd("L", Type)];
+        let params = vec![PS::named_nd("E", Type)];
         let mut option_eq =
             Self::builtin_poly_glue_patch("OptionEq", base.clone(), impls.clone(), params, 1);
         let mut option_eq_impl = Self::builtin_methods(Some(impls), 1);
-        let op_t = fn1_met(base.clone(), base.clone(), Bool);
-        let op_t = quant(op_t, set! {subtypeof(t, mono("Eq"))});
+        let op_t = fn1_met(base.clone(), base.clone(), Bool).quantify();
         option_eq_impl.register_builtin_impl("__eq__", op_t, Const, Public);
         option_eq.register_trait(base, option_eq_impl);
         self.register_builtin_patch("OptionEq", option_eq, Private, Const);

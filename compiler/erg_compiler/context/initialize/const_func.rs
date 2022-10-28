@@ -171,10 +171,12 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     )))
 }
 
-pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
-    let _self = enum_unwrap!(args.remove_left_or_key("Self").unwrap(), ValueObj::Array);
+pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    let slf = ctx
+        .convert_value_into_array(args.remove_left_or_key("Self").unwrap())
+        .unwrap();
     let index = enum_unwrap!(args.remove_left_or_key("Index").unwrap(), ValueObj::Nat);
-    if let Some(v) = _self.get(index as usize) {
+    if let Some(v) = slf.get(index as usize) {
         Ok(v.clone())
     } else {
         Err(ErrorCore::new(
@@ -183,8 +185,8 @@ pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
             Location::Unknown,
             AtomicStr::from(format!(
                 "[{}] has {} elements, but accessed {}th element",
-                erg_common::fmt_vec(&_self),
-                _self.len(),
+                erg_common::fmt_vec(&slf),
+                slf.len(),
                 index
             )),
             None,
@@ -193,11 +195,11 @@ pub fn __array_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
 }
 
 pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-    let _self = args.remove_left_or_key("Self").unwrap();
-    let _self = enum_unwrap!(_self, ValueObj::Dict);
+    let slf = args.remove_left_or_key("Self").unwrap();
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
     let index = args.remove_left_or_key("Index").unwrap();
-    if let Some(v) = _self.get(&index).or_else(|| {
-        for (k, v) in _self.iter() {
+    if let Some(v) = slf.get(&index).or_else(|| {
+        for (k, v) in slf.iter() {
             match (&index, k) {
                 (ValueObj::Type(idx), ValueObj::Type(kt)) => {
                     if ctx.subtype_of(idx.typ(), kt.typ()) {
@@ -219,7 +221,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
-            AtomicStr::from(format!("{_self} has no key {index}",)),
+            AtomicStr::from(format!("{slf} has no key {index}",)),
             None,
         ))
     }

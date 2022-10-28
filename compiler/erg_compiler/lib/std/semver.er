@@ -22,4 +22,6 @@
 
 if! __name__ == "__main__", do!:
     v = .Version.new(0, 0, 1)
+    assert v.minor == 0
+    assert v.pre == None
     assert v != .Version.new(0, 0, 2)

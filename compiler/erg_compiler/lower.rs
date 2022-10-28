@@ -18,15 +18,15 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
+use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, mono, poly, proc, quant, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::instantiate::TyVarInstContext;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TypeRelationInstance};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
@@ -785,11 +785,10 @@ impl ASTLowerer {
         } else {
             ContextKind::Func
         };
-        let bounds = self
+        let tv_cache = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
-        self.ctx.grow(&name, kind, Private, Some(tv_ctx));
+        self.ctx.grow(&name, kind, Private, Some(tv_cache));
         let params = self.lower_params(lambda.sig.params)?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
             self.errs.extend(errs.into_iter());
@@ -816,24 +815,13 @@ impl ASTLowerer {
             .into_iter()
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        let bounds = self
-            .ctx
-            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
-            .map_err(|e| {
-                self.pop_append_errs();
-                e
-            })?;
         self.pop_append_errs();
         let t = if is_procedural {
             proc(non_default_params, None, default_params, body.t())
         } else {
             func(non_default_params, None, default_params, body.t())
         };
-        let t = if bounds.is_empty() {
-            t
-        } else {
-            quant(t, bounds)
-        };
+        let t = if t.has_qvar() { t.quantify() } else { t };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 
@@ -871,11 +859,10 @@ impl ASTLowerer {
         let vis = def.sig.vis();
         let res = match def.sig {
             ast::Signature::Subr(sig) => {
-                let bounds = self
+                let tv_cache = self
                     .ctx
                     .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
-                let tv_ctx = TyVarInstContext::new(self.ctx.level, bounds, &self.ctx);
-                self.ctx.grow(&name, kind, vis, Some(tv_ctx));
+                self.ctx.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
             }
             ast::Signature::Var(sig) => {
@@ -1039,6 +1026,7 @@ impl ASTLowerer {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         for mut methods in class_def.methods_list.into_iter() {
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
@@ -1048,7 +1036,7 @@ impl ASTLowerer {
                             self.ctx.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
-                                None,
+                                &mut dummy_tv_cache,
                                 RegistrationMode::Normal,
                                 false,
                             )?,
@@ -1060,7 +1048,7 @@ impl ASTLowerer {
                         self.ctx.instantiate_typespec(
                             spec,
                             None,
-                            None,
+                            &mut dummy_tv_cache,
                             RegistrationMode::Normal,
                             false,
                         )?,
@@ -1071,13 +1059,17 @@ impl ASTLowerer {
                     self.ctx.instantiate_typespec(
                         other,
                         None,
-                        None,
+                        &mut dummy_tv_cache,
                         RegistrationMode::Normal,
                         false,
                     )?,
                     None,
                 ),
             };
+            // assume the class has implemented the trait, regardless of whether the implementation is correct
+            if let Some((trait_, trait_loc)) = &impl_trait {
+                self.register_trait_impl(&class, trait_, *trait_loc)?;
+            }
             if let Some(class_root) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
@@ -1127,7 +1119,6 @@ impl ASTLowerer {
             }
             if let Some((trait_, _)) = &impl_trait {
                 self.check_override(&class, Some(trait_));
-                self.register_trait_impl(&class, trait_);
             } else {
                 self.check_override(&class, None);
             }
@@ -1162,6 +1153,42 @@ impl ASTLowerer {
             __new__,
             hir_methods,
         ))
+    }
+
+    fn register_trait_impl(
+        &mut self,
+        class: &Type,
+        trait_: &Type,
+        trait_loc: Location,
+    ) -> LowerResult<()> {
+        // TODO: polymorphic trait
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
+            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
+        } else {
+            self.ctx.trait_impls.insert(
+                trait_.qual_name(),
+                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
+            );
+        }
+        let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(trait_) {
+            trait_ctx.clone()
+        } else {
+            // TODO: maybe parameters are wrong
+            return Err(LowerErrors::from(LowerError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                trait_loc,
+                self.ctx.caused_by(),
+                &trait_.local_name(),
+                None,
+            )));
+        };
+        let (_, class_ctx) = self
+            .ctx
+            .get_mut_nominal_type_ctx(class)
+            .unwrap_or_else(|| todo!("{class} not found"));
+        class_ctx.register_supertrait(trait_.clone(), &trait_ctx);
+        Ok(())
     }
 
     /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
@@ -1237,35 +1264,22 @@ impl ASTLowerer {
         class: &Type,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
-            // assume the class has implemented the trait, regardless of whether the implementation is correct
-            let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(&impl_trait) {
-                trait_ctx.clone()
-            } else {
-                // TODO: maybe parameters are wrong
-                return Err(LowerError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    loc,
-                    self.ctx.caused_by(),
-                    &impl_trait.local_name(),
-                    None,
-                ));
-            };
-            let (_, class_ctx) = self
-                .ctx
-                .get_mut_nominal_type_ctx(class)
-                .unwrap_or_else(|| todo!("{class} not found"));
-            class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             let mut unverified_names = self.ctx.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
-                                for (field, field_typ) in attrs.iter() {
+                                for (field, decl_t) in attrs.iter() {
                                     if let Some((name, vi)) = self.ctx.get_local_kv(&field.symbol) {
+                                        let def_t = &vi.t;
+                                        //    A(<: Add(R)), R -> A.Output
+                                        // => A(<: Int), R -> A.Output
+                                        let replaced_decl_t =
+                                            decl_t.clone().replace(&impl_trait, class);
                                         unverified_names.remove(name);
-                                        if !self.ctx.supertype_of(field_typ, &vi.t) {
+                                        // def_t must be subtype of decl_t
+                                        if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 self.cfg.input.clone(),
                                                 line!() as usize,
@@ -1273,7 +1287,7 @@ impl ASTLowerer {
                                                 self.ctx.caused_by(),
                                                 name.inspect(),
                                                 &impl_trait,
-                                                field_typ,
+                                                decl_t,
                                                 &vi.t,
                                                 None,
                                             ));
@@ -1298,8 +1312,11 @@ impl ASTLowerer {
                             for (decl_name, decl_vi) in ctx.decls.iter() {
                                 if let Some((name, vi)) = self.ctx.get_local_kv(decl_name.inspect())
                                 {
+                                    let def_t = &vi.t;
+                                    let replaced_decl_t =
+                                        decl_vi.t.clone().replace(&impl_trait, class);
                                     unverified_names.remove(name);
-                                    if !self.ctx.supertype_of(&decl_vi.t, &vi.t) {
+                                    if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
                                         self.errs.push(LowerError::trait_member_type_error(
                                             self.cfg.input.clone(),
                                             line!() as usize,
@@ -1365,19 +1382,6 @@ impl ASTLowerer {
         Ok(())
     }
 
-    fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
-        let trait_impls = &mut self.ctx.outer.as_mut().unwrap().trait_impls;
-        // TODO: polymorphic trait
-        if let Some(impls) = trait_impls.get_mut(&trait_.qual_name()) {
-            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
-        } else {
-            trait_impls.insert(
-                trait_.qual_name(),
-                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
-            );
-        }
-    }
-
     fn check_collision_and_push(&mut self, class: Type) {
         let methods = self.ctx.pop();
         let (_, class_root) = self
@@ -1432,10 +1436,11 @@ impl ASTLowerer {
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
         let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         let t = self.ctx.instantiate_typespec(
             &tasc.t_spec,
             None,
-            None,
+            &mut dummy_tv_cache,
             RegistrationMode::Normal,
             false,
         )?;
@@ -1602,13 +1607,14 @@ impl ASTLowerer {
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    None,
+                    &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
                 )?;
@@ -1631,7 +1637,7 @@ impl ASTLowerer {
                 let t = self.ctx.instantiate_typespec(
                     &tasc.t_spec,
                     None,
-                    None,
+                    &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
                 )?;

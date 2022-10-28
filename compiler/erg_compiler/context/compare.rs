@@ -1,11 +1,11 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::error::MultiErrorDisplay;
 
 use crate::ty::constructors::{and, or};
 use crate::ty::free::fresh_varname;
-use crate::ty::free::{Constraint, Cyclicity, FreeKind, FreeTyVar};
+use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -19,9 +19,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
-use crate::context::eval::SubstContext;
-use crate::context::instantiate::TyVarInstContext;
-use crate::context::{Context, TypeRelationInstance, Variance};
+use crate::context::{Context, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -60,10 +58,6 @@ impl Context {
                 if let (Some(l), Some(r)) = (self.rec_get_const_obj(l), self.rec_get_const_obj(r)) {
                     return l == r;
                 }
-            }
-            (TyParam::MonoQVar(name), _other) | (_other, TyParam::MonoQVar(name)) => {
-                log!(err "comparing '{name} and {_other}");
-                panic!("Not instantiated type parameter: {name}")
             }
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval }) => {
                 return lop == rop && self.eq_tp(lval, rval);
@@ -122,6 +116,11 @@ impl Context {
             (l, r) if l == r => {
                 return true;
             }
+            (l, r) if l.has_unbound_var() || r.has_unbound_var() => {
+                let lt = self.get_tp_t(l).unwrap();
+                let rt = self.get_tp_t(r).unwrap();
+                return self.same_type_of(&lt, &rt);
+            }
             _ => {}
         }
         self.shallow_eq_tp(lhs, rhs)
@@ -176,27 +175,7 @@ impl Context {
             | (Float | Ratio, Ratio)
             | (Float, Float) => (Absolutely, true),
             (Type, ClassType | TraitType) => (Absolutely, true),
-            (Type, Record(rec)) => (
-                Absolutely,
-                rec.iter().all(|(_, attr)| self.supertype_of(&Type, attr)),
-            ),
             (Type::Uninited, _) | (_, Type::Uninited) => panic!("used an uninited type variable"),
-            (Type, Subr(subr)) => (
-                Absolutely,
-                subr.non_default_params
-                    .iter()
-                    .all(|pt| self.supertype_of(&Type, pt.typ()))
-                    && subr
-                        .default_params
-                        .iter()
-                        .all(|pt| self.supertype_of(&Type, pt.typ()))
-                    && subr
-                        .var_params
-                        .as_ref()
-                        .map(|va| self.supertype_of(&Type, va.typ()))
-                        .unwrap_or(true)
-                    && self.supertype_of(&Type, &subr.return_t),
-            ),
             (
                 Type::Mono(n),
                 Subr(SubrType {
@@ -230,7 +209,7 @@ impl Context {
             {
                 (Absolutely, true)
             }
-            (_, Type::FreeVar(fv)) | (Type::FreeVar(fv), _) => match fv.get_bound_types() {
+            (_, Type::FreeVar(fv)) | (Type::FreeVar(fv), _) => match fv.get_subsup() {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
@@ -258,10 +237,6 @@ impl Context {
             self.register_cache(lhs, rhs, judge);
             return judge;
         }
-        /*if self._find_compatible_patch(lhs, rhs).is_some() {
-            self.register_cache(lhs, rhs, true);
-            return true;
-        }*/
         self.register_cache(lhs, rhs, false);
         false
     }
@@ -270,35 +245,13 @@ impl Context {
         self.nominal_supertype_of(rhs, lhs)
     }
 
-    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<Str> {
-        let subst_ctx = SubstContext::try_new(sub, self, Location::Unknown)?;
+    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
         for patch in self._all_patches().into_iter() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
-                if tr_inst.sub_type.has_qvar() || tr_inst.sup_trait.has_qvar() {
-                    if let (Ok(sub_type), Ok(sup_trait)) = (
-                        subst_ctx.substitute(tr_inst.sub_type.clone()),
-                        subst_ctx.substitute(tr_inst.sup_trait.clone()),
-                    ) {
-                        let l1 = self.subtype_of(sub, &sub_type);
-                        let l2 = self.subtype_of(&sup_trait, sup);
-                        if l1 && l2 {
-                            return Some(patch.name.clone());
-                        }
-                    }
-                } else {
-                    // e.g.
-                    // P = Patch X, Impl: Y
-                    // # => TypeRelationInstance { X <: Y }
-                    // X <: Y => Sub <: Y (if Sub <: X)
-                    // X <: Y => X <: Sup (if Y <: Sup)
-                    // # => OK if Sub <: X and Y <: Sup
-                    // Rhs <: X => Rhs <: Ord
-                    // Ord <: Lhs => Rhs <: Ord <: Lhs
-                    if self.subtype_of(sub, &tr_inst.sub_type)
-                        && self.subtype_of(&tr_inst.sup_trait, sup)
-                    {
-                        return Some(patch.name.clone());
-                    }
+                if self.subtype_of(sub, &tr_inst.sub_type)
+                    && self.subtype_of(&tr_inst.sup_trait, sup)
+                {
+                    return Some(patch);
                 }
             }
         }
@@ -317,8 +270,9 @@ impl Context {
                         Type::RefMut { before, .. } => before,
                         other => other,
                     };
-                    let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-                    subst_ctx.substitute(rhs_sup.clone()).unwrap()
+                    // let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
+                    // subst_ctx.substitute(rhs_sup.clone()).unwrap()
+                    rhs.clone()
                 } else {
                     rhs_sup.clone()
                 };
@@ -348,24 +302,13 @@ impl Context {
         }
         if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
-                let rhs_sup = if rhs_sup.has_qvar() {
-                    let rhs = match rhs {
-                        Type::Ref(t) => t,
-                        Type::RefMut { before, .. } => before,
-                        other => other,
-                    };
-                    let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-                    subst_ctx.substitute(rhs_sup.clone()).unwrap()
-                } else {
-                    rhs_sup.clone()
-                };
                 // Not `supertype_of` (only structures are compared)
-                match self.cheap_supertype_of(lhs, &rhs_sup) {
+                match self.cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
-                        if self.structural_supertype_of(lhs, &rhs_sup) {
+                        if self.structural_supertype_of(lhs, rhs_sup) {
                             return (Absolutely, true);
                         }
                     }
@@ -374,31 +317,6 @@ impl Context {
             }
         }
         (Maybe, false)
-    }
-
-    /// ```python
-    /// assert sup_conforms(?E(<: Eq(?E)), arg: Nat, sup_trait: Eq(Nat))
-    /// assert sup_conforms(?E(<: Eq(?R)), arg: T, sup_trait: Eq(U))
-    /// ```
-    fn sup_conforms(&self, free: &FreeTyVar, arg: &Type, sup_trait: &Type) -> bool {
-        let (_sub, sup) = free.get_bound_types().unwrap();
-        free.forced_undoable_link(arg);
-        let judge = self.supertype_of(&sup, sup_trait);
-        free.undo();
-        judge
-    }
-
-    /// assert!(sup_conforms(?E(<: Eq(?E)), {Nat, Eq(Nat)}))
-    /// assert!(sup_conforms(?E(<: Eq(?R)), {Nat, Eq(T)}))
-    fn _sub_conforms(&self, free: &FreeTyVar, inst_pair: &TypeRelationInstance) -> bool {
-        let (_sub, sup) = free.get_bound_types().unwrap();
-        log!(info "{free}");
-        free.forced_undoable_link(&inst_pair.sub_type);
-        log!(info "{free}");
-        let judge = self.subtype_of(&sup, &inst_pair.sup_trait);
-        free.undo();
-        log!(info "{free}");
-        judge
     }
 
     /// lhs :> rhs?
@@ -445,7 +363,7 @@ impl Context {
             }
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
-            (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_bound_types(), rfv.get_bound_types()) {
+            (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
                 (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
                 _ => {
                     if lfv.is_linked() {
@@ -459,68 +377,50 @@ impl Context {
             },
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
+            // ?P(<: Mul ?P) :> Int
+            //   => ?P.undoable_link(Int)
+            //   => Mul Int :> Int
             (FreeVar(lfv), rhs) => {
                 match &*lfv.borrow() {
                     FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                         self.supertype_of(t, rhs)
                     }
-                    FreeKind::Unbound { constraint, .. }
-                    | FreeKind::NamedUnbound { constraint, .. } => match constraint {
-                        // `(?T <: Int) :> Nat` can be true, `(?T <: Nat) :> Int` is false
-                        // `(?T <: Eq(?T)) :> Nat` can be true, but this requires special judgment
-                        // `(?T :> X) :> Y` is true
-                        // `(?T :> Str) :> Int` is true (?T :> Str or Int)
-                        // `(Nat <: ?T <: Ratio) :> Nat` can be true
-                        Constraint::Sandwiched { sup, cyclicity, .. } => match cyclicity {
-                            Cyclicity::Not => self.supertype_of(sup, rhs),
-                            Cyclicity::Super => self.cyclic_supertype_of(lfv, rhs),
-                            _ => todo!(),
-                        },
-                        // (?v: Type, rhs): OK
-                        // (?v: Nat, rhs): Something wrong
-                        // Class <: Type, but Nat <!: Type (Nat: Type)
-                        Constraint::TypeOf(t) => {
-                            if self.supertype_of(&Type, t) {
-                                true
-                            } else {
-                                panic!()
-                            }
+                    FreeKind::Unbound { constraint: _, .. }
+                    | FreeKind::NamedUnbound { constraint: _, .. } => {
+                        if let Some((_sub, sup)) = lfv.get_subsup() {
+                            lfv.forced_undoable_link(rhs);
+                            let res = self.supertype_of(&sup, rhs);
+                            lfv.undo();
+                            res
+                        } else {
+                            // e.g. lfv: ?L(: Int) is unreachable
+                            // but
+                            // ?L(: Array(Type, 3)) :> Array(Int, 3)
+                            //   => Array(Type, 3) :> Array(Typeof(Int), 3)
+                            //   => true
+                            let lfvt = lfv.get_type().unwrap();
+                            let rhs_meta = self.meta_type(rhs);
+                            self.supertype_of(&lfvt, &rhs_meta)
                         }
-                        Constraint::Uninited => unreachable!(),
-                    },
-                }
-            }
-            (lhs, FreeVar(rfv)) => {
-                match &*rfv.borrow() {
-                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                        self.supertype_of(lhs, t)
                     }
-                    FreeKind::Unbound { constraint, .. }
-                    | FreeKind::NamedUnbound { constraint, .. } => match constraint {
-                        // ?T cannot be `Never`
-                        // `Nat :> (?T <: Int)` can be true
-                        // `Int :> (?T <: Nat)` can be true
-                        // * so sup is unrelated
-                        // `Str :> (?T <: Int)` is false
-                        // `Int :> (?T :> Nat)` can be true, `Nat :> (?T :> Int)` is false
-                        // `Int :> (Nat <: ?T <: Ratio)` can be true, `Nat :> (Int <: ?T <: Ratio)` is false
-                        //  Eq(Int) :> ?M(:> Int, <: Mul(?M) and Add(?M))
-                        Constraint::Sandwiched {
-                            sub,
-                            sup: _,
-                            cyclicity: _,
-                        } => self.supertype_of(lhs, sub),
-                        Constraint::TypeOf(t) => {
-                            if self.supertype_of(&Type, t) {
-                                true
-                            } else {
-                                panic!()
-                            }
-                        }
-                        Constraint::Uninited => unreachable!(),
-                    },
                 }
             }
+            (lhs, FreeVar(rfv)) => match &*rfv.borrow() {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                    self.supertype_of(lhs, t)
+                }
+                FreeKind::Unbound { constraint: _, .. }
+                | FreeKind::NamedUnbound { constraint: _, .. } => {
+                    if let Some((sub, _sup)) = rfv.get_subsup() {
+                        rfv.forced_undoable_link(lhs);
+                        let res = self.supertype_of(lhs, &sub);
+                        rfv.undo();
+                        res
+                    } else {
+                        todo!("{lhs} / {rhs}");
+                    }
+                }
+            },
             (Type::Record(lhs), Type::Record(rhs)) => {
                 for (k, l) in lhs.iter() {
                     if let Some(r) = rhs.get(k) {
@@ -541,18 +441,19 @@ impl Context {
                 }
                 true
             }
+            (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Array" || &name[..] == "Set" =>
             {
-                let elem_t = Type::try_from(params[0].clone()).unwrap();
+                let elem_t = self.convert_tp_into_ty(params[0].clone()).unwrap();
                 self.supertype_of(&Type, &elem_t)
             }
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Tuple" =>
             {
-                let ts = Vec::try_from(params[0].clone()).unwrap();
-                for t in ts {
-                    let t = if let Ok(t) = Type::try_from(t) {
+                let tps = Vec::try_from(params[0].clone()).unwrap();
+                for tp in tps {
+                    let t = if let Ok(t) = self.convert_tp_into_ty(tp) {
                         t
                     } else {
                         return false;
@@ -573,12 +474,12 @@ impl Context {
                     return false;
                 };
                 for (k, v) in dict.into_iter() {
-                    let k = if let Ok(t) = Type::try_from(k) {
+                    let k = if let Ok(t) = self.convert_tp_into_ty(k) {
                         t
                     } else {
                         return false;
                     };
-                    let v = if let Ok(t) = Type::try_from(v) {
+                    let v = if let Ok(t) = self.convert_tp_into_ty(v) {
                         t
                     } else {
                         return false;
@@ -625,12 +526,17 @@ impl Context {
             // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
             // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
             // => true
+            // Bool :> {1} == true
             (l, Refinement(r)) => {
                 if self.supertype_of(l, &r.t) {
                     return true;
                 }
                 let l = l.derefine();
-                self.supertype_of(&l, &r.t)
+                if self.supertype_of(&l, &r.t) {
+                    return true;
+                }
+                let l = Type::Refinement(self.into_refinement(l));
+                self.structural_supertype_of(&l, rhs)
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
@@ -645,30 +551,8 @@ impl Context {
                 }
                 self.supertype_of(&l.t, r)
             }
-            (Quantified(q), r) => {
-                // REVIEW: maybe this should be `unreachable`
-                let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
-                let q_callable = self
-                    .instantiate_t_inner(
-                        q.unbound_callable.as_ref().clone(),
-                        &tmp_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();
-                self.supertype_of(&q_callable, r)
-            }
-            (l, Quantified(q)) => {
-                // REVIEW: maybe this should be `unreachable`
-                let tmp_tv_ctx = TyVarInstContext::new(self.level, q.bounds.clone(), self);
-                let q_callable = self
-                    .instantiate_t_inner(
-                        q.unbound_callable.as_ref().clone(),
-                        &tmp_tv_ctx,
-                        Location::Unknown,
-                    )
-                    .unwrap();
-                self.structural_supertype_of(l, &q_callable)
-            }
+            (Quantified(q), r) => self.supertype_of(q, r),
+            (l, Quantified(q)) => self.structural_supertype_of(l, q),
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             (Or(l_1, l_2), Or(r_1, r_2)) => {
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
@@ -715,10 +599,10 @@ impl Context {
                 }
                 // [Int; 2] :> [Int; 3]
                 if &ln[..] == "Array" || &ln[..] == "Set" {
-                    let lt = Type::try_from(lparams[0].clone()).unwrap();
-                    let rt = Type::try_from(rparams[0].clone()).unwrap();
-                    let llen = &lparams[1];
-                    let rlen = &rparams[1];
+                    let lt = self.convert_tp_into_ty(lparams[0].clone()).unwrap();
+                    let rt = self.convert_tp_into_ty(rparams[0].clone()).unwrap();
+                    let llen = lparams[1].clone();
+                    let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
                         && self
                             .eval_bin_tp(OpKind::Le, llen, rlen)
@@ -730,12 +614,6 @@ impl Context {
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
                 }
-            }
-            (MonoQVar(name), r) | (PolyQVar { name, .. }, r) => {
-                panic!("internal error: not instantiated type variable: '{name}, r: {r}")
-            }
-            (l, MonoQVar(name)) | (l, PolyQVar { name, .. }) => {
-                panic!("internal error: not instantiated type variable: '{name}, l: {l}")
             }
             (Proj { .. }, _) => {
                 if let Some(cands) = self.get_candidates(lhs) {
@@ -759,35 +637,6 @@ impl Context {
             }
             (_l, _r) => false,
         }
-    }
-
-    pub(crate) fn cyclic_supertype_of(&self, lhs: &FreeTyVar, rhs: &Type) -> bool {
-        let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-        if let Some(super_traits) = self.get_nominal_type_ctx(rhs).map(|ctx| &ctx.super_traits) {
-            for super_trait in super_traits {
-                let sup_trait = if super_trait.has_qvar() {
-                    subst_ctx.substitute(super_trait.clone()).unwrap()
-                } else {
-                    super_trait.clone()
-                };
-                if self.sup_conforms(lhs, rhs, &sup_trait) {
-                    return true;
-                }
-            }
-        }
-        if let Some(super_classes) = self.get_super_classes(rhs) {
-            for super_class in super_classes {
-                let sup_class = if super_class.has_qvar() {
-                    subst_ctx.substitute(super_class).unwrap()
-                } else {
-                    super_class
-                };
-                if self.cyclic_supertype_of(lhs, &sup_class) {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     pub(crate) fn poly_supertype_of(
@@ -867,7 +716,7 @@ impl Context {
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
-                if let Ok(l) = self.eval_bin_tp(*op, lhs, rhs) {
+                if let Ok(l) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
                     self.try_cmp(&l, r)
                 } else { Some(Any) }
             },
@@ -878,8 +727,8 @@ impl Context {
                 self.try_cmp(p, &*fv.crack())
             }
             (
-                l @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
-                r @ (TyParam::FreeVar(_) | TyParam::Erased(_) | TyParam::MonoQVar(_)),
+                l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
+                r @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
             ) /* if v.is_unbound() */ => {
                 let l_t = self.get_tp_t(l).unwrap();
                 let r_t = self.get_tp_t(r).unwrap();
@@ -894,7 +743,7 @@ impl Context {
             // try_cmp((n: -1.._), 1) -> Some(Any)
             // try_cmp((n: ?K), "a") -> Some(Any)
             // try_cmp((n: Int), "a") -> Some(NotEqual)
-            (l @ (TyParam::Erased(_) | TyParam::FreeVar(_) | TyParam::MonoQVar(_)), p) => {
+            (l @ (TyParam::Erased(_) | TyParam::FreeVar(_)), p) => {
                 let lt = self.get_tp_t(l).unwrap();
                 let pt = self.get_tp_t(p).unwrap();
                 let l_inf = self.inf(&lt);
@@ -946,7 +795,7 @@ impl Context {
                     }
                 }
             }
-            (l, r @ (TyParam::Erased(_) | TyParam::MonoQVar(_) | TyParam::FreeVar(_))) =>
+            (l, r @ (TyParam::Erased(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l).map(|ord| ord.reverse()),
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);
@@ -964,6 +813,14 @@ impl Context {
                     var.clone(),
                     Int,
                     set! {Predicate::ge(var, TyParam::value(0))},
+                )
+            }
+            Bool => {
+                let var = Str::from(fresh_varname());
+                RefinementType::new(
+                    var.clone(),
+                    Int,
+                    set! {Predicate::ge(var.clone(), TyParam::value(true)), Predicate::le(var, TyParam::value(false))},
                 )
             }
             Refinement(r) => r,
