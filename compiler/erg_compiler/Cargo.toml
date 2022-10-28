@@ -24,8 +24,8 @@ traditional_chinese = [
 ]
 
 [dependencies]
-erg_common = { version = "0.5.11-nightly.5", path = "../erg_common" }
-erg_parser = { version = "0.5.11-nightly.5", path = "../erg_parser" }
+erg_common = { version = "0.5.11-nightly.6", path = "../erg_common" }
+erg_parser = { version = "0.5.11-nightly.6", path = "../erg_parser" }
 
 [lib]
 path = "lib.rs"
