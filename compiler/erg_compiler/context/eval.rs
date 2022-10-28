@@ -259,7 +259,8 @@ impl Context {
                 Signature::Var(_) => None,
             };
             // TODO: set params
-            self.grow(__name__, ContextKind::Instant, vis, tv_cache);
+            let kind = ContextKind::from(def.def_kind());
+            self.grow(__name__, kind, vis, tv_cache);
             let obj = self.eval_const_block(&def.body.block).map_err(|e| {
                 self.pop();
                 e

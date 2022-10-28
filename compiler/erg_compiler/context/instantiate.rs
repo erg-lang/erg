@@ -412,6 +412,13 @@ impl Context {
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_mut(t, None))
             }
+            "Self" => self.rec_get_self_t().ok_or_else(|| {
+                TyCheckErrors::from(TyCheckError::unreachable(
+                    self.cfg.input.clone(),
+                    erg_common::fn_name_full!(),
+                    line!(),
+                ))
+            }),
             other if simple.args.is_empty() => {
                 if let Some(t) = tmp_tv_cache.get_tyvar(other) {
                     return Ok(t.clone());

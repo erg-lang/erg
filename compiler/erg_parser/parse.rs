@@ -2832,7 +2832,7 @@ impl Parser {
     ) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         let sig = self
-            .convert_rhs_to_param(*tasc.expr, true)
+            .convert_rhs_to_param(Expr::TypeAsc(tasc), true)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(LambdaSignature::new(

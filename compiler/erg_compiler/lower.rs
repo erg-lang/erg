@@ -1065,6 +1065,10 @@ impl ASTLowerer {
                     None,
                 ),
             };
+            // assume the class has implemented the trait, regardless of whether the implementation is correct
+            if let Some((trait_, trait_loc)) = &impl_trait {
+                self.register_trait_impl(&class, trait_, *trait_loc)?;
+            }
             if let Some(class_root) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
@@ -1114,7 +1118,6 @@ impl ASTLowerer {
             }
             if let Some((trait_, _)) = &impl_trait {
                 self.check_override(&class, Some(trait_));
-                self.register_trait_impl(&class, trait_);
             } else {
                 self.check_override(&class, None);
             }
@@ -1149,6 +1152,42 @@ impl ASTLowerer {
             __new__,
             hir_methods,
         ))
+    }
+
+    fn register_trait_impl(
+        &mut self,
+        class: &Type,
+        trait_: &Type,
+        trait_loc: Location,
+    ) -> LowerResult<()> {
+        // TODO: polymorphic trait
+        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
+            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
+        } else {
+            self.ctx.trait_impls.insert(
+                trait_.qual_name(),
+                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
+            );
+        }
+        let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(trait_) {
+            trait_ctx.clone()
+        } else {
+            // TODO: maybe parameters are wrong
+            return Err(LowerErrors::from(LowerError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                trait_loc,
+                self.ctx.caused_by(),
+                &trait_.local_name(),
+                None,
+            )));
+        };
+        let (_, class_ctx) = self
+            .ctx
+            .get_mut_nominal_type_ctx(class)
+            .unwrap_or_else(|| todo!("{class} not found"));
+        class_ctx.register_supertrait(trait_.clone(), &trait_ctx);
+        Ok(())
     }
 
     /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
@@ -1224,35 +1263,22 @@ impl ASTLowerer {
         class: &Type,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
-            // assume the class has implemented the trait, regardless of whether the implementation is correct
-            let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(&impl_trait) {
-                trait_ctx.clone()
-            } else {
-                // TODO: maybe parameters are wrong
-                return Err(LowerError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    loc,
-                    self.ctx.caused_by(),
-                    &impl_trait.local_name(),
-                    None,
-                ));
-            };
-            let (_, class_ctx) = self
-                .ctx
-                .get_mut_nominal_type_ctx(class)
-                .unwrap_or_else(|| todo!("{class} not found"));
-            class_ctx.register_supertrait(impl_trait.clone(), &trait_ctx);
             let mut unverified_names = self.ctx.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
-                                for (field, field_typ) in attrs.iter() {
+                                for (field, decl_t) in attrs.iter() {
                                     if let Some((name, vi)) = self.ctx.get_local_kv(&field.symbol) {
+                                        let def_t = &vi.t;
+                                        //    A(<: Add(R)), R -> A.Output
+                                        // => A(<: Int), R -> A.Output
+                                        let replaced_decl_t =
+                                            decl_t.clone().replace(&impl_trait, class);
                                         unverified_names.remove(name);
-                                        if !self.ctx.supertype_of(field_typ, &vi.t) {
+                                        // def_t must be subtype of decl_t
+                                        if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 self.cfg.input.clone(),
                                                 line!() as usize,
@@ -1260,7 +1286,7 @@ impl ASTLowerer {
                                                 self.ctx.caused_by(),
                                                 name.inspect(),
                                                 &impl_trait,
-                                                field_typ,
+                                                decl_t,
                                                 &vi.t,
                                                 None,
                                             ));
@@ -1285,8 +1311,11 @@ impl ASTLowerer {
                             for (decl_name, decl_vi) in ctx.decls.iter() {
                                 if let Some((name, vi)) = self.ctx.get_local_kv(decl_name.inspect())
                                 {
+                                    let def_t = &vi.t;
+                                    let replaced_decl_t =
+                                        decl_vi.t.clone().replace(&impl_trait, class);
                                     unverified_names.remove(name);
-                                    if !self.ctx.supertype_of(&decl_vi.t, &vi.t) {
+                                    if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
                                         self.errs.push(LowerError::trait_member_type_error(
                                             self.cfg.input.clone(),
                                             line!() as usize,
@@ -1349,19 +1378,6 @@ impl ASTLowerer {
             }
         }
         Ok(())
-    }
-
-    fn register_trait_impl(&mut self, class: &Type, trait_: &Type) {
-        let trait_impls = &mut self.ctx.outer.as_mut().unwrap().trait_impls;
-        // TODO: polymorphic trait
-        if let Some(impls) = trait_impls.get_mut(&trait_.qual_name()) {
-            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
-        } else {
-            trait_impls.insert(
-                trait_.qual_name(),
-                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
-            );
-        }
     }
 
     fn check_collision_and_push(&mut self, class: Type) {

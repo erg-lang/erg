@@ -1827,18 +1827,19 @@ impl Context {
         }
     }
 
-    /// FIXME: if trait, returns a freevar
+    // TODO: poly type
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
-            // TODO: poly type
-            let name = self.name.split(&[':', '.']).last().unwrap();
-            // let mono_t = mono(self.path(), Str::rc(name));
-            if let Some((t, _)) = self.rec_get_type(name) {
+            // let name = self.name.split(&[':', '.']).last().unwrap();
+            /*if let Some((t, _)) = self.rec_get_type(name) {
+                log!("{t}");
                 Some(t.clone())
             } else {
+                log!("none");
                 None
-            }
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            }*/
+            Some(mono(self.name.clone()))
+        } else if let Some(outer) = self.get_outer() {
             outer.rec_get_self_t()
         } else {
             None

@@ -175,27 +175,7 @@ impl Context {
             | (Float | Ratio, Ratio)
             | (Float, Float) => (Absolutely, true),
             (Type, ClassType | TraitType) => (Absolutely, true),
-            (Type, Record(rec)) => (
-                Absolutely,
-                rec.iter().all(|(_, attr)| self.supertype_of(&Type, attr)),
-            ),
             (Type::Uninited, _) | (_, Type::Uninited) => panic!("used an uninited type variable"),
-            (Type, Subr(subr)) => (
-                Absolutely,
-                subr.non_default_params
-                    .iter()
-                    .all(|pt| self.supertype_of(&Type, pt.typ()))
-                    && subr
-                        .default_params
-                        .iter()
-                        .all(|pt| self.supertype_of(&Type, pt.typ()))
-                    && subr
-                        .var_params
-                        .as_ref()
-                        .map(|va| self.supertype_of(&Type, va.typ()))
-                        .unwrap_or(true)
-                    && self.supertype_of(&Type, &subr.return_t),
-            ),
             (
                 Type::Mono(n),
                 Subr(SubrType {
@@ -461,6 +441,7 @@ impl Context {
                 }
                 true
             }
+            (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Array" || &name[..] == "Set" =>
             {

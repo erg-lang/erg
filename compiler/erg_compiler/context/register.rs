@@ -582,7 +582,8 @@ impl Context {
                 }
             }
             ast::Signature::Var(sig) if sig.is_const() => {
-                self.grow(__name__, ContextKind::Instant, sig.vis(), None);
+                let kind = ContextKind::from(def.def_kind());
+                self.grow(__name__, kind, sig.vis(), None);
                 let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                     Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                     Err(e) => {

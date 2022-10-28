@@ -2167,6 +2167,79 @@ impl Type {
             other => other.clone(),
         }
     }
+
+    pub fn replace(self, target: &Type, to: &Type) -> Type {
+        if &self == target {
+            return to.clone();
+        }
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.replace(target, to));
+                Self::Refinement(refine)
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).replace(target, to);
+                }
+                Self::Record(rec)
+            }
+            Self::Subr(mut subr) => {
+                for nd in subr.non_default_params.iter_mut() {
+                    *nd.typ_mut() = std::mem::take(nd.typ_mut()).replace(target, to);
+                }
+                if let Some(var) = subr.var_params.as_mut() {
+                    *var.as_mut().typ_mut() =
+                        std::mem::take(var.as_mut().typ_mut()).replace(target, to);
+                }
+                for d in subr.default_params.iter_mut() {
+                    *d.typ_mut() = std::mem::take(d.typ_mut()).replace(target, to);
+                }
+                subr.return_t = Box::new(subr.return_t.replace(target, to));
+                Self::Subr(subr)
+            }
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| t.replace(target, to))
+                    .collect();
+                let return_t = Box::new(return_t.replace(target, to));
+                Self::Callable { param_ts, return_t }
+            }
+            Self::Quantified(quant) => quant.replace(target, to).quantify(),
+            Self::Poly { name, params } => {
+                let params = params
+                    .into_iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.replace(target, to)),
+                        other => other,
+                    })
+                    .collect();
+                Self::Poly { name, params }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.replace(target, to))),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.replace(target, to)),
+                after: after.map(|t| Box::new(t.replace(target, to))),
+            },
+            Self::And(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::And(Box::new(l), Box::new(r))
+            }
+            Self::Or(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::Or(Box::new(l), Box::new(r))
+            }
+            Self::Not(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::Not(Box::new(l), Box::new(r))
+            }
+            other => other,
+        }
+    }
 }
 
 /// バイトコード命令で、in-place型付けをするオブジェクト
