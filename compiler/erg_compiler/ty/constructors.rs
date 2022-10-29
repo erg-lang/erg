@@ -351,8 +351,8 @@ pub fn callable(param_ts: Vec<Type>, return_t: Type) -> Type {
 }
 
 #[inline]
-pub fn mono_q<S: Into<Str>>(name: S) -> Type {
-    Type::MonoQVar(name.into())
+pub fn mono_q<S: Into<Str>>(name: S, constr: Constraint) -> Type {
+    named_free_var(name.into(), free::GENERIC_LEVEL, constr)
 }
 
 #[inline]
@@ -368,14 +368,6 @@ pub fn mono<S: Into<Str>>(name: S) -> Type {
         }
     }
     Type::Mono(name)
-}
-
-#[inline]
-pub fn poly_q<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
-    Type::PolyQVar {
-        name: name.into(),
-        params,
-    }
 }
 
 #[inline]
@@ -416,11 +408,6 @@ pub fn refinement(var: Str, t: Type, preds: Set<Predicate>) -> Type {
     Type::Refinement(RefinementType::new(var, t, preds))
 }
 
-/// quantified((T -> T), T: Type) => |T: Type| T -> T
-pub fn quant(unbound_t: Type, bounds: Set<TyBound>) -> Type {
-    Type::Quantified(QuantifiedType::new(unbound_t, bounds))
-}
-
 pub fn and(lhs: Type, rhs: Type) -> Type {
     Type::And(Box::new(lhs), Box::new(rhs))
 }
@@ -434,24 +421,19 @@ pub fn not(lhs: Type, rhs: Type) -> Type {
 }
 
 #[inline]
-pub fn instance(name: Str, t: Type) -> TyBound {
-    TyBound::instance(name, t)
-}
-
-#[inline]
-pub fn static_instance(name: &'static str, t: Type) -> TyBound {
-    TyBound::static_instance(name, t)
+pub fn instanceof(t: Type) -> Constraint {
+    Constraint::new_type_of(t)
 }
 
 /// Sub <: Sup
 #[inline]
-pub fn subtypeof(sub: Type, sup: Type) -> TyBound {
-    TyBound::sandwiched(Type::Never, sub, sup)
+pub fn subtypeof(sup: Type) -> Constraint {
+    Constraint::new_sandwiched(Type::Never, sup)
 }
 
 #[inline]
-pub fn mono_q_tp<S: Into<Str>>(name: S) -> TyParam {
-    TyParam::mono_q(name)
+pub fn mono_q_tp<S: Into<Str>>(name: S, constr: Constraint) -> TyParam {
+    TyParam::mono_q(name, constr)
 }
 
 #[inline]

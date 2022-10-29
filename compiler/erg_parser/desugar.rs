@@ -11,12 +11,12 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayWithLength, BinOp, Block, Call, DataPack, Def,
-    DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
-    Methods, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet,
-    NormalTuple, ParamPattern, Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength,
-    ShortenedRecord, Signature, SubrSignature, Tuple, TypeBoundSpecs, TypeSpec, UnaryOp, VarName,
-    VarPattern, VarRecordAttr, VarSignature,
+    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
+    ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda,
+    LambdaSignature, Literal, Methods, Module, NonDefaultParamSignature, NormalArray, NormalDict,
+    NormalRecord, NormalSet, NormalTuple, ParamPattern, Params, PosArg, Record, RecordAttrs,
+    Set as astSet, SetWithLength, ShortenedRecord, Signature, SubrSignature, Tuple, TypeBoundSpecs,
+    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -221,10 +221,6 @@ impl Desugarer {
         }
     }
 
-    fn desugar_ubar_lambda(&self, _module: Module) -> Module {
-        todo!()
-    }
-
     /// `fib 0 = 0; fib 1 = 1; fib n = fib(n-1) + fib(n-2)`
     /// -> `fib n = match n, (0 -> 0), (1 -> 1), n -> fib(n-1) + fib(n-2)`
     fn desugar_multiple_pattern_def(&self, mut module: Module) -> Module {
@@ -304,6 +300,7 @@ impl Desugarer {
         (call, return_t_spec)
     }
 
+    // TODO: procedural match
     fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
         let sig = enum_unwrap!(previous.sig, Signature::Subr);
@@ -343,6 +340,12 @@ impl Desugarer {
             t_spec,
         ));
         (buf_name, buf_sig)
+    }
+
+    fn gen_buf_nd_param(&mut self, line: usize) -> (String, ParamPattern) {
+        let buf_name = self.fresh_var_name();
+        let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
+        (buf_name, pat)
     }
 
     /// `[i, j] = [1, 2]` -> `i = 1; j = 2`
@@ -422,6 +425,17 @@ impl Desugarer {
                     }
                     _ => {}
                 },
+                Expr::Def(Def {
+                    sig: Signature::Subr(mut subr),
+                    mut body,
+                }) => {
+                    let non_defaults = subr.params.non_defaults.iter_mut();
+                    for param in non_defaults {
+                        self.desugar_nd_param(param, &mut body);
+                    }
+                    let def = Def::new(Signature::Subr(subr), body);
+                    new.push(Expr::Def(def));
+                }
                 other => {
                     new.push(other);
                 }
@@ -565,6 +579,275 @@ impl Desugarer {
         }
         let attrs = RecordAttrs::new(attrs);
         NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
+    }
+
+    /// ```erg
+    /// f [x, y] =
+    ///     ...
+    /// ```
+    /// ↓
+    /// ```erg
+    /// f %1 =
+    ///    x = %1[0]
+    ///    y = %1[1]
+    ///    ...
+    /// ```
+    /// ```erg
+    /// f [x, [y, z]] =
+    ///     ...
+    /// ```
+    /// ↓
+    /// ```erg
+    /// f %1 =
+    ///    x = %1[0]
+    ///    %2 = %1[1]
+    ///    y = %2[0]
+    ///    z = %2[1]
+    ///    ...
+    /// ```
+    /// ```erg
+    /// f 1, 2 =
+    ///     ...
+    /// ```
+    /// ↓
+    /// ```erg
+    /// f _: {1}, _: {2} = ...
+    /// ```
+    fn desugar_nd_param(&mut self, param: &mut NonDefaultParamSignature, body: &mut DefBody) {
+        let mut insertion_idx = 0;
+        let line = param.ln_begin().unwrap();
+        match &mut param.pat {
+            ParamPattern::VarName(_v) => {}
+            ParamPattern::Lit(l) => {
+                let lit = l.clone();
+                param.pat = ParamPattern::Discard(Token::new(
+                    TokenKind::UBar,
+                    "_",
+                    l.ln_begin().unwrap(),
+                    l.col_begin().unwrap(),
+                ));
+                param.t_spec = Some(TypeSpecWithOp::new(
+                    Token::dummy(),
+                    TypeSpec::enum_t_spec(vec![lit]),
+                ));
+            }
+            ParamPattern::Tuple(tup) => {
+                let (buf_name, buf_param) = self.gen_buf_nd_param(line);
+                let mut tys = vec![];
+                for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
+                    insertion_idx = self.desugar_nested_param_pattern(
+                        body,
+                        elem,
+                        &buf_name,
+                        BufIndex::Tuple(n),
+                        insertion_idx,
+                    );
+                    let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    tys.push(
+                        elem.t_spec
+                            .as_ref()
+                            .map(|ts| ts.t_spec.clone())
+                            .unwrap_or(TypeSpec::Infer(infer))
+                            .clone(),
+                    );
+                }
+                if param.t_spec.is_none() {
+                    param.t_spec = Some(TypeSpecWithOp::new(Token::dummy(), TypeSpec::Tuple(tys)));
+                }
+                param.pat = buf_param;
+            }
+            ParamPattern::Array(arr) => {
+                let (buf_name, buf_param) = self.gen_buf_nd_param(line);
+                for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
+                    insertion_idx = self.desugar_nested_param_pattern(
+                        body,
+                        elem,
+                        &buf_name,
+                        BufIndex::Array(n),
+                        insertion_idx,
+                    );
+                }
+                if param.t_spec.is_none() {
+                    let len = arr.elems.non_defaults.len();
+                    let len = Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0));
+                    let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    let t_spec = ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len));
+                    param.t_spec =
+                        Some(TypeSpecWithOp::new(Token::dummy(), TypeSpec::Array(t_spec)));
+                }
+                param.pat = buf_param;
+            }
+            /*
+            VarPattern::Record(rec) => {
+                let (buf_name, buf_sig) =
+                    self.gen_buf_name_and_sig(v.ln_begin().unwrap(), v.t_spec);
+                let buf_def = Def::new(buf_sig, body);
+                new.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        &mut new,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs),
+                    );
+                }
+            }
+            VarPattern::DataPack(pack) => {
+                let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
+                    v.ln_begin().unwrap(),
+                    Some(pack.class.clone()), // TODO: これだとvの型指定の意味がなくなる
+                );
+                let buf_def = Def::new(buf_sig, body);
+                new.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        &mut new,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs),
+                    );
+                }
+            }*/
+            _ => {}
+        }
+    }
+
+    fn desugar_nested_param_pattern(
+        &mut self,
+        new_sub_body: &mut DefBody,
+        sig: &mut NonDefaultParamSignature,
+        buf_name: &str,
+        buf_index: BufIndex,
+        mut insertion_idx: usize,
+    ) -> usize {
+        let obj = Expr::local(buf_name, sig.ln_begin().unwrap(), sig.col_begin().unwrap());
+        let acc = match buf_index {
+            BufIndex::Tuple(n) => obj.tuple_attr(Literal::nat(n, sig.ln_begin().unwrap())),
+            BufIndex::Array(n) => {
+                let r_brace = Token::new(
+                    TokenKind::RBrace,
+                    "]",
+                    sig.ln_begin().unwrap(),
+                    sig.col_begin().unwrap(),
+                );
+                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
+            }
+            BufIndex::Record(attr) => obj.attr(attr.clone()),
+        };
+        let id = DefId(get_hash(&(&acc, buf_name)));
+        let block = Block::new(vec![Expr::Accessor(acc)]);
+        let op = Token::from_str(TokenKind::Equal, "=");
+        let body = DefBody::new(op, block, id);
+        let line = sig.ln_begin().unwrap();
+        match &mut sig.pat {
+            ParamPattern::Tuple(tup) => {
+                let (buf_name, buf_sig) = self.gen_buf_nd_param(line);
+                new_sub_body.block.insert(
+                    insertion_idx,
+                    Expr::Def(Def::new(
+                        Signature::Var(VarSignature::new(
+                            VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
+                            sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                        )),
+                        body,
+                    )),
+                );
+                insertion_idx += 1;
+                let mut tys = vec![];
+                for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
+                    insertion_idx = self.desugar_nested_param_pattern(
+                        new_sub_body,
+                        elem,
+                        &buf_name,
+                        BufIndex::Tuple(n),
+                        insertion_idx,
+                    );
+                    let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    tys.push(
+                        elem.t_spec
+                            .as_ref()
+                            .map(|ts| ts.t_spec.clone())
+                            .unwrap_or(TypeSpec::Infer(infer))
+                            .clone(),
+                    );
+                }
+                if sig.t_spec.is_none() {
+                    sig.t_spec = Some(TypeSpecWithOp::new(Token::dummy(), TypeSpec::Tuple(tys)));
+                }
+                sig.pat = buf_sig;
+                insertion_idx
+            }
+            ParamPattern::Array(arr) => {
+                let (buf_name, buf_sig) = self.gen_buf_nd_param(line);
+                new_sub_body.block.insert(
+                    insertion_idx,
+                    Expr::Def(Def::new(
+                        Signature::Var(VarSignature::new(
+                            VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
+                            sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                        )),
+                        body,
+                    )),
+                );
+                insertion_idx += 1;
+                for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
+                    insertion_idx = self.desugar_nested_param_pattern(
+                        new_sub_body,
+                        elem,
+                        &buf_name,
+                        BufIndex::Array(n),
+                        insertion_idx,
+                    );
+                }
+                if sig.t_spec.is_none() {
+                    let len = arr.elems.non_defaults.len();
+                    let len = Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0));
+                    let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    let t_spec = ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len));
+                    sig.t_spec = Some(TypeSpecWithOp::new(Token::dummy(), TypeSpec::Array(t_spec)));
+                }
+                sig.pat = buf_sig;
+                insertion_idx
+            }
+            /*VarPattern::Record(rec) => {
+                let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), None);
+                let buf_def = Def::new(buf_sig, body);
+                new_module.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        new_module,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs),
+                    );
+                }
+            }
+            VarPattern::DataPack(pack) => {
+                let (buf_name, buf_sig) =
+                    self.gen_buf_name_and_sig(sig.ln_begin().unwrap(), Some(pack.class.clone()));
+                let buf_def = Def::new(buf_sig, body);
+                new_module.push(Expr::Def(buf_def));
+                for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
+                    self.desugar_nested_var_pattern(
+                        new_module,
+                        rhs,
+                        &buf_name,
+                        BufIndex::Record(lhs),
+                    );
+                }
+            }*/
+            ParamPattern::VarName(name) => {
+                let v = VarSignature::new(
+                    VarPattern::Ident(Identifier::new(None, name.clone())),
+                    sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                );
+                let def = Def::new(Signature::Var(v), body);
+                new_sub_body.block.insert(insertion_idx, Expr::Def(def));
+                insertion_idx += 1;
+                insertion_idx
+            }
+            _ => insertion_idx,
+        }
     }
 
     fn desugar_self(mut module: Module) -> Module {

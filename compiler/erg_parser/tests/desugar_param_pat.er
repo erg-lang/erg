@@ -1,0 +1,13 @@
+sum2 [x, y]: [Nat; 2] =
+    x + y
+
+print! sum2 [1, 2]
+
+s = "a" + ""
+
+n = match s:
+    "a" -> 1
+    "b" -> 2
+    _ -> unreachable()
+
+print! n

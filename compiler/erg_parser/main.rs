@@ -7,6 +7,7 @@ use std::thread;
 use erg_common::config::ErgConfig;
 use erg_common::traits::Runnable;
 
+use erg_parser::build_ast::ASTBuilder;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
@@ -16,8 +17,11 @@ fn run() {
         "lex" => {
             LexerRunner::run(cfg);
         }
-        "parse" | "exec" => {
+        "parse" => {
             ParserRunner::run(cfg);
+        }
+        "desugar" | "exec" => {
+            ASTBuilder::run(cfg);
         }
         other => {
             println!("invalid mode: {other}");

@@ -65,7 +65,7 @@
 - [裝飾器](./29_decorator.md)
 - [錯誤處理](./30_error_handling.md)
 - [管道運算符](./31_pipeline.md)
-- [與 Python 集成](./32_integration_with_python.md)
+- [與 Python 集成](./32_integration_with_Python.md)
 - [包系統](./33_package_system.md)
 - [生成器](./34_generator.md)
 - [索引](./indexes.md)

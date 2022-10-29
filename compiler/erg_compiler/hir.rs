@@ -3,6 +3,8 @@ use std::fmt;
 
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
+#[allow(unused_imports)]
+use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
@@ -19,7 +21,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
-use crate::ty::value::{TypeKind, ValueObj};
+use crate::ty::value::{GenTypeObj, ValueObj};
 use crate::ty::{HasType, Type};
 
 use crate::context::eval::type_from_token_kind;
@@ -547,10 +549,22 @@ impl Accessor {
 
     pub fn local_name(&self) -> Option<&str> {
         match self {
-            Self::Ident(ident) => ident.qual_name.as_ref().map(|s| {
-                let mut seps = s.split_with(&[".", "::"]);
-                seps.remove(seps.len() - 1)
-            }),
+            Self::Ident(ident) => ident
+                .qual_name
+                .as_ref()
+                .map(|s| {
+                    let mut seps = s.split_with(&[".", "::"]);
+                    seps.remove(seps.len() - 1)
+                })
+                .or_else(|| {
+                    let mut raw_parts = ident.name.inspect().split_with(&["'"]);
+                    // "'aaa'".split_with(&["'"]) == ["", "aaa", ""]
+                    if raw_parts.len() == 3 || raw_parts.len() == 4 {
+                        Some(raw_parts.remove(1))
+                    } else {
+                        Some(ident.name.inspect())
+                    }
+                }),
             _ => None,
         }
     }
@@ -1653,7 +1667,7 @@ impl Methods {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassDef {
-    pub kind: TypeKind,
+    pub obj: GenTypeObj,
     pub sig: Signature,
     pub require_or_sup: Box<Expr>,
     /// The type of `new` that is automatically defined if not defined
@@ -1694,7 +1708,7 @@ impl HasType for ClassDef {
 
 impl ClassDef {
     pub fn new(
-        kind: TypeKind,
+        obj: GenTypeObj,
         sig: Signature,
         require_or_sup: Expr,
         need_to_gen_new: bool,
@@ -1702,7 +1716,7 @@ impl ClassDef {
         methods: Block,
     ) -> Self {
         Self {
-            kind,
+            obj,
             sig,
             require_or_sup: Box::new(require_or_sup),
             need_to_gen_new,
@@ -1810,7 +1824,6 @@ pub enum Expr {
     UnaryOp(UnaryOp),
     Call(Call),
     Lambda(Lambda),
-    Decl(Decl),
     Def(Def),
     ClassDef(ClassDef),
     AttrDef(AttrDef),
@@ -1820,10 +1833,10 @@ pub enum Expr {
     Import(Accessor),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Decl, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 
 impl Default for Expr {
     fn default() -> Self {

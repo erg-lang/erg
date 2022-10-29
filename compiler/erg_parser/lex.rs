@@ -795,6 +795,45 @@ impl Lexer /*<'a>*/ {
         ))
     }
 
+    fn lex_raw_ident(&mut self) -> LexResult<Token> {
+        let mut s = "\'".to_string();
+        while let Some(c) = self.peek_cur_ch() {
+            match c {
+                '\n' => {
+                    let token = self.emit_token(Illegal, &s);
+                    return Err(LexError::simple_syntax_error(line!() as usize, token.loc()));
+                }
+                '\'' => {
+                    s.push(self.consume().unwrap());
+                    if self.peek_cur_ch() == Some('!') {
+                        s.push(self.consume().unwrap());
+                    }
+                    let token = self.emit_token(Symbol, &s);
+                    return Ok(token);
+                }
+                _ => {
+                    let c = self.consume().unwrap();
+                    s.push(c);
+                    if Self::is_bidi(c) {
+                        return Err(self._invalid_unicode_character(&s));
+                    }
+                }
+            }
+        }
+        let token = self.emit_token(Illegal, &s);
+        Err(LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "raw識別子が'によって閉じられていません",
+                "simplified_chinese" => "raw标识符没有被'关闭",
+                "traditional_chinese" => "raw標誌符沒有被'關閉",
+                "english" => "raw identifier is not closed by '",
+            ),
+            None,
+        ))
+    }
+
     // for single strings and multi-line strings
     fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
         let token = self.emit_token(Illegal, s);
@@ -1117,7 +1156,34 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
             }
             // TODO:
-            Some('\'') => self.deny_feature("'", "raw identifier"),
+            Some('\'') => {
+                let c = self.peek_cur_ch();
+                match c {
+                    None => {
+                        let token = self.emit_token(Illegal, "'");
+                        Some(Err(LexError::syntax_error(
+                            0,
+                            token.loc(),
+                            switch_lang!(
+                                "japanese" => "raw識別子が'によって閉じられていません",
+                                "simplified_chinese" => "raw識別子没被'关闭",
+                                "traditional_chinese" => "raw識別字沒被'關閉",
+                                "english" => "raw identifier is not ended with '",
+                            ),
+                            None,
+                        )))
+                    }
+                    Some(c) => {
+                        if c == '\'' {
+                            self.consume(); // consume second '\''
+                            let token = self.emit_token(Illegal, "\"\"");
+                            Some(Err(LexError::simple_syntax_error(0, token.loc())))
+                        } else {
+                            Some(self.lex_raw_ident())
+                        }
+                    }
+                }
+            }
             // Symbolized operators (シンボル化された演算子)
             // e.g. `-`(l, r) = l + (-r)
             Some('`') => {

@@ -13,6 +13,9 @@ use super::Type;
 pub type Level = usize;
 pub type Id = usize;
 
+// HACK: see doc/compiler/inference.md for details
+pub const GENERIC_LEVEL: usize = usize::MAX;
+
 thread_local! {
     static UNBOUND_ID: Shared<usize> = Shared::new(0);
     static REFINEMENT_VAR_ID: Shared<usize> = Shared::new(0);
@@ -36,42 +39,22 @@ pub fn fresh_param_name() -> String {
 
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
-    fn update_level(&self, level: Level);
-    fn lift(&self);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Cyclicity {
-    /// ?T :> F(?T)
-    Sub,
-    /// ?T <: F(?T)
-    Super,
-    /// ?T <: F(?T), :> G(?T)
-    Both,
-    Not,
-}
-
-use Cyclicity::*;
-
-impl Cyclicity {
-    pub const fn is_cyclic(&self) -> bool {
-        matches!(self, Sub | Super | Both)
-    }
-
-    pub const fn is_super_cyclic(&self) -> bool {
-        matches!(self, Super | Both)
-    }
-
-    pub const fn combine(self, other: Cyclicity) -> Cyclicity {
-        match (self, other) {
-            (Sub, Sub) => Sub,
-            (Super, Super) => Super,
-            (Both, Both) => Both,
-            (Not, Not) => Not,
-            (Not, _) => other,
-            (_, Not) => self,
-            (Sub, _) | (Super, _) | (Both, _) => Both,
+    fn set_level(&self, lev: Level);
+    fn lower(&self, level: Level) {
+        if self.level() < Some(level) {
+            self.set_level(level);
         }
+    }
+    fn lift(&self) {
+        if let Some(lev) = self.level() {
+            self.set_level(lev.saturating_add(1));
+        }
+    }
+    fn generalize(&self) {
+        self.set_level(GENERIC_LEVEL);
+    }
+    fn is_generalized(&self) -> bool {
+        self.level() == Some(GENERIC_LEVEL)
     }
 }
 
@@ -85,7 +68,6 @@ pub enum Constraint {
     Sandwiched {
         sub: Type,
         sup: Type,
-        cyclicity: Cyclicity,
     },
     // : Int, ...
     TypeOf(Type),
@@ -104,11 +86,7 @@ impl LimitedDisplay for Constraint {
             return write!(f, "...");
         }
         match self {
-            Self::Sandwiched {
-                sub,
-                sup,
-                cyclicity,
-            } => match (sub == &Type::Never, sup == &Type::Obj) {
+            Self::Sandwiched { sub, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
                 (true, true) => {
                     write!(f, ": Type")?;
                     if cfg!(feature = "debug") {
@@ -119,17 +97,11 @@ impl LimitedDisplay for Constraint {
                 (true, false) => {
                     write!(f, "<: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    if cfg!(feature = "debug") {
-                        write!(f, "(cyclicity: {cyclicity:?})")?;
-                    }
                     Ok(())
                 }
                 (false, true) => {
                     write!(f, ":> ")?;
                     sub.limited_fmt(f, limit - 1)?;
-                    if cfg!(feature = "debug") {
-                        write!(f, "(cyclicity: {cyclicity:?})")?;
-                    }
                     Ok(())
                 }
                 (false, false) => {
@@ -137,9 +109,6 @@ impl LimitedDisplay for Constraint {
                     sub.limited_fmt(f, limit - 1)?;
                     write!(f, ", <: ")?;
                     sup.limited_fmt(f, limit - 1)?;
-                    if cfg!(feature = "debug") {
-                        write!(f, "(cyclicity: {cyclicity:?})")?;
-                    }
                     Ok(())
                 }
             },
@@ -153,39 +122,28 @@ impl LimitedDisplay for Constraint {
 }
 
 impl Constraint {
-    pub const fn new_sandwiched(sub: Type, sup: Type, cyclicity: Cyclicity) -> Self {
-        Self::Sandwiched {
-            sub,
-            sup,
-            cyclicity,
-        }
+    pub const fn new_sandwiched(sub: Type, sup: Type) -> Self {
+        Self::Sandwiched { sub, sup }
     }
 
     pub fn new_type_of(t: Type) -> Self {
         if t == Type::Type {
-            Self::new_sandwiched(Type::Never, Type::Obj, Not)
+            Self::new_sandwiched(Type::Never, Type::Obj)
         } else {
             Self::TypeOf(t)
         }
     }
 
-    pub const fn new_subtype_of(sup: Type, cyclicity: Cyclicity) -> Self {
-        Self::new_sandwiched(Type::Never, sup, cyclicity)
+    pub const fn new_subtype_of(sup: Type) -> Self {
+        Self::new_sandwiched(Type::Never, sup)
     }
 
-    pub const fn new_supertype_of(sub: Type, cyclicity: Cyclicity) -> Self {
-        Self::new_sandwiched(sub, Type::Obj, cyclicity)
+    pub const fn new_supertype_of(sub: Type) -> Self {
+        Self::new_sandwiched(sub, Type::Obj)
     }
 
     pub const fn is_uninited(&self) -> bool {
         matches!(self, Self::Uninited)
-    }
-
-    pub const fn cyclicicty(&self) -> Cyclicity {
-        match self {
-            Self::Sandwiched { cyclicity, .. } => *cyclicity,
-            _ => Not,
-        }
     }
 
     pub fn lift(&self) {
@@ -238,10 +196,30 @@ impl Constraint {
             _ => None,
         }
     }
+}
 
-    pub fn update_cyclicity(&mut self, new_cyclicity: Cyclicity) {
-        if let Self::Sandwiched { cyclicity, .. } = self {
-            *cyclicity = cyclicity.combine(new_cyclicity);
+pub trait CanbeFree {
+    fn unbound_name(&self) -> Option<Str>;
+    fn constraint(&self) -> Option<Constraint>;
+    fn update_constraint(&self, constraint: Constraint);
+}
+
+impl<T: CanbeFree> Free<T> {
+    pub fn unbound_name(&self) -> Option<Str> {
+        match &*self.borrow() {
+            FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
+            FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
+        }
+    }
+
+    pub fn constraint(&self) -> Option<Constraint> {
+        match &*self.borrow() {
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                Some(constraint.clone())
+            }
+            FreeKind::Linked(t) => t.constraint(),
+            _ => None,
         }
     }
 }
@@ -291,11 +269,17 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
                 lev,
                 constraint,
             } => {
-                write!(f, "?{name}(")?;
-                constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")")?;
-                if cfg!(feature = "debug") {
-                    write!(f, "[{lev}]")?;
+                if *lev == GENERIC_LEVEL {
+                    write!(f, "{name}(")?;
+                    constraint.limited_fmt(f, limit - 1)?;
+                    write!(f, ")")?;
+                } else {
+                    write!(f, "?{name}(")?;
+                    constraint.limited_fmt(f, limit - 1)?;
+                    write!(f, ")")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "[{lev}]")?;
+                    }
                 }
                 Ok(())
             }
@@ -304,11 +288,17 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
                 lev,
                 constraint,
             } => {
-                write!(f, "?{id}(")?;
-                constraint.limited_fmt(f, limit - 1)?;
-                write!(f, ")")?;
-                if cfg!(feature = "debug") {
-                    write!(f, "[{lev}]")?;
+                if *lev == GENERIC_LEVEL {
+                    write!(f, "%{id}(")?;
+                    constraint.limited_fmt(f, limit - 1)?;
+                    write!(f, ")")?;
+                } else {
+                    write!(f, "?{id}(")?;
+                    constraint.limited_fmt(f, limit - 1)?;
+                    write!(f, ")")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "[{lev}]")?;
+                    }
                 }
                 Ok(())
             }
@@ -341,15 +331,6 @@ impl<T> FreeKind<T> {
             name,
             lev,
             constraint,
-        }
-    }
-
-    pub const fn constraint(&self) -> Option<&Constraint> {
-        match self {
-            Self::Unbound { constraint, .. } | Self::NamedUnbound { constraint, .. } => {
-                Some(constraint)
-            }
-            _ => None,
         }
     }
 
@@ -394,6 +375,9 @@ impl<T> Free<T> {
     pub fn as_ptr(&self) -> *mut FreeKind<T> {
         self.0.as_ptr()
     }
+    pub fn forced_as_ref(&self) -> &FreeKind<T> {
+        unsafe { self.as_ptr().as_ref() }.unwrap()
+    }
     pub fn force_replace(&self, new: FreeKind<T>) {
         // prevent linking to self
         if addr_eq!(*self.borrow(), new) {
@@ -417,7 +401,31 @@ impl<T: Clone> Free<T> {
     }
 }
 
-impl<T: Clone + HasLevel> Free<T> {
+impl<T: HasLevel> HasLevel for Free<T> {
+    fn set_level(&self, level: Level) {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
+            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
+                if addr_eq!(*lev, level) {
+                    return;
+                }
+                *lev = level;
+            }
+            FreeKind::Linked(t) => {
+                t.set_level(level);
+            }
+            _ => {}
+        }
+    }
+
+    fn level(&self) -> Option<Level> {
+        match &*self.borrow() {
+            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
+        }
+    }
+}
+
+impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
         Self(Shared::new(f))
     }
@@ -505,66 +513,7 @@ impl<T: Clone + HasLevel> Free<T> {
                 let prev = *previous.clone();
                 self.force_replace(prev);
             }
-            _ => panic!("cannot undo"),
-        }
-    }
-
-    pub fn update_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } if level < *lev => {
-                if addr_eq!(*lev, level) {
-                    return;
-                }
-                *lev = level;
-            }
-            FreeKind::Linked(t) => {
-                t.update_level(level);
-            }
-            _ => {}
-        }
-    }
-
-    pub fn lift(&self) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound {
-                lev, constraint, ..
-            }
-            | FreeKind::NamedUnbound {
-                lev, constraint, ..
-            } => {
-                *lev += 1;
-                constraint.lift();
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.lift();
-            }
-        }
-    }
-
-    pub fn level(&self) -> Option<Level> {
-        match &*self.borrow() {
-            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
-        }
-    }
-
-    pub fn update_constraint(&self, new_constraint: Constraint) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
-                if addr_eq!(*constraint, new_constraint) {
-                    return;
-                }
-                *constraint = new_constraint;
-            }
-            _ => {}
-        }
-    }
-
-    pub fn get_unbound_name(&self) -> Option<Str> {
-        match self.clone_inner() {
-            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
-            FreeKind::Unbound { .. } => None,
-            FreeKind::NamedUnbound { name, .. } => Some(name),
+            other => panic!("cannot undo: {other}"),
         }
     }
 
@@ -591,6 +540,13 @@ impl<T: Clone + HasLevel> Free<T> {
         }
     }
 
+    pub fn detach(&self) -> Self {
+        match self.clone().unwrap_unbound() {
+            (Some(name), lev, constraint) => Self::new_named_unbound(name, lev, constraint),
+            (None, lev, constraint) => Self::new_unbound(lev, constraint),
+        }
+    }
+
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
     pub fn crack(&self) -> Ref<'_, T> {
@@ -611,21 +567,33 @@ impl<T: Clone + HasLevel> Free<T> {
         })
     }
 
+    pub fn is_linked(&self) -> bool {
+        matches!(
+            &*self.borrow(),
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
+        )
+    }
+
+    pub fn is_undoable_linked(&self) -> bool {
+        matches!(&*self.borrow(), FreeKind::UndoableLinked { .. })
+    }
+}
+
+impl<T: CanbeFree> Free<T> {
     pub fn get_type(&self) -> Option<Type> {
-        self.borrow()
-            .constraint()
-            .and_then(|c| c.get_type().cloned())
+        self.constraint().and_then(|c| c.get_type().cloned())
     }
 
     pub fn get_sup(&self) -> Option<Type> {
-        self.borrow()
-            .constraint()
-            .and_then(|c| c.get_super().cloned())
+        self.constraint().and_then(|c| c.get_super().cloned())
     }
 
-    pub fn get_bound_types(&self) -> Option<(Type, Type)> {
-        self.borrow()
-            .constraint()
+    pub fn get_sub(&self) -> Option<Type> {
+        self.constraint().and_then(|c| c.get_sub().cloned())
+    }
+
+    pub fn get_subsup(&self) -> Option<(Type, Type)> {
+        self.constraint()
             .and_then(|c| c.get_sub_sup().map(|(sub, sup)| (sub.clone(), sup.clone())))
     }
 
@@ -636,55 +604,32 @@ impl<T: Clone + HasLevel> Free<T> {
         )
     }
 
-    pub fn cyclicity(&self) -> Cyclicity {
-        match self.clone_inner() {
-            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => Cyclicity::Not, // REVIEW: is this correct?
-            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
-                constraint.cyclicicty()
-            }
-        }
-    }
-
     pub fn constraint_is_typeof(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_type().is_some()
-        )
+        self.constraint()
+            .map(|c| c.get_type().is_some())
+            .unwrap_or(false)
     }
 
     pub fn constraint_is_sandwiched(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Unbound { constraint, .. }
-            | FreeKind::NamedUnbound { constraint, .. } if constraint.get_sub_sup().is_some()
-        )
+        self.constraint()
+            .map(|c| c.get_sub_sup().is_some())
+            .unwrap_or(false)
     }
 
-    pub fn is_linked(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
-        )
+    pub fn constraint_is_uninited(&self) -> bool {
+        self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
 
-    pub fn unbound_name(&self) -> Option<Str> {
-        match &*self.borrow() {
-            FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
-            FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
-            _ => None,
-        }
-    }
-}
-
-impl Free<Type> {
-    pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
+    pub fn update_constraint(&self, new_constraint: Constraint) {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
-                constraint.update_cyclicity(new_cyclicity);
+                if addr_eq!(*constraint, new_constraint) {
+                    return;
+                }
+                *constraint = new_constraint;
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.update_cyclicity(new_cyclicity)
+                t.update_constraint(new_constraint);
             }
         }
     }

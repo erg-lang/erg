@@ -27,52 +27,217 @@ use super::{ConstSubr, HasType, Predicate, Type};
 pub type EvalValueError = ErrorCore;
 pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TypeKind {
-    Class,
-    Subclass,
-    Trait,
-    Subtrait,
-    StructuralTrait,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ClassTypeObj {
+    pub t: Type,
+    pub require: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
 }
 
-/// Class
+impl ClassTypeObj {
+    pub fn new(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+        Self {
+            t,
+            require: Box::new(require),
+            impls: impls.map(Box::new),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct GenTypeObj {
-    pub kind: TypeKind,
-    pub t: Type, // andやorが入る可能性あり
-    pub require_or_sup: Box<TypeObj>,
+pub struct InheritedTypeObj {
+    pub t: Type,
+    pub sup: Box<TypeObj>,
     pub impls: Option<Box<TypeObj>>,
     pub additional: Option<Box<TypeObj>>,
 }
 
-impl fmt::Display for GenTypeObj {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<{:?} {}>", self.kind, self.t)
-    }
-}
-
-impl GenTypeObj {
-    pub fn new(
-        kind: TypeKind,
-        t: Type,
-        require_or_sup: TypeObj,
-        impls: Option<TypeObj>,
-        additional: Option<TypeObj>,
-    ) -> Self {
+impl InheritedTypeObj {
+    pub fn new(t: Type, sup: TypeObj, impls: Option<TypeObj>, additional: Option<TypeObj>) -> Self {
         Self {
-            kind,
             t,
-            require_or_sup: Box::new(require_or_sup),
+            sup: Box::new(sup),
             impls: impls.map(Box::new),
             additional: additional.map(Box::new),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TraitTypeObj {
+    pub t: Type,
+    pub require: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+}
+
+impl TraitTypeObj {
+    pub fn new(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+        Self {
+            t,
+            require: Box::new(require),
+            impls: impls.map(Box::new),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SubsumedTypeObj {
+    pub t: Type,
+    pub sup: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+    pub additional: Option<Box<TypeObj>>,
+}
+
+impl SubsumedTypeObj {
+    pub fn new(t: Type, sup: TypeObj, impls: Option<TypeObj>, additional: Option<TypeObj>) -> Self {
+        Self {
+            t,
+            sup: Box::new(sup),
+            impls: impls.map(Box::new),
+            additional: additional.map(Box::new),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct UnionTypeObj {
+    pub t: Type,
+    pub lhs: Box<TypeObj>,
+    pub rhs: Box<TypeObj>,
+}
+
+impl UnionTypeObj {
+    pub fn new(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        Self {
+            t,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GenTypeObj {
+    Class(ClassTypeObj),
+    Subclass(InheritedTypeObj),
+    Trait(TraitTypeObj),
+    Subtrait(SubsumedTypeObj),
+    StructuralTrait(TraitTypeObj),
+    Union(UnionTypeObj),
+}
+
+impl fmt::Display for GenTypeObj {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{}>", self.typ())
+    }
+}
+
+impl GenTypeObj {
+    pub fn class(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+        GenTypeObj::Class(ClassTypeObj::new(t, require, impls))
+    }
+
+    pub fn inherited(
+        t: Type,
+        sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        GenTypeObj::Subclass(InheritedTypeObj::new(t, sup, impls, additional))
+    }
+
+    pub fn trait_(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+        GenTypeObj::Trait(TraitTypeObj::new(t, require, impls))
+    }
+
+    pub fn subsumed(
+        t: Type,
+        sup: TypeObj,
+        impls: Option<TypeObj>,
+        additional: Option<TypeObj>,
+    ) -> Self {
+        GenTypeObj::Subtrait(SubsumedTypeObj::new(t, sup, impls, additional))
+    }
+
+    pub fn union(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        GenTypeObj::Union(UnionTypeObj::new(t, lhs, rhs))
+    }
+
+    pub fn require_or_sup(&self) -> Option<&TypeObj> {
+        match self {
+            Self::Class(class) => Some(class.require.as_ref()),
+            Self::Subclass(subclass) => Some(subclass.sup.as_ref()),
+            Self::Trait(trait_) => Some(trait_.require.as_ref()),
+            Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),
+            Self::StructuralTrait(trait_) => Some(trait_.require.as_ref()),
+            _ => None,
+        }
+    }
+
+    pub fn impls(&self) -> Option<&TypeObj> {
+        match self {
+            Self::Class(class) => class.impls.as_ref().map(|x| x.as_ref()),
+            Self::Subclass(subclass) => subclass.impls.as_ref().map(|x| x.as_ref()),
+            Self::Subtrait(subtrait) => subtrait.impls.as_ref().map(|x| x.as_ref()),
+            _ => None,
+        }
+    }
+
+    pub fn impls_mut(&mut self) -> Option<&mut Option<Box<TypeObj>>> {
+        match self {
+            Self::Class(class) => Some(&mut class.impls),
+            Self::Subclass(subclass) => Some(&mut subclass.impls),
+            Self::Subtrait(subtrait) => Some(&mut subtrait.impls),
+            _ => None,
+        }
+    }
+
+    pub fn additional(&self) -> Option<&TypeObj> {
+        match self {
+            Self::Subclass(subclass) => subclass.additional.as_ref().map(|x| x.as_ref()),
+            Self::Subtrait(subtrait) => subtrait.additional.as_ref().map(|x| x.as_ref()),
+            _ => None,
+        }
+    }
 
     pub fn meta_type(&self) -> Type {
-        match self.kind {
-            TypeKind::Class | TypeKind::Subclass => Type::ClassType,
-            TypeKind::Trait | TypeKind::Subtrait | TypeKind::StructuralTrait => Type::TraitType,
+        match self {
+            Self::Class(_) | Self::Subclass(_) => Type::ClassType,
+            Self::Trait(_) | Self::Subtrait(_) | Self::StructuralTrait(_) => Type::TraitType,
+            _ => Type::Type,
+        }
+    }
+
+    pub fn typ(&self) -> &Type {
+        match self {
+            Self::Class(class) => &class.t,
+            Self::Subclass(subclass) => &subclass.t,
+            Self::Trait(trait_) => &trait_.t,
+            Self::Subtrait(subtrait) => &subtrait.t,
+            Self::StructuralTrait(trait_) => &trait_.t,
+            Self::Union(union_) => &union_.t,
+        }
+    }
+
+    pub fn typ_mut(&mut self) -> &mut Type {
+        match self {
+            Self::Class(class) => &mut class.t,
+            Self::Subclass(subclass) => &mut subclass.t,
+            Self::Trait(trait_) => &mut trait_.t,
+            Self::Subtrait(subtrait) => &mut subtrait.t,
+            Self::StructuralTrait(trait_) => &mut trait_.t,
+            Self::Union(union_) => &mut union_.t,
+        }
+    }
+
+    pub fn into_typ(self) -> Type {
+        match self {
+            Self::Class(class) => class.t,
+            Self::Subclass(subclass) => subclass.t,
+            Self::Trait(trait_) => trait_.t,
+            Self::Subtrait(subtrait) => subtrait.t,
+            Self::StructuralTrait(trait_) => trait_.t,
+            Self::Union(union_) => union_.t,
         }
     }
 }
@@ -86,31 +251,31 @@ pub enum TypeObj {
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeObj::Builtin(t) => write!(f, "{t}"),
-            TypeObj::Generated(t) => write!(f, "{t}"),
+            TypeObj::Builtin(t) => write!(f, "<type {t}>"),
+            TypeObj::Generated(t) => write!(f, "<user type {t}>"),
         }
     }
 }
 
 impl TypeObj {
-    pub const fn typ(&self) -> &Type {
+    pub fn typ(&self) -> &Type {
         match self {
             TypeObj::Builtin(t) => t,
-            TypeObj::Generated(t) => &t.t,
+            TypeObj::Generated(t) => t.typ(),
         }
     }
 
     pub fn into_typ(self) -> Type {
         match self {
             TypeObj::Builtin(t) => t,
-            TypeObj::Generated(t) => t.t,
+            TypeObj::Generated(t) => t.into_typ(),
         }
     }
 
     pub fn contains_intersec(&self, other: &Type) -> bool {
         match self {
             TypeObj::Builtin(t) => t.contains_intersec(other),
-            TypeObj::Generated(t) => t.t.contains_intersec(other),
+            TypeObj::Generated(t) => t.typ().contains_intersec(other),
         }
     }
 }
@@ -129,6 +294,10 @@ pub enum ValueObj {
     Dict(Dict<ValueObj, ValueObj>),
     Tuple(Rc<[ValueObj]>),
     Record(Dict<Field, ValueObj>),
+    DataClass {
+        name: Str,
+        fields: Dict<Field, ValueObj>,
+    },
     Code(Box<CodeObj>),
     Subr(ConstSubr),
     Type(TypeObj),
@@ -199,6 +368,16 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
+            Self::DataClass { name, fields } => {
+                write!(f, "{name} {{")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Subr(subr) => write!(f, "{subr}"),
             Self::Type(t) => write!(f, "{t}"),
             Self::None => write!(f, "None"),
@@ -206,7 +385,7 @@ impl fmt::Debug for ValueObj {
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
-            Self::Mut(v) => write!(f, "!{:?}", v.borrow()),
+            Self::Mut(v) => write!(f, "<mut {}>", v.borrow()),
             Self::Illegal => write!(f, "<illegal>"),
         }
     }
@@ -247,6 +426,10 @@ impl Hash for ValueObj {
             Self::Set(st) => st.hash(state),
             Self::Code(code) => code.hash(state),
             Self::Record(rec) => rec.hash(state),
+            Self::DataClass { name, fields } => {
+                name.hash(state);
+                fields.hash(state);
+            }
             Self::Subr(subr) => subr.hash(state),
             Self::Type(t) => t.hash(state),
             Self::None => {
@@ -356,6 +539,33 @@ impl TryFrom<&ValueObj> for f64 {
     }
 }
 
+impl TryFrom<ValueObj> for Type {
+    type Error = ();
+    fn try_from(val: ValueObj) -> Result<Type, ()> {
+        match val {
+            ValueObj::Type(t) => match t {
+                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Generated(gen) => Ok(gen.into_typ()),
+            },
+            ValueObj::Mut(v) => Type::try_from(v.borrow().clone()).map_err(|_| ()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a ValueObj> for &'a Type {
+    type Error = ();
+    fn try_from(val: &'a ValueObj) -> Result<Self, ()> {
+        match val {
+            ValueObj::Type(t) => match t {
+                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Generated(gen) => Ok(gen.typ()),
+            },
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasType for ValueObj {
     fn ref_t(&self) -> &Type {
         panic!("cannot get reference of the const")
@@ -383,20 +593,8 @@ impl ValueObj {
         ValueObj::Type(TypeObj::Builtin(t))
     }
 
-    pub fn gen_t(
-        kind: TypeKind,
-        t: Type,
-        require_or_sup: TypeObj,
-        impls: Option<TypeObj>,
-        additional: Option<TypeObj>,
-    ) -> Self {
-        ValueObj::Type(TypeObj::Generated(GenTypeObj::new(
-            kind,
-            t,
-            require_or_sup,
-            impls,
-            additional,
-        )))
+    pub fn gen_t(gen: GenTypeObj) -> Self {
+        ValueObj::Type(TypeObj::Generated(gen))
     }
 
     pub fn is_num(&self) -> bool {
@@ -538,6 +736,7 @@ impl ValueObj {
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
             }
+            Self::DataClass { name, .. } => Type::Mono(name.clone()),
             Self::Subr(subr) => subr.sig_t().clone(),
             Self::Type(t_obj) => match t_obj {
                 // TODO: builtin
@@ -878,11 +1077,18 @@ impl ValueObj {
         }
     }
 
+    pub fn try_or(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l || r)),
+            _ => None,
+        }
+    }
+
     pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
         match self {
             Self::Type(typ) => match typ {
                 TypeObj::Builtin(builtin) => todo!("{builtin}{attr}"),
-                TypeObj::Generated(gen) => match &gen.t {
+                TypeObj::Generated(gen) => match gen.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;
                         Some(ValueObj::builtin_t(t.clone()))

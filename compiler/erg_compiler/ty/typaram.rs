@@ -5,12 +5,13 @@ use std::rc::Rc;
 
 use erg_common::dict;
 use erg_common::dict::Dict;
+use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
 
 use super::constructors::int_interval;
-use super::free::{Constraint, FreeKind, FreeTyParam, HasLevel, Level};
+use super::free::{CanbeFree, Constraint, FreeKind, FreeTyParam, HasLevel, Level, GENERIC_LEVEL};
 use super::value::ValueObj;
 use super::Type;
 
@@ -162,11 +163,6 @@ pub enum TyParam {
         rhs: Box<TyParam>,
     },
     Erased(Box<Type>),
-    MonoQVar(Str),
-    PolyQVar {
-        name: Str,
-        args: Vec<TyParam>,
-    },
     FreeVar(FreeTyParam),
     Failure,
 }
@@ -180,7 +176,7 @@ impl PartialEq for TyParam {
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
             (Self::Dict(l), Self::Dict(r)) => l == r,
             (Self::Set(l), Self::Set(r)) => l == r,
-            (Self::Mono(l), Self::Mono(r)) | (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
+            (Self::Mono(l), Self::Mono(r)) => l == r,
             (
                 Self::Proj { obj, attr },
                 Self::Proj {
@@ -192,16 +188,8 @@ impl PartialEq for TyParam {
                 Self::App {
                     name: ln,
                     args: lps,
-                }
-                | Self::PolyQVar {
-                    name: ln,
-                    args: lps,
                 },
                 Self::App {
-                    name: rn,
-                    args: rps,
-                }
-                | Self::PolyQVar {
                     name: rn,
                     args: rps,
                 },
@@ -276,24 +264,11 @@ impl LimitedDisplay for TyParam {
                 write!(f, ")")?;
                 Ok(())
             }
-            Self::PolyQVar { name, args } => {
-                write!(f, "'{}", name)?;
-                write!(f, "(")?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    arg.limited_fmt(f, limit - 1)?;
-                }
-                write!(f, ")")?;
-                Ok(())
-            }
             Self::Erased(t) => {
                 write!(f, "_: ")?;
                 t.limited_fmt(f, limit - 1)
             }
             Self::Mono(name) => write!(f, "{}", name),
-            Self::MonoQVar(name) => write!(f, "'{}", name),
             Self::Proj { obj, attr } => {
                 write!(f, "{}.", obj)?;
                 write!(f, "{}", attr)
@@ -329,6 +304,36 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, ")")
             }
+        }
+    }
+}
+
+impl CanbeFree for TyParam {
+    fn unbound_name(&self) -> Option<Str> {
+        if let TyParam::FreeVar(fv) = self {
+            fv.unbound_name()
+        } else {
+            None
+        }
+    }
+
+    fn constraint(&self) -> Option<Constraint> {
+        if let TyParam::FreeVar(fv) = self {
+            fv.constraint()
+        } else {
+            None
+        }
+    }
+
+    fn update_constraint(&self, new_constraint: Constraint) {
+        match self {
+            Self::Type(t) => {
+                t.update_constraint(new_constraint);
+            }
+            Self::FreeVar(fv) => {
+                fv.update_constraint(new_constraint);
+            }
+            _ => {}
         }
     }
 }
@@ -476,12 +481,15 @@ impl TryFrom<TyParam> for Vec<TyParam> {
     }
 }
 
-impl TryFrom<TyParam> for Type {
+impl<'a> TryFrom<&'a TyParam> for &'a Type {
     type Error = ();
-    fn try_from(tp: TyParam) -> Result<Self, ()> {
+    fn try_from(tp: &'a TyParam) -> Result<&'a Type, ()> {
         match tp {
-            TyParam::FreeVar(fv) if fv.is_linked() => Type::try_from(fv.crack().clone()),
-            TyParam::Type(t) => Ok(t.as_ref().clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                <&'a Type>::try_from(fv.forced_as_ref().linked().unwrap())
+            }
+            TyParam::Type(t) => Ok(t.as_ref()),
+            TyParam::Value(v) => <&Type>::try_from(v),
             // TODO: Array, Dict, Set
             _ => Err(()),
         }
@@ -493,41 +501,61 @@ impl HasLevel for TyParam {
         match self {
             Self::Type(t) => t.level(),
             Self::FreeVar(fv) => fv.level(),
+            Self::Array(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::Dict(tps) => tps
+                .iter()
+                .map(|(k, v)| {
+                    k.level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .min(v.level().unwrap_or(GENERIC_LEVEL))
+                })
+                .min(),
+            Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::Proj { obj, .. } => obj.level(),
+            Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
             Self::UnaryOp { val, .. } => val.level(),
-            Self::BinOp { lhs, rhs, .. } => lhs.level().and_then(|l| rhs.level().map(|r| l.max(r))),
+            Self::BinOp { lhs, rhs, .. } => lhs.level().and_then(|l| rhs.level().map(|r| l.min(r))),
             _ => None,
         }
     }
 
-    fn update_level(&self, level: Level) {
+    fn set_level(&self, level: Level) {
         match self {
-            Self::FreeVar(fv) => fv.update_level(level),
-            Self::UnaryOp { val, .. } => val.update_level(level),
-            Self::BinOp { lhs, rhs, .. } => {
-                lhs.update_level(level);
-                rhs.update_level(level);
-            }
-            Self::App { args, .. } | Self::PolyQVar { args, .. } => {
-                for arg in args.iter() {
-                    arg.update_level(level);
+            Self::Type(t) => t.set_level(level),
+            Self::FreeVar(fv) => fv.set_level(level),
+            Self::Dict(tps) => {
+                for (k, v) in tps.iter() {
+                    k.set_level(level);
+                    v.set_level(level);
                 }
             }
-            _ => {}
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::FreeVar(fv) => fv.lift(),
-            Self::UnaryOp { val, .. } => val.lift(),
-            Self::BinOp { lhs, rhs, .. } => {
-                lhs.lift();
-                rhs.lift();
-            }
-            Self::App { args, .. } | Self::PolyQVar { args, .. } => {
-                for arg in args.iter() {
-                    arg.lift();
+            Self::Array(tps) => {
+                for tp in tps {
+                    tp.set_level(level);
                 }
+            }
+            Self::Tuple(tps) => {
+                for tp in tps {
+                    tp.set_level(level);
+                }
+            }
+            Self::Set(tps) => {
+                for tp in tps.iter() {
+                    tp.set_level(level);
+                }
+            }
+            Self::UnaryOp { val, .. } => val.set_level(level),
+            Self::BinOp { lhs, rhs, .. } => {
+                lhs.set_level(level);
+                rhs.set_level(level);
+            }
+            Self::App { args, .. } => {
+                for arg in args.iter() {
+                    arg.set_level(level);
+                }
+            }
+            Self::Proj { obj, .. } => {
+                obj.set_level(level);
             }
             _ => {}
         }
@@ -543,8 +571,8 @@ impl TyParam {
         Self::Mono(name.into())
     }
 
-    pub fn mono_q<S: Into<Str>>(name: S) -> Self {
-        Self::MonoQVar(name.into())
+    pub fn mono_q<S: Into<Str>>(name: S, constr: Constraint) -> Self {
+        Self::named_free_var(name.into(), crate::ty::free::GENERIC_LEVEL, constr)
     }
 
     pub fn proj<S: Into<Str>>(obj: TyParam, attr: S) -> Self {
@@ -559,9 +587,8 @@ impl TyParam {
         Self::FreeVar(FreeTyParam::new_unbound(level, constraint))
     }
 
-    pub fn named_free_var(name: Str, level: usize, t: Type) -> Self {
-        let constraint = Constraint::new_type_of(t);
-        Self::FreeVar(FreeTyParam::new_named_unbound(name, level, constraint))
+    pub fn named_free_var(name: Str, level: usize, constr: Constraint) -> Self {
+        Self::FreeVar(FreeTyParam::new_named_unbound(name, level, constr))
     }
 
     /// NOTE: Always add postfix when entering numbers. For example, `value(1)` will be of type Int.
@@ -618,8 +645,8 @@ impl TyParam {
         match self {
             Self::Type(t) => Some(t.qual_name()),
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
+            Self::FreeVar(fv) if fv.is_generalized() => fv.unbound_name(),
             Self::Mono(name) => Some(name.clone()),
-            Self::MonoQVar(name) => Some(name.clone()),
             _ => None,
         }
     }
@@ -629,7 +656,6 @@ impl TyParam {
             Self::Type(t) => t.tvar_name(),
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
-            Self::MonoQVar(name) => Some(name.clone()),
             _ => None,
         }
     }
@@ -647,8 +673,7 @@ impl TyParam {
                 p.cheap_cmp(&*fv.crack()),
             (Self::FreeVar{ .. } | Self::Erased(_), Self::FreeVar{ .. } | Self::Erased(_))
             /* if v.is_unbound() */ => Some(Any),
-            (Self::App{ name, args }, Self::App{ name: rname, args: rargs })
-            | (Self::PolyQVar{ name, args }, Self::PolyQVar{ name: rname, args: rargs }) =>
+            (Self::App{ name, args }, Self::App{ name: rname, args: rargs }) =>
                 if name == rname
                 && args.len() == rargs.len()
                 && args.iter().zip(rargs.iter()).all(|(l, r)| l.cheap_cmp(r) == Some(Equal)) {
@@ -662,9 +687,32 @@ impl TyParam {
         }
     }
 
+    pub fn qvars(&self) -> Set<(Str, Constraint)> {
+        match self {
+            Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
+                set! { (fv.unbound_name().unwrap(), fv.constraint().unwrap()) }
+            }
+            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
+            Self::Type(t) => t.qvars(),
+            Self::Proj { obj, .. } => obj.qvars(),
+            Self::Array(ts) | Self::Tuple(ts) => {
+                ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars()))
+            }
+            Self::Set(ts) => ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars())),
+            Self::Dict(ts) => ts.iter().fold(set! {}, |acc, (k, v)| {
+                acc.concat(k.qvars().concat(v.qvars()))
+            }),
+            Self::UnaryOp { val, .. } => val.qvars(),
+            Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
+            Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
+            Self::Erased(t) => t.qvars(),
+            _ => set! {},
+        }
+    }
+
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
+            Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
                     false
@@ -724,9 +772,7 @@ impl TyParam {
                 .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
-            Self::App { args, .. } | Self::PolyQVar { args, .. } => {
-                args.iter().any(|p| p.has_unbound_var())
-            }
+            Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),
             Self::Erased(t) => t.has_unbound_var(),
             _ => false,
         }
@@ -740,7 +786,7 @@ impl TyParam {
         match self {
             // TODO: 型によっては上限がある
             // また、上限がないもの同士の加算等も上限はない
-            Self::Erased(_) | Self::MonoQVar(_) => false,
+            Self::Erased(_) => false,
             Self::FreeVar(fv) => !fv.is_unbound(), // != fv.is_linked(),
             _ => true,
         }
@@ -748,21 +794,9 @@ impl TyParam {
 
     pub fn has_lower_bound(&self) -> bool {
         match self {
-            Self::Erased(_) | Self::MonoQVar(_) => false,
+            Self::Erased(_) => false,
             Self::FreeVar(fv) => !fv.is_unbound(),
             _ => true,
-        }
-    }
-
-    pub fn update_constraint(&self, new_constraint: Constraint) {
-        match self {
-            Self::Type(t) => {
-                t.update_constraint(new_constraint);
-            }
-            Self::FreeVar(fv) => {
-                fv.update_constraint(new_constraint);
-            }
-            _ => {}
         }
     }
 }

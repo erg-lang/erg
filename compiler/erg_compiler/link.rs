@@ -121,7 +121,6 @@ impl<'a> Linker<'a> {
                     self.resolve_pymod_path(&mut arg.expr);
                 }
             }
-            Expr::Decl(_decl) => {}
             Expr::Def(def) => {
                 for chunk in def.body.block.iter_mut() {
                     self.resolve_pymod_path(chunk);
@@ -238,7 +237,6 @@ impl<'a> Linker<'a> {
                     }
                 }
             },
-            Expr::Decl(_decl) => {}
             Expr::Def(def) => {
                 for chunk in def.body.block.iter_mut() {
                     self.replace_import(chunk);

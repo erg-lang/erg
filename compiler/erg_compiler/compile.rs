@@ -193,9 +193,12 @@ impl Compiler {
     }
 
     fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
-        let hir = self.builder.build(src, mode).map_err(|(_, errs)| errs)?;
+        let artifact = self
+            .builder
+            .build(src, mode)
+            .map_err(|artifact| artifact.errors)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(hir);
+        let hir = linker.link(artifact.hir);
         Ok(HIRDesugarer::desugar(hir))
     }
 }

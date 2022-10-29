@@ -3,6 +3,7 @@
 extern crate erg_common;
 pub extern crate erg_parser;
 
+pub mod artifact;
 pub mod build_hir;
 mod compile;
 pub use compile::*;

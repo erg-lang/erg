@@ -148,7 +148,7 @@ impl Parser {
     }
 
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
-        let loc = self.peek().unwrap().loc();
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
         ParseError::simple_syntax_error(0, loc)
@@ -233,7 +233,7 @@ impl Parser {
             }
         };
         if !self.cur_is(EOF) {
-            let loc = self.peek().unwrap().loc();
+            let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
             self.errs
                 .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
             return Err(mem::take(&mut self.errs));
@@ -261,12 +261,12 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                Some(t) if t.is(Indent) => {
+                /*Some(t) if t.is(Indent) => {
                     switch_unreachable!()
                 }
                 Some(t) if t.is(Dedent) => {
                     switch_unreachable!()
-                }
+                }*/
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
@@ -291,9 +291,19 @@ impl Parser {
             self.level -= 1;
             return Ok(block);
         }
-        assert!(self.cur_is(Newline));
+        if !self.cur_is(Newline) {
+            let err = self.skip_and_throw_syntax_err("try_reduce_block");
+            self.level -= 1;
+            self.errs.push(err);
+            return Err(());
+        }
         self.skip();
-        assert!(self.cur_is(Indent));
+        if !self.cur_is(Indent) {
+            let err = self.skip_and_throw_syntax_err("try_reduce_block");
+            self.level -= 1;
+            self.errs.push(err);
+            return Err(());
+        }
         self.skip();
         loop {
             match self.peek() {
@@ -574,7 +584,12 @@ impl Parser {
                     while self.cur_is(Newline) {
                         self.skip();
                     }
-                    debug_power_assert!(self.cur_is(Indent));
+                    if !self.cur_is(Indent) {
+                        let err = self.skip_and_throw_syntax_err("try_reduce_block");
+                        self.level -= 1;
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     self.skip();
                 }
                 Some(t) if t.is(Comma) => {
@@ -2709,6 +2724,11 @@ impl Parser {
     fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         match rhs {
+            Expr::Lit(lit) => {
+                let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
+                let params = Params::new(vec![param], None, vec![], None);
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
             Expr::Accessor(accessor) => {
                 let param = self
                     .convert_accessor_to_param_sig(accessor)
@@ -2812,7 +2832,7 @@ impl Parser {
     ) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         let sig = self
-            .convert_rhs_to_param(*tasc.expr, true)
+            .convert_rhs_to_param(Expr::TypeAsc(tasc), true)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(LambdaSignature::new(
@@ -2825,7 +2845,7 @@ impl Parser {
 
 // The APIs defined below are also used by `ASTLowerer` to interpret expressions as types.
 impl Parser {
-    fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
+    pub fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Ident(local)) => {
@@ -3001,17 +3021,21 @@ impl Parser {
         }
     }
 
-    fn set_to_set_type_spec(set: Set) -> Result<SetTypeSpec, ParseError> {
+    fn set_to_set_type_spec(set: Set) -> Result<TypeSpec, ParseError> {
         match set {
-            Set::Normal(arr) => {
-                // TODO: add hint
-                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
-                Err(err)
+            Set::Normal(set) => {
+                let mut elem_ts = vec![];
+                let (elems, .., paren) = set.elems.deconstruct();
+                for elem in elems.into_iter() {
+                    let const_expr = Self::validate_const_expr(elem.expr)?;
+                    elem_ts.push(ConstPosArg::new(const_expr));
+                }
+                Ok(TypeSpec::Enum(ConstArgs::new(elem_ts, vec![], paren)))
             }
             Set::WithLength(set) => {
                 let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
                 let len = Self::validate_const_expr(*set.len)?;
-                Ok(SetTypeSpec::new(t_spec, len))
+                Ok(TypeSpec::SetWithLen(SetWithLenTypeSpec::new(t_spec, len)))
             }
         }
     }
@@ -3028,6 +3052,38 @@ impl Parser {
                 Ok(kvs)
             }
             _ => todo!(),
+        }
+    }
+
+    fn record_to_record_type_spec(
+        record: Record,
+    ) -> Result<Vec<(Identifier, TypeSpec)>, ParseError> {
+        match record {
+            Record::Normal(rec) => {
+                let mut rec_spec = vec![];
+                for mut def in rec.attrs.into_iter() {
+                    let ident = def.sig.ident().unwrap().clone();
+                    // TODO: check block.len() == 1
+                    let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
+                    rec_spec.push((ident, value));
+                }
+                Ok(rec_spec)
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<Vec<TypeSpec>, ParseError> {
+        match tuple {
+            Tuple::Normal(tup) => {
+                let mut tup_spec = vec![];
+                let (elems, ..) = tup.elems.deconstruct();
+                for elem in elems.into_iter() {
+                    let value = Self::expr_to_type_spec(elem.expr)?;
+                    tup_spec.push(value);
+                }
+                Ok(tup_spec)
+            }
         }
     }
 
@@ -3048,11 +3104,19 @@ impl Parser {
             }
             Expr::Set(set) => {
                 let set = Self::set_to_set_type_spec(set)?;
-                Ok(TypeSpec::Set(set))
+                Ok(set)
             }
             Expr::Dict(dict) => {
                 let dict = Self::dict_to_dict_type_spec(dict)?;
                 Ok(TypeSpec::Dict(dict))
+            }
+            Expr::Record(rec) => {
+                let rec = Self::record_to_record_type_spec(rec)?;
+                Ok(TypeSpec::Record(rec))
+            }
+            Expr::Tuple(tup) => {
+                let tup = Self::tuple_to_tuple_type_spec(tup)?;
+                Ok(TypeSpec::Tuple(tup))
             }
             Expr::BinOp(bin) => {
                 if bin.op.kind.is_range_op() {

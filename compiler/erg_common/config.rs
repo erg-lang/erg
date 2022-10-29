@@ -158,7 +158,7 @@ pub struct ErgConfig {
     /// * 2: e.g. static dispatching, inlining, peephole
     /// * 3: e.g. JIT compiling
     pub opt_level: u8,
-    pub dump_as_pyc: bool,
+    pub no_std: bool,
     pub python_ver: Option<u32>,
     pub py_server_timeout: u64,
     pub quiet_startup: bool,
@@ -182,7 +182,7 @@ impl Default for ErgConfig {
         Self {
             mode: "exec",
             opt_level: 1,
-            dump_as_pyc: false,
+            no_std: false,
             python_ver: None,
             py_server_timeout: 10,
             quiet_startup: false,
@@ -229,8 +229,14 @@ impl ErgConfig {
                 "-c" | "--code" => {
                     cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
-                "--dump-as-pyc" => {
-                    cfg.dump_as_pyc = true;
+                "--check" => {
+                    cfg.mode = "check";
+                }
+                "--compile" | "--dump-as-pyc" => {
+                    cfg.mode = "compile";
+                }
+                "--no-std" => {
+                    cfg.no_std = true;
                 }
                 "-?" | "-h" | "--help" => {
                     println!("{}", command_message());

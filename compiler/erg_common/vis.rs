@@ -20,10 +20,22 @@ impl Visibility {
 }
 
 /// same structure as `Identifier`, but only for Record fields.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct Field {
     pub vis: Visibility,
     pub symbol: Str,
+}
+
+impl PartialEq for Field {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+impl std::hash::Hash for Field {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
 }
 
 impl fmt::Display for Field {
@@ -53,6 +65,14 @@ impl Borrow<Str> for Field {
 impl Field {
     pub const fn new(vis: Visibility, symbol: Str) -> Self {
         Field { vis, symbol }
+    }
+
+    pub const fn private(symbol: Str) -> Self {
+        Field::new(Visibility::Private, symbol)
+    }
+
+    pub const fn public(symbol: Str) -> Self {
+        Field::new(Visibility::Public, symbol)
     }
 
     pub fn is_const(&self) -> bool {

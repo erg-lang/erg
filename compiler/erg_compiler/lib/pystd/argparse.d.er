@@ -1,0 +1,14 @@
+._StoreAction: ClassType
+
+.ArgumentParser!: ClassType
+.new = 'ArgumentParser': (description := Str, prog := Str) -> .ArgumentParser!
+.ArgumentParser!.add_argument!: (
+    name: Str, # TODO: var-args
+    action := Str or NoneType,
+    default := Obj or NoneType,
+    type := Type,
+    required := Bool,
+    help := Str or NoneType,
+    choices := Obj or NoneType,
+) => ._StoreAction
+.ArgumentParser!.parse_args!: (args := Str or [Str; _] or NoneType,) => Obj # TODO: type with dependent types

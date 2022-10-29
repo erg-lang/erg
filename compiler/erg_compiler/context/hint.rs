@@ -16,7 +16,7 @@ impl Context {
     fn readable_type(&self, typ: &Type) -> Type {
         match typ {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub, sup) = fv.get_bound_types().unwrap();
+                let (sub, sup) = fv.get_subsup().unwrap();
                 if sup == Type::Obj {
                     return sub;
                 }
@@ -35,7 +35,7 @@ impl Context {
             if fv.is_linked() {
                 fv.crack().clone()
             } else {
-                let (_sub, sup) = fv.get_bound_types().unwrap();
+                let (_sub, sup) = fv.get_subsup().unwrap();
                 sup
             }
         } else {
@@ -51,7 +51,7 @@ impl Context {
         match proj {
             Type::Proj { lhs, rhs: _ } => {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
-                    let (sub, sup) = fv.get_bound_types()?;
+                    let (sub, sup) = fv.get_subsup()?;
                     // TODO: automating
                     let (verb, preposition, sequence) = match &sup.qual_name()[..] {
                         "Add" => Some(("add", "and", Sequence::Forward)),

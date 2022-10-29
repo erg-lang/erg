@@ -416,7 +416,9 @@ impl CodeObj {
         let op38 = Opcode38::from(*op);
         let s_op = op38.to_string();
         write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
-        self.dump_additional_info(CommonOpcode::from(*op), arg, idx, instrs);
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
         instrs.push('\n');
     }
 
@@ -424,7 +426,9 @@ impl CodeObj {
         let op310 = Opcode310::from(*op);
         let s_op = op310.to_string();
         write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
-        self.dump_additional_info(CommonOpcode::from(*op), arg, idx, instrs);
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
         #[allow(clippy::single_match)]
         match op310 {
             Opcode310::SETUP_WITH => {

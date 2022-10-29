@@ -96,9 +96,10 @@ use CommonOpcode::*;
 
 impl_display_from_debug!(CommonOpcode);
 
-impl From<u8> for CommonOpcode {
-    fn from(byte: u8) -> Self {
-        match byte {
+impl TryFrom<u8> for CommonOpcode {
+    type Error = ();
+    fn try_from(byte: u8) -> Result<Self, ()> {
+        Ok(match byte {
             1 => POP_TOP,
             2 => ROT_TWO,
             3 => ROT_THREE,
@@ -175,8 +176,8 @@ impl From<u8> for CommonOpcode {
             160 => LOAD_METHOD,
             161 => CALL_METHOD,
             255 => NOT_IMPLEMENTED,
-            other => panic!("not implemented opcode: {other}"),
-        }
+            _other => return Err(()),
+        })
     }
 }
 

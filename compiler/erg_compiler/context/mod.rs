@@ -39,7 +39,7 @@ use ast::{DefId, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarInstContext};
+use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
@@ -48,24 +48,24 @@ use Visibility::*;
 const BUILTINS: &Str = &Str::ever("<builtins>");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TraitInstance {
+pub struct TypeRelationInstance {
     pub sub_type: Type,
     pub sup_trait: Type,
 }
 
-impl std::fmt::Display for TraitInstance {
+impl std::fmt::Display for TypeRelationInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TraitInstancePair{{{} <: {}}}",
+            "TypeRelationInstance{{{} <: {}}}",
             self.sub_type, self.sup_trait
         )
     }
 }
 
-impl TraitInstance {
+impl TypeRelationInstance {
     pub const fn new(sub_type: Type, sup_trait: Type) -> Self {
-        TraitInstance {
+        Self {
             sub_type,
             sup_trait,
         }
@@ -189,7 +189,8 @@ impl_display_from_debug!(Variance);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
-    pub(crate) name: Option<&'static str>, // TODO: nested
+    pub(crate) name: Option<&'static str>,
+    // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub default_info: DefaultInfo,
 }
@@ -230,7 +231,7 @@ pub enum ContextKind {
     StructuralTrait,
     Patch(Type),
     StructuralPatch(Type),
-    GluePatch(TraitInstance),
+    GluePatch(TypeRelationInstance), // TODO: deprecate (integrate into Patch)
     Module,
     Instant,
     Dummy,
@@ -337,7 +338,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Set<TraitInstance>>,
+    pub(crate) trait_impls: Dict<Str, Set<TypeRelationInstance>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     // stores defined names
@@ -362,7 +363,7 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) py_mod_cache: Option<SharedModuleCache>,
-    pub(crate) tv_ctx: Option<TyVarInstContext>,
+    pub(crate) tv_cache: Option<TyVarCache>,
     pub(crate) level: usize,
 }
 
@@ -476,7 +477,7 @@ impl Context {
             poly_types: Dict::default(),
             mod_cache,
             py_mod_cache,
-            tv_ctx: None,
+            tv_cache: None,
             patches: Dict::default(),
             level,
         }
@@ -699,9 +700,10 @@ impl Context {
 
     #[allow(clippy::too_many_arguments)]
     #[inline]
-    pub fn poly_patch<S: Into<Str>>(
+    pub fn poly_glue_patch<S: Into<Str>>(
         name: S,
         base: Type,
+        impls: Type,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
         mod_cache: Option<SharedModuleCache>,
@@ -712,7 +714,7 @@ impl Context {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::Patch(base),
+            ContextKind::GluePatch(TypeRelationInstance::new(base, impls)),
             params,
             None,
             mod_cache,
@@ -723,15 +725,17 @@ impl Context {
     }
 
     #[inline]
-    pub fn builtin_poly_patch<S: Into<Str>>(
+    pub fn builtin_poly_glue_patch<S: Into<Str>>(
         name: S,
         base: Type,
+        impls: Type,
         params: Vec<ParamSpec>,
         capacity: usize,
     ) -> Self {
-        Self::poly_patch(
+        Self::poly_glue_patch(
             name,
             base,
+            impls,
             params,
             ErgConfig::default(),
             None,
@@ -835,7 +839,7 @@ impl Context {
         name: &str,
         kind: ContextKind,
         vis: Visibility,
-        tv_ctx: Option<TyVarInstContext>,
+        tv_cache: Option<TyVarCache>,
     ) {
         let name = if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
@@ -847,7 +851,7 @@ impl Context {
         self.cfg = self.get_outer().unwrap().cfg.clone();
         self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
         self.py_mod_cache = self.get_outer().unwrap().py_mod_cache.clone();
-        self.tv_ctx = tv_ctx;
+        self.tv_cache = tv_cache;
         self.name = name.into();
         self.kind = kind;
     }

@@ -15,7 +15,6 @@ use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
 use constructors::dict_t;
-use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
@@ -25,9 +24,9 @@ use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 use erg_parser::ast::{Block, Params};
 use erg_parser::token::TokenKind;
 
-use self::constructors::{int_interval, mono, mono_q};
+use self::constructors::{int_interval, mono};
 use self::free::{
-    fresh_varname, Constraint, Cyclicity, Free, FreeKind, FreeTyVar, HasLevel, Level,
+    fresh_varname, CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use self::typaram::{IntervalOp, TyParam};
 use self::value::value_set::*;
@@ -274,187 +273,6 @@ impl ConstSubr {
     }
 }
 
-/// TyBoundはtemplateで、Constraintは自由型変数が持つinstance
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TyBound {
-    // e.g.
-    // A :> Int => Sandwiched{sub: Int, mid: A, sup: Obj}
-    // A <: {I: Int | I > 0} => Sandwiched{sub: Never, mid: A, sup: {I: Int | I > 0}}
-    /// Sub <: Mid <: Sup
-    Sandwiched {
-        sub: Type,
-        mid: Type,
-        sup: Type,
-    },
-    // TyParam::MonoQuantVarに型の情報が含まれているので、boundsからは除去される
-    // e.g. N: Nat => Instance{name: N, t: Nat}
-    Instance {
-        name: Str,
-        t: Type,
-    },
-}
-
-impl fmt::Display for TyBound {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
-    }
-}
-
-impl LimitedDisplay for TyBound {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        if limit == 0 {
-            return write!(f, "...");
-        }
-        match self {
-            Self::Sandwiched { sub, mid, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
-                (true, true) => {
-                    write!(f, "{mid}: Type")?;
-                    if cfg!(feature = "debug") {
-                        write!(f, "(:> Never, <: Obj)")?;
-                    }
-                    Ok(())
-                }
-                (true, false) => {
-                    write!(f, "{mid} <: ")?;
-                    sup.limited_fmt(f, limit - 1)
-                }
-                (false, true) => {
-                    write!(f, "{mid} :> ")?;
-                    sub.limited_fmt(f, limit - 1)
-                }
-                (false, false) => {
-                    sub.limited_fmt(f, limit - 1)?;
-                    write!(f, " <: {mid} <: ")?;
-                    sup.limited_fmt(f, limit - 1)
-                }
-            },
-            Self::Instance { name, t } => {
-                write!(f, "{name}: ")?;
-                t.limited_fmt(f, limit - 1)
-            }
-        }
-    }
-}
-
-impl HasLevel for TyBound {
-    fn level(&self) -> Option<usize> {
-        todo!()
-    }
-
-    fn update_level(&self, level: usize) {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                sub.update_level(level);
-                mid.update_level(level);
-                sup.update_level(level);
-            }
-            Self::Instance { t, .. } => {
-                t.update_level(level);
-            }
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                sub.lift();
-                mid.lift();
-                sup.lift();
-            }
-            Self::Instance { t, .. } => {
-                t.lift();
-            }
-        }
-    }
-}
-
-impl TyBound {
-    pub const fn sandwiched(sub: Type, mid: Type, sup: Type) -> Self {
-        Self::Sandwiched { sub, mid, sup }
-    }
-
-    pub const fn subtype_of(sub: Type, sup: Type) -> Self {
-        Self::sandwiched(Type::Never, sub, sup)
-    }
-
-    pub const fn static_instance(name: &'static str, t: Type) -> Self {
-        Self::Instance {
-            name: Str::ever(name),
-            t,
-        }
-    }
-
-    pub fn instance(name: Str, t: Type) -> Self {
-        if t == Type::Type {
-            Self::sandwiched(Type::Never, mono_q(name), Type::Obj)
-        } else {
-            Self::Instance { name, t }
-        }
-    }
-
-    pub fn mentions_as_instance(&self, name: &str) -> bool {
-        matches!(self, Self::Instance{ name: n, .. } if &n[..] == name)
-    }
-
-    pub fn mentions_as_mid(&self, name: &str) -> bool {
-        matches!(self, Self::Sandwiched{ mid, .. } if &mid.qual_name()[..] == name)
-    }
-
-    pub fn has_qvar(&self) -> bool {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                sub.has_qvar() || mid.has_qvar() || sup.has_qvar()
-            }
-            Self::Instance { t, .. } => t.has_qvar(),
-        }
-    }
-
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                sub.is_cachable() && mid.is_cachable() && sup.is_cachable()
-            }
-            Self::Instance { t, .. } => t.is_cachable(),
-        }
-    }
-
-    pub fn has_unbound_var(&self) -> bool {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => {
-                sub.has_unbound_var() || mid.has_unbound_var() || sup.has_unbound_var()
-            }
-            Self::Instance { t, .. } => t.has_unbound_var(),
-        }
-    }
-
-    pub fn get_type(&self) -> &Type {
-        match self {
-            Self::Sandwiched { sub, sup, .. } => {
-                if sub == &Type::Never && sup == &Type::Obj {
-                    &Type::Type
-                } else {
-                    todo!()
-                }
-            }
-            Self::Instance { t, .. } => t,
-        }
-    }
-
-    pub fn get_types(&self) -> Option<(&Type, &Type, &Type)> {
-        match self {
-            Self::Sandwiched { sub, mid, sup } => Some((sub, mid, sup)),
-            Self::Instance { .. } => None,
-        }
-    }
-
-    pub fn get_lhs(&self) -> Str {
-        match self {
-            Self::Sandwiched { mid, .. } => mid.qual_name(),
-            Self::Instance { name, .. } => name.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Predicate {
     Value(ValueObj), // True/False
@@ -510,34 +328,18 @@ impl HasLevel for Predicate {
         }
     }
 
-    fn update_level(&self, level: usize) {
+    fn set_level(&self, level: usize) {
         match self {
             Self::Value(_) | Self::Const(_) => {}
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => {
-                rhs.update_level(level);
+                rhs.set_level(level);
             }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.update_level(level);
-                rhs.update_level(level);
-            }
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::Value(_) | Self::Const(_) => {}
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => {
-                rhs.lift();
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.lift();
-                rhs.lift();
+                lhs.set_level(level);
+                rhs.set_level(level);
             }
         }
     }
@@ -638,6 +440,19 @@ impl Predicate {
             Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
             Self::Not(lhs, rhs) => lhs.can_be_false() && !rhs.can_be_false(),
             _ => true,
+        }
+    }
+
+    pub fn qvars(&self) -> Set<(Str, Constraint)> {
+        match self {
+            Self::Value(_) | Self::Const(_) => set! {},
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.qvars(),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.qvars().concat(rhs.qvars())
+            }
         }
     }
 
@@ -893,6 +708,21 @@ impl SubrType {
             || self.return_t.contains_tvar(name)
     }
 
+    pub fn qvars(&self) -> Set<(Str, Constraint)> {
+        let mut qvars = Set::new();
+        for pt in self.non_default_params.iter() {
+            qvars.extend(pt.typ().qvars());
+        }
+        if let Some(var_params) = &self.var_params {
+            qvars.extend(var_params.typ().qvars());
+        }
+        for pt in self.default_params.iter() {
+            qvars.extend(pt.typ().qvars());
+        }
+        qvars.extend(self.return_t.qvars());
+        qvars
+    }
+
     pub fn has_qvar(&self) -> bool {
         self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
             || self
@@ -997,52 +827,6 @@ impl RefinementType {
             preds,
         }
     }
-
-    pub fn bound(&self) -> TyBound {
-        TyBound::instance(self.var.clone(), *self.t.clone())
-    }
-}
-
-/// e.g.
-/// ```
-/// |T: Type| T -> T == Quantified{ unbound_t: (T -> T), bounds: [T: Type] }
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct QuantifiedType {
-    pub unbound_callable: Box<Type>,
-    pub bounds: Set<TyBound>,
-}
-
-impl fmt::Display for QuantifiedType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
-    }
-}
-
-impl LimitedDisplay for QuantifiedType {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
-        if limit == 0 {
-            return write!(f, "...");
-        }
-        write!(f, "|")?;
-        for (i, bound) in self.bounds.iter().enumerate() {
-            if i != 0 {
-                write!(f, "; ")?;
-            }
-            bound.limited_fmt(f, limit - 1)?;
-        }
-        write!(f, "|")?;
-        self.unbound_callable.limited_fmt(f, limit - 1)
-    }
-}
-
-impl QuantifiedType {
-    pub fn new(unbound_callable: Type, bounds: Set<TyBound>) -> Self {
-        Self {
-            unbound_callable: Box::new(unbound_callable),
-            bounds,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1067,6 +851,13 @@ impl SubrKind {
             Self::Func => Str::ever("->"),
             Self::Proc => Str::ever("=>"),
         }
+    }
+
+    pub fn is_func(&self) -> bool {
+        matches!(self, Self::Func)
+    }
+    pub fn is_proc(&self) -> bool {
+        matches!(self, Self::Proc)
     }
 }
 
@@ -1176,7 +967,7 @@ pub enum Type {
     // 1..10 => {I: Int | I >= 1 and I <= 10}
     Refinement(RefinementType),
     // e.g. |T: Type| T -> T
-    Quantified(QuantifiedType),
+    Quantified(Box<Type>),
     And(Box<Type>, Box<Type>),
     Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
@@ -1185,11 +976,6 @@ pub enum Type {
         params: Vec<TyParam>,
     },
     /* Special types (inference-time types) */
-    MonoQVar(Str), // QuantifiedTyの中で使う一般化型変数、利便性のためMonoとは区別する
-    PolyQVar {
-        name: Str,
-        params: Vec<TyParam>,
-    },
     Proj {
         lhs: Box<Type>,
         rhs: Str,
@@ -1229,7 +1015,6 @@ impl PartialEq for Type {
             | (Self::NotImplemented, Self::NotImplemented)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
-            (Self::MonoQVar(l), Self::MonoQVar(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
@@ -1324,6 +1109,7 @@ impl LimitedDisplay for Type {
             return write!(f, "...");
         }
         match self {
+            Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::Mono(name) => write!(f, "{name}"),
             Self::Ref(t) => {
                 write!(f, "{}(", self.qual_name())?;
@@ -1365,7 +1151,22 @@ impl LimitedDisplay for Type {
             }
             Self::Subr(sub) => sub.limited_fmt(f, limit),
             Self::Refinement(refinement) => refinement.limited_fmt(f, limit),
-            Self::Quantified(quantified) => quantified.limited_fmt(f, limit),
+            Self::Quantified(quantified) => {
+                let qvars = quantified.qvars();
+                if limit == 0 {
+                    return write!(f, "...");
+                }
+                write!(f, "|")?;
+                for (i, (name, constr)) in qvars.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{name}")?;
+                    constr.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "|")?;
+                quantified.limited_fmt(f, limit - 1)
+            }
             Self::And(lhs, rhs) => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " and ")?;
@@ -1377,9 +1178,11 @@ impl LimitedDisplay for Type {
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::Or(lhs, rhs) => {
+                write!(f, "(")?;
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, " or ")?;
-                rhs.limited_fmt(f, limit - 1)
+                rhs.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
             }
             Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
@@ -1391,26 +1194,6 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, ")")
             }
-            Self::PolyQVar { name, params } => {
-                if cfg!(feature = "debug") {
-                    write!(f, "'")?;
-                }
-                write!(f, "{name}(")?;
-                for (i, tp) in params.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    tp.limited_fmt(f, limit - 1)?;
-                }
-                write!(f, ")")
-            }
-            Self::MonoQVar(name) => {
-                if cfg!(feature = "debug") {
-                    write!(f, "'")?;
-                }
-                write!(f, "{name}")
-            }
-            Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::Proj { lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
                 write!(f, ".{rhs}")
@@ -1431,6 +1214,30 @@ impl LimitedDisplay for Type {
                 write!(f, ")")
             }
             _ => write!(f, "{}", self.qual_name()),
+        }
+    }
+}
+
+impl CanbeFree for Type {
+    fn unbound_name(&self) -> Option<Str> {
+        if let Type::FreeVar(fv) = self {
+            fv.unbound_name()
+        } else {
+            None
+        }
+    }
+
+    fn constraint(&self) -> Option<Constraint> {
+        if let Type::FreeVar(fv) = self {
+            fv.constraint()
+        } else {
+            None
+        }
+    }
+
+    fn update_constraint(&self, new_constraint: Constraint) {
+        if let Self::FreeVar(fv) = self {
+            fv.update_constraint(new_constraint);
         }
     }
 }
@@ -1477,25 +1284,6 @@ impl From<Dict<Type, Type>> for Type {
     }
 }
 
-impl TryFrom<Type> for Dict<Type, Type> {
-    type Error = ();
-    fn try_from(tp: Type) -> Result<Self, ()> {
-        match tp {
-            Type::Poly { name, params } if &name[..] == "Dict" => {
-                let dict = Dict::try_from(params[0].clone())?;
-                let mut new_dict = dict! {};
-                for (k, v) in dict.into_iter() {
-                    let k = Type::try_from(k)?;
-                    let v = Type::try_from(v)?;
-                    new_dict.insert(k, v);
-                }
-                Ok(new_dict)
-            }
-            _ => Err(()),
-        }
-    }
-}
-
 fn get_t_from_tp(tp: &TyParam) -> Option<Type> {
     match tp {
         TyParam::FreeVar(fv) if fv.is_linked() => get_t_from_tp(&fv.crack()),
@@ -1525,9 +1313,7 @@ impl HasType for Type {
             // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(_sub) => todo!(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                params.iter().filter_map(get_t_from_tp).collect()
-            }
+            Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
         }
     }
@@ -1540,131 +1326,150 @@ impl HasType for Type {
 }
 
 impl HasLevel for Type {
-    // FIXME: 複合型のレベル
     fn level(&self) -> Option<usize> {
         match self {
             Self::FreeVar(v) => v.level(),
+            Self::Ref(t) => t.level(),
+            Self::RefMut { before, after } => {
+                let bl = before.level();
+                if let Some(after) = after {
+                    bl.zip(after.level()).map(|(a, b)| a.min(b))
+                } else {
+                    bl
+                }
+            }
+            Self::Callable { param_ts, return_t } => {
+                let min = param_ts
+                    .iter()
+                    .filter_map(|t| t.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
+                let min = return_t.level().unwrap_or(GENERIC_LEVEL).min(min);
+                if min == GENERIC_LEVEL {
+                    None
+                } else {
+                    Some(min)
+                }
+            }
+            Self::Subr(subr) => {
+                let nd_min = subr
+                    .non_default_params
+                    .iter()
+                    .filter_map(|p| p.typ().level())
+                    .min();
+                let v_min = subr.var_params.iter().filter_map(|p| p.typ().level()).min();
+                let d_min = subr
+                    .default_params
+                    .iter()
+                    .filter_map(|p| p.typ().level())
+                    .min();
+                let ret_min = subr.return_t.level();
+                [nd_min, v_min, d_min, ret_min]
+                    .iter()
+                    .filter_map(|o| *o)
+                    .min()
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+                let l = lhs
+                    .level()
+                    .unwrap_or(GENERIC_LEVEL)
+                    .min(rhs.level().unwrap_or(GENERIC_LEVEL));
+                if l == GENERIC_LEVEL {
+                    None
+                } else {
+                    Some(l)
+                }
+            }
+            Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
+            Self::Poly { params, .. } => params.iter().filter_map(|p| p.level()).min(),
+            Self::Proj { lhs, .. } => lhs.level(),
+            Self::ProjCall { lhs, args, .. } => {
+                let lev = lhs.level().unwrap_or(GENERIC_LEVEL);
+                let min = args
+                    .iter()
+                    .filter_map(|tp| tp.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
+                let min = lev.min(min);
+                if min == GENERIC_LEVEL {
+                    None
+                } else {
+                    Some(min)
+                }
+            }
+            Self::Refinement(refine) => {
+                let lev = refine.t.level().unwrap_or(GENERIC_LEVEL);
+                let min = refine
+                    .preds
+                    .iter()
+                    .filter_map(|p| p.level())
+                    .min()
+                    .unwrap_or(GENERIC_LEVEL);
+                let min = lev.min(min);
+                if min == GENERIC_LEVEL {
+                    None
+                } else {
+                    Some(min)
+                }
+            }
+            Self::Quantified(quant) => quant.level(),
             _ => None,
         }
     }
 
-    fn update_level(&self, level: Level) {
+    fn set_level(&self, level: Level) {
         match self {
-            Self::FreeVar(v) => v.update_level(level),
-            Self::Ref(t) => t.update_level(level),
+            Self::FreeVar(v) => v.set_level(level),
+            Self::Ref(t) => t.set_level(level),
             Self::RefMut { before, after } => {
-                before.update_level(level);
+                before.set_level(level);
                 if let Some(after) = after {
-                    after.update_level(level);
+                    after.set_level(level);
                 }
             }
             Self::Callable { param_ts, return_t } => {
                 for p in param_ts.iter() {
-                    p.update_level(level);
+                    p.set_level(level);
                 }
-                return_t.update_level(level);
+                return_t.set_level(level);
             }
             Self::Subr(subr) => {
                 for pt in subr.non_default_params.iter() {
-                    pt.typ().update_level(level);
+                    pt.typ().set_level(level);
                 }
                 if let Some(pt) = subr.var_params.as_ref() {
-                    pt.typ().update_level(level);
+                    pt.typ().set_level(level);
                 }
                 for pt in subr.default_params.iter() {
-                    pt.typ().update_level(level);
+                    pt.typ().set_level(level);
                 }
-                subr.return_t.update_level(level);
+                subr.return_t.set_level(level);
             }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.update_level(level);
-                rhs.update_level(level);
+                lhs.set_level(level);
+                rhs.set_level(level);
             }
             Self::Record(attrs) => {
                 for t in attrs.values() {
-                    t.update_level(level);
+                    t.set_level(level);
                 }
             }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+            Self::Poly { params, .. } => {
                 for p in params.iter() {
-                    p.update_level(level);
+                    p.set_level(level);
                 }
             }
             Self::Proj { lhs, .. } => {
-                lhs.update_level(level);
+                lhs.set_level(level);
             }
             Self::Refinement(refine) => {
-                refine.t.update_level(level);
+                refine.t.set_level(level);
                 for pred in refine.preds.iter() {
-                    pred.update_level(level);
+                    pred.set_level(level);
                 }
             }
             Self::Quantified(quant) => {
-                quant.unbound_callable.update_level(level);
-                for bound in quant.bounds.iter() {
-                    bound.update_level(level);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn lift(&self) {
-        match self {
-            Self::FreeVar(v) => v.lift(),
-            Self::Ref(t) => t.lift(),
-            Self::RefMut { before, after } => {
-                before.lift();
-                if let Some(after) = after {
-                    after.lift();
-                }
-            }
-            Self::Callable { param_ts, return_t } => {
-                for p in param_ts.iter() {
-                    p.lift();
-                }
-                return_t.lift();
-            }
-            Self::Subr(subr) => {
-                for pt in subr.non_default_params.iter() {
-                    pt.typ().lift();
-                }
-                if let Some(pt) = subr.var_params.as_ref() {
-                    pt.typ().lift();
-                }
-                for pt in subr.default_params.iter() {
-                    pt.typ().lift();
-                }
-                subr.return_t.lift();
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.lift();
-                rhs.lift();
-            }
-            Self::Record(attrs) => {
-                for t in attrs.values() {
-                    t.lift();
-                }
-            }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                for p in params.iter() {
-                    p.lift();
-                }
-            }
-            Self::Proj { lhs, .. } => {
-                lhs.lift();
-            }
-            Self::Refinement(refine) => {
-                refine.t.lift();
-                for pred in refine.preds.iter() {
-                    pred.lift();
-                }
-            }
-            Self::Quantified(quant) => {
-                quant.unbound_callable.lift();
-                for bound in quant.bounds.iter() {
-                    bound.lift();
-                }
+                quant.set_level(level);
             }
             _ => {}
         }
@@ -1681,14 +1486,6 @@ impl Type {
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
 
-    pub fn is_mono_q(&self) -> bool {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_q(),
-            Self::MonoQVar(_) => true,
-            _ => false,
-        }
-    }
-
     /// 本来は型環境が必要
     pub fn mutate(self) -> Self {
         match self {
@@ -1703,8 +1500,13 @@ impl Type {
             Self::Float => mono("Float!"),
             Self::Bool => mono("Bool!"),
             Self::Str => mono("Str!"),
-            _ => todo!(),
+            other if other.is_mut_type() => other,
+            _t => todo!("{_t}"),
         }
+    }
+
+    pub fn quantify(self) -> Self {
+        Self::Quantified(Box::new(self))
     }
 
     pub fn is_simple_class(&self) -> bool {
@@ -1757,11 +1559,9 @@ impl Type {
                     fv.unbound_name().unwrap().ends_with('!')
                 }
             }
-            Self::Mono(name)
-            | Self::MonoQVar(name)
-            | Self::Poly { name, .. }
-            | Self::PolyQVar { name, .. }
-            | Self::Proj { rhs: name, .. } => name.ends_with('!'),
+            Self::Mono(name) | Self::Poly { name, .. } | Self::Proj { rhs: name, .. } => {
+                name.ends_with('!')
+            }
             Self::Refinement(refine) => refine.t.is_mut_type(),
             _ => false,
         }
@@ -1835,11 +1635,11 @@ impl Type {
             Self::FreeVar(fv) => {
                 fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
                     || fv
-                        .get_bound_types()
+                        .get_subsup()
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
+            Self::Poly { params, .. } => {
                 for param in params.iter() {
                     match param {
                         TyParam::Type(t) if t.contains_tvar(name) => {
@@ -1916,7 +1716,7 @@ impl Type {
             Self::Error => Str::ever("Error"),
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
-            Self::Mono(name) | Self::MonoQVar(name) => name.clone(),
+            Self::Mono(name) => name.clone(),
             Self::And(_, _) => Str::ever("And"),
             Self::Not(_, _) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
@@ -1932,7 +1732,7 @@ impl Type {
             }) => Str::ever("Proc"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
-            Self::Poly { name, .. } | Self::PolyQVar { name, .. } => name.clone(),
+            Self::Poly { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.qual_name(),
             Self::Quantified(_) => Str::ever("Quantified"),
@@ -1944,8 +1744,8 @@ impl Type {
                 FreeKind::NamedUnbound { name, .. } => name.clone(),
                 FreeKind::Unbound { id, .. } => Str::from(format!("%{id}")),
             },
-            Self::Proj { .. } => Str::ever("MonoProj"),
-            Self::ProjCall { .. } => Str::ever("MonoProjMethod"),
+            Self::Proj { .. } => Str::ever("Proj"),
+            Self::ProjCall { .. } => Str::ever("ProjCall"),
             Self::Failure => Str::ever("Failure"),
             Self::Untyped => Str::ever("Untyped"),
             Self::Uninited => Str::ever("Uninited"),
@@ -1970,11 +1770,28 @@ impl Type {
         }
     }
 
+    /// assert!((A or B).contains_union(B))
+    pub fn contains_union(&self, typ: &Type) -> bool {
+        match self {
+            Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
+            _ => self == typ,
+        }
+    }
+
     pub fn tvar_name(&self) -> Option<Str> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
-            Self::MonoQVar(name) | Self::PolyQVar { name, .. } => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn q_constraint(&self) -> Option<Constraint> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().unwrap().q_constraint()
+            }
+            Self::FreeVar(fv) if fv.is_generalized() => fv.constraint(),
             _ => None,
         }
     }
@@ -2002,17 +1819,58 @@ impl Type {
             || (self.has_no_qvar() && self.has_no_unbound_var())
     }
 
+    pub fn qvars(&self) -> Set<(Str, Constraint)> {
+        match self {
+            Self::FreeVar(fv) if !fv.constraint_is_uninited() => set! {
+                (fv.unbound_name().unwrap(), fv.constraint().unwrap())
+            },
+            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
+            Self::Ref(t) => t.qvars(),
+            Self::RefMut { before, after } => before
+                .qvars()
+                .concat(after.as_ref().map(|t| t.qvars()).unwrap_or_else(|| set! {})),
+            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.qvars().concat(rhs.qvars())
+            }
+            Self::Callable { param_ts, return_t } => param_ts
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars()))
+                .concat(return_t.qvars()),
+            Self::Subr(subr) => subr.qvars(),
+            Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
+            Self::Refinement(refine) => refine.t.qvars().concat(
+                refine
+                    .preds
+                    .iter()
+                    .fold(set! {}, |acc, pred| acc.concat(pred.qvars())),
+            ),
+            Self::Quantified(quant) => quant.qvars(),
+            Self::Poly { params, .. } => params
+                .iter()
+                .fold(set! {}, |acc, tp| acc.concat(tp.qvars())),
+            Self::Proj { lhs, .. } => lhs.qvars(),
+            Self::ProjCall { lhs, args, .. } => lhs
+                .qvars()
+                .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
+            _ => set! {},
+        }
+    }
+
     /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::MonoQVar(_) | Self::PolyQVar { .. } => true,
+            Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if fv.is_unbound() {
-                    let (sub, sup) = fv.get_bound_types().unwrap();
-                    match fv.cyclicity() {
-                        Cyclicity::Not => sub.has_qvar() || sup.has_qvar(),
-                        Cyclicity::Super => sub.has_qvar(),
-                        _ => todo!(),
+                    if let Some((sub, sup)) = fv.get_subsup() {
+                        fv.undoable_link(&Type::Obj);
+                        let res_sub = sub.has_qvar();
+                        let res_sup = sup.has_qvar();
+                        fv.undo();
+                        res_sub || res_sup
+                    } else {
+                        let opt_t = fv.get_type();
+                        opt_t.map(|t| t.has_qvar()).unwrap_or(false)
                     }
                 } else {
                     fv.crack().has_qvar()
@@ -2033,10 +1891,7 @@ impl Type {
             Self::Refinement(refine) => {
                 refine.t.has_qvar() || refine.preds.iter().any(|pred| pred.has_qvar())
             }
-            Self::Quantified(quant) => {
-                quant.unbound_callable.has_unbound_var()
-                    || quant.bounds.iter().any(|tb| tb.has_qvar())
-            }
+            Self::Quantified(quant) => quant.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::Proj { lhs, .. } => lhs.has_qvar(),
             Self::ProjCall { lhs, args, .. } => {
@@ -2079,12 +1934,8 @@ impl Type {
             Self::Refinement(refine) => {
                 refine.t.is_cachable() && refine.preds.iter().all(|p| p.is_cachable())
             }
-            Self::Quantified(quant) => {
-                quant.unbound_callable.is_cachable() || quant.bounds.iter().all(|b| b.is_cachable())
-            }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                params.iter().all(|p| p.is_cachable())
-            }
+            Self::Quantified(quant) => quant.is_cachable(),
+            Self::Poly { params, .. } => params.iter().all(|p| p.is_cachable()),
             Self::Proj { lhs, .. } => lhs.is_cachable(),
             _ => true,
         }
@@ -2129,13 +1980,8 @@ impl Type {
             Self::Refinement(refine) => {
                 refine.t.has_unbound_var() || refine.preds.iter().any(|p| p.has_unbound_var())
             }
-            Self::Quantified(quant) => {
-                quant.unbound_callable.has_unbound_var()
-                    || quant.bounds.iter().any(|b| b.has_unbound_var())
-            }
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => {
-                params.iter().any(|p| p.has_unbound_var())
-            }
+            Self::Quantified(quant) => quant.has_unbound_var(),
+            Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
             Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
             _ => false,
         }
@@ -2159,7 +2005,7 @@ impl Type {
                     + 1,
             ),
             Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => Some(params.len()),
+            Self::Poly { params, .. } => Some(params.len()),
             _ => None,
         }
     }
@@ -2175,7 +2021,7 @@ impl Type {
             }
             Self::Subr(subr) => subr.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
-            Self::Poly { params, .. } | Self::PolyQVar { params, .. } => params.clone(),
+            Self::Poly { params, .. } => params.clone(),
             _ => vec![],
         }
     }
@@ -2188,7 +2034,7 @@ impl Type {
                 .and_then(|t| t.self_t()),
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
-            Self::Quantified(quant) => quant.unbound_callable.self_t(),
+            Self::Quantified(quant) => quant.self_t(),
             _ => None,
         }
     }
@@ -2268,29 +2114,21 @@ impl Type {
         }
     }
 
-    pub fn update_constraint(&self, new_constraint: Constraint) {
-        if let Self::FreeVar(fv) = self {
-            fv.update_constraint(new_constraint);
-        }
-    }
-
-    pub fn update_cyclicity(&self, new_cyclicity: Cyclicity) {
-        if let Self::FreeVar(fv) = self {
-            fv.update_cyclicity(new_cyclicity);
-        }
-    }
-
     pub fn derefine(&self) -> Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().derefine(),
             Self::FreeVar(fv) => {
-                let name = fv.get_unbound_name().unwrap();
+                let name = fv.unbound_name().unwrap();
                 let level = fv.level().unwrap();
-                let (sub, sup) = fv.get_bound_types().unwrap();
-                let cyclicity = fv.cyclicity();
-                let constraint =
-                    Constraint::new_sandwiched(sub.derefine(), sup.derefine(), cyclicity);
-                Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
+                    // not `.update_constraint`
+                    Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                } else {
+                    let t = fv.get_type().unwrap().derefine();
+                    let constraint = Constraint::new_type_of(t);
+                    Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                }
             }
             Self::Refinement(refine) => refine.t.as_ref().clone(),
             Self::Poly { name, params } => {
@@ -2327,6 +2165,79 @@ impl Type {
                 Self::Not(Box::new(l), Box::new(r))
             }
             other => other.clone(),
+        }
+    }
+
+    pub fn replace(self, target: &Type, to: &Type) -> Type {
+        if &self == target {
+            return to.clone();
+        }
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.replace(target, to));
+                Self::Refinement(refine)
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).replace(target, to);
+                }
+                Self::Record(rec)
+            }
+            Self::Subr(mut subr) => {
+                for nd in subr.non_default_params.iter_mut() {
+                    *nd.typ_mut() = std::mem::take(nd.typ_mut()).replace(target, to);
+                }
+                if let Some(var) = subr.var_params.as_mut() {
+                    *var.as_mut().typ_mut() =
+                        std::mem::take(var.as_mut().typ_mut()).replace(target, to);
+                }
+                for d in subr.default_params.iter_mut() {
+                    *d.typ_mut() = std::mem::take(d.typ_mut()).replace(target, to);
+                }
+                subr.return_t = Box::new(subr.return_t.replace(target, to));
+                Self::Subr(subr)
+            }
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| t.replace(target, to))
+                    .collect();
+                let return_t = Box::new(return_t.replace(target, to));
+                Self::Callable { param_ts, return_t }
+            }
+            Self::Quantified(quant) => quant.replace(target, to).quantify(),
+            Self::Poly { name, params } => {
+                let params = params
+                    .into_iter()
+                    .map(|tp| match tp {
+                        TyParam::Type(t) => TyParam::t(t.replace(target, to)),
+                        other => other,
+                    })
+                    .collect();
+                Self::Poly { name, params }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.replace(target, to))),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.replace(target, to)),
+                after: after.map(|t| Box::new(t.replace(target, to))),
+            },
+            Self::And(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::And(Box::new(l), Box::new(r))
+            }
+            Self::Or(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::Or(Box::new(l), Box::new(r))
+            }
+            Self::Not(l, r) => {
+                let l = l.replace(target, to);
+                let r = r.replace(target, to);
+                Self::Not(Box::new(l), Box::new(r))
+            }
+            other => other,
         }
     }
 }

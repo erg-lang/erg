@@ -12,7 +12,7 @@ Point|Point <: Mul(Point)|.
     Output = Nat
     __mul__ self, other: Point =
         self::x * other::x + self::y * other::y
-Point|Point <: Eq(Point)|.
+Point|Point <: Eq|.
     __eq__ self, other: Point =
         self::x == other::x and self::y == other::y
 

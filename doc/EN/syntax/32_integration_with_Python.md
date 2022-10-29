@@ -50,8 +50,9 @@ def baz():
 class C:
     ...
 ...
+```
 
-````python
+```python
 # foo.d.er
 .X: Int
 .bar!: Int => Int

@@ -14,6 +14,11 @@ fn exec_addition() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_advanced_type_spec() -> Result<(), ()> {
+    expect_success("tests/advanced_type_spec.er")
+}
+
+#[test]
 fn exec_assert_cast() -> Result<(), ()> {
     expect_success("examples/assert_cast.er")
 }
@@ -80,6 +85,11 @@ fn exec_pyimport() -> Result<(), ()> {
 #[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er")
+}
+
+#[test]
+fn exec_raw_ident() -> Result<(), ()> {
+    expect_success("examples/raw_ident.er")
 }
 
 #[test]

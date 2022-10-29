@@ -17,14 +17,14 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use crate::ty::constructors::{anon, free_var, func, mono, poly, proj, subr_t};
+use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrKind, SubrType, TyBound, Type};
+use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TraitInstance, Variance};
+use crate::context::{Context, RegistrationMode, TyVarCache, TypeRelationInstance, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
@@ -53,6 +53,7 @@ impl Context {
                 ident.loc(),
                 self.caused_by(),
                 ident.inspect(),
+                None,
                 &spec_t,
                 body_t,
                 self.get_candidates(body_t),
@@ -234,6 +235,7 @@ impl Context {
 
     fn get_match_call_t(
         &self,
+        kind: SubrKind,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<VarInfo> {
@@ -250,6 +252,7 @@ impl Context {
                     pos_arg.loc(),
                     self.caused_by(),
                     "match",
+                    None,
                     &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
@@ -281,8 +284,13 @@ impl Context {
                         .unwrap_or(0),
                 )));
             }
-            let rhs =
-                self.instantiate_param_sig_t(&lambda.params.non_defaults[0], None, None, Normal)?;
+            let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+            let rhs = self.instantiate_param_sig_t(
+                &lambda.params.non_defaults[0],
+                None,
+                &mut dummy_tv_cache,
+                Normal,
+            )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
@@ -310,69 +318,16 @@ impl Context {
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
-        let t = func(param_ts, None, vec![], return_t);
+        let t = if kind.is_func() {
+            func(param_ts, None, vec![], return_t)
+        } else {
+            proc(param_ts, None, vec![], return_t)
+        };
         Ok(VarInfo {
             t,
             ..VarInfo::default()
         })
     }
-
-    /*fn get_import_call_t(
-        &self,
-        pos_args: &[hir::PosArg],
-        kw_args: &[hir::KwArg],
-    ) -> TyCheckResult<VarInfo> {
-        let mod_name = pos_args
-            .get(0)
-            .map(|a| &a.expr)
-            .or_else(|| {
-                kw_args
-                    .iter()
-                    .find(|k| &k.keyword.inspect()[..] == "Path")
-                    .map(|a| &a.expr)
-            })
-            .unwrap();
-        let path = match mod_name {
-            hir::Expr::Lit(lit) => {
-                if self.subtype_of(&lit.value.class(), &Str) {
-                    enum_unwrap!(&lit.value, ValueObj::Str)
-                } else {
-                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        mod_name.loc(),
-                        self.caused_by(),
-                        "import::name",
-                        &Str,
-                        mod_name.ref_t(),
-                        self.get_candidates(mod_name.ref_t()),
-                        self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
-                    )));
-                }
-            }
-            _other => {
-                return Err(TyCheckErrors::from(TyCheckError::feature_error(
-                    self.cfg.input.clone(),
-                    mod_name.loc(),
-                    "non-literal importing",
-                    self.caused_by(),
-                )))
-            }
-        };
-        let path = PathBuf::from(&path[..]);
-        let s = ValueObj::Str(Str::rc(path.to_str().unwrap()));
-        let import_t = func(
-            vec![ParamTy::anonymous(v_enum(set! {s.clone()}))],
-            None,
-            vec![],
-            module(TyParam::Value(s)),
-        );
-        Ok(VarInfo {
-            t: import_t,
-            py_name: Some(Str::ever("__import__")),
-            ..VarInfo::default()
-        })
-    }*/
 
     pub(crate) fn rec_get_var_info(
         &self,
@@ -394,16 +349,24 @@ impl Context {
             }
         }
         if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            return parent.rec_get_var_info(ident, acc_kind, input, namespace);
+            if let Ok(vi) = parent.rec_get_var_info(ident, acc_kind, input, namespace) {
+                Ok(vi)
+            } else {
+                Err(TyCheckError::no_var_error(
+                    input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.into(),
+                    ident.inspect(),
+                    self.get_similar_name(ident.inspect()),
+                ))
+            }
+        } else {
+            Err(TyCheckError::dummy(
+                self.cfg.input.clone(),
+                line!() as usize,
+            ))
         }
-        Err(TyCheckError::no_var_error(
-            input.clone(),
-            line!() as usize,
-            ident.loc(),
-            namespace.into(),
-            ident.inspect(),
-            self.get_similar_name(ident.inspect()),
-        ))
     }
 
     pub(crate) fn rec_get_decl_info(
@@ -906,6 +869,7 @@ impl Context {
                 } else {
                     subr.non_default_params.len()
                 };
+                let mut nth = 1;
                 if pos_args.len() >= non_default_params_len {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
                     let non_default_params = if is_method {
@@ -920,26 +884,38 @@ impl Context {
                         self.substitute_pos_arg(
                             &callee,
                             &nd_arg.expr,
+                            nth,
                             nd_param,
                             &mut passed_params,
                         )?;
+                        nth += 1;
                     }
                     if let Some(var_param) = subr.var_params.as_ref() {
                         for var_arg in var_args.iter() {
-                            self.substitute_var_arg(&callee, &var_arg.expr, var_param)?;
+                            self.substitute_var_arg(&callee, &var_arg.expr, nth, var_param)?;
+                            nth += 1;
                         }
                     } else {
                         for (arg, pt) in var_args.iter().zip(subr.default_params.iter()) {
-                            self.substitute_pos_arg(&callee, &arg.expr, pt, &mut passed_params)?;
+                            self.substitute_pos_arg(
+                                &callee,
+                                &arg.expr,
+                                nth,
+                                pt,
+                                &mut passed_params,
+                            )?;
+                            nth += 1;
                         }
                     }
                     for kw_arg in kw_args.iter() {
                         self.substitute_kw_arg(
                             &callee,
                             kw_arg,
+                            nth,
                             &subr.default_params,
                             &mut passed_params,
                         )?;
+                        nth += 1;
                     }
                     for not_passed in subr
                         .default_params
@@ -980,6 +956,7 @@ impl Context {
                         Location::concat(obj, attr_name),
                         self.caused_by(),
                         &(obj.to_string() + &attr_name.to_string()),
+                        None,
                         &mono("Callable"),
                         other,
                         self.get_candidates(other),
@@ -992,6 +969,7 @@ impl Context {
                         obj.loc(),
                         self.caused_by(),
                         &obj.to_string(),
+                        None,
                         &mono("Callable"),
                         other,
                         self.get_candidates(other),
@@ -1006,6 +984,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::Expr,
+        nth: usize,
         param: &ParamTy,
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
@@ -1026,6 +1005,7 @@ impl Context {
                                 e.core.loc,
                                 e.caused_by,
                                 &name[..],
+                                Some(nth),
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
@@ -1056,6 +1036,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::Expr,
+        nth: usize,
         param: &ParamTy,
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
@@ -1075,6 +1056,7 @@ impl Context {
                                 e.core.loc,
                                 e.caused_by,
                                 &name[..],
+                                Some(nth),
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
@@ -1090,6 +1072,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         arg: &hir::KwArg,
+        nth: usize,
         default_params: &[ParamTy],
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
@@ -1126,6 +1109,7 @@ impl Context {
                                     e.core.loc,
                                     e.caused_by,
                                     &name[..],
+                                    Some(nth),
                                     pt.typ(),
                                     arg_t,
                                     self.get_candidates(arg_t),
@@ -1162,7 +1146,10 @@ impl Context {
                 #[allow(clippy::single_match)]
                 match &local.inspect()[..] {
                     "match" => {
-                        return self.get_match_call_t(pos_args, kw_args);
+                        return self.get_match_call_t(SubrKind::Func, pos_args, kw_args);
+                    }
+                    "match!" => {
+                        return self.get_match_call_t(SubrKind::Proc, pos_args, kw_args);
                     }
                     /*"import" | "pyimport" | "py" => {
                         return self.get_import_call_t(pos_args, kw_args);
@@ -1263,24 +1250,8 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
-        match name {
-            "true" => return Some("True"),
-            "false" => return Some("False"),
-            "Null" | "Nil" | "null" | "nil" | "none" => return Some("None"),
-            "del" => return Some("Del"),
-            "int" => return Some("Int"),
-            "nat" => return Some("Nat"),
-            "str" => return Some("Str"),
-            "bool" => return Some("Bool"),
-            _ => {}
-        }
-        let name = readable_name(name);
-        // REVIEW: add decls?
         get_similar_name(
-            self.params
-                .iter()
-                .filter_map(|(opt_name, _)| opt_name.as_ref().map(|n| &n.inspect()[..]))
-                .chain(self.locals.keys().map(|name| &name.inspect()[..])),
+            self.dir().into_iter().map(|(vn, _)| &vn.inspect()[..]),
             name,
         )
     }
@@ -1307,22 +1278,19 @@ impl Context {
         None
     }
 
-    pub(crate) fn type_params_bounds(&self) -> Set<TyBound> {
-        self.params
-            .iter()
-            .filter(|(opt_name, vi)| vi.kind.is_parameter() && opt_name.is_some())
-            .map(|(name, vi)| {
-                TyBound::instance(name.as_ref().unwrap().inspect().clone(), vi.t.clone())
-            })
-            .collect()
-    }
-
     // selfが示す型が、各パラメータTypeに対してどのような変性Varianceを持つかを返す
     // 特に指定されない型に対してはInvariant
     // e.g. K(T, U) = Class(..., Impl: F(T) and Output(U) and Input(T))
     // -> K.variance() == vec![Contravariant, Covariant]
     // TODO: support keyword arguments
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
+        let in_inout = |t: &Type, name: &VarName| {
+            (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
+                && t.typarams()
+                    .first()
+                    .map(|inner| &inner.qual_name().unwrap() == name.inspect())
+                    .unwrap_or(false)
+        };
         self.params
             .iter()
             .map(|(opt_name, _)| {
@@ -1332,13 +1300,7 @@ impl Context {
                         .super_traits
                         .iter()
                         .chain(self.super_classes.iter())
-                        .find(|t| {
-                            (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
-                                && t.inner_ts()
-                                    .first()
-                                    .map(|t| &t.qual_name() == name.inspect())
-                                    .unwrap_or(false)
-                        })
+                        .find(|t| in_inout(t, name))
                     {
                         match &t.qual_name()[..] {
                             "Output" => Variance::Covariant,
@@ -1351,17 +1313,6 @@ impl Context {
                 } else {
                     Variance::Invariant
                 }
-            })
-            .collect()
-    }
-
-    pub(crate) fn bounds(&self) -> Set<TyBound> {
-        self.params
-            .iter()
-            .filter_map(|(opt_name, vi)| {
-                opt_name
-                    .as_ref()
-                    .map(|name| TyBound::instance(name.inspect().clone(), vi.t.clone()))
             })
             .collect()
     }
@@ -1427,8 +1378,11 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {
-                let sup = fv.get_sup().unwrap();
-                self.get_nominal_super_type_ctxs(&sup)
+                if let Some(sup) = fv.get_sup() {
+                    self.get_nominal_super_type_ctxs(&sup)
+                } else {
+                    self.get_nominal_super_type_ctxs(&Type)
+                }
             }
             Type::And(l, r) => {
                 match (
@@ -1445,8 +1399,8 @@ impl Context {
             // TODO
             Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
                 (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
-                    let (_lsub, lsup) = l.get_bound_types().unwrap();
-                    let (_rsub, rsup) = r.get_bound_types().unwrap();
+                    let (_lsub, lsup) = l.get_subsup().unwrap();
+                    let (_rsub, rsup) = r.get_subsup().unwrap();
                     self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
                 }
                 (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
@@ -1483,7 +1437,7 @@ impl Context {
     }
 
     /// if `typ` is a refinement type, include the base type (refine.t)
-    pub(crate) fn get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+    pub(crate) fn _get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ).map(|ctx| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
@@ -1549,6 +1503,9 @@ impl Context {
                 }
                 // e.g. http.client.Response -> http.client
                 let mut namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() < 2 {
+                    return None;
+                }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
                 let mut path = self.resolve_path(path);
@@ -1576,6 +1533,9 @@ impl Context {
                 }
                 // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
                 let mut namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() < 2 {
+                    return None;
+                }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
                 let mut path = self.resolve_path(path);
@@ -1689,7 +1649,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
         match t {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
@@ -1704,7 +1664,7 @@ impl Context {
                     let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TraitInstance::new(lti.sub_type.clone(), sup_trait));
+                    isec.insert(TypeRelationInstance::new(lti.sub_type.clone(), sup_trait));
                 }
                 isec
             }
@@ -1718,7 +1678,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitInstance> {
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
         let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
             impls.clone()
         } else {
@@ -1738,6 +1698,14 @@ impl Context {
             outer._rec_get_patch(name)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn _all_patches(&self) -> Vec<&Context> {
+        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            [outer._all_patches(), self.patches.values().collect()].concat()
+        } else {
+            self.patches.values().collect()
         }
     }
 
@@ -1815,28 +1783,29 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
+    pub(crate) fn _rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
             Some(impls)
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_const_param_defaults(name)
+            outer._rec_get_const_param_defaults(name)
         } else {
             None
         }
     }
 
-    /// FIXME: if trait, returns a freevar
+    // TODO: poly type
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
-            // TODO: poly type
-            let name = self.name.split(&[':', '.']).last().unwrap();
-            // let mono_t = mono(self.path(), Str::rc(name));
-            if let Some((t, _)) = self.rec_get_type(name) {
+            // let name = self.name.split(&[':', '.']).last().unwrap();
+            /*if let Some((t, _)) = self.rec_get_type(name) {
+                log!("{t}");
                 Some(t.clone())
             } else {
+                log!("none");
                 None
-            }
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            }*/
+            Some(mono(self.name.clone()))
+        } else if let Some(outer) = self.get_outer() {
             outer.rec_get_self_t()
         } else {
             None
@@ -1966,7 +1935,7 @@ impl Context {
     }
 
     fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.require_or_sup.typ() {
+        match gen.require_or_sup().unwrap().typ() {
             Type::Record(rec) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);
@@ -1980,7 +1949,7 @@ impl Context {
                 }
             }
         }
-        if let Some(additional) = &gen.additional {
+        if let Some(additional) = gen.additional() {
             if let Type::Record(gen) = additional.typ() {
                 if let Some(t) = gen.get(attr) {
                     return Some(t);
@@ -2085,6 +2054,29 @@ impl Context {
                     false
                 }
             }
+        }
+    }
+
+    // TODO:
+    /// Int.meta_type() == ClassType (<: Type)
+    /// Show.meta_type() == TraitType (<: Type)
+    /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
+    pub fn meta_type(&self, typ: &Type) -> Type {
+        match typ {
+            Type::Poly { name, params } => poly(
+                name.clone(),
+                params
+                    .iter()
+                    .map(|tp| {
+                        if let Ok(t) = self.convert_tp_into_ty(tp.clone()) {
+                            TyParam::t(self.meta_type(&t))
+                        } else {
+                            tp.clone()
+                        }
+                    })
+                    .collect(),
+            ),
+            _ => Type,
         }
     }
 }

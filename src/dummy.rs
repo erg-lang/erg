@@ -90,6 +90,7 @@ impl Runnable for DummyVM {
                     panic!("{}", format!("Read error: {e}"));
                 }
             }
+            remove_file("o.pyc").unwrap_or(());
         }
     }
 
@@ -109,9 +110,6 @@ impl Runnable for DummyVM {
             .replace(".er", ".pyc");
         self.compiler
             .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
-        if self.cfg().dump_as_pyc {
-            return Ok(0);
-        }
         let code = exec_pyc(&filename);
         remove_file(&filename).unwrap();
         Ok(code.unwrap_or(1))
@@ -126,7 +124,8 @@ impl Runnable for DummyVM {
                 let mut buf = [0; 1024];
                 match self.stream.as_mut().unwrap().read(&mut buf) {
                     Result::Ok(n) => {
-                        let s = std::str::from_utf8(&buf[..n]).unwrap();
+                        let s = std::str::from_utf8(&buf[..n])
+                            .expect("failed to parse the response, maybe the output is too long");
                         if s == "[Exception] SystemExit" {
                             return Err(EvalErrors::from(EvalError::system_exit()));
                         }

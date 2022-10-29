@@ -988,7 +988,7 @@ impl Call {
     pub fn is_match(&self) -> bool {
         self.obj
             .get_name()
-            .map(|s| &s[..] == "match")
+            .map(|s| &s[..] == "match" || &s[..] == "match!")
             .unwrap_or(false)
     }
 
@@ -1079,7 +1079,7 @@ pub struct ConstLocal {
 
 impl NestedDisplay for ConstLocal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.symbol)
+        write!(f, "{}", self.symbol.content)
     }
 }
 
@@ -1514,7 +1514,7 @@ impl fmt::Display for SimpleTypeSpec {
         if self.args.is_empty() {
             write!(f, "{}", self.ident)
         } else {
-            write!(f, "{}{}", self.ident, self.args)
+            write!(f, "{}({})", self.ident, self.args)
         }
     }
 }
@@ -1728,20 +1728,20 @@ impl ArrayTypeSpec {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SetTypeSpec {
+pub struct SetWithLenTypeSpec {
     pub ty: Box<TypeSpec>,
     pub len: ConstExpr,
 }
 
-impl fmt::Display for SetTypeSpec {
+impl fmt::Display for SetWithLenTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{}; {}}}", self.ty, self.len)
     }
 }
 
-impl_locational!(SetTypeSpec, ty, len);
+impl_locational!(SetWithLenTypeSpec, ty, len);
 
-impl SetTypeSpec {
+impl SetWithLenTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
         Self {
             ty: Box::new(ty),
@@ -1762,13 +1762,14 @@ impl SetTypeSpec {
 /// * TypeApp: F|...|
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
+    Infer(Token),
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
     Array(ArrayTypeSpec),
-    Set(SetTypeSpec),
+    SetWithLen(SetWithLenTypeSpec),
     Tuple(Vec<TypeSpec>),
     Dict(Vec<(TypeSpec, TypeSpec)>),
-    // Dict(),
+    Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
     Not(Box<TypeSpec>, Box<TypeSpec>),
@@ -1790,17 +1791,25 @@ pub enum TypeSpec {
 impl fmt::Display for TypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Infer(_) => write!(f, "?"),
             Self::PreDeclTy(ty) => write!(f, "{ty}"),
             Self::And(lhs, rhs) => write!(f, "{lhs} and {rhs}"),
             Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
-            Self::Set(set) => write!(f, "{set}"),
+            Self::SetWithLen(set) => write!(f, "{set}"),
             Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
-                for (k, v) in dict {
+                for (k, v) in dict.iter() {
                     write!(f, "{k}: {v}, ")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (k, v) in rec.iter() {
+                    write!(f, "{k} = {v}; ")?;
                 }
                 write!(f, "}}")
             }
@@ -1815,15 +1824,17 @@ impl fmt::Display for TypeSpec {
 impl Locational for TypeSpec {
     fn loc(&self) -> Location {
         match self {
+            Self::Infer(t) => t.loc(),
             Self::PreDeclTy(sig) => sig.loc(),
             Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
             Self::Array(arr) => arr.loc(),
-            Self::Set(set) => set.loc(),
+            Self::SetWithLen(set) => set.loc(),
             // TODO: ユニット
             Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
             Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
+            Self::Record(rec) => Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1),
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
@@ -1854,6 +1865,17 @@ impl TypeSpec {
             spec: Box::new(spec),
             args,
         }
+    }
+
+    pub fn enum_t_spec(elems: Vec<Literal>) -> Self {
+        Self::Enum(ConstArgs::new(
+            elems
+                .into_iter()
+                .map(|lit| ConstPosArg::new(ConstExpr::Lit(lit)))
+                .collect(),
+            vec![],
+            None,
+        ))
     }
 }
 
@@ -1950,8 +1972,20 @@ impl Decorator {
 }
 
 /// symbol as a left value
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct VarName(Token);
+
+impl PartialEq for VarName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl std::hash::Hash for VarName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
 
 impl Borrow<str> for VarName {
     #[inline]
@@ -2016,6 +2050,10 @@ impl VarName {
             .last()
             .map(|c| c == '!')
             .unwrap_or(false)
+    }
+
+    pub fn is_raw(&self) -> bool {
+        self.0.content.starts_with('\'')
     }
 
     pub const fn token(&self) -> &Token {
@@ -2092,6 +2130,10 @@ impl Identifier {
 
     pub fn is_const(&self) -> bool {
         self.name.is_const()
+    }
+
+    pub fn is_raw(&self) -> bool {
+        self.name.is_raw()
     }
 
     pub const fn vis(&self) -> Visibility {

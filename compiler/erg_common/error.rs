@@ -218,7 +218,7 @@ impl From<&str> for ErrorKind {
 }
 
 /// points the location (of an error) in a code
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Location {
     RangePair {
         ln_first: (usize, usize),
@@ -234,6 +234,7 @@ pub enum Location {
     },
     LineRange(usize, usize),
     Line(usize),
+    #[default]
     Unknown,
 }
 
@@ -393,10 +394,10 @@ fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
         let mut pointer = " ".repeat(lineno.to_string().len() + 2); // +2 means `| `
         if i == 0 && i == final_step {
             pointer += &" ".repeat(col_begin);
-            pointer += &"^".repeat(cmp::max(1, col_end - col_begin));
+            pointer += &"^".repeat(cmp::max(1, col_end.saturating_sub(col_begin)));
         } else if i == 0 {
             pointer += &" ".repeat(col_begin);
-            pointer += &"^".repeat(cmp::max(1, codes[i].len() - col_begin));
+            pointer += &"^".repeat(cmp::max(1, codes[i].len().saturating_sub(col_begin)));
         } else if i == final_step {
             pointer += &"^".repeat(col_end);
         } else {
@@ -405,7 +406,7 @@ fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
         writeln!(
             res,
             "{lineno}{VBAR_UNICODE} {code}\n{pointer}",
-            code = codes[i]
+            code = codes.get(i).unwrap_or(&String::new()),
         )
         .unwrap();
     }

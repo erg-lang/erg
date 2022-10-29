@@ -26,12 +26,13 @@ def in_operator(x, y):
             return True
         # TODO: trait check
         return False
-    elif (type(y) == list or type(y) == set) and type(y[0]) == type:
+    elif (issubclass(type(y), list) or issubclass(type(y), set)) \
+        and (type(y[0]) == type or issubclass(type(y[0]), Range)):
         # FIXME:
         type_check = in_operator(x[0], y[0])
         len_check = len(x) == len(y)
         return type_check and len_check
-    elif type(y) == dict and type(next(iter(y.keys()))) == type:
+    elif issubclass(type(y), dict) and issubclass(type(next(iter(y.keys()))), type):
         # TODO:
         type_check = True # in_operator(x[next(iter(x.keys()))], next(iter(y.keys())))
         len_check = len(x) >= len(y)
@@ -67,8 +68,7 @@ class Bool(Nat):
 
 class Str(str):
     def __instancecheck__(cls, obj):
-        print(cls, obj)
-        return obj == Str or obj == str
+        return isinstance(obj, str)
 
     def try_new(s: str): # -> Result[Nat]
         if isinstance(s, str):
@@ -83,9 +83,26 @@ class Range:
     def __contains__(self, item):
         pass
     def __getitem__(self, item):
-        pass
+        res = self.start + item
+        if res in self:
+            return res
+        else:
+            raise IndexError("Index out of range")
     def __len__(self):
-        pass
+        if self.start in self:
+            if self.end in self:
+                # len(1..4) == 4
+                return self.end - self.start + 1
+            else:
+                # len(1..<4) == 3
+                return self.end - self.start
+        else:
+            if self.end in self:
+                # len(1<..4) == 3
+                return self.end - self.start
+            else:
+                # len(1<..<4) == 2
+                return self.end - self.start - 2
     def __iter__(self):
         return RangeIterator(rng=self)
 
@@ -97,46 +114,30 @@ Iterable.register(Range)
 class LeftOpenRange(Range):
     def __contains__(self, item):
         return self.start < item <= self.end
-    def __getitem__(self, item):
-        return NotImplemented
-    def __len__(self):
-        return NotImplemented
 
 # represents `start..<end`
 class RightOpenRange(Range):
     def __contains__(self, item):
         return self.start <= item < self.end
-    def __getitem__(self, item):
-        return NotImplemented
-    def __len__(self):
-        return NotImplemented
 
 # represents `start<..<end`
 class OpenRange(Range):
     def __contains__(self, item):
         return self.start < item < self.end
-    def __getitem__(self, item):
-        return NotImplemented
-    def __len__(self):
-        return NotImplemented
 
 # represents `start..end`
 class ClosedRange(Range):
     def __contains__(self, item):
         return self.start <= item <= self.end
-    def __getitem__(self, item):
-        return NotImplemented
-    def __len__(self):
-        return NotImplemented
 
 class RangeIterator:
     def __init__(self, rng):
         self.rng = rng
         self.needle = self.rng.start
-        if type(self.rng.start) == int:
+        if issubclass(Nat, type(self.rng.start)):
             if not(self.needle in self.rng):
                 self.needle += 1
-        elif type(self.rng.start) == str:
+        elif issubclass(Str, type(self.rng.start)):
             if not(self.needle in self.rng):
                 self.needle = chr(ord(self.needle) + 1)
         else:
@@ -147,12 +148,12 @@ class RangeIterator:
         return self
 
     def __next__(self):
-        if type(self.rng.start) == int:
+        if issubclass(Nat, type(self.rng.start)):
             if self.needle in self.rng:
                 result = self.needle
                 self.needle += 1
                 return result
-        elif type(self.rng.start) == str:
+        elif issubclass(Str, type(self.rng.start)):
             if self.needle in self.rng:
                 result = self.needle
                 self.needle = chr(ord(self.needle) + 1)
@@ -165,3 +166,8 @@ class RangeIterator:
         raise StopIteration
 
 Iterator.register(RangeIterator)
+
+class Array(list):
+    def push(self, value):
+        self.append(value)
+        return self

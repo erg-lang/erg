@@ -18,6 +18,15 @@ use crate::ty::{Predicate, Type};
 
 use crate::hir::{Expr, Identifier, Signature};
 
+pub fn ordinal_num(n: usize) -> String {
+    match n.to_string().chars().last().unwrap() {
+        '1' => format!("{n}st"),
+        '2' => format!("{n}nd"),
+        '3' => format!("{n}rd"),
+        _ => format!("{n}th"),
+    }
+}
+
 /// dname is for "double under name"
 pub fn binop_to_dname(op: &str) -> &str {
     match op {
@@ -337,21 +346,31 @@ impl TyCheckError {
         loc: Location,
         caused_by: AtomicStr,
         name: &str,
+        nth_param: Option<usize>,
         expect: &Type,
         found: &Type,
         candidates: Option<Set<Type>>,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let ord = match nth_param {
+            Some(pos) => switch_lang!(
+                "japanese" => format!("({pos}番目の引数)"),
+                "simplified_chinese" => format!("(第{pos}个参数)"),
+                "traditional_chinese" => format!("(第{pos}個參數)"),
+                "english" => format!(" (the {} argument)", ordinal_num(pos)),
+            ),
+            None => "".into(),
+        };
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "与えられた型の単一化候補:\n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "english" => format!("the type of {YELLOW}{name}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "unification candidates of a given type:\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "japanese" => format!("{YELLOW}{name}{ord}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "与えられた型の単一化候補:\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "simplified_chinese" => format!("{YELLOW}{name}{ord}{RESET}的类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "traditional_chinese" => format!("{YELLOW}{name}{ord}{RESET}的類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "english" => format!("the type of {YELLOW}{name}{ord}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "unification candidates of a given type:\n", candidates, |x: &Set<Type>| x.folded_display())),
                 ),
                 hint,
             ),
@@ -1236,7 +1255,6 @@ impl LowerError {
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),
@@ -1273,7 +1291,6 @@ impl LowerError {
         similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
                 "simplified_chinese" => format!("具有相同名称的属性: {n}"),
@@ -1312,7 +1329,6 @@ impl LowerError {
         similar_name: Option<&str>,
     ) -> Self {
         let hint = similar_name.map(|n| {
-            let n = readable_name(n);
             switch_lang!(
                 "japanese" => format!("似た名前の属性があります: {n}"),
                 "simplified_chinese" => format!("具有相同名称的属性: {n}"),
