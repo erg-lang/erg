@@ -18,6 +18,7 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
+use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
@@ -90,19 +91,23 @@ impl Runnable for ASTLowerer {
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(self.input().read())?;
-        let (hir, warns) = self.lower(ast, "exec").map_err(|(_, errs)| errs)?;
+        let artifact = self
+            .lower(ast, "exec")
+            .map_err(|artifact| artifact.errors)?;
         if self.cfg.verbose >= 2 {
-            warns.fmt_all_stderr();
+            artifact.warns.fmt_all_stderr();
         }
-        println!("{hir}");
+        println!("{}", artifact.hir);
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(src)?;
-        let (hir, ..) = self.lower(ast, "eval").map_err(|(_, errs)| errs)?;
-        Ok(format!("{hir}"))
+        let artifact = self
+            .lower(ast, "eval")
+            .map_err(|artifact| artifact.errors)?;
+        Ok(format!("{}", artifact.hir))
     }
 }
 
@@ -1781,25 +1786,30 @@ impl ASTLowerer {
         HIR::new(ast.name, module)
     }
 
-    pub fn lower(
-        &mut self,
-        ast: AST,
-        mode: &str,
-    ) -> Result<(HIR, LowerWarnings), (Option<HIR>, LowerErrors)> {
+    pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         let ast = Reorderer::new(self.cfg.clone())
             .reorder(ast)
-            .map_err(|errs| (None, errs))?;
+            .map_err(|errs| {
+                IncompleteArtifact::new(None, errs, LowerWarnings::from(self.warns.take_all()))
+            })?;
         if mode == "declare" {
             let hir = self.declare_module(ast);
             if self.errs.is_empty() {
                 log!(info "HIR:\n{hir}");
                 log!(info "the declaring process has completed.");
-                return Ok((hir, LowerWarnings::from(self.warns.take_all())));
+                return Ok(CompleteArtifact::new(
+                    hir,
+                    LowerWarnings::from(self.warns.take_all()),
+                ));
             } else {
                 log!(err "the declaring process has failed.");
-                return Err((Some(hir), LowerErrors::from(self.errs.take_all())));
+                return Err(IncompleteArtifact::new(
+                    Some(hir),
+                    LowerErrors::from(self.errs.take_all()),
+                    LowerWarnings::from(self.warns.take_all()),
+                ));
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
@@ -1829,7 +1839,11 @@ impl ASTLowerer {
             Err((hir, errs)) => {
                 self.errs.extend(errs.into_iter());
                 log!(err "the resolving process has failed. errs:  {}", self.errs.len());
-                return Err((Some(hir), LowerErrors::from(self.errs.take_all())));
+                return Err(IncompleteArtifact::new(
+                    Some(hir),
+                    LowerErrors::from(self.errs.take_all()),
+                    LowerWarnings::from(self.warns.take_all()),
+                ));
             }
         };
         // TODO: recursive check
@@ -1840,10 +1854,17 @@ impl ASTLowerer {
         }
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
-            Ok((hir, LowerWarnings::from(self.warns.take_all())))
+            Ok(CompleteArtifact::new(
+                hir,
+                LowerWarnings::from(self.warns.take_all()),
+            ))
         } else {
             log!(err "the AST lowering process has failed. errs: {}", self.errs.len());
-            Err((Some(hir), LowerErrors::from(self.errs.take_all())))
+            Err(IncompleteArtifact::new(
+                Some(hir),
+                LowerErrors::from(self.errs.take_all()),
+                LowerWarnings::from(self.warns.take_all()),
+            ))
         }
     }
 }

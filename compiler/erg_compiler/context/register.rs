@@ -1071,14 +1071,14 @@ impl Context {
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
-            Ok(hir) => {
-                mod_cache.register(path.clone(), Some(hir), builder.pop_mod_ctx());
+            Ok(artifact) => {
+                mod_cache.register(path.clone(), Some(artifact.hir), builder.pop_mod_ctx());
             }
-            Err((maybe_hir, errs)) => {
-                if let Some(hir) = maybe_hir {
+            Err(artifact) => {
+                if let Some(hir) = artifact.hir {
                     mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
-                return Err(errs);
+                return Err(artifact.errors);
             }
         }
         Ok(path)
@@ -1168,15 +1168,15 @@ impl Context {
             py_mod_cache.clone(),
         );
         match builder.build(src, "declare") {
-            Ok(hir) => {
+            Ok(artifact) => {
                 let ctx = builder.pop_mod_ctx();
-                py_mod_cache.register(path.clone(), Some(hir), ctx);
+                py_mod_cache.register(path.clone(), Some(artifact.hir), ctx);
             }
-            Err((maybe_hir, errs)) => {
-                if let Some(hir) = maybe_hir {
+            Err(artifact) => {
+                if let Some(hir) = artifact.hir {
                     py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
-                return Err(errs);
+                return Err(artifact.errors);
             }
         }
         Ok(path)
