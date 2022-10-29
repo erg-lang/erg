@@ -2,9 +2,9 @@
 //!
 //! パーサーが出すエラーを定義
 use erg_common::astr::AtomicStr;
-use erg_common::color::{RED, RESET};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
+use erg_common::style::{RED, RESET};
 use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 

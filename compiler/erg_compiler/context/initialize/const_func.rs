@@ -7,8 +7,8 @@ use crate::ty::constructors::{and, mono};
 use crate::ty::value::{EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::ValueArgs;
 use erg_common::astr::AtomicStr;
-use erg_common::color::{RED, RESET, YELLOW};
 use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::style::{RED, RESET, YELLOW};
 
 /// Requirement: Type, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {

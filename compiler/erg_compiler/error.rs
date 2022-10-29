@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use erg_common::astr::AtomicStr;
-use erg_common::color::{GREEN, RED, RESET, YELLOW};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::set::Set;
+use erg_common::style::{GREEN, RED, RESET, YELLOW};
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{

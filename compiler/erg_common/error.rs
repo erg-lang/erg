@@ -7,8 +7,12 @@ use std::fmt::Write as _;
 use std::io::{stderr, BufWriter, Write as _};
 
 use crate::astr::AtomicStr;
-use crate::color::*;
 use crate::config::Input;
+use crate::style::Color;
+use crate::style::Color::{Cyan, Green, Magenta, Red, Yellow};
+use crate::style::Spans;
+use crate::style::RESET;
+use crate::style::{ATT_RESET, UNDERLINE};
 use crate::traits::{Locational, Stream};
 use crate::{fmt_option, impl_display_from_debug, switch_lang};
 

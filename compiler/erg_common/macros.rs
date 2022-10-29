@@ -353,7 +353,7 @@ macro_rules! debug_enum_assert {
 macro_rules! debug_info {
     ($output:ident) => {{
         #[allow(unused_imports)]
-        use $crate::color::{CYAN, RESET};
+        use $crate::style::{CYAN, RESET};
         write!(
             $output,
             "[{}DEBUG{}] {}:{:04}: ",
@@ -366,7 +366,7 @@ macro_rules! debug_info {
     }};
     () => {{
         #[allow(unused_imports)]
-        use $crate::color::{CYAN, RESET};
+        use $crate::style::{CYAN, RESET};
         print!("[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!());
     }};
 }
@@ -410,7 +410,7 @@ macro_rules! log {
 
     (c $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            use $crate::style::*;
             $crate::debug_info!();
             print!("{}", $color);
             println!($($arg)*);
@@ -420,7 +420,7 @@ macro_rules! log {
 
     (f+c $output:ident, $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            use $crate::style::*;
             $crate::debug_info!($output);
             write!($output, "{}", $color).unwrap();
             write!($output, $($arg)*).unwrap();
@@ -431,7 +431,7 @@ macro_rules! log {
 
     ($($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            use $crate::style::*;
             $crate::debug_info!();
             println!($($arg)*);
             print!("{}", RESET); // reset color anyway
