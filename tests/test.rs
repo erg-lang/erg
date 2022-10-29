@@ -192,7 +192,8 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
 }
 
 fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    cfg.py_command = Some("python");
     let mut vm = DummyVM::new(cfg);
     vm.exec()
 }

@@ -152,7 +152,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<(), CompileErrors> {
         let code = self.compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
+        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
@@ -164,7 +164,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<Option<Expr>, CompileErrors> {
         let (code, last) = self.eval_compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
+        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(last)
     }

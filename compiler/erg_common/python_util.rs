@@ -409,12 +409,12 @@ pub fn detect_magic_number() -> u32 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PythonVersion {
     pub major: u8,
-    pub minor: u8,
-    pub micro: u8,
+    pub minor: Option<u8>,
+    pub micro: Option<u8>,
 }
 
 impl PythonVersion {
-    pub const fn new(major: u8, minor: u8, micro: u8) -> Self {
+    pub const fn new(major: u8, minor: Option<u8>, micro: Option<u8>) -> Self {
         Self {
             major,
             minor,
@@ -429,7 +429,28 @@ impl PythonVersion {
     }
 
     pub fn minor_is(&self, major: u8, minor: u8) -> bool {
-        self.major == major && self.minor == minor
+        self.major == major && self.minor == Some(minor)
+    }
+
+    pub fn to_command(&self) -> String {
+        match (self.minor, self.micro) {
+            (None, None) => format!("python{}", self.major),
+            (Some(minor), None) => format!("python{}.{minor}", self.major),
+            (None, Some(_)) => format!("python{}", self.major),
+            (Some(minor), Some(micro)) => format!("python{}.{}.{}", self.major, minor, micro),
+        }
+    }
+}
+
+impl std::str::FromStr for PythonVersion {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split('.');
+        let major = iter.next().unwrap().parse::<u8>().unwrap_or(3);
+        let minor = iter.next().and_then(|i| i.parse::<u8>().ok());
+        let micro = iter.next().and_then(|i| i.parse::<u8>().ok());
+        Ok(Self::new(major, minor, micro))
     }
 }
 
@@ -456,8 +477,8 @@ pub fn python_version() -> PythonVersion {
     let s_version = String::from_utf8(out.stdout).unwrap();
     let mut iter = s_version.split(' ');
     let major = iter.next().unwrap().parse().unwrap();
-    let minor = iter.next().unwrap().parse().unwrap();
-    let micro = iter.next().unwrap().trim_end().parse().unwrap();
+    let minor = iter.next().and_then(|i| i.parse::<u8>().ok());
+    let micro = iter.next().and_then(|i| i.trim_end().parse::<u8>().ok());
     PythonVersion {
         major,
         minor,
@@ -466,16 +487,19 @@ pub fn python_version() -> PythonVersion {
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>>(file: S) -> Option<i32> {
+pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i32> {
+    let command = py_command
+        .map(ToString::to_string)
+        .unwrap_or_else(which_python);
     let mut out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
-            .arg(which_python())
+            .arg(command)
             .arg(&file.into())
             .spawn()
             .expect("cannot execute python")
     } else {
-        let python_command = format!("{} {}", which_python(), file.into());
+        let python_command = format!("{command} {}", file.into());
         Command::new("sh")
             .arg("-c")
             .arg(python_command)
@@ -486,16 +510,19 @@ pub fn exec_pyc<S: Into<String>>(file: S) -> Option<i32> {
 }
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn eval_pyc<S: Into<String>>(file: S) -> String {
+pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
+    let command = py_command
+        .map(ToString::to_string)
+        .unwrap_or_else(which_python);
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
-            .arg(which_python())
+            .arg(command)
             .arg(&file.into())
             .spawn()
             .expect("cannot execute python")
     } else {
-        let python_command = format!("{} {}", which_python(), file.into());
+        let python_command = format!("{command} {}", file.into());
         Command::new("sh")
             .arg("-c")
             .arg(python_command)

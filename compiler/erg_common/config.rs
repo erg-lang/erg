@@ -159,7 +159,8 @@ pub struct ErgConfig {
     /// * 3: e.g. JIT compiling
     pub opt_level: u8,
     pub no_std: bool,
-    pub python_ver: Option<u32>,
+    pub py_magic_num: Option<u32>,
+    pub py_command: Option<&'static str>,
     pub py_server_timeout: u64,
     pub quiet_startup: bool,
     pub show_type: bool,
@@ -183,7 +184,8 @@ impl Default for ErgConfig {
             mode: "exec",
             opt_level: 1,
             no_std: false,
-            python_ver: None,
+            py_magic_num: None,
+            py_command: None,
             py_server_timeout: 10,
             quiet_startup: false,
             show_type: false,
@@ -281,13 +283,21 @@ impl ErgConfig {
                         .parse::<u8>()
                         .expect("the value of `-o` is not a number");
                 }
-                "-p" | "--py-ver" | "--python-version" => {
-                    let py_ver = args
+                "--py-command" | "--python-command" => {
+                    let py_command = args
                         .next()
-                        .expect("the value of `-p` is not passed")
+                        .expect("the value of `--py-command` is not passed")
+                        .parse::<String>()
+                        .expect("the value of `-py-command` is not a valid Python command");
+                    cfg.py_command = Some(Box::leak(py_command.into_boxed_str()));
+                }
+                "--py-magic-num" | "--python-magic-number" => {
+                    let py_magic_num = args
+                        .next()
+                        .expect("the value of `--py-magic-num` is not passed")
                         .parse::<u32>()
-                        .expect("the value of `-p` is not a number");
-                    cfg.python_ver = Some(py_ver);
+                        .expect("the value of `--py-magic-num` is not a number");
+                    cfg.py_magic_num = Some(py_magic_num);
                 }
                 "--py-server-timeout" => {
                     cfg.py_server_timeout = args

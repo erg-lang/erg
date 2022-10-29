@@ -2054,7 +2054,10 @@ impl CodeGenerator {
         self.write_arg(1u8);
         self.stack_dec();
         self.emit_pop_top();
-        let erg_std_mod = if self.py_version.le(&PythonVersion::new(3, 8, 10)) {
+        let erg_std_mod = if self
+            .py_version
+            .le(&PythonVersion::new(3, Some(8), Some(10)))
+        {
             Identifier::public("_erg_std_prelude_old")
         } else {
             Identifier::public("_erg_std_prelude")

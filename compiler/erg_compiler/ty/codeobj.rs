@@ -305,16 +305,16 @@ impl CodeObj {
     pub fn dump_as_pyc<P: AsRef<Path>>(
         self,
         path: P,
-        python_ver: Option<u32>,
+        py_magic_num: Option<u32>,
     ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
-        let python_ver = python_ver.unwrap_or_else(detect_magic_number);
-        bytes.append(&mut get_magic_num_bytes(python_ver).to_vec());
+        let py_magic_num = py_magic_num.unwrap_or_else(detect_magic_number);
+        bytes.append(&mut get_magic_num_bytes(py_magic_num).to_vec());
         bytes.append(&mut vec![0; 4]); // padding
         bytes.append(&mut get_timestamp_bytes().to_vec());
         bytes.append(&mut vec![0; 4]); // padding
-        bytes.append(&mut self.into_bytes(python_ver));
+        bytes.append(&mut self.into_bytes(py_magic_num));
         file.write_all(&bytes[..])?;
         Ok(())
     }
