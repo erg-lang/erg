@@ -329,63 +329,6 @@ impl Context {
         })
     }
 
-    /*fn get_import_call_t(
-        &self,
-        pos_args: &[hir::PosArg],
-        kw_args: &[hir::KwArg],
-    ) -> TyCheckResult<VarInfo> {
-        let mod_name = pos_args
-            .get(0)
-            .map(|a| &a.expr)
-            .or_else(|| {
-                kw_args
-                    .iter()
-                    .find(|k| &k.keyword.inspect()[..] == "Path")
-                    .map(|a| &a.expr)
-            })
-            .unwrap();
-        let path = match mod_name {
-            hir::Expr::Lit(lit) => {
-                if self.subtype_of(&lit.value.class(), &Str) {
-                    enum_unwrap!(&lit.value, ValueObj::Str)
-                } else {
-                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        mod_name.loc(),
-                        self.caused_by(),
-                        "import::name",
-                        &Str,
-                        mod_name.ref_t(),
-                        self.get_candidates(mod_name.ref_t()),
-                        self.get_type_mismatch_hint(&Str, mod_name.ref_t()),
-                    )));
-                }
-            }
-            _other => {
-                return Err(TyCheckErrors::from(TyCheckError::feature_error(
-                    self.cfg.input.clone(),
-                    mod_name.loc(),
-                    "non-literal importing",
-                    self.caused_by(),
-                )))
-            }
-        };
-        let path = PathBuf::from(&path[..]);
-        let s = ValueObj::Str(Str::rc(path.to_str().unwrap()));
-        let import_t = func(
-            vec![ParamTy::anonymous(v_enum(set! {s.clone()}))],
-            None,
-            vec![],
-            module(TyParam::Value(s)),
-        );
-        Ok(VarInfo {
-            t: import_t,
-            py_name: Some(Str::ever("__import__")),
-            ..VarInfo::default()
-        })
-    }*/
-
     pub(crate) fn rec_get_var_info(
         &self,
         ident: &Identifier,
