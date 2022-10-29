@@ -47,7 +47,7 @@ pub trait HasLevel {
     }
     fn lift(&self) {
         if let Some(lev) = self.level() {
-            self.set_level(lev + 1);
+            self.set_level(lev.saturating_add(1));
         }
     }
     fn generalize(&self) {
