@@ -9,6 +9,7 @@ use std::process;
 use std::str::FromStr;
 
 use crate::help_messages::{command_message, mode_message};
+use crate::python_util::PythonVersion;
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -161,6 +162,7 @@ pub struct ErgConfig {
     pub no_std: bool,
     pub py_magic_num: Option<u32>,
     pub py_command: Option<&'static str>,
+    pub target_version: Option<PythonVersion>,
     pub py_server_timeout: u64,
     pub quiet_startup: bool,
     pub show_type: bool,
@@ -186,6 +188,7 @@ impl Default for ErgConfig {
             no_std: false,
             py_magic_num: None,
             py_command: None,
+            target_version: None,
             py_server_timeout: 10,
             quiet_startup: false,
             show_type: false,
@@ -311,6 +314,14 @@ impl ErgConfig {
                 }
                 "-t" | "--show-type" => {
                     cfg.show_type = true;
+                }
+                "--target-version" => {
+                    let target_version = args
+                        .next()
+                        .expect("the value of `--target-version` is not passed")
+                        .parse::<PythonVersion>()
+                        .expect("the value of `--target-version` is not a valid Python version");
+                    cfg.target_version = Some(target_version);
                 }
                 "--verbose" => {
                     cfg.verbose = args

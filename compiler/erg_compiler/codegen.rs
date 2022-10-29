@@ -143,8 +143,8 @@ pub struct CodeGenerator {
 impl CodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            py_version: cfg.target_version.unwrap_or_else(python_version),
             cfg,
-            py_version: python_version(),
             str_cache: CacheSet::new(),
             prelude_loaded: false,
             in_op_loaded: false,
