@@ -10,6 +10,7 @@ use std::str::FromStr;
 
 use crate::help_messages::{command_message, mode_message};
 use crate::python_util::PythonVersion;
+use crate::serialize::get_magic_num_from_bytes;
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -295,11 +296,12 @@ impl ErgConfig {
                     cfg.py_command = Some(Box::leak(py_command.into_boxed_str()));
                 }
                 "--py-magic-num" | "--python-magic-number" => {
-                    let py_magic_num = args
+                    let s_hex_magic_num = args
                         .next()
-                        .expect("the value of `--py-magic-num` is not passed")
-                        .parse::<u32>()
-                        .expect("the value of `--py-magic-num` is not a number");
+                        .expect("the value of `--py-magic-num` is not passed");
+                    let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
+                    let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
+                    let py_magic_num = get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0]);
                     cfg.py_magic_num = Some(py_magic_num);
                 }
                 "--py-server-timeout" => {
