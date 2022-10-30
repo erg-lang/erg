@@ -196,6 +196,7 @@ fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
     cfg.py_command = Some("python");
     cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(8)));
+    cfg.py_magic_num = Some(3439);
     let mut vm = DummyVM::new(cfg);
     vm.exec()
 }

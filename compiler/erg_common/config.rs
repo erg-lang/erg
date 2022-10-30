@@ -295,14 +295,22 @@ impl ErgConfig {
                         .expect("the value of `-py-command` is not a valid Python command");
                     cfg.py_command = Some(Box::leak(py_command.into_boxed_str()));
                 }
-                "--py-magic-num" | "--python-magic-number" => {
+                "--hex-py-magic-num" | "--hex-python-magic-number" => {
                     let s_hex_magic_num = args
                         .next()
-                        .expect("the value of `--py-magic-num` is not passed");
+                        .expect("the value of `--hex-py-magic-num` is not passed");
                     let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
                     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
                     let py_magic_num = get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0]);
                     cfg.py_magic_num = Some(py_magic_num);
+                }
+                "--py-magic-num" | "--python-magic-number" => {
+                    cfg.py_magic_num = Some(
+                        args.next()
+                            .expect("the value of `--py-magic-num` is not passed")
+                            .parse::<u32>()
+                            .expect("the value of `--py-magic-num` is not a number"),
+                    );
                 }
                 "--py-server-timeout" => {
                     cfg.py_server_timeout = args
