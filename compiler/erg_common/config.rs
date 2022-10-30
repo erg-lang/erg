@@ -161,7 +161,7 @@ pub struct ErgConfig {
     /// * 3: e.g. JIT compiling
     pub opt_level: u8,
     pub no_std: bool,
-    pub py_magic_num: Option<u32>,
+    pub py_magic_num: Option<u32>, // the magic number cannot be uniquely determined from `target_version`
     pub py_command: Option<&'static str>,
     pub target_version: Option<PythonVersion>,
     pub py_server_timeout: u64,
