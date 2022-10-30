@@ -14,6 +14,8 @@
 0.00, -0.0, 0.1, 400.104, ...
 ```
 
+Note that the Ratio type is different from the Float type; the API is the same, but there are differences in the accuracy and efficiency of the calculation results.
+
 If a `Ratio` literal has an integer or decimal part of `0`, you can omit the `0`.
 
 ```python
@@ -62,7 +64,7 @@ Each of these literals has its own documentation describing them separately, so 
 ### [Array Literal](./10_array.md)
 
 ```python
-[], [1], [1, 2, 3], ["1", "2",], [1, "1", True, [1]], ...
+[], [1], [1, 2, 3], ["1", "2",], ...
 ```
 
 ### [Tuple Literal](./11_tuple.md)
@@ -86,7 +88,7 @@ Each of these literals has its own documentation describing them separately, so 
 ### [Set Literal](./14_set.md)
 
 ```python
-{}, {1}, {1, 2, 3}, {"1", "2", "1"}, {1, "1", True, [1]} ...
+{}, {1}, {1, 2, 3}, {"1", "2", "1"}, ...
 ```
 
 As a difference from `Array` literals, duplicate elements are removed in `Set`.
@@ -112,10 +114,11 @@ None
 ## Range Object
 
 ```python
-assert 0..5 == {1, 2, 3, 4, 5}
 assert 0..10 in 5
 assert 0..<10 notin 10
 assert 0..9 == 0..<10
+assert (0..5).to_set() == {1, 2, 3, 4, 5}
+assert "a" in "a".."z"
 ```
 
 ## Float Object
@@ -130,10 +133,10 @@ Float objects are constructed by multiplying a `Ratio` object by `f64`, which is
 ## Complex Object
 
 ```python
-1+2im, 0.4-1.2im, 0im, im
+1+2Im, 0.4-1.2Im, 0Im, Im
 ```
 
-A `Complex` object is simply an arithmetic combination of an imaginary unit object, `im`.
+A `Complex` object is simply an arithmetic combination of an imaginary unit object, `Im`.
 
 ## *-less multiplication
 
