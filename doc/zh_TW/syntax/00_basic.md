@@ -42,7 +42,7 @@ Erg 代碼稱為腳本。腳本可以以文件格式 (.er) 保存和執行
 
 ## REPL/文件執行
 
-要啟動 REPL，只需鍵入: 
+要啟動 REPL，只需鍵入:
 
 ```sh
 > erg
@@ -75,10 +75,10 @@ hello, world!
 ```python
 # Comment
 # `#` and after are ignored until a new line is inserted
-# [
+#[
 Multi-line comment
 Treated as a comment all the way up to the corresponding `]#`
-]# 
+]#
 ```
 
 ## 表達式，分隔符

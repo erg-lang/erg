@@ -21,4 +21,3 @@ pre-commitを使ってclippyのチェックやテストを自動で行わせて�
 * エディタ: Visual Studio Code
 * VSCode拡張機能: Rust-analyzer, GitLens, Git Graph, GitHub Pull Requests and Issues, Markdown All in One, markdownlint
 * OS: Windows 10/11 | Ubuntu 20.04/22.04 | MacOS Monterey
-* その他: mold
