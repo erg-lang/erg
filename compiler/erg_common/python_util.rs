@@ -373,8 +373,8 @@ pub fn which_python() -> String {
     if res.is_empty() {
         println!("python not found");
         std::process::exit(1);
-    } else if res.contains("pyenv") {
-        println!("cannot use pyenv");
+    } else if res.contains("pyenv") && cfg!(windows) {
+        println!("cannot use pyenv-win"); // because pyenv-win does not support `-c` option
         std::process::exit(1);
     }
     res
