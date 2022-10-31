@@ -1546,6 +1546,7 @@ impl CodeGenerator {
         if self.py_version.minor_is(3, 10) {
             self.write_instr(Opcode310::LOAD_ASSERTION_ERROR);
             self.write_arg(0);
+            self.stack_inc();
         } else {
             self.emit_load_global_instr(Identifier::public("AssertionError"));
         }
@@ -1556,6 +1557,7 @@ impl CodeGenerator {
         }
         self.write_instr(RAISE_VARARGS);
         self.write_arg(1);
+        self.stack_dec();
         let idx = self.cur_block().lasti;
         self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
     }
