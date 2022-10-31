@@ -23,7 +23,7 @@ As a rule, arrays cannot contain objects of different types.
 However, you can bypass the restriction by explicitly specifying the type like this.
 
 ```python
-[1, "a"]: [Int or Str].
+[1: Int or Str, "a"]
 ```
 
 ## Slice
