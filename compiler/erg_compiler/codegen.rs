@@ -394,6 +394,18 @@ impl CodeGenerator {
         self.stack_inc();
     }
 
+    fn emit_load_global_instr(&mut self, ident: Identifier) {
+        log!(info "entered {} ({ident})", fn_name!());
+        let escaped = escape_name(ident);
+        let name = self
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
+        let instr = LOAD_GLOBAL;
+        self.write_instr(instr);
+        self.write_arg(name.idx as u8);
+        self.stack_inc();
+    }
+
     fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) {
         log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
@@ -1535,7 +1547,7 @@ impl CodeGenerator {
             self.write_instr(Opcode310::LOAD_ASSERTION_ERROR);
             self.write_arg(0);
         } else {
-            self.emit_load_name_instr(Identifier::public("AssertionError"));
+            self.emit_load_global_instr(Identifier::public("AssertionError"));
         }
         if let Some(expr) = args.try_remove(0) {
             self.emit_expr(expr);
