@@ -5,15 +5,9 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
-use crate::impl_display_from_debug;
+use crate::impl_u8_enum;
 
-/// Based on Python opcodes.
-/// This is represented by u8.
-///
-/// TODO: implement all opcodes
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Ord, Eq)]
-#[repr(u8)]
-pub enum Opcode38 {
+impl_u8_enum! {Opcode38;
     POP_TOP = 1,
     ROT_TWO = 2,
     ROT_THREE = 3,
@@ -155,184 +149,15 @@ pub enum Opcode38 {
     ERG_LOAD_1_REAL = 246,
     ERG_LOAD_NONE = 247,
     ERG_MUTATE = 248, // !x
-    /// `[] =` (it doesn't cause any exceptions)
+    // `[] =` (it doesn't cause any exceptions)
     ERG_STORE_SUBSCR = 249,
     // ... = 250,
-    /// `= []` (it doesn't cause any exceptions)
+    // `= []` (it doesn't cause any exceptions)
     ERG_BINARY_SUBSCR = 251,
     ERG_BINARY_RANGE = 252,
-    /// `/?` (rhs may be 0, it may cause a runtime panic)
+    // `/?` (rhs may be 0, it may cause a runtime panic)
     ERG_TRY_BINARY_DIVIDE = 253,
-    /// `/` (rhs could not be 0, it doesn't cause any exceptions)
+    // `/` (rhs could not be 0, it doesn't cause any exceptions)
     ERG_BINARY_TRUE_DIVIDE = 254,
     NOT_IMPLEMENTED = 255,
-}
-
-use Opcode38::*;
-
-impl_display_from_debug!(Opcode38);
-
-impl From<u8> for Opcode38 {
-    fn from(byte: u8) -> Self {
-        match byte {
-            1 => POP_TOP,
-            2 => ROT_TWO,
-            3 => ROT_THREE,
-            4 => DUP_TOP,
-            5 => DUP_TOP2,
-            6 => ROT_FOUR,
-            9 => NOP,
-            10 => UNARY_POSITIVE,
-            11 => UNARY_NEGATIVE,
-            12 => UNARY_NOT,
-            15 => UNARY_INVERT,
-            19 => BINARY_POWER,
-            20 => BINARY_MULTIPLY,
-            22 => BINARY_MODULO,
-            23 => BINARY_ADD,
-            24 => BINARY_SUBTRACT,
-            25 => BINARY_SUBSCR,
-            26 => BINARY_FLOOR_DIVIDE,
-            27 => BINARY_TRUE_DIVIDE,
-            28 => INPLACE_FLOOR_DIVIDE,
-            29 => INPLACE_TRUE_DIVIDE,
-            30 => GET_LEN,
-            31 => MATCH_MAPPING,
-            32 => MATCH_SEQUENCE,
-            33 => MATCH_KEYS,
-            35 => PUSH_EXC_INFO,
-            36 => CHECK_EXC_MATCH,
-            37 => CHECK_EG_MATCH,
-            49 => WITH_EXCEPT_START,
-            50 => GET_AITER,
-            51 => GET_ANEXT,
-            52 => BEFORE_ASYNC_WITH,
-            53 => BEGIN_FINALLY,
-            54 => END_ASYNC_FOR,
-            55 => INPLACE_ADD,
-            56 => INPLACE_SUBTRACT,
-            57 => INPLACE_MULTIPLY,
-            59 => INPLACE_MODULO,
-            60 => STORE_SUBSCR,
-            64 => BINARY_AND,
-            65 => BINARY_XOR,
-            66 => BINARY_OR,
-            68 => GET_ITER,
-            69 => GET_YIELD_FROM_ITER,
-            70 => PRINT_EXPR,
-            71 => LOAD_BUILD_CLASS,
-            // 74 => LOAD_ASSERTION_ERROR,
-            81 => WITH_CLEANUP_START,
-            82 => WITH_CLEANUP_FINISH,
-            83 => RETURN_VALUE,
-            84 => IMPORT_STAR,
-            85 => SETUP_ANNOTATIONS,
-            86 => YIELD_VALUE,
-            87 => POP_BLOCK,
-            88 => END_FINALLY,
-            89 => POP_EXCEPT,
-            /* ↓ These opcodes take an arg */
-            90 => STORE_NAME,
-            91 => DELETE_NAME,
-            92 => UNPACK_SEQUENCE,
-            93 => FOR_ITER,
-            94 => UNPACK_EX,
-            95 => STORE_ATTR,
-            97 => STORE_GLOBAL,
-            100 => LOAD_CONST,
-            101 => LOAD_NAME,
-            102 => BUILD_TUPLE,
-            103 => BUILD_LIST,
-            104 => BUILD_SET,
-            105 => BUILD_MAP,
-            106 => LOAD_ATTR,
-            107 => COMPARE_OP,
-            108 => IMPORT_NAME,
-            109 => IMPORT_FROM,
-            110 => JUMP_FORWARD,
-            111 => JUMP_IF_FALSE_OR_POP,
-            112 => JUMP_IF_TRUE_OR_POP,
-            113 => JUMP_ABSOLUTE,
-            114 => POP_JUMP_IF_FALSE,
-            115 => POP_JUMP_IF_TRUE,
-            116 => LOAD_GLOBAL,
-            117 => IS_OP,
-            118 => CONTAINS_OP,
-            119 => RERAISE,
-            124 => LOAD_FAST,
-            125 => STORE_FAST,
-            126 => DELETE_FAST,
-            130 => RAISE_VARARGS,
-            131 => CALL_FUNCTION,
-            132 => MAKE_FUNCTION,
-            135 => LOAD_CLOSURE,
-            136 => LOAD_DEREF,
-            137 => STORE_DEREF,
-            141 => CALL_FUNCTION_KW,
-            142 => CALL_FUNCTION_EX,
-            143 => SETUP_WITH,
-            144 => EXTENDED_ARG,
-            158 => BUILD_TUPLE_UNPACK_WITH_CALL,
-            160 => LOAD_METHOD,
-            161 => CALL_METHOD,
-            162 => CALL_FINALLY,
-            163 => POP_FINALLY,
-            // Erg-specific opcodes
-            196 => ERG_POP_NTH,
-            197 => ERG_PEEK_NTH,
-            198 => ERG_INC,
-            199 => ERG_DEC,
-            200 => ERG_LOAD_FAST_IMMUT,
-            201 => ERG_STORE_FAST_IMMUT,
-            202 => ERG_MOVE_FAST,
-            203 => ERG_CLONE_FAST,
-            204 => ERG_COPY_FAST,
-            205 => ERG_REF_FAST,
-            206 => ERG_REF_MUT_FAST,
-            207 => ERG_MOVE_OUTER,
-            208 => ERG_CLONE_OUTER,
-            209 => ERG_COPY_OUTER,
-            210 => ERG_REF_OUTER,
-            211 => ERG_REF_MUT_OUTER,
-            212 => ERG_LESS_THAN,
-            213 => ERG_LESS_EQUAL,
-            214 => ERG_EQUAL,
-            215 => ERG_NOT_EQUAL,
-            // ERG_GREATER_THAN is not necessary (can be done by inverting the argument of LESS_THAN)
-            216 => ERG_MAKE_SLOT,
-            217 => ERG_MAKE_TYPE,
-            218 => ERG_MAKE_PURE_FUNCTION,
-            219 => ERG_CALL_PURE_FUNCTION,
-            /* ↑ These opcodes take an arg ↑ */
-            /* ↓ These opcodes take no arg ↓ */
-            // ... = 220,
-            242 => ERG_LOAD_EMPTY_SLOT,
-            243 => ERG_LOAD_EMPTY_STR,
-            244 => ERG_LOAD_1_NAT,
-            245 => ERG_LOAD_1_INT,
-            246 => ERG_LOAD_1_REAL,
-            247 => ERG_LOAD_NONE,
-            248 => ERG_MUTATE,
-            249 => ERG_STORE_SUBSCR,
-            // 250 =>
-            251 => ERG_BINARY_SUBSCR,
-            252 => ERG_BINARY_RANGE,
-            253 => ERG_TRY_BINARY_DIVIDE,
-            254 => ERG_BINARY_TRUE_DIVIDE,
-            255 => NOT_IMPLEMENTED,
-            other => panic!("not implemented opcode: {other}"),
-        }
-    }
-}
-
-impl From<Opcode38> for u8 {
-    fn from(op: Opcode38) -> u8 {
-        op as u8
-    }
-}
-
-impl Opcode38 {
-    pub const fn take_arg(&self) -> bool {
-        90 <= (*self as u8) && (*self as u8) < 220
-    }
 }

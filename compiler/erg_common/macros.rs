@@ -42,6 +42,40 @@ macro_rules! impl_display_for_enum {
 }
 
 #[macro_export]
+macro_rules! impl_u8_enum {
+    ($Enum: ident; $($Variant: ident = $val: expr $(,)?)*) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[repr(u8)]
+        pub enum $Enum {
+            $($Variant = $val,)*
+        }
+
+        $crate::impl_display_from_debug!($Enum);
+
+        impl From<u8> for $Enum {
+            fn from(byte: u8) -> Self {
+                match byte {
+                    $($val => $Enum::$Variant,)*
+                    _ => todo!("unknown opcode: {byte}"),
+                }
+            }
+        }
+
+        impl From<$Enum> for u8 {
+            fn from(op: $Enum) -> u8 {
+                op as u8
+            }
+        }
+
+        impl $Enum {
+            pub const fn take_arg(&self) -> bool {
+                90 <= (*self as u8) && (*self as u8) < 220
+            }
+        }
+    }
+}
+
+#[macro_export]
 macro_rules! impl_display_for_enum_with_variant {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
         impl std::fmt::Display for $Enum {

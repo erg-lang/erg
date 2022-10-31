@@ -15,6 +15,7 @@ pub mod levenshtein;
 pub mod macros;
 pub mod opcode;
 pub mod opcode310;
+pub mod opcode311;
 pub mod opcode38;
 pub mod python_util;
 pub mod serialize;
