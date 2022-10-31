@@ -1558,8 +1558,12 @@ impl CodeGenerator {
         self.write_instr(RAISE_VARARGS);
         self.write_arg(1);
         self.stack_dec();
-        let idx = self.cur_block().lasti;
-        self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
+        let idx = if self.py_version.minor >= Some(10) {
+            self.cur_block().lasti / 2
+        } else {
+            self.cur_block().lasti
+        };
+        self.edit_code(pop_jump_point + 1, idx);
     }
 
     // TODO: list comprehension
