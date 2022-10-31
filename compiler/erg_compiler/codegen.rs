@@ -226,7 +226,6 @@ impl CodeGenerator {
 
     #[inline]
     fn edit_code(&mut self, idx: usize, arg: usize) {
-        log!(err "{}, {arg}", self.cur_block().lasti);
         match u8::try_from(arg) {
             Ok(u8code) => {
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = u8code;
@@ -1067,15 +1066,19 @@ impl CodeGenerator {
                     return;
                 }
                 if !self.in_op_loaded {
+                    let mod_name = if self.py_version.minor >= Some(10) {
+                        Identifier::public("_erg_std_prelude")
+                    } else {
+                        Identifier::public("_erg_std_prelude_old")
+                    };
                     self.emit_global_import_items(
-                        Identifier::public("_erg_std_prelude"),
+                        mod_name,
                         vec![(
                             Identifier::public("in_operator"),
                             Some(Identifier::private("#in_operator")),
                         )],
                     );
                     self.in_op_loaded = true;
-                    // self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
                 }
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
             }
