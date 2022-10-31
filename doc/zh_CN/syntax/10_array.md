@@ -25,7 +25,7 @@ assert mut_a == [2, 2, 3]
 但是，您可以通过像这样显式指定类型来绕过限制
 
 ```python
-[1, "a"]: [Int or Str].
+[1: Int or Str, "a"]
 ```
 
 ## 切片

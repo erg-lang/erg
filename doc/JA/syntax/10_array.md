@@ -22,10 +22,10 @@ assert mut_a == [2, 2, 3]
 [1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
 ```
 
-しかし、このように明示的に型指定すると制限を回避できます。
+しかし、このように要素の型を明示的に指定すると制限を回避できます。
 
 ```python
-[1, "a"]: [Int or Str]
+[1: Int or Str, "a"]
 ```
 
 ## スライス
