@@ -127,7 +127,7 @@ impl Deserializer {
         };
         match CodeObj::from_pyc(&filename) {
             Ok(codeobj) => {
-                println!("{}", codeobj.code_info());
+                println!("{}", codeobj.code_info(None));
             }
             Err(e) => {
                 eprintln!(

@@ -12,8 +12,11 @@ use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
-use erg_common::opcode::Opcode;
+use erg_common::opcode::CommonOpcode;
+use erg_common::opcode310::Opcode310;
+use erg_common::opcode38::Opcode38;
 use erg_common::option_enum_unwrap;
+use erg_common::python_util::{python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
@@ -22,7 +25,7 @@ use erg_common::{
 };
 use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
-use Opcode::*;
+use CommonOpcode::*;
 
 use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
 use erg_parser::token::{Token, TokenKind};
@@ -69,6 +72,7 @@ fn escape_name(ident: Identifier) -> Str {
 #[derive(Debug, Clone)]
 pub struct CodeGenUnit {
     pub(crate) id: usize,
+    pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
     pub(crate) stack_len: u32, // the maximum stack size
     pub(crate) prev_lineno: usize,
@@ -90,7 +94,7 @@ impl fmt::Display for CodeGenUnit {
             f,
             "CompilerUnit{{\nid: {}\ncode:\n{}\n}}",
             self.id,
-            self.codeobj.code_info()
+            self.codeobj.code_info(Some(self.py_version))
         )
     }
 }
@@ -98,6 +102,7 @@ impl fmt::Display for CodeGenUnit {
 impl CodeGenUnit {
     pub fn new<S: Into<Str>, T: Into<Str>>(
         id: usize,
+        py_version: PythonVersion,
         params: Vec<Str>,
         filename: S,
         name: T,
@@ -105,6 +110,7 @@ impl CodeGenUnit {
     ) -> Self {
         Self {
             id,
+            py_version,
             codeobj: CodeObj::empty(params, filename, name, firstlineno as u32),
             stack_len: 0,
             prev_lineno: firstlineno,
@@ -123,6 +129,7 @@ impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
 #[derive(Debug)]
 pub struct CodeGenerator {
     cfg: ErgConfig,
+    pub(crate) py_version: PythonVersion,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
     in_op_loaded: bool,
@@ -136,6 +143,7 @@ pub struct CodeGenerator {
 impl CodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            py_version: cfg.target_version.unwrap_or_else(python_version),
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,
@@ -193,20 +201,99 @@ impl CodeGenerator {
     }
 
     #[inline]
-    fn edit_code(&mut self, idx: usize, code: usize) {
-        *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = code as u8;
+    fn jump_delta(&self, jump_to: usize) -> usize {
+        if self.py_version.minor >= Some(10) {
+            if self.cur_block().lasti <= jump_to * 2 {
+                3
+            } else {
+                0
+            }
+        } else if self.cur_block().lasti <= jump_to {
+            6
+        } else {
+            0
+        }
     }
 
-    fn write_instr(&mut self, code: Opcode) {
-        self.mut_cur_block_codeobj().code.push(code as u8);
+    fn edit_jump(&mut self, idx: usize, jump_to: usize) {
+        let arg = if self.py_version.minor >= Some(10) {
+            jump_to / 2
+        } else {
+            jump_to
+        };
+        self.edit_code(idx, arg);
+    }
+
+    #[inline]
+    fn edit_code(&mut self, idx: usize, arg: usize) {
+        match u8::try_from(arg) {
+            Ok(u8code) => {
+                *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = u8code;
+            }
+            Err(_e) => {
+                // TODO: use u16 as long as possible
+                // see write_arg's comment
+                let delta = self.jump_delta(arg);
+                let bytes = u32::try_from(arg + delta).unwrap().to_be_bytes();
+                let before_instr = idx.saturating_sub(1);
+                *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = bytes[3];
+                self.extend_arg(before_instr, &bytes);
+            }
+        }
+    }
+
+    // e.g. JUMP_ABSOLUTE 264, lasti: 100
+    // 6 more instructions will be added after this, so 264 + 6 => 270
+    // this is greater than u8::MAX, so we need to extend the arg
+    // first, split `code + delta` into 4 u8s (as __Big__ endian)
+    // 270.to_be_bytes() == [0, 0, 1, 14]
+    // then, write the bytes in reverse order
+    // [..., EXTENDED_ARG 0, EXTENDED_ARG 0, EXTENDED_ARG 1, JUMP_ABSOLUTE 14]
+    #[inline]
+    fn extend_arg(&mut self, before_instr: usize, bytes: &[u8]) {
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, bytes[2]);
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, bytes[1]);
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, bytes[0]);
+        self.mut_cur_block_codeobj()
+            .code
+            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
+        self.mut_cur_block().lasti += 6;
+    }
+
+    fn write_instr<C: Into<u8>>(&mut self, code: C) {
+        self.mut_cur_block_codeobj().code.push(code.into());
         self.mut_cur_block().lasti += 1;
         // log!(info "wrote: {}", code);
     }
 
-    fn write_arg(&mut self, code: u8) {
-        self.mut_cur_block_codeobj().code.push(code);
-        self.mut_cur_block().lasti += 1;
-        // log!(info "wrote: {}", code);
+    fn write_arg(&mut self, code: usize) {
+        match u8::try_from(code) {
+            Ok(u8code) => {
+                self.mut_cur_block_codeobj().code.push(u8code);
+                self.mut_cur_block().lasti += 1;
+                // log!(info "wrote: {}", code);
+            }
+            Err(_) => {
+                let delta = self.jump_delta(code);
+                let bytes = u32::try_from(code + delta).unwrap().to_be_bytes();
+                let before_instr = self.cur_block().lasti.saturating_sub(1);
+                self.mut_cur_block_codeobj().code.push(bytes[3]);
+                self.mut_cur_block().lasti += 1;
+                self.extend_arg(before_instr, &bytes);
+            }
+        }
     }
 
     fn stack_inc(&mut self) {
@@ -262,11 +349,11 @@ impl CodeGenerator {
                 self.mut_cur_block_codeobj().consts.push(value);
                 self.mut_cur_block_codeobj().consts.len() - 1
             });
-        self.write_instr(Opcode::LOAD_CONST);
-        self.write_arg(idx as u8);
+        self.write_instr(LOAD_CONST);
+        self.write_arg(idx);
         self.stack_inc();
         if !self.cfg.no_std && is_nat {
-            self.write_instr(Opcode::CALL_FUNCTION);
+            self.write_instr(CALL_FUNCTION);
             self.write_arg(1);
             self.stack_dec();
         }
@@ -382,7 +469,19 @@ impl CodeGenerator {
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
         };
         self.write_instr(instr);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
+        self.stack_inc();
+    }
+
+    fn emit_load_global_instr(&mut self, ident: Identifier) {
+        log!(info "entered {} ({ident})", fn_name!());
+        let escaped = escape_name(ident);
+        let name = self
+            .local_search(&escaped, Name)
+            .unwrap_or_else(|| self.register_name(escaped));
+        let instr = LOAD_GLOBAL;
+        self.write_instr(instr);
+        self.write_arg(name.idx);
         self.stack_inc();
     }
 
@@ -393,7 +492,7 @@ impl CodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_NAME);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         self.stack_inc_n(items_len);
         self.stack_dec(); // (level + from_list) -> module object
     }
@@ -405,7 +504,7 @@ impl CodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_FROM);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         // self.stack_inc(); (module object) -> attribute
     }
 
@@ -418,7 +517,7 @@ impl CodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(IMPORT_NAME);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         self.stack_inc();
         self.write_instr(IMPORT_STAR);
         self.write_arg(0);
@@ -464,7 +563,7 @@ impl CodeGenerator {
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_ATTR,
         };
         self.write_instr(instr);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
     }
 
     fn emit_load_method_instr(&mut self, ident: Identifier) {
@@ -483,7 +582,7 @@ impl CodeGenerator {
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_METHOD,
         };
         self.write_instr(instr);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
     }
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
@@ -498,7 +597,7 @@ impl CodeGenerator {
         });
         let instr = match name.kind {
             StoreLoadKind::Fast => STORE_FAST,
-            StoreLoadKind::FastConst => ERG_STORE_FAST_IMMUT,
+            StoreLoadKind::FastConst => STORE_FAST, // ERG_STORE_FAST_IMMUT,
             // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
             // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => STORE_NAME,
@@ -513,9 +612,9 @@ impl CodeGenerator {
             }
         };
         self.write_instr(instr);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         self.stack_dec();
-        if instr == Opcode::STORE_ATTR {
+        if instr == STORE_ATTR {
             self.stack_dec();
         }
     }
@@ -530,7 +629,7 @@ impl CodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = STORE_GLOBAL;
         self.write_instr(instr);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         self.stack_dec();
     }
 
@@ -550,8 +649,8 @@ impl CodeGenerator {
     }
 
     fn emit_pop_top(&mut self) {
-        self.write_instr(Opcode::POP_TOP);
-        self.write_arg(0u8);
+        self.write_instr(POP_TOP);
+        self.write_arg(0);
         self.stack_dec();
     }
 
@@ -641,8 +740,8 @@ impl CodeGenerator {
         self.emit_load_name_instr(Identifier::private("#ABCMeta"));
         self.emit_load_const(vec![ValueObj::from("metaclass")]);
         let subclasses_len = 1;
-        self.write_instr(Opcode::CALL_FUNCTION_KW);
-        self.write_arg(2 + subclasses_len as u8);
+        self.write_instr(CALL_FUNCTION_KW);
+        self.write_arg(2 + subclasses_len);
         self.stack_dec_n((1 + 2 + 1 + subclasses_len) - 1);
         self.emit_store_instr(def.sig.into_ident(), Name);
         self.stack_dec();
@@ -674,6 +773,7 @@ impl CodeGenerator {
             .unwrap_or_else(|| sig.ln_begin().unwrap());
         self.units.push(CodeGenUnit::new(
             self.unit_size,
+            self.py_version,
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
@@ -693,7 +793,7 @@ impl CodeGenerator {
         }
         self.emit_load_const(ValueObj::None);
         self.write_instr(RETURN_VALUE);
-        self.write_arg(0u8);
+        self.write_arg(0);
         if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
@@ -740,6 +840,7 @@ impl CodeGenerator {
             self.unit_size += 1;
             self.units.push(CodeGenUnit::new(
                 self.unit_size,
+                self.py_version,
                 vec![],
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
@@ -747,7 +848,7 @@ impl CodeGenerator {
             ));
             self.emit_load_const(ValueObj::None);
             self.write_instr(RETURN_VALUE);
-            self.write_arg(0u8);
+            self.write_arg(0);
             let unit = self.units.pop().unwrap();
             if !self.units.is_empty() {
                 let ld = unit
@@ -797,7 +898,7 @@ impl CodeGenerator {
         // LOAD subclasses
         let subclasses_len = self.emit_require_type(obj, *require_or_sup);
         self.write_instr(CALL_FUNCTION);
-        self.write_arg(2 + subclasses_len as u8);
+        self.write_arg(2 + subclasses_len);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
@@ -838,7 +939,7 @@ impl CodeGenerator {
     fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
         log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
         let name = sig.ident.inspect().clone();
-        let mut make_function_flag = 0u8;
+        let mut make_function_flag = 0;
         let params = self.gen_param_names(&sig.params);
         if !sig.params.defaults.is_empty() {
             let defaults_len = sig.params.defaults.len();
@@ -847,13 +948,13 @@ impl CodeGenerator {
                 .into_iter()
                 .for_each(|default| self.emit_expr(default.default_val));
             self.write_instr(BUILD_TUPLE);
-            self.write_arg(defaults_len as u8);
+            self.write_arg(defaults_len);
             self.stack_dec_n(defaults_len - 1);
-            make_function_flag += MakeFunctionFlags::Defaults as u8;
+            make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
         let code = self.emit_block(body.block, Some(name.clone()), params);
         if !self.cur_block_codeobj().cellvars.is_empty() {
-            let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
+            let cellvars_len = self.cur_block_codeobj().cellvars.len();
             for i in 0..cellvars_len {
                 self.write_instr(LOAD_CLOSURE);
                 self.write_arg(i);
@@ -872,7 +973,7 @@ impl CodeGenerator {
         self.write_arg(make_function_flag);
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
-        if make_function_flag & MakeFunctionFlags::Defaults as u8 != 0 {
+        if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
             self.stack_dec();
         }
         self.emit_store_instr(sig.ident, Name);
@@ -880,7 +981,7 @@ impl CodeGenerator {
 
     fn emit_lambda(&mut self, lambda: Lambda) {
         log!(info "entered {} ({lambda})", fn_name!());
-        let mut make_function_flag = 0u8;
+        let mut make_function_flag = 0;
         let params = self.gen_param_names(&lambda.params);
         if !lambda.params.defaults.is_empty() {
             let defaults_len = lambda.params.defaults.len();
@@ -890,20 +991,20 @@ impl CodeGenerator {
                 .into_iter()
                 .for_each(|default| self.emit_expr(default.default_val));
             self.write_instr(BUILD_TUPLE);
-            self.write_arg(defaults_len as u8);
+            self.write_arg(defaults_len);
             self.stack_dec_n(defaults_len - 1);
-            make_function_flag += MakeFunctionFlags::Defaults as u8;
+            make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
         let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
         if !self.cur_block_codeobj().cellvars.is_empty() {
-            let cellvars_len = self.cur_block_codeobj().cellvars.len() as u8;
+            let cellvars_len = self.cur_block_codeobj().cellvars.len();
             for i in 0..cellvars_len {
                 self.write_instr(LOAD_CLOSURE);
                 self.write_arg(i);
             }
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
-            make_function_flag += MakeFunctionFlags::Closure as u8;
+            make_function_flag += MakeFunctionFlags::Closure as usize;
         }
         self.emit_load_const(code);
         self.emit_load_const("<lambda>");
@@ -911,7 +1012,7 @@ impl CodeGenerator {
         self.write_arg(make_function_flag);
         // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
         self.stack_dec();
-        if make_function_flag & MakeFunctionFlags::Defaults as u8 != 0 {
+        if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
             self.stack_dec();
         }
     }
@@ -937,7 +1038,7 @@ impl CodeGenerator {
             }
         };
         self.write_instr(instr);
-        self.write_arg(tycode as u8);
+        self.write_arg(tycode as usize);
     }
 
     fn emit_binop(&mut self, bin: BinOp) {
@@ -965,15 +1066,19 @@ impl CodeGenerator {
                     return;
                 }
                 if !self.in_op_loaded {
+                    let mod_name = if self.py_version.minor >= Some(10) {
+                        Identifier::public("_erg_std_prelude")
+                    } else {
+                        Identifier::public("_erg_std_prelude_old")
+                    };
                     self.emit_global_import_items(
-                        Identifier::public("_erg_std_prelude"),
+                        mod_name,
                         vec![(
                             Identifier::public("in_operator"),
                             Some(Identifier::private("#in_operator")),
                         )],
                     );
                     self.in_op_loaded = true;
-                    // self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
                 }
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
             }
@@ -1026,7 +1131,7 @@ impl CodeGenerator {
             | TokenKind::Closed
             | TokenKind::Open
             | TokenKind::InOp => 2,
-            _ => type_pair as u8,
+            _ => type_pair as usize,
         };
         self.write_instr(instr);
         self.write_arg(arg);
@@ -1051,7 +1156,7 @@ impl CodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(DELETE_NAME);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
     }
 
     fn emit_discard_instr(&mut self, mut args: Args) {
@@ -1070,7 +1175,7 @@ impl CodeGenerator {
         let idx_pop_jump_if_false = self.cur_block().lasti;
         self.write_instr(POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
-        self.write_arg(0_u8);
+        self.write_arg(0);
         match args.remove(0) {
             // then block
             Expr::Lambda(lambda) => {
@@ -1083,10 +1188,10 @@ impl CodeGenerator {
         }
         if args.get(0).is_some() {
             self.write_instr(JUMP_FORWARD); // jump to end
-            self.write_arg(0_u8);
+            self.write_arg(0);
             // else block
             let idx_else_begin = self.cur_block().lasti;
-            self.edit_code(idx_pop_jump_if_false + 1, idx_else_begin / 2);
+            self.edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -1098,7 +1203,7 @@ impl CodeGenerator {
             }
             let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.cur_block().lasti;
-            self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
+            self.edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
@@ -1106,7 +1211,7 @@ impl CodeGenerator {
         } else {
             // no else block
             let idx_end = self.cur_block().lasti;
-            self.edit_code(idx_pop_jump_if_false + 1, idx_end / 2);
+            self.edit_jump(idx_pop_jump_if_false + 1, idx_end);
             self.emit_load_const(ValueObj::None);
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
@@ -1135,9 +1240,14 @@ impl CodeGenerator {
             self.emit_pop_top();
         }
         self.write_instr(JUMP_ABSOLUTE);
-        self.write_arg((idx_for_iter / 2) as u8);
+        let arg = if self.py_version.minor >= Some(10) {
+            idx_for_iter / 2
+        } else {
+            idx_for_iter
+        };
+        self.write_arg(arg);
         let idx_end = self.cur_block().lasti;
-        self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
+        self.edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
     }
@@ -1159,10 +1269,15 @@ impl CodeGenerator {
         }
         self.emit_expr(cond);
         self.write_instr(POP_JUMP_IF_TRUE);
-        self.write_arg(((idx_while + 2) / 2) as u8);
+        let arg = if self.py_version.minor >= Some(10) {
+            (idx_while + 2) / 2
+        } else {
+            idx_while + 2
+        };
+        self.write_arg(arg);
         self.stack_dec();
         let idx_end = self.cur_block().lasti;
-        self.edit_code(idx_while + 1, idx_end / 2);
+        self.edit_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1175,7 +1290,7 @@ impl CodeGenerator {
         while let Some(expr) = args.try_remove(0) {
             // パターンが複数ある場合引数を複製する、ただし最後はしない
             if len > 1 && !args.is_empty() {
-                self.write_instr(Opcode::DUP_TOP);
+                self.write_instr(DUP_TOP);
                 self.write_arg(0);
                 self.stack_inc();
             }
@@ -1190,15 +1305,15 @@ impl CodeGenerator {
             self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = self.cur_block().lasti + 2;
-                self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
+                self.edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 absolute_jump_points.push(self.cur_block().lasti);
-                self.write_instr(Opcode::JUMP_ABSOLUTE); // jump to the end
+                self.write_instr(JUMP_ABSOLUTE); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.cur_block().lasti;
         for absolute_jump_point in absolute_jump_points.into_iter() {
-            self.edit_code(absolute_jump_point + 1, lasti / 2);
+            self.edit_jump(absolute_jump_point + 1, lasti);
         }
     }
 
@@ -1216,35 +1331,35 @@ impl CodeGenerator {
                     ValueObj::from_str(t, lit.token.content).unwrap()
                 };
                 self.emit_load_const(value);
-                self.write_instr(Opcode::COMPARE_OP);
+                self.write_instr(COMPARE_OP);
                 self.write_arg(2); // ==
                 self.stack_dec();
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(Opcode::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_instr(POP_JUMP_IF_FALSE); // jump to the next case
                 self.write_arg(0);
                 self.emit_pop_top();
                 self.stack_dec();
             }
             ParamPattern::Array(arr) => {
                 let len = arr.len();
-                self.write_instr(Opcode::MATCH_SEQUENCE);
+                self.write_instr(Opcode310::MATCH_SEQUENCE);
                 self.write_arg(0);
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(Opcode::POP_JUMP_IF_FALSE);
+                self.write_instr(POP_JUMP_IF_FALSE);
                 self.write_arg(0);
                 self.stack_dec();
-                self.write_instr(Opcode::GET_LEN);
+                self.write_instr(Opcode310::GET_LEN);
                 self.write_arg(0);
                 self.emit_load_const(len);
-                self.write_instr(Opcode::COMPARE_OP);
+                self.write_instr(COMPARE_OP);
                 self.write_arg(2); // ==
                 self.stack_dec();
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(Opcode::POP_JUMP_IF_FALSE);
+                self.write_instr(POP_JUMP_IF_FALSE);
                 self.write_arg(0);
                 self.stack_dec();
-                self.write_instr(Opcode::UNPACK_SEQUENCE);
-                self.write_arg(len as u8);
+                self.write_instr(Opcode310::UNPACK_SEQUENCE);
+                self.write_arg(len);
                 self.stack_inc_n(len - 1);
                 for elem in arr.elems.non_defaults {
                     pop_jump_points.append(&mut self.emit_match_pattern(elem.pat));
@@ -1263,7 +1378,7 @@ impl CodeGenerator {
         pop_jump_points
     }
 
-    fn emit_with_instr(&mut self, args: Args) {
+    fn emit_with_instr_3_10(&mut self, args: Args) {
         log!(info "entered {}", fn_name!());
         let mut args = args;
         let expr = args.remove(0);
@@ -1271,7 +1386,7 @@ impl CodeGenerator {
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.cur_block().lasti;
-        self.write_instr(SETUP_WITH);
+        self.write_instr(Opcode310::SETUP_WITH);
         self.write_arg(0);
         // push __exit__, __enter__() to the stack
         self.stack_inc_n(2);
@@ -1299,21 +1414,54 @@ impl CodeGenerator {
             idx_setup_with + 1,
             (self.cur_block().lasti - idx_setup_with - 2) / 2,
         );
-        self.write_instr(WITH_EXCEPT_START);
+        self.write_instr(Opcode310::WITH_EXCEPT_START);
         self.write_arg(0);
         let idx_pop_jump_if_true = self.cur_block().lasti;
         self.write_instr(POP_JUMP_IF_TRUE);
         self.write_arg(0);
-        self.write_instr(RERAISE);
+        self.write_instr(Opcode310::RERAISE);
         self.write_arg(1);
         self.edit_code(idx_pop_jump_if_true + 1, self.cur_block().lasti / 2);
         // self.emit_pop_top();
         // self.emit_pop_top();
         self.emit_pop_top();
-        self.write_instr(POP_EXCEPT);
+        self.write_instr(Opcode310::POP_EXCEPT);
         self.write_arg(0);
         let idx_end = self.cur_block().lasti;
         self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
+        self.emit_load_name_instr(stash);
+    }
+
+    fn emit_with_instr_3_8(&mut self, args: Args) {
+        log!(info "entered {}", fn_name!());
+        let mut args = args;
+        let expr = args.remove(0);
+        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_expr(expr);
+        let idx_setup_with = self.cur_block().lasti;
+        self.write_instr(Opcode38::SETUP_WITH);
+        self.write_arg(0);
+        // push __exit__, __enter__() to the stack
+        // self.stack_inc_n(2);
+        let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
+        self.emit_with_block(lambda.body, params);
+        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        self.emit_store_instr(stash.clone(), Name);
+        self.write_instr(POP_BLOCK);
+        self.write_arg(0);
+        self.write_instr(Opcode38::BEGIN_FINALLY);
+        self.write_arg(0);
+        self.write_instr(Opcode38::WITH_CLEANUP_START);
+        self.write_arg(0);
+        self.edit_code(
+            idx_setup_with + 1,
+            (self.cur_block().lasti - idx_setup_with - 2) / 2,
+        );
+        self.write_instr(Opcode38::WITH_CLEANUP_FINISH);
+        self.write_arg(0);
+        self.write_instr(Opcode38::END_FINALLY);
+        self.write_arg(0);
         self.emit_load_name_instr(stash);
     }
 
@@ -1345,7 +1493,13 @@ impl CodeGenerator {
             "while!" => self.emit_while_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
-            "with!" => self.emit_with_instr(args),
+            "with!" => {
+                if self.py_version.minor_is(3, 8) {
+                    self.emit_with_instr_3_8(args)
+                } else {
+                    self.emit_with_instr_3_10(args)
+                }
+            }
             "pyimport" | "py" => {
                 self.emit_load_name_instr(local);
                 self.emit_args(args, Name);
@@ -1370,6 +1524,32 @@ impl CodeGenerator {
         self.emit_args(args, Method);
     }
 
+    fn emit_var_args_310(&mut self, pos_len: usize, var_args: &PosArg) {
+        if pos_len > 0 {
+            self.write_instr(BUILD_LIST);
+            self.write_arg(pos_len);
+        }
+        self.emit_expr(var_args.expr.clone());
+        if pos_len > 0 {
+            self.write_instr(Opcode310::LIST_EXTEND);
+            self.write_arg(1);
+            self.write_instr(Opcode310::LIST_TO_TUPLE);
+            self.write_arg(0);
+        }
+    }
+
+    fn emit_var_args_38(&mut self, pos_len: usize, var_args: &PosArg) {
+        if pos_len > 0 {
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(pos_len);
+        }
+        self.emit_expr(var_args.expr.clone());
+        if pos_len > 0 {
+            self.write_instr(Opcode38::BUILD_TUPLE_UNPACK_WITH_CALL);
+            self.write_arg(2);
+        }
+    }
+
     fn emit_args(&mut self, mut args: Args, kind: AccessKind) {
         let argc = args.len();
         let pos_len = args.pos_args.len();
@@ -1378,16 +1558,10 @@ impl CodeGenerator {
             self.emit_expr(arg.expr);
         }
         if let Some(var_args) = &args.var_args {
-            if pos_len > 0 {
-                self.write_instr(BUILD_LIST);
-                self.write_arg(pos_len as u8);
-            }
-            self.emit_expr(var_args.expr.clone());
-            if pos_len > 0 {
-                self.write_instr(LIST_EXTEND);
-                self.write_arg(1);
-                self.write_instr(LIST_TO_TUPLE);
-                self.write_arg(0);
+            if self.py_version.minor_is(3, 10) {
+                self.emit_var_args_310(pos_len, var_args);
+            } else {
+                self.emit_var_args_38(pos_len, var_args);
             }
         }
         while let Some(arg) = args.try_remove_kw(0) {
@@ -1398,7 +1572,7 @@ impl CodeGenerator {
             let kws_tuple = ValueObj::from(kws);
             self.emit_load_const(kws_tuple);
             self.write_instr(CALL_FUNCTION_KW);
-            self.write_arg(argc as u8);
+            self.write_arg(argc);
             1
         } else {
             if args.var_args.is_some() {
@@ -1414,7 +1588,7 @@ impl CodeGenerator {
                 } else {
                     self.write_instr(CALL_FUNCTION);
                 }
-                self.write_arg(argc as u8);
+                self.write_arg(argc);
             }
             0
         };
@@ -1459,20 +1633,30 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.cur_block().lasti;
-        self.write_instr(Opcode::POP_JUMP_IF_TRUE);
+        self.write_instr(POP_JUMP_IF_TRUE);
         self.write_arg(0);
         self.stack_dec();
-        self.write_instr(Opcode::LOAD_ASSERTION_ERROR);
-        self.write_arg(0);
+        if self.py_version.minor_is(3, 10) {
+            self.write_instr(Opcode310::LOAD_ASSERTION_ERROR);
+            self.write_arg(0);
+            self.stack_inc();
+        } else {
+            self.emit_load_global_instr(Identifier::public("AssertionError"));
+        }
         if let Some(expr) = args.try_remove(0) {
             self.emit_expr(expr);
-            self.write_instr(Opcode::CALL_FUNCTION);
+            self.write_instr(CALL_FUNCTION);
             self.write_arg(1);
         }
-        self.write_instr(Opcode::RAISE_VARARGS);
+        self.write_instr(RAISE_VARARGS);
         self.write_arg(1);
-        let idx = self.cur_block().lasti;
-        self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
+        self.stack_dec();
+        let idx = if self.py_version.minor >= Some(10) {
+            self.cur_block().lasti / 2
+        } else {
+            self.cur_block().lasti
+        };
+        self.edit_code(pop_jump_point + 1, idx);
     }
 
     // TODO: list comprehension
@@ -1487,7 +1671,7 @@ impl CodeGenerator {
                     self.emit_expr(arg.expr);
                 }
                 self.write_instr(BUILD_LIST);
-                self.write_arg(len as u8);
+                self.write_arg(len);
                 if len == 0 {
                     self.stack_inc();
                 } else {
@@ -1497,7 +1681,7 @@ impl CodeGenerator {
             Array::WithLength(arr) => {
                 self.emit_expr(*arr.elem);
                 self.write_instr(BUILD_LIST);
-                self.write_arg(1u8);
+                self.write_arg(1);
                 self.emit_expr(*arr.len);
                 self.write_instr(BINARY_MULTIPLY);
                 self.write_arg(0);
@@ -1525,7 +1709,7 @@ impl CodeGenerator {
             self.emit_load_const(ValueObj::Str(field.sig.ident().inspect().clone()));
         }
         self.write_instr(BUILD_LIST);
-        self.write_arg(attrs_len as u8);
+        self.write_arg(attrs_len);
         if attrs_len == 0 {
             self.stack_inc();
         } else {
@@ -1544,7 +1728,7 @@ impl CodeGenerator {
             self.emit_frameless_block(field.body.block, vec![]);
         }
         self.write_instr(CALL_FUNCTION);
-        self.write_arg(attrs_len as u8);
+        self.write_arg(attrs_len);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + attrs_len + 0) - 1);
     }
@@ -1570,7 +1754,7 @@ impl CodeGenerator {
             .local_search(&full_name, Name)
             .unwrap_or_else(|| self.register_name(full_name));
         self.write_instr(IMPORT_NAME);
-        self.write_arg(name.idx as u8);
+        self.write_arg(name.idx);
         let root = Self::get_root(&acc);
         self.emit_store_instr(root, Name);
         self.stack_dec();
@@ -1629,7 +1813,7 @@ impl CodeGenerator {
                         self.emit_expr(arg.expr);
                     }
                     self.write_instr(BUILD_TUPLE);
-                    self.write_arg(len as u8);
+                    self.write_arg(len);
                     if len == 0 {
                         self.stack_inc();
                     } else {
@@ -1644,7 +1828,7 @@ impl CodeGenerator {
                         self.emit_expr(arg.expr);
                     }
                     self.write_instr(BUILD_SET);
-                    self.write_arg(len as u8);
+                    self.write_arg(len);
                     if len == 0 {
                         self.stack_inc();
                     } else {
@@ -1654,7 +1838,7 @@ impl CodeGenerator {
                 crate::hir::Set::WithLength(st) => {
                     self.emit_expr(*st.elem);
                     self.write_instr(BUILD_SET);
-                    self.write_arg(1u8);
+                    self.write_arg(1);
                 }
             },
             Expr::Dict(dict) => match dict {
@@ -1665,7 +1849,7 @@ impl CodeGenerator {
                         self.emit_expr(kv.value);
                     }
                     self.write_instr(BUILD_MAP);
-                    self.write_arg(len as u8);
+                    self.write_arg(len);
                     if len == 0 {
                         self.stack_inc();
                     } else {
@@ -1758,6 +1942,7 @@ impl CodeGenerator {
         };
         self.units.push(CodeGenUnit::new(
             self.unit_size,
+            self.py_version,
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
@@ -1779,7 +1964,7 @@ impl CodeGenerator {
             self.emit_load_const(ValueObj::None);
         }
         self.write_instr(RETURN_VALUE);
-        self.write_arg(0u8);
+        self.write_arg(0);
         if self.cur_block().stack_len > 1 {
             let block_id = self.cur_block().id;
             let stack_len = self.cur_block().stack_len;
@@ -1904,6 +2089,7 @@ impl CodeGenerator {
             .unwrap_or(0);
         self.units.push(CodeGenUnit::new(
             self.unit_size,
+            self.py_version,
             params,
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
@@ -1936,7 +2122,7 @@ impl CodeGenerator {
             self.crash("error in emit_block: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
-        self.write_arg(0u8);
+        self.write_arg(0);
         // flagging
         if !self.cur_block_codeobj().varnames.is_empty() {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::NewLocals as u32;
@@ -1976,10 +2162,23 @@ impl CodeGenerator {
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
         self.write_instr(CALL_METHOD);
-        self.write_arg(1u8);
+        self.write_arg(1);
         self.stack_dec();
         self.emit_pop_top();
-        self.emit_import_all_instr(Identifier::public("_erg_std_prelude"));
+        let erg_std_mod = if self.py_version.minor >= Some(10) {
+            Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
+        };
+        // escaping
+        self.emit_global_import_items(
+            erg_std_mod.clone(),
+            vec![(
+                Identifier::public("in_operator"),
+                Some(Identifier::private("#in_operator")),
+            )],
+        );
+        self.emit_import_all_instr(erg_std_mod);
     }
 
     fn load_record_type(&mut self) {
@@ -2023,6 +2222,7 @@ impl CodeGenerator {
         self.unit_size += 1;
         self.units.push(CodeGenUnit::new(
             self.unit_size,
+            self.py_version,
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",
@@ -2055,7 +2255,7 @@ impl CodeGenerator {
             } else {
                 self.stack_inc();
                 self.write_instr(CALL_FUNCTION);
-                self.write_arg(1_u8);
+                self.write_arg(1);
             }
             self.stack_dec_n(self.cur_block().stack_len as usize);
         }
@@ -2075,7 +2275,7 @@ impl CodeGenerator {
             self.crash("error in emit: invalid stack size");
         }
         self.write_instr(RETURN_VALUE);
-        self.write_arg(0u8);
+        self.write_arg(0);
         // flagging
         if !self.cur_block_codeobj().varnames.is_empty() {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::NewLocals as u32;

@@ -5,8 +5,10 @@ use std::io::{BufReader, Read, Write as _};
 use std::path::Path;
 
 use erg_common::impl_display_from_debug;
-use erg_common::opcode::Opcode;
-use erg_common::python_util::detect_magic_number;
+use erg_common::opcode::CommonOpcode;
+use erg_common::opcode310::Opcode310;
+use erg_common::opcode38::Opcode38;
+use erg_common::python_util::{detect_magic_number, python_version, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
 
@@ -303,16 +305,16 @@ impl CodeObj {
     pub fn dump_as_pyc<P: AsRef<Path>>(
         self,
         path: P,
-        python_ver: Option<u32>,
+        py_magic_num: Option<u32>,
     ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
-        let python_ver = python_ver.unwrap_or_else(detect_magic_number);
-        bytes.append(&mut get_magic_num_bytes(python_ver).to_vec());
+        let py_magic_num = py_magic_num.unwrap_or_else(detect_magic_number);
+        bytes.append(&mut get_magic_num_bytes(py_magic_num).to_vec());
         bytes.append(&mut vec![0; 4]); // padding
         bytes.append(&mut get_timestamp_bytes().to_vec());
         bytes.append(&mut vec![0; 4]); // padding
-        bytes.append(&mut self.into_bytes(python_ver));
+        bytes.append(&mut self.into_bytes(py_magic_num));
         file.write_all(&bytes[..])?;
         Ok(())
     }
@@ -374,7 +376,7 @@ impl CodeObj {
         attrs
     }
 
-    fn instr_info(&self) -> String {
+    fn instr_info(&self, py_ver: Option<PythonVersion>) -> String {
         let mut lnotab_iter = self.lnotab.iter();
         let mut code_iter = self.code.iter();
         let mut idx = 0usize;
@@ -396,111 +398,11 @@ impl CodeObj {
                 ldelta = lnotab_iter.next().unwrap_or(&0);
             }
             if let (Some(op), Some(arg)) = (code_iter.next(), code_iter.next()) {
-                let op = Opcode::from(*op);
-                let s_op = op.to_string();
-                write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
-                match op {
-                    Opcode::COMPARE_OP => {
-                        let op = match arg {
-                            0 => "<",
-                            1 => "<=",
-                            2 => "==",
-                            3 => "!=",
-                            4 => ">",
-                            5 => ">=",
-                            _ => "?",
-                        };
-                        write!(instrs, "{} ({})", arg, op).unwrap();
-                    }
-                    Opcode::STORE_NAME
-                    | Opcode::LOAD_NAME
-                    | Opcode::STORE_GLOBAL
-                    | Opcode::LOAD_GLOBAL
-                    | Opcode::STORE_ATTR
-                    | Opcode::LOAD_ATTR
-                    | Opcode::LOAD_METHOD
-                    | Opcode::IMPORT_NAME
-                    | Opcode::IMPORT_FROM => {
-                        write!(
-                            instrs,
-                            "{} ({})",
-                            arg,
-                            self.names.get(*arg as usize).unwrap()
-                        )
-                        .unwrap();
-                    }
-                    Opcode::STORE_DEREF | Opcode::LOAD_DEREF => {
-                        write!(
-                            instrs,
-                            "{} ({})",
-                            arg,
-                            self.freevars.get(*arg as usize).unwrap()
-                        )
-                        .unwrap();
-                    }
-                    Opcode::LOAD_CLOSURE => {
-                        write!(
-                            instrs,
-                            "{} ({})",
-                            arg,
-                            self.cellvars.get(*arg as usize).unwrap()
-                        )
-                        .unwrap();
-                    }
-                    Opcode::STORE_FAST | Opcode::LOAD_FAST => {
-                        write!(
-                            instrs,
-                            "{} ({})",
-                            arg,
-                            self.varnames.get(*arg as usize).unwrap()
-                        )
-                        .unwrap();
-                    }
-                    Opcode::LOAD_CONST => {
-                        write!(
-                            instrs,
-                            "{} ({})",
-                            arg,
-                            self.consts.get(*arg as usize).unwrap()
-                        )
-                        .unwrap();
-                    }
-                    Opcode::FOR_ITER => {
-                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
-                    }
-                    Opcode::JUMP_FORWARD => {
-                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
-                    }
-                    Opcode::SETUP_WITH => {
-                        write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
-                    }
-                    Opcode::JUMP_ABSOLUTE => {
-                        write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
-                    }
-                    Opcode::POP_JUMP_IF_FALSE | Opcode::POP_JUMP_IF_TRUE => {
-                        write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
-                    }
-                    Opcode::MAKE_FUNCTION => {
-                        let flag = match arg {
-                            8 => "(closure)",
-                            // TODO:
-                            _ => "",
-                        };
-                        write!(instrs, "{} {}", arg, flag).unwrap();
-                    }
-                    // Ergでは引数で型キャストする
-                    Opcode::BINARY_ADD
-                    | Opcode::BINARY_SUBTRACT
-                    | Opcode::BINARY_MULTIPLY
-                    | Opcode::BINARY_TRUE_DIVIDE => {
-                        write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
-                    }
-                    other if other.take_arg() => {
-                        write!(instrs, "{}", arg).unwrap();
-                    }
-                    _ => {}
+                if py_ver.unwrap_or_else(python_version).minor_is(3, 8) {
+                    self.read_instr_3_8(op, arg, idx, &mut instrs);
+                } else {
+                    self.read_instr_3_10(op, arg, idx, &mut instrs);
                 }
-                instrs.push('\n');
                 idx += 2;
                 line_offset += 2;
             } else {
@@ -510,16 +412,144 @@ impl CodeObj {
         instrs
     }
 
-    pub fn code_info(&self) -> String {
+    fn read_instr_3_8(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+        let op38 = Opcode38::from(*op);
+        let s_op = op38.to_string();
+        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
+        instrs.push('\n');
+    }
+
+    fn read_instr_3_10(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+        let op310 = Opcode310::from(*op);
+        let s_op = op310.to_string();
+        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
+        #[allow(clippy::single_match)]
+        match op310 {
+            Opcode310::SETUP_WITH => {
+                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+            }
+            _ => {}
+        }
+        instrs.push('\n');
+    }
+
+    fn dump_additional_info(&self, op: CommonOpcode, arg: &u8, idx: usize, instrs: &mut String) {
+        match op {
+            CommonOpcode::COMPARE_OP => {
+                let op = match arg {
+                    0 => "<",
+                    1 => "<=",
+                    2 => "==",
+                    3 => "!=",
+                    4 => ">",
+                    5 => ">=",
+                    _ => "?",
+                };
+                write!(instrs, "{} ({})", arg, op).unwrap();
+            }
+            CommonOpcode::STORE_NAME
+            | CommonOpcode::LOAD_NAME
+            | CommonOpcode::STORE_GLOBAL
+            | CommonOpcode::LOAD_GLOBAL
+            | CommonOpcode::STORE_ATTR
+            | CommonOpcode::LOAD_ATTR
+            | CommonOpcode::LOAD_METHOD
+            | CommonOpcode::IMPORT_NAME
+            | CommonOpcode::IMPORT_FROM => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.names.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            CommonOpcode::STORE_DEREF | CommonOpcode::LOAD_DEREF => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.freevars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            CommonOpcode::LOAD_CLOSURE => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.cellvars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            CommonOpcode::STORE_FAST | CommonOpcode::LOAD_FAST => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.varnames.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            CommonOpcode::LOAD_CONST => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.consts.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            CommonOpcode::FOR_ITER => {
+                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+            }
+            CommonOpcode::JUMP_FORWARD => {
+                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+            }
+            CommonOpcode::JUMP_ABSOLUTE => {
+                write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
+            }
+            CommonOpcode::POP_JUMP_IF_FALSE | CommonOpcode::POP_JUMP_IF_TRUE => {
+                write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
+            }
+            CommonOpcode::MAKE_FUNCTION => {
+                let flag = match arg {
+                    8 => "(closure)",
+                    // TODO:
+                    _ => "",
+                };
+                write!(instrs, "{} {}", arg, flag).unwrap();
+            }
+            // Ergでは引数で型キャストする
+            CommonOpcode::BINARY_ADD
+            | CommonOpcode::BINARY_SUBTRACT
+            | CommonOpcode::BINARY_MULTIPLY
+            | CommonOpcode::BINARY_TRUE_DIVIDE => {
+                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
+            }
+            other if other.take_arg() => {
+                write!(instrs, "{}", arg).unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    pub fn code_info(&self, py_ver: Option<PythonVersion>) -> String {
         let mut info = "".to_string();
         writeln!(info, "Disassembly of {:?}:", self).unwrap();
         info += &self.attrs_info();
         info += &self.tables_info();
-        info += &self.instr_info();
+        info += &self.instr_info(py_ver);
         info.push('\n');
         for cons in self.consts.iter() {
             if let ValueObj::Code(c) = cons {
-                info += &c.code_info();
+                info += &c.code_info(py_ver);
             }
         }
         info

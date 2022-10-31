@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::python_util::PythonVersion;
 use erg_common::traits::{Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
@@ -192,7 +193,10 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
 }
 
 fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    cfg.py_command = Some("python");
+    cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(8)));
+    cfg.py_magic_num = Some(3439);
     let mut vm = DummyVM::new(cfg);
     vm.exec()
 }

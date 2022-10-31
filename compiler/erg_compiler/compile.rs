@@ -140,7 +140,7 @@ impl Runnable for Compiler {
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let codeobj = self.compile(src, "eval")?;
-        Ok(codeobj.code_info())
+        Ok(codeobj.code_info(Some(self.code_generator.py_version)))
     }
 }
 
@@ -152,7 +152,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<(), CompileErrors> {
         let code = self.compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
+        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(())
     }
@@ -164,7 +164,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<Option<Expr>, CompileErrors> {
         let (code, last) = self.eval_compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.python_ver)
+        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
         Ok(last)
     }
@@ -173,7 +173,7 @@ impl Compiler {
         log!(info "the compiling process has started.");
         let hir = self.build_link_desugar(src, mode)?;
         let codeobj = self.code_generator.emit(hir);
-        log!(info "code object:\n{}", codeobj.code_info());
+        log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
         Ok(codeobj)
     }
@@ -187,7 +187,7 @@ impl Compiler {
         let hir = self.build_link_desugar(src, mode)?;
         let last = hir.module.last().cloned();
         let codeobj = self.code_generator.emit(hir);
-        log!(info "code object:\n{}", codeobj.code_info());
+        log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
         Ok((codeobj, last))
     }
