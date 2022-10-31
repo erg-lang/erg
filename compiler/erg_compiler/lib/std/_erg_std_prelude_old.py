@@ -146,3 +146,8 @@ class RangeIterator:
                 self.needle = self.needle.incremented()
                 return result
         raise StopIteration
+
+class Array(list):
+    def push(self, value):
+        self.append(value)
+        return self
