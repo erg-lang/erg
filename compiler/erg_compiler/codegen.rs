@@ -215,6 +215,15 @@ impl CodeGenerator {
         }
     }
 
+    fn edit_jump(&mut self, idx: usize, jump_to: usize) {
+        let arg = if self.py_version.minor >= Some(10) {
+            jump_to / 2
+        } else {
+            jump_to
+        };
+        self.edit_code(idx, arg);
+    }
+
     #[inline]
     fn edit_code(&mut self, idx: usize, arg: usize) {
         log!(err "{}, {arg}", self.cur_block().lasti);
@@ -1179,7 +1188,7 @@ impl CodeGenerator {
             self.write_arg(0);
             // else block
             let idx_else_begin = self.cur_block().lasti;
-            self.edit_code(idx_pop_jump_if_false + 1, idx_else_begin / 2);
+            self.edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -1191,7 +1200,7 @@ impl CodeGenerator {
             }
             let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.cur_block().lasti;
-            self.edit_code(idx_jump_forward + 1, (idx_end - idx_jump_forward - 2) / 2);
+            self.edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
@@ -1199,7 +1208,7 @@ impl CodeGenerator {
         } else {
             // no else block
             let idx_end = self.cur_block().lasti;
-            self.edit_code(idx_pop_jump_if_false + 1, idx_end / 2);
+            self.edit_jump(idx_pop_jump_if_false + 1, idx_end);
             self.emit_load_const(ValueObj::None);
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
@@ -1228,9 +1237,14 @@ impl CodeGenerator {
             self.emit_pop_top();
         }
         self.write_instr(JUMP_ABSOLUTE);
-        self.write_arg(idx_for_iter / 2);
+        let arg = if self.py_version.minor >= Some(10) {
+            idx_for_iter / 2
+        } else {
+            idx_for_iter
+        };
+        self.write_arg(arg);
         let idx_end = self.cur_block().lasti;
-        self.edit_code(idx_for_iter + 1, (idx_end - idx_for_iter - 2) / 2);
+        self.edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
     }
@@ -1252,10 +1266,15 @@ impl CodeGenerator {
         }
         self.emit_expr(cond);
         self.write_instr(POP_JUMP_IF_TRUE);
-        self.write_arg((idx_while + 2) / 2);
+        let arg = if self.py_version.minor >= Some(10) {
+            (idx_while + 2) / 2
+        } else {
+            idx_while + 2
+        };
+        self.write_arg(arg);
         self.stack_dec();
         let idx_end = self.cur_block().lasti;
-        self.edit_code(idx_while + 1, idx_end / 2);
+        self.edit_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1283,7 +1302,7 @@ impl CodeGenerator {
             self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = self.cur_block().lasti + 2;
-                self.edit_code(pop_jump_point + 1, idx / 2); // jump to POP_TOP
+                self.edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 absolute_jump_points.push(self.cur_block().lasti);
                 self.write_instr(JUMP_ABSOLUTE); // jump to the end
                 self.write_arg(0);
@@ -1291,7 +1310,7 @@ impl CodeGenerator {
         }
         let lasti = self.cur_block().lasti;
         for absolute_jump_point in absolute_jump_points.into_iter() {
-            self.edit_code(absolute_jump_point + 1, lasti / 2);
+            self.edit_jump(absolute_jump_point + 1, lasti);
         }
     }
 
@@ -2143,13 +2162,10 @@ impl CodeGenerator {
         self.write_arg(1);
         self.stack_dec();
         self.emit_pop_top();
-        let erg_std_mod = if self
-            .py_version
-            .le(&PythonVersion::new(3, Some(8), Some(10)))
-        {
-            Identifier::public("_erg_std_prelude_old")
-        } else {
+        let erg_std_mod = if self.py_version.minor >= Some(10) {
             Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
         };
         // escaping
         self.emit_global_import_items(
