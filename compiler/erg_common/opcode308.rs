@@ -7,7 +7,7 @@
 
 use crate::impl_u8_enum;
 
-impl_u8_enum! {Opcode38;
+impl_u8_enum! {Opcode308;
     POP_TOP = 1,
     ROT_TWO = 2,
     ROT_THREE = 3,

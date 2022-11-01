@@ -13,9 +13,9 @@ use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::CommonOpcode;
+use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
-use erg_common::opcode38::Opcode38;
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
@@ -335,10 +335,11 @@ impl CodeGenerator {
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
         if !self.cfg.no_std {
-            self.emit_push_null();
             if is_bool {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Bool"));
             } else if is_nat {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Nat"));
             }
         }
@@ -355,7 +356,7 @@ impl CodeGenerator {
         self.write_arg(idx);
         self.stack_inc();
         if !self.cfg.no_std && is_nat {
-            self.emit_call_instr(1);
+            self.emit_call_instr(1, Name);
             self.stack_dec();
         }
     }
@@ -740,18 +741,22 @@ impl CodeGenerator {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::PUSH_NULL);
             self.write_arg(0);
-            self.stack_inc();
+            // self.stack_inc();
         }
     }
 
-    fn emit_call_instr(&mut self, argc: usize) {
+    fn emit_call_instr(&mut self, argc: usize, kind: AccessKind) {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::PRECALL);
             self.write_arg(argc);
             self.write_instr(Opcode311::CALL);
             self.write_arg(argc);
+            // self.stack_dec();
         } else {
-            self.write_instr(Opcode310::CALL_FUNCTION);
+            match kind {
+                AccessKind::Method => self.write_instr(Opcode310::CALL_METHOD),
+                _ => self.write_instr(Opcode310::CALL_FUNCTION),
+            }
             self.write_arg(argc);
         }
     }
@@ -761,6 +766,8 @@ impl CodeGenerator {
             let idx = self.register_const(kws);
             self.write_instr(Opcode311::KW_NAMES);
             self.write_arg(idx);
+            self.write_instr(Opcode311::PRECALL);
+            self.write_arg(argc);
             self.write_instr(Opcode311::CALL);
             self.write_arg(argc);
         } else {
@@ -788,7 +795,12 @@ impl CodeGenerator {
         self.emit_load_name_instr(Identifier::private("#ABCMeta"));
         let subclasses_len = 1;
         self.emit_call_kw_instr(2 + subclasses_len, vec![ValueObj::from("metaclass")]);
-        self.stack_dec_n((1 + 2 + 1 + subclasses_len) - 1);
+        let sum = if self.py_version.minor >= Some(11) {
+            1 + 2 + subclasses_len
+        } else {
+            1 + 2 + 1 + subclasses_len
+        };
+        self.stack_dec_n(sum - 1);
         self.emit_store_instr(def.sig.into_ident(), Name);
         self.stack_dec();
     }
@@ -919,7 +931,7 @@ impl CodeGenerator {
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         if deco_is_some {
-            self.emit_call_instr(1);
+            self.emit_call_instr(1, Name);
             self.stack_dec();
         }
         // stack_dec: (<abstractmethod>) + <code obj> + <name> -> <function>
@@ -944,7 +956,7 @@ impl CodeGenerator {
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
         let subclasses_len = self.emit_require_type(obj, *require_or_sup);
-        self.emit_call_instr(2 + subclasses_len);
+        self.emit_call_instr(2 + subclasses_len, Name);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
@@ -1094,15 +1106,19 @@ impl CodeGenerator {
         match &bin.op.kind {
             // l..<r == range(l, r)
             TokenKind::RightOpen => {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("RightOpenRange"));
             }
             TokenKind::LeftOpen => {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("LeftOpenRange"));
             }
             TokenKind::Closed => {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("ClosedRange"));
             }
             TokenKind::Open => {
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("OpenRange"));
             }
             TokenKind::InOp => {
@@ -1126,6 +1142,7 @@ impl CodeGenerator {
                     );
                     self.in_op_loaded = true;
                 }
+                self.emit_push_null();
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
             }
             _ => {}
@@ -1133,7 +1150,11 @@ impl CodeGenerator {
         let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
-        self.emit_binop_instr_310(bin.op, type_pair);
+        if self.py_version.minor >= Some(11) {
+            self.emit_binop_instr_311(bin.op, type_pair);
+        } else {
+            self.emit_binop_instr_310(bin.op, type_pair);
+        }
     }
 
     fn emit_binop_instr_310(&mut self, binop: Token, type_pair: TypePair) {
@@ -1170,6 +1191,81 @@ impl CodeGenerator {
             }
         };
         let arg = match &binop.kind {
+            TokenKind::Less => 0,
+            TokenKind::LessEq => 1,
+            TokenKind::DblEq => 2,
+            TokenKind::NotEq => 3,
+            TokenKind::Gre => 4,
+            TokenKind::GreEq => 5,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::InOp => 2,
+            _ => type_pair as usize,
+        };
+        self.write_instr(instr);
+        self.write_arg(arg);
+        self.stack_dec();
+        match &binop.kind {
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Open
+            | TokenKind::Closed
+            | TokenKind::InOp => {
+                self.stack_dec();
+            }
+            _ => {}
+        }
+    }
+
+    fn emit_binop_instr_311(&mut self, binop: Token, type_pair: TypePair) {
+        let instr = match &binop.kind {
+            TokenKind::Plus
+            | TokenKind::Minus
+            | TokenKind::Star
+            | TokenKind::Slash
+            | TokenKind::FloorDiv
+            | TokenKind::Pow
+            | TokenKind::Mod
+            | TokenKind::AndOp
+            | TokenKind::OrOp => Opcode311::BINARY_OP,
+            TokenKind::Less
+            | TokenKind::LessEq
+            | TokenKind::DblEq
+            | TokenKind::NotEq
+            | TokenKind::Gre
+            | TokenKind::GreEq => Opcode311::COMPARE_OP,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::InOp => {
+                self.write_instr(Opcode311::PRECALL);
+                self.write_arg(2);
+                Opcode311::CALL
+            }
+            _ => {
+                CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    binop.loc(),
+                    &binop.inspect().clone(),
+                    AtomicStr::from(binop.content),
+                )
+                .write_to_stderr();
+                Opcode311::NOT_IMPLEMENTED
+            }
+        };
+        let arg = match &binop.kind {
+            TokenKind::Plus => BinOpCode::Add as usize,
+            TokenKind::Minus => BinOpCode::Subtract as usize,
+            TokenKind::Star => BinOpCode::Multiply as usize,
+            TokenKind::Slash => BinOpCode::TrueDivide as usize,
+            TokenKind::FloorDiv => BinOpCode::FloorDiv as usize,
+            TokenKind::Pow => BinOpCode::Power as usize,
+            TokenKind::Mod => BinOpCode::Remainder as usize,
+            TokenKind::AndOp => BinOpCode::And as usize,
+            TokenKind::OrOp => BinOpCode::Or as usize,
             TokenKind::Less => 0,
             TokenKind::LessEq => 1,
             TokenKind::DblEq => 2,
@@ -1490,7 +1586,7 @@ impl CodeGenerator {
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.cur_block().lasti;
-        self.write_instr(Opcode38::SETUP_WITH);
+        self.write_instr(Opcode308::SETUP_WITH);
         self.write_arg(0);
         // push __exit__, __enter__() to the stack
         // self.stack_inc_n(2);
@@ -1500,17 +1596,17 @@ impl CodeGenerator {
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
-        self.write_instr(Opcode38::BEGIN_FINALLY);
+        self.write_instr(Opcode308::BEGIN_FINALLY);
         self.write_arg(0);
-        self.write_instr(Opcode38::WITH_CLEANUP_START);
+        self.write_instr(Opcode308::WITH_CLEANUP_START);
         self.write_arg(0);
         self.edit_code(
             idx_setup_with + 1,
             (self.cur_block().lasti - idx_setup_with - 2) / 2,
         );
-        self.write_instr(Opcode38::WITH_CLEANUP_FINISH);
+        self.write_instr(Opcode308::WITH_CLEANUP_FINISH);
         self.write_arg(0);
-        self.write_instr(Opcode38::END_FINALLY);
+        self.write_instr(Opcode308::END_FINALLY);
         self.write_arg(0);
         self.emit_load_name_instr(stash);
     }
@@ -1593,7 +1689,7 @@ impl CodeGenerator {
         }
         self.emit_expr(var_args.expr.clone());
         if pos_len > 0 {
-            self.write_instr(Opcode38::BUILD_TUPLE_UNPACK_WITH_CALL);
+            self.write_instr(Opcode308::BUILD_TUPLE_UNPACK_WITH_CALL);
             self.write_arg(2);
         }
     }
@@ -1627,18 +1723,8 @@ impl CodeGenerator {
                 } else {
                     self.write_arg(1);
                 }
-            } else if self.py_version.minor >= Some(11) {
-                self.write_instr(Opcode311::PRECALL);
-                self.write_arg(argc);
-                self.write_instr(Opcode311::CALL);
-                self.write_arg(argc);
             } else {
-                if kind.is_method() {
-                    self.write_instr(Opcode310::CALL_METHOD);
-                } else {
-                    self.write_instr(Opcode310::CALL_FUNCTION);
-                }
-                self.write_arg(argc);
+                self.emit_call_instr(argc, kind);
             }
             0
         };
@@ -1753,7 +1839,7 @@ impl CodeGenerator {
             other => todo!("{other}"),
         }
         if !self.cfg.no_std {
-            self.emit_call_instr(1);
+            self.emit_call_instr(1, Name);
             self.stack_dec();
         }
     }
@@ -1777,7 +1863,7 @@ impl CodeGenerator {
         } else {
             self.stack_dec_n(attrs_len - 1);
         }
-        self.emit_call_instr(2);
+        self.emit_call_instr(2, Name);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + 2 + 0) - 1);
         let ident = Identifier::private("#rec");
@@ -1788,7 +1874,7 @@ impl CodeGenerator {
         for field in rec.attrs.into_iter() {
             self.emit_frameless_block(field.body.block, vec![]);
         }
-        self.emit_call_instr(attrs_len);
+        self.emit_call_instr(attrs_len, Name);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + attrs_len + 0) - 1);
     }
@@ -2218,11 +2304,11 @@ impl CodeGenerator {
                 Some(Identifier::private("#path")),
             )],
         );
+        self.emit_push_null();
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
-        self.write_instr(Opcode310::CALL_METHOD);
-        self.write_arg(1);
+        self.emit_call_instr(1, Method);
         self.stack_dec();
         self.emit_pop_top();
         let erg_std_mod = if self.py_version.minor >= Some(10) {
@@ -2319,7 +2405,7 @@ impl CodeGenerator {
                 }
             } else {
                 self.stack_inc();
-                self.emit_call_instr(1);
+                self.emit_call_instr(1, Name);
             }
             self.stack_dec_n(self.cur_block().stack_len as usize);
         }

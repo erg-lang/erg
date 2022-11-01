@@ -6,9 +6,10 @@ use std::path::Path;
 
 use erg_common::impl_display_from_debug;
 use erg_common::opcode::CommonOpcode;
+use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
-use erg_common::opcode38::Opcode38;
-use erg_common::python_util::{detect_magic_number, python_version, PythonVersion};
+use erg_common::opcode311::{BinOpCode, Opcode311};
+use erg_common::python_util::{detect_magic_number, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
 
@@ -418,10 +419,12 @@ impl CodeObj {
                 ldelta = lnotab_iter.next().unwrap_or(&0);
             }
             if let (Some(op), Some(arg)) = (code_iter.next(), code_iter.next()) {
-                if py_ver.unwrap_or_else(python_version).minor_is(3, 8) {
-                    self.read_instr_3_8(op, arg, idx, &mut instrs);
-                } else {
-                    self.read_instr_3_10(op, arg, idx, &mut instrs);
+                match py_ver.and_then(|pv| pv.minor) {
+                    Some(8) => self.read_instr_3_8(op, arg, idx, &mut instrs),
+                    // Some(9) => self.read_instr_3_9(op, arg, idx, &mut instrs),
+                    Some(10) => self.read_instr_3_10(op, arg, idx, &mut instrs),
+                    Some(11) => self.read_instr_3_11(op, arg, idx, &mut instrs),
+                    _ => {}
                 }
                 idx += 2;
                 line_offset += 2;
@@ -433,17 +436,17 @@ impl CodeObj {
     }
 
     fn read_instr_3_8(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
-        let op38 = Opcode38::from(*op);
+        let op38 = Opcode308::from(*op);
         let s_op = op38.to_string();
         write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op38 {
-            Opcode38::BINARY_ADD
-            | Opcode38::BINARY_SUBTRACT
-            | Opcode38::BINARY_MULTIPLY
-            | Opcode38::BINARY_TRUE_DIVIDE => {
+            Opcode308::BINARY_ADD
+            | Opcode308::BINARY_SUBTRACT
+            | Opcode308::BINARY_MULTIPLY
+            | Opcode308::BINARY_TRUE_DIVIDE => {
                 write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
             }
             _ => {}
@@ -467,6 +470,34 @@ impl CodeObj {
             }
             Opcode310::SETUP_WITH => {
                 write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+            }
+            _ => {}
+        }
+        instrs.push('\n');
+    }
+
+    fn read_instr_3_11(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+        let op311 = Opcode311::from(*op);
+        let s_op = op311.to_string();
+        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
+        match op311 {
+            Opcode311::PRECALL | Opcode311::CALL => {
+                write!(instrs, "{}", arg).unwrap();
+            }
+            Opcode311::KW_NAMES => {
+                write!(
+                    instrs,
+                    "{} ({})",
+                    arg,
+                    self.consts.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            Opcode311::BINARY_OP => {
+                write!(instrs, "{} ({:?})", arg, BinOpCode::from(*arg)).unwrap();
             }
             _ => {}
         }
