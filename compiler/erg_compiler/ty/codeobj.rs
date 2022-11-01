@@ -32,6 +32,14 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
     tuple
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum LocalKind {
+    Local = 0x20,
+    Free = 0x40,
+    Cell = 0x80,
+}
+
 /// Bit masks for CodeObj.flags
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -139,6 +147,7 @@ pub struct CodeObj {
     pub cellvars: Vec<Str>,    // names used in the inner function (closure)
     pub filename: Str,
     pub name: Str,
+    pub qualname: Str,
     pub firstlineno: u32,
     // lnotab (line number table): see Object/lnotab_notes.txt in CPython for details
     // e.g. +12bytes, +3line -> [.., 0x1C, 0x03, ..]
@@ -192,6 +201,7 @@ impl Default for CodeObj {
             cellvars: Vec::new(),
             filename: "<dummy>".into(),
             name: "<dummy>".into(),
+            qualname: "<dummy>".into(),
             firstlineno: 1,
             lnotab: Vec::new(),
             exceptiontable: Vec::new(),
@@ -206,6 +216,7 @@ impl CodeObj {
         name: T,
         firstlineno: u32,
     ) -> Self {
+        let name = name.into();
         Self {
             argcount: params.len() as u32,
             posonlyargcount: 0,
@@ -220,7 +231,8 @@ impl CodeObj {
             freevars: Vec::new(),
             cellvars: Vec::new(),
             filename: filename.into(),
-            name: name.into(),
+            name: name.clone(),
+            qualname: name,
             firstlineno,
             lnotab: Vec::with_capacity(4),
             exceptiontable: Vec::with_capacity(0),
@@ -259,11 +271,13 @@ impl CodeObj {
         let code = des.deserialize_bytes(v)?;
         let consts = des.deserialize_const_vec(v, python_ver)?;
         let names = des.deserialize_str_vec(v, python_ver)?;
+        // TODO: localplusnames
         let varnames = des.deserialize_str_vec(v, python_ver)?;
         let freevars = des.deserialize_str_vec(v, python_ver)?;
         let cellvars = des.deserialize_str_vec(v, python_ver)?;
         let filename = des.deserialize_str(v, python_ver)?;
         let name = des.deserialize_str(v, python_ver)?;
+        let qualname = des.deserialize_str(v, python_ver)?;
         let firstlineno = Deserializer::deserialize_u32(v);
         let lnotab = des.deserialize_bytes(v)?;
         let exceptiontable = if python_ver.minor >= Some(11) {
@@ -286,6 +300,7 @@ impl CodeObj {
             cellvars,
             filename,
             name,
+            qualname,
             firstlineno,
             lnotab,
             exceptiontable,
@@ -308,11 +323,10 @@ impl CodeObj {
         bytes.append(&mut raw_string_into_bytes(self.code));
         bytes.append(&mut consts_into_bytes(self.consts, python_ver)); // write as PyTupleObject
         bytes.append(&mut strs_into_bytes(self.names));
-        bytes.append(&mut strs_into_bytes(self.varnames));
-        bytes.append(&mut strs_into_bytes(self.freevars));
-        bytes.append(&mut strs_into_bytes(self.cellvars));
+        Self::dump_locals(self.varnames, self.freevars, self.cellvars, &mut bytes, python_ver);
         bytes.append(&mut str_into_bytes(self.filename, false));
         bytes.append(&mut str_into_bytes(self.name, true));
+        bytes.append(&mut str_into_bytes(self.qualname, true));
         bytes.append(&mut self.firstlineno.to_le_bytes().to_vec());
         // lnotab is represented as PyStrObject
         bytes.append(&mut raw_string_into_bytes(self.lnotab));
@@ -320,6 +334,27 @@ impl CodeObj {
             bytes.append(&mut raw_string_into_bytes(self.exceptiontable));
         }
         bytes
+    }
+
+    fn dump_locals(varnames: Vec<Str>, freevars: Vec<Str>, cellvars: Vec<Str>, bytes: &mut Vec<u8>, python_ver: PythonVersion) {
+        if python_ver.minor >= Some(11) {
+            let localspluskinds = [
+                vec![LocalKind::Local as u8; varnames.len()],
+                vec![LocalKind::Free as u8; freevars.len()],
+                vec![LocalKind::Cell as u8; cellvars.len()],
+            ].concat();
+            let localsplusnames = [
+                varnames,
+                freevars,
+                cellvars,
+            ].concat();
+            bytes.append(&mut strs_into_bytes(localsplusnames));
+            bytes.append(&mut raw_string_into_bytes(localspluskinds));
+        } else {
+            bytes.append(&mut strs_into_bytes(varnames));
+            bytes.append(&mut strs_into_bytes(freevars));
+            bytes.append(&mut strs_into_bytes(cellvars));
+        }
     }
 
     pub fn dump_as_pyc<P: AsRef<Path>>(

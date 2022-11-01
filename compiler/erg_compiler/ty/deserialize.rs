@@ -229,6 +229,11 @@ impl Deserializer {
                 let cellvars = self.deserialize_str_vec(v, python_ver)?;
                 let filename = self.deserialize_str(v, python_ver)?;
                 let name = self.deserialize_str(v, python_ver)?;
+                let qualname = if python_ver.minor >= Some(11) {
+                    self.deserialize_str(v, python_ver)?
+                } else {
+                    name.clone()
+                };
                 let firstlineno = Self::deserialize_u32(v);
                 let lnotab = self.deserialize_bytes(v)?;
                 let exceptiontable = if python_ver.minor >= Some(11) {
@@ -251,6 +256,7 @@ impl Deserializer {
                     cellvars,
                     filename,
                     name,
+                    qualname,
                     firstlineno,
                     lnotab,
                     exceptiontable,

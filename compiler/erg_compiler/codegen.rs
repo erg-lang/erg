@@ -307,7 +307,9 @@ impl CodeGenerator {
     fn stack_dec(&mut self) {
         if self.cur_block().stack_len == 0 {
             println!("current block: {}", self.cur_block());
-            self.crash("the stack size becomes -1");
+            let lasti = self.cur_block().lasti;
+            let last = self.cur_block_codeobj().code.last().unwrap();
+            self.crash(&format!("the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"));
         } else {
             self.mut_cur_block().stack_len -= 1;
         }
@@ -324,7 +326,9 @@ impl CodeGenerator {
 
     fn stack_dec_n(&mut self, n: usize) {
         if n > 0 && self.cur_block().stack_len == 0 {
-            self.crash("the stack size becomes -1");
+            let lasti = self.cur_block().lasti;
+            let last = self.cur_block_codeobj().code.last().unwrap();
+            self.crash(&format!("the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"));
         } else {
             self.mut_cur_block().stack_len -= n as u32;
         }
@@ -680,7 +684,7 @@ impl CodeGenerator {
 
     /// Compileが継続不能になった際呼び出す
     /// 極力使わないこと
-    fn crash(&mut self, description: &'static str) -> ! {
+    fn crash(&mut self, description: &str) -> ! {
         if cfg!(feature = "debug") {
             panic!("internal error: {description}");
         } else {
@@ -745,12 +749,26 @@ impl CodeGenerator {
         }
     }
 
+    fn emit_precall_and_call(&mut self, argc: usize) {
+        self.write_instr(Opcode311::PRECALL);
+        self.write_arg(argc);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_instr(Opcode311::CALL);
+        self.write_arg(argc);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+        self.write_arg(0);
+    }
+
     fn emit_call_instr(&mut self, argc: usize, kind: AccessKind) {
         if self.py_version.minor >= Some(11) {
-            self.write_instr(Opcode311::PRECALL);
-            self.write_arg(argc);
-            self.write_instr(Opcode311::CALL);
-            self.write_arg(argc);
+            self.emit_precall_and_call(argc);
             // self.stack_dec();
         } else {
             match kind {
@@ -766,10 +784,11 @@ impl CodeGenerator {
             let idx = self.register_const(kws);
             self.write_instr(Opcode311::KW_NAMES);
             self.write_arg(idx);
-            self.write_instr(Opcode311::PRECALL);
+            /*self.write_instr(Opcode311::PRECALL);
             self.write_arg(argc);
             self.write_instr(Opcode311::CALL);
-            self.write_arg(argc);
+            self.write_arg(argc);*/
+            self.emit_precall_and_call(argc);
         } else {
             self.emit_load_const(kws);
             self.write_instr(Opcode310::CALL_FUNCTION_KW);
@@ -1243,6 +1262,8 @@ impl CodeGenerator {
             | TokenKind::InOp => {
                 self.write_instr(Opcode311::PRECALL);
                 self.write_arg(2);
+                self.write_arg(0);
+                self.write_arg(0);
                 Opcode311::CALL
             }
             _ => {
@@ -1281,6 +1302,16 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(arg);
+        if instr == Opcode311::CALL {
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+            self.write_arg(0);
+        }
         self.stack_dec();
         match &binop.kind {
             TokenKind::LeftOpen
@@ -1782,10 +1813,7 @@ impl CodeGenerator {
         if let Some(expr) = args.try_remove(0) {
             self.emit_expr(expr);
             if self.py_version.minor >= Some(11) {
-                self.write_instr(Opcode311::PRECALL);
-                self.write_arg(0);
-                self.write_instr(Opcode311::CALL);
-                self.write_arg(0);
+                self.emit_precall_and_call(0);
             } else {
                 self.write_instr(Opcode310::CALL_FUNCTION);
                 self.write_arg(1);
@@ -1848,6 +1876,7 @@ impl CodeGenerator {
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
         let attrs_len = rec.attrs.len();
+        self.emit_push_null();
         // making record type
         let ident = Identifier::private("#NamedTuple");
         self.emit_load_name_instr(ident);
@@ -1870,6 +1899,7 @@ impl CodeGenerator {
         self.emit_store_instr(ident, Name);
         // making record instance
         let ident = Identifier::private("#rec");
+        self.emit_push_null();
         self.emit_load_name_instr(ident);
         for field in rec.attrs.into_iter() {
             self.emit_frameless_block(field.body.block, vec![]);
@@ -2293,6 +2323,7 @@ impl CodeGenerator {
     fn load_prelude(&mut self) {
         self.load_record_type();
         self.load_prelude_py();
+        self.prelude_loaded = true;
         self.record_type_loaded = true;
     }
 
@@ -2304,12 +2335,13 @@ impl CodeGenerator {
                 Some(Identifier::private("#path")),
             )],
         );
-        self.emit_push_null();
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
         self.emit_call_instr(1, Method);
-        self.stack_dec();
+        if self.py_version.minor < Some(11) {
+            self.stack_dec();
+        }
         self.emit_pop_top();
         let erg_std_mod = if self.py_version.minor >= Some(10) {
             Identifier::public("_erg_std_prelude")
@@ -2374,9 +2406,12 @@ impl CodeGenerator {
             "<module>",
             1,
         ));
-        if !self.cfg.no_std {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::RESUME);
+            self.write_arg(0);
+        }
+        if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
-            self.prelude_loaded = true;
         }
         let mut print_point = 0;
         if self.input().is_repl() {

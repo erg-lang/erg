@@ -8,6 +8,7 @@
 use crate::impl_u8_enum;
 
 impl_u8_enum! {Opcode311;
+    CACHE = 0,
     POP_TOP = 1,
     PUSH_NULL = 2,
     NOP = 9,
