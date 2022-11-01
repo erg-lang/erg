@@ -16,7 +16,7 @@ use super::deserialize::{DeserializeResult, Deserializer};
 use super::value::ValueObj;
 use super::{HasType, Type, TypePair};
 
-pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
+pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Vec<u8> {
     let mut tuple = vec![];
     if consts.len() > u8::MAX as usize {
         tuple.push(DataTypePrefix::Tuple as u8);
@@ -26,7 +26,7 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>) -> Vec<u8> {
         tuple.push(consts.len() as u8);
     }
     for obj in consts {
-        tuple.append(&mut obj.into_bytes());
+        tuple.append(&mut obj.into_bytes(python_ver));
     }
     tuple
 }
@@ -144,6 +144,7 @@ pub struct CodeObj {
     // ([sdelta, ldelta, sdelta, ldelta, ..])
     // if delta > 255 -> [255, 0, 255-delta, ...]
     pub lnotab: Vec<u8>,
+    pub exceptiontable: Vec<u8>,
 }
 
 impl HasType for CodeObj {
@@ -192,6 +193,7 @@ impl Default for CodeObj {
             name: "<dummy>".into(),
             firstlineno: 1,
             lnotab: Vec::new(),
+            exceptiontable: Vec::new(),
         }
     }
 }
@@ -220,6 +222,7 @@ impl CodeObj {
             name: name.into(),
             firstlineno,
             lnotab: Vec::with_capacity(4),
+            exceptiontable: Vec::with_capacity(0),
         }
     }
 
@@ -227,7 +230,8 @@ impl CodeObj {
         let mut f = BufReader::new(File::open(path)?);
         let v = &mut Vec::with_capacity(16);
         f.read_to_end(v)?;
-        let python_ver = get_magic_num_from_bytes(&Deserializer::consume::<4>(v));
+        let magic_num = get_magic_num_from_bytes(&Deserializer::consume::<4>(v));
+        let python_ver = get_ver_from_magic_num(magic_num);
         let _padding = Deserializer::deserialize_u32(v);
         let _timestamp = Deserializer::deserialize_u32(v);
         let _padding = Deserializer::deserialize_u32(v);
@@ -235,16 +239,20 @@ impl CodeObj {
         Ok(code)
     }
 
-    pub fn from_bytes(v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Self> {
+    pub fn from_bytes(v: &mut Vec<u8>, python_ver: PythonVersion) -> DeserializeResult<Self> {
         let mut des = Deserializer::new();
         let argcount = Deserializer::deserialize_u32(v);
-        let posonlyargcount = if python_ver >= 3413 {
+        let posonlyargcount = if python_ver.minor >= Some(8) {
             Deserializer::deserialize_u32(v)
         } else {
             0
         };
         let kwonlyargcount = Deserializer::deserialize_u32(v);
-        let nlocals = Deserializer::deserialize_u32(v);
+        let nlocals = if python_ver.minor >= Some(11) {
+            0
+        } else {
+            Deserializer::deserialize_u32(v)
+        };
         let stacksize = Deserializer::deserialize_u32(v);
         let flags = Deserializer::deserialize_u32(v);
         let code = des.deserialize_bytes(v)?;
@@ -257,6 +265,11 @@ impl CodeObj {
         let name = des.deserialize_str(v, python_ver)?;
         let firstlineno = Deserializer::deserialize_u32(v);
         let lnotab = des.deserialize_bytes(v)?;
+        let exceptiontable = if python_ver.minor >= Some(11) {
+            des.deserialize_bytes(v)?
+        } else {
+            vec![]
+        };
         Ok(CodeObj {
             argcount,
             posonlyargcount,
@@ -274,22 +287,25 @@ impl CodeObj {
             name,
             firstlineno,
             lnotab,
+            exceptiontable,
         })
     }
 
-    pub fn into_bytes(self, python_ver: u32) -> Vec<u8> {
+    pub fn into_bytes(self, python_ver: PythonVersion) -> Vec<u8> {
         let mut bytes = vec![DataTypePrefix::Code as u8];
         bytes.append(&mut self.argcount.to_le_bytes().to_vec());
-        if python_ver >= 3413 {
+        if python_ver.minor >= Some(10) {
             bytes.append(&mut self.posonlyargcount.to_le_bytes().to_vec());
         }
         bytes.append(&mut self.kwonlyargcount.to_le_bytes().to_vec());
-        bytes.append(&mut self.nlocals.to_le_bytes().to_vec());
+        if python_ver.minor < Some(11) {
+            bytes.append(&mut self.nlocals.to_le_bytes().to_vec());
+        }
         bytes.append(&mut self.stacksize.to_le_bytes().to_vec());
         bytes.append(&mut self.flags.to_le_bytes().to_vec());
         // co_code is represented as PyStrObject (Not Ascii, Unicode)
         bytes.append(&mut raw_string_into_bytes(self.code));
-        bytes.append(&mut consts_into_bytes(self.consts)); // write as PyTupleObject
+        bytes.append(&mut consts_into_bytes(self.consts, python_ver)); // write as PyTupleObject
         bytes.append(&mut strs_into_bytes(self.names));
         bytes.append(&mut strs_into_bytes(self.varnames));
         bytes.append(&mut strs_into_bytes(self.freevars));
@@ -299,6 +315,9 @@ impl CodeObj {
         bytes.append(&mut self.firstlineno.to_le_bytes().to_vec());
         // lnotab is represented as PyStrObject
         bytes.append(&mut raw_string_into_bytes(self.lnotab));
+        if python_ver.minor >= Some(11) {
+            bytes.append(&mut raw_string_into_bytes(self.exceptiontable));
+        }
         bytes
     }
 
@@ -310,11 +329,12 @@ impl CodeObj {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
         let py_magic_num = py_magic_num.unwrap_or_else(detect_magic_number);
+        let python_ver = get_ver_from_magic_num(py_magic_num);
         bytes.append(&mut get_magic_num_bytes(py_magic_num).to_vec());
         bytes.append(&mut vec![0; 4]); // padding
         bytes.append(&mut get_timestamp_bytes().to_vec());
         bytes.append(&mut vec![0; 4]); // padding
-        bytes.append(&mut self.into_bytes(py_magic_num));
+        bytes.append(&mut self.into_bytes(python_ver));
         file.write_all(&bytes[..])?;
         Ok(())
     }
@@ -419,6 +439,15 @@ impl CodeObj {
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
+        match op38 {
+            Opcode38::BINARY_ADD
+            | Opcode38::BINARY_SUBTRACT
+            | Opcode38::BINARY_MULTIPLY
+            | Opcode38::BINARY_TRUE_DIVIDE => {
+                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
+            }
+            _ => {}
+        }
         instrs.push('\n');
     }
 
@@ -429,8 +458,13 @@ impl CodeObj {
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
-        #[allow(clippy::single_match)]
         match op310 {
+            Opcode310::BINARY_ADD
+            | Opcode310::BINARY_SUBTRACT
+            | Opcode310::BINARY_MULTIPLY
+            | Opcode310::BINARY_TRUE_DIVIDE => {
+                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
+            }
             Opcode310::SETUP_WITH => {
                 write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
             }
@@ -525,13 +559,6 @@ impl CodeObj {
                     _ => "",
                 };
                 write!(instrs, "{} {}", arg, flag).unwrap();
-            }
-            // Ergでは引数で型キャストする
-            CommonOpcode::BINARY_ADD
-            | CommonOpcode::BINARY_SUBTRACT
-            | CommonOpcode::BINARY_MULTIPLY
-            | CommonOpcode::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
             }
             other if other.take_arg() => {
                 write!(instrs, "{}", arg).unwrap();

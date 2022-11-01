@@ -146,3 +146,32 @@ impl_u8_enum! {Opcode311;
     ERG_BINARY_TRUE_DIVIDE = 254,
     NOT_IMPLEMENTED = 255,
 }
+
+impl_u8_enum! {BinOpCode;
+    Add = 0,
+    And = 1, // &
+    FloorDiv = 2,
+    LShift = 3,
+    MatrixMultiply = 4,
+    Multiply = 5,
+    Remainder = 6,
+    Or = 7, // |
+    Power = 8,
+    RShift = 9,
+    Subtract = 10,
+    TrueDivide = 11,
+    Xor = 12,
+    InplaceAdd = 13,
+    InplaceAnd = 14,
+    InplaceFloorDiv = 15,
+    InplaceLShift = 16,
+    InplaceMatrixMultiply = 17,
+    InplaceMultiply = 18,
+    InplaceRemainder = 19,
+    InplaceOr = 20,
+    InplacePower = 21,
+    InplaceRShift = 22,
+    InplaceSubtract = 23,
+    InplaceTrueDivide = 24,
+    InplaceXor = 25,
+}

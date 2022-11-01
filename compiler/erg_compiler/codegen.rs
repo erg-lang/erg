@@ -14,6 +14,7 @@ use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::CommonOpcode;
 use erg_common::opcode310::Opcode310;
+use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::opcode38::Opcode38;
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{python_version, PythonVersion};
@@ -334,6 +335,7 @@ impl CodeGenerator {
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
         if !self.cfg.no_std {
+            self.emit_push_null();
             if is_bool {
                 self.emit_load_name_instr(Identifier::public("Bool"));
             } else if is_nat {
@@ -353,10 +355,21 @@ impl CodeGenerator {
         self.write_arg(idx);
         self.stack_inc();
         if !self.cfg.no_std && is_nat {
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1);
+            self.emit_call_instr(1);
             self.stack_dec();
         }
+    }
+
+    fn register_const<C: Into<ValueObj>>(&mut self, cons: C) -> usize {
+        let value = cons.into();
+        self.mut_cur_block_codeobj()
+            .consts
+            .iter()
+            .position(|c| c == &value)
+            .unwrap_or_else(|| {
+                self.mut_cur_block_codeobj().consts.push(value);
+                self.mut_cur_block_codeobj().consts.len() - 1
+            })
     }
 
     fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
@@ -723,11 +736,46 @@ impl CodeGenerator {
         }
     }
 
+    fn emit_push_null(&mut self) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::PUSH_NULL);
+            self.write_arg(0);
+            self.stack_inc();
+        }
+    }
+
+    fn emit_call_instr(&mut self, argc: usize) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::PRECALL);
+            self.write_arg(argc);
+            self.write_instr(Opcode311::CALL);
+            self.write_arg(argc);
+        } else {
+            self.write_instr(Opcode310::CALL_FUNCTION);
+            self.write_arg(argc);
+        }
+    }
+
+    fn emit_call_kw_instr(&mut self, argc: usize, kws: Vec<ValueObj>) {
+        if self.py_version.minor >= Some(11) {
+            let idx = self.register_const(kws);
+            self.write_instr(Opcode311::KW_NAMES);
+            self.write_arg(idx);
+            self.write_instr(Opcode311::CALL);
+            self.write_arg(argc);
+        } else {
+            self.emit_load_const(kws);
+            self.write_instr(Opcode310::CALL_FUNCTION_KW);
+            self.write_arg(argc);
+        }
+    }
+
     fn emit_trait_def(&mut self, def: Def) {
         if !self.abc_loaded {
             self.load_abc();
             self.abc_loaded = true;
         }
+        self.emit_push_null();
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
@@ -738,10 +786,8 @@ impl CodeGenerator {
         self.write_arg(0);
         self.emit_load_const(def.sig.ident().inspect().clone());
         self.emit_load_name_instr(Identifier::private("#ABCMeta"));
-        self.emit_load_const(vec![ValueObj::from("metaclass")]);
         let subclasses_len = 1;
-        self.write_instr(CALL_FUNCTION_KW);
-        self.write_arg(2 + subclasses_len);
+        self.emit_call_kw_instr(2 + subclasses_len, vec![ValueObj::from("metaclass")]);
         self.stack_dec_n((1 + 2 + 1 + subclasses_len) - 1);
         self.emit_store_instr(def.sig.into_ident(), Name);
         self.stack_dec();
@@ -832,6 +878,7 @@ impl CodeGenerator {
         deco: Option<Identifier>,
     ) {
         log!(info "entered {} ({ident})", fn_name!());
+        self.emit_push_null();
         let deco_is_some = deco.is_some();
         if let Some(deco) = deco {
             self.emit_load_name_instr(deco);
@@ -872,8 +919,7 @@ impl CodeGenerator {
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         if deco_is_some {
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1);
+            self.emit_call_instr(1);
             self.stack_dec();
         }
         // stack_dec: (<abstractmethod>) + <code obj> + <name> -> <function>
@@ -883,6 +929,7 @@ impl CodeGenerator {
 
     fn emit_class_def(&mut self, class_def: ClassDef) {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
+        self.emit_push_null();
         let ident = class_def.sig.ident().clone();
         let require_or_sup = class_def.require_or_sup.clone();
         let obj = class_def.obj.clone();
@@ -897,8 +944,7 @@ impl CodeGenerator {
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
         let subclasses_len = self.emit_require_type(obj, *require_or_sup);
-        self.write_instr(CALL_FUNCTION);
-        self.write_arg(2 + subclasses_len);
+        self.emit_call_instr(2 + subclasses_len);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
@@ -1087,39 +1133,43 @@ impl CodeGenerator {
         let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
-        let instr = match &bin.op.kind {
-            TokenKind::Plus => BINARY_ADD,
-            TokenKind::Minus => BINARY_SUBTRACT,
-            TokenKind::Star => BINARY_MULTIPLY,
-            TokenKind::Slash => BINARY_TRUE_DIVIDE,
-            TokenKind::FloorDiv => BINARY_FLOOR_DIVIDE,
-            TokenKind::Pow => BINARY_POWER,
-            TokenKind::Mod => BINARY_MODULO,
-            TokenKind::AndOp => BINARY_AND,
-            TokenKind::OrOp => BINARY_OR,
+        self.emit_binop_instr_310(bin.op, type_pair);
+    }
+
+    fn emit_binop_instr_310(&mut self, binop: Token, type_pair: TypePair) {
+        let instr = match &binop.kind {
+            TokenKind::Plus => Opcode310::BINARY_ADD,
+            TokenKind::Minus => Opcode310::BINARY_SUBTRACT,
+            TokenKind::Star => Opcode310::BINARY_MULTIPLY,
+            TokenKind::Slash => Opcode310::BINARY_TRUE_DIVIDE,
+            TokenKind::FloorDiv => Opcode310::BINARY_FLOOR_DIVIDE,
+            TokenKind::Pow => Opcode310::BINARY_POWER,
+            TokenKind::Mod => Opcode310::BINARY_MODULO,
+            TokenKind::AndOp => Opcode310::BINARY_AND,
+            TokenKind::OrOp => Opcode310::BINARY_OR,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
             | TokenKind::NotEq
             | TokenKind::Gre
-            | TokenKind::GreEq => COMPARE_OP,
+            | TokenKind::GreEq => Opcode310::COMPARE_OP,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::InOp => CALL_FUNCTION, // ERG_BINARY_RANGE,
+            | TokenKind::InOp => Opcode310::CALL_FUNCTION, // ERG_BINARY_RANGE,
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
-                    bin.op.loc(),
-                    &bin.op.inspect().clone(),
-                    AtomicStr::from(bin.op.content),
+                    binop.loc(),
+                    &binop.inspect().clone(),
+                    AtomicStr::from(binop.content),
                 )
                 .write_to_stderr();
-                NOT_IMPLEMENTED
+                Opcode310::NOT_IMPLEMENTED
             }
         };
-        let arg = match &bin.op.kind {
+        let arg = match &binop.kind {
             TokenKind::Less => 0,
             TokenKind::LessEq => 1,
             TokenKind::DblEq => 2,
@@ -1136,7 +1186,7 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(arg);
         self.stack_dec();
-        match &bin.op.kind {
+        match &binop.kind {
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Open
@@ -1403,7 +1453,7 @@ impl CodeGenerator {
         self.write_instr(DUP_TOP);
         self.write_arg(0);
         self.stack_inc();
-        self.write_instr(CALL_FUNCTION);
+        self.write_instr(Opcode310::CALL_FUNCTION);
         self.write_arg(3);
         self.stack_dec_n((1 + 3) - 1);
         self.emit_pop_top();
@@ -1477,7 +1527,7 @@ impl CodeGenerator {
                 }
                 other => {
                     self.emit_expr(other);
-                    self.emit_args(call.args, Name);
+                    self.emit_args_311(call.args, Name);
                 }
             }
         }
@@ -1500,13 +1550,11 @@ impl CodeGenerator {
                     self.emit_with_instr_3_10(args)
                 }
             }
-            "pyimport" | "py" => {
-                self.emit_load_name_instr(local);
-                self.emit_args(args, Name);
-            }
+            // "pyimport" | "py" |
             _ => {
+                self.emit_push_null();
                 self.emit_load_name_instr(local);
-                self.emit_args(args, Name);
+                self.emit_args_311(args, Name);
             }
         }
     }
@@ -1515,16 +1563,16 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
         if &method_name.inspect()[..] == "update!" {
-            return self.emit_call_update(obj, args);
+            return self.emit_call_update_310(obj, args);
         } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
-        self.emit_args(args, Method);
+        self.emit_args_311(args, Method);
     }
 
-    fn emit_var_args_310(&mut self, pos_len: usize, var_args: &PosArg) {
+    fn emit_var_args_311(&mut self, pos_len: usize, var_args: &PosArg) {
         if pos_len > 0 {
             self.write_instr(BUILD_LIST);
             self.write_arg(pos_len);
@@ -1550,7 +1598,7 @@ impl CodeGenerator {
         }
     }
 
-    fn emit_args(&mut self, mut args: Args, kind: AccessKind) {
+    fn emit_args_311(&mut self, mut args: Args, kind: AccessKind) {
         let argc = args.len();
         let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
@@ -1558,8 +1606,8 @@ impl CodeGenerator {
             self.emit_expr(arg.expr);
         }
         if let Some(var_args) = &args.var_args {
-            if self.py_version.minor_is(3, 10) {
-                self.emit_var_args_310(pos_len, var_args);
+            if self.py_version.minor >= Some(10) {
+                self.emit_var_args_311(pos_len, var_args);
             } else {
                 self.emit_var_args_38(pos_len, var_args);
             }
@@ -1569,10 +1617,7 @@ impl CodeGenerator {
             self.emit_expr(arg.expr);
         }
         let kwsc = if !kws.is_empty() {
-            let kws_tuple = ValueObj::from(kws);
-            self.emit_load_const(kws_tuple);
-            self.write_instr(CALL_FUNCTION_KW);
-            self.write_arg(argc);
+            self.emit_call_kw_instr(argc, kws);
             1
         } else {
             if args.var_args.is_some() {
@@ -1582,11 +1627,16 @@ impl CodeGenerator {
                 } else {
                     self.write_arg(1);
                 }
+            } else if self.py_version.minor >= Some(11) {
+                self.write_instr(Opcode311::PRECALL);
+                self.write_arg(argc);
+                self.write_instr(Opcode311::CALL);
+                self.write_arg(argc);
             } else {
                 if kind.is_method() {
-                    self.write_instr(CALL_METHOD);
+                    self.write_instr(Opcode310::CALL_METHOD);
                 } else {
-                    self.write_instr(CALL_FUNCTION);
+                    self.write_instr(Opcode310::CALL_FUNCTION);
                 }
                 self.write_arg(argc);
             }
@@ -1599,13 +1649,13 @@ impl CodeGenerator {
     /// X.update! x -> x + 1
     /// X = (x -> x + 1)(X)
     /// X = X + 1
-    fn emit_call_update(&mut self, obj: Expr, mut args: Args) {
+    fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
         self.emit_expr(func);
         self.emit_acc(acc.clone());
-        self.write_instr(CALL_FUNCTION);
+        self.write_instr(Opcode310::CALL_FUNCTION);
         self.write_arg(1);
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
@@ -1625,7 +1675,7 @@ impl CodeGenerator {
         method_name.vi.py_name = Some(Str::ever(func_name));
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
-        self.emit_args(args, Name);
+        self.emit_args_311(args, Name);
     }
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)
@@ -1636,7 +1686,7 @@ impl CodeGenerator {
         self.write_instr(POP_JUMP_IF_TRUE);
         self.write_arg(0);
         self.stack_dec();
-        if self.py_version.minor_is(3, 10) {
+        if self.py_version.minor >= Some(10) {
             self.write_instr(Opcode310::LOAD_ASSERTION_ERROR);
             self.write_arg(0);
             self.stack_inc();
@@ -1645,8 +1695,15 @@ impl CodeGenerator {
         }
         if let Some(expr) = args.try_remove(0) {
             self.emit_expr(expr);
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1);
+            if self.py_version.minor >= Some(11) {
+                self.write_instr(Opcode311::PRECALL);
+                self.write_arg(0);
+                self.write_instr(Opcode311::CALL);
+                self.write_arg(0);
+            } else {
+                self.write_instr(Opcode310::CALL_FUNCTION);
+                self.write_arg(1);
+            }
         }
         self.write_instr(RAISE_VARARGS);
         self.write_arg(1);
@@ -1662,6 +1719,7 @@ impl CodeGenerator {
     // TODO: list comprehension
     fn emit_array(&mut self, array: Array) {
         if !self.cfg.no_std {
+            self.emit_push_null();
             self.emit_load_name_instr(Identifier::public("Array"));
         }
         match array {
@@ -1683,15 +1741,19 @@ impl CodeGenerator {
                 self.write_instr(BUILD_LIST);
                 self.write_arg(1);
                 self.emit_expr(*arr.len);
-                self.write_instr(BINARY_MULTIPLY);
-                self.write_arg(0);
+                if self.py_version.minor >= Some(11) {
+                    self.write_instr(Opcode311::BINARY_OP);
+                    self.write_arg(BinOpCode::Multiply as usize);
+                } else {
+                    self.write_instr(Opcode310::BINARY_MULTIPLY);
+                    self.write_arg(0);
+                }
                 self.stack_dec();
             }
             other => todo!("{other}"),
         }
         if !self.cfg.no_std {
-            self.write_instr(CALL_FUNCTION);
-            self.write_arg(1);
+            self.emit_call_instr(1);
             self.stack_dec();
         }
     }
@@ -1715,8 +1777,7 @@ impl CodeGenerator {
         } else {
             self.stack_dec_n(attrs_len - 1);
         }
-        self.write_instr(CALL_FUNCTION);
-        self.write_arg(2);
+        self.emit_call_instr(2);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + 2 + 0) - 1);
         let ident = Identifier::private("#rec");
@@ -1727,8 +1788,7 @@ impl CodeGenerator {
         for field in rec.attrs.into_iter() {
             self.emit_frameless_block(field.body.block, vec![]);
         }
-        self.write_instr(CALL_FUNCTION);
-        self.write_arg(attrs_len);
+        self.emit_call_instr(attrs_len);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + attrs_len + 0) - 1);
     }
@@ -2161,7 +2221,7 @@ impl CodeGenerator {
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
-        self.write_instr(CALL_METHOD);
+        self.write_instr(Opcode310::CALL_METHOD);
         self.write_arg(1);
         self.stack_dec();
         self.emit_pop_top();
@@ -2234,6 +2294,7 @@ impl CodeGenerator {
         }
         let mut print_point = 0;
         if self.input().is_repl() {
+            self.emit_push_null();
             print_point = self.cur_block().lasti;
             self.emit_load_name_instr(Identifier::public("print"));
             // Consistency will be taken later (when NOP replacing)
@@ -2252,10 +2313,13 @@ impl CodeGenerator {
             if self.cur_block().stack_len == 0 {
                 // remains `print`, nothing to be printed
                 self.edit_code(print_point, NOP as usize);
+                if self.py_version.minor >= Some(11) {
+                    // delete PUSH_NULL
+                    self.edit_code(print_point - 2, NOP as usize);
+                }
             } else {
                 self.stack_inc();
-                self.write_instr(CALL_FUNCTION);
-                self.write_arg(1);
+                self.emit_call_instr(1);
             }
             self.stack_dec_n(self.cur_block().stack_len as usize);
         }

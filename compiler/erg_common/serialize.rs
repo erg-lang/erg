@@ -2,6 +2,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::impl_display_from_debug;
+use crate::python_util::PythonVersion;
 use crate::Str;
 
 /* Python bytecode specification */
@@ -22,6 +23,23 @@ pub const fn get_magic_num_bytes(python_ver: u32) -> [u8; 4] {
 
 pub const fn get_magic_num_from_bytes(bytes: &[u8; 4]) -> u32 {
     u32::from_le_bytes([bytes[0], bytes[1], 0, 0])
+}
+
+pub const fn get_ver_from_magic_num(magic_num: u32) -> PythonVersion {
+    match magic_num {
+        3400..=3413 => PythonVersion::new(3, Some(8), Some(0)),
+        3430 | 3431 => PythonVersion::new(3, Some(10), Some(0)),
+        3432 => PythonVersion::new(3, Some(10), Some(1)),
+        3433 => PythonVersion::new(3, Some(10), Some(2)),
+        3434 => PythonVersion::new(3, Some(10), Some(3)),
+        3435 => PythonVersion::new(3, Some(10), Some(4)),
+        3436 => PythonVersion::new(3, Some(10), Some(5)),
+        3437 => PythonVersion::new(3, Some(10), Some(6)),
+        3438 => PythonVersion::new(3, Some(10), Some(7)),
+        3439 => PythonVersion::new(3, Some(10), Some(8)),
+        3495 => PythonVersion::new(3, Some(11), Some(0)),
+        _ => panic!("unknown magic number"),
+    }
 }
 
 pub fn get_timestamp_bytes() -> [u8; 4] {

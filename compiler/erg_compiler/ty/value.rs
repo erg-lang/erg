@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
+use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set;
 use erg_common::set::Set;
@@ -662,7 +663,7 @@ impl ValueObj {
         }
     }
 
-    pub fn into_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self, python_ver: PythonVersion) -> Vec<u8> {
         match self {
             Self::Int(i) => [vec![DataTypePrefix::Int32 as u8], i.to_le_bytes().to_vec()].concat(),
             // TODO: Natとしてシリアライズ
@@ -685,7 +686,7 @@ impl ValueObj {
                 bytes.push(DataTypePrefix::Tuple as u8);
                 bytes.append(&mut (arr.len() as u32).to_le_bytes().to_vec());
                 for obj in arr.iter().cloned() {
-                    bytes.append(&mut obj.into_bytes());
+                    bytes.append(&mut obj.into_bytes(python_ver));
                 }
                 bytes
             }
@@ -694,14 +695,14 @@ impl ValueObj {
                 bytes.push(DataTypePrefix::Tuple as u8);
                 bytes.append(&mut (tup.len() as u32).to_le_bytes().to_vec());
                 for obj in tup.iter().cloned() {
-                    bytes.append(&mut obj.into_bytes());
+                    bytes.append(&mut obj.into_bytes(python_ver));
                 }
                 bytes
             }
             Self::None => {
                 vec![DataTypePrefix::None as u8]
             }
-            Self::Code(c) => c.into_bytes(3425),
+            Self::Code(c) => c.into_bytes(python_ver),
             // Dict
             other => {
                 panic!(
