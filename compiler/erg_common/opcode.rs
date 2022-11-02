@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
-use crate::impl_display_from_debug;
+use crate::{impl_display_from_debug, impl_u8_enum};
 
 /// Based on Python opcodes.
 /// This is represented by u8.
@@ -13,11 +13,11 @@ use crate::impl_display_from_debug;
 #[repr(u8)]
 pub enum CommonOpcode {
     POP_TOP = 1,
-    ROT_TWO = 2,
-    ROT_THREE = 3,
-    DUP_TOP = 4,
-    DUP_TOP2 = 5,
-    ROT_FOUR = 6,
+    // ROT_TWO = 2,
+    // ROT_THREE = 3,
+    // DUP_TOP = 4,
+    // DUP_TOP2 = 5,
+    // ROT_FOUR = 6,
     NOP = 9,
     UNARY_POSITIVE = 10,
     UNARY_NEGATIVE = 11,
@@ -55,9 +55,9 @@ pub enum CommonOpcode {
     JUMP_FORWARD = 110,
     JUMP_IF_FALSE_OR_POP = 111,
     JUMP_IF_TRUE_OR_POP = 112,
-    JUMP_ABSOLUTE = 113,
-    POP_JUMP_IF_FALSE = 114,
-    POP_JUMP_IF_TRUE = 115,
+    // JUMP_ABSOLUTE = 113,
+    // POP_JUMP_IF_FALSE = 114,
+    // POP_JUMP_IF_TRUE = 115,
     LOAD_GLOBAL = 116,
     LOAD_FAST = 124,
     STORE_FAST = 125,
@@ -82,11 +82,11 @@ impl TryFrom<u8> for CommonOpcode {
     fn try_from(byte: u8) -> Result<Self, ()> {
         Ok(match byte {
             1 => POP_TOP,
-            2 => ROT_TWO,
-            3 => ROT_THREE,
-            4 => DUP_TOP,
-            5 => DUP_TOP2,
-            6 => ROT_FOUR,
+            // 2 => ROT_TWO,
+            // 3 => ROT_THREE,
+            // 4 => DUP_TOP,
+            // 5 => DUP_TOP2,
+            // 6 => ROT_FOUR,
             9 => NOP,
             10 => UNARY_POSITIVE,
             11 => UNARY_NEGATIVE,
@@ -122,9 +122,9 @@ impl TryFrom<u8> for CommonOpcode {
             110 => JUMP_FORWARD,
             111 => JUMP_IF_FALSE_OR_POP,
             112 => JUMP_IF_TRUE_OR_POP,
-            113 => JUMP_ABSOLUTE,
-            114 => POP_JUMP_IF_FALSE,
-            115 => POP_JUMP_IF_TRUE,
+            // 113 => JUMP_ABSOLUTE,
+            // 114 => POP_JUMP_IF_FALSE,
+            // 115 => POP_JUMP_IF_TRUE,
             116 => LOAD_GLOBAL,
             124 => LOAD_FAST,
             125 => STORE_FAST,
@@ -152,5 +152,27 @@ impl From<CommonOpcode> for u8 {
 impl CommonOpcode {
     pub const fn take_arg(&self) -> bool {
         90 <= (*self as u8) && (*self as u8) < 220
+    }
+}
+
+impl_u8_enum! {CompareOp;
+    LT = 0,
+    LE = 1,
+    EQ = 2,
+    NE = 3,
+    GT = 4,
+    GE = 5,
+}
+
+impl CompareOp {
+    fn show_op(&self) -> &str {
+        match self {
+            CompareOp::LT => "<",
+            CompareOp::LE => "<=",
+            CompareOp::EQ => "==",
+            CompareOp::NE => "!=",
+            CompareOp::GT => ">",
+            CompareOp::GE => ">=",
+        }
     }
 }

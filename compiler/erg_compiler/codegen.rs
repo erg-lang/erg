@@ -12,7 +12,7 @@ use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
-use erg_common::opcode::CommonOpcode;
+use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
@@ -209,6 +209,15 @@ impl CodeGenerator {
         self.stack_dec();
     }
 
+    fn emit_compare_op(&mut self, op: CompareOp) {
+        self.write_instr(Opcode311::COMPARE_OP);
+        self.write_arg(op as usize);
+        self.stack_dec();
+        if self.py_version.minor >= Some(11) {
+            self.write_bytes(&[0; 4]);
+        }
+    }
+
     #[inline]
     fn jump_delta(&self, jump_to: usize) -> usize {
         if self.py_version.minor >= Some(10) {
@@ -224,7 +233,7 @@ impl CodeGenerator {
         }
     }
 
-    fn edit_jump(&mut self, idx: usize, jump_to: usize) {
+    fn calc_edit_jump(&mut self, idx: usize, jump_to: usize) {
         let arg = if self.py_version.minor >= Some(10) {
             jump_to / 2
         } else {
@@ -498,8 +507,13 @@ impl CodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst =>
-                if self.py_version.minor >= Some(11) { LOAD_NAME } else { LOAD_GLOBAL },
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => {
+                if self.py_version.minor >= Some(11) {
+                    LOAD_NAME
+                } else {
+                    LOAD_GLOBAL
+                }
+            }
             StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
         };
@@ -1358,8 +1372,10 @@ impl CodeGenerator {
                 self.write_bytes(&[0; 8]);
             }
             Opcode311::BINARY_OP => {
-                self.write_arg(0);
-                self.write_arg(0);
+                self.write_bytes(&[0; 2]);
+            }
+            Opcode311::COMPARE_OP => {
+                self.write_bytes(&[0; 4]);
             }
             _ => {}
         }
@@ -1401,7 +1417,7 @@ impl CodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.cur_block().lasti;
-        self.write_instr(POP_JUMP_IF_FALSE);
+        self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
         match args.remove(0) {
@@ -1419,7 +1435,7 @@ impl CodeGenerator {
             self.write_arg(0);
             // else block
             let idx_else_begin = self.cur_block().lasti;
-            self.edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
+            self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -1431,15 +1447,19 @@ impl CodeGenerator {
             }
             let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.cur_block().lasti;
-            self.edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
+            self.calc_edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
             }
         } else {
             // no else block
-            let idx_end = self.cur_block().lasti;
-            self.edit_jump(idx_pop_jump_if_false + 1, idx_end);
+            let idx_end = if self.py_version.minor >= Some(11) {
+                self.cur_block().lasti - idx_pop_jump_if_false
+            } else {
+                self.cur_block().lasti
+            };
+            self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_end);
             self.emit_load_const(ValueObj::None);
             while self.cur_block().stack_len != init_stack_len + 1 {
                 self.stack_dec();
@@ -1467,15 +1487,23 @@ impl CodeGenerator {
         if self.cur_block().stack_len >= init_stack_len {
             self.emit_pop_top();
         }
-        self.write_instr(JUMP_ABSOLUTE);
-        let arg = if self.py_version.minor >= Some(10) {
-            idx_for_iter / 2
-        } else {
-            idx_for_iter
-        };
-        self.write_arg(arg);
+        match self.py_version.minor {
+            Some(11) => {
+                self.write_instr(Opcode311::JUMP_BACKWARD);
+                self.write_arg((self.cur_block().lasti - idx_for_iter + 2) / 2);
+            },
+            Some(10) => {
+                self.write_instr(Opcode310::JUMP_ABSOLUTE);
+                self.write_arg(idx_for_iter / 2);
+            },
+            Some(8) => {
+                self.write_instr(Opcode308::JUMP_ABSOLUTE);
+                self.write_arg(idx_for_iter);
+            },
+            _ => todo!(),
+        }
         let idx_end = self.cur_block().lasti;
-        self.edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
+        self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
     }
@@ -1485,7 +1513,7 @@ impl CodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond.clone());
         let idx_while = self.cur_block().lasti;
-        self.write_instr(POP_JUMP_IF_FALSE);
+        self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         self.write_arg(0);
         self.stack_dec();
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
@@ -1496,7 +1524,7 @@ impl CodeGenerator {
             self.emit_pop_top();
         }
         self.emit_expr(cond);
-        self.write_instr(POP_JUMP_IF_TRUE);
+        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
         let arg = if self.py_version.minor >= Some(10) {
             (idx_while + 2) / 2
         } else {
@@ -1504,8 +1532,12 @@ impl CodeGenerator {
         };
         self.write_arg(arg);
         self.stack_dec();
-        let idx_end = self.cur_block().lasti;
-        self.edit_jump(idx_while + 1, idx_end);
+        let idx_end = if self.py_version.minor >= Some(11) {
+            self.cur_block().lasti - idx_while
+        } else {
+            self.cur_block().lasti
+        };
+        self.calc_edit_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
     }
 
@@ -1518,8 +1550,13 @@ impl CodeGenerator {
         while let Some(expr) = args.try_remove(0) {
             // パターンが複数ある場合引数を複製する、ただし最後はしない
             if len > 1 && !args.is_empty() {
-                self.write_instr(DUP_TOP);
-                self.write_arg(0);
+                if self.py_version.minor >= Some(11) {
+                    self.write_instr(Opcode311::COPY);
+                    self.write_arg(1);
+                } else {
+                    self.write_instr(Opcode310::DUP_TOP);
+                    self.write_arg(0);
+                }
                 self.stack_inc();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
@@ -1532,16 +1569,20 @@ impl CodeGenerator {
             let pop_jump_points = self.emit_match_pattern(pat);
             self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
-                let idx = self.cur_block().lasti + 2;
-                self.edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
+                let idx = if self.py_version.minor >= Some(11) {
+                    self.cur_block().lasti - pop_jump_point // - 2
+                } else {
+                    self.cur_block().lasti + 2
+                };
+                self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 absolute_jump_points.push(self.cur_block().lasti);
-                self.write_instr(JUMP_ABSOLUTE); // jump to the end
+                self.write_instr(JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.cur_block().lasti;
         for absolute_jump_point in absolute_jump_points.into_iter() {
-            self.edit_jump(absolute_jump_point + 1, lasti);
+            self.calc_edit_jump(absolute_jump_point + 1, lasti - absolute_jump_point - 1);
         }
     }
 
@@ -1559,11 +1600,11 @@ impl CodeGenerator {
                     ValueObj::from_str(t, lit.token.content).unwrap()
                 };
                 self.emit_load_const(value);
-                self.write_instr(COMPARE_OP);
-                self.write_arg(2); // ==
-                self.stack_dec();
+                self.emit_compare_op(CompareOp::EQ);
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(POP_JUMP_IF_FALSE); // jump to the next case
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
                 self.write_arg(0);
                 self.emit_pop_top();
                 self.stack_dec();
@@ -1573,17 +1614,15 @@ impl CodeGenerator {
                 self.write_instr(Opcode310::MATCH_SEQUENCE);
                 self.write_arg(0);
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(POP_JUMP_IF_FALSE);
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
                 self.write_arg(0);
                 self.stack_dec();
                 self.write_instr(Opcode310::GET_LEN);
                 self.write_arg(0);
                 self.emit_load_const(len);
-                self.write_instr(COMPARE_OP);
-                self.write_arg(2); // ==
-                self.stack_dec();
+                self.emit_compare_op(CompareOp::EQ);
                 pop_jump_points.push(self.cur_block().lasti);
-                self.write_instr(POP_JUMP_IF_FALSE);
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
                 self.write_arg(0);
                 self.stack_dec();
                 self.write_instr(Opcode310::UNPACK_SEQUENCE);
@@ -1625,10 +1664,10 @@ impl CodeGenerator {
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
         self.emit_load_const(ValueObj::None);
-        self.write_instr(DUP_TOP);
+        self.write_instr(Opcode310::DUP_TOP);
         self.write_arg(0);
         self.stack_inc();
-        self.write_instr(DUP_TOP);
+        self.write_instr(Opcode310::DUP_TOP);
         self.write_arg(0);
         self.stack_inc();
         self.write_instr(Opcode310::CALL_FUNCTION);
@@ -1645,7 +1684,7 @@ impl CodeGenerator {
         self.write_instr(Opcode310::WITH_EXCEPT_START);
         self.write_arg(0);
         let idx_pop_jump_if_true = self.cur_block().lasti;
-        self.write_instr(POP_JUMP_IF_TRUE);
+        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
         self.write_arg(0);
         self.write_instr(Opcode310::RERAISE);
         self.write_arg(1);
@@ -1852,7 +1891,7 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.cur_block().lasti;
-        self.write_instr(POP_JUMP_IF_TRUE);
+        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
         self.write_arg(0);
         self.stack_dec();
         if self.py_version.minor >= Some(10) {
@@ -1874,10 +1913,11 @@ impl CodeGenerator {
         self.write_instr(RAISE_VARARGS);
         self.write_arg(1);
         self.stack_dec();
-        let idx = if self.py_version.minor >= Some(10) {
-            self.cur_block().lasti / 2
-        } else {
-            self.cur_block().lasti
+        let idx = match self.py_version.minor {
+            Some(11) => (self.cur_block().lasti - pop_jump_point) / 2,
+            Some(10) => self.cur_block().lasti / 2,
+            Some(_) => self.cur_block().lasti,
+            _ => todo!(),
         };
         self.edit_code(pop_jump_point + 1, idx);
     }

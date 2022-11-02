@@ -390,31 +390,31 @@ impl CodeObj {
             tables += "Constants:\n";
         }
         for (i, obj) in self.consts.iter().enumerate() {
-            writeln!(tables, "   {}: {}", i, obj).unwrap();
+            writeln!(tables, "   {i}: {obj}").unwrap();
         }
         if !self.names.is_empty() {
             tables += "Names:\n";
         }
         for (i, name) in self.names.iter().enumerate() {
-            writeln!(tables, "   {}: {}", i, name).unwrap();
+            writeln!(tables, "   {i}: {name}").unwrap();
         }
         if !self.varnames.is_empty() {
             tables += "Varnames:\n";
         }
         for (i, varname) in self.varnames.iter().enumerate() {
-            writeln!(tables, "   {}: {}", i, varname).unwrap();
+            writeln!(tables, "   {i}: {varname}").unwrap();
         }
         if !self.cellvars.is_empty() {
             tables += "Cellvars:\n";
         }
         for (i, cellvar) in self.cellvars.iter().enumerate() {
-            writeln!(tables, "   {}: {}", i, cellvar).unwrap();
+            writeln!(tables, "   {i}: {cellvar}").unwrap();
         }
         if !self.freevars.is_empty() {
             tables += "Freevars:\n";
         }
         for (i, freevar) in self.freevars.iter().enumerate() {
-            writeln!(tables, "   {}: {}\n", i, freevar).unwrap();
+            writeln!(tables, "   {i}: {freevar}\n").unwrap();
         }
         tables
     }
@@ -432,12 +432,12 @@ impl CodeObj {
         for i in 0..32 {
             if (self.flags & (1 << i)) != 0 {
                 let flag: CodeObjFlags = 2u32.pow(i).into();
-                write!(flagged, "{:?}, ", flag).unwrap();
+                write!(flagged, "{flag:?}, ").unwrap();
             }
         }
         flagged.pop();
         flagged.pop();
-        writeln!(attrs, "Flags:             {}", flagged).unwrap();
+        writeln!(attrs, "Flags:             {flagged}").unwrap();
         attrs
     }
 
@@ -452,22 +452,22 @@ impl CodeObj {
         let mut instrs = "".to_string();
         writeln!(instrs, "lnotab: {:?}", self.lnotab).unwrap();
         if *sdelta != 0 {
-            writeln!(instrs, "{}:", lineno).unwrap();
+            writeln!(instrs, "{lineno}:").unwrap();
         }
         loop {
             if *sdelta as usize == line_offset {
                 line_offset = 0;
                 lineno += *ldelta as u32;
-                writeln!(instrs, "{}:", lineno).unwrap();
+                writeln!(instrs, "{lineno}:").unwrap();
                 sdelta = lnotab_iter.next().unwrap_or(&0);
                 ldelta = lnotab_iter.next().unwrap_or(&0);
             }
             if let (Some(op), Some(arg)) = (code_iter.next(), code_iter.next()) {
                 match py_ver.and_then(|pv| pv.minor) {
-                    Some(8) => self.read_instr_3_8(op, arg, idx, &mut instrs),
+                    Some(8) => self.read_instr_308(op, arg, idx, &mut instrs),
                     // Some(9) => self.read_instr_3_9(op, arg, idx, &mut instrs),
-                    Some(10) => self.read_instr_3_10(op, arg, idx, &mut instrs),
-                    Some(11) => self.read_instr_3_11(op, arg, idx, &mut instrs),
+                    Some(10) => self.read_instr_310(op, arg, idx, &mut instrs),
+                    Some(11) => self.read_instr_311(op, arg, idx, &mut instrs),
                     _ => {}
                 }
                 idx += 2;
@@ -479,26 +479,33 @@ impl CodeObj {
         instrs
     }
 
-    fn read_instr_3_8(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
-        let op38 = Opcode308::from(*op);
-        let s_op = op38.to_string();
+    fn read_instr_308(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+        let op308 = Opcode308::from(*op);
+        let s_op = op308.to_string();
         write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
-        match op38 {
+        match op308 {
+            Opcode308::JUMP_ABSOLUTE => {
+                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+            }
+            // REVIEW: *2?
+            Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+            }
             Opcode308::BINARY_ADD
             | Opcode308::BINARY_SUBTRACT
             | Opcode308::BINARY_MULTIPLY
             | Opcode308::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", TypePair::from(*arg)).unwrap();
             }
             _ => {}
         }
         instrs.push('\n');
     }
 
-    fn read_instr_3_10(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+    fn read_instr_310(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
         let op310 = Opcode310::from(*op);
         let s_op = op310.to_string();
         write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
@@ -506,42 +513,55 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op310 {
+            Opcode310::JUMP_ABSOLUTE => {
+                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+            }
+            Opcode310::POP_JUMP_IF_FALSE | Opcode310::POP_JUMP_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+            }
             Opcode310::BINARY_ADD
             | Opcode310::BINARY_SUBTRACT
             | Opcode310::BINARY_MULTIPLY
             | Opcode310::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{} ({:?})", arg, TypePair::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", TypePair::from(*arg)).unwrap();
             }
             Opcode310::SETUP_WITH => {
-                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
             }
             _ => {}
         }
         instrs.push('\n');
     }
 
-    fn read_instr_3_11(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+    fn read_instr_311(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
         let op311 = Opcode311::from(*op);
         let s_op = op311.to_string();
-        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        write!(instrs, "{idx:>15} {s_op:<26}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op311 {
-            Opcode311::PRECALL | Opcode311::CALL => {
-                write!(instrs, "{}", arg).unwrap();
+            Opcode311::POP_JUMP_FORWARD_IF_FALSE
+            | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
+            }
+            Opcode311::JUMP_BACKWARD => {
+                write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
+            }
+            Opcode311::PRECALL | Opcode311::CALL
+            | Opcode311::COPY | Opcode311::SWAP => {
+                write!(instrs, "{arg}").unwrap();
             }
             Opcode311::KW_NAMES => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.consts.get(*arg as usize).unwrap()
                 )
                 .unwrap();
             }
             Opcode311::BINARY_OP => {
-                write!(instrs, "{} ({:?})", arg, BinOpCode::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", BinOpCode::from(*arg)).unwrap();
             }
             _ => {}
         }
@@ -560,7 +580,7 @@ impl CodeObj {
                     5 => ">=",
                     _ => "?",
                 };
-                write!(instrs, "{} ({})", arg, op).unwrap();
+                write!(instrs, "{arg} ({op})").unwrap();
             }
             CommonOpcode::STORE_NAME
             | CommonOpcode::LOAD_NAME
@@ -573,8 +593,7 @@ impl CodeObj {
             | CommonOpcode::IMPORT_FROM => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.names.get(*arg as usize).unwrap()
                 )
                 .unwrap();
@@ -582,8 +601,7 @@ impl CodeObj {
             CommonOpcode::STORE_DEREF | CommonOpcode::LOAD_DEREF => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.freevars.get(*arg as usize).unwrap()
                 )
                 .unwrap();
@@ -591,8 +609,7 @@ impl CodeObj {
             CommonOpcode::LOAD_CLOSURE => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.cellvars.get(*arg as usize).unwrap()
                 )
                 .unwrap();
@@ -600,8 +617,7 @@ impl CodeObj {
             CommonOpcode::STORE_FAST | CommonOpcode::LOAD_FAST => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.varnames.get(*arg as usize).unwrap()
                 )
                 .unwrap();
@@ -609,23 +625,16 @@ impl CodeObj {
             CommonOpcode::LOAD_CONST => {
                 write!(
                     instrs,
-                    "{} ({})",
-                    arg,
+                    "{arg} ({})",
                     self.consts.get(*arg as usize).unwrap()
                 )
                 .unwrap();
             }
             CommonOpcode::FOR_ITER => {
-                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
             }
             CommonOpcode::JUMP_FORWARD => {
-                write!(instrs, "{} (to {})", arg, idx + *arg as usize * 2 + 2).unwrap();
-            }
-            CommonOpcode::JUMP_ABSOLUTE => {
-                write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
-            }
-            CommonOpcode::POP_JUMP_IF_FALSE | CommonOpcode::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{} (to {})", arg, *arg as usize * 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
             }
             CommonOpcode::MAKE_FUNCTION => {
                 let flag = match arg {
@@ -633,10 +642,10 @@ impl CodeObj {
                     // TODO:
                     _ => "",
                 };
-                write!(instrs, "{} {}", arg, flag).unwrap();
+                write!(instrs, "{arg} {flag}").unwrap();
             }
             other if other.take_arg() => {
-                write!(instrs, "{}", arg).unwrap();
+                write!(instrs, "{arg}").unwrap();
             }
             _ => {}
         }
@@ -644,7 +653,7 @@ impl CodeObj {
 
     pub fn code_info(&self, py_ver: Option<PythonVersion>) -> String {
         let mut info = "".to_string();
-        writeln!(info, "Disassembly of {:?}:", self).unwrap();
+        writeln!(info, "Disassembly of {self:?}:").unwrap();
         info += &self.attrs_info();
         info += &self.tables_info();
         info += &self.instr_info(py_ver);
