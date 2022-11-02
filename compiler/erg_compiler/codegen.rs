@@ -202,6 +202,14 @@ impl CodeGenerator {
     }
 
     #[inline]
+    #[allow(dead_code)]
+    fn emit_print_expr(&mut self) {
+        self.write_instr(Opcode311::PRINT_EXPR);
+        self.write_arg(0);
+        self.stack_dec();
+    }
+
+    #[inline]
     fn jump_delta(&self, jump_to: usize) -> usize {
         if self.py_version.minor >= Some(10) {
             if self.cur_block().lasti <= jump_to * 2 {
@@ -490,18 +498,19 @@ impl CodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = match name.kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst =>
+                if self.py_version.minor >= Some(11) { LOAD_NAME } else { LOAD_GLOBAL },
             StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
         };
-        let null_idx = self.cur_block_codeobj().code.len() - 2;
-        if instr == LOAD_GLOBAL
+        // let null_idx = self.cur_block_codeobj().code.len() - 2;
+        /*if instr == LOAD_GLOBAL
             && self.cur_block_codeobj().code.get(null_idx) == Some(&(Opcode311::PUSH_NULL as u8))
         {
             self.mut_cur_block_codeobj().code.pop();
             self.mut_cur_block_codeobj().code.pop();
             self.mut_cur_block().lasti -= 2;
-        }
+        }*/
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
@@ -625,6 +634,7 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
+            self.stack_inc(); // instead of PUSH_NULL
             self.write_bytes(&[0; 20]);
         }
     }
@@ -772,7 +782,7 @@ impl CodeGenerator {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::PUSH_NULL);
             self.write_arg(0);
-            // self.stack_inc();
+            self.stack_inc();
         }
     }
 
@@ -784,12 +794,12 @@ impl CodeGenerator {
         self.write_instr(Opcode311::CALL);
         self.write_arg(argc);
         self.write_bytes(&[0; 8]);
+        self.stack_dec();
     }
 
     fn emit_call_instr(&mut self, argc: usize, kind: AccessKind) {
         if self.py_version.minor >= Some(11) {
             self.emit_precall_and_call(argc);
-            // self.stack_dec();
         } else {
             match kind {
                 AccessKind::Method => self.write_instr(Opcode310::CALL_METHOD),
@@ -1062,6 +1072,7 @@ impl CodeGenerator {
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
         let code = self.emit_block(body.block, Some(name.clone()), params);
+        // code.flags += CodeObjFlags::Optimized as u32;
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len();
             for i in 0..cellvars_len {
@@ -1693,6 +1704,7 @@ impl CodeGenerator {
                     self.emit_call_local(ident, call.args)
                 }
                 other => {
+                    self.emit_push_null();
                     self.emit_expr(other);
                     self.emit_args_311(call.args, Name);
                 }
@@ -2383,9 +2395,7 @@ impl CodeGenerator {
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
         self.emit_call_instr(1, Method);
-        if self.py_version.minor < Some(11) {
-            self.stack_dec();
-        }
+        self.stack_dec();
         self.emit_pop_top();
         let erg_std_mod = if self.py_version.minor >= Some(10) {
             Identifier::public("_erg_std_prelude")
