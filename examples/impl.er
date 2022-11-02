@@ -1,5 +1,3 @@
-print! "OK1"
-
 Point = Class {x = Int; y = Int}
 Point.
     new x, y = Point::__new__ {x; y}
@@ -16,19 +14,12 @@ Point|Point <: Eq|.
     __eq__ self, other: Point =
         self::x == other::x and self::y == other::y
 
-print! "OK2"
-
 p = Point.new 1, 2
 
-print! "OK2.5"
-
 q = Point.new 3, 4
-
-print! "OK3"
 
 r: Point = p + q
 s: Nat = p * q
 assert s == 11
 assert r == Point.new 4, 6
 assert r.norm() == 52
-print! "OK4"
