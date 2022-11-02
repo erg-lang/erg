@@ -1914,7 +1914,7 @@ impl CodeGenerator {
         self.write_arg(1);
         self.stack_dec();
         let idx = match self.py_version.minor {
-            Some(11) => (self.cur_block().lasti - pop_jump_point) / 2,
+            Some(11) => (self.cur_block().lasti - pop_jump_point - 2) / 2,
             Some(10) => self.cur_block().lasti / 2,
             Some(_) => self.cur_block().lasti,
             _ => todo!(),
@@ -2507,15 +2507,6 @@ impl CodeGenerator {
         if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
         }
-        let mut print_point = 0;
-        if self.input().is_repl() {
-            self.emit_push_null();
-            print_point = self.cur_block().lasti;
-            self.emit_load_name_instr(Identifier::public("print"));
-            // Consistency will be taken later (when NOP replacing)
-            // 後で(NOP書き換え時)整合性を取る
-            self.stack_dec();
-        }
         for expr in hir.module.into_iter() {
             self.emit_expr(expr);
             // TODO: discard
@@ -2525,16 +2516,8 @@ impl CodeGenerator {
         }
         self.cancel_pop_top(); // 最後の値は戻り値として取っておく
         if self.input().is_repl() {
-            if self.cur_block().stack_len == 0 {
-                // remains `print`, nothing to be printed
-                self.edit_code(print_point, NOP as usize);
-                if self.py_version.minor >= Some(11) {
-                    // delete PUSH_NULL
-                    self.edit_code(print_point - 2, NOP as usize);
-                }
-            } else {
-                self.stack_inc();
-                self.emit_call_instr(1, Name);
+            if self.cur_block().stack_len == 1 {
+                self.emit_print_expr();
             }
             self.stack_dec_n(self.cur_block().stack_len as usize);
         }
