@@ -323,7 +323,13 @@ impl CodeObj {
         bytes.append(&mut raw_string_into_bytes(self.code));
         bytes.append(&mut consts_into_bytes(self.consts, python_ver)); // write as PyTupleObject
         bytes.append(&mut strs_into_bytes(self.names));
-        Self::dump_locals(self.varnames, self.freevars, self.cellvars, &mut bytes, python_ver);
+        Self::dump_locals(
+            self.varnames,
+            self.freevars,
+            self.cellvars,
+            &mut bytes,
+            python_ver,
+        );
         bytes.append(&mut str_into_bytes(self.filename, false));
         bytes.append(&mut str_into_bytes(self.name, true));
         bytes.append(&mut str_into_bytes(self.qualname, true));
@@ -336,18 +342,21 @@ impl CodeObj {
         bytes
     }
 
-    fn dump_locals(varnames: Vec<Str>, freevars: Vec<Str>, cellvars: Vec<Str>, bytes: &mut Vec<u8>, python_ver: PythonVersion) {
+    fn dump_locals(
+        varnames: Vec<Str>,
+        freevars: Vec<Str>,
+        cellvars: Vec<Str>,
+        bytes: &mut Vec<u8>,
+        python_ver: PythonVersion,
+    ) {
         if python_ver.minor >= Some(11) {
             let localspluskinds = [
                 vec![LocalKind::Local as u8; varnames.len()],
                 vec![LocalKind::Free as u8; freevars.len()],
                 vec![LocalKind::Cell as u8; cellvars.len()],
-            ].concat();
-            let localsplusnames = [
-                varnames,
-                freevars,
-                cellvars,
-            ].concat();
+            ]
+            .concat();
+            let localsplusnames = [varnames, freevars, cellvars].concat();
             bytes.append(&mut strs_into_bytes(localsplusnames));
             bytes.append(&mut raw_string_into_bytes(localspluskinds));
         } else {

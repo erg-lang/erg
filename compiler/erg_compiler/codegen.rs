@@ -297,6 +297,11 @@ impl CodeGenerator {
         }
     }
 
+    fn write_bytes(&mut self, bytes: &[u8]) {
+        self.mut_cur_block_codeobj().code.extend_from_slice(bytes);
+        self.mut_cur_block().lasti += bytes.len();
+    }
+
     fn stack_inc(&mut self) {
         self.mut_cur_block().stack_len += 1;
         if self.cur_block().stack_len > self.cur_block_codeobj().stacksize {
@@ -306,10 +311,11 @@ impl CodeGenerator {
 
     fn stack_dec(&mut self) {
         if self.cur_block().stack_len == 0 {
-            println!("current block: {}", self.cur_block());
             let lasti = self.cur_block().lasti;
             let last = self.cur_block_codeobj().code.last().unwrap();
-            self.crash(&format!("the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"));
+            self.crash(&format!(
+                "the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"
+            ));
         } else {
             self.mut_cur_block().stack_len -= 1;
         }
@@ -328,7 +334,9 @@ impl CodeGenerator {
         if n > 0 && self.cur_block().stack_len == 0 {
             let lasti = self.cur_block().lasti;
             let last = self.cur_block_codeobj().code.last().unwrap();
-            self.crash(&format!("the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"));
+            self.crash(&format!(
+                "the stack size becomes -1\nlasti: {lasti}\nlast code: {last}"
+            ));
         } else {
             self.mut_cur_block().stack_len -= n as u32;
         }
@@ -486,9 +494,21 @@ impl CodeGenerator {
             StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
             StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
         };
+        let null_idx = self.cur_block_codeobj().code.len() - 2;
+        if instr == LOAD_GLOBAL
+            && self.cur_block_codeobj().code.get(null_idx) == Some(&(Opcode311::PUSH_NULL as u8))
+        {
+            self.mut_cur_block_codeobj().code.pop();
+            self.mut_cur_block_codeobj().code.pop();
+            self.mut_cur_block().lasti -= 2;
+        }
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
+        if instr == LOAD_GLOBAL && self.py_version.minor >= Some(11) {
+            self.write_bytes(&[0; 2]);
+            self.write_bytes(&[0; 8]);
+        }
     }
 
     fn emit_load_global_instr(&mut self, ident: Identifier) {
@@ -582,6 +602,9 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(name.idx);
+        if self.py_version.minor >= Some(11) {
+            self.write_bytes(&[0; 8]);
+        }
     }
 
     fn emit_load_method_instr(&mut self, ident: Identifier) {
@@ -601,6 +624,9 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(name.idx);
+        if self.py_version.minor >= Some(11) {
+            self.write_bytes(&[0; 20]);
+        }
     }
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
@@ -686,6 +712,7 @@ impl CodeGenerator {
     /// 極力使わないこと
     fn crash(&mut self, description: &str) -> ! {
         if cfg!(feature = "debug") {
+            println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
             process::exit(1);
@@ -756,14 +783,7 @@ impl CodeGenerator {
         self.write_arg(0);
         self.write_instr(Opcode311::CALL);
         self.write_arg(argc);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
-        self.write_arg(0);
+        self.write_bytes(&[0; 8]);
     }
 
     fn emit_call_instr(&mut self, argc: usize, kind: AccessKind) {
@@ -807,7 +827,11 @@ impl CodeGenerator {
         self.stack_inc();
         let code = self.emit_trait_block(def.def_kind(), &def.sig, def.body.block);
         self.emit_load_const(code);
-        self.emit_load_const(def.sig.ident().inspect().clone());
+        if self.py_version.minor < Some(11) {
+            self.emit_load_const(def.sig.ident().inspect().clone());
+        } else {
+            self.stack_inc();
+        }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(def.sig.ident().inspect().clone());
@@ -942,10 +966,14 @@ impl CodeGenerator {
             unit.codeobj
         };
         self.emit_load_const(code);
-        if let Some(class) = class_name {
-            self.emit_load_const(Str::from(format!("{class}.{}", ident.name.inspect())));
+        if self.py_version.minor < Some(11) {
+            if let Some(class) = class_name {
+                self.emit_load_const(Str::from(format!("{class}.{}", ident.name.inspect())));
+            } else {
+                self.emit_load_const(ident.name.inspect().clone());
+            }
         } else {
-            self.emit_load_const(ident.name.inspect().clone());
+            self.stack_inc();
         }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
@@ -969,7 +997,11 @@ impl CodeGenerator {
         self.stack_inc();
         let code = self.emit_class_block(class_def);
         self.emit_load_const(code);
-        self.emit_load_const(ident.inspect().clone());
+        if self.py_version.minor < Some(11) {
+            self.emit_load_const(ident.inspect().clone());
+        } else {
+            self.stack_inc();
+        }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
@@ -1041,10 +1073,14 @@ impl CodeGenerator {
             make_function_flag += 8;
         }
         self.emit_load_const(code);
-        if let Some(class) = class_name {
-            self.emit_load_const(Str::from(format!("{class}.{name}")));
+        if self.py_version.minor < Some(11) {
+            if let Some(class) = class_name {
+                self.emit_load_const(Str::from(format!("{class}.{name}")));
+            } else {
+                self.emit_load_const(name);
+            }
         } else {
-            self.emit_load_const(name);
+            self.stack_inc();
         }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(make_function_flag);
@@ -1084,7 +1120,11 @@ impl CodeGenerator {
             make_function_flag += MakeFunctionFlags::Closure as usize;
         }
         self.emit_load_const(code);
-        self.emit_load_const("<lambda>");
+        if self.py_version.minor < Some(11) {
+            self.emit_load_const("<lambda>");
+        } else {
+            self.stack_inc();
+        }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(make_function_flag);
         // stack_dec: <lambda code obj> + <name "<lambda>"> -> <function>
@@ -1302,15 +1342,15 @@ impl CodeGenerator {
         };
         self.write_instr(instr);
         self.write_arg(arg);
-        if instr == Opcode311::CALL {
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
-            self.write_arg(0);
+        match instr {
+            Opcode311::CALL => {
+                self.write_bytes(&[0; 8]);
+            }
+            Opcode311::BINARY_OP => {
+                self.write_arg(0);
+                self.write_arg(0);
+            }
+            _ => {}
         }
         self.stack_dec();
         match &binop.kind {
@@ -2271,6 +2311,10 @@ impl CodeGenerator {
             &name,
             firstlineno,
         ));
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::RESUME);
+            self.write_arg(0);
+        }
         let init_stack_len = self.cur_block().stack_len;
         for expr in block.into_iter() {
             self.emit_expr(expr);
