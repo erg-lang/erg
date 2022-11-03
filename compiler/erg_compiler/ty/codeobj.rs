@@ -589,15 +589,16 @@ impl CodeObj {
                 )
                 .unwrap();
             }
-            Opcode311::POP_JUMP_FORWARD_IF_FALSE
-            | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
+            Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
             }
             Opcode311::JUMP_BACKWARD => {
                 write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
             }
-            Opcode311::PRECALL | Opcode311::CALL
-            | Opcode311::COPY | Opcode311::SWAP
+            Opcode311::PRECALL
+            | Opcode311::CALL
+            | Opcode311::COPY
+            | Opcode311::SWAP
             | Opcode311::COPY_FREE_VARS => {
                 write!(instrs, "{arg}").unwrap();
             }
@@ -640,12 +641,7 @@ impl CodeObj {
             | CommonOpcode::LOAD_METHOD
             | CommonOpcode::IMPORT_NAME
             | CommonOpcode::IMPORT_FROM => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.names.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.names.get(*arg as usize).unwrap()).unwrap();
             }
             CommonOpcode::STORE_FAST | CommonOpcode::LOAD_FAST => {
                 write!(

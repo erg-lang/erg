@@ -514,16 +514,18 @@ impl CodeGenerator {
         match kind {
             StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST as u8,
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_NAME as u8, //LOAD_GLOBAL as u8,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst =>
-                if self.py_version.minor >= Some(11) { Opcode311::LOAD_DEREF as u8 }
-                else { Opcode310::LOAD_DEREF as u8 },
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => {
-                match acc_kind {
-                    Name => LOAD_NAME as u8,
-                    Attr => LOAD_ATTR as u8,
-                    Method => LOAD_METHOD as u8,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => {
+                if self.py_version.minor >= Some(11) {
+                    Opcode311::LOAD_DEREF as u8
+                } else {
+                    Opcode310::LOAD_DEREF as u8
                 }
             }
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => match acc_kind {
+                Name => LOAD_NAME as u8,
+                Attr => LOAD_ATTR as u8,
+                Method => LOAD_METHOD as u8,
+            },
         }
     }
 
@@ -534,9 +536,13 @@ impl CodeGenerator {
             // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
             // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
             StoreLoadKind::Global | StoreLoadKind::GlobalConst => STORE_NAME as u8,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst =>
-                if self.py_version.minor >= Some(11) { Opcode311::STORE_DEREF as u8 }
-                else { Opcode310::STORE_DEREF as u8 },
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst => {
+                if self.py_version.minor >= Some(11) {
+                    Opcode311::STORE_DEREF as u8
+                } else {
+                    Opcode310::STORE_DEREF as u8
+                }
+            }
             StoreLoadKind::Local | StoreLoadKind::LocalConst => {
                 match acc_kind {
                     Name => STORE_NAME as u8,
@@ -1511,15 +1517,15 @@ impl CodeGenerator {
             Some(11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
                 self.write_arg((self.lasti() - idx_for_iter + 2) / 2);
-            },
+            }
             Some(10) => {
                 self.write_instr(Opcode310::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter / 2);
-            },
+            }
             Some(8) => {
                 self.write_instr(Opcode308::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter);
-            },
+            }
             _ => todo!(),
         }
         let idx_end = self.lasti();
@@ -1743,10 +1749,7 @@ impl CodeGenerator {
         let idx_jump_forward = self.lasti();
         self.write_instr(JUMP_FORWARD);
         self.write_arg(0);
-        self.edit_code(
-            idx_setup_with + 1,
-            (self.lasti() - idx_setup_with - 2) / 2,
-        );
+        self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
         self.write_instr(Opcode310::WITH_EXCEPT_START);
         self.write_arg(0);
         let idx_pop_jump_if_true = self.lasti();
@@ -1787,10 +1790,7 @@ impl CodeGenerator {
         self.write_arg(0);
         self.write_instr(Opcode308::WITH_CLEANUP_START);
         self.write_arg(0);
-        self.edit_code(
-            idx_setup_with + 1,
-            (self.lasti() - idx_setup_with - 2) / 2,
-        );
+        self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
         self.write_instr(Opcode308::WITH_CLEANUP_FINISH);
         self.write_arg(0);
         self.write_instr(Opcode308::END_FINALLY);
@@ -1827,14 +1827,12 @@ impl CodeGenerator {
             "while!" => self.emit_while_instr(args),
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
-            "with!" => {
-                match self.py_version.minor {
-                    Some(11) => self.emit_with_instr_311(args),
-                    Some(10) => self.emit_with_instr_310(args),
-                    Some(8) => self.emit_with_instr_308(args),
-                    _ => todo!(),
-                }
-            }
+            "with!" => match self.py_version.minor {
+                Some(11) => self.emit_with_instr_311(args),
+                Some(10) => self.emit_with_instr_310(args),
+                Some(8) => self.emit_with_instr_308(args),
+                _ => todo!(),
+            },
             // "pyimport" | "py" |
             _ => {
                 self.emit_push_null();
