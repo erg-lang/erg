@@ -487,6 +487,22 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op308 {
+            Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            Opcode308::LOAD_CLOSURE => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.cellvars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
             Opcode308::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
             }
@@ -513,6 +529,22 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op310 {
+            Opcode310::STORE_DEREF | Opcode310::LOAD_DEREF => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            Opcode310::LOAD_CLOSURE => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.cellvars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
             Opcode310::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
             }
@@ -541,6 +573,22 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op311 {
+            Opcode311::STORE_DEREF | Opcode311::LOAD_DEREF => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
+            Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.cellvars.get(*arg as usize).unwrap()
+                )
+                .unwrap();
+            }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE
             | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
@@ -549,7 +597,8 @@ impl CodeObj {
                 write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
             }
             Opcode311::PRECALL | Opcode311::CALL
-            | Opcode311::COPY | Opcode311::SWAP => {
+            | Opcode311::COPY | Opcode311::SWAP
+            | Opcode311::COPY_FREE_VARS => {
                 write!(instrs, "{arg}").unwrap();
             }
             Opcode311::KW_NAMES => {
@@ -595,22 +644,6 @@ impl CodeObj {
                     instrs,
                     "{arg} ({})",
                     self.names.get(*arg as usize).unwrap()
-                )
-                .unwrap();
-            }
-            CommonOpcode::STORE_DEREF | CommonOpcode::LOAD_DEREF => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.freevars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
-            }
-            CommonOpcode::LOAD_CLOSURE => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.cellvars.get(*arg as usize).unwrap()
                 )
                 .unwrap();
             }

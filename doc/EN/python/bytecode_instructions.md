@@ -4,6 +4,15 @@ Python bytecode variable manipulation commands are accessed through namei (name 
 One instruction is 2 bytes, and the instruction and arguments are stored in little endian.
 Instructions that do not take arguments also use 2 bytes (the argument part is 0).
 
+* Change in 3.11: Instructions are no longer fixed length and some instructions exceed 2 bytes. The extra byte sequence is zero in most cases, and its purpose is unknown, but it is thought to be an optimization option. The known irregular byte length instructions are as follows.
+  * `PRECALL` (4 bytes)
+  * `CALL` (10 byte)
+  * `BINARY_OP` (4 byte)
+  * `STORE_ATTR` (10 byte)
+  * `COMPARE_OP` (6 byte)
+  * `LOAD_GLOBAL` (12 byte)
+  * `LOAD_ATTR` (10 byte)
+
 ## STORE_NAME(namei)
 
 ```python

@@ -480,6 +480,7 @@ impl CodeGenerator {
             }
             Some(StoreLoadKind::Deref) => {
                 self.mut_cur_block_codeobj().freevars.push(name.clone());
+                // TODO: in 3.11 freevars are unified with varnames
                 // cellvarsのpushはrec_search()で行われる
                 Name::deref(self.cur_block_codeobj().freevars.len() - 1)
             }
@@ -509,26 +510,53 @@ impl CodeGenerator {
         Name::local(self.cur_block_codeobj().names.len() - 1)
     }
 
+    fn select_load_instr(&self, kind: StoreLoadKind, acc_kind: AccessKind) -> u8 {
+        match kind {
+            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST as u8,
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_NAME as u8, //LOAD_GLOBAL as u8,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst =>
+                if self.py_version.minor >= Some(11) { Opcode311::LOAD_DEREF as u8 }
+                else { Opcode310::LOAD_DEREF as u8 },
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => {
+                match acc_kind {
+                    Name => LOAD_NAME as u8,
+                    Attr => LOAD_ATTR as u8,
+                    Method => LOAD_METHOD as u8,
+                }
+            }
+        }
+    }
+
+    fn select_store_instr(&self, kind: StoreLoadKind, acc_kind: AccessKind) -> u8 {
+        match kind {
+            StoreLoadKind::Fast => STORE_FAST as u8,
+            StoreLoadKind::FastConst => STORE_FAST as u8, // ERG_STORE_FAST_IMMUT,
+            // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
+            // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
+            StoreLoadKind::Global | StoreLoadKind::GlobalConst => STORE_NAME as u8,
+            StoreLoadKind::Deref | StoreLoadKind::DerefConst =>
+                if self.py_version.minor >= Some(11) { Opcode311::STORE_DEREF as u8 }
+                else { Opcode310::STORE_DEREF as u8 },
+            StoreLoadKind::Local | StoreLoadKind::LocalConst => {
+                match acc_kind {
+                    Name => STORE_NAME as u8,
+                    Attr => STORE_ATTR as u8,
+                    // cannot overwrite methods directly
+                    Method => STORE_ATTR as u8,
+                }
+            }
+        }
+    }
+
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
-        let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => {
-                if self.py_version.minor >= Some(11) {
-                    LOAD_NAME
-                } else {
-                    LOAD_GLOBAL
-                }
-            }
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_NAME,
-        };
-        // let null_idx = self.cur_block_codeobj().code.len() - 2;
-        /*if instr == LOAD_GLOBAL
+        let instr = self.select_load_instr(name.kind, Name);
+        /*let null_idx = self.cur_block_codeobj().code.len() - 2;
+        if instr == LOAD_GLOBAL
             && self.cur_block_codeobj().code.get(null_idx) == Some(&(Opcode311::PUSH_NULL as u8))
         {
             self.mut_cur_block_codeobj().code.pop();
@@ -538,7 +566,7 @@ impl CodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
-        if instr == LOAD_GLOBAL && self.py_version.minor >= Some(11) {
+        if instr == LOAD_GLOBAL as u8 && self.py_version.minor >= Some(11) {
             self.write_bytes(&[0; 2]);
             self.write_bytes(&[0; 8]);
         }
@@ -627,12 +655,7 @@ impl CodeGenerator {
         let name = self
             .local_search(&escaped, Attr)
             .unwrap_or_else(|| self.register_attr(escaped));
-        let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_ATTR,
-        };
+        let instr = self.select_load_instr(name.kind, Attr);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -649,12 +672,7 @@ impl CodeGenerator {
         let name = self
             .local_search(&escaped, Method)
             .unwrap_or_else(|| self.register_method(escaped));
-        let instr = match name.kind {
-            StoreLoadKind::Fast | StoreLoadKind::FastConst => LOAD_FAST,
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => LOAD_GLOBAL,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => LOAD_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => LOAD_METHOD,
-        };
+        let instr = self.select_load_instr(name.kind, Method);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -673,26 +691,14 @@ impl CodeGenerator {
                 self.register_attr(escaped)
             }
         });
-        let instr = match name.kind {
-            StoreLoadKind::Fast => STORE_FAST,
-            StoreLoadKind::FastConst => STORE_FAST, // ERG_STORE_FAST_IMMUT,
-            // NOTE: First-time variables are treated as GLOBAL, but they are always first-time variables when assigned, so they are just NAME
-            // NOTE: 初見の変数はGLOBAL扱いになるが、代入時は必ず初見であるので単なるNAME
-            StoreLoadKind::Global | StoreLoadKind::GlobalConst => STORE_NAME,
-            StoreLoadKind::Deref | StoreLoadKind::DerefConst => STORE_DEREF,
-            StoreLoadKind::Local | StoreLoadKind::LocalConst => {
-                match acc_kind {
-                    AccessKind::Name => STORE_NAME,
-                    AccessKind::Attr => STORE_ATTR,
-                    // cannot overwrite methods directly
-                    AccessKind::Method => STORE_ATTR,
-                }
-            }
-        };
+        let instr = self.select_store_instr(name.kind, acc_kind);
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_dec();
-        if instr == STORE_ATTR {
+        if instr == STORE_ATTR as u8 {
+            if self.py_version.minor >= Some(11) {
+                self.write_bytes(&[0; 8]);
+            }
             self.stack_dec();
         }
     }
@@ -1097,16 +1103,7 @@ impl CodeGenerator {
         }
         let code = self.emit_block(body.block, Some(name.clone()), params);
         // code.flags += CodeObjFlags::Optimized as u32;
-        if !self.cur_block_codeobj().cellvars.is_empty() {
-            let cellvars_len = self.cur_block_codeobj().cellvars.len();
-            for i in 0..cellvars_len {
-                self.write_instr(LOAD_CLOSURE);
-                self.write_arg(i);
-            }
-            self.write_instr(BUILD_TUPLE);
-            self.write_arg(cellvars_len);
-            make_function_flag += 8;
-        }
+        self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             if let Some(class) = class_name {
@@ -1144,16 +1141,7 @@ impl CodeGenerator {
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
         let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
-        if !self.cur_block_codeobj().cellvars.is_empty() {
-            let cellvars_len = self.cur_block_codeobj().cellvars.len();
-            for i in 0..cellvars_len {
-                self.write_instr(LOAD_CLOSURE);
-                self.write_arg(i);
-            }
-            self.write_instr(BUILD_TUPLE);
-            self.write_arg(cellvars_len);
-            make_function_flag += MakeFunctionFlags::Closure as usize;
-        }
+        self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             self.emit_load_const("<lambda>");
@@ -1166,6 +1154,25 @@ impl CodeGenerator {
         self.stack_dec();
         if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
             self.stack_dec();
+        }
+    }
+
+    fn register_cellvars(&mut self, flag: &mut usize) {
+        if !self.cur_block_codeobj().cellvars.is_empty() {
+            let cellvars_len = self.cur_block_codeobj().cellvars.len();
+            for i in 0..cellvars_len {
+                if self.py_version.minor >= Some(11) {
+                    self.write_instr(Opcode311::MAKE_CELL);
+                    self.write_arg(i);
+                    self.write_instr(Opcode311::LOAD_CLOSURE);
+                } else {
+                    self.write_instr(Opcode310::LOAD_CLOSURE);
+                }
+                self.write_arg(i);
+            }
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(cellvars_len);
+            *flag += MakeFunctionFlags::Closure as usize;
         }
     }
 
@@ -1658,7 +1665,53 @@ impl CodeGenerator {
         pop_jump_points
     }
 
-    fn emit_with_instr_3_10(&mut self, args: Args) {
+    fn emit_with_instr_311(&mut self, args: Args) {
+        log!(info "entered {}", fn_name!());
+        let mut args = args;
+        let expr = args.remove(0);
+        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_expr(expr);
+        self.write_instr(Opcode311::BEFORE_WITH);
+        self.write_arg(0);
+        // push __exit__, __enter__() to the stack
+        self.stack_inc_n(2);
+        let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
+        self.emit_with_block(lambda.body, params);
+        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        self.emit_store_instr(stash.clone(), Name);
+        self.emit_load_const(ValueObj::None);
+        self.emit_load_const(ValueObj::None);
+        self.emit_load_const(ValueObj::None);
+        self.emit_precall_and_call(2);
+        self.emit_pop_top();
+        let idx_jump_forward = self.lasti();
+        self.write_instr(Opcode311::JUMP_FORWARD);
+        self.write_arg(0);
+        self.write_instr(Opcode311::PUSH_EXC_INFO);
+        self.write_arg(0);
+        self.write_instr(Opcode308::WITH_EXCEPT_START);
+        self.write_arg(0);
+        self.write_instr(Opcode311::POP_JUMP_FORWARD_IF_TRUE);
+        self.write_arg(4);
+        self.write_instr(Opcode311::RERAISE);
+        self.write_arg(0);
+        self.write_instr(Opcode311::COPY);
+        self.write_arg(3);
+        self.write_instr(Opcode311::POP_EXCEPT);
+        self.write_arg(0);
+        self.write_instr(Opcode311::RERAISE);
+        self.write_arg(1);
+        self.emit_pop_top();
+        self.write_instr(Opcode311::POP_EXCEPT);
+        self.write_arg(0);
+        self.emit_pop_top();
+        self.emit_pop_top();
+        self.calc_edit_jump(idx_jump_forward + 1, self.lasti() - idx_jump_forward - 2);
+        self.emit_load_name_instr(stash);
+    }
+
+    fn emit_with_instr_310(&mut self, args: Args) {
         log!(info "entered {}", fn_name!());
         let mut args = args;
         let expr = args.remove(0);
@@ -1712,7 +1765,7 @@ impl CodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_3_8(&mut self, args: Args) {
+    fn emit_with_instr_308(&mut self, args: Args) {
         log!(info "entered {}", fn_name!());
         let mut args = args;
         let expr = args.remove(0);
@@ -1775,10 +1828,11 @@ impl CodeGenerator {
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             "with!" => {
-                if self.py_version.minor_is(3, 8) {
-                    self.emit_with_instr_3_8(args)
-                } else {
-                    self.emit_with_instr_3_10(args)
+                match self.py_version.minor {
+                    Some(11) => self.emit_with_instr_311(args),
+                    Some(10) => self.emit_with_instr_310(args),
+                    Some(8) => self.emit_with_instr_308(args),
+                    _ => todo!(),
                 }
             }
             // "pyimport" | "py" |
@@ -1894,6 +1948,7 @@ impl CodeGenerator {
         log!(info "entered {}", fn_name!());
         method_name.dot = None;
         method_name.vi.py_name = Some(Str::ever(func_name));
+        self.emit_push_null();
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
         self.emit_args_311(args, Name);
@@ -2376,10 +2431,16 @@ impl CodeGenerator {
             &name,
             firstlineno,
         ));
-        if self.py_version.minor >= Some(11) {
+        let idx_copy_free_vars = if self.py_version.minor >= Some(11) {
+            let idx_copy_free_vars = self.lasti();
+            self.write_instr(Opcode311::COPY_FREE_VARS);
+            self.write_arg(0);
             self.write_instr(Opcode311::RESUME);
             self.write_arg(0);
-        }
+            idx_copy_free_vars
+        } else {
+            0
+        };
         let init_stack_len = self.stack_len();
         for expr in block.into_iter() {
             self.emit_expr(expr);
@@ -2411,6 +2472,12 @@ impl CodeGenerator {
         // flagging
         if !self.cur_block_codeobj().varnames.is_empty() {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::NewLocals as u32;
+        }
+        let freevars_len = self.cur_block_codeobj().freevars.len();
+        if freevars_len > 0 {
+            self.edit_code(idx_copy_free_vars + 1, freevars_len);
+        } else if self.py_version.minor >= Some(11) {
+            self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
         }
         // end of flagging
         let unit = self.units.pop().unwrap();
