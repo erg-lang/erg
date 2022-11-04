@@ -40,6 +40,7 @@ impl<'a> Linker<'a> {
         main
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     /// ```erg
     /// urllib = pyimport "urllib"
     /// urllib.request.urlopen! "https://example.com"
@@ -366,7 +367,7 @@ impl<'a> Linker<'a> {
         dir.push(mod_name_str);
         let mut comps = dir.components();
         let _first = comps.next().unwrap();
-        let path = dir.to_string_lossy().replace('/', ".").replace('\\', ".");
+        let path = dir.to_string_lossy().replace(['/', '\\'], ".");
         let token = Token::new(
             TokenKind::StrLit,
             path,

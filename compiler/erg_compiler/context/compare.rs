@@ -453,9 +453,7 @@ impl Context {
             {
                 let tps = Vec::try_from(params[0].clone()).unwrap();
                 for tp in tps {
-                    let t = if let Ok(t) = self.convert_tp_into_ty(tp) {
-                        t
-                    } else {
+                    let Ok(t) = self.convert_tp_into_ty(tp) else {
                         return false;
                     };
                     if !self.supertype_of(&Type, &t) {
@@ -468,20 +466,14 @@ impl Context {
                 if &name[..] == "Dict" =>
             {
                 // HACK: e.g. ?D: GenericDict
-                let dict = if let Ok(d) = Dict::try_from(params[0].clone()) {
-                    d
-                } else {
+                let Ok(dict) = Dict::try_from(params[0].clone()) else {
                     return false;
                 };
                 for (k, v) in dict.into_iter() {
-                    let k = if let Ok(t) = self.convert_tp_into_ty(k) {
-                        t
-                    } else {
+                    let Ok(k) = self.convert_tp_into_ty(k) else {
                         return false;
                     };
-                    let v = if let Ok(t) = self.convert_tp_into_ty(v) {
-                        t
-                    } else {
+                    let Ok(v) = self.convert_tp_into_ty(v) else {
                         return false;
                     };
                     if !self.supertype_of(&Type, &k) || !self.supertype_of(&Type, &v) {
@@ -721,10 +713,10 @@ impl Context {
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.try_cmp(&*fv.crack(), p)
+                self.try_cmp(&fv.crack(), p)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.try_cmp(p, &*fv.crack())
+                self.try_cmp(p, &fv.crack())
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),

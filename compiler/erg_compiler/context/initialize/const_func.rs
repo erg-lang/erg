@@ -21,9 +21,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             None,
         )
     })?;
-    let require = if let Some(t) = require.as_type() {
-        t
-    } else {
+    let Some(require) = require.as_type() else {
         return Err(ErrorCore::new(
             line!() as usize,
             ErrorKind::TypeError,
@@ -32,7 +30,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
                 "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
             )),
             None,
-        ));
+        ).into());
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
@@ -51,9 +49,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             None,
         )
     })?;
-    let sup = if let Some(t) = sup.as_type() {
-        t
-    } else {
+    let Some(sup) = sup.as_type() else {
         return Err(ErrorCore::new(
             line!() as usize,
             ErrorKind::TypeError,
@@ -62,7 +58,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
                 "non-class object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
             )),
             None,
-        ));
+        ).into());
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
@@ -118,9 +114,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             None,
         )
     })?;
-    let require = if let Some(t) = require.as_type() {
-        t
-    } else {
+    let Some(require) = require.as_type() else {
         return Err(ErrorCore::new(
             line!() as usize,
             ErrorKind::TypeError,
@@ -129,7 +123,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
                 "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
             )),
             None,
-        ));
+        ).into());
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
@@ -148,9 +142,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             None,
         )
     })?;
-    let sup = if let Some(t) = sup.as_type() {
-        t
-    } else {
+    let Some(sup) = sup.as_type() else {
         return Err(ErrorCore::new(
             line!() as usize,
             ErrorKind::TypeError,
@@ -159,7 +151,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
                 "non-trait object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
             )),
             None,
-        ));
+        ).into());
     };
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
@@ -190,7 +182,8 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
                 index
             )),
             None,
-        ))
+        )
+        .into())
     }
 }
 
@@ -223,7 +216,8 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
             Location::Unknown,
             AtomicStr::from(format!("{slf} has no key {index}",)),
             None,
-        ))
+        )
+        .into())
     }
 }
 
@@ -247,6 +241,7 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
             Location::Unknown,
             AtomicStr::from(format!("Index out of range: {}", index)),
             None,
-        ))
+        )
+        .into())
     }
 }

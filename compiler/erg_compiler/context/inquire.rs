@@ -410,7 +410,7 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         let self_t = obj.t();
         let name = ident.name.token();
-        match self.get_attr_info_from_attributive(obj, &self_t, ident, namespace) {
+        match self.get_attr_info_from_attributive(&self_t, ident, namespace) {
             Ok(t) => {
                 return Ok(t);
             }
@@ -470,25 +470,24 @@ impl Context {
     /// not ModuleType or ClassType etc.
     fn get_attr_info_from_attributive(
         &self,
-        obj: &hir::Expr,
         t: &Type,
         ident: &Identifier,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_info_from_attributive(obj, &fv.crack(), ident, namespace)
+                self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
             Type::FreeVar(fv) => {
                 let sup = fv.get_sup().unwrap();
-                self.get_attr_info_from_attributive(obj, &sup, ident, namespace)
+                self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
-            Type::Ref(t) => self.get_attr_info_from_attributive(obj, t, ident, namespace),
+            Type::Ref(t) => self.get_attr_info_from_attributive(t, ident, namespace),
             Type::RefMut { before, .. } => {
-                self.get_attr_info_from_attributive(obj, before, ident, namespace)
+                self.get_attr_info_from_attributive(before, ident, namespace)
             }
             Type::Refinement(refine) => {
-                self.get_attr_info_from_attributive(obj, &refine.t, ident, namespace)
+                self.get_attr_info_from_attributive(&refine.t, ident, namespace)
             }
             Type::Record(record) => {
                 // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
@@ -922,7 +921,7 @@ impl Context {
                         .iter()
                         .filter(|pt| !passed_params.contains(pt.name().unwrap()))
                     {
-                        if let ParamTy::KwWithDefault { ty, default, .. } = not_passed {
+                        if let ParamTy::KwWithDefault { ty, default, .. } = &not_passed {
                             self.sub_unify(default, ty, obj.loc(), not_passed.name())?;
                         }
                     }
@@ -994,7 +993,7 @@ impl Context {
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 // REVIEW:
-                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_default();
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1045,7 +1044,7 @@ impl Context {
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 // REVIEW:
-                let name = callee.show_acc().unwrap_or_else(|| "".to_string());
+                let name = callee.show_acc().unwrap_or_default();
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1098,7 +1097,7 @@ impl Context {
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     // REVIEW:
-                    let name = callee.show_acc().unwrap_or_else(|| "".to_string());
+                    let name = callee.show_acc().unwrap_or_default();
                     let name = name + "::" + readable_name(kw_name);
                     TyCheckErrors::new(
                         errs.into_iter()

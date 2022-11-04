@@ -25,7 +25,20 @@ use super::free::fresh_varname;
 use super::typaram::TyParam;
 use super::{ConstSubr, HasType, Predicate, Type};
 
-pub type EvalValueError = ErrorCore;
+pub struct EvalValueError(pub Box<ErrorCore>);
+
+impl From<ErrorCore> for EvalValueError {
+    fn from(core: ErrorCore) -> Self {
+        Self(Box::new(core))
+    }
+}
+
+impl From<EvalValueError> for ErrorCore {
+    fn from(err: EvalValueError) -> Self {
+        *err.0
+    }
+}
+
 pub type EvalValueResult<T> = Result<T, EvalValueError>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -783,7 +796,7 @@ impl ValueObj {
             // REVIEW: 等しいとみなしてよいのか?
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Ordering::Equal),
             (Self::Mut(m), other) => m.borrow().try_cmp(other),
-            (self_, Self::Mut(m)) => self_.try_cmp(&*m.borrow()),
+            (self_, Self::Mut(m)) => self_.try_cmp(&m.borrow()),
             /* (Self::PlusEpsilon(l), r) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Less } else { o }),
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)

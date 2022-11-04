@@ -2551,8 +2551,8 @@ impl TypePair {
             {
                 Self::ProcProc
             }
-            (Type::Refinement(refine), r) => Self::new(&*refine.t, r),
-            (l, Type::Refinement(refine)) => Self::new(l, &*refine.t),
+            (Type::Refinement(refine), r) => Self::new(&refine.t, r),
+            (l, Type::Refinement(refine)) => Self::new(l, &refine.t),
             (_, _) => Self::Others,
         }
     }

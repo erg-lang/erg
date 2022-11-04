@@ -241,8 +241,12 @@ impl Context {
         match subr {
             ConstSubr::User(_user) => todo!(),
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
-                e.loc = loc;
-                EvalErrors::from(EvalError::new(e, self.cfg.input.clone(), self.caused_by()))
+                e.0.loc = loc;
+                EvalErrors::from(EvalError::new(
+                    *e.0,
+                    self.cfg.input.clone(),
+                    self.caused_by(),
+                ))
             }),
         }
     }
@@ -820,7 +824,7 @@ impl Context {
                 return Ok(t);
             }
             for (class, methods) in ty_ctx.methods_list.iter() {
-                match (class, &opt_sup) {
+                match (&class, &opt_sup) {
                     (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
                         if !self.supertype_of(impl_trait, sup) {
                             continue;
@@ -1023,6 +1027,7 @@ impl Context {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     /// e.g. qt: Array(T, N), st: Array(Int, 3)
     pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) {
         let qtps = qt.typarams();
@@ -1062,6 +1067,7 @@ impl Context {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn undo_substitute_typarams(&self, substituted: &Type) {
         for tp in substituted.typarams().into_iter() {
             match tp {

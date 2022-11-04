@@ -670,7 +670,7 @@ impl TyParam {
             (Self::FreeVar(fv), p) if fv.is_linked() =>
                 fv.crack().cheap_cmp(p),
             (p, Self::FreeVar(fv)) if fv.is_linked() =>
-                p.cheap_cmp(&*fv.crack()),
+                p.cheap_cmp(&fv.crack()),
             (Self::FreeVar{ .. } | Self::Erased(_), Self::FreeVar{ .. } | Self::Erased(_))
             /* if v.is_unbound() */ => Some(Any),
             (Self::App{ name, args }, Self::App{ name: rname, args: rargs }) =>

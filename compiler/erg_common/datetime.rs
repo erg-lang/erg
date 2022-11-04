@@ -4,12 +4,12 @@ use std::process::Command;
 pub fn now() -> String {
     let output = if cfg!(windows) {
         Command::new("cmd")
-            .args(&["/C", "echo %date:~0,10% %time%"])
+            .args(["/C", "echo %date:~0,10% %time%"])
             .output()
             .expect("failed to execute a process to get current time")
     } else {
         Command::new("date")
-            .args(&["+%Y/%m/%d %T"])
+            .args(["+%Y/%m/%d %T"])
             .output()
             .expect("failed to execute process to get current time")
     };

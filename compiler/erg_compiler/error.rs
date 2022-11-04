@@ -109,7 +109,7 @@ pub fn readable_name(name: &str) -> &str {
 
 #[derive(Debug)]
 pub struct CompileError {
-    pub core: ErrorCore,
+    pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,
     pub caused_by: AtomicStr,
 }
@@ -119,7 +119,7 @@ impl_display_and_error!(CompileError);
 impl From<ParserRunnerError> for CompileError {
     fn from(err: ParserRunnerError) -> Self {
         Self {
-            core: err.core,
+            core: Box::new(err.core),
             input: err.input,
             caused_by: "".into(),
         }
@@ -142,9 +142,9 @@ impl ErrorDisplay for CompileError {
 }
 
 impl CompileError {
-    pub const fn new(core: ErrorCore, input: Input, caused_by: AtomicStr) -> Self {
+    pub fn new(core: ErrorCore, input: Input, caused_by: AtomicStr) -> Self {
         Self {
-            core,
+            core: Box::new(core),
             input,
             caused_by,
         }

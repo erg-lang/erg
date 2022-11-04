@@ -120,9 +120,7 @@ impl Deserializer {
     }
 
     pub fn run(cfg: ErgConfig) {
-        let filename = if let Input::File(f) = cfg.input {
-            f
-        } else {
+        let Input::File(filename) = cfg.input else {
             eprintln!("{:?} is not a filename", cfg.input);
             process::exit(1);
         };

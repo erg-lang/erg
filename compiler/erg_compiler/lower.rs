@@ -1423,6 +1423,7 @@ impl ASTLowerer {
             .push((ClassDefType::Simple(class), methods));
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {
         match expr {
             acc @ hir::Expr::Accessor(_) => acc,

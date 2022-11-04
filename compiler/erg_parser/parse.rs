@@ -813,9 +813,7 @@ impl Parser {
         let first = self
             .try_reduce_chunk(false, false)
             .map_err(|_| self.stack_dec())?;
-        let first = if let Some(fst) = option_enum_unwrap!(first, Expr::Def) {
-            fst
-        } else {
+        let Some(first) = option_enum_unwrap!(first, Expr::Def) else {
             // self.restore();
             self.level -= 1;
             let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -982,9 +980,7 @@ impl Parser {
                     let vis = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
-                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
-                                expr
-                            } else {
+                            let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
@@ -1046,9 +1042,7 @@ impl Parser {
                     let vis = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
-                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
-                                expr
-                            } else {
+                            let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
@@ -1088,9 +1082,7 @@ impl Parser {
                     }
                 }
                 Some(t) if t.is(LSqBr) => {
-                    let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
-                        expr
-                    } else {
+                    let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                         self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
@@ -1255,9 +1247,7 @@ impl Parser {
                     let vis = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
-                            let obj = if let Some(ExprOrOp::Expr(expr)) = stack.pop() {
-                                expr
-                            } else {
+                            let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
@@ -1405,9 +1395,7 @@ impl Parser {
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
                 let expr = self.try_reduce_chunk(false, in_brace)?;
-                let mut def = if let Some(def) = option_enum_unwrap!(expr, Expr::Def) {
-                    def
-                } else {
+                let Some(mut def) = option_enum_unwrap!(expr, Expr::Def) else {
                     // self.restore(other);
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1882,9 +1870,7 @@ impl Parser {
                     let def = self
                         .try_reduce_chunk(false, false)
                         .map_err(|_| self.stack_dec())?;
-                    let def = if let Some(def) = option_enum_unwrap!(def, Expr::Def) {
-                        def
-                    } else {
+                    let Some(def) = option_enum_unwrap!(def, Expr::Def) else {
                         // self.restore(other);
                         self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());

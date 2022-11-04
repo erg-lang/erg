@@ -331,7 +331,7 @@ fn expect_block(src: &str) -> bool {
 // In the REPL, it is invalid for these symbols to be at the beginning of a line
 fn expect_invalid_block(src: &str) -> bool {
     let src = src.trim_start();
-    src.starts_with(&['.', '=', ':']) || src.starts_with("->") || src.starts_with("=>")
+    src.starts_with(['.', '=', ':']) || src.starts_with("->") || src.starts_with("=>")
 }
 
 fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool {

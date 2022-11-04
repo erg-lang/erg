@@ -50,7 +50,7 @@ impl Runnable for DummyVM {
                 println!("Connecting to the REPL server...");
             }
             loop {
-                match TcpStream::connect(&addr) {
+                match TcpStream::connect(addr) {
                     Ok(stream) => {
                         stream
                             .set_read_timeout(Some(Duration::from_secs(cfg.py_server_timeout)))

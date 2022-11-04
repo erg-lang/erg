@@ -9,17 +9,17 @@ use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
 #[derive(Debug)]
-pub struct LexError(ErrorCore);
+pub struct LexError(Box<ErrorCore>); // ErrorCore is large, so use Box
 
 impl From<ErrorCore> for LexError {
     fn from(core: ErrorCore) -> Self {
-        Self(core)
+        Self(Box::new(core))
     }
 }
 
 impl From<LexError> for ErrorCore {
     fn from(err: LexError) -> Self {
-        err.0
+        *err.0
     }
 }
 
@@ -29,8 +29,8 @@ pub struct LexErrors(Vec<LexError>);
 impl_stream_for_wrapper!(LexErrors, LexError);
 
 impl LexError {
-    pub const fn new(core: ErrorCore) -> Self {
-        Self(core)
+    pub fn new(core: ErrorCore) -> Self {
+        Self(Box::new(core))
     }
 
     pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
@@ -194,7 +194,7 @@ impl ParserRunnerErrors {
     pub fn convert(input: &Input, errs: ParseErrors) -> Self {
         Self(
             errs.into_iter()
-                .map(|err| ParserRunnerError::new(err.0, input.clone()))
+                .map(|err| ParserRunnerError::new(*err.0, input.clone()))
                 .collect(),
         )
     }

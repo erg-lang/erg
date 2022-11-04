@@ -155,7 +155,7 @@
 
 ## Requirements
 
-A [Python3 (3.10.x)](https://www.python.org/) interpreter is required. If it is already installed on your machine, no setup is required.
+A [Python3 (3.7 | 3.8 | 3.10 | 3.11)](https://www.python.org/) interpreter is required. If it is already installed on your machine, no setup is required.
 
 ## Installation
 

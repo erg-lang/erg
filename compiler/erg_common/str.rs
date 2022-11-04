@@ -106,7 +106,7 @@ impl Borrow<str> for Str {
     fn borrow(&self) -> &str {
         match self {
             Str::Rc(s) => &s[..],
-            Str::Static(s) => *s,
+            Str::Static(s) => s,
         }
     }
 }

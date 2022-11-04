@@ -543,6 +543,7 @@ impl Context {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     /// Fix type variables at their lower bound
     pub(crate) fn coerce(&self, t: &Type) {
         match t {
@@ -837,7 +838,7 @@ impl Context {
         &self,
         maybe_sub: &TyParam,
         maybe_sup: &TyParam,
-        variance: Option<Variance>,
+        _variance: Option<Variance>,
         loc: Location,
         allow_divergence: bool,
     ) -> TyCheckResult<()> {
@@ -864,7 +865,7 @@ impl Context {
             (TyParam::FreeVar(fv), tp) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);
+                        return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
@@ -901,7 +902,7 @@ impl Context {
             (tp, TyParam::FreeVar(fv)) => {
                 match &*fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.sub_unify_tp(l, tp, variance, loc, allow_divergence);
+                        return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
@@ -938,7 +939,7 @@ impl Context {
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
             {
-                self.sub_unify_tp(lval, rval, variance, loc, allow_divergence)
+                self.sub_unify_tp(lval, rval, _variance, loc, allow_divergence)
             }
             (
                 TyParam::BinOp { op: lop, lhs, rhs },
@@ -948,8 +949,8 @@ impl Context {
                     rhs: rhs2,
                 },
             ) if lop == rop => {
-                self.sub_unify_tp(lhs, lhs2, variance, loc, allow_divergence)?;
-                self.sub_unify_tp(rhs, rhs2, variance, loc, allow_divergence)
+                self.sub_unify_tp(lhs, lhs2, _variance, loc, allow_divergence)?;
+                self.sub_unify_tp(rhs, rhs2, _variance, loc, allow_divergence)
             }
             (l, TyParam::Erased(t)) => {
                 let sub_t = self.get_tp_t(l)?;
