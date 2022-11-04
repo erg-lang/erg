@@ -27,16 +27,11 @@ pub const fn get_magic_num_from_bytes(bytes: &[u8; 4]) -> u32 {
 
 pub const fn get_ver_from_magic_num(magic_num: u32) -> PythonVersion {
     match magic_num {
+        3360..=3379 => PythonVersion::new(3, Some(6), Some(0)),
+        3390..=3394 => PythonVersion::new(3, Some(7), Some(0)),
         3400..=3413 => PythonVersion::new(3, Some(8), Some(0)),
-        3430 | 3431 => PythonVersion::new(3, Some(10), Some(0)),
-        3432 => PythonVersion::new(3, Some(10), Some(1)),
-        3433 => PythonVersion::new(3, Some(10), Some(2)),
-        3434 => PythonVersion::new(3, Some(10), Some(3)),
-        3435 => PythonVersion::new(3, Some(10), Some(4)),
-        3436 => PythonVersion::new(3, Some(10), Some(5)),
-        3437 => PythonVersion::new(3, Some(10), Some(6)),
-        3438 => PythonVersion::new(3, Some(10), Some(7)),
-        3439 => PythonVersion::new(3, Some(10), Some(8)),
+        3420..=3425 => PythonVersion::new(3, Some(9), Some(0)),
+        3430..=3439 => PythonVersion::new(3, Some(10), Some(0)), // main: 3439
         3495 => PythonVersion::new(3, Some(11), Some(0)),
         _ => panic!("unknown magic number"),
     }
