@@ -5,6 +5,8 @@ use std::io::{BufReader, Read, Write as _};
 use std::path::Path;
 
 use erg_common::impl_display_from_debug;
+#[allow(unused_imports)]
+use erg_common::log;
 use erg_common::opcode::CommonOpcode;
 use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
@@ -32,12 +34,13 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
     tuple
 }
 
+/// Kind can be multiple (e.g. Local + Cell = 0x60)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum LocalKind {
+pub enum FastKind {
     Local = 0x20,
-    Free = 0x40,
-    Cell = 0x80,
+    Cell = 0x40,
+    Free = 0x80,
 }
 
 /// Bit masks for CodeObj.flags
@@ -192,7 +195,7 @@ impl Default for CodeObj {
             kwonlyargcount: 0,
             nlocals: 0,
             stacksize: 2, // Seems to be the default in CPython, but not sure why
-            flags: CodeObjFlags::NoFree as u32,
+            flags: 0,     //CodeObjFlags::NoFree as u32,
             code: Vec::new(),
             consts: Vec::new(),
             names: Vec::new(),
@@ -223,7 +226,7 @@ impl CodeObj {
             kwonlyargcount: 0,
             nlocals: params.len() as u32,
             stacksize: 2, // Seems to be the default in CPython, but not sure why
-            flags: CodeObjFlags::NoFree as u32,
+            flags: 0,     // CodeObjFlags::NoFree as u32,
             code: Vec::with_capacity(8),
             consts: Vec::with_capacity(4),
             names: Vec::with_capacity(3),
@@ -350,10 +353,14 @@ impl CodeObj {
         python_ver: PythonVersion,
     ) {
         if python_ver.minor >= Some(11) {
+            let varnames = varnames
+                .into_iter()
+                .filter(|n| !freevars.contains(n) && !cellvars.contains(n))
+                .collect::<Vec<_>>();
             let localspluskinds = [
-                vec![LocalKind::Local as u8; varnames.len()],
-                vec![LocalKind::Free as u8; freevars.len()],
-                vec![LocalKind::Cell as u8; cellvars.len()],
+                vec![FastKind::Local as u8; varnames.len()],
+                vec![FastKind::Free as u8; freevars.len()],
+                vec![FastKind::Cell as u8 + FastKind::Local as u8; cellvars.len()],
             ]
             .concat();
             let localsplusnames = [varnames, freevars, cellvars].concat();
@@ -577,7 +584,7 @@ impl CodeObj {
                 write!(
                     instrs,
                     "{arg} ({})",
-                    self.freevars.get(*arg as usize).unwrap()
+                    self.varnames.get(*arg as usize).unwrap()
                 )
                 .unwrap();
             }

@@ -480,9 +480,14 @@ impl CodeGenerator {
             }
             Some(StoreLoadKind::Deref) => {
                 self.mut_cur_block_codeobj().freevars.push(name.clone());
-                // TODO: in 3.11 freevars are unified with varnames
-                // cellvarsのpushはrec_search()で行われる
-                Name::deref(self.cur_block_codeobj().freevars.len() - 1)
+                if self.py_version.minor >= Some(11) {
+                    // in 3.11 freevars are unified with varnames
+                    self.mut_cur_block_codeobj().varnames.push(name);
+                    Name::deref(self.cur_block_codeobj().varnames.len() - 1)
+                } else {
+                    // cellvarsのpushはrec_search()で行われる
+                    Name::deref(self.cur_block_codeobj().freevars.len() - 1)
+                }
             }
             None => {
                 // new variable
@@ -2473,6 +2478,7 @@ impl CodeGenerator {
         }
         let freevars_len = self.cur_block_codeobj().freevars.len();
         if freevars_len > 0 {
+            self.mut_cur_block_codeobj().flags += CodeObjFlags::Nested as u32;
             self.edit_code(idx_copy_free_vars + 1, freevars_len);
         } else if self.py_version.minor >= Some(11) {
             self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
