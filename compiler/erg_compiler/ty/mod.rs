@@ -1821,10 +1821,10 @@ impl Type {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => set! {
                 (fv.unbound_name().unwrap(), fv.constraint().unwrap())
             },
-            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::Ref(t) => t.qvars(),
             Self::RefMut { before, after } => before
                 .qvars()
