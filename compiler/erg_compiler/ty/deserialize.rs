@@ -7,6 +7,7 @@ use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::python_util::PythonVersion;
 use erg_common::serialize::DataTypePrefix;
 use erg_common::{fn_name, switch_lang};
 use erg_common::{RcArray, Str};
@@ -166,7 +167,7 @@ impl Deserializer {
     pub fn deserialize_const(
         &mut self,
         v: &mut Vec<u8>,
-        python_ver: u32,
+        python_ver: PythonVersion,
     ) -> DeserializeResult<ValueObj> {
         match DataTypePrefix::from(v.remove(0)) {
             DataTypePrefix::Int32 => {
@@ -207,13 +208,17 @@ impl Deserializer {
             }
             DataTypePrefix::Code => {
                 let argcount = Self::deserialize_u32(v);
-                let posonlyargcount = if python_ver >= 3413 {
+                let posonlyargcount = if python_ver.minor >= Some(8) {
                     Self::deserialize_u32(v)
                 } else {
                     0
                 };
                 let kwonlyargcount = Self::deserialize_u32(v);
-                let nlocals = Self::deserialize_u32(v);
+                let nlocals = if python_ver.minor < Some(11) {
+                    Self::deserialize_u32(v)
+                } else {
+                    0
+                };
                 let stacksize = Self::deserialize_u32(v);
                 let flags = Self::deserialize_u32(v);
                 let code = self.deserialize_bytes(v)?;
@@ -224,8 +229,18 @@ impl Deserializer {
                 let cellvars = self.deserialize_str_vec(v, python_ver)?;
                 let filename = self.deserialize_str(v, python_ver)?;
                 let name = self.deserialize_str(v, python_ver)?;
+                let qualname = if python_ver.minor >= Some(11) {
+                    self.deserialize_str(v, python_ver)?
+                } else {
+                    name.clone()
+                };
                 let firstlineno = Self::deserialize_u32(v);
                 let lnotab = self.deserialize_bytes(v)?;
+                let exceptiontable = if python_ver.minor >= Some(11) {
+                    self.deserialize_bytes(v)?
+                } else {
+                    vec![]
+                };
                 Ok(ValueObj::from(CodeObj {
                     argcount,
                     posonlyargcount,
@@ -241,8 +256,10 @@ impl Deserializer {
                     cellvars,
                     filename,
                     name,
+                    qualname,
                     firstlineno,
                     lnotab,
+                    exceptiontable,
                 }))
             }
             DataTypePrefix::None => Ok(ValueObj::None),
@@ -262,7 +279,7 @@ impl Deserializer {
     pub fn deserialize_const_vec(
         &mut self,
         v: &mut Vec<u8>,
-        python_ver: u32,
+        python_ver: PythonVersion,
     ) -> DeserializeResult<Vec<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
@@ -273,7 +290,7 @@ impl Deserializer {
     pub fn deserialize_const_array(
         &mut self,
         v: &mut Vec<u8>,
-        python_ver: u32,
+        python_ver: PythonVersion,
     ) -> DeserializeResult<RcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr),
@@ -295,7 +312,7 @@ impl Deserializer {
     pub fn deserialize_str_vec(
         &mut self,
         v: &mut Vec<u8>,
-        python_ver: u32,
+        python_ver: PythonVersion,
     ) -> DeserializeResult<Vec<Str>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => {
@@ -312,7 +329,11 @@ impl Deserializer {
         }
     }
 
-    pub fn deserialize_str(&mut self, v: &mut Vec<u8>, python_ver: u32) -> DeserializeResult<Str> {
+    pub fn deserialize_str(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: PythonVersion,
+    ) -> DeserializeResult<Str> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Str(s) => Ok(s),
             other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),

@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 
 use erg_common::error::Location;
 use erg_common::impl_displayable_stream_for_wrapper;
+use erg_common::opcode311::BinOpCode;
 use erg_common::str::Str;
 use erg_common::traits::{Locational, Stream};
 // use erg_common::ty::Type;
@@ -276,6 +277,26 @@ impl fmt::Display for TokenKind {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{self:?}")
+    }
+}
+
+impl From<TokenKind> for BinOpCode {
+    fn from(tk: TokenKind) -> Self {
+        match tk {
+            Plus => BinOpCode::Add,
+            Minus => BinOpCode::Subtract,
+            Star => BinOpCode::Multiply,
+            Slash => BinOpCode::TrueDivide,
+            FloorDiv => BinOpCode::FloorDiv,
+            Mod => BinOpCode::Remainder,
+            Pow => BinOpCode::Power,
+            BitAnd => BinOpCode::And,
+            BitOr => BinOpCode::Or,
+            BitXor => BinOpCode::Xor,
+            Shl => BinOpCode::LShift,
+            Shr => BinOpCode::RShift,
+            _ => panic!("invalid token kind for binop"),
+        }
     }
 }
 

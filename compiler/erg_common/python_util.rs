@@ -380,23 +380,22 @@ pub fn which_python() -> String {
     res
 }
 
-pub fn detect_magic_number() -> u32 {
+pub fn detect_magic_number(py_command: &str) -> u32 {
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
-            .arg(which_python())
+            .arg(py_command)
             .arg("-c")
             .arg("import importlib.util as util;print(util.MAGIC_NUMBER.hex())")
             .output()
             .expect("cannot get the magic number from python")
     } else {
-        let python_command = format!(
-            "{} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'",
-            which_python()
+        let exec_command = format!(
+            "{py_command} -c 'import importlib.util as util;print(util.MAGIC_NUMBER.hex())'",
         );
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
             .output()
             .expect("cannot get the magic number from python")
     };
@@ -404,6 +403,10 @@ pub fn detect_magic_number() -> u32 {
     let first_byte = u8::from_str_radix(&s_hex_magic_num[0..=1], 16).unwrap();
     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
     get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0])
+}
+
+pub fn env_magic_number() -> u32 {
+    detect_magic_number(&which_python())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -454,23 +457,22 @@ impl std::str::FromStr for PythonVersion {
     }
 }
 
-pub fn python_version() -> PythonVersion {
+pub fn get_python_version(py_command: &str) -> PythonVersion {
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
-            .arg(which_python())
+            .arg(py_command)
             .arg("-c")
             .arg("import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)")
             .output()
             .expect("cannot get the python version")
     } else {
-        let python_command = format!(
-            "{} -c 'import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)'",
-            which_python()
+        let exec_command = format!(
+            "{py_command} -c 'import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)'",
         );
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
             .output()
             .expect("cannot get the python version")
     };
@@ -486,6 +488,10 @@ pub fn python_version() -> PythonVersion {
     }
 }
 
+pub fn env_python_version() -> PythonVersion {
+    get_python_version(&which_python())
+}
+
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
 pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i32> {
     let command = py_command
@@ -499,10 +505,10 @@ pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i3
             .spawn()
             .expect("cannot execute python")
     } else {
-        let python_command = format!("{command} {}", file.into());
+        let exec_command = format!("{command} {}", file.into());
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
             .spawn()
             .expect("cannot execute python")
     };
@@ -522,10 +528,10 @@ pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
             .spawn()
             .expect("cannot execute python")
     } else {
-        let python_command = format!("{command} {}", file.into());
+        let exec_command = format!("{command} {}", file.into());
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
             .spawn()
             .expect("cannot execute python")
     };
@@ -541,17 +547,17 @@ pub fn exec_py(code: &str) -> Option<i32> {
             .spawn()
             .expect("cannot execute python")
     } else {
-        let python_command = format!("{} -c \"{}\"", which_python(), code);
+        let exec_command = format!("{} -c \"{}\"", which_python(), code);
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
             .spawn()
             .expect("cannot execute python")
     };
     child.wait().expect("python doesn't work").code()
 }
 
-pub fn spawn_py(code: &str) {
+pub fn env_spawn_py(code: &str) {
     if cfg!(windows) {
         Command::new(which_python())
             .arg("-c")
@@ -559,10 +565,27 @@ pub fn spawn_py(code: &str) {
             .spawn()
             .expect("cannot execute python");
     } else {
-        let python_command = format!("{} -c \"{}\"", which_python(), code);
+        let exec_command = format!("{} -c \"{}\"", which_python(), code);
         Command::new("sh")
             .arg("-c")
-            .arg(python_command)
+            .arg(exec_command)
+            .spawn()
+            .expect("cannot execute python");
+    }
+}
+
+pub fn spawn_py(py_command: Option<&str>, code: &str) {
+    if cfg!(windows) {
+        Command::new(py_command.unwrap_or(&which_python()))
+            .arg("-c")
+            .arg(code)
+            .spawn()
+            .expect("cannot execute python");
+    } else {
+        let exec_command = format!("{} -c \"{}\"", py_command.unwrap_or(&which_python()), code);
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
             .spawn()
             .expect("cannot execute python");
     }

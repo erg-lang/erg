@@ -6,6 +6,15 @@ Python bytecodeの変数操作系の命令はnamei (name index)を通してア�
 1命令は2byteで、命令、引数がlittle endianで格納されている。
 引数を取らない命令も2byte使っている(引数部は0)。
 
+* 3.11での変更: 命令は固定長ではなくなり、一部の命令が2バイトを超えることがある。余計に入ったバイト列は殆どの場合が0であり、その目的は不明だが、最適化オプションが入るのではないかと考えられる。判明している変則バイト長命令は以下の通り。
+  * `PRECALL` (4 byte)
+  * `CALL` (10 byte)
+  * `BINARY_OP` (4 byte)
+  * `STORE_ATTR` (10 byte)
+  * `COMPARE_OP` (6 byte)
+  * `LOAD_GLOBAL` (12 byte)
+  * `LOAD_ATTR` (10 byte)
+
 ## STORE_NAME(namei)
 
 ```python

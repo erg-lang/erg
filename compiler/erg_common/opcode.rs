@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
-use crate::impl_display_from_debug;
+use crate::{impl_display_from_debug, impl_u8_enum};
 
 /// Based on Python opcodes.
 /// This is represented by u8.
@@ -13,11 +13,11 @@ use crate::impl_display_from_debug;
 #[repr(u8)]
 pub enum CommonOpcode {
     POP_TOP = 1,
-    ROT_TWO = 2,
-    ROT_THREE = 3,
-    DUP_TOP = 4,
-    DUP_TOP2 = 5,
-    ROT_FOUR = 6,
+    // ROT_TWO = 2,
+    // ROT_THREE = 3,
+    // DUP_TOP = 4,
+    // DUP_TOP2 = 5,
+    // ROT_FOUR = 6,
     NOP = 9,
     UNARY_POSITIVE = 10,
     UNARY_NEGATIVE = 11,
@@ -25,24 +25,7 @@ pub enum CommonOpcode {
     UNARY_INVERT = 15,
     BINARY_MATRIX_MULTIPLY = 16,
     INPLACE_MATRIX_MULTIPLY = 17,
-    BINARY_POWER = 19,
-    BINARY_MULTIPLY = 20,
-    BINARY_MODULO = 22,
-    BINARY_ADD = 23,
-    BINARY_SUBTRACT = 24,
-    BINARY_SUBSCR = 25,
-    BINARY_FLOOR_DIVIDE = 26,
-    BINARY_TRUE_DIVIDE = 27,
-    INPLACE_FLOOR_DIVIDE = 28,
-    INPLACE_TRUE_DIVIDE = 29,
-    INPLACE_ADD = 55,
-    INPLACE_SUBTRACT = 56,
-    INPLACE_MULTIPLY = 57,
-    INPLACE_MODULO = 59,
     STORE_SUBSCR = 60,
-    BINARY_AND = 64,
-    BINARY_XOR = 65,
-    BINARY_OR = 66,
     GET_ITER = 68,
     GET_YIELD_FROM_ITER = 69,
     PRINT_EXPR = 70,
@@ -72,24 +55,18 @@ pub enum CommonOpcode {
     JUMP_FORWARD = 110,
     JUMP_IF_FALSE_OR_POP = 111,
     JUMP_IF_TRUE_OR_POP = 112,
-    JUMP_ABSOLUTE = 113,
-    POP_JUMP_IF_FALSE = 114,
-    POP_JUMP_IF_TRUE = 115,
+    // JUMP_ABSOLUTE = 113,
+    // POP_JUMP_IF_FALSE = 114,
+    // POP_JUMP_IF_TRUE = 115,
     LOAD_GLOBAL = 116,
     LOAD_FAST = 124,
     STORE_FAST = 125,
     DELETE_FAST = 126,
     RAISE_VARARGS = 130,
-    CALL_FUNCTION = 131,
     MAKE_FUNCTION = 132,
-    LOAD_CLOSURE = 135,
-    LOAD_DEREF = 136,
-    STORE_DEREF = 137,
-    CALL_FUNCTION_KW = 141,
     CALL_FUNCTION_EX = 142,
     EXTENDED_ARG = 144,
     LOAD_METHOD = 160,
-    CALL_METHOD = 161,
     NOT_IMPLEMENTED = 255,
 }
 
@@ -102,34 +79,17 @@ impl TryFrom<u8> for CommonOpcode {
     fn try_from(byte: u8) -> Result<Self, ()> {
         Ok(match byte {
             1 => POP_TOP,
-            2 => ROT_TWO,
-            3 => ROT_THREE,
-            4 => DUP_TOP,
-            5 => DUP_TOP2,
-            6 => ROT_FOUR,
+            // 2 => ROT_TWO,
+            // 3 => ROT_THREE,
+            // 4 => DUP_TOP,
+            // 5 => DUP_TOP2,
+            // 6 => ROT_FOUR,
             9 => NOP,
             10 => UNARY_POSITIVE,
             11 => UNARY_NEGATIVE,
             12 => UNARY_NOT,
             15 => UNARY_INVERT,
-            19 => BINARY_POWER,
-            20 => BINARY_MULTIPLY,
-            22 => BINARY_MODULO,
-            23 => BINARY_ADD,
-            24 => BINARY_SUBTRACT,
-            25 => BINARY_SUBSCR,
-            26 => BINARY_FLOOR_DIVIDE,
-            27 => BINARY_TRUE_DIVIDE,
-            28 => INPLACE_FLOOR_DIVIDE,
-            29 => INPLACE_TRUE_DIVIDE,
-            55 => INPLACE_ADD,
-            56 => INPLACE_SUBTRACT,
-            57 => INPLACE_MULTIPLY,
-            59 => INPLACE_MODULO,
             60 => STORE_SUBSCR,
-            64 => BINARY_AND,
-            65 => BINARY_XOR,
-            66 => BINARY_OR,
             68 => GET_ITER,
             69 => GET_YIELD_FROM_ITER,
             70 => PRINT_EXPR,
@@ -159,24 +119,18 @@ impl TryFrom<u8> for CommonOpcode {
             110 => JUMP_FORWARD,
             111 => JUMP_IF_FALSE_OR_POP,
             112 => JUMP_IF_TRUE_OR_POP,
-            113 => JUMP_ABSOLUTE,
-            114 => POP_JUMP_IF_FALSE,
-            115 => POP_JUMP_IF_TRUE,
+            // 113 => JUMP_ABSOLUTE,
+            // 114 => POP_JUMP_IF_FALSE,
+            // 115 => POP_JUMP_IF_TRUE,
             116 => LOAD_GLOBAL,
             124 => LOAD_FAST,
             125 => STORE_FAST,
             126 => DELETE_FAST,
             130 => RAISE_VARARGS,
-            131 => CALL_FUNCTION,
             132 => MAKE_FUNCTION,
-            135 => LOAD_CLOSURE,
-            136 => LOAD_DEREF,
-            137 => STORE_DEREF,
-            141 => CALL_FUNCTION_KW,
             142 => CALL_FUNCTION_EX,
             144 => EXTENDED_ARG,
             160 => LOAD_METHOD,
-            161 => CALL_METHOD,
             255 => NOT_IMPLEMENTED,
             _other => return Err(()),
         })
@@ -192,5 +146,27 @@ impl From<CommonOpcode> for u8 {
 impl CommonOpcode {
     pub const fn take_arg(&self) -> bool {
         90 <= (*self as u8) && (*self as u8) < 220
+    }
+}
+
+impl_u8_enum! {CompareOp;
+    LT = 0,
+    LE = 1,
+    EQ = 2,
+    NE = 3,
+    GT = 4,
+    GE = 5,
+}
+
+impl CompareOp {
+    fn show_op(&self) -> &str {
+        match self {
+            CompareOp::LT => "<",
+            CompareOp::LE => "<=",
+            CompareOp::EQ => "==",
+            CompareOp::NE => "!=",
+            CompareOp::GT => ">",
+            CompareOp::GE => ">=",
+        }
     }
 }

@@ -7,7 +7,7 @@
 
 use crate::impl_u8_enum;
 
-impl_u8_enum! {Opcode310;
+impl_u8_enum! {Opcode308;
     POP_TOP = 1,
     ROT_TWO = 2,
     ROT_THREE = 3,
@@ -42,7 +42,7 @@ impl_u8_enum! {Opcode310;
     GET_AITER = 50,
     GET_ANEXT = 51,
     BEFORE_ASYNC_WITH = 52,
-    BEFORE_WITH = 53,
+    BEGIN_FINALLY = 53,
     END_ASYNC_FOR = 54,
     // TODO:
     INPLACE_ADD = 55,
@@ -57,13 +57,15 @@ impl_u8_enum! {Opcode310;
     GET_YIELD_FROM_ITER = 69,
     PRINT_EXPR = 70,
     LOAD_BUILD_CLASS = 71,
-    LOAD_ASSERTION_ERROR = 74,
-    LIST_TO_TUPLE = 82,
+    // LOAD_ASSERTION_ERROR = 74,
+    WITH_CLEANUP_START = 81,
+    WITH_CLEANUP_FINISH = 82,
     RETURN_VALUE = 83,
     IMPORT_STAR = 84,
     SETUP_ANNOTATIONS = 85,
     YIELD_VALUE = 86,
     POP_BLOCK = 87,
+    END_FINALLY = 88,
     POP_EXCEPT = 89,
     /* ↓ These opcodes take an arg */
     STORE_NAME = 90,
@@ -106,9 +108,11 @@ impl_u8_enum! {Opcode310;
     CALL_FUNCTION_EX = 142,
     SETUP_WITH = 143,
     EXTENDED_ARG = 144,
+    BUILD_TUPLE_UNPACK_WITH_CALL = 158,
     LOAD_METHOD = 160,
     CALL_METHOD = 161,
-    LIST_EXTEND = 162,
+    CALL_FINALLY = 162,
+    POP_FINALLY = 163,
     // Erg-specific opcodes (must have a unary `ERG_`)
     // Define in descending order from 219, 255
     ERG_POP_NTH = 196,

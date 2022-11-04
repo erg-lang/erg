@@ -44,7 +44,7 @@ impl Runnable for DummyVM {
             let port = find_available_port();
             let code = include_str!("scripts/repl_server.py")
                 .replace("__PORT__", port.to_string().as_str());
-            spawn_py(&code);
+            spawn_py(cfg.py_command, &code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
             if !cfg.quiet_startup {
                 println!("Connecting to the REPL server...");
