@@ -999,6 +999,11 @@ impl Context {
             Public,
         );
         trait_type.register_trait(TraitType, trait_eq);
+        let mut code = Self::builtin_mono_class("Code", 10);
+        code.register_superclass(Obj, &obj);
+        let mut code_eq = Self::builtin_methods(Some(mono("Eq")), 2);
+        code_eq.register_builtin_impl("__eq__", fn1_met(Code, Code, Bool), Const, Public);
+        code.register_trait(Code, code_eq);
         let g_module_t = mono("GenericModule");
         let mut generic_module = Self::builtin_mono_class("GenericModule", 2);
         generic_module.register_superclass(Obj, &obj);
@@ -1503,6 +1508,7 @@ impl Context {
         self.register_builtin_type(Type, type_, Private, Const, Some("type"));
         self.register_builtin_type(ClassType, class_type, Private, Const, Some("ClassType"));
         self.register_builtin_type(TraitType, trait_type, Private, Const, Some("TraitType"));
+        self.register_builtin_type(Code, code, Private, Const, Some("CodeType"));
         self.register_builtin_type(
             g_module_t,
             generic_module,
