@@ -749,7 +749,7 @@ impl CodeGenerator {
         self.stack_dec();
     }
 
-    fn cancel_pop_top(&mut self) {
+    fn cancel_if_pop_top(&mut self) {
         let lasop_t_idx = self.cur_block_codeobj().code.len() - 2;
         if self.cur_block_codeobj().code.get(lasop_t_idx) == Some(&(POP_TOP as u8)) {
             self.mut_cur_block_codeobj().code.pop();
@@ -2219,10 +2219,14 @@ impl CodeGenerator {
                 }
                 for expr in chunks.into_iter() {
                     self.emit_expr(expr);
+                    if self.stack_len() == 1 {
+                        self.emit_pop_top();
+                    }
                 }
-                if is_module_loading_chunks {
-                    self.stack_dec_n(2);
-                }
+                self.cancel_if_pop_top();
+                /*if is_module_loading_chunks {
+                    self.stack_dec_n(0);
+                }*/
             }
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
@@ -2248,7 +2252,7 @@ impl CodeGenerator {
                 self.emit_pop_top();
             }
         }
-        self.cancel_pop_top();
+        self.cancel_if_pop_top();
     }
 
     fn emit_with_block(&mut self, block: Block, params: Vec<Str>) {
@@ -2268,7 +2272,7 @@ impl CodeGenerator {
                 self.emit_pop_top();
             }
         }
-        self.cancel_pop_top();
+        self.cancel_if_pop_top();
     }
 
     fn emit_class_block(&mut self, class: ClassDef) -> CodeObj {
@@ -2454,7 +2458,7 @@ impl CodeGenerator {
                 self.emit_pop_top();
             }
         }
-        self.cancel_pop_top(); // 最後の値は戻り値として取っておく
+        self.cancel_if_pop_top(); // 最後の値は戻り値として取っておく
         if self.stack_len() == init_stack_len {
             self.emit_load_const(ValueObj::None);
         } else if self.stack_len() > init_stack_len + 1 {
@@ -2598,7 +2602,7 @@ impl CodeGenerator {
                 self.emit_pop_top();
             }
         }
-        self.cancel_pop_top(); // 最後の値は戻り値として取っておく
+        self.cancel_if_pop_top(); // 最後の値は戻り値として取っておく
         if self.input().is_repl() {
             if self.stack_len() == 1 {
                 self.emit_print_expr();
