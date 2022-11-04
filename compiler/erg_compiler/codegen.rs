@@ -17,7 +17,7 @@ use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::option_enum_unwrap;
-use erg_common::python_util::{python_version, PythonVersion};
+use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
@@ -144,7 +144,7 @@ pub struct CodeGenerator {
 impl CodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
-            py_version: cfg.target_version.unwrap_or_else(python_version),
+            py_version: cfg.target_version.unwrap_or_else(env_python_version),
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,

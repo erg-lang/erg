@@ -9,8 +9,8 @@ use std::process;
 use std::str::FromStr;
 
 use crate::help_messages::{command_message, mode_message};
-use crate::python_util::PythonVersion;
-use crate::serialize::get_magic_num_from_bytes;
+use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
+use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
@@ -293,6 +293,8 @@ impl ErgConfig {
                         .expect("the value of `--py-command` is not passed")
                         .parse::<String>()
                         .expect("the value of `-py-command` is not a valid Python command");
+                    cfg.py_magic_num = Some(detect_magic_number(&py_command));
+                    cfg.target_version = Some(get_python_version(&py_command));
                     cfg.py_command = Some(Box::leak(py_command.into_boxed_str()));
                 }
                 "--hex-py-magic-num" | "--hex-python-magic-number" => {
@@ -303,14 +305,16 @@ impl ErgConfig {
                     let second_byte = u8::from_str_radix(&s_hex_magic_num[2..=3], 16).unwrap();
                     let py_magic_num = get_magic_num_from_bytes(&[first_byte, second_byte, 0, 0]);
                     cfg.py_magic_num = Some(py_magic_num);
+                    cfg.target_version = Some(get_ver_from_magic_num(py_magic_num));
                 }
                 "--py-magic-num" | "--python-magic-number" => {
-                    cfg.py_magic_num = Some(
-                        args.next()
-                            .expect("the value of `--py-magic-num` is not passed")
-                            .parse::<u32>()
-                            .expect("the value of `--py-magic-num` is not a number"),
-                    );
+                    let py_magic_num = args
+                        .next()
+                        .expect("the value of `--py-magic-num` is not passed")
+                        .parse::<u32>()
+                        .expect("the value of `--py-magic-num` is not a number");
+                    cfg.py_magic_num = Some(py_magic_num);
+                    cfg.target_version = Some(get_ver_from_magic_num(py_magic_num));
                 }
                 "--py-server-timeout" => {
                     cfg.py_server_timeout = args

@@ -11,7 +11,7 @@ use erg_common::opcode::CommonOpcode;
 use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
-use erg_common::python_util::{detect_magic_number, PythonVersion};
+use erg_common::python_util::{env_magic_number, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
 
@@ -335,7 +335,9 @@ impl CodeObj {
         );
         bytes.append(&mut str_into_bytes(self.filename, false));
         bytes.append(&mut str_into_bytes(self.name, true));
-        bytes.append(&mut str_into_bytes(self.qualname, true));
+        if python_ver.minor >= Some(11) {
+            bytes.append(&mut str_into_bytes(self.qualname, true));
+        }
         bytes.append(&mut self.firstlineno.to_le_bytes().to_vec());
         // lnotab is represented as PyStrObject
         bytes.append(&mut raw_string_into_bytes(self.lnotab));
@@ -380,7 +382,7 @@ impl CodeObj {
     ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
         let mut bytes = Vec::with_capacity(16);
-        let py_magic_num = py_magic_num.unwrap_or_else(detect_magic_number);
+        let py_magic_num = py_magic_num.unwrap_or_else(env_magic_number);
         let python_ver = get_ver_from_magic_num(py_magic_num);
         bytes.append(&mut get_magic_num_bytes(py_magic_num).to_vec());
         bytes.append(&mut vec![0; 4]); // padding
