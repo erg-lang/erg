@@ -1,2 +1,9 @@
 with! open!("examples/record.er"), f =>
     print! f.read!()
+
+open_file!(path) =
+    with! open!(path, mode:="r" , encoding:="utf_8"), f =>
+        data = f.read!()
+        data
+
+print! open_file!("examples/record.er")

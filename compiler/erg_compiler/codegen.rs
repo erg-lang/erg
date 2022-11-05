@@ -1906,7 +1906,11 @@ impl CodeGenerator {
         }
         let kwsc = if !kws.is_empty() {
             self.emit_call_kw_instr(argc, kws);
-            1
+            if self.py_version.minor >= Some(11) {
+                0
+            } else {
+                1
+            }
         } else {
             if args.var_args.is_some() {
                 self.write_instr(CALL_FUNCTION_EX);
@@ -2217,9 +2221,10 @@ impl CodeGenerator {
                     self.load_module_type();
                     self.module_type_loaded = true;
                 }
+                let init_stack_len = self.stack_len();
                 for expr in chunks.into_iter() {
                     self.emit_expr(expr);
-                    if self.stack_len() == 1 {
+                    if self.stack_len() == init_stack_len + 1 {
                         self.emit_pop_top();
                     }
                 }
@@ -2291,6 +2296,7 @@ impl CodeGenerator {
             &name,
             firstlineno,
         ));
+        let init_stack_len = self.stack_len();
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
         self.emit_store_instr(Identifier::public("__module__"), Name);
@@ -2303,7 +2309,7 @@ impl CodeGenerator {
         if !class.methods.is_empty() {
             self.emit_frameless_block(class.methods, vec![]);
         }
-        if self.stack_len() == 0 {
+        if self.stack_len() == init_stack_len {
             self.emit_load_const(ValueObj::None);
         }
         self.write_instr(RETURN_VALUE);
@@ -2485,6 +2491,8 @@ impl CodeGenerator {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::Nested as u32;
             self.edit_code(idx_copy_free_vars + 1, freevars_len);
         } else if self.py_version.minor >= Some(11) {
+            let code = self.cur_block_codeobj().code.get(idx_copy_free_vars);
+            debug_assert_eq!(code, Some(&(Opcode311::COPY_FREE_VARS as u8)));
             self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
         }
         // end of flagging
