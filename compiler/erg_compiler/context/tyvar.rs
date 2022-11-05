@@ -1238,8 +1238,10 @@ impl Context {
             )));
         }
         match (maybe_sub, maybe_sup) {
+            /*
             (Type::FreeVar(fv), _) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
             (_, Type::FreeVar(fv)) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
+            */
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
