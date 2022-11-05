@@ -125,7 +125,7 @@
   * [x] Implement a syntax highlighter (REPL/debugger built-in)
   * [ ] Implement a package manager (`pack` subcommand)
   * [ ] Implement a virtual environment manager (`env` subcommand)
-  * [ ] Prepare an installer for each platform
+  * [x] Prepare an installer for each platform
   * [ ] Implement a compiling server
 * [ ] Maintain documentations
   * [x] I18n
