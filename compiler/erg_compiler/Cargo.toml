@@ -27,6 +27,9 @@ traditional_chinese = [
 erg_common = { version = "0.5.11", path = "../erg_common" }
 erg_parser = { version = "0.5.11", path = "../erg_parser" }
 
+[build-dependencies]
+erg_common = { version = "0.5.11", path = "../erg_common" }
+
 [lib]
 path = "lib.rs"
 

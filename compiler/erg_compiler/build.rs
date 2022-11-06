@@ -4,8 +4,14 @@ use std::env;
 use std::fs;
 use std::path;
 
+use erg_common::erg_util::env_erg_version;
+
 fn main() -> std::io::Result<()> {
-    if env::var("ERG_PATH").is_ok() && !cfg!(feature = "debug") {
+    let current_erg_version = env_erg_version();
+    if current_erg_version.as_ref().map(|s| &s[..]) == Some(env!("CARGO_PKG_VERSION"))
+        && env::var("ERG_PATH").is_ok()
+        && !cfg!(feature = "debug")
+    {
         return Ok(());
     }
     // Create a ".erg" directory
