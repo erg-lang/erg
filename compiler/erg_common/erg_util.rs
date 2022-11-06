@@ -17,9 +17,9 @@ pub fn get_erg_version(erg_command: &str) -> Option<String> {
             .ok()?
     };
     // e.g. Erg 0.1.0, Erg 0.1.2-nightly.2
-    let s_version = String::from_utf8(out.stdout).unwrap();
+    let s_version = String::from_utf8(out.stdout).ok()?;
     let mut iter = s_version.split(' ').skip(1);
-    Some(iter.next().unwrap().trim_end().to_string())
+    Some(iter.next()?.trim_end().to_string())
 }
 
 pub fn env_erg_version() -> Option<String> {
