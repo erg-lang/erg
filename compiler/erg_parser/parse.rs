@@ -813,14 +813,18 @@ impl Parser {
         let first = self
             .try_reduce_chunk(false, false)
             .map_err(|_| self.stack_dec())?;
-        let Some(first) = option_enum_unwrap!(first, Expr::Def) else {
-            // self.restore();
-            self.level -= 1;
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            return Err(());
+        let first = match first {
+            Expr::Def(def) => ClassAttr::Def(def),
+            Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
+            _ => {
+                // self.restore();
+                self.level -= 1;
+                let err = self.skip_and_throw_syntax_err(caused_by!());
+                self.errs.push(err);
+                return Err(());
+            }
         };
-        let mut defs = vec![first];
+        let mut attrs = vec![first];
         loop {
             match self.peek() {
                 Some(t) if t.is(Newline) && self.nth_is(1, Dedent) => {
@@ -838,7 +842,10 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     match def {
                         Expr::Def(def) => {
-                            defs.push(def);
+                            attrs.push(ClassAttr::Def(def));
+                        }
+                        Expr::TypeAsc(tasc) => {
+                            attrs.push(ClassAttr::Decl(tasc));
                         }
                         other => {
                             self.errs
@@ -854,10 +861,10 @@ impl Parser {
                 }
             }
         }
-        let defs = RecordAttrs::from(defs);
+        let attrs = ClassAttrs::from(attrs);
         let class = Self::expr_to_type_spec(class).map_err(|e| self.errs.push(e))?;
         self.level -= 1;
-        Ok(Methods::new(class, vis, defs))
+        Ok(Methods::new(class, vis, attrs))
     }
 
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {

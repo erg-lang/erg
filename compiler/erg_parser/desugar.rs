@@ -12,11 +12,12 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr, Identifier, KeyValue, KwArg, Lambda,
-    LambdaSignature, Literal, Methods, Module, NonDefaultParamSignature, NormalArray, NormalDict,
-    NormalRecord, NormalSet, NormalTuple, ParamPattern, Params, PosArg, Record, RecordAttrs,
-    Set as astSet, SetWithLength, ShortenedRecord, Signature, SubrSignature, Tuple, TypeBoundSpecs,
-    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    ClassAttr, ClassAttrs, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr, Identifier,
+    KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, Module, NonDefaultParamSignature,
+    NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern, Params, PosArg,
+    Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature, SubrSignature,
+    Tuple, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr,
+    VarSignature,
 };
 use crate::token::{Token, TokenKind};
 
@@ -204,17 +205,25 @@ impl Desugarer {
                 expr.type_asc_expr(tasc.op, tasc.t_spec)
             }
             Expr::Methods(method_defs) => {
-                let mut new_defs = vec![];
-                for def in method_defs.defs.into_iter() {
+                let mut new_attrs = vec![];
+                for attr in method_defs.attrs.into_iter() {
                     let mut chunks = vec![];
-                    for chunk in def.body.block.into_iter() {
-                        chunks.push(desugar(chunk));
+                    match attr {
+                        ClassAttr::Def(def) => {
+                            for chunk in def.body.block.into_iter() {
+                                chunks.push(desugar(chunk));
+                            }
+                            let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
+                            new_attrs.push(ClassAttr::Def(Def::new(def.sig, body)));
+                        }
+                        ClassAttr::Decl(decl) => {
+                            let expr = desugar(*decl.expr);
+                            new_attrs.push(ClassAttr::Decl(expr.type_asc(decl.op, decl.t_spec)));
+                        }
                     }
-                    let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
-                    new_defs.push(Def::new(def.sig, body));
                 }
-                let new_defs = RecordAttrs::from(new_defs);
-                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_defs))
+                let new_attrs = ClassAttrs::from(new_attrs);
+                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_attrs))
             }
             // TODO: Accessor
             other => other,

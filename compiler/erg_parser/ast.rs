@@ -705,6 +705,60 @@ impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ClassAttr {
+    Def(Def),
+    Decl(TypeAscription),
+}
+
+impl_nested_display_for_enum!(ClassAttr; Def, Decl);
+impl_display_for_enum!(ClassAttr; Def, Decl);
+impl_locational_for_enum!(ClassAttr; Def, Decl);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClassAttrs(Vec<ClassAttr>);
+
+impl NestedDisplay for ClassAttrs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)?;
+        writeln!(f)
+    }
+}
+
+impl Locational for ClassAttrs {
+    fn loc(&self) -> Location {
+        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+    }
+}
+
+impl From<Vec<ClassAttr>> for ClassAttrs {
+    fn from(attrs: Vec<ClassAttr>) -> Self {
+        Self(attrs)
+    }
+}
+
+impl ClassAttrs {
+    pub const fn new(attrs: Vec<ClassAttr>) -> Self {
+        Self(attrs)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ClassAttr> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClassAttr> {
+        self.0.iter_mut()
+    }
+}
+
+impl IntoIterator for ClassAttrs {
+    type Item = ClassAttr;
+    type IntoIter = <Vec<ClassAttr> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
 
 impl NestedDisplay for RecordAttrs {
@@ -3194,23 +3248,23 @@ impl Def {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
     pub class: TypeSpec,
-    pub vis: Token,        // `.` or `::`
-    pub defs: RecordAttrs, // TODO: allow declaration
+    pub vis: Token, // `.` or `::`
+    pub attrs: ClassAttrs,
 }
 
 impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{}{}", self.class, self.vis.content)?;
-        self.defs.fmt_nest(f, level + 1)
+        self.attrs.fmt_nest(f, level + 1)
     }
 }
 
 impl_display_from_nested!(Methods);
-impl_locational!(Methods, class, defs);
+impl_locational!(Methods, class, attrs);
 
 impl Methods {
-    pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
-        Self { class, vis, defs }
+    pub const fn new(class: TypeSpec, vis: Token, attrs: ClassAttrs) -> Self {
+        Self { class, vis, attrs }
     }
 }
 

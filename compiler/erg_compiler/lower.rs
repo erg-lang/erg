@@ -1098,24 +1098,35 @@ impl ASTLowerer {
             }
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
             self.ctx.grow(&class.local_name(), kind, Private, None);
-            for def in methods.defs.iter_mut() {
-                if methods.vis.is(TokenKind::Dot) {
-                    def.sig.ident_mut().unwrap().dot = Some(Token::new(
-                        TokenKind::Dot,
-                        ".",
-                        def.sig.ln_begin().unwrap(),
-                        def.sig.col_begin().unwrap(),
-                    ));
-                }
-                self.ctx.preregister_def(def)?;
-            }
-            for def in methods.defs.into_iter() {
-                match self.lower_def(def) {
-                    Ok(def) => {
-                        hir_methods.push(hir::Expr::Def(def));
+            for attr in methods.attrs.iter_mut() {
+                match attr {
+                    ast::ClassAttr::Def(def) => {
+                        if methods.vis.is(TokenKind::Dot) {
+                            def.sig.ident_mut().unwrap().dot = Some(Token::new(
+                                TokenKind::Dot,
+                                ".",
+                                def.sig.ln_begin().unwrap(),
+                                def.sig.col_begin().unwrap(),
+                            ));
+                        }
+                        self.ctx.preregister_def(def)?;
                     }
-                    Err(errs) => {
-                        self.errs.extend(errs.into_iter());
+                    ast::ClassAttr::Decl(_decl) => {}
+                }
+            }
+            for attr in methods.attrs.into_iter() {
+                match attr {
+                    ast::ClassAttr::Def(def) => match self.lower_def(def) {
+                        Ok(def) => {
+                            hir_methods.push(hir::Expr::Def(def));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs.into_iter());
+                        }
+                    },
+                    ast::ClassAttr::Decl(decl) => {
+                        let decl = self.lower_type_asc(decl)?;
+                        hir_methods.push(hir::Expr::TypeAsc(decl));
                     }
                 }
             }
@@ -1590,6 +1601,10 @@ impl ASTLowerer {
         res
     }
 
+    fn declare_class_def(&mut self, _class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
+        todo!()
+    }
+
     fn fake_lower_obj(&self, obj: ast::Expr) -> LowerResult<hir::Expr> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
@@ -1748,12 +1763,9 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias_or_import(def)?)),
-            ast::Expr::ClassDef(defs) => Err(LowerErrors::from(LowerError::feature_error(
-                self.cfg.input.clone(),
-                defs.loc(),
-                "class declaration",
-                self.ctx.caused_by(),
-            ))),
+            ast::Expr::ClassDef(class_def) => {
+                Ok(hir::Expr::ClassDef(self.declare_class_def(class_def)?))
+            }
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
                 if call
