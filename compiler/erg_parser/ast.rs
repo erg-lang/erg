@@ -1124,6 +1124,12 @@ impl Locational for Block {
     }
 }
 
+impl FromIterator<Expr> for Block {
+    fn from_iter<T: IntoIterator<Item = Expr>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 impl_stream_for_wrapper!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -3435,6 +3441,12 @@ impl Stream<Expr> for Module {
     }
     fn ref_mut_payload(&mut self) -> &mut Vec<Expr> {
         self.0.ref_mut_payload()
+    }
+}
+
+impl FromIterator<Expr> for Module {
+    fn from_iter<T: IntoIterator<Item = Expr>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 
