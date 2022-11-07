@@ -71,7 +71,7 @@ fn escape_name(ident: Identifier) -> Str {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodeGenUnit {
+pub struct PyCodeGenUnit {
     pub(crate) id: usize,
     pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
@@ -82,14 +82,14 @@ pub struct CodeGenUnit {
     pub(crate) _refs: Vec<ValueObj>, // ref-counted objects
 }
 
-impl PartialEq for CodeGenUnit {
+impl PartialEq for PyCodeGenUnit {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl fmt::Display for CodeGenUnit {
+impl fmt::Display for PyCodeGenUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -100,7 +100,7 @@ impl fmt::Display for CodeGenUnit {
     }
 }
 
-impl CodeGenUnit {
+impl PyCodeGenUnit {
     pub fn new<S: Into<Str>, T: Into<Str>>(
         id: usize,
         py_version: PythonVersion,
@@ -123,12 +123,12 @@ impl CodeGenUnit {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodeGenStack(Vec<CodeGenUnit>);
+pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
-impl_stream_for_wrapper!(CodeGenStack, CodeGenUnit);
+impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
 
 #[derive(Debug)]
-pub struct CodeGenerator {
+pub struct PyCodeGenerator {
     cfg: ErgConfig,
     pub(crate) py_version: PythonVersion,
     str_cache: CacheSet<str>,
@@ -138,10 +138,10 @@ pub struct CodeGenerator {
     module_type_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
-    units: CodeGenStack,
+    units: PyCodeGenStack,
 }
 
-impl CodeGenerator {
+impl PyCodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             py_version: cfg.target_version.unwrap_or_else(env_python_version),
@@ -153,7 +153,7 @@ impl CodeGenerator {
             module_type_loaded: false,
             abc_loaded: false,
             unit_size: 0,
-            units: CodeGenStack::empty(),
+            units: PyCodeGenStack::empty(),
         }
     }
 
@@ -172,17 +172,17 @@ impl CodeGenerator {
 
     /// 大抵の場合はモジュールのブロックが返る
     #[inline]
-    fn toplevel_block(&self) -> &CodeGenUnit {
+    fn toplevel_block(&self) -> &PyCodeGenUnit {
         self.units.first().unwrap()
     }
 
     #[inline]
-    fn cur_block(&self) -> &CodeGenUnit {
+    fn cur_block(&self) -> &PyCodeGenUnit {
         self.units.last().unwrap()
     }
 
     #[inline]
-    fn mut_cur_block(&mut self) -> &mut CodeGenUnit {
+    fn mut_cur_block(&mut self) -> &mut PyCodeGenUnit {
         self.units.last_mut().unwrap()
     }
 
@@ -923,7 +923,7 @@ impl CodeGenerator {
             .get(0)
             .and_then(|def| def.ln_begin())
             .unwrap_or_else(|| sig.ln_begin().unwrap());
-        self.units.push(CodeGenUnit::new(
+        self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
             vec![],
@@ -991,7 +991,7 @@ impl CodeGenerator {
         }
         let code = {
             self.unit_size += 1;
-            self.units.push(CodeGenUnit::new(
+            self.units.push(PyCodeGenUnit::new(
                 self.unit_size,
                 self.py_version,
                 vec![],
@@ -2288,7 +2288,7 @@ impl CodeGenerator {
             Some(l) => l,
             None => class.sig.ln_begin().unwrap(),
         };
-        self.units.push(CodeGenUnit::new(
+        self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
             vec![],
@@ -2436,7 +2436,7 @@ impl CodeGenerator {
             .first()
             .and_then(|first| first.ln_begin())
             .unwrap_or(0);
-        self.units.push(CodeGenUnit::new(
+        self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
             params,
@@ -2588,7 +2588,7 @@ impl CodeGenerator {
     pub fn emit(&mut self, hir: HIR) -> CodeObj {
         log!(info "the code-generating process has started.{RESET}");
         self.unit_size += 1;
-        self.units.push(CodeGenUnit::new(
+        self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
             vec![],

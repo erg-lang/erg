@@ -28,6 +28,10 @@ enum BlockKind {
 
 use BlockKind::*;
 
+/// Checks code for side effects.
+/// For example:
+/// * check if expressions with side effects are not used in functions
+/// * check if methods that change internal state are not defined in immutable classes
 #[derive(Debug)]
 pub struct SideEffectChecker {
     cfg: ErgConfig,

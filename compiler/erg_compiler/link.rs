@@ -18,6 +18,8 @@ use crate::ty::HasType;
 use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;
 
+/// Link code using the module cache.
+/// Erg links all non-Python modules into a single pyc file.
 pub struct Linker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,

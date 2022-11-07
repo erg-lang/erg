@@ -41,7 +41,7 @@ use crate::varinfo::{Mutability, VarInfo, VarKind};
 use crate::AccessKind;
 use Visibility::*;
 
-/// Singleton that checks types of an AST, and convert (lower) it into a HIR
+/// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
     cfg: ErgConfig,

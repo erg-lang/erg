@@ -26,7 +26,6 @@ use Variance::*;
 impl Context {
     pub const TOP_LEVEL: usize = 1;
 
-    /// 型を非依存化する
     fn _independentise(_t: Type, _ts: &[Type]) -> Type {
         todo!()
     }

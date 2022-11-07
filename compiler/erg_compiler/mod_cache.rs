@@ -62,6 +62,9 @@ impl ModuleEntry {
     }
 }
 
+/// Caches checked modules.
+/// In addition to being queried here when re-imported, it is also used when linking
+/// (Erg links all scripts defined in erg and outputs them to a single pyc file).
 #[derive(Debug, Default)]
 pub struct ModuleCache {
     cache: Dict<PathBuf, ModuleEntry>,

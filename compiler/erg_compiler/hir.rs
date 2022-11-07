@@ -1925,6 +1925,8 @@ impl Locational for Module {
 
 impl_stream_for_wrapper!(Module, Expr);
 
+/// High-level Intermediate Representation
+/// AST with type information added
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HIR {
     pub name: Str,

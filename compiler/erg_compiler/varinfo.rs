@@ -36,6 +36,7 @@ impl Mutability {
 
 use Mutability::*;
 
+/// TODO: removed in the future
 /// e.g.
 /// ```python
 /// K(T, [U, V]) = ...

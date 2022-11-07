@@ -3,6 +3,7 @@ use erg_common::traits::Stream;
 
 use crate::hir::{Accessor, AttrDef, Block, Expr, HIR};
 
+/// Desugares HIR to make it more like Python semantics.
 pub struct HIRDesugarer {}
 
 impl HIRDesugarer {

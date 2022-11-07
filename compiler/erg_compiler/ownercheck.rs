@@ -28,6 +28,10 @@ struct LocalVars {
     dropped_vars: Dict<Str, Location>,
 }
 
+/// Check code ownership.
+/// for example:
+/// * Check if moved variables are not used again.
+/// * Checks whether a mutable reference method is called in an immutable reference method.
 #[derive(Debug)]
 pub struct OwnershipChecker {
     cfg: ErgConfig,

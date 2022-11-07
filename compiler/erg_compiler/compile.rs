@@ -10,7 +10,7 @@ use erg_common::traits::{Runnable, Stream};
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
-use crate::codegen::CodeGenerator;
+use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{Expr, HIR};
@@ -96,7 +96,7 @@ pub struct Compiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
     mod_cache: SharedModuleCache,
-    code_generator: CodeGenerator,
+    code_generator: PyCodeGenerator,
 }
 
 impl Runnable for Compiler {
@@ -114,7 +114,7 @@ impl Runnable for Compiler {
                 mod_cache.clone(),
                 py_mod_cache,
             ),
-            code_generator: CodeGenerator::new(cfg.copy()),
+            code_generator: PyCodeGenerator::new(cfg.copy()),
             mod_cache,
             cfg,
         }

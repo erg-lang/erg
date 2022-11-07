@@ -19,6 +19,9 @@ impl SubtypePair {
     }
 }
 
+/// Caches type relationships.
+/// The cost of searching for subtype relations of a class, for example, is not small.
+/// Some relationships are cached because they tend to be queried many times.
 #[derive(Debug, Default)]
 pub struct TypeCmpCache {
     cache: Dict<SubtypePair, bool>,
