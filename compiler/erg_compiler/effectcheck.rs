@@ -87,6 +87,7 @@ impl SideEffectChecker {
         self.path_stack.push((hir.name.clone(), Private));
         self.block_stack.push(Module);
         log!(info "the side-effects checking process has started.{RESET}");
+        // At the top level, there is no problem with side effects, only check for purity violations.
         // トップレベルでは副作用があっても問題なく、純粋性違反がないかのみチェックする
         for expr in hir.module.iter() {
             match expr {
@@ -199,7 +200,6 @@ impl SideEffectChecker {
             Signature::Subr(subr) => (subr.ident.inspect().clone(), subr.ident.vis()),
         };
         self.path_stack.push(name_and_vis);
-        // TODO: support raw identifier (``)
         let is_procedural = def.sig.is_procedural();
         let is_subr = def.sig.is_subr();
         let is_const = def.sig.is_const();
@@ -326,7 +326,6 @@ impl SideEffectChecker {
                 }
                 other => todo!("{other}"),
             },
-            // 引数がproceduralでも関数呼び出しなら副作用なし
             Expr::Call(call) => {
                 if (call.obj.t().is_procedure()
                     || call

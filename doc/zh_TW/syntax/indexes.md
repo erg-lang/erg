@@ -79,7 +79,7 @@
 * [Add]
 * [alias](type/02_basic.md)
 * [Aliasing](./type/02_basic.md)
-* [All&nbsp;symmetric&nbsp;types](./type/15_quantified.md)
+* [For&nbsp;all&nbsp;types](./type/15_quantified.md)
 * [algebraic&nbsp;type](./type/13_algebraic.md)
 * [And]
 * [and]

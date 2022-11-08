@@ -146,7 +146,7 @@ Generate a record.
 
 ### `{}`(layout, ...names, ...preds)
 
-Generates sieve type, rank 2 type.
+Generates refinement type, rank 2 type.
 
 ### `...`
 

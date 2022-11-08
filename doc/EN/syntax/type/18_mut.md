@@ -135,17 +135,17 @@ The same is true for other collection types.
 ```
 
 A type `(...)` that simply becomes `T! = (...)!` when `T = (...)` is called a simple structured type. A simple structured type can also be said (semantically) to be a type that has no internal structure.
-Arrays, tuples, sets, dictionaries, and record types are all non-simple structured types, but Int and Sieve types are.
+Arrays, tuples, sets, dictionaries, and record types are all non-simple structured types, but Int and Refinement types are.
 
 ```python
-# Sieve type
+# Refinement type
 ## Enums
 {1, 2, 3} # one of 1, 2, 3, cannot be changed
 {1, 2, 3}! # 1, 2, 3, you can change
 ## interval type
 1..12 # 1 to 12, cannot be changed
 1..12! # Any of 1-12, you can change
-## Sieve type (general type)
+## Refinement type (general type)
 {I: Int | I % 2 == 0} # even type, immutable
 {I: Int! | I % 2 == 0} # even type, can be changed
 {I: Int | I % 2 == 0}! # Exactly the same type as above, but the above notation is preferred

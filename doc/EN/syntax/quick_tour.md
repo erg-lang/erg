@@ -295,7 +295,7 @@ Point.
 
 You can give implementations to classes and traits.
 
-## Sieve type
+## Refinement type
 
 A predicate expression can be type-restricted.
 

@@ -1,6 +1,6 @@
-# Sieve type
+# Refinement type
 
-The sieve type is the following type.
+The refinement type is the following type.
 
 ```python
 {I: Int | I >= 0}
@@ -8,11 +8,11 @@ The sieve type is the following type.
 {T: (Ratio, Ratio) | T.0 >= 0; T.1 >= 0}
 ```
 
-Erg enables type determination by converting Enum and Interval types into sieve types.
+Erg enables type determination by converting Enum and Interval types into refinement types.
 
-## Convert to sieve type
+## Convert to refinement type
 
-In the section [Sieve types], we said that interval types and enum types are syntactic sugar for sieve types. Each is converted as follows.
+In the section [Refinement types], we said that interval types and enum types are syntactic sugar for refinement types. Each is converted as follows.
 
 * {0} -> {I: Int | I == 0}
 * {0, 1} -> {I: Int | I == 0 or I == 1}
@@ -23,9 +23,9 @@ In the section [Sieve types], we said that interval types and enum types are syn
 * {0} and {-3, 0} -> {I: Int | I == 0 and (I == -3 or I == 0)}
 * {0} not {-3, 0} or 1.._ -> {I: Int | I == 0 and not (I == -3 or I == 0) or I >= 1}
 
-## Sieve type detection
+## Refinement type detection
 
-An algorithm for determining whether a sieve type A is a subtype of another sieve type B is described. Formally, (all) subtyping is defined as follows:
+An algorithm for determining whether a refinement type A is a subtype of another refinement type B is described. Formally, (all) subtyping is defined as follows:
 
 ```console
 A <: B <=> ∀a∈A; a ∈ B

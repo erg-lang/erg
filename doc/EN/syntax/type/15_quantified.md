@@ -193,7 +193,7 @@ K(0).
     foo(self, x): Nat = ...
 ```
 
-## All symmetric types
+## For-all types
 
 The `id` function defined in the previous section is a function that can be of any type. So what is the type of the `id` function itself?
 

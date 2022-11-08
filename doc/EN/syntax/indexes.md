@@ -79,7 +79,7 @@ Also, see [here](../terms.md) for terminology.
 * [Add]
 * [alias](type/02_basic.md#aliasing)
 * [Aliasing](./type/02_basic.md#aliasing)
-* [All&nbsp;symmetric&nbsp;types](./type/15_quantified.md#all-symmetric-types)
+* [For&nbsp;all&nbsp;types](./type/15_quantified.md#For-all-types)
 * [algebraic&nbsp;type](./type/13_algebraic.md)
 * [And]
 * [and]

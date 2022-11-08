@@ -53,7 +53,7 @@ assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in ra
 ## 篩子類型
 
 與推導類似的是篩類型。篩子類型是以`{Name: Type | Predicate}`創建的(枚舉類型)
-sieve類型的情況下，只能指定一個Name，不能指定布局(但是如果是tuple類型可以處理多個值)，Predicate可以在編譯時計算，即 ，只能指定一個常量表達式
+refinement類型的情況下，只能指定一個Name，不能指定布局(但是如果是tuple類型可以處理多個值)，Predicate可以在編譯時計算，即 ，只能指定一個常量表達式
 
 ```python
 Nat = {I: Int | I >= 0}

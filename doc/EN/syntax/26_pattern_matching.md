@@ -62,7 +62,7 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### Sieve pattern
+### Refinement pattern
 
 ```python
 # these two are the same

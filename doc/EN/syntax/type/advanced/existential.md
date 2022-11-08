@@ -9,13 +9,13 @@ f x: T = ...
 ```
 
 The trait `T` above is used as the existential type.
-In contrast, `T` in the lower case is only a trait, and `X` is an for-all type.
+In contrast, `T` in the lower case is only a trait, and `X` is a for-all type.
 
 ```python
 f|X <: T| x: X = ...
 ```
 
-In fact, the existential type is replaced by an for-all type. So why is there such a thing as an existential type?
+In fact, the existential type is replaced by a for-all type. So why is there such a thing as an existential type?
 First of all, as we saw above, existential types do not involve type variables, which simplifies type specification.
 Also, since the type variable can be removed, it is possible to construct a type that would have rank 2 or higher if it were an all-presumptive type.
 

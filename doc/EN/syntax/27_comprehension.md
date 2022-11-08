@@ -48,10 +48,10 @@ This specification is the same as that of Python.
 assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in range(3, 5) for i in range(1, 3)]
 ```
 
-## Sieve type
+## Refinement type
 
-Similar to comprehensions are sieve types. A sieve type is a type (enumerated type) created in the form `{Name: Type | Predicate}`.
-In the case of the sieve type, only one Name can be specified and the layout cannot be specified (however, multiple values ​​can be handled if it is a tuple type), and the Predicate can be calculated at compile time, that is, only a constant expression can be specified.
+Similar to comprehensions are refinement types. A refinement type is a type (enumerated type) created in the form `{Name: Type | Predicate}`.
+In the case of the refinement type, only one Name can be specified and the layout cannot be specified (however, multiple values ​​can be handled if it is a tuple type), and the Predicate can be calculated at compile time, that is, only a constant expression can be specified.
 
 ```python
 Nat = {I: Int | I >= 0}

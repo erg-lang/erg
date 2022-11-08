@@ -38,12 +38,12 @@ provided_method_table = {
 ```
 
 Types that have a `.times` method are `Nat`, `Foo`. From among these, find one that matches the `{1}` type.
-There are two types of conformity determination. They are sieve-type judgment and record-type judgment. This is done from the sieve type determination.
+There are two types of conformity determination. They are refinement-type judgment and record-type judgment. This is done from the refinement type determination.
 
-## Sieve type determination
+## Refinement type determination
 
-Check if the candidate type is compatible with the type `{1}` of `1`. The sieve types compatible with `{1}` are `{0, 1}`, `0..9`, and so on.
-Finite element algebraic types such as `0..1 or 3..4`, `-1..2 and 0..3` are normalized to sieve types when declared as base types (i.e. ` {0, 1, 3, 4}`, `{0, 1, 2}`).
+Check if the candidate type is compatible with the type `{1}` of `1`. The refinement types compatible with `{1}` are `{0, 1}`, `0..9`, and so on.
+Finite element algebraic types such as `0..1 or 3..4`, `-1..2 and 0..3` are normalized to refinement types when declared as base types (i.e. ` {0, 1, 3, 4}`, `{0, 1, 2}`).
 In this case, `Nat` is `0.._ == {I: Int | I >= 0}`, so `{1}` is compatible with `Nat`.
 
 ## Determine record type

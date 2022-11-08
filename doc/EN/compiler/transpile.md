@@ -54,32 +54,16 @@ x::y = 1
 x = x::y + 1
 ```
 
-In case of conflict, define and use a function that can only be referenced internally.
-
-```python
-x =
-    y = 1
-    y+1
-```
-
-```python
-def _():
-    x=1
-    y = x
-    return y + 1
-x = _()
-```
-
 ## Visibility
 
 It does nothing for public variables as it is Python's default.
 Private variables are handled by mangling.
 
 ```python
-x=1
+x = 1
 y =
     x = 2
-    assert module::x == 2
+    assert module::x == 2 # assert(...) returns None
 ```
 
 ```python

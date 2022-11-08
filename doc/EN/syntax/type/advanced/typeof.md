@@ -28,10 +28,10 @@ s: Str = ...
 assert Typeof(s) == {__valueclass_tag__ = Phantom Str}
 ```
 
-`Typeof` outputs only structured types. I explained that structured types include attribute types, sieve types, and (true) algebraic types.
+`Typeof` outputs only structured types. I explained that structured types include attribute types, refinement types, and (true) algebraic types.
 These are independent types (inference precedence exists) and inference conflicts do not occur.
-Attribute types and algebraic types can span multiple classes, while sieve types are subtypes of a single class.
-Erg infers object types as sieve types as much as possible, and when that is not possible, expands sieve base classes to structured types (see below).
+Attribute types and algebraic types can span multiple classes, while refinement types are subtypes of a single class.
+Erg infers object types as refinement types as much as possible, and when that is not possible, expands refinement base classes to structured types (see below).
 
 ## structured
 

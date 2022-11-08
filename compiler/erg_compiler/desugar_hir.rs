@@ -14,18 +14,22 @@ impl HIRDesugarer {
         hir
     }
 
-    // C = Class ...
-    // C.
-    //     _Self = C
-    //     a = C.x
-    //     x = 1
-    //     m(self) = ...
-    // ↓
-    // class C:
-    //     def m(self): ...
-    // C._Self = C
-    // C.a = C.x
-    // C.x = 1
+    /// ```erg
+    /// C = Class ...
+    /// C.
+    ///     _Self = C
+    ///     a = C.x
+    ///     x = 1
+    ///     m(self) = ...
+    /// ```
+    /// ↓
+    /// ```python
+    /// class C:
+    ///     def m(self): ...
+    /// C._Self = C
+    /// C.a = C.x
+    /// C.x = 1
+    /// ```
     fn desugar_class_member(mut hir: HIR) -> HIR {
         for chunk in hir.module.iter_mut() {
             let static_members = match chunk {

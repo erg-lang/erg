@@ -186,8 +186,8 @@ fn iter<I>(i: I) -> impl Iterator<Item = I::Item> where I: IntoIterator {
 ## For-All Patch
 
 A patch can be defined not only for one specific type, but also for "function types in general" and so on.
-In this case, the term to which the degree of freedom is to be given is given as an argument (in the case below, `T: Type`). A patch defined in this way is called an all-symmetric patch.
-As you can see, an all-symmetric patch is precisely a function that returns a patch, but it can also be considered a patch in its own right.
+In this case, the term to which the degree of freedom is to be given is given as an argument (in the case below, `T: Type`). A patch defined in this way is called a for-all patch.
+As you can see, a for-all patch is precisely a function that returns a patch, but it can also be considered a patch in its own right.
 
 ```python
 FnType T: Type = Patch(T -> T)

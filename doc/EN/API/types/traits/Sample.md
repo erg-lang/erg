@@ -4,7 +4,7 @@ A trait that has a `sample` and `sample!` method that "randomly" picks an instan
 
 Note that this is a trait that assumes that you want an appropriate instance for testing, etc., and that it is not necessarily random. If you want random sampling, use the `random` module.
 
-All major value classes implement `Sample`. It is also implemented in tuple types, record types, Or types, and sieve types that are composed of `Sample` classes.
+All major value classes implement `Sample`. It is also implemented in tuple types, record types, Or types, and refinement types that are composed of `Sample` classes.
 
 ```python
 assert Int. sample() == 42

@@ -94,7 +94,7 @@ Pointy = {Point}
 ```
 
 An important property of record kind is that if `T: |T|` and `U <: T` then `U: |T|`.
-This is also evident from the fact that enums are actually syntactic sugar for sieve types.
+This is also evident from the fact that enums are actually syntactic sugar for refinement types.
 
 ```python
 # {c} == {X: T | X == c} for normal objects, but

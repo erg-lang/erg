@@ -1,7 +1,7 @@
 # Type Bound
 
 Type bounds add conditions to type specifications. A function that realizes this is a guard (guard clause).
-This feature is available for function signatures, anonymous function signatures, as well as sieve types.
+This feature is available for function signatures, anonymous function signatures, as well as refinement types.
 Guards are written after the return type.
 
 ## Predicate
