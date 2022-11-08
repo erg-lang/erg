@@ -59,6 +59,10 @@ impl Desugarer {
         module
     }
 
+    fn desugar_all_chunks(module: Module, desugar: impl Fn(Expr) -> Expr) -> Module {
+        module.into_iter().map(desugar).collect()
+    }
+
     fn perform_desugar(desugar: impl Fn(Expr) -> Expr, expr: Expr) -> Expr {
         match expr {
             Expr::Record(record) => match record {
@@ -541,12 +545,8 @@ impl Desugarer {
     }
 
     /// `{x; y}` -> `{x = x; y = y}`
-    fn desugar_shortened_record(mut module: Module) -> Module {
-        let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
-            new.push(Self::rec_desugar_shortened_record(chunk));
-        }
-        new
+    fn desugar_shortened_record(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::rec_desugar_shortened_record)
     }
 
     fn rec_desugar_shortened_record(expr: Expr) -> Expr {
@@ -859,12 +859,8 @@ impl Desugarer {
         }
     }
 
-    fn desugar_self(mut module: Module) -> Module {
-        let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
-            new.push(Self::desugar_self_inner(chunk));
-        }
-        new
+    fn desugar_self(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::desugar_self_inner)
     }
 
     fn desugar_self_inner(_expr: Expr) -> Expr {
@@ -878,12 +874,8 @@ impl Desugarer {
 
     /// x[y] => x.__getitem__(y)
     /// x.0 => x.__Tuple_getitem__(0)
-    fn desugar_acc(mut module: Module) -> Module {
-        let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
-            new.push(Self::rec_desugar_acc(chunk));
-        }
-        new
+    fn desugar_acc(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::rec_desugar_acc)
     }
 
     fn rec_desugar_acc(expr: Expr) -> Expr {
