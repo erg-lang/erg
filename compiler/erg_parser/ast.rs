@@ -1529,6 +1529,10 @@ impl ConstArgs {
         }
     }
 
+    pub fn deconstruct(self) -> (Vec<ConstPosArg>, Vec<ConstKwArg>, Option<(Token, Token)>) {
+        (self.pos_args, self.kw_args, self.paren)
+    }
+
     pub const fn empty() -> Self {
         Self::new(vec![], vec![], None)
     }

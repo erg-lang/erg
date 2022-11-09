@@ -24,10 +24,12 @@ use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
     switch_unreachable,
 };
+use erg_parser::ast::ConstExpr;
 use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
 use CommonOpcode::*;
 
+use erg_parser::ast::TypeSpec;
 use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
 use erg_parser::token::DOT;
 use erg_parser::token::EQUAL;
@@ -1603,8 +1605,8 @@ impl PyCodeGenerator {
             if !lambda.params.defaults.is_empty() {
                 todo!("default values in match expression are not supported yet")
             }
-            let pat = lambda.params.non_defaults.remove(0).pat;
-            let pop_jump_points = self.emit_match_pattern(pat);
+            let param = lambda.params.non_defaults.remove(0);
+            let pop_jump_points = self.emit_match_pattern(param);
             self.emit_frameless_block(lambda.body, Vec::new());
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = if self.py_version.minor >= Some(11) {
@@ -1624,28 +1626,13 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_match_pattern(&mut self, pat: ParamPattern) -> Vec<usize> {
+    fn emit_match_pattern(&mut self, param: NonDefaultParamSignature) -> Vec<usize> {
         log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
-        match pat {
+        match param.pat {
             ParamPattern::VarName(name) => {
                 let ident = Identifier::bare(None, name);
                 self.emit_store_instr(ident, AccessKind::Name);
-            }
-            ParamPattern::Lit(lit) => {
-                let value = {
-                    let t = type_from_token_kind(lit.token.kind);
-                    ValueObj::from_str(t, lit.token.content).unwrap()
-                };
-                self.emit_load_const(value);
-                self.emit_compare_op(CompareOp::EQ);
-                pop_jump_points.push(self.lasti());
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                self.emit_pop_top();
-                self.stack_dec();
             }
             ParamPattern::Array(arr) => {
                 let len = arr.len();
@@ -1667,13 +1654,16 @@ impl PyCodeGenerator {
                 self.write_arg(len);
                 self.stack_inc_n(len - 1);
                 for elem in arr.elems.non_defaults {
-                    pop_jump_points.append(&mut self.emit_match_pattern(elem.pat));
+                    pop_jump_points.append(&mut self.emit_match_pattern(elem));
                 }
                 if !arr.elems.defaults.is_empty() {
                     todo!("default values in match are not supported yet")
                 }
             }
             ParamPattern::Discard(_) => {
+                if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
+                    self.emit_match_guard(t_spec, &mut pop_jump_points)
+                }
                 self.emit_pop_top();
             }
             _other => {
@@ -1681,6 +1671,35 @@ impl PyCodeGenerator {
             }
         }
         pop_jump_points
+    }
+
+    fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
+        #[allow(clippy::single_match)]
+        match t_spec {
+            TypeSpec::Enum(enm) => {
+                let (mut elems, ..) = enm.deconstruct();
+                if elems.len() != 1 {
+                    todo!()
+                }
+                let ConstExpr::Lit(lit) = elems.remove(0).expr else {
+                    todo!()
+                };
+                let value = {
+                    let t = type_from_token_kind(lit.token.kind);
+                    ValueObj::from_str(t, lit.token.content).unwrap()
+                };
+                self.emit_load_const(value);
+                self.emit_compare_op(CompareOp::EQ);
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            // TODO:
+            _ => {}
+        }
     }
 
     fn emit_with_instr_311(&mut self, args: Args) {
