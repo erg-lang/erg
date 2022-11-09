@@ -17,7 +17,7 @@ use erg_common::{
 use erg_parser::ast::{
     fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
 };
-use erg_parser::token::{Token, TokenKind};
+use erg_parser::token::{Token, TokenKind, DOT};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
@@ -506,7 +506,7 @@ impl Accessor {
     }
 
     pub fn public_with_line(name: Str, line: usize) -> Self {
-        Self::Ident(Identifier::public_with_line(Token::dummy(), name, line))
+        Self::Ident(Identifier::public_with_line(DOT, name, line))
     }
 
     pub const fn private(name: Token, vi: VarInfo) -> Self {
@@ -514,12 +514,7 @@ impl Accessor {
     }
 
     pub fn public(name: Token, vi: VarInfo) -> Self {
-        Self::Ident(Identifier::new(
-            Some(Token::dummy()),
-            VarName::new(name),
-            None,
-            vi,
-        ))
+        Self::Ident(Identifier::new(Some(DOT), VarName::new(name), None, vi))
     }
 
     pub fn attr(obj: Expr, ident: Identifier) -> Self {

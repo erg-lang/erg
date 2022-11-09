@@ -75,6 +75,11 @@ fn exec_move_check() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pattern() -> Result<(), ()> {
+    expect_success("tests/pattern.er")
+}
+
+#[test]
 fn exec_pyimport() -> Result<(), ()> {
     if cfg!(unix) {
         expect_end_with("examples/pyimport.er", 111)

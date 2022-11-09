@@ -1600,6 +1600,15 @@ impl Type {
         }
     }
 
+    pub fn is_record(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
+            Self::Record(_) => true,
+            Self::Refinement(refine) => refine.t.is_record(),
+            _ => false,
+        }
+    }
+
     pub fn is_module(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_module(),

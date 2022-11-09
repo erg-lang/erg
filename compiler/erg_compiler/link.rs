@@ -8,7 +8,7 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, log};
 
 use erg_parser::ast::{DefId, OperationKind};
-use erg_parser::token::{Token, TokenKind};
+use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
 use crate::ty::free::fresh_varname;
 use crate::ty::typaram::TyParam;
@@ -314,7 +314,7 @@ impl<'a> Linker<'a> {
                 Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
             let mod_def = Expr::Def(Def::new(
                 Signature::Var(VarSignature::new(tmp.clone())),
-                DefBody::new(Token::dummy(), block, DefId(0)),
+                DefBody::new(EQUAL, block, DefId(0)),
             ));
             let module = Expr::Accessor(Accessor::Ident(tmp));
             let __dict__ = Identifier::public("__dict__");
@@ -382,7 +382,7 @@ impl<'a> Linker<'a> {
         for attr in comps {
             *expr = mem::replace(expr, Expr::Code(Block::empty())).attr_expr(
                 Identifier::public_with_line(
-                    Token::dummy(),
+                    DOT,
                     Str::rc(attr.as_os_str().to_str().unwrap()),
                     line,
                 ),

@@ -29,6 +29,8 @@ use erg_parser::ast::DefKind;
 use CommonOpcode::*;
 
 use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
+use erg_parser::token::DOT;
+use erg_parser::token::EQUAL;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
@@ -53,7 +55,6 @@ fn fake_method_to_func(class: &str, name: &str) -> Option<&'static str> {
     }
 }
 
-/// This method obviously does not scale, so in the future all Python APIs will be replaced by declarations in d.er, and renaming will be done in `HIRDesugarer`.
 fn escape_name(ident: Identifier) -> Str {
     let vis = ident.vis();
     if let Some(py_name) = ident.vi.py_name {
@@ -801,7 +802,13 @@ impl PyCodeGenerator {
                 }
                 self.emit_load_name_instr(ident);
             }
-            Accessor::Attr(a) => {
+            Accessor::Attr(mut a) => {
+                // Python's namedtuple, a representation of Record, does not allow attribute names such as `::x`.
+                // Since Erg does not allow the coexistence of private and public variables with the same name, there is no problem in this trick.
+                let is_record = a.obj.ref_t().is_record();
+                if is_record {
+                    a.ident.dot = Some(DOT);
+                }
                 self.emit_expr(*a.obj);
                 self.emit_load_attr_instr(a.ident);
             }
@@ -2245,10 +2252,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let line = block.ln_begin().unwrap_or(0);
         for param in params {
-            self.emit_store_instr(
-                Identifier::public_with_line(Token::dummy(), param, line),
-                Name,
-            );
+            self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
         for expr in block.into_iter() {
@@ -2264,10 +2268,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let line = block.ln_begin().unwrap_or(0);
         for param in params {
-            self.emit_store_instr(
-                Identifier::public_with_line(Token::dummy(), param, line),
-                Name,
-            );
+            self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
         for expr in block.into_iter() {
@@ -2349,7 +2350,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
-        let ident = Identifier::public_with_line(Token::dummy(), Str::ever("__init__"), line);
+        let ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
         let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
@@ -2369,14 +2370,14 @@ impl PyCodeGenerator {
                     let obj =
                         Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
                     let expr = obj.attr_expr(Identifier::bare(
-                        Some(Token::dummy()),
+                        Some(DOT),
                         VarName::from_str(field.symbol.clone()),
                     ));
                     let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
                     let dot = if field.vis.is_private() {
                         None
                     } else {
-                        Some(Token::dummy())
+                        Some(DOT)
                     };
                     let attr = obj.attr(Identifier::bare(
                         dot,
@@ -2391,7 +2392,7 @@ impl PyCodeGenerator {
             other => todo!("{other}"),
         }
         let block = Block::new(attrs);
-        let body = DefBody::new(Token::dummy(), block, DefId(0));
+        let body = DefBody::new(EQUAL, block, DefId(0));
         self.emit_subr_def(Some(class_name), subr_sig, body);
     }
 
@@ -2404,7 +2405,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap();
-        let ident = Identifier::public_with_line(Token::dummy(), Str::ever("new"), line);
+        let ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
         let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
@@ -2420,7 +2421,7 @@ impl PyCodeGenerator {
         let class_new = class.attr_expr(new_ident);
         let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
         let block = Block::new(vec![call]);
-        let body = DefBody::new(Token::dummy(), block, DefId(0));
+        let body = DefBody::new(EQUAL, block, DefId(0));
         self.emit_subr_def(Some(class_ident.inspect()), sig, body);
     }
 

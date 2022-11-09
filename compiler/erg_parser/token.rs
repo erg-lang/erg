@@ -311,6 +311,10 @@ pub struct Token {
     pub col_begin: usize,
 }
 
+pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
+pub const DOT: Token = Token::dummy(TokenKind::Dot, ".");
+pub const EQUAL: Token = Token::dummy(TokenKind::Equal, "=");
+
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Token")
@@ -364,11 +368,17 @@ impl Locational for Token {
 }
 
 impl Token {
-    #[inline]
-    pub fn dummy() -> Self {
-        Token {
-            kind: TokenKind::Illegal,
-            content: "DUMMY".into(),
+    pub const DUMMY: Token = Token {
+        kind: TokenKind::Illegal,
+        content: Str::ever("DUMMY"),
+        lineno: 1,
+        col_begin: 0,
+    };
+
+    pub const fn dummy(kind: TokenKind, content: &'static str) -> Self {
+        Self {
+            kind,
+            content: Str::ever(content),
             lineno: 1,
             col_begin: 0,
         }

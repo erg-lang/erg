@@ -47,6 +47,26 @@ impl Context {
                 fv.generalize();
                 TyParam::FreeVar(fv)
             }
+            TyParam::Array(tps) => TyParam::Array(
+                tps.into_iter()
+                    .map(|tp| self.generalize_tp(tp, variance))
+                    .collect(),
+            ),
+            TyParam::Tuple(tps) => TyParam::Tuple(
+                tps.into_iter()
+                    .map(|tp| self.generalize_tp(tp, variance))
+                    .collect(),
+            ),
+            TyParam::Dict(tps) => TyParam::Dict(
+                tps.into_iter()
+                    .map(|(k, v)| {
+                        (
+                            self.generalize_tp(k, variance),
+                            self.generalize_tp(v, variance),
+                        )
+                    })
+                    .collect(),
+            ),
             TyParam::FreeVar(_) => free,
             other if other.has_no_unbound_var() => other,
             other => todo!("{other}"),
@@ -978,6 +998,27 @@ impl Context {
                     .convert_tp_into_ty(r.clone())
                     .unwrap_or_else(|_| todo!("{r} cannot be a type"));
                 self.sub_unify(l, &r, loc, None)?;
+                Ok(())
+            }
+            (TyParam::Array(ls), TyParam::Array(rs)) | (TyParam::Tuple(ls), TyParam::Tuple(rs)) => {
+                for (l, r) in ls.iter().zip(rs.iter()) {
+                    self.sub_unify_tp(l, r, _variance, loc, allow_divergence)?;
+                }
+                Ok(())
+            }
+            (TyParam::Dict(ls), TyParam::Dict(rs)) => {
+                for (lk, lv) in ls.iter() {
+                    if let Some(rv) = rs.get(lk) {
+                        self.sub_unify_tp(lv, rv, _variance, loc, allow_divergence)?;
+                    } else {
+                        // TODO:
+                        return Err(TyCheckErrors::from(TyCheckError::unreachable(
+                            self.cfg.input.clone(),
+                            fn_name!(),
+                            line!(),
+                        )));
+                    }
+                }
                 Ok(())
             }
             (l, r) => panic!("type-parameter unification failed:\nl:{l}\nr: {r}"),
