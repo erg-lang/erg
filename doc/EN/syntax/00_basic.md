@@ -138,7 +138,7 @@ ans = match x:
 If a line is too long, it can be broken using `\`.
 
 ```python
-# this does not means `x + y + z` but means `x; +y; +z`
+# this does not means `x + y + z`, but means `x; +y; +z`
 x
 + y
 + z

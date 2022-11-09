@@ -97,9 +97,11 @@ As a difference from `Array` literals, duplicate elements are removed in `Set`.
 assert {1, 2, 1} == {1, 2}
 ```
 
-### What looks like a literal but isn't
+## What looks like a literal but isn't
 
-## Boolean Object
+### Boolean Object
+
+`True` and `False` are simply constant objects of type `Bool`.
 
 ```python
 True, False
@@ -107,11 +109,15 @@ True, False
 
 ### None Object
 
+`None` is a singleton object of type `NoneType`.
+
 ```python
 None
 ```
 
-## Range Object
+### Range Object
+
+Unlike Python's `range`, it can treat not only `Int` but also any object of type that allows comparisons (subtype of `Ord`, e.g. `Str`, `Ratio`, etc.).
 
 ```python
 assert 0..10 in 5
@@ -121,7 +127,7 @@ assert (0..5).to_set() == {1, 2, 3, 4, 5}
 assert "a" in "a".."z"
 ```
 
-## Float Object
+### Float Object
 
 ```python
 assert 0.0f64 == 0
@@ -130,7 +136,7 @@ assert 0.0f32 == 0.0f64
 
 Float objects are constructed by multiplying a `Ratio` object by `f64`, which is a `Float 64` unit object.
 
-## Complex Object
+### Complex Object
 
 ```python
 1+2Im, 0.4-1.2Im, 0Im, Im
@@ -138,7 +144,7 @@ Float objects are constructed by multiplying a `Ratio` object by `f64`, which is
 
 A `Complex` object is simply an arithmetic combination of an imaginary unit object, `Im`.
 
-## *-less multiplication
+### *-less multiplication
 
 In Erg, you can omit the `*` to indicate multiplication as long as there is no confusion in interpretation. However, the combined strength of the operators is set stronger than `*`.
 
