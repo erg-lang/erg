@@ -1677,19 +1677,20 @@ impl PyCodeGenerator {
         #[allow(clippy::single_match)]
         match t_spec {
             TypeSpec::Enum(enm) => {
-                let (mut elems, ..) = enm.deconstruct();
-                if elems.len() != 1 {
-                    todo!()
-                }
-                let ConstExpr::Lit(lit) = elems.remove(0).expr else {
-                    todo!()
-                };
-                let value = {
-                    let t = type_from_token_kind(lit.token.kind);
-                    ValueObj::from_str(t, lit.token.content).unwrap()
-                };
-                self.emit_load_const(value);
-                self.emit_compare_op(CompareOp::EQ);
+                let elems = enm
+                    .deconstruct()
+                    .0
+                    .into_iter()
+                    .map(|elem| {
+                        let ConstExpr::Lit(lit) = elem.expr else { todo!() };
+                        let t = type_from_token_kind(lit.token.kind);
+                        ValueObj::from_str(t, lit.token.content).unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                self.emit_load_const(elems);
+                self.write_instr(CONTAINS_OP);
+                self.write_arg(0);
+                self.stack_dec();
                 pop_jump_points.push(self.lasti());
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
                 // but the numbers are the same, only the way the jumping points are calculated is different.
@@ -1697,8 +1698,14 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.stack_dec();
             }
+            /*TypeSpec::Interval { op, lhs, rhs } => {
+                let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
+                self.emit_binop(binop);
+            }*/
             // TODO:
-            _ => {}
+            other => {
+                log!(err "{other}")
+            }
         }
     }
 

@@ -1159,6 +1159,10 @@ impl ConstLocal {
     pub const fn inspect(&self) -> &Str {
         &self.symbol.content
     }
+
+    pub fn downcast(self) -> Identifier {
+        Identifier::new(None, VarName::new(self.symbol))
+    }
 }
 
 /// type variables
@@ -1189,6 +1193,10 @@ impl ConstAttribute {
             obj: Box::new(expr),
             name,
         }
+    }
+
+    pub fn downcast(self) -> Attribute {
+        Attribute::new(self.obj.downcast(), self.name.downcast())
     }
 }
 
@@ -1277,6 +1285,16 @@ impl ConstAccessor {
     pub fn subscr(obj: ConstExpr, index: ConstExpr) -> Self {
         Self::Subscr(ConstSubscript::new(obj, index))
     }
+
+    pub fn downcast(self) -> Accessor {
+        match self {
+            Self::Local(local) => Accessor::Ident(local.downcast()),
+            Self::Attr(attr) => Accessor::Attr(attr.downcast()),
+            // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downcast()),
+            // Self::Subscr(subscr) => Accessor::Subscr(subscr.downcast()),
+            _ => todo!(),
+        }
+    }
 }
 
 /// DictはキーつきArray(型としては別物)
@@ -1310,6 +1328,14 @@ impl ConstArray {
             guard: guard.map(Box::new),
         }
     }
+
+    pub fn downcast(self) -> Array {
+        Array::Normal(NormalArray::new(
+            self.l_sqbr,
+            self.r_sqbr,
+            self.elems.downcast(),
+        ))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1336,6 +1362,10 @@ impl ConstDict {
             attrs,
         }
     }
+
+    /*pub fn downcast(self) -> Dict {
+        Dict::Normal(NormalDict::new(self.l_brace, self.r_brace, self.attrs.downcast()))
+    }*/
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1362,6 +1392,10 @@ impl ConstBinOp {
             rhs: Box::new(rhs),
         }
     }
+
+    pub fn downcast(self) -> BinOp {
+        BinOp::new(self.op, self.lhs.downcast(), self.rhs.downcast())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1385,6 +1419,10 @@ impl ConstUnaryOp {
             op,
             expr: Box::new(expr),
         }
+    }
+
+    pub fn downcast(self) -> UnaryOp {
+        UnaryOp::new(self.op, self.expr.downcast())
     }
 }
 
@@ -1417,6 +1455,10 @@ impl ConstApp {
     pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self { acc, args }
     }
+
+    pub fn downcast(self) -> Call {
+        Expr::Accessor(self.acc.downcast()).call(self.args.downcast())
+    }
 }
 
 /// valid expression for an argument of polymorphic types
@@ -1441,6 +1483,20 @@ impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, Una
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
         matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
+    }
+
+    pub fn downcast(self) -> Expr {
+        match self {
+            Self::Lit(lit) => Expr::Lit(lit),
+            Self::Accessor(acc) => Expr::Accessor(acc.downcast()),
+            Self::App(app) => Expr::Call(app.downcast()),
+            Self::Array(arr) => Expr::Array(arr.downcast()),
+            // Self::Set(set) => Expr::Set(set.downcast()),
+            // Self::Dict(dict) => Expr::Dict(dict.downcast()),
+            Self::BinOp(binop) => Expr::BinOp(binop.downcast()),
+            Self::UnaryOp(unop) => Expr::UnaryOp(unop.downcast()),
+            _ => todo!(),
+        }
     }
 }
 
@@ -1564,6 +1620,22 @@ impl ConstArgs {
 
     pub fn push_kw(&mut self, arg: ConstKwArg) {
         self.kw_args.push(arg);
+    }
+
+    pub fn downcast(self) -> Args {
+        let (pos_args, kw_args, paren) = self.deconstruct();
+        Args::new(
+            pos_args
+                .into_iter()
+                .map(|arg| PosArg::new(arg.expr.downcast()))
+                .collect(),
+            kw_args
+                .into_iter()
+                // TODO t_spec
+                .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downcast()))
+                .collect(),
+            paren,
+        )
     }
 }
 
