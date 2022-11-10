@@ -2,3 +2,10 @@ f {x; y}, [_], (_, _) = x + y
 
 x = f {x = 1; y = 2}, [3], (4, 5)
 assert x == 3
+
+#[
+and: [Bool; 2] -> Bool
+and [True, t] = t
+and [_, _] = False
+assert and [True, True]
+]#
