@@ -41,7 +41,9 @@ assert (Int; 3) == (Int, Int, Int)
 これを等質化といいます。
 
 ```python
-(Int, Bool, Str) can be [T; 3] | T :> Int, T :> Bool, T :> Str
+homogenize rule
+
+* (X, Y, Z, ...) can be [T; N] if T :> X, T :> Y, T :> Z, ...
 ```
 
 ```python

@@ -82,6 +82,8 @@ zero_ = 0
 right(_, r) = r
 ```
 
+If not constrained by context, `_` is of type `Obj`.
+
 ### Variable length patterns
 
 It is used in combination with the tuple/array/record pattern described later.
