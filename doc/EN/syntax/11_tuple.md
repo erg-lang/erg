@@ -59,11 +59,13 @@ unit = ()
 (): ()
 ```
 
-Unit is a superclass of all element 0 tuples.
+Unit is a superclass of all tuples.
 
 ```python
-() > (Int; 0)
-() > (Str; 0)
+() :> (Int; 0)
+() :> (Str; 0)
+() :> (Int, Str)
+...
 ```
 
 The use of this object is for procedures with no arguments and no return value, etc. Erg subroutines must have arguments and a return value. However, in some cases, such as a procedure, there may be no meaningful arguments or return value, only side effects. In such cases, we use units as "meaningless, formal values.
@@ -73,44 +75,11 @@ The use of this object is for procedures with no arguments and no return value, 
 p!() =.
     # `print!` does not return a meaningful value
     print! "Hello, world!"
-p!: () => ()
+p!: () => () # The parameter part is part of the syntax, not a tuple
 ```
 
 However, Python tends to use `None` instead of units in such cases.
 In Erg, you should use `()` when you are sure from the beginning that the operation will not return a meaningful value, such as in a procedure, and return `None` when there is a possibility that the operation will fail and you will get nothing, such as when retrieving an element.
-
-## Arguments and Tuple
-
-Actually, all of Erg's `Callable` objects are one argument and one return value; a subroutine that takes N arguments was just receiving "one tuple with N elements" as an argument.
-
-```python
-# f x = ... is implicitly assumed to be f(x) = ... is considered to be
-f x = x
-assert f(1) == 1
-f(1, 2, 3) # ArgumentError: f takes 1 positional argument but 3 were given
-# ArgumentError: f takes 1 positional argument but 3 were given
-g x: Int, . . y: Int = y
-assert (2, 3) == g 1, 2, 3
-```
-
-This also explains the function type.
-
-```python
-assert f in T: {(T,) -> T | T}
-assert g in {(Int, ... (Int; N)) -> (Int; N) | N: Nat}
-```
-
-To be precise, the function's input is not a tuple but a "Named tuple with default attributes". This is a special tuple that can only be used in function arguments, can be named like a record, and can have a default value.
-
-```python
-f(x: Int, y=0) = x + y
-f: (Int, y=Int) -> Int
-
-f(x=0, y=1)
-f(y=1, x=0)
-f(x=0)
-f(0)
-```
 
 <p align='center'>
     <a href='./10_array.md'>Previous</a> | <a href='./12_dict.md'>Next</a>

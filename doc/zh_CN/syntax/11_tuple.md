@@ -61,11 +61,13 @@ unit = ()
 (): ()
 ```
 
-Unit 是所有元素 0 元组的父类
+Unit是所有图元的超级类
 
 ```python
 () > (Int; 0)
 () > (Str; 0)
+() :> (Int, Str)
+...
 ```
 
 该对象的用途是用于没有参数和没有返回值的过程等。Erg 子例程必须有参数和返回值。但是，在某些情况下，例如过程，可能没有有意义的参数或返回值，只有副作用。在这种情况下，我们将单位用作"无意义的正式值"
@@ -75,43 +77,11 @@ Unit 是所有元素 0 元组的父类
 p!() =.
     # `print!` does not return a meaningful value
     print! "Hello, world!"
-p!: () => ()
+p!: () => () # The parameter part is part of the syntax, not a tuple
 ```
 
 但是，在这种情况下，Python 倾向于使用"无"而不是单位
 在 Erg 中，当您从一开始就确定操作不会返回有意义的值(例如在过程中)时，您应该使用 `()`，并且当操作可能失败并且您可能会返回 `None` 将一无所获，例如在检索元素时
-
-## 参数和元组
-
-实际上，Erg 的所有 `Callable` 对象都是一个参数和一个返回值； 一个接受 N 个参数的子例程只是接收"一个具有 N 个元素的元组"作为参数
-
-```python
-# f x = ... 被隐式假设为 f(x) = ... 被认为是
-f x = x
-assert f(1) == 1
-f(1, 2, 3) # 参数错误: f 接受 1 个位置参数，但给出了 3 个
-g x: Int, . . y: Int = y
-assert (2, 3) == g 1, 2, 3
-```
-
-这也解释了函数类型
-
-```python
-assert f in T: {(T,) -> T | T}
-assert g in {(Int, ... (Int; N)) -> (Int; N) | N: Nat}
-```
-
-准确地说，函数的输入不是元组，而是"具有默认属性的命名元组"。这是一个特殊的元组，只能在函数参数中使用，可以像记录一样命名，并且可以有默认值
-
-```python
-f(x: Int, y=0) = x + y
-f: (Int, y=Int) -> Int
-
-f(x=0, y=1)
-f(y=1, x=0)
-f(x=0)
-f(0)
-```
 
 <p align='center'>
     <a href='./10_array.md'>上一页</a> | <a href='./12_dict.md'>下一页</a>

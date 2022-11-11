@@ -61,57 +61,26 @@ unit = ()
 (): ()
 ```
 
-Unit 是所有元素 0 元組的父類
+Unit是所有图元的超级类。
 
 ```python
-() > (Int; 0)
-() > (Str; 0)
+() :> (Int; 0)
+() :> (Str; 0)
+() :> (Int, Str)
+...
 ```
 
 該對象的用途是用于沒有參數和沒有返回值的過程等。Erg 子例程必須有參數和返回值。但是，在某些情況下，例如過程，可能沒有有意義的參數或返回值，只有副作用。在這種情況下，我們將單位用作"無意義的正式值"
 
 ```python
-# ↓ Actually, this parenthesis is a unit
-p!() =.
+p!() =
     # `print!` does not return a meaningful value
     print! "Hello, world!"
-p!: () => ()
+p!: () => () # The parameter part is part of the syntax, not a tuple
 ```
 
 但是，在這種情況下，Python 傾向于使用"無"而不是單位
 在 Erg 中，當您從一開始就確定操作不會返回有意義的值(例如在過程中)時，您應該使用 `()`，并且當操作可能失敗并且您可能會返回 `None` 將一無所獲，例如在檢索元素時
-
-## 參數和元組
-
-實際上，Erg 的所有 `Callable` 對象都是一個參數和一個返回值； 一個接受 N 個參數的子例程只是接收"一個具有 N 個元素的元組"作為參數
-
-```python
-# f x = ... 被隱式假設為 f(x) = ... 被認為是
-f x = x
-assert f(1) == 1
-f(1, 2, 3) # 參數錯誤: f 接受 1 個位置參數，但給出了 3 個
-g x: Int, . . y: Int = y
-assert (2, 3) == g 1, 2, 3
-```
-
-這也解釋了函數類型
-
-```python
-assert f in T: {(T,) -> T | T}
-assert g in {(Int, ... (Int; N)) -> (Int; N) | N: Nat}
-```
-
-準確地說，函數的輸入不是元組，而是"具有默認屬性的命名元組"。這是一個特殊的元組，只能在函數參數中使用，可以像記錄一樣命名，并且可以有默認值
-
-```python
-f(x: Int, y=0) = x + y
-f: (Int, y=Int) -> Int
-
-f(x=0, y=1)
-f(y=1, x=0)
-f(x=0)
-f(0)
-```
 
 <p align='center'>
     <a href='./10_array.md'>上一頁</a> | <a href='./12_dict.md'>下一頁</a>
