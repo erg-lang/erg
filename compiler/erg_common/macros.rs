@@ -400,7 +400,7 @@ macro_rules! log {
 
     (f $output: ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::RESET;
+            use $crate::color::{RESET, GREEN, RED};
             $crate::debug_info!($output);
             write!($output, $($arg)*).unwrap();
             write!($output, "{}", RESET).unwrap(); // color color anyway
@@ -410,7 +410,7 @@ macro_rules! log {
 
     (c $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::style::*;
+            use $crate::style::{RESET, GREEN, RED};
             $crate::debug_info!();
             print!("{}", $color);
             println!($($arg)*);
@@ -420,9 +420,9 @@ macro_rules! log {
 
     (f+c $output:ident, $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::style::*;
+            use $crate::style::{RESET, GREEN};
             $crate::debug_info!($output);
-            write!($output, "{}", $color).unwrap();
+            write!($output, "{}{}{}", $color, $($arg)*, RESET).unwrap();
             write!($output, $($arg)*).unwrap();
             write!($output, "{}", RESET).unwrap(); // reset color anyway
             $output.flush().unwrap();
