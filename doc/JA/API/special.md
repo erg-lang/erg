@@ -56,7 +56,6 @@ if True, do:
 ## `.`(obj, attr)
 
 objの属性を読み込む。
-`x.[y, z]`とすると、xのyとzという属性を配列にして返す。
 
 ## `|>`(obj, c: Callable)
 
