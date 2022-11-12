@@ -22,6 +22,8 @@ traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
 ]
+unicode = ["erg_common/unicode"]
+pretty = ["erg_common/pretty"]
 
 [dependencies]
 erg_common = { version = "0.5.11", path = "../erg_common" }

@@ -115,14 +115,38 @@ impl Characters {
         };
         mark.to_string()
     }
+    #[cfg(not(feature = "unicode"))]
     pub fn left_bottom_line(&self) -> String {
         format!(" {}{} ", self.lbot, self.line)
     }
 
+    #[cfg(feature = "unicode")]
+    pub fn left_bottom_line(&self) -> String {
+        format!("{}{} ", self.lbot, self.line)
+    }
+    #[cfg(not(feature = "pretty"))]
     pub fn error_kind_format(&self, kind: &str, err_num: usize) -> String {
         const PADDING: usize = 4;
         format!("{kind}{}#{err_num:>0PADDING$}{}", self.lbrac, self.rbrac,)
     }
+
+    #[cfg(feature = "pretty")]
+    pub fn error_kind_format(&self, kind: &str, err_num: usize) -> String {
+        const PADDING: usize = 4;
+        let emoji = if kind == "Error" {
+            "🚫"
+        } else if kind == "Warning" {
+            "⚠"
+        } else {
+            "😱"
+        };
+        format!(
+            "{emoji} {kind}{}#{err_num:>0PADDING$}{}",
+            self.lbrac, self.rbrac,
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
     pub colors: ThemeColors,
@@ -160,6 +184,7 @@ pub const THEME: Theme = Theme {
     characters: CHARS,
 };
 
+#[cfg(not(feature = "unicode"))]
 pub const CHARS: Characters = Characters {
     hat: '-',
     line: '-',
@@ -170,12 +195,35 @@ pub const CHARS: Characters = Characters {
     lbrac: '[',
     rbrac: ']',
 };
+
+#[cfg(feature = "unicode")]
+pub const CHARS: Characters = Characters {
+    hat: '-',
+    line: '─',
+    vbar: '│',
+    wave: '~',
+    lbot: '╰',
+    vbreak: '·',
+    lbrac: '[',
+    rbrac: ']',
+};
+
+#[cfg(not(feature = "pretty"))]
 pub const COLORS: ThemeColors = ThemeColors {
     error: Color::Red,
     warning: Color::Yellow,
     exception: Color::Magenta,
     gutter: Color::Cyan,
     hint: Color::Green,
+};
+
+#[cfg(feature = "pretty")]
+pub const COLORS: ThemeColors = ThemeColors {
+    error: Color::CustomRed,
+    warning: Color::CustomYellow,
+    exception: Color::CustomMagenta,
+    gutter: Color::CustomCyan,
+    hint: Color::CustomGreen,
 };
 
 #[derive(Debug)]
