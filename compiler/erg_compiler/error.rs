@@ -1791,3 +1791,128 @@ pub type SingleCompileResult<T> = Result<T, CompileError>;
 pub type CompileResult<T> = Result<T, CompileErrors>;
 pub type CompileWarning = CompileError;
 pub type CompileWarnings = CompileErrors;
+
+#[cfg(test)]
+mod test {
+
+    use erg_common::{config::Input, error::Location};
+
+    use crate::ty::Type;
+
+    use super::TyCheckError;
+
+    #[test]
+    fn default_arg_error_test() {
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 5,
+        };
+        let input = Input::Pipe("a = 1".to_string());
+        let caused_by = "File name here basically";
+        let desc = "Some kinds of error description here";
+        let hint = Some("Some hint massage here\n".into());
+
+        let err = TyCheckError::syntax_error(input, 0, loc, caused_by.into(), desc, hint);
+        print!("{}", err);
+
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 24,
+            ln_end: 1,
+            col_end: 27,
+        };
+        let input = Input::Pipe("Person = Class { name = Str }".to_string());
+        let caused_by = "File name here basically";
+        let err = TyCheckError::args_missing_error(
+            input,
+            0,
+            loc,
+            "\"Callee name here\"",
+            caused_by.into(),
+            0,
+            vec!["sample".into(), "args".into(), "here".into()],
+        );
+        print!("{}", err);
+
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 3,
+            col_end: 5,
+        };
+        let input = Input::Pipe(
+            "\
+if True:
+    sample
+    end
+"
+            .to_string(),
+        );
+        let caused_by = "File name here basically";
+        let err = TyCheckError::args_missing_error(
+            input,
+            0,
+            loc,
+            "\"Callee name here\"",
+            caused_by.into(),
+            0,
+            vec!["sample".into(), "args".into(), "here".into()],
+        );
+        print!("{}", err);
+
+        let loc = Location::RangePair {
+            ln_first: (1, 2),
+            col_first: (0, 1),
+            ln_second: (4, 4),
+            col_second: (9, 10),
+        };
+        let input = Input::Pipe(
+            "\
+a: Nat = 1
+a.ownership_is_moved()
+
+function(a)
+"
+            .to_string(),
+        );
+        let err = TyCheckError::checker_bug(input, 0, loc, "file_name", 0);
+        print!("{}", err);
+
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 3,
+        };
+        let input = Input::Pipe("add(x, y):Nat = x - y".to_string());
+        let err = TyCheckError::checker_bug(input, 0, loc, "file_name", 0);
+        print!("{}", err);
+
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 11,
+            ln_end: 1,
+            col_end: 14,
+        };
+        let expect = Type::Nat;
+        let found = Type::Obj;
+        let input = Input::Pipe("add(x, y): Nat = x - y".to_string());
+        let caused_by = "File name here basically";
+        let err = TyCheckError::return_type_error(
+            input,
+            0,
+            loc,
+            caused_by.into(),
+            "name",
+            &expect,
+            &found,
+        );
+        print!("{}", err);
+
+        let input = Input::Pipe("Dummy code here".to_string());
+        let err = TyCheckError::unreachable(input, "file name here", 1);
+        print!("{}", err);
+    }
+}

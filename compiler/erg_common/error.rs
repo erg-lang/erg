@@ -222,23 +222,72 @@ impl From<&str> for ErrorKind {
     }
 }
 
-/// points the location (of an error) in a code
+///
+/// Points the location (of an error) in a code.
+/// The beginning and end of each row and column where the error occurred.
+/// Basically, the beginning and end of each row and column where the error occurred is kept.
+///
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Location {
+    ///
+    /// Error used when the error is caused by a discrepancy with a code on another line
+    ///
+    /// # Example
+    ///
+    /// Ownership error
+    ///
+    /// ```
+    /// a: Nat = 1
+    /// a.consume_ownership() // move occurs
+    ///
+    /// function(a) // borrowed after moved
+    /// ```
+    ///
+    /// `a` moves ownership in a method(or function) that are defined and consume it.
+    ///
+    /// ```
+    /// Location::RangePair {
+    ///     ln_first: (2, 2),
+    ///     col_first: (0, 1),
+    ///     ln_second: (4, 4),
+    ///     col_second: (9, 10),
+    /// }
+    /// ```
+    ///
     RangePair {
         ln_first: (usize, usize),
         col_first: (usize, usize),
         ln_second: (usize, usize),
         col_second: (usize, usize),
     },
+    ///
+    /// Location used for basic errors
+    /// ```
+    /// // erg
+    /// a = 1
+    /// a = 2
+    /// // Value assigned to the structure
+    /// Location::Range {
+    ///    ln_begin: 2,
+    ///    col_begin: 0,
+    ///    ln_end: 2,
+    ///    col_end: 1,
+    /// }
+    /// ```
+    ///
     Range {
         ln_begin: usize,
         col_begin: usize,
         ln_end: usize,
         col_end: usize,
     },
+    /// Used for loss of location information when desugared.
+    /// If there are guaranteed to be multiple rows
     LineRange(usize, usize),
+    /// Used when Location information is lost when desugared
+    /// If it is guaranteed to be a single line
     Line(usize),
+    /// Used by default in case of loss of Location information
     #[default]
     Unknown,
 }
@@ -320,8 +369,8 @@ impl Location {
     }
 }
 
-/// Erg内で使われるエラーの共通部分
-/// 使用する場合は必ずwrapすること
+/// In Erg, common parts used by error.
+/// Must be wrap when to use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorCore {
     pub errno: usize,
@@ -443,19 +492,26 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 }
 
 /// format:
-/// ```console
+/// ```
 /// Error[#{.errno}]: File {file}, line {.loc (as line)}, in {.caused_by}
 /// {.loc (as line)}| {src}
 /// {pointer}
 /// {.kind}: {.desc}
+///
+/// {.hint}
+///
 /// ```
 ///
 /// example:
-/// ```console
-/// Error[#12]: File <stdin>, line 1, in <module>
-/// 1| 100 = i
-///    ^^^
-/// SyntaxError: cannot assign to 100
+/// ```
+/// Error[#2223]: File <stdin>, line 1, in <module>
+///
+/// 1 | 100 = i
+///     ---
+///       ╰─ SyntaxError: cannot assign to 100
+///
+/// hint: hint message here
+///
 /// ```
 pub trait ErrorDisplay {
     fn core(&self) -> &ErrorCore;
@@ -500,6 +556,7 @@ pub trait ErrorDisplay {
             Some(Attribute::Bold),
         );
 
+        //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
         if let Some(hint) = self.core().hint.as_ref() {
             let (hint_color, _) = theme.hint();
             let mut hints = StringSpans::default();
@@ -606,6 +663,8 @@ pub trait ErrorDisplay {
         chars: &Characters,
     ) -> String {
         match self.core().loc {
+            // TODO: Current implementation does not allow for multiple descriptions of errors to be given at each location
+            // In the future, this will be implemented in a different structure that can handle multiple lines and multiple files
             Location::RangePair {
                 ln_first,
                 col_first,
@@ -622,6 +681,7 @@ pub trait ErrorDisplay {
                     chars,
                     mark,
                 ) +
+                "\n" // TODO: dealing with error chains
                     + &format_context(
                         self,
                         ln_second.0,

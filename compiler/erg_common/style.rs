@@ -115,15 +115,20 @@ impl Characters {
         };
         mark.to_string()
     }
+
+    // "`-"
     #[cfg(not(feature = "unicode"))]
     pub fn left_bottom_line(&self) -> String {
         format!(" {}{} ", self.lbot, self.line)
     }
 
+    // `╰─`
     #[cfg(feature = "unicode")]
     pub fn left_bottom_line(&self) -> String {
         format!("{}{} ", self.lbot, self.line)
     }
+
+    // kind[padded error number]
     #[cfg(not(feature = "pretty"))]
     pub fn error_kind_format(&self, kind: &str, err_num: usize) -> String {
         const PADDING: usize = 4;
@@ -226,6 +231,17 @@ pub const COLORS: ThemeColors = ThemeColors {
     hint: Color::CustomGreen,
 };
 
+///
+/// StrSpan is for const color adn attribute &str.
+/// It is an immutable string.
+/// # Example
+/// ```
+///const URL: StrSpan = StrSpan::new(
+///    "https://github.com/erg-lang/erg",
+///    Some(Color::White),
+///    Some(Attribute::Underline),
+///);
+/// ```
 #[derive(Debug)]
 pub struct StrSpan<'a> {
     span: &'a str,
@@ -267,6 +283,11 @@ impl std::fmt::Display for StrSpan<'_> {
         }
     }
 }
+
+///
+/// `StringSpan` is for coloring and attribute text.
+/// String, Color(&str) and Attribute(&str)
+///
 #[derive(Debug)]
 pub struct StringSpan {
     span: String,
@@ -283,6 +304,16 @@ impl StringSpan {
         }
     }
 
+    ///
+    /// Methods for pushing additional &str for strings that already have attributes or colors.
+    ///
+    /// # Example
+    /// ```
+    /// let mut span = StringSpan::new("sample text", None, Attribute::Underline);
+    /// span.push_str("\n");
+    /// span.push_str("Next break line text");
+    /// println!("{span}"); // Two lines of text underlined are displayed
+    /// ```
     pub fn push_str(&mut self, s: &str) {
         self.span.push_str(s);
     }
@@ -307,12 +338,45 @@ impl std::fmt::Display for StringSpan {
     }
 }
 
+///
+/// `StringSpans` is vector of `StringSpan` and almost the same as Vec\<String\>.
+/// It is possible to change the color and attribute of each String.
+/// That's why, if you don't change any color or attribute, you should use 'StringSpan' not `StringSpans`
+///
+/// # Example
+/// ```
+/// let mut spans = StringSpans::default();
+/// spans.push_srt("Default color is gray, ");
+/// spans.push_str_with_color("and it is possible to color text.\n", Color::Red);
+/// spans.push_str("Basically, this `StringSpans` is one sentence, ");
+/// spans.push_str_with_color("so if you want to multiline sentences, you need to add `\n`.", Color::Magenta);
+/// println!("{}", spans); // Pushed colored text are displayed
+/// ```
+/// Basically,initialize by default with mutable.
+/// Then, &str(s) are pushed to the Vec, specifying colors or attributes.
+///
 #[derive(Debug, Default)]
 pub struct StringSpans {
     spans: Vec<StringSpan>,
 }
 
 impl StringSpans {
+    ///
+    /// It is possible push &str type with gray color to Vector.
+    ///
+    ///  # Example
+    /// ```
+    /// let mut spans = StringSpans::default()
+    /// spans.push_str("sample text");
+    /// spans.push_str("\n");
+    /// spans.push_str("new text here");
+    /// println!("{}", spans);
+    ///  /*
+    ///     sample text
+    ///     new text here
+    ///  */
+    ///
+    /// ```
     pub fn push_str(&mut self, s: &str) {
         if self.is_same_color(Color::Gray) {
             self.spans.last_mut().unwrap().span.push_str(s);
@@ -321,6 +385,18 @@ impl StringSpans {
         }
     }
 
+    ///
+    /// It is possible to push &str type with specify color to Vector.
+    ///
+    /// # Example
+    /// ```
+    /// let mut spans = StringSpans::default();
+    /// spans.push_str_with_color("Cyan color text", Color::Cyan);
+    /// spans.push_str_with_color("Red color text", Color::Red);
+    /// spans.push_str_with_color(", pushed texts become a single String.", Color::Yellow);
+    /// spans.push_str_with_color("\n If you want to add break lines, you should add `\n`.", Color::Magenta);
+    /// println!("{}", spans);
+    /// ``
     pub fn push_str_with_color(&mut self, s: &str, color: Color) {
         if self.is_same_color(color) {
             self.spans.last_mut().unwrap().span.push_str(s);
@@ -329,6 +405,18 @@ impl StringSpans {
         }
     }
 
+    ///
+    /// Text can be pushed color and attribute to Vector.
+    /// When color or attribute are different, it will be pushed as different String.
+    ///
+    /// # Example
+    /// ```
+    /// let mut spans = StringSpans::default();
+    /// spans.push_str_with_color_and_attribute("Magenta and bold text\n", Color::Magenta, Attribute::Bold);
+    /// spans.push_str_with_color_and_attribute("White and underlined text", Color::White, Attribute::Underline);
+    /// spans.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
+    /// println!("{}", spans);
+    /// ```
     pub fn push_str_with_color_and_attribute(&mut self, s: &str, color: Color, attr: Attribute) {
         if self.is_same_color(color) && self.is_same_attribute(attr) {
             self.spans.last_mut().unwrap().span.push_str(s);
@@ -367,19 +455,58 @@ impl std::fmt::Display for StringSpans {
 mod tests {
     use super::*;
     #[test]
-    fn colorings_fg() {
-        println!("{DEEP_RED}Hello{RESET}, {RED}World{RESET}");
-        println!("{DEEP_GREEN}Hello{RESET}, {GREEN}World{RESET}");
-        println!("{YELLOW}Hello{RESET}, {DEEP_YELLOW}World{RESET}");
-        println!("{DEEP_BLUE}Hello{RESET}, {BLUE}World{RESET}");
-        println!("{CYAN}Hello{RESET}, {DEEP_CYAN}World{RESET}");
-        println!("{MAGENTA}Hello{RESET}, {DEEP_MAGENTA}World{RESET}");
+    fn text_fg_colorings() {
+        println!("{YELLOW}Hello{RESET}, {RED}World{RESET}");
+        println!("{BLUE}Hello{RESET}, {GREEN}World{RESET}");
+        println!("{MAGENTA}Hello{RESET}, {BLACK}World{RESET}");
         println!("{GRAY}Hello{RESET}, {WHITE}World{RESET}");
+        println!("{CUSTOM_BLUE}Hello{RESET}, {CUSTOM_CYAN}World{RESET}");
+        println!("{CUSTOM_GRAY}Hello{RESET}, {CUSTOM_GREEN}World{RESET}");
+        println!("{CUSTOM_MAGENTA}Hello{RESET}, {CUSTOM_RED}World{RESET}");
+        println!("{CUSTOM_YELLOW}Hello{RESET}");
     }
 
     #[test]
-    fn style_test() {
-        println!("{BOLD}bold{ATT_RESET}");
-        println!("{UNDERLINE}UNDERLINED{ATT_RESET}");
+    fn text_attribute() {
+        println!("{BOLD}bold{ATTR_RESET}");
+        println!("{UNDERLINE}UNDERLINED{ATTR_RESET}");
+    }
+
+    #[test]
+    fn str_spans_test() {
+        let mut spans = StringSpans::default();
+        spans.push_str("Gray is default color\n");
+        spans.push_str("If you specify the color, ");
+        spans.push_str("you should use `push_str_with_color()`\n");
+
+        spans.push_str_with_color(
+            "It is possible to change text foreground color...\n",
+            Color::White,
+        );
+        spans.push_str_with_color("Cyan color text, ", Color::Cyan);
+        spans.push_str_with_color("Black color text, ", Color::Black);
+        spans.push_str_with_color("Blue color text, ", Color::Blue);
+        spans.push_str_with_color("Red color text, ", Color::Red);
+        spans.push_str_with_color("pushed texts become a String.", Color::Yellow);
+        spans.push_str_with_color(
+            "\nIf you want to add break lines, you should add `\\n`.\n",
+            Color::Magenta,
+        );
+
+        spans.push_str_with_color(
+            "It is also possible to change text attribute...\n",
+            Color::White,
+        );
+        spans.push_str_with_color_and_attribute(
+            "Green and bold text\n",
+            Color::Green,
+            Attribute::Bold,
+        );
+        spans.push_str_with_color_and_attribute(
+            "White and underlined text",
+            Color::White,
+            Attribute::Underline,
+        );
+        println!("{}", spans);
     }
 }
