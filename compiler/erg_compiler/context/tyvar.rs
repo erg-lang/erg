@@ -686,8 +686,11 @@ impl Context {
                                 self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t =
-                                self.deref_tyvar(mem::take(&mut subr.t), Covariant, subr.loc())?;
+                            *subr.ref_mut_t() = self.deref_tyvar(
+                                mem::take(subr.ref_mut_t()),
+                                Covariant,
+                                subr.loc(),
+                            )?;
                         }
                     }
                     for chunk in attr.body.block.iter_mut() {
@@ -738,8 +741,11 @@ impl Context {
                                 self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
                         }
                         hir::Signature::Subr(subr) => {
-                            subr.t =
-                                self.deref_tyvar(mem::take(&mut subr.t), Covariant, subr.loc())?;
+                            *subr.ref_mut_t() = self.deref_tyvar(
+                                mem::take(subr.ref_mut_t()),
+                                Covariant,
+                                subr.loc(),
+                            )?;
                         }
                     }
                     for chunk in def.body.block.iter_mut() {

@@ -155,9 +155,7 @@ impl Runnable for DummyVM {
                     .to_string(),
             );
             if let Some(Expr::Def(def)) = last {
-                res.push_str(&format!(" ({}: ", def.sig.ident()));
-                res.push_str(&def.sig.t().to_string());
-                res.push(')');
+                res.push_str(&format!(" ({})", def.sig.ident()));
             }
         }
         Ok(res)

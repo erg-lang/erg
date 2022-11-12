@@ -988,8 +988,9 @@ impl ASTLowerer {
                             id,
                             found_body_t,
                         )?;
-                        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                        let sig = hir::SubrSignature::new(ident, params, t);
+                        let mut ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                        ident.vi.t = t;
+                        let sig = hir::SubrSignature::new(ident, params);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1019,7 +1020,7 @@ impl ASTLowerer {
                 );
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, params, Type::Failure);
+                let sig = hir::SubrSignature::new(ident, params);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
