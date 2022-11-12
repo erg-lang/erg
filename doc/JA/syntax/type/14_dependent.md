@@ -74,6 +74,36 @@ MyArray(T, N) = Inherit [T; N]
 # .arrayと連動してself: Self(T, N)の型が変わる
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+
+## 実体指定
+
+動的配列`arr: [T; !N]`について、処理を進めていくうちに`N`の情報が失われてしまったとします。
+この情報は`assert arr.__len__() == X`とすることで回復させることができます。
+
+```erg
+arr: [Int; !_]
+assert arr.__len__() == 3
+arr: [Int; !3]
+```
+
+これは型パラメータの __実体指定__ によって可能となっています。配列型`Array(T, N)`は以下のように定義されています。
+
+```erg
+Array T <-> Union Self.map(x -> Typeof x), N <-> Self.__len__() = ...
+```
+
+`<->`は依存型のパラメータのみで使える特別な記号で、そのパラメータに対する実体を指示します。実体であるところの右辺式は、コンパイル時に計算可能でなくても構いません。コンパイル時情報である`N`と実行時情報である`Self.__len__()`が実体指定を通してリンクされる訳です。
+実体指定に沿った方法でassertionが行われると、型パラメータの情報が復活します。すなわち、`assert arr.__len__() == N`とすると`N`の情報が復活します。ただしこの場合の`N`はコンパイル時計算可能でなくてはなりません。
+実体指定は`assert`以外に`match`でも活用されます。
+
+```erg
+arr: [Obj; _]
+match! arr:
+    pair: [Obj; 2] => ...
+    ints: [Int; _] => ...
+    _ => ...
+```
+
 <p align='center'>
     <a href='./13_algebraic.md'>Previous</a> | <a href='./15_quantified.md'>Next</a>
 </p>
