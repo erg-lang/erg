@@ -4,7 +4,7 @@ use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::set::Set;
-use erg_common::style::{GREEN, RED, RESET, YELLOW};
+use erg_common::style::{Attribute, Color, StrSpan, StringSpan, Theme, THEME};
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{
@@ -112,6 +112,7 @@ pub struct CompileError {
     pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,
     pub caused_by: AtomicStr,
+    pub theme: Theme,
 }
 
 impl_display_and_error!(CompileError);
@@ -122,6 +123,7 @@ impl From<ParserRunnerError> for CompileError {
             core: Box::new(err.core),
             input: err.input,
             caused_by: "".into(),
+            theme: THEME,
         }
     }
 }
@@ -133,6 +135,9 @@ impl ErrorDisplay for CompileError {
     fn input(&self) -> &Input {
         &self.input
     }
+    fn theme(&self) -> &Theme {
+        &self.theme
+    }
     fn caused_by(&self) -> &str {
         &self.caused_by
     }
@@ -141,12 +146,19 @@ impl ErrorDisplay for CompileError {
     }
 }
 
+const URL: StrSpan = StrSpan::new(
+    "https://github.com/erg-lang/erg",
+    Some(Color::White),
+    Some(Attribute::Underline),
+);
+
 impl CompileError {
     pub fn new(core: ErrorCore, input: Input, caused_by: AtomicStr) -> Self {
         Self {
             core: Box::new(core),
             input,
             caused_by,
+            theme: THEME,
         }
     }
 
@@ -163,10 +175,10 @@ impl CompileError {
                 CompilerSystemError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
-                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给{URL}\n\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給{URL}\n\n原因來自: {fn_name}:{line}"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\n\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
             ),
@@ -189,16 +201,16 @@ impl CompileError {
                 loc,
                 switch_lang!(
                     "japanese" => format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
-                            これはコンパイラのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n\
+                            これはコンパイラのバグです、開発者に報告して下さい ({URL})\n\
                             {fn_name}より発生"),
                 "simplified_chinese" => format!("堆栈中的元素数无效（元素数: {stack_len}，块id: {block_id}）\n\
-                            这是 Erg 编译器的一个错误，请报告它 (https://github.com/erg-lang/erg)\n\
+                            这是 Erg 编译器的一个错误，请报告它 ({URL})\n\
                             起因于: {fn_name}"),
                 "traditional_chinese" => format!("堆棧中的元素數無效（元素數: {stack_len}，塊id: {block_id}）\n\
-                            這是 Erg 編譯器的一個錯誤，請報告它 (https://github.com/erg-lang/erg)\n\
+                            這是 Erg 編譯器的一個錯誤，請報告它 ({URL})\n\
                             起因於: {fn_name}"),
                     "english" => format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
-                            this is a bug of the Erg compiler, please report it (https://github.com/erg-lang/erg)\n\
+                            this is a bug of the Erg compiler, please report it ({URL})\n\
                             caused from: {fn_name}"),
                 ),
                 None,
@@ -249,6 +261,10 @@ impl CompileError {
 
 pub type TyCheckError = CompileError;
 
+const ERR: Color = THEME.colors.error;
+const WARNING: Color = THEME.colors.warning;
+const HINT: Color = THEME.colors.hint;
+
 impl TyCheckError {
     pub fn dummy(input: Input, errno: usize) -> Self {
         Self::new(ErrorCore::dummy(errno), input, "".into())
@@ -271,10 +287,10 @@ impl TyCheckError {
                 CompilerSystemError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
-                    "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给{URL}\n\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給{URL}\n\n原因來自: {fn_name}:{line}"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\n\ncaused from: {fn_name}:{line}"),
                 ),
                 None,
             ),
@@ -361,16 +377,23 @@ impl TyCheckError {
             ),
             None => "".into(),
         };
+        let name = StringSpan::new(
+            &format!("{}{}", name, ord),
+            Some(WARNING),
+            Some(Attribute::Bold),
+        );
+        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{ord}{RESET}の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "与えられた型の単一化候補:\n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "simplified_chinese" => format!("{YELLOW}{name}{ord}{RESET}的类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一类型的统一候选: \n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "traditional_chinese" => format!("{YELLOW}{name}{ord}{RESET}的類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "某一類型的統一候選\n", candidates, |x: &Set<Type>| x.folded_display())),
-                    "english" => format!("the type of {YELLOW}{name}{ord}{RESET} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}\n{}", fmt_option_map!(pre "unification candidates of a given type:\n", candidates, |x: &Set<Type>| x.folded_display())),
+                    "japanese" => format!("{name}の型が違います\n\n予期した型: {expect}\n与えられた型: {found}{}", fmt_option_map!(pre "\n与えられた型の単一化候補: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "simplified_chinese" => format!("{name}的类型不匹配\n\n预期: {expect}\n但找到: {found}{}", fmt_option_map!(pre "\n某一类型的统一候选: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "traditional_chinese" => format!("{name}的類型不匹配\n\n預期: {expect}\n但找到: {found}{}", fmt_option_map!(pre "\n某一類型的統一候選: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "english" => format!("the type of {name} is mismatched\n\nexpected: {expect}\nbut found: {found}{}", fmt_option_map!(pre "\nunification candidates of a given type: ", candidates, |x: &Set<Type>| x.folded_display())),
                 ),
                 hint,
             ),
@@ -388,16 +411,18 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
+        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}の戻り値の型が違います。\n予期した型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{name}的返回类型不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{name}的返回類型不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "english" => format!("the return type of {name} is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                    "japanese" => format!("{name}の戻り値の型が違います\n\n予期した型: {expect}\n与えられた型: {found}"),
+                    "simplified_chinese" => format!("{name}的返回类型不匹配\n\n预期: {expect}\n但找到: {found}"),
+                    "traditional_chinese" => format!("{name}的返回類型不匹配\n\n預期: {expect}\n但找到: {found}"),
+                    "english" => format!("the return type of {name} is mismatched\n\nexpected: {expect}\nbut found: {found}"),
                 ),
                 None,
             ),
@@ -440,16 +465,18 @@ impl TyCheckError {
         expect: usize,
         found: usize,
     ) -> Self {
+        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("ポジショナル引数の数が違います。\n予期した個数: {GREEN}{expect}{RESET}\n与えられた個数: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("正则参数的数量不匹配: \n预期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("正則參數的數量不匹配: \n預期: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "english" => format!("the number of positional arguments is mismatched:\nexpected:  {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                    "japanese" => format!("ポジショナル引数の数が違います\n\n予期した個数: {expect}\n与えられた個数: {found}"),
+                    "simplified_chinese" => format!("正则参数的数量不匹配\n\n预期: {expect}\n但找到: {found}"),
+                    "traditional_chinese" => format!("正則參數的數量不匹配\n\n預期: {expect}\n但找到: {found}"),
+                    "english" => format!("the number of positional arguments is mismatched\n\nexpected:  {expect}\nbut found: {found}"),
                 ),
                 None,
             ),
@@ -528,6 +555,21 @@ impl TyCheckError {
         kw_args_len: usize,
     ) -> Self {
         let name = readable_name(callee_name);
+        let expect = StringSpan::new(
+            &format!("{}", params_len),
+            Some(HINT),
+            Some(Attribute::Bold),
+        );
+        let pos_args_len = StringSpan::new(
+            &format!("{}", pos_args_len),
+            Some(ERR),
+            Some(Attribute::Bold),
+        );
+        let kw_args_len = StringSpan::new(
+            &format!("{}", kw_args_len),
+            Some(ERR),
+            Some(Attribute::Bold),
+        );
         Self::new(
             ErrorCore::new(
                 errno,
@@ -536,27 +578,29 @@ impl TyCheckError {
                 switch_lang!(
                     "japanese" => format!(
                         "{name}に渡された引数の数が多すぎます
-必要な引数の合計数: {GREEN}{params_len}{RESET}個
-渡された引数の数:   {RED}{pos_args_len}{RESET}個
-キーワード引数の数: {RED}{kw_args_len}{RESET}個"
+
+必要な引数の合計数: {expect}個
+渡された引数の数:   {pos_args_len}個
+キーワード引数の数: {kw_args_len}個"
                     ),
                     "simplified_chinese" => format!("传递给{name}的参数过多
-                    所需参数总数: {GREEN}{params_len}{RESET}
-                    传递的参数数量: {RED}{pos_args_len}{RESET}
-                    关键字参数的数量: {RED}{kw_args_len}{RESET}
-                    "
+
+: {expect}
+: {pos_args_len}
+: {kw_args_len}"
                     ),
                     "traditional_chinese" => format!("傳遞給{name}的參數過多
-                    所需參數總數: {GREEN}{params_len}{RESET}
-                    傳遞的參數數量: {RED}{pos_args_len}{RESET}
-                    關鍵字參數的數量: {RED}{kw_args_len}{RESET}
-                    "
+
+所需參數總數: {expect}
+遞的參數數量: {pos_args_len}
+字參數的數量: {kw_args_len}"
                     ),
                     "english" => format!(
-                        "too many arguments for {name}:
-total expected params:  {GREEN}{params_len}{RESET}
-passed positional args: {RED}{pos_args_len}{RESET}
-passed keyword args:    {RED}{kw_args_len}{RESET}"
+                        "too many arguments for {name}
+
+total expected params:  {expect}
+passed positional args: {pos_args_len}
+passed keyword args:    {kw_args_len}"
                     ),
                 ),
                 None,
@@ -576,16 +620,21 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         missing_params: Vec<Str>,
     ) -> Self {
         let name = readable_name(callee_name);
+        let vec_cxt = StringSpan::new(
+            &fmt_vec(&missing_params),
+            Some(WARNING),
+            Some(Attribute::Bold),
+        );
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}に渡された引数が{missing_len}個足りません({YELLOW}{}{RESET})。", fmt_vec(&missing_params)),
-                    "simplified_chinese" => format!("{name}的{missing_len}个位置参数不被传递。({YELLOW}{}{RESET})。", fmt_vec(&missing_params)),
-                    "traditional_chinese" => format!("{name}的{missing_len}個位置參數不被傳遞。({YELLOW}{}{RESET})。", fmt_vec(&missing_params)),
-                    "english" => format!("missing {missing_len} positional argument(s) for {name}: {YELLOW}{}{RESET}", fmt_vec(&missing_params)),
+                    "japanese" => format!("{name}に渡された引数が{missing_len}個足りません({vec_cxt})" ),
+                    "simplified_chinese" => format!("{name}的{missing_len}个位置参数不被传递({vec_cxt})"),
+                    "traditional_chinese" => format!("{name}的{missing_len}個位置參數不被傳遞({vec_cxt})"),
+                    "english" => format!("missing {missing_len} positional argument(s) for {name}: {vec_cxt}"),
                 ),
                 None,
             ),
@@ -603,16 +652,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         arg_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
+        let found = StringSpan::new(arg_name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}の引数{RED}{arg_name}{RESET}が複数回渡されています"),
-                    "simplified_chinese" => format!("{name}的参数{RED}{arg_name}{RESET}被多次传递"),
-                    "traditional_chinese" => format!("{name}的參數{RED}{arg_name}{RESET}被多次傳遞"),
-                    "english" => format!("{name}'s argument {RED}{arg_name}{RESET} is passed multiple times"),
+                    "japanese" => format!("{name}の引数{found}が複数回渡されています"),
+                    "simplified_chinese" => format!("{name}的参数{found}被多次传递"),
+                    "traditional_chinese" => format!("{name}的參數{found}被多次傳遞"),
+                    "english" => format!("{name}'s argument {found} is passed multiple times"),
                 ),
                 None,
             ),
@@ -630,16 +680,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         param_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
+        let found = StringSpan::new(param_name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}には予期しないキーワード引数{RED}{param_name}{RESET}が渡されています"),
-                    "simplified_chinese" => format!("{name}得到了意外的关键字参数{RED}{param_name}{RESET}"),
-                    "traditional_chinese" => format!("{name}得到了意外的關鍵字參數{RED}{param_name}{RESET}"),
-                    "english" => format!("{name} got unexpected keyword argument {RED}{param_name}{RESET}"),
+                    "japanese" => format!("{name}には予期しないキーワード引数{found}が渡されています"),
+                    "simplified_chinese" => format!("{name}得到了意外的关键字参数{found}"),
+                    "traditional_chinese" => format!("{name}得到了意外的關鍵字參數{found}"),
+                    "english" => format!("{name} got unexpected keyword argument {found}"),
                 ),
                 None,
             ),
@@ -656,16 +707,18 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
+        let lhs_t = StringSpan::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
+        let rhs_t = StringSpan::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("型の単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
-                    "simplified_chinese" => format!("类型统一失败: \n左边: {YELLOW}{lhs_t}{RESET}\n右边: {YELLOW}{rhs_t}{RESET}"),
-                    "traditional_chinese" => format!("類型統一失敗: \n左邊: {YELLOW}{lhs_t}{RESET}\n右邊: {YELLOW}{rhs_t}{RESET}"),
-                    "english" => format!("unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
+                    "japanese" => format!("型の単一化に失敗しました\n\n左辺: {lhs_t}\n右辺: {rhs_t}"),
+                    "simplified_chinese" => format!("类型统一失败\n\n左边: {lhs_t}\n右边: {rhs_t}"),
+                    "traditional_chinese" => format!("類型統一失敗\n\n左邊: {lhs_t}\n右邊: {rhs_t}"),
+                    "english" => format!("unification failed\n\nlhs: {lhs_t}\nrhs: {rhs_t}"),
                 ),
                 None,
             ),
@@ -682,16 +735,18 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
+        let lhs_t = StringSpan::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
+        let rhs_t = StringSpan::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("型の再単一化に失敗しました:\n左辺: {YELLOW}{lhs_t}{RESET}\n右辺: {YELLOW}{rhs_t}{RESET}"),
-                    "simplified_chinese" => format!("重新统一类型失败: \n左边: {YELLOW}{lhs_t}{RESET}\n右边: {YELLOW}{rhs_t}{RESET}"),
-                    "traditional_chinese" => format!("重新統一類型失敗: \n左邊: {YELLOW}{lhs_t}{RESET}\n右邊: {YELLOW}{rhs_t}{RESET}"),
-                    "english" => format!("re-unification failed:\nlhs: {YELLOW}{lhs_t}{RESET}\nrhs: {YELLOW}{rhs_t}{RESET}"),
+                    "japanese" => format!("型の再単一化に失敗しました\n\n左辺: {lhs_t}\n右辺: {rhs_t}"),
+                    "simplified_chinese" => format!("重新统一类型失败\n\n左边: {lhs_t}\n右边: {rhs_t}"),
+                    "traditional_chinese" => format!("重新統一類型失敗\n\n左邊: {lhs_t}\n右邊: {rhs_t}"),
+                    "english" => format!("re-unification failed\n\nlhs: {lhs_t}\nrhs: {rhs_t}"),
                 ),
                 None,
             ),
@@ -708,16 +763,18 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
+        let sub_t = StringSpan::new(&format!("{}", sub_t), Some(WARNING), Some(Attribute::Bold));
+        let sup_t = StringSpan::new(&format!("{}", sup_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("この式の部分型制約を満たせません:\nサブタイプ: {YELLOW}{sub_t}{RESET}\nスーパータイプ: {YELLOW}{sup_t}{RESET}"),
-                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束: \n子类型: {YELLOW}{sub_t}{RESET}\n超类型: {YELLOW}{sup_t}{RESET}"),
-                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束: \n子類型: {YELLOW}{sub_t}{RESET}\n超類型: {YELLOW}{sup_t}{RESET}"),
-                    "english" => format!("the subtype constraint in this expression cannot be satisfied:\nsubtype: {YELLOW}{sub_t}{RESET}\nsupertype: {YELLOW}{sup_t}{RESET}"),
+                    "japanese" => format!("この式の部分型制約を満たせません\n\nサブタイプ: {sub_t}\nスーパータイプ: {sup_t}"),
+                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束\n\n子类型: {sub_t}\n超类型: {sup_t}"),
+                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束\n\n子類型: {sub_t}\n超類型: {sup_t}"),
+                    "english" => format!("the subtype constraint in this expression cannot be satisfied:\nsubtype: {sub_t}\nsupertype: {sup_t}"),
                 ),
                 None,
             ),
@@ -733,16 +790,18 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         rhs: &Predicate,
         caused_by: AtomicStr,
     ) -> Self {
+        let lhs = StringSpan::new(&format!("{}", lhs), Some(WARNING), Some(Attribute::Bold));
+        let rhs = StringSpan::new(&format!("{}", rhs), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 Location::Unknown,
                 switch_lang!(
-                    "japanese" => format!("述語式の単一化に失敗しました:\n左辺: {YELLOW}{lhs}{RESET}\n右辺: {YELLOW}{rhs}{RESET}"),
-                    "simplified_chinese" => format!("无法统一谓词表达式: \n左边: {YELLOW}{lhs}{RESET}\n左边: {YELLOW}{rhs}{RESET}"),
-                    "traditional_chinese" => format!("無法統一謂詞表達式: \n左邊: {YELLOW}{lhs}{RESET}\n左邊: {YELLOW}{rhs}{RESET}"),
-                    "english" => format!("predicate unification failed:\nlhs: {YELLOW}{lhs}{RESET}\nrhs: {YELLOW}{rhs}{RESET}"),
+                    "japanese" => format!("述語式の単一化に失敗しました\n\n左辺: {lhs}\n右辺: {rhs}"),
+                    "simplified_chinese" => format!("无法统一谓词表达式\n\n左边: {lhs}\n左边: {rhs}"),
+                    "traditional_chinese" => format!("無法統一謂詞表達式\n\n左邊: {lhs}\n左邊: {rhs}"),
+                    "english" => format!("predicate unification failed\n\nlhs: {lhs}\nrhs: {rhs}"),
                 ),
                 None,
             ),
@@ -812,6 +871,7 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         name: &str,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -819,16 +879,16 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 loc,
                 switch_lang!(
                     "japanese" => format!(
-                        "{RED}{name}{RESET}にメソッドを定義することはできません",
+                        "{found}にメソッドを定義することはできません",
                     ),
                     "simplified_chinese" => format!(
-                        "{RED}{name}{RESET}不可定义方法",
+                        "{found}不可定义方法",
                     ),
                     "traditional_chinese" => format!(
-                        "{RED}{name}{RESET}不可定義方法",
+                        "{found}不可定義方法",
                     ),
                     "english" => format!(
-                        "cannot define methods for {RED}{name}{RESET}",
+                        "cannot define methods for {found}",
                     ),
                 ),
                 hint,
@@ -850,16 +910,19 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         found: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{member_name}{RESET}の型が違います。\n{trait_type}で宣言された型: {GREEN}{expect}{RESET}\n与えられた型: {RED}{found}{RESET}"),
-                    "simplified_chinese" => format!("{YELLOW}{member_name}{RESET}的类型不匹配: \n在{trait_type}中声明的类型: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "traditional_chinese" => format!("{YELLOW}{member_name}{RESET}的類型不匹配: \n在{trait_type}中聲明的類型: {GREEN}{expect}{RESET}\n但找到: {RED}{found}{RESET}"),
-                    "english" => format!("the type of {YELLOW}{member_name}{RESET} is mismatched:\ndeclared in {trait_type}: {GREEN}{expect}{RESET}\nbut found: {RED}{found}{RESET}"),
+                    "japanese" => format!("{member_name}の型が違います\n\n{trait_type}で宣言された型: {expect}\n与えられた型: {found}"),
+                    "simplified_chinese" => format!("{member_name}的类型不匹配\n\n在{trait_type}中声明的类型: {expect}\n但找到: {found}"),
+                    "traditional_chinese" => format!("{member_name}的類型不匹配\n\n在{trait_type}中聲明的類型: {expect}\n但找到: {found}"),
+                    "english" => format!("the type of {member_name} is mismatched\n\ndeclared in {trait_type}: {expect}\nbut found: {found}"),
                 ),
                 hint,
             ),
@@ -878,16 +941,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 Location::Unknown,
                 switch_lang!(
-                    "japanese" => format!("{trait_type}の{YELLOW}{member_name}{RESET}が{class_type}で実装されていません"),
-                    "simplified_chinese" => format!("{trait_type}中的{YELLOW}{member_name}{RESET}没有在{class_type}中实现"),
-                    "traditional_chinese" => format!("{trait_type}中的{YELLOW}{member_name}{RESET}沒有在{class_type}中實現"),
-                    "english" => format!("{YELLOW}{member_name}{RESET} of {trait_type} is not implemented in {class_type}"),
+                    "japanese" => format!("{trait_type}の{member_name}が{class_type}で実装されていません"),
+                    "simplified_chinese" => format!("{trait_type}中的{member_name}没有在{class_type}中实现"),
+                    "traditional_chinese" => format!("{trait_type}中的{member_name}沒有在{class_type}中實現"),
+                    "english" => format!("{member_name} of {trait_type} is not implemented in {class_type}"),
                 ),
                 hint,
             ),
@@ -906,16 +970,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 Location::Unknown,
                 switch_lang!(
-                    "japanese" => format!("{class_type}の{YELLOW}{member_name}{RESET}は{trait_type}で宣言されていません"),
-                    "simplified_chinese" => format!("{class_type}中的{YELLOW}{member_name}{RESET}没有在{trait_type}中声明"),
-                    "traditional_chinese" => format!("{class_type}中的{YELLOW}{member_name}{RESET}沒有在{trait_type}中聲明"),
-                    "english" => format!("{YELLOW}{member_name}{RESET} of {class_type} is not declared in {trait_type}"),
+                    "japanese" => format!("{class_type}の{member_name}は{trait_type}で宣言されていません"),
+                    "simplified_chinese" => format!("{class_type}中的{member_name}没有在{trait_type}中声明"),
+                    "traditional_chinese" => format!("{class_type}中的{member_name}沒有在{trait_type}中聲明"),
+                    "english" => format!("{member_name} of {class_type} is not declared in {trait_type}"),
                 ),
                 hint,
             ),
@@ -931,16 +996,17 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("型変数{RED}{name}{RESET}が定義されていません"),
-                    "simplified_chinese" => format!("类型变量{RED}{name}{RESET}没有定义"),
-                    "traditional_chinese" => format!("類型變量{RED}{name}{RESET}沒有定義"),
-                    "english" => format!("type variable {RED}{name}{RESET} is not defined"),
+                    "japanese" => format!("型変数{found}が定義されていません"),
+                    "simplified_chinese" => format!("类型变量{found}没有定义"),
+                    "traditional_chinese" => format!("類型變量{found}沒有定義"),
+                    "english" => format!("type variable {found} is not defined"),
                 ),
                 None,
             ),
@@ -962,10 +1028,10 @@ passed keyword args:    {RED}{kw_args_len}{RESET}"
                 TypeError,
                 expr.loc(),
                 switch_lang!(
-                    "japanese" => format!("{expr}の型を一意に決定できませんでした\n候補: {}", fmt_vec(candidates)),
-                    "simplified_chinese" => format!("无法确定{expr}的类型\n候选: {}", fmt_vec(candidates)),
-                    "traditional_chinese" => format!("無法確定{expr}的類型\n候選: {}", fmt_vec(candidates)),
-                    "english" => format!("cannot determine the type of {expr}\ncandidates: {}", fmt_vec(candidates)),
+                    "japanese" => format!("{expr}の型を一意に決定できませんでした\n\n候補: {}", fmt_vec(candidates)),
+                    "simplified_chinese" => format!("无法确定{expr}的类型\n\n候选: {}", fmt_vec(candidates)),
+                    "traditional_chinese" => format!("無法確定{expr}的類型\n\n候選: {}", fmt_vec(candidates)),
+                    "english" => format!("cannot determine the type of {expr}\n\ncandidates: {}", fmt_vec(candidates)),
                 ),
                 Some(
                     switch_lang!(
@@ -1111,6 +1177,7 @@ impl OwnershipError {
         moved_loc: Location,
         caused_by: S,
     ) -> Self {
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1118,19 +1185,19 @@ impl OwnershipError {
                 name_loc,
                 switch_lang!(
                     "japanese" => format!(
-                        "{RED}{name}{RESET}は{}行目ですでに移動されています",
+                        "{found}は{}行目ですでに移動されています",
                         moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "simplified_chinese" => format!(
-                        "{RED}{name}{RESET}已移至第{}行",
+                        "{found}已移至第{}行",
                         moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "traditional_chinese" => format!(
-                        "{RED}{name}{RESET}已移至第{}行",
+                        "{found}已移至第{}行",
                         moved_loc.ln_begin().unwrap_or(0)
                     ),
                     "english" => format!(
-                        "{RED}{name}{RESET} was moved in line {}",
+                        "{found} was moved in line {}",
                         moved_loc.ln_begin().unwrap_or(0)
                     ),
                 ),
@@ -1227,16 +1294,18 @@ impl LowerError {
         found_t: &Type,
     ) -> Self {
         let name = readable_name(name);
+        let expect = StringSpan::new(&format!("{}", spec_t), Some(HINT), Some(Attribute::Bold));
+        let found = StringSpan::new(&format!("{}", found_t), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{name}は{GREEN}{spec_t}{RESET}型として宣言されましたが、{RED}{found_t}{RESET}型のオブジェクトが代入されています"),
-                    "simplified_chinese" => format!("{name}被声明为{GREEN}{spec_t}{RESET}，但分配了一个{RED}{found_t}{RESET}对象"),
-                    "traditional_chinese" => format!("{name}被聲明為{GREEN}{spec_t}{RESET}，但分配了一個{RED}{found_t}{RESET}對象"),
-                    "english" => format!("{name} was declared as {GREEN}{spec_t}{RESET}, but an {RED}{found_t}{RESET} object is assigned"),
+                    "japanese" => format!("{name}は{expect}型として宣言されましたが、{found}型のオブジェクトが代入されています"),
+                    "simplified_chinese" => format!("{name}被声明为{expect}，但分配了一个{found}对象"),
+                    "traditional_chinese" => format!("{name}被聲明為{expect}，但分配了一個{found}對象"),
+                    "english" => format!("{name} was declared as {expect}, but an {found} object is assigned"),
                 ),
                 Option::<AtomicStr>::None,
             ),
@@ -1263,16 +1332,17 @@ impl LowerError {
             )
             .into()
         });
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 NameError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
-                    "simplified_chinese" => format!("{RED}{name}{RESET}未定义"),
-                    "traditional_chinese" => format!("{RED}{name}{RESET}未定義"),
-                    "english" => format!("{RED}{name}{RESET} is not defined"),
+                    "japanese" => format!("{found}という変数は定義されていません"),
+                    "simplified_chinese" => format!("{found}未定义"),
+                    "traditional_chinese" => format!("{found}未定義"),
+                    "english" => format!("{found} is not defined"),
                 ),
                 hint,
             ),
@@ -1299,16 +1369,17 @@ impl LowerError {
             )
             .into()
         });
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 AttributeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{obj_t}型オブジェクトに{RED}{name}{RESET}という属性はありません"),
-                    "simplified_chinese" => format!("{obj_t}对象没有属性{RED}{name}{RESET}"),
-                    "traditional_chinese" => format!("{obj_t}對像沒有屬性{RED}{name}{RESET}"),
-                    "english" => format!("{obj_t} object has no attribute {RED}{name}{RESET}"),
+                    "japanese" => format!("{obj_t}型オブジェクトに{found}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_t}对象没有属性{found}"),
+                    "traditional_chinese" => format!("{obj_t}對像沒有屬性{found}"),
+                    "english" => format!("{obj_t} object has no attribute {found}"),
                 ),
                 hint,
             ),
@@ -1337,16 +1408,17 @@ impl LowerError {
             )
             .into()
         });
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 AttributeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{obj_name}(: {obj_t})に{RED}{name}{RESET}という属性はありません"),
-                    "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{RED}{name}{RESET}"),
-                    "traditional_chinese" => format!("{obj_name}(: {obj_t})沒有屬性{RED}{name}{RESET}"),
-                    "english" => format!("{obj_name}(: {obj_t}) has no attribute {RED}{name}{RESET}"),
+                    "japanese" => format!("{obj_name}(: {obj_t})に{found}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{found}"),
+                    "traditional_chinese" => format!("{obj_name}(: {obj_t})沒有屬性{found}"),
+                    "english" => format!("{obj_name}(: {obj_t}) has no attribute {found}"),
                 ),
                 hint,
             ),
@@ -1362,17 +1434,17 @@ impl LowerError {
         caused_by: AtomicStr,
         name: &str,
     ) -> Self {
-        let name = readable_name(name);
+        let name = StringSpan::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 AssignError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("変数{YELLOW}{name}{RESET}に複数回代入することはできません"),
-                    "simplified_chinese" => format!("不能为变量{YELLOW}{name}{RESET}分配多次"),
-                    "traditional_chinese" => format!("不能為變量{YELLOW}{name}{RESET}分配多次"),
-                    "english" => format!("variable {YELLOW}{name}{RESET} cannot be assigned more than once"),
+                    "japanese" => format!("変数{name}に複数回代入することはできません"),
+                    "simplified_chinese" => format!("不能为变量{name}分配多次"),
+                    "traditional_chinese" => format!("不能為變量{name}分配多次"),
+                    "english" => format!("variable {name} cannot be assigned more than once"),
                 ),
                 None,
             ),
@@ -1388,17 +1460,17 @@ impl LowerError {
         name: &str,
         caused_by: AtomicStr,
     ) -> Self {
-        let name = readable_name(name);
+        let name = StringSpan::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 UnusedWarning,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}は使用されていません"),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}未使用"),
-                    "english" => format!("{YELLOW}{name}{RESET} is not used"),
+                    "japanese" => format!("{name}は使用されていません"),
+                    "simplified_chinese" => format!("{name}未使用"),
+                    "traditional_chinese" => format!("{name}未使用"),
+                    "english" => format!("{name} is not used"),
                 ),
                 None,
             ),
@@ -1408,17 +1480,21 @@ impl LowerError {
     }
 
     pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
-        let name = readable_name(ident.inspect());
+        let name = StringSpan::new(
+            readable_name(ident.inspect()),
+            Some(WARNING),
+            Some(Attribute::Bold),
+        );
         Self::new(
             ErrorCore::new(
                 errno,
                 NameError,
                 ident.loc(),
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}は削除できません"),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}不能删除"),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}不能刪除"),
-                    "english" => format!("{YELLOW}{name}{RESET} cannot be deleted"),
+                    "japanese" => format!("{name}は削除できません"),
+                    "simplified_chinese" => format!("{name}不能删除"),
+                    "traditional_chinese" => format!("{name}不能刪除"),
+                    "english" => format!("{name} cannot be deleted"),
                 ),
                 None,
             ),
@@ -1451,16 +1527,17 @@ impl LowerError {
                 "english" => "public",
             )
         };
+        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
                 VisibilityError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{RED}{name}{RESET}は{visibility}変数です"),
-                    "simplified_chinese" => format!("{RED}{name}{RESET}是{visibility}变量",),
-                    "traditional_chinese" => format!("{RED}{name}{RESET}是{visibility}變量",),
-                    "english" => format!("{RED}{name}{RESET} is {visibility} variable",),
+                    "japanese" => format!("{found}は{visibility}変数です"),
+                    "simplified_chinese" => format!("{found}是{visibility}变量",),
+                    "traditional_chinese" => format!("{found}是{visibility}變量",),
+                    "english" => format!("{found} is {visibility} variable",),
                 ),
                 None,
             ),
@@ -1477,6 +1554,12 @@ impl LowerError {
         superclass: &Type,
         caused_by: S,
     ) -> Self {
+        let name = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let superclass = StringSpan::new(
+            &format!("{}", superclass),
+            Some(WARNING),
+            Some(Attribute::Bold),
+        );
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1484,16 +1567,16 @@ impl LowerError {
                 name_loc,
                 switch_lang!(
                     "japanese" => format!(
-                        "{RED}{name}{RESET}は{YELLOW}{superclass}{RESET}で既に定義されています",
+                        "{name}は{superclass}で既に定義されています",
                     ),
                     "simplified_chinese" => format!(
-                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定义",
+                        "{name}已在{superclass}中定义",
                     ),
                     "traditional_chinese" => format!(
-                        "{RED}{name}{RESET}已在{YELLOW}{superclass}{RESET}中定義",
+                        "{name}已在{superclass}中定義",
                     ),
                     "english" => format!(
-                        "{RED}{name}{RESET} is already defined in {YELLOW}{superclass}{RESET}",
+                        "{name} is already defined in {superclass}",
                     ),
                 ),
                 Some(switch_lang!(
@@ -1574,11 +1657,21 @@ impl LowerError {
         similar_py_mod: Option<Str>,
     ) -> Self {
         let hint = match (similar_erg_mod, similar_py_mod) {
-            (Some(erg), Some(py)) => Some(format!(
-                "similar name erg module {YELLOW}{erg}{RESET} and python module {YELLOW}{py}{RESET} exists (to import python modules, use `pyimport`)",
-            )),
-            (Some(erg), None) => Some(format!("similar name erg module exists: {YELLOW}{erg}{RESET}")),
-            (None, Some(py)) => Some(format!("similar name python module exists: {YELLOW}{py}{RESET} (to import python modules, use `pyimport`)")),
+            (Some(erg), Some(py)) => {
+                let erg = StringSpan::new(&erg, Some(WARNING), Some(Attribute::Bold));
+                let py = StringSpan::new(&py, Some(WARNING), Some(Attribute::Bold));
+                Some(format!(
+                "similar name erg module {erg} and python module {py} exists (to import python modules, use `pyimport`)",
+            ))
+            }
+            (Some(erg), None) => {
+                let erg = StringSpan::new(&erg, Some(WARNING), Some(Attribute::Bold));
+                Some(format!("similar name erg module exists: {erg}"))
+            }
+            (None, Some(py)) => {
+                let py = StringSpan::new(&py, Some(WARNING), Some(Attribute::Bold));
+                Some(format!("similar name python module exists: {py} (to import python modules, use `pyimport`)"))
+            }
             (None, None) => None,
         };
         let hint = hint.map(AtomicStr::from);
@@ -1638,16 +1731,22 @@ impl LowerError {
         cast_to: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
+        let name = StringSpan::new(name, Some(WARNING), Some(Attribute::Bold));
+        let found = StringSpan::new(
+            &format!("{}", cast_to),
+            Some(WARNING),
+            Some(Attribute::Bold),
+        );
         Self::new(
             ErrorCore::new(
                 errno,
                 TypeError,
                 loc,
                 switch_lang!(
-                    "japanese" => format!("{YELLOW}{name}{RESET}の型を{RED}{cast_to}{RESET}にキャストすることはできません"),
-                    "simplified_chinese" => format!("{YELLOW}{name}{RESET}的类型无法转换为{RED}{cast_to}{RESET}"),
-                    "traditional_chinese" => format!("{YELLOW}{name}{RESET}的類型無法轉換為{RED}{cast_to}{RESET}"),
-                    "english" => format!("the type of {YELLOW}{name}{RESET} cannot be cast to {RED}{cast_to}{RESET}"),
+                    "japanese" => format!("{name}の型を{found}にキャストすることはできません"),
+                    "simplified_chinese" => format!("{name}的类型无法转换为{found}"),
+                    "traditional_chinese" => format!("{name}的類型無法轉換為{found}"),
+                    "english" => format!("the type of {name} cannot be cast to {found}"),
                 ),
                 hint,
             ),

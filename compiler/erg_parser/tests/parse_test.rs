@@ -1,5 +1,6 @@
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
+use erg_common::style::THEME;
 use erg_common::traits::Runnable;
 
 use erg_parser::error::ParserRunnerErrors;
@@ -58,7 +59,7 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
     match parser.parse_token_stream(
         lexer
             .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(&input, errs))?,
+            .map_err(|errs| ParserRunnerErrors::convert(&input, errs, THEME))?,
     ) {
         Ok(module) => {
             println!("{module}");

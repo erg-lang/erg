@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
+use erg_common::style::THEME;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
@@ -41,7 +42,7 @@ impl Runnable for LexerRunner {
         let lexer = Lexer::from_str(self.input().read());
         let ts = lexer
             .lex()
-            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?;
         println!("{ts}");
         Ok(0)
     }
@@ -51,13 +52,13 @@ impl Runnable for LexerRunner {
         if cfg!(feature = "debug") {
             let ts = lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?;
             println!("{ts}");
             Ok(ts.to_string())
         } else {
             Ok(lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?
                 .to_string())
         }
     }
