@@ -272,7 +272,14 @@ impl Parser {
                         chunks.push(expr);
                     }
                 }
-                None => switch_unreachable!(),
+                None => {
+                    if !self.errs.is_empty() {
+                        self.level -= 1;
+                        return Err(());
+                    } else {
+                        switch_unreachable!()
+                    }
+                }
             }
         }
         self.level -= 1;

@@ -3,7 +3,7 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::error::MultiErrorDisplay;
 
-use crate::ty::constructors::{and, or};
+use crate::ty::constructors::{and, or, poly};
 use crate::ty::free::fresh_varname;
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
@@ -847,6 +847,35 @@ impl Context {
             (t, Refinement(r)) | (Refinement(r), t) => {
                 let t = self.into_refinement(t.clone());
                 Type::Refinement(self.union_refinement(&t, r))
+            }
+            // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
+            (
+                Type::Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Type::Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn => {
+                debug_assert_eq!(lps.len(), rps.len());
+                let mut unified_params = vec![];
+                for (lp, rp) in lps.iter().zip(rps.iter()) {
+                    match (lp, rp) {
+                        (TyParam::Type(l), TyParam::Type(r)) => {
+                            unified_params.push(TyParam::t(self.union(l, r)))
+                        }
+                        (_, _) => {
+                            if self.eq_tp(lp, rp) {
+                                unified_params.push(lp.clone());
+                            } else {
+                                return or(lhs.clone(), rhs.clone());
+                            }
+                        }
+                    }
+                }
+                poly(ln, unified_params)
             }
             (l, r) => or(l.clone(), r.clone()),
         }
