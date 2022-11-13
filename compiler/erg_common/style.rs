@@ -93,6 +93,24 @@ pub struct ThemeColors {
     pub hint: Color,
 }
 
+#[cfg(not(feature = "pretty"))]
+pub const COLORS: ThemeColors = ThemeColors {
+    error: Color::Red,
+    warning: Color::Yellow,
+    exception: Color::Magenta,
+    gutter: Color::Cyan,
+    hint: Color::Green,
+};
+
+#[cfg(feature = "pretty")]
+pub const COLORS: ThemeColors = ThemeColors {
+    error: Color::CustomRed,
+    warning: Color::CustomYellow,
+    exception: Color::CustomMagenta,
+    gutter: Color::CustomCyan,
+    hint: Color::CustomGreen,
+};
+
 #[derive(Debug, Clone, Copy)]
 pub struct Characters {
     pub hat: char,    // error
@@ -211,24 +229,6 @@ pub const CHARS: Characters = Characters {
     vbreak: '·',
     lbrac: '[',
     rbrac: ']',
-};
-
-#[cfg(not(feature = "pretty"))]
-pub const COLORS: ThemeColors = ThemeColors {
-    error: Color::Red,
-    warning: Color::Yellow,
-    exception: Color::Magenta,
-    gutter: Color::Cyan,
-    hint: Color::Green,
-};
-
-#[cfg(feature = "pretty")]
-pub const COLORS: ThemeColors = ThemeColors {
-    error: Color::CustomRed,
-    warning: Color::CustomYellow,
-    exception: Color::CustomMagenta,
-    gutter: Color::CustomCyan,
-    hint: Color::CustomGreen,
 };
 
 ///
