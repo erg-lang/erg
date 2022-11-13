@@ -235,24 +235,24 @@ pub const CHARS: Characters = Characters {
 };
 
 ///
-/// `StrSpan` is for const color and attribute &str.
+/// `StyledStr` is for const color and attribute &str.
 /// It is an immutable string.
 /// # Example
 /// ```
-/// const URL: StrSpan = StrSpan::new(
+/// const URL: StyledStr = StyledStr::new(
 ///    "https://github.com/erg-lang/erg",
 ///    Some(Color::White),
 ///    Some(Attribute::Underline),
 /// );
 /// ```
 #[derive(Debug)]
-pub struct StrSpan<'a> {
+pub struct StyledStr<'a> {
     span: &'a str,
     color: Option<Color>,
     attribute: Option<Attribute>,
 }
 
-impl<'a> StrSpan<'a> {
+impl<'a> StyledStr<'a> {
     pub const fn new<'b: 'a>(
         span: &'b str,
         color: Option<Color>,
@@ -266,7 +266,7 @@ impl<'a> StrSpan<'a> {
     }
 }
 
-impl std::fmt::Display for StrSpan<'_> {
+impl std::fmt::Display for StyledStr<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.color, self.attribute) {
             (None, None) => todo!(),
@@ -288,17 +288,17 @@ impl std::fmt::Display for StrSpan<'_> {
 }
 
 ///
-/// `StringSpan` is for coloring and attribute text.
+/// `StyledString` is for coloring and attribute text.
 /// String, Color(&str) and Attribute(&str)
 ///
 #[derive(Debug)]
-pub struct StringSpan {
+pub struct StyledString {
     span: String,
     color: Option<Color>,
     attribute: Option<Attribute>,
 }
 
-impl StringSpan {
+impl StyledString {
     pub fn new(s: &str, color: Option<Color>, attribute: Option<Attribute>) -> Self {
         Self {
             span: String::from(s),
@@ -312,7 +312,7 @@ impl StringSpan {
     ///
     /// # Example
     /// ```
-    /// let mut span = StringSpan::new("sample text", None, Attribute::Underline);
+    /// let mut span = StyledString::new("sample text", None, Attribute::Underline);
     /// span.push_str("\n");
     /// span.push_str("Next break line text");
     /// println!("{span}"); // Two lines of text underlined are displayed
@@ -322,7 +322,7 @@ impl StringSpan {
     }
 }
 
-impl std::fmt::Display for StringSpan {
+impl std::fmt::Display for StyledString {
     fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result {
         match (self.color, self.attribute) {
             (None, None) => write!(f, "{}", self.span),
@@ -342,16 +342,16 @@ impl std::fmt::Display for StringSpan {
 }
 
 ///
-/// `StringSpans` is vector of `StringSpan` and almost the same as Vec\<String\>.
+/// `StyledStrings` is vector of `StyledString` and almost the same as Vec\<String\>.
 /// It is possible to change the color and attribute of each String.
-/// That's why, if you don't change any color or attribute, you should use 'StringSpan' not `StringSpans`
+/// That's why, if you don't change any color or attribute, you should use 'StyledString' not `StyledStrings`
 ///
 /// # Example
 /// ```
-/// let mut spans = StringSpans::default();
+/// let mut spans = StyledStrings::default();
 /// spans.push_srt("Default color is gray, ");
 /// spans.push_str_with_color("and it is possible to color text.\n", Color::Red);
-/// spans.push_str("Basically, this `StringSpans` is one sentence, ");
+/// spans.push_str("Basically, this `StyledStrings` is one sentence, ");
 /// spans.push_str_with_color("so if you want to multiline sentences, you need to add `\n`.", Color::Magenta);
 /// println!("{}", spans); // Pushed colored text are displayed
 /// ```
@@ -359,17 +359,17 @@ impl std::fmt::Display for StringSpan {
 /// Then, &str(s) are pushed to the Vec, specifying colors or attributes.
 ///
 #[derive(Debug, Default)]
-pub struct StringSpans {
-    spans: Vec<StringSpan>,
+pub struct StyledStrings {
+    spans: Vec<StyledString>,
 }
 
-impl StringSpans {
+impl StyledStrings {
     ///
     /// It is possible push &str type with gray color to Vector.
     ///
     ///  # Example
     /// ```
-    /// let mut spans = StringSpans::default()
+    /// let mut spans = StyledStrings::default()
     /// spans.push_str("sample text");
     /// spans.push_str("\n");
     /// spans.push_str("new text here");
@@ -384,7 +384,7 @@ impl StringSpans {
         if self.is_same_color(Color::Gray) {
             self.spans.last_mut().unwrap().span.push_str(s);
         } else {
-            self.spans.push(StringSpan::new(s, None, None));
+            self.spans.push(StyledString::new(s, None, None));
         }
     }
 
@@ -393,7 +393,7 @@ impl StringSpans {
     ///
     /// # Example
     /// ```
-    /// let mut spans = StringSpans::default();
+    /// let mut spans = StyledStrings::default();
     /// spans.push_str_with_color("Cyan color text", Color::Cyan);
     /// spans.push_str_with_color("Red color text", Color::Red);
     /// spans.push_str_with_color(", pushed texts become a single String.", Color::Yellow);
@@ -404,7 +404,7 @@ impl StringSpans {
         if self.is_same_color(color) {
             self.spans.last_mut().unwrap().span.push_str(s);
         } else {
-            self.spans.push(StringSpan::new(s, Some(color), None));
+            self.spans.push(StyledString::new(s, Some(color), None));
         }
     }
 
@@ -414,7 +414,7 @@ impl StringSpans {
     ///
     /// # Example
     /// ```
-    /// let mut spans = StringSpans::default();
+    /// let mut spans = StyledStrings::default();
     /// spans.push_str_with_color_and_attribute("Magenta and bold text\n", Color::Magenta, Attribute::Bold);
     /// spans.push_str_with_color_and_attribute("White and underlined text", Color::White, Attribute::Underline);
     /// spans.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
@@ -424,7 +424,8 @@ impl StringSpans {
         if self.is_same_color(color) && self.is_same_attribute(attr) {
             self.spans.last_mut().unwrap().span.push_str(s);
         } else {
-            self.spans.push(StringSpan::new(s, Some(color), Some(attr)));
+            self.spans
+                .push(StyledString::new(s, Some(color), Some(attr)));
         }
     }
 
@@ -445,7 +446,7 @@ impl StringSpans {
     }
 }
 
-impl std::fmt::Display for StringSpans {
+impl std::fmt::Display for StyledStrings {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for span in self.spans.iter() {
             write!(f, "{}", span)?;
@@ -477,7 +478,7 @@ mod tests {
 
     #[test]
     fn str_spans_test() {
-        let mut spans = StringSpans::default();
+        let mut spans = StyledStrings::default();
         spans.push_str("Gray is the default color\n");
         spans.push_str("If you specify the color, ");
         spans.push_str("you should use `push_str_with_color()`\n");

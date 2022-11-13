@@ -4,7 +4,7 @@
 use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
-use erg_common::style::{Attribute, Color, StrSpan, StringSpan, Theme};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, Theme};
 use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
@@ -38,7 +38,7 @@ impl LexError {
     }
 
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        const URL: StrSpan = StrSpan::new(
+        const URL: StyledStr = StyledStr::new(
             "https://github.com/erg-lang/erg",
             Some(Color::White),
             Some(Attribute::Underline),
@@ -120,7 +120,7 @@ impl LexError {
             )
             .into()
         });
-        let name = StringSpan::new(name, Some(Color::Red), Some(Attribute::Underline));
+        let name = StyledString::new(name, Some(Color::Red), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
             errno,
             NameError,

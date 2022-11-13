@@ -4,7 +4,7 @@ use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::set::Set;
-use erg_common::style::{Attribute, Color, StrSpan, StringSpan, Theme, THEME};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, Theme, THEME};
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{
@@ -146,7 +146,7 @@ impl ErrorDisplay for CompileError {
     }
 }
 
-const URL: StrSpan = StrSpan::new(
+const URL: StyledStr = StyledStr::new(
     "https://github.com/erg-lang/erg",
     Some(Color::White),
     Some(Attribute::Underline),
@@ -377,13 +377,13 @@ impl TyCheckError {
             ),
             None => "".into(),
         };
-        let name = StringSpan::new(
+        let name = StyledString::new(
             &format!("{}{}", name, ord),
             Some(WARNING),
             Some(Attribute::Bold),
         );
-        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -411,8 +411,8 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -465,8 +465,8 @@ impl TyCheckError {
         expect: usize,
         found: usize,
     ) -> Self {
-        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -555,17 +555,17 @@ impl TyCheckError {
         kw_args_len: usize,
     ) -> Self {
         let name = readable_name(callee_name);
-        let expect = StringSpan::new(
+        let expect = StyledString::new(
             &format!("{}", params_len),
             Some(HINT),
             Some(Attribute::Bold),
         );
-        let pos_args_len = StringSpan::new(
+        let pos_args_len = StyledString::new(
             &format!("{}", pos_args_len),
             Some(ERR),
             Some(Attribute::Bold),
         );
-        let kw_args_len = StringSpan::new(
+        let kw_args_len = StyledString::new(
             &format!("{}", kw_args_len),
             Some(ERR),
             Some(Attribute::Bold),
@@ -620,7 +620,7 @@ passed keyword args:    {kw_args_len}"
         missing_params: Vec<Str>,
     ) -> Self {
         let name = readable_name(callee_name);
-        let vec_cxt = StringSpan::new(
+        let vec_cxt = StyledString::new(
             &fmt_vec(&missing_params),
             Some(WARNING),
             Some(Attribute::Bold),
@@ -652,7 +652,7 @@ passed keyword args:    {kw_args_len}"
         arg_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
-        let found = StringSpan::new(arg_name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(arg_name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -680,7 +680,7 @@ passed keyword args:    {kw_args_len}"
         param_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
-        let found = StringSpan::new(param_name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(param_name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -707,8 +707,8 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs_t = StringSpan::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
-        let rhs_t = StringSpan::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
+        let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
+        let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -735,8 +735,8 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs_t = StringSpan::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
-        let rhs_t = StringSpan::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
+        let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
+        let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -763,8 +763,8 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let sub_t = StringSpan::new(&format!("{}", sub_t), Some(WARNING), Some(Attribute::Bold));
-        let sup_t = StringSpan::new(&format!("{}", sup_t), Some(WARNING), Some(Attribute::Bold));
+        let sub_t = StyledString::new(&format!("{}", sub_t), Some(WARNING), Some(Attribute::Bold));
+        let sup_t = StyledString::new(&format!("{}", sup_t), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -790,8 +790,8 @@ passed keyword args:    {kw_args_len}"
         rhs: &Predicate,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs = StringSpan::new(&format!("{}", lhs), Some(WARNING), Some(Attribute::Bold));
-        let rhs = StringSpan::new(&format!("{}", rhs), Some(WARNING), Some(Attribute::Bold));
+        let lhs = StyledString::new(&format!("{}", lhs), Some(WARNING), Some(Attribute::Bold));
+        let rhs = StyledString::new(&format!("{}", rhs), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -871,7 +871,7 @@ passed keyword args:    {kw_args_len}"
         name: &str,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -910,9 +910,9 @@ passed keyword args:    {kw_args_len}"
         found: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
-        let expect = StringSpan::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StringSpan::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -941,7 +941,7 @@ passed keyword args:    {kw_args_len}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -970,7 +970,7 @@ passed keyword args:    {kw_args_len}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StringSpan::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -996,7 +996,7 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1177,7 +1177,7 @@ impl OwnershipError {
         moved_loc: Location,
         caused_by: S,
     ) -> Self {
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1294,8 +1294,8 @@ impl LowerError {
         found_t: &Type,
     ) -> Self {
         let name = readable_name(name);
-        let expect = StringSpan::new(&format!("{}", spec_t), Some(HINT), Some(Attribute::Bold));
-        let found = StringSpan::new(&format!("{}", found_t), Some(ERR), Some(Attribute::Bold));
+        let expect = StyledString::new(&format!("{}", spec_t), Some(HINT), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", found_t), Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1332,7 +1332,7 @@ impl LowerError {
             )
             .into()
         });
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1369,7 +1369,7 @@ impl LowerError {
             )
             .into()
         });
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1408,7 +1408,7 @@ impl LowerError {
             )
             .into()
         });
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1434,7 +1434,7 @@ impl LowerError {
         caused_by: AtomicStr,
         name: &str,
     ) -> Self {
-        let name = StringSpan::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
+        let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1460,7 +1460,7 @@ impl LowerError {
         name: &str,
         caused_by: AtomicStr,
     ) -> Self {
-        let name = StringSpan::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
+        let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1480,7 +1480,7 @@ impl LowerError {
     }
 
     pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
-        let name = StringSpan::new(
+        let name = StyledString::new(
             readable_name(ident.inspect()),
             Some(WARNING),
             Some(Attribute::Bold),
@@ -1527,7 +1527,7 @@ impl LowerError {
                 "english" => "public",
             )
         };
-        let found = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
+        let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1554,8 +1554,8 @@ impl LowerError {
         superclass: &Type,
         caused_by: S,
     ) -> Self {
-        let name = StringSpan::new(name, Some(ERR), Some(Attribute::Bold));
-        let superclass = StringSpan::new(
+        let name = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
+        let superclass = StyledString::new(
             &format!("{}", superclass),
             Some(WARNING),
             Some(Attribute::Bold),
@@ -1658,18 +1658,18 @@ impl LowerError {
     ) -> Self {
         let hint = match (similar_erg_mod, similar_py_mod) {
             (Some(erg), Some(py)) => {
-                let erg = StringSpan::new(&erg, Some(WARNING), Some(Attribute::Bold));
-                let py = StringSpan::new(&py, Some(WARNING), Some(Attribute::Bold));
+                let erg = StyledString::new(&erg, Some(WARNING), Some(Attribute::Bold));
+                let py = StyledString::new(&py, Some(WARNING), Some(Attribute::Bold));
                 Some(format!(
                 "similar name erg module {erg} and python module {py} exists (to import python modules, use `pyimport`)",
             ))
             }
             (Some(erg), None) => {
-                let erg = StringSpan::new(&erg, Some(WARNING), Some(Attribute::Bold));
+                let erg = StyledString::new(&erg, Some(WARNING), Some(Attribute::Bold));
                 Some(format!("similar name erg module exists: {erg}"))
             }
             (None, Some(py)) => {
-                let py = StringSpan::new(&py, Some(WARNING), Some(Attribute::Bold));
+                let py = StyledString::new(&py, Some(WARNING), Some(Attribute::Bold));
                 Some(format!("similar name python module exists: {py} (to import python modules, use `pyimport`)"))
             }
             (None, None) => None,
@@ -1731,8 +1731,8 @@ impl LowerError {
         cast_to: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let name = StringSpan::new(name, Some(WARNING), Some(Attribute::Bold));
-        let found = StringSpan::new(
+        let name = StyledString::new(name, Some(WARNING), Some(Attribute::Bold));
+        let found = StyledString::new(
             &format!("{}", cast_to),
             Some(WARNING),
             Some(Attribute::Bold),

@@ -10,12 +10,12 @@ use crate::config::Input;
 use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
-use crate::style::StrSpan;
-use crate::style::StringSpan;
-use crate::style::StringSpans;
+use crate::style::StyledStr;
+use crate::style::StyledString;
+use crate::style::StyledStrings;
 use crate::style::Theme;
 use crate::traits::{Locational, Stream};
-use crate::{fmt_option, impl_display_from_debug, switch_lang};
+use crate::{impl_display_from_debug, switch_lang};
 
 /// ErrorKindと言っているが、ErrorだけでなくWarning, Exceptionも含まれる
 /// Numbering of this is not specifically related to ErrFmt.errno().
@@ -412,7 +412,7 @@ impl ErrorCore {
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        const URL: StrSpan = StrSpan::new(
+        const URL: StyledStr = StyledStr::new(
             "https://github.com/erg-lang/erg",
             Some(Color::White),
             Some(Attribute::Underline),
@@ -453,7 +453,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     } else {
         e.input().reread_lines(ln_begin, ln_end)
     };
-    let mut context = StringSpans::default();
+    let mut context = StyledStrings::default();
     let final_step = ln_end - ln_begin;
     let max_digit = ln_end.to_string().len();
     let (vbreak, vbar) = chars.gutters();
@@ -550,7 +550,7 @@ pub trait ErrorDisplay {
         };
 
         let (gutter_color, chars) = theme.characters();
-        let kind = StringSpan::new(
+        let kind = StyledString::new(
             &chars.error_kind_format(kind, self.core().errno),
             Some(color),
             Some(Attribute::Bold),
@@ -559,7 +559,7 @@ pub trait ErrorDisplay {
         //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
         if let Some(hint) = self.core().hint.as_ref() {
             let (hint_color, _) = theme.hint();
-            let mut hints = StringSpans::default();
+            let mut hints = StyledStrings::default();
             hints.push_str_with_color_and_attribute("hint: ", hint_color, Attribute::Bold);
             hints.push_str(hint);
             format!(
@@ -602,7 +602,7 @@ pub trait ErrorDisplay {
             (theme.exception(), "Exception")
         };
         let (gutter_color, chars) = theme.characters();
-        let kind = StringSpan::new(
+        let kind = StyledString::new(
             &chars.error_kind_format(kind, self.core().errno),
             Some(color),
             Some(Attribute::Bold),
@@ -611,7 +611,7 @@ pub trait ErrorDisplay {
         //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
         if let Some(hint) = self.core().hint.as_ref() {
             let (hint_color, _) = theme.hint();
-            let mut hints = StringSpans::default();
+            let mut hints = StyledStrings::default();
             hints.push_str_with_color_and_attribute("hint: ", hint_color, Attribute::Bold);
             hints.push_str(hint);
             writeln!(
@@ -650,7 +650,7 @@ pub trait ErrorDisplay {
         }
     }
 
-    fn format_header(&self, kind: StringSpan) -> String {
+    fn format_header(&self, kind: StyledString) -> String {
         let loc = match self.core().loc {
             Location::Range {
                 ln_begin, ln_end, ..
@@ -736,7 +736,7 @@ pub trait ErrorDisplay {
             ),
             Location::LineRange(ln_begin, ln_end) => {
                 let (_, vbar) = chars.gutters();
-                let mut cxt = StringSpans::default();
+                let mut cxt = StyledStrings::default();
                 let codes = if self.input().is_repl() {
                     vec![self.input().reread()]
                 } else {
@@ -758,7 +758,7 @@ pub trait ErrorDisplay {
                 } else {
                     self.input().reread_lines(lineno, lineno).remove(0)
                 };
-                let mut cxt = StringSpans::default();
+                let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
                 cxt.push_str("\n");
@@ -769,7 +769,7 @@ pub trait ErrorDisplay {
 
                 other => {
                     let (_, vbar) = chars.gutters();
-                    let mut cxt = StringSpans::default();
+                    let mut cxt = StyledStrings::default();
                     cxt.push_str_with_color(&format!(" ? {}", vbar), gutter_color);
                     cxt.push_str(&other.reread());
                     cxt.to_string()
