@@ -234,12 +234,16 @@ factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 そのかわり、計算をコンパイル時に行うことができるというメリットがあります。
 
 ```python
-Add(X, Y: Nat): Nat = X + Y
-assert Add(1, 2) == 3
+Add(X, Y: Nat) = X + Y
+Add: |X: Nat, Y: Nat|({X}, {Y}) -> {Add(X, Y)}
+Three = Add(1, 2)
+Three: {3}
 
 Factorial 0 = 1
 Factorial(X: Nat): Nat = X * Factorial(X - 1)
-assert Factorial(10) == 3628800
+Factorial: |X: Nat|{X} -> {Factorial(X)}
+Fact10 = Factorial(10)
+Fact10: {3628800}
 
 math = import "math"
 Sin X = math.sin X # ConstantError: this function is not computable at compile time
@@ -288,8 +292,6 @@ f a, b # TypeError: f() takes 1 positional argument but 2 were given
 f(a, b) # TypeError: f() takes 1 positional argument but 2 were given
 f((a, b)) # OK
 ```
-
-関数型`T -> U`は実際のところ、`(T,) -> U`の糖衣構文です。
 
 <p align='center'>
     <a href='./03_declaration.md'>Previous</a> | <a href='./05_builtin_funcs.md'>Next</a>
