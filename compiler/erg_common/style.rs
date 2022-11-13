@@ -1,6 +1,7 @@
 pub const ATTR_RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";
 pub const UNDERLINE: &str = "\x1b[4m";
+pub const REVERSED: &str = "\x1b[7m";
 
 // Escape sequences change the color of the terminal
 pub const RESET: &str = "\x1b[m";
@@ -72,6 +73,7 @@ pub enum Attribute {
     Reset,
     Underline,
     Bold,
+    Reversed,
 }
 
 impl Attribute {
@@ -80,6 +82,7 @@ impl Attribute {
             Attribute::Reset => ATTR_RESET,
             Attribute::Underline => UNDERLINE,
             Attribute::Bold => BOLD,
+            Attribute::Reversed => REVERSED,
         }
     }
 }
@@ -113,14 +116,14 @@ pub const COLORS: ThemeColors = ThemeColors {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Characters {
-    pub hat: char,    // error
-    pub wave: char,   // exception
-    pub line: char,   // warning and left bottom line
-    pub vbar: char,   // gutter separator
-    pub lbot: char,   // left bottom curve
-    pub vbreak: char, // gutter omission
-    pub lbrac: char,  // error kind modifier left bracket
-    pub rbrac: char,  // error kind modifier right bracket
+    hat: char,    // error
+    wave: char,   // exception
+    line: char,   // warning and left bottom line
+    vbar: char,   // gutter separator
+    lbot: char,   // left bottom curve
+    vbreak: char, // gutter omission
+    lbrac: char,  // error kind modifier left bracket
+    rbrac: char,  // error kind modifier right bracket
 }
 
 impl Characters {
@@ -134,13 +137,17 @@ impl Characters {
         mark.to_string()
     }
 
-    // "`-"
+    pub fn gutters(&self) -> (char, char) {
+        (self.vbreak, self.vbar)
+    }
+
+    // " `- "
     #[cfg(not(feature = "unicode"))]
     pub fn left_bottom_line(&self) -> String {
         format!(" {}{} ", self.lbot, self.line)
     }
 
-    // `╰─`
+    // `╰─ `
     #[cfg(feature = "unicode")]
     pub fn left_bottom_line(&self) -> String {
         format!("{}{} ", self.lbot, self.line)
@@ -195,10 +202,6 @@ impl Theme {
 
     pub const fn hint(&self) -> (Color, char) {
         (self.colors.hint, self.characters.wave)
-    }
-
-    pub fn error_kind_format(&self, kind: &str, err_num: usize) -> String {
-        self.characters.error_kind_format(kind, err_num)
     }
 }
 
@@ -463,13 +466,13 @@ mod tests {
         println!("{CUSTOM_BLUE}Hello{RESET}, {CUSTOM_CYAN}World{RESET}");
         println!("{CUSTOM_GRAY}Hello{RESET}, {CUSTOM_GREEN}World{RESET}");
         println!("{CUSTOM_MAGENTA}Hello{RESET}, {CUSTOM_RED}World{RESET}");
-        println!("{CUSTOM_YELLOW}Hello{RESET}");
     }
 
     #[test]
     fn text_attribute() {
-        println!("{BOLD}bold{ATTR_RESET}");
+        println!("{BOLD}BOLD{ATTR_RESET}");
         println!("{UNDERLINE}UNDERLINED{ATTR_RESET}");
+        println!("{REVERSED}REVERSED{ATTR_RESET}")
     }
 
     #[test]

@@ -440,14 +440,13 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     ln_end: usize,
     col_begin: usize,
     col_end: usize,
-    // kinds of error color and gutter(line number and vertical bar)
-    colors: (Color, Color),
+    err_color: Color,
+    gutter_color: Color,
     // for formatting points
     chars: &Characters,
     // kinds of error for specify the color
     mark: char,
 ) -> String {
-    let (err_color, gutter_color) = colors;
     let mark = mark.to_string();
     let codes = if e.input().is_repl() {
         vec![e.input().reread()]
@@ -457,10 +456,11 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let mut context = StringSpans::default();
     let final_step = ln_end - ln_begin;
     let max_digit = ln_end.to_string().len();
-    let offset = format!("{} {} ", &" ".repeat(max_digit), chars.vbreak);
+    let (vbreak, vbar) = chars.gutters();
+    let offset = format!("{} {} ", &" ".repeat(max_digit), vbreak);
     for (i, lineno) in (ln_begin..=ln_end).enumerate() {
         context.push_str_with_color(
-            &format!("{:<max_digit$} {vbar} ", lineno, vbar = chars.vbar),
+            &format!("{:<max_digit$} {vbar} ", lineno, vbar = vbar),
             gutter_color,
         );
         context.push_str(&codes[i]);
@@ -551,7 +551,7 @@ pub trait ErrorDisplay {
 
         let (gutter_color, chars) = theme.characters();
         let kind = StringSpan::new(
-            &theme.error_kind_format(kind, self.core().errno),
+            &chars.error_kind_format(kind, self.core().errno),
             Some(color),
             Some(Attribute::Bold),
         );
@@ -571,7 +571,7 @@ pub trait ErrorDisplay {
 
 ",
                 self.format_header(kind),
-                self.format_code_and_pointer((color, gutter_color), mark, chars),
+                self.format_code_and_pointer(color, gutter_color, mark, chars),
                 self.core().kind,
                 self.core().desc,
                 hints,
@@ -584,7 +584,7 @@ pub trait ErrorDisplay {
 
 ",
                 self.format_header(kind),
-                self.format_code_and_pointer((color, gutter_color), mark, chars),
+                self.format_code_and_pointer(color, gutter_color, mark, chars),
                 self.core().kind,
                 self.core().desc,
             )
@@ -601,26 +601,48 @@ pub trait ErrorDisplay {
         } else {
             (theme.exception(), "Exception")
         };
-        let (hint, _) = theme.hint();
         let (gutter_color, chars) = theme.characters();
-        let context = self.format_code_and_pointer((color, gutter_color), mark, chars);
         let kind = StringSpan::new(
-            &theme.error_kind_format(kind, self.core().errno),
+            &chars.error_kind_format(kind, self.core().errno),
             Some(color),
             Some(Attribute::Bold),
         );
-        writeln!(
-            f,
-            "\
+
+        //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
+        if let Some(hint) = self.core().hint.as_ref() {
+            let (hint_color, _) = theme.hint();
+            let mut hints = StringSpans::default();
+            hints.push_str_with_color_and_attribute("hint: ", hint_color, Attribute::Bold);
+            hints.push_str(hint);
+            writeln!(
+                f,
+                "\
 {}
 {}{}: {}
-{}",
-            self.format_header(kind),
-            context,
-            self.core().kind,
-            self.core().desc,
-            fmt_option!(pre StrSpan::new("hint: ", Some(hint), Some(Attribute::Bold)), self.core().hint)
-        )?;
+
+{}
+
+",
+                self.format_header(kind),
+                self.format_code_and_pointer(color, gutter_color, mark, chars),
+                self.core().kind,
+                self.core().desc,
+                hints,
+            )?;
+        } else {
+            writeln!(
+                f,
+                "\
+{}
+{}{}: {}
+
+",
+                self.format_header(kind),
+                self.format_code_and_pointer(color, gutter_color, mark, chars),
+                self.core().kind,
+                self.core().desc,
+            )?;
+        }
         if let Some(inner) = self.ref_inner() {
             inner.format(f)
         } else {
@@ -658,13 +680,14 @@ pub trait ErrorDisplay {
 
     fn format_code_and_pointer(
         &self,
-        colors: (Color, Color),
+        err_color: Color,
+        gutter_color: Color,
         mark: char,
         chars: &Characters,
     ) -> String {
         match self.core().loc {
             // TODO: Current implementation does not allow for multiple descriptions of errors to be given at each location
-            // In the future, this will be implemented in a different structure that can handle multiple lines and multiple files
+            // In the future, this will be implemented in a different structure that can handle multiple lines and files
             Location::RangePair {
                 ln_first,
                 col_first,
@@ -677,7 +700,8 @@ pub trait ErrorDisplay {
                     ln_first.1,
                     col_first.0,
                     col_first.1,
-                    colors,
+                    err_color,
+                    gutter_color,
                     chars,
                     mark,
                 ) +
@@ -688,7 +712,8 @@ pub trait ErrorDisplay {
                         ln_second.1,
                         col_second.0,
                         col_second.1,
-                        colors,
+                    err_color,
+                    gutter_color,
                         chars,
                         mark,
                     )
@@ -699,10 +724,18 @@ pub trait ErrorDisplay {
                 ln_end,
                 col_end,
             } => format_context(
-                self, ln_begin, ln_end, col_begin, col_end, colors, chars, mark,
+                self,
+                ln_begin,
+                ln_end,
+                col_begin,
+                col_end,
+                err_color,
+                gutter_color,
+                chars,
+                mark,
             ),
             Location::LineRange(ln_begin, ln_end) => {
-                let (err_color, gutter_color) = colors;
+                let (_, vbar) = chars.gutters();
                 let mut cxt = StringSpans::default();
                 let codes = if self.input().is_repl() {
                     vec![self.input().reread()]
@@ -711,7 +744,7 @@ pub trait ErrorDisplay {
                 };
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-                    cxt.push_str_with_color(&format!("{lineno} {}", chars.vbar), err_color);
+                    cxt.push_str_with_color(&format!("{lineno} {}", vbar), err_color);
                     cxt.push_str(&codes[i]);
                     cxt.push_str(&" ".repeat(lineno.to_string().len() + 3)); // +3 means ` | `
                     cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), gutter_color)
@@ -719,14 +752,14 @@ pub trait ErrorDisplay {
                 cxt.to_string()
             }
             Location::Line(lineno) => {
-                let (_, gutter_color) = colors;
+                let (_, vbar) = chars.gutters();
                 let code = if self.input().is_repl() {
                     self.input().reread()
                 } else {
                     self.input().reread_lines(lineno, lineno).remove(0)
                 };
                 let mut cxt = StringSpans::default();
-                cxt.push_str_with_color(&format!(" {lineno} {} ", chars.vbar), gutter_color);
+                cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
                 cxt.push_str("\n");
                 cxt.to_string()
@@ -735,9 +768,9 @@ pub trait ErrorDisplay {
                 Input::File(_) => "\n".to_string(),
 
                 other => {
-                    let (_, gutter_color) = colors;
+                    let (_, vbar) = chars.gutters();
                     let mut cxt = StringSpans::default();
-                    cxt.push_str_with_color(&format!(" ? {}", chars.vbar), gutter_color);
+                    cxt.push_str_with_color(&format!(" ? {}", vbar), gutter_color);
                     cxt.push_str(&other.reread());
                     cxt.to_string()
                 }
