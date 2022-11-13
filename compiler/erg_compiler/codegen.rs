@@ -753,6 +753,9 @@ impl PyCodeGenerator {
     }
 
     fn cancel_if_pop_top(&mut self) {
+        if self.cur_block_codeobj().code.len() < 2 {
+            return;
+        }
         let lasop_t_idx = self.cur_block_codeobj().code.len() - 2;
         if self.cur_block_codeobj().code.get(lasop_t_idx) == Some(&(POP_TOP as u8)) {
             self.mut_cur_block_codeobj().code.pop();
