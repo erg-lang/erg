@@ -232,15 +232,15 @@ pub const COLORS: ThemeColors = ThemeColors {
 };
 
 ///
-/// StrSpan is for const color adn attribute &str.
+/// `StrSpan` is for const color and attribute &str.
 /// It is an immutable string.
 /// # Example
 /// ```
-///const URL: StrSpan = StrSpan::new(
+/// const URL: StrSpan = StrSpan::new(
 ///    "https://github.com/erg-lang/erg",
 ///    Some(Color::White),
 ///    Some(Attribute::Underline),
-///);
+/// );
 /// ```
 #[derive(Debug)]
 pub struct StrSpan<'a> {
@@ -475,7 +475,7 @@ mod tests {
     #[test]
     fn str_spans_test() {
         let mut spans = StringSpans::default();
-        spans.push_str("Gray is default color\n");
+        spans.push_str("Gray is the default color\n");
         spans.push_str("If you specify the color, ");
         spans.push_str("you should use `push_str_with_color()`\n");
 
@@ -483,10 +483,10 @@ mod tests {
             "It is possible to change text foreground color...\n",
             Color::White,
         );
-        spans.push_str_with_color("Cyan color text, ", Color::Cyan);
-        spans.push_str_with_color("Black color text, ", Color::Black);
-        spans.push_str_with_color("Blue color text, ", Color::Blue);
-        spans.push_str_with_color("Red color text, ", Color::Red);
+        spans.push_str_with_color("Cyan text, ", Color::Cyan);
+        spans.push_str_with_color("Black text, ", Color::Black);
+        spans.push_str_with_color("Blue text, ", Color::Blue);
+        spans.push_str_with_color("Red text, ", Color::Red);
         spans.push_str_with_color("pushed texts become a String.", Color::Yellow);
         spans.push_str_with_color(
             "\nIf you want to add break lines, you should add `\\n`.\n",
