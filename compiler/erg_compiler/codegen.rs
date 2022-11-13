@@ -1498,7 +1498,7 @@ impl PyCodeGenerator {
         } else {
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
-                self.lasti() - idx_pop_jump_if_false
+                self.lasti() - idx_pop_jump_if_false - 1
             } else {
                 self.lasti()
             };
