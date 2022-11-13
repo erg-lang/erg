@@ -1,0 +1,7 @@
+Fib: Nat -> Nat
+Fib 0 = 0
+Fib 1 = 1
+Fib n = Fib(n-1) + Fib(n-2)
+
+fib10 = Fib 10
+fib10: {55}
