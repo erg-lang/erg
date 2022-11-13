@@ -29,14 +29,27 @@ That is, expressions such as `X**2 - 5X + 6 == 0` cannot be used as refinement-t
 If you know how to solve quadratic equations, you would expect the above refinement form to be equivalent to `{2, 3}`.
 However, the Erg compiler has very little knowledge of algebra, so it cannot solve the predicate on the right.
 
+## Subtyping rules for refinement types
+
+All refinement types are subtypes of the type specified in the `Type` part.
+
+```erg
+{I: Int | I <= 0} <: Int
+```
+
+Otherwise, the current Erg has a subtyping type rule for integer comparisons.
+
+```erg
+{I: Int | I <= 5} <: {I: Int | I <= 0}
+```
+
 ## Smart Cast
 
 It's nice that you defined `Odd`, but as it is, it doesn't look like it can be used much outside of literals. To promote an odd number in a normal `Int` object to `Odd`, i.e., to downcast an `Int` to `Odd`, you need to pass the constructor of `Odd`.
 For refinement types, the normal constructor `.new` may panic, and there is an auxiliary constructor called `.try_new` that returns a `Result` type.
 
 ```python
-i = Odd.new (0..10).sample!()
-i: Odd # or Panic
+i = Odd.new (0..10).sample!() # i: Odd (or Panic)
 ```
 
 It can also be used as a type specification in `match`.

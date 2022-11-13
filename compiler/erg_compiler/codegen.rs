@@ -753,6 +753,9 @@ impl PyCodeGenerator {
     }
 
     fn cancel_if_pop_top(&mut self) {
+        if self.cur_block_codeobj().code.len() < 2 {
+            return;
+        }
         let lasop_t_idx = self.cur_block_codeobj().code.len() - 2;
         if self.cur_block_codeobj().code.get(lasop_t_idx) == Some(&(POP_TOP as u8)) {
             self.mut_cur_block_codeobj().code.pop();
@@ -1495,7 +1498,7 @@ impl PyCodeGenerator {
         } else {
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
-                self.lasti() - idx_pop_jump_if_false
+                self.lasti() - idx_pop_jump_if_false - 1
             } else {
                 self.lasti()
             };
@@ -2376,14 +2379,15 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
-        let ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
+        let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
+        ident.vi.t = __new__.clone();
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
         let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let self_param = NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
         let params = Params::new(vec![self_param, param], None, vec![], None);
-        let subr_sig = SubrSignature::new(ident, params, __new__.clone());
+        let subr_sig = SubrSignature::new(ident, params);
         let mut attrs = vec![];
         match __new__.non_default_params().unwrap()[0].typ() {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -2431,11 +2435,12 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap();
-        let ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
+        let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
+        ident.vi.t = __new__;
         let param_name = fresh_varname();
         let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
         let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-        let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None), __new__);
+        let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None));
         let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
             Str::from(param_name),
             line,

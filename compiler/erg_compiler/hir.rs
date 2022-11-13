@@ -437,6 +437,11 @@ impl Identifier {
         self.name.inspect()
     }
 
+    /// show dot + name (no qual_name & type)
+    pub fn show(&self) -> String {
+        format!("{}{}", fmt_option!(self.dot), self.name)
+    }
+
     pub fn is_procedural(&self) -> bool {
         self.name.is_procedural()
     }
@@ -1366,22 +1371,45 @@ impl Params {
 pub struct SubrSignature {
     pub ident: Identifier,
     pub params: Params,
-    pub t: Type,
 }
 
 impl NestedDisplay for SubrSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}{} (: {})", self.ident, self.params, self.t,)
+        write!(
+            f,
+            "{}{} (: {})",
+            self.ident.show(),
+            self.params,
+            self.ident.t()
+        )
     }
 }
 
 impl_display_from_nested!(SubrSignature);
 impl_locational!(SubrSignature, ident, params);
-impl_t!(SubrSignature);
+
+impl HasType for SubrSignature {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        self.ident.ref_t()
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        self.ident.ref_mut_t()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        self.ident.signature_t()
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        self.ident.signature_mut_t()
+    }
+}
 
 impl SubrSignature {
-    pub const fn new(ident: Identifier, params: Params, t: Type) -> Self {
-        Self { ident, params, t }
+    pub const fn new(ident: Identifier, params: Params) -> Self {
+        Self { ident, params }
     }
 
     pub fn is_procedural(&self) -> bool {

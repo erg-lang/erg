@@ -9,23 +9,19 @@
 ```python
 # 基本的な代入
 i = 1
-# 型つき
-i: Int = 1
-# 無名型つき
-i: {1, 2, 3} = 2
 
 # function
 fn x = x + 1
-# equals
-fn x: Add(Int) = x + 1
 # (無名)関数
 fn = x -> x + 1
-fn: Int -> Int = x -> x + 1
+```
 
-# 上位型
-a: [Int; 4] = [0, 1, 2, 3]
-# もしくは
-a: Array Int, 4 = [0, 1, 2, 3]
+## 型宣言パターン
+
+```
+i: Int = 1
+j: {1, 2, 3} = 2
+(k: Int, s: Str) = 1, "a"
 ```
 
 ### リテラルパターン

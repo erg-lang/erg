@@ -53,46 +53,21 @@ if True, do:
 
 無名プロシージャ、プロシージャ型を生成する。
 
-## `:`(subject, T)
-
-subjectがTに合致しているか判定する。合致していない場合はコンパイルエラーを送出する。
-
-```python
-a: Int
-f x: Int, y: Int = x / y
-```
-
-また、`:`適用スタイルにも使われる。
-
-```python
-f x:
-    y
-    z
-```
-
-`:`も`=`と同じく演算の結果が未定義である。
-
-```python
-_ = x: Int # SyntaxError:
-print!(x: Int) # SyntaxError:
-```
-
 ## `.`(obj, attr)
 
 objの属性を読み込む。
-`x.[y, z]`とすると、xのyとzという属性を配列にして返す。
 
 ## `|>`(obj, c: Callable)
 
 `c(obj)`を実行する。`x + y |>.foo()`は`(x + y).foo()`と同じ。
 
-### (x: Option T)`?` -> T | T
+### (x: Option T)`?` -> T
 
 後置演算子。`x.unwrap()`を呼び出し、エラーの場合はその場で`return`する。
 
-## match(obj, ...lambdas: Lambda)
+## match(obj, ...arms: Lambda)
 
-objについて、パターンにマッチしたlambdaを実行する。
+objについて、パターンにマッチしたarmを実行する。armは無名関数でなくてはならない。
 
 ```python
 match [1, 2, 3]:
@@ -102,15 +77,25 @@ match [1, 2, 3]:
 # (1, 2, 3)
 ```
 
-## del(x: ...T) -> NoneType | T
+型指定によって処理を分岐できるが、型推論の結果は分岐に影響しない。
+
+```python
+zero: {0} -> {0}
+one: {1} -> {1}
+_ = match x:
+    i -> zero i
+    j -> one j # Warning: cannot reach this arm
+```
+
+## Del(x: ...T) -> NoneType
 
 変数`x`を削除する。ただし組み込みのオブジェクトは削除できない。
 
 ```python
 a = 1
-del a # OK
+Del a # OK
 
-del True # SyntaxError: cannot delete a built-in object
+Del True # SyntaxError: cannot delete a built-in object
 ```
 
 ## do(body: Body) -> Func
@@ -149,7 +134,7 @@ assert True.then(choice) == 1
 
 ### `{}`(layout, ...names, ...preds)
 
-篩型、ランク2型を生成する。
+篩型を生成する。
 
 ### `...`
 
@@ -169,10 +154,10 @@ assert {x; ...yz} == {x = 1; y = 2; z = 3}
 
 ユーザーが直接使用できない演算子です。
 
-### ref(x: T) -> Ref T | T
+### ref(x: T) -> Ref T
 
 オブジェクトの不変参照を返す。
 
-### ref!(x: T!) -> Ref! T! | T!
+### ref!(x: T!) -> Ref! T!
 
 可変オブジェクトの可変参照を返す。
