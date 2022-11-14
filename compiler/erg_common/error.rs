@@ -236,7 +236,7 @@ pub enum Location {
     ///
     /// Ownership error
     ///
-    /// ```
+    /// ```erg
     /// a: Nat = 1
     /// a.consume_ownership() // move occurs
     ///
@@ -245,7 +245,7 @@ pub enum Location {
     ///
     /// `a` moves ownership in a method(or function) that are defined and consume it.
     ///
-    /// ```
+    /// ```erg
     /// Location::RangePair {
     ///     ln_first: (2, 2),
     ///     col_first: (0, 1),
@@ -262,7 +262,7 @@ pub enum Location {
     },
     ///
     /// Location used for basic errors
-    /// ```
+    /// ```erg
     /// // erg
     /// a = 1
     /// a = 2
@@ -492,7 +492,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 }
 
 /// format:
-/// ```
+/// ```txt
 /// Error[#{.errno}]: File {file}, line {.loc (as line)}, in {.caused_by}
 /// {.loc (as line)}| {src}
 /// {pointer}
@@ -503,7 +503,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 /// ```
 ///
 /// example:
-/// ```
+/// ```txt
 /// Error[#2223]: File <stdin>, line 1, in <module>
 ///
 /// 1 | 100 = i

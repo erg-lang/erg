@@ -239,6 +239,7 @@ pub const CHARS: Characters = Characters {
 /// It is an immutable string.
 /// # Example
 /// ```
+/// # use erg_common::style::{Color, Attribute, StyledStr};
 /// const URL: StyledStr = StyledStr::new(
 ///    "https://github.com/erg-lang/erg",
 ///    Some(Color::White),
@@ -312,7 +313,8 @@ impl StyledString {
     ///
     /// # Example
     /// ```
-    /// let mut text = StyledString::new("sample text", None, Attribute::Underline);
+    /// # use erg_common::style::{Color, Attribute, StyledString};
+    /// let mut text = StyledString::new("sample text", None, Some(Attribute::Underline));
     /// text.push_str("\n");
     /// text.push_str("Next break line text");
     /// println!("{text}"); // Two lines of text underlined are displayed
@@ -348,8 +350,9 @@ impl std::fmt::Display for StyledString {
 ///
 /// # Example
 /// ```
+/// # use erg_common::style::{Color, Attribute, StyledStrings};
 /// let mut texts = StyledStrings::default();
-/// texts.push_srt("Default color is gray, ");
+/// texts.push_str("Default color is gray, ");
 /// texts.push_str_with_color("and it is possible to color text.\n", Color::Red);
 /// texts.push_str("Basically, this `StyledStrings` is one sentence, ");
 /// texts.push_str_with_color("so if you want to multiline sentences, you need to add `\n`.", Color::Magenta);
@@ -369,7 +372,8 @@ impl StyledStrings {
     ///
     ///  # Example
     /// ```
-    /// let mut texts = StyledStrings::default()
+    /// # use erg_common::style::StyledStrings;
+    /// let mut texts = StyledStrings::default();
     /// texts.push_str("sample text");
     /// texts.push_str("\n");
     /// texts.push_str("new text here");
@@ -393,13 +397,14 @@ impl StyledStrings {
     ///
     /// # Example
     /// ```
+    /// # use erg_common::style::{Color, Attribute, StyledStrings};
     /// let mut texts = StyledStrings::default();
     /// texts.push_str_with_color("Cyan color text", Color::Cyan);
     /// texts.push_str_with_color("Red color text", Color::Red);
     /// texts.push_str_with_color(", pushed texts become a single String.", Color::Yellow);
     /// texts.push_str_with_color("\n If you want to add break lines, you should add `\n`.", Color::Magenta);
     /// println!("{}", texts);
-    /// ``
+    /// ```
     pub fn push_str_with_color(&mut self, s: &str, color: Color) {
         if self.is_same_color(color) {
             self.texts.last_mut().unwrap().text.push_str(s);
@@ -414,10 +419,11 @@ impl StyledStrings {
     ///
     /// # Example
     /// ```
+    /// # use erg_common::style::{Color, Attribute, StyledStrings};
     /// let mut texts = StyledStrings::default();
     /// texts.push_str_with_color_and_attribute("Magenta and bold text\n", Color::Magenta, Attribute::Bold);
     /// texts.push_str_with_color_and_attribute("White and underlined text", Color::White, Attribute::Underline);
-    /// texts.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
+    /// // texts.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
     /// println!("{}", texts);
     /// ```
     pub fn push_str_with_color_and_attribute(&mut self, s: &str, color: Color, attr: Attribute) {
