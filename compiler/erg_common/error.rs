@@ -230,37 +230,6 @@ impl From<&str> for ErrorKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Location {
     ///
-    /// Error used when the error is caused by a discrepancy with a code on another line
-    ///
-    /// # Example
-    ///
-    /// Ownership error
-    ///
-    /// ```erg
-    /// a: Nat = 1
-    /// a.consume_ownership() // move occurs
-    ///
-    /// function(a) // borrowed after moved
-    /// ```
-    ///
-    /// `a` moves ownership in a method(or function) that are defined and consume it.
-    ///
-    /// ```erg
-    /// Location::RangePair {
-    ///     ln_first: (2, 2),
-    ///     col_first: (0, 1),
-    ///     ln_second: (4, 4),
-    ///     col_second: (9, 10),
-    /// }
-    /// ```
-    ///
-    RangePair {
-        ln_first: (usize, usize),
-        col_first: (usize, usize),
-        ln_second: (usize, usize),
-        col_second: (usize, usize),
-    },
-    ///
     /// Location used for basic errors
     /// ```erg
     /// // erg
@@ -311,59 +280,34 @@ impl Location {
         }
     }
 
-    pub fn pair(lhs: Self, rhs: Self) -> Self {
-        Self::RangePair {
-            ln_first: (lhs.ln_begin().unwrap(), lhs.ln_end().unwrap()),
-            col_first: (lhs.col_begin().unwrap(), lhs.col_end().unwrap()),
-            ln_second: (rhs.ln_begin().unwrap(), rhs.ln_end().unwrap()),
-            col_second: (rhs.col_begin().unwrap(), rhs.col_end().unwrap()),
-        }
-    }
-
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                ln_first: (ln_begin, _),
-                ..
+            Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
+                Some(*ln_begin)
             }
-            | Self::Range { ln_begin, .. }
-            | Self::LineRange(ln_begin, _)
-            | Self::Line(ln_begin) => Some(*ln_begin),
             Self::Unknown => None,
         }
     }
 
     pub const fn ln_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                ln_second: (_, ln_end),
-                ..
+            Self::Range { ln_end, .. } | Self::LineRange(ln_end, _) | Self::Line(ln_end) => {
+                Some(*ln_end)
             }
-            | Self::Range { ln_end, .. }
-            | Self::LineRange(ln_end, _)
-            | Self::Line(ln_end) => Some(*ln_end),
             Self::Unknown => None,
         }
     }
 
     pub const fn col_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                col_first: (col_begin, _),
-                ..
-            }
-            | Self::Range { col_begin, .. } => Some(*col_begin),
+            Self::Range { col_begin, .. } => Some(*col_begin),
             _ => None,
         }
     }
 
     pub const fn col_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                col_second: (_, col_end),
-                ..
-            }
-            | Self::Range { col_end, .. } => Some(*col_end),
+            Self::Range { col_end, .. } => Some(*col_end),
             _ => None,
         }
     }
@@ -659,11 +603,6 @@ pub trait ErrorDisplay {
                 ln_begin, ln_end, ..
             }
             | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
-            Location::RangePair {
-                ln_first: (l1, l2),
-                ln_second: (l3, l4),
-                ..
-            } => format!(", line {l1}..{l2}, {l3}..{l4}"),
             Location::Line(lineno) => format!(", line {lineno}"),
             Location::Unknown => "".to_string(),
         };
@@ -686,38 +625,6 @@ pub trait ErrorDisplay {
         chars: &Characters,
     ) -> String {
         match self.core().loc {
-            // TODO: Current implementation does not allow for multiple descriptions of errors to be given at each location
-            // In the future, this will be implemented in a different structure that can handle multiple lines and files
-            Location::RangePair {
-                ln_first,
-                col_first,
-                ln_second,
-                col_second,
-            } => {
-                format_context(
-                    self,
-                    ln_first.0,
-                    ln_first.1,
-                    col_first.0,
-                    col_first.1,
-                    err_color,
-                    gutter_color,
-                    chars,
-                    mark,
-                ) +
-                "\n" // TODO: dealing with error chains
-                    + &format_context(
-                        self,
-                        ln_second.0,
-                        ln_second.1,
-                        col_second.0,
-                        col_second.1,
-                    err_color,
-                    gutter_color,
-                        chars,
-                        mark,
-                    )
-            }
             Location::Range {
                 ln_begin,
                 col_begin,

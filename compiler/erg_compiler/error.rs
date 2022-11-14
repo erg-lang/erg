@@ -1862,24 +1862,6 @@ if True:
         );
         print!("{}", err);
 
-        let loc = Location::RangePair {
-            ln_first: (1, 2),
-            col_first: (0, 1),
-            ln_second: (4, 4),
-            col_second: (9, 10),
-        };
-        let input = Input::Pipe(
-            "\
-a: Nat = 1
-a.ownership_is_moved()
-
-function(a)
-"
-            .to_string(),
-        );
-        let err = TyCheckError::checker_bug(input, 0, loc, "file_name", 0);
-        print!("{}", err);
-
         let loc = Location::Range {
             ln_begin: 1,
             col_begin: 0,
