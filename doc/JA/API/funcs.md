@@ -6,7 +6,7 @@
 
 ## 基本関数
 
-### if|T; U|(cond: Bool, then: T, else: U) -> T or U
+### if|T; U|(cond: Bool, then: T, else: U := NoneType) -> T or U
 
 ### map|T; U|(i: Iterable T, f: T -> U) -> Map U
 
