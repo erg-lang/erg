@@ -1001,6 +1001,47 @@ impl Context {
         trait_type.register_trait(TraitType, trait_eq);
         let mut code = Self::builtin_mono_class("Code", 10);
         code.register_superclass(Obj, &obj);
+        code.register_builtin_impl("co_argcount", Nat, Immutable, Public);
+        code.register_builtin_impl(
+            "co_varnames",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_consts",
+            array_t(Obj, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_names",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_freevars",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_cellvars",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl("co_filename", Str, Immutable, Public);
+        code.register_builtin_impl("co_name", Str, Immutable, Public);
+        code.register_builtin_impl("co_firstlineno", Nat, Immutable, Public);
+        code.register_builtin_impl("co_stacksize", Nat, Immutable, Public);
+        code.register_builtin_impl("co_flags", Nat, Immutable, Public);
+        code.register_builtin_impl("co_code", mono("Bytes"), Immutable, Public);
+        code.register_builtin_impl("co_lnotab", mono("Bytes"), Immutable, Public);
+        code.register_builtin_impl("co_nlocals", Nat, Immutable, Public);
+        code.register_builtin_impl("co_kwonlyargcount", Nat, Immutable, Public);
+        code.register_builtin_impl("co_posonlyargcount", Nat, Immutable, Public);
         let mut code_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         code_eq.register_builtin_impl("__eq__", fn1_met(Code, Code, Bool), Const, Public);
         code.register_trait(Code, code_eq);
@@ -1697,6 +1738,11 @@ impl Context {
             py_module(Path),
         )
         .quantify();
+        let t_pycompile = nd_func(
+            vec![kw("src", Str), kw("filename", Str), kw("mode", Str)],
+            None,
+            Code,
+        );
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
@@ -1750,6 +1796,13 @@ impl Context {
             Immutable,
             Private,
             Some("__import__"),
+        );
+        self.register_builtin_py_impl(
+            "pycompile",
+            t_pycompile,
+            Immutable,
+            Private,
+            Some("compile"),
         );
         self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
