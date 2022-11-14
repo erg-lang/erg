@@ -178,6 +178,7 @@ pub struct ErgConfig {
     /// needed for `jupyter-erg`
     pub ps1: &'static str,
     pub ps2: &'static str,
+    pub runtime_args: Vec<&'static str>,
 }
 
 impl Default for ErgConfig {
@@ -198,6 +199,7 @@ impl Default for ErgConfig {
             verbose: 2,
             ps1: ">>> ",
             ps2: "... ",
+            runtime_args: vec![],
         }
     }
 }
@@ -232,6 +234,12 @@ impl ErgConfig {
         // ループ内でnextするのでforにしないこと
         while let Some(arg) = args.next() {
             match &arg[..] {
+                "--" => {
+                    for arg in args {
+                        cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                    }
+                    break;
+                }
                 "-c" | "--code" => {
                     cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
@@ -356,6 +364,11 @@ impl ErgConfig {
                         PathBuf::from_str(&arg[..])
                             .unwrap_or_else(|_| panic!("invalid file path: {}", arg)),
                     );
+                    if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
+                        for arg in args {
+                            cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                        }
+                    }
                     break;
                 }
             }

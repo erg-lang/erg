@@ -493,7 +493,11 @@ pub fn env_python_version() -> PythonVersion {
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i32> {
+pub fn exec_pyc<S: Into<String>>(
+    file: S,
+    py_command: Option<&str>,
+    argv: &[&'static str],
+) -> Option<i32> {
     let command = py_command
         .map(ToString::to_string)
         .unwrap_or_else(which_python);
@@ -502,10 +506,11 @@ pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i3
             .arg("/C")
             .arg(command)
             .arg(&file.into())
+            .args(argv)
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{command} {}", file.into());
+        let exec_command = format!("{command} {} {}", file.into(), argv.join(" "));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -516,7 +521,7 @@ pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i3
 }
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
+pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     let command = py_command
         .map(ToString::to_string)
         .unwrap_or_else(which_python);
@@ -539,7 +544,7 @@ pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn exec_py(code: &str) -> Option<i32> {
+pub fn _exec_py(code: &str) -> Option<i32> {
     let mut child = if cfg!(windows) {
         Command::new(which_python())
             .arg("-c")
