@@ -11,6 +11,7 @@ use erg_common::error::Location;
 use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
+use erg_common::style::THEME;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{
@@ -206,16 +207,16 @@ impl ParserRunner {
     pub fn parse_token_stream(&mut self, ts: TokenStream) -> Result<Module, ParserRunnerErrors> {
         Parser::new(ts)
             .parse()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs, THEME))
     }
 
     pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
         let ts = Lexer::new(Input::Str(src))
             .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs, THEME))?;
         Parser::new(ts)
             .parse()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
+            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs, THEME))
     }
 }
 

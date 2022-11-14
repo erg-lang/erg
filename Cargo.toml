@@ -27,11 +27,7 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = [
-    "erg_common/debug",
-    "erg_parser/debug",
-    "erg_compiler/debug",
-]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
@@ -47,6 +43,8 @@ traditional_chinese = [
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
 ]
+unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode"]
+pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/unicode"]
 pre-commit = []
 
 [dependencies]

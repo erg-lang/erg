@@ -2,9 +2,9 @@
 //!
 //! パーサーが出すエラーを定義
 use erg_common::astr::AtomicStr;
-use erg_common::color::{RED, RESET};
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, Theme};
 use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
@@ -38,15 +38,20 @@ impl LexError {
     }
 
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
+        const URL: StyledStr = StyledStr::new(
+            "https://github.com/erg-lang/erg",
+            Some(Color::White),
+            Some(Attribute::Underline),
+        );
         Self::new(ErrorCore::new(
             errno,
             CompilerSystemError,
             loc,
             switch_lang!(
-                "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい (https://github.com/erg-lang/erg)\n{fn_name}:{line}より発生"),
-                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给https://github.com/erg-lang/erg\n原因来自: {fn_name}:{line}"),
-                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給https://github.com/erg-lang/erg\n原因來自: {fn_name}:{line}"),
-                "english" => format!("this is a bug of the Erg compiler, please report it to https://github.com/erg-lang/erg\ncaused from: {fn_name}:{line}"),
+                "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n{fn_name}:{line}より発生"),
+                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给{URL}\n原因来自: {fn_name}:{line}"),
+                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給{URL}\n原因來自: {fn_name}:{line}"),
+                "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\ncaused from: {fn_name}:{line}"),
             ),
             None,
         ))
@@ -115,15 +120,16 @@ impl LexError {
             )
             .into()
         });
+        let name = StyledString::new(name, Some(Color::Red), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
             errno,
             NameError,
             loc,
             switch_lang!(
-                "japanese" => format!("{RED}{name}{RESET}という変数は定義されていません"),
-                "simplified_chinese" => format!("{RED}{name}{RESET}未定义"),
-                "traditional_chinese" => format!("{RED}{name}{RESET}未定義"),
-                "english" => format!("{RED}{name}{RESET} is not defined"),
+                "japanese" => format!("{name}という変数は定義されていません"),
+                "simplified_chinese" => format!("{name}未定义"),
+                "traditional_chinese" => format!("{name}未定義"),
+                "english" => format!("{name} is not defined"),
             ),
             hint,
         ))
@@ -158,6 +164,7 @@ pub type DesugaringResult<T> = Result<T, DesugaringError>;
 pub struct ParserRunnerError {
     pub core: ErrorCore,
     pub input: Input,
+    pub theme: Theme,
 }
 
 impl_display_and_error!(ParserRunnerError);
@@ -169,6 +176,9 @@ impl ErrorDisplay for ParserRunnerError {
     fn input(&self) -> &Input {
         &self.input
     }
+    fn theme(&self) -> &Theme {
+        &self.theme
+    }
     fn caused_by(&self) -> &str {
         ""
     }
@@ -178,8 +188,8 @@ impl ErrorDisplay for ParserRunnerError {
 }
 
 impl ParserRunnerError {
-    pub const fn new(core: ErrorCore, input: Input) -> Self {
-        Self { core, input }
+    pub const fn new(core: ErrorCore, input: Input, theme: Theme) -> Self {
+        Self { core, input, theme }
     }
 }
 
@@ -191,10 +201,10 @@ impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
 
 impl ParserRunnerErrors {
-    pub fn convert(input: &Input, errs: ParseErrors) -> Self {
+    pub fn convert(input: &Input, errs: ParseErrors, theme: Theme) -> Self {
         Self(
             errs.into_iter()
-                .map(|err| ParserRunnerError::new(*err.0, input.clone()))
+                .map(|err| ParserRunnerError::new(*err.0, input.clone(), theme))
                 .collect(),
         )
     }
