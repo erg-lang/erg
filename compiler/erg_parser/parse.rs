@@ -2170,14 +2170,17 @@ impl Parser {
     /// x |> f() => f(x)
     fn try_reduce_stream_operator(&mut self, stack: &mut Vec<ExprOrOp>) -> ParseResult<()> {
         debug_call_info!(self);
-        self.skip(); // |> 
+        self.skip(); // |>
 
         fn get_stream_op_syntax_error(loc: Location) -> ParseError {
-            ParseError::syntax_error(0, loc, switch_lang!(
-                "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
-                "english" => "Only a call of function, method or subroutine is available after stream operator.",
-            ),
-            None
+            ParseError::syntax_error(
+                0,
+                loc,
+                switch_lang!(
+                    "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
+                    "english" => "Only a call of function, method or subroutine is available after stream operator.",
+                ),
+                None,
             )
         }
 

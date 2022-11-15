@@ -1017,8 +1017,12 @@ impl NestedDisplay for Call {
         if let Some(attr_name) = self.attr_name.as_ref() {
             write!(f, "{}", attr_name)?;
         }
-        writeln!(f, ":")?;
-        self.args.fmt_nest(f, level + 1)
+        if self.args.is_empty() {
+            write!(f, "()")
+        } else {
+            writeln!(f, ":")?;
+            self.args.fmt_nest(f, level + 1)
+        }
     }
 }
 
