@@ -42,7 +42,7 @@ use erg_parser::token::Token;
 use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
-use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
+use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Visibility::*;
 
 const BUILTINS: &Str = &Str::ever("<builtins>");
@@ -439,17 +439,15 @@ impl Context {
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
-        for (idx, param) in params.into_iter().enumerate() {
+        for param in params.into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
-                let idx = ParamIdx::Nth(idx);
-                let kind = VarKind::parameter(id, idx, param.default_info);
+                let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::from(name);
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
-                let idx = ParamIdx::Nth(idx);
-                let kind = VarKind::parameter(id, idx, param.default_info);
+                let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::Immutable;
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((None, vi));

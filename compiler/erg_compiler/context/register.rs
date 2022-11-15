@@ -30,7 +30,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::Literal;
-use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
+use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
@@ -203,13 +203,28 @@ impl Context {
         &mut self,
         sig: &ast::NonDefaultParamSignature,
         default_val_exists: bool,
-        outer: Option<ParamIdx>,
-        nth: usize,
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
         match &sig.pat {
-            ast::ParamPattern::Lit(_) => Ok(()),
-            ast::ParamPattern::Discard(_token) => Ok(()),
+            // Literal patterns will be desugared to discard patterns
+            ast::ParamPattern::Lit(_) => unreachable!(),
+            ast::ParamPattern::Discard(_token) => {
+                let spec_t = self.instantiate_param_sig_t(
+                    sig,
+                    opt_decl_t,
+                    &mut TyVarCache::new(self.level, self),
+                    Normal,
+                )?;
+                let kind = VarKind::parameter(
+                    DefId(get_hash(&(&self.name, "_"))),
+                    DefaultInfo::NonDefault,
+                );
+                self.params.push((
+                    Some(VarName::from_static("_")),
+                    VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                ));
+                Ok(())
+            }
             ast::ParamPattern::VarName(name) => {
                 if self
                     .registered_info(name.inspect(), name.is_const())
@@ -231,18 +246,12 @@ impl Context {
                         let self_t = self.rec_get_self_t().unwrap();
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
-                    let idx = if let Some(outer) = outer {
-                        ParamIdx::nested(outer, nth)
-                    } else {
-                        ParamIdx::Nth(nth)
-                    };
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
                     };
-                    let kind =
-                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
@@ -273,18 +282,12 @@ impl Context {
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
                     let spec_t = ref_(spec_t);
-                    let idx = if let Some(outer) = outer {
-                        ParamIdx::nested(outer, nth)
-                    } else {
-                        ParamIdx::Nth(nth)
-                    };
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
                     };
-                    let kind =
-                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
                         VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
@@ -314,18 +317,12 @@ impl Context {
                         self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
-                    let idx = if let Some(outer) = outer {
-                        ParamIdx::nested(outer, nth)
-                    } else {
-                        ParamIdx::Nth(nth)
-                    };
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
                     } else {
                         DefaultInfo::NonDefault
                     };
-                    let kind =
-                        VarKind::parameter(DefId(get_hash(&(&self.name, name))), idx, default);
+                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
                         VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
@@ -351,28 +348,26 @@ impl Context {
                 decl_subr_t.non_default_params.len()
             );
             assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
-            for (nth, (sig, pt)) in params
+            for (sig, pt) in params
                 .non_defaults
                 .iter()
                 .zip(decl_subr_t.non_default_params.iter())
-                .enumerate()
             {
-                self.assign_param(sig, false, None, nth, Some(pt))?;
+                self.assign_param(sig, false, Some(pt))?;
             }
-            for (nth, (sig, pt)) in params
+            for (sig, pt) in params
                 .defaults
                 .iter()
                 .zip(decl_subr_t.default_params.iter())
-                .enumerate()
             {
-                self.assign_param(&sig.sig, true, None, nth, Some(pt))?;
+                self.assign_param(&sig.sig, true, Some(pt))?;
             }
         } else {
-            for (nth, sig) in params.non_defaults.iter().enumerate() {
-                self.assign_param(sig, false, None, nth, None)?;
+            for sig in params.non_defaults.iter() {
+                self.assign_param(sig, false, None)?;
             }
-            for (nth, sig) in params.defaults.iter().enumerate() {
-                self.assign_param(&sig.sig, true, None, nth, None)?;
+            for sig in params.defaults.iter() {
+                self.assign_param(&sig.sig, true, None)?;
             }
         }
         Ok(())
