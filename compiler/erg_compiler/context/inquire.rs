@@ -882,6 +882,7 @@ impl Context {
                     for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
                         self.substitute_pos_arg(
                             &callee,
+                            attr_name,
                             &nd_arg.expr,
                             nth,
                             nd_param,
@@ -891,13 +892,20 @@ impl Context {
                     }
                     if let Some(var_param) = subr.var_params.as_ref() {
                         for var_arg in var_args.iter() {
-                            self.substitute_var_arg(&callee, &var_arg.expr, nth, var_param)?;
+                            self.substitute_var_arg(
+                                &callee,
+                                attr_name,
+                                &var_arg.expr,
+                                nth,
+                                var_param,
+                            )?;
                             nth += 1;
                         }
                     } else {
                         for (arg, pt) in var_args.iter().zip(subr.default_params.iter()) {
                             self.substitute_pos_arg(
                                 &callee,
+                                attr_name,
                                 &arg.expr,
                                 nth,
                                 pt,
@@ -909,6 +917,7 @@ impl Context {
                     for kw_arg in kw_args.iter() {
                         self.substitute_kw_arg(
                             &callee,
+                            attr_name,
                             kw_arg,
                             nth,
                             &subr.default_params,
@@ -982,6 +991,7 @@ impl Context {
     fn substitute_pos_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -992,8 +1002,11 @@ impl Context {
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                // REVIEW:
-                let name = callee.show_acc().unwrap_or_default();
+                let name = if let Some(attr) = attr_name {
+                    format!("{callee}{attr}")
+                } else {
+                    callee.show_acc().unwrap_or_default()
+                };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1034,6 +1047,7 @@ impl Context {
     fn substitute_var_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -1043,8 +1057,11 @@ impl Context {
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                // REVIEW:
-                let name = callee.show_acc().unwrap_or_default();
+                let name = if let Some(attr) = attr_name {
+                    format!("{callee}{attr}")
+                } else {
+                    callee.show_acc().unwrap_or_default()
+                };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1070,6 +1087,7 @@ impl Context {
     fn substitute_kw_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::KwArg,
         nth: usize,
         default_params: &[ParamTy],
@@ -1096,8 +1114,11 @@ impl Context {
             self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
-                    // REVIEW:
-                    let name = callee.show_acc().unwrap_or_default();
+                    let name = if let Some(attr) = attr_name {
+                        format!("{callee}{attr}")
+                    } else {
+                        callee.show_acc().unwrap_or_default()
+                    };
                     let name = name + "::" + readable_name(kw_name);
                     TyCheckErrors::new(
                         errs.into_iter()
