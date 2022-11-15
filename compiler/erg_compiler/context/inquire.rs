@@ -567,13 +567,12 @@ impl Context {
             for ctx in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| {
-                    TyCheckError::no_var_error(
+                    TyCheckError::type_not_found(
                         self.cfg.input.clone(),
                         line!() as usize,
                         obj.loc(),
                         self.caused_by(),
-                        &obj.to_string(),
-                        None, // TODO:
+                        obj.ref_t(),
                     )
                 })?
             {

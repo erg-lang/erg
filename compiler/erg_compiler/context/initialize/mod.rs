@@ -1274,7 +1274,21 @@ impl Context {
         array_iterator.register_superclass(Obj, &obj);
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
-        /* Float_mut */
+        let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
+        obj_mut.register_superclass(Obj, &obj);
+        let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
+        obj_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Obj));
+        let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
+        let t = pr_met(
+            ref_mut(mono("Obj!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
+        obj_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
+        obj_mut.register_trait(mono("Obj!"), obj_mut_mutable);
+        /* Float! */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
         let mut float_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1289,7 +1303,7 @@ impl Context {
         );
         float_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         float_mut.register_trait(mono("Float!"), float_mut_mutable);
-        /* Ratio_mut */
+        /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class("Ratio!", 2);
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1304,7 +1318,7 @@ impl Context {
         );
         ratio_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         ratio_mut.register_trait(mono("Ratio!"), ratio_mut_mutable);
-        /* Int_mut */
+        /* Int! */
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono("Float!"), &float_mut);
@@ -1323,7 +1337,7 @@ impl Context {
         let mut nat_mut = Self::builtin_mono_class("Nat!", 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono("Int!"), &int_mut);
-        /* Nat_mut */
+        /* Nat! */
         let mut nat_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         nat_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Nat));
         let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
@@ -1336,7 +1350,7 @@ impl Context {
         );
         nat_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         nat_mut.register_trait(mono("Nat!"), nat_mut_mutable);
-        /* Bool_mut */
+        /* Bool! */
         let mut bool_mut = Self::builtin_mono_class("Bool!", 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(mono("Nat!"), &nat_mut);
@@ -1352,7 +1366,7 @@ impl Context {
         );
         bool_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         bool_mut.register_trait(mono("Bool!"), bool_mut_mutable);
-        /* Str_mut */
+        /* Str! */
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
         str_mut.register_superclass(Str, &nonetype);
         let mut str_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1367,7 +1381,7 @@ impl Context {
         );
         str_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         str_mut.register_trait(mono("Str!"), str_mut_mutable);
-        /* File_mut */
+        /* File! */
         let mut file_mut = Self::builtin_mono_class("File!", 2);
         let mut file_mut_readable = Self::builtin_methods(Some(mono("Readable!")), 1);
         file_mut_readable.register_builtin_py_impl(
@@ -1595,6 +1609,7 @@ impl Context {
             Const,
             Some("RangeIterator"),
         );
+        self.register_builtin_type(mono("Obj!"), obj_mut, Private, Const, Some("object"));
         self.register_builtin_type(mono("Int!"), int_mut, Private, Const, Some("int"));
         self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const, Some("Nat"));
         self.register_builtin_type(mono("Float!"), float_mut, Private, Const, Some("float"));

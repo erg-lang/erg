@@ -1351,6 +1351,39 @@ impl LowerError {
         )
     }
 
+    pub fn type_not_found(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: AtomicStr,
+        typ: &Type,
+    ) -> Self {
+        let typ = StyledString::new(&typ.to_string(), Some(ERR), Some(Attribute::Bold));
+        Self::new(
+            ErrorCore::new(
+                errno,
+                NameError,
+                loc,
+                switch_lang!(
+                    "japanese" => format!("{typ}という型は定義されていません"),
+                    "simplified_chinese" => format!("{typ}未定义"),
+                    "traditional_chinese" => format!("{typ}未定義"),
+                    "english" => format!("Type {typ} is not defined"),
+                ),
+                Some(
+                    switch_lang!(
+                        "japanese" => format!("恐らくこれはErgコンパイラのバグです、{URL}へ報告してください"),
+                        "simplified_chinese" => format!("这可能是Erg编译器的错误，请报告给{URL}"),
+                        "traditional_chinese" => format!("這可能是Erg編譯器的錯誤，請報告給{URL}"),
+                        "english" => format!("This may be a bug of Erg compiler, please report to {URL}"),
+                    ).into(),
+                ),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn no_attr_error(
         input: Input,
         errno: usize,

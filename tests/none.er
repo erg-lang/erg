@@ -3,5 +3,3 @@ i.update! _ -> 2
 
 n = !2
 n.update! _ -> 2
-
-assert "a"
