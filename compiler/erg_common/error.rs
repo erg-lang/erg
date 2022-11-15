@@ -746,8 +746,13 @@ pub trait ErrorDisplay {
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
                     cxt.push_str_with_color(&format!("{lineno} {}", vbar), err_color);
                     cxt.push_str(&codes[i]);
+                    cxt.push_str("\n");
                     cxt.push_str(&" ".repeat(lineno.to_string().len() + 3)); // +3 means ` | `
-                    cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), gutter_color)
+                    cxt.push_str_with_color(
+                        &mark.repeat(cmp::max(1, codes[i].len())),
+                        gutter_color,
+                    );
+                    cxt.push_str("\n");
                 }
                 cxt.to_string()
             }
