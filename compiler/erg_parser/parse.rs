@@ -521,7 +521,7 @@ impl Parser {
     }
 
     fn opt_reduce_args(&mut self, in_type_args: bool) -> Option<ParseResult<Args>> {
-        // debug_call_info!(self);
+        debug_call_info!(self);
         match self.peek() {
             Some(t)
                 if t.category_is(TC::Literal)
@@ -1133,6 +1133,9 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
+                Some(t) if t.is(Pipe) => self
+                    .try_reduce_stream_operator(&mut stack)
+                    .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1305,6 +1308,9 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
+                Some(t) if t.is(Pipe) => self
+                    .try_reduce_stream_operator(&mut stack)
+                    .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -2159,6 +2165,35 @@ impl Parser {
                 Err(())
             }
         }
+    }
+
+    /// x |> f() => f(x)
+    fn try_reduce_stream_operator(&mut self, stack: &mut Vec<ExprOrOp>) -> ParseResult<()> {
+        debug_call_info!(self);
+        self.skip();
+        let expect_call = self
+            .try_reduce_call_or_acc(false)
+            .map_err(|_| self.stack_dec())?;
+        let Expr::Call(mut call) = expect_call else {
+            self.errs.push(ParseError::syntax_error(0, expect_call.loc(), switch_lang!(
+                "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
+                "english" => "Only a call of function, method or subroutine is available after stream operator.",
+            ),
+            None
+            ));
+            self.stack_dec();
+            return Err(());
+        };
+        let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
+            self.errs
+                .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
+            self.stack_dec();
+            return Err(());
+        };
+        call.args.insert_pos(0, PosArg { expr: first_arg });
+        stack.push(ExprOrOp::Expr(Expr::Call(call)));
+        self.stack_dec();
+        Ok(())
     }
 
     /// Call: F(x) -> SubrSignature: F(x)
