@@ -601,6 +601,9 @@ impl CodeObj {
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
             }
+            Opcode311::POP_JUMP_BACKWARD_IF_FALSE | Opcode311::POP_JUMP_BACKWARD_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
+            }
             Opcode311::JUMP_BACKWARD => {
                 write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
             }

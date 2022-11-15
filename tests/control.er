@@ -1,0 +1,25 @@
+cond = True
+s = if cond:
+    do "then block"
+    do "else block"
+assert s == "then block"
+
+if! cond:
+    do!:
+        print! "then block!"
+    do!:
+        print! "else block!"
+
+a = 1
+_ = match a:
+    (i: Int) -> i
+    _ -> panic "unknown object"
+
+for! 0..<10, i =>
+    print! "i = {i}"
+
+counter = !10
+print! counter
+while! not(counter == 0), do!:
+    print! "counter = {counter}"
+    counter.update!(i -> i - 1)

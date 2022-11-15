@@ -1446,6 +1446,14 @@ impl PyCodeGenerator {
         self.write_arg(name.idx);
     }
 
+    fn emit_not_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        let expr = args.remove_left_or_key("b").unwrap();
+        self.emit_expr(expr);
+        self.write_instr(UNARY_NOT);
+        self.write_arg(0);
+    }
+
     fn emit_discard_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         while let Some(arg) = args.try_remove(0) {
@@ -1524,12 +1532,15 @@ impl PyCodeGenerator {
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and iterator value)
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
+        // store the iterator value, stack_len == 1 or 2 in the end
         self.emit_frameless_block(lambda.body, params);
-        if self.stack_len() >= init_stack_len {
+        if self.stack_len() > init_stack_len - 1 {
             self.emit_pop_top();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len - 1); // the iterator is remained
         match self.py_version.minor {
             Some(11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
@@ -1567,16 +1578,22 @@ impl PyCodeGenerator {
             self.emit_pop_top();
         }
         self.emit_expr(cond);
-        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
-        let arg = if self.py_version.minor >= Some(10) {
-            (idx_while + 2) / 2
+        let arg = if self.py_version.minor >= Some(11) {
+            let arg = self.lasti() - (idx_while + 2);
+            self.write_instr(Opcode311::POP_JUMP_BACKWARD_IF_TRUE);
+            arg / 2 + 1
         } else {
-            idx_while + 2
+            self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
+            if self.py_version.minor >= Some(10) {
+                (idx_while + 2) / 2
+            } else {
+                idx_while + 2
+            }
         };
         self.write_arg(arg);
         self.stack_dec();
         let idx_end = if self.py_version.minor >= Some(11) {
-            self.lasti() - idx_while
+            self.lasti() - idx_while - 1
         } else {
             self.lasti()
         };
@@ -1863,6 +1880,7 @@ impl PyCodeGenerator {
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
             "Del" => self.emit_del_instr(args),
+            "not" => self.emit_not_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
             "while!" => self.emit_while_instr(args),

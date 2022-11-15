@@ -30,6 +30,11 @@ fn exec_class() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_control() -> Result<(), ()> {
+    expect_success("tests/control.er")
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er")
 }

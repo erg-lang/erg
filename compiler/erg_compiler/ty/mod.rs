@@ -2105,7 +2105,7 @@ impl Type {
             // At least in situations where this function is needed, self cannot be Quantified.
             Self::Quantified(quant) => {
                 if quant.return_t().unwrap().is_generalized() {
-                    todo!("quantified return type")
+                    todo!("quantified return type (recursive function type inference)")
                 }
                 quant.return_t()
             }

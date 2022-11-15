@@ -1740,6 +1740,9 @@ impl Context {
             ],
             NoneType,
         );
+        // e.g. not(b: Bool!): Bool!
+        let B = mono_q("B", subtypeof(Bool));
+        let t_not = nd_func(vec![kw("b", B.clone())], None, B).quantify();
         let t_oct = nd_func(vec![kw("x", Int)], None, Str);
         let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
         let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
@@ -1792,6 +1795,7 @@ impl Context {
         );
         self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
         self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
+        self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
         self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
@@ -1934,7 +1938,7 @@ impl Context {
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
             vec![
-                kw("cond", mono("Bool!")),
+                kw("cond", Bool), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
                 kw("p", nd_proc(vec![], None, NoneType)),
             ],
             None,
