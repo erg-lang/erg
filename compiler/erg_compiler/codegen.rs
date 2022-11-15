@@ -1444,6 +1444,7 @@ impl PyCodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(DELETE_NAME);
         self.write_arg(name.idx);
+        self.emit_load_const(ValueObj::None);
     }
 
     fn emit_not_instr(&mut self, mut args: Args) {
@@ -1460,6 +1461,7 @@ impl PyCodeGenerator {
             self.emit_expr(arg);
             self.emit_pop_top();
         }
+        self.emit_load_const(ValueObj::None);
     }
 
     fn emit_if_instr(&mut self, mut args: Args) {
@@ -1516,10 +1518,12 @@ impl PyCodeGenerator {
                 self.stack_dec();
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_for_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        let _init_stack_len = self.stack_len();
         let iterable = args.remove(0);
         self.emit_expr(iterable);
         self.write_instr(GET_ITER);
@@ -1532,7 +1536,7 @@ impl PyCodeGenerator {
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
-        // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and iterator value)
+        // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and the first iterator value)
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
         // store the iterator value, stack_len == 1 or 2 in the end
@@ -1560,10 +1564,12 @@ impl PyCodeGenerator {
         self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
 
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        let _init_stack_len = self.stack_len();
         let cond = args.remove(0);
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
@@ -1599,10 +1605,12 @@ impl PyCodeGenerator {
         };
         self.calc_edit_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
 
     fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) {
         log!(info "entered {}", fn_name!());
+        let init_stack_len = self.stack_len();
         let expr = args.remove(0);
         self.emit_expr(expr);
         let len = args.len();
@@ -1644,6 +1652,7 @@ impl PyCodeGenerator {
         for absolute_jump_point in absolute_jump_points.into_iter() {
             self.calc_edit_jump(absolute_jump_point + 1, lasti - absolute_jump_point - 1);
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_match_pattern(&mut self, param: NonDefaultParamSignature) -> Vec<usize> {
@@ -1858,6 +1867,7 @@ impl PyCodeGenerator {
 
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
+        let init_stack_len = self.stack_len();
         // Python cannot distinguish at compile time between a method call and a attribute call
         if let Some(attr_name) = call.attr_name {
             self.emit_call_method(*call.obj, attr_name, call.args);
@@ -1873,6 +1883,7 @@ impl PyCodeGenerator {
                 }
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_call_local(&mut self, local: Identifier, args: Args) {
@@ -2001,6 +2012,7 @@ impl PyCodeGenerator {
         // self.stack_dec_n((1 + 1) - 1);
         self.stack_dec();
         self.store_acc(acc);
+        self.emit_load_const(ValueObj::None);
     }
 
     /// X.update! x -> x + 1
@@ -2017,6 +2029,7 @@ impl PyCodeGenerator {
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
+        self.emit_load_const(ValueObj::None);
     }
 
     /// 1.abs() => abs(1)
@@ -2039,6 +2052,7 @@ impl PyCodeGenerator {
     // assert takes 1 or 2 arguments (0: cond, 1: message)
     fn emit_assert_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
+        let init_stack_len = self.stack_len();
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.lasti();
         self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
@@ -2070,10 +2084,13 @@ impl PyCodeGenerator {
             _ => todo!(),
         };
         self.edit_code(pop_jump_point + 1, idx);
+        self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     // TODO: list comprehension
     fn emit_array(&mut self, array: Array) {
+        let init_stack_len = self.stack_len();
         if !self.cfg.no_std {
             self.emit_push_null();
             self.emit_load_name_instr(Identifier::public("Array"));
@@ -2112,11 +2129,13 @@ impl PyCodeGenerator {
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
+        let init_stack_len = self.stack_len();
         let attrs_len = rec.attrs.len();
         self.emit_push_null();
         // making record type
@@ -2149,6 +2168,7 @@ impl PyCodeGenerator {
         self.emit_call_instr(attrs_len, Name);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + attrs_len + 0) - 1);
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn get_root(acc: &Accessor) -> Identifier {

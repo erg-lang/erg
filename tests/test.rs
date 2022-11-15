@@ -204,9 +204,10 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
 
 fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    cfg.py_command = Some("python");
+    // cfg.py_command = Some("python3");
     // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(8)));
     // cfg.py_magic_num = Some(3439);
+    cfg.py_command = Some("python");
     cfg.target_version = Some(PythonVersion::new(3, Some(11), Some(0)));
     cfg.py_magic_num = Some(3495);
     let mut vm = DummyVM::new(cfg);
