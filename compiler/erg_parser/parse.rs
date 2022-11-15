@@ -2170,28 +2170,72 @@ impl Parser {
     /// x |> f() => f(x)
     fn try_reduce_stream_operator(&mut self, stack: &mut Vec<ExprOrOp>) -> ParseResult<()> {
         debug_call_info!(self);
-        self.skip();
-        let expect_call = self
-            .try_reduce_call_or_acc(false)
-            .map_err(|_| self.stack_dec())?;
-        let Expr::Call(mut call) = expect_call else {
-            self.errs.push(ParseError::syntax_error(0, expect_call.loc(), switch_lang!(
+        self.skip(); // |> 
+
+        fn get_stream_op_syntax_error(loc: Location) -> ParseError {
+            ParseError::syntax_error(0, loc, switch_lang!(
                 "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
                 "english" => "Only a call of function, method or subroutine is available after stream operator.",
             ),
             None
-            ));
-            self.stack_dec();
-            return Err(());
-        };
-        let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
-            self.errs
-                .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
-            self.stack_dec();
-            return Err(());
-        };
-        call.args.insert_pos(0, PosArg { expr: first_arg });
-        stack.push(ExprOrOp::Expr(Expr::Call(call)));
+            )
+        }
+
+        if matches!(self.peek(), Some(t) if t.is(Dot)) {
+            // obj |> .method(...)
+            let vis = self.lpop();
+            match self.lpop() {
+                symbol if symbol.is(Symbol) => {
+                    let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    if let Some(args) = self
+                        .opt_reduce_args(false)
+                        .transpose()
+                        .map_err(|_| self.stack_dec())?
+                    {
+                        let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                        let mut call = Expr::Call(Call::new(obj, Some(ident), args));
+                        while let Some(res) = self.opt_reduce_args(false) {
+                            let args = res.map_err(|_| self.stack_dec())?;
+                            call = call.call_expr(args);
+                        }
+                        stack.push(ExprOrOp::Expr(call));
+                    } else {
+                        self.errs.push(get_stream_op_syntax_error(obj.loc()));
+                        self.stack_dec();
+                        return Err(());
+                    }
+                }
+                other => {
+                    self.restore(other);
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
+            }
+        } else {
+            let expect_call = self
+                .try_reduce_call_or_acc(false)
+                .map_err(|_| self.stack_dec())?;
+            let Expr::Call(mut call) = expect_call else {
+                self.errs.push(get_stream_op_syntax_error(expect_call.loc()));
+                self.stack_dec();
+                return Err(());
+            };
+            let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
+                self.errs
+                    .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
+                self.stack_dec();
+                return Err(());
+            };
+            call.args.insert_pos(0, PosArg { expr: first_arg });
+            stack.push(ExprOrOp::Expr(Expr::Call(call)));
+        }
         self.stack_dec();
         Ok(())
     }
