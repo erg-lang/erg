@@ -2103,7 +2103,12 @@ impl Type {
             }
             // NOTE: Quantified could return a quantified type variable.
             // At least in situations where this function is needed, self cannot be Quantified.
-            // Self::Quantified(quant) => quant.unbound_callable.return_t(),
+            Self::Quantified(quant) => {
+                if quant.return_t().unwrap().is_generalized() {
+                    todo!("quantified return type")
+                }
+                quant.return_t()
+            }
             _ => None,
         }
     }

@@ -564,6 +564,11 @@ impl Context {
 
     #[allow(clippy::only_used_in_recursion)]
     /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1
+    /// i: (Int)
+    /// ```
     pub(crate) fn coerce(&self, t: &Type) {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {

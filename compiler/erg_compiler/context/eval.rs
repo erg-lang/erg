@@ -809,13 +809,12 @@ impl Context {
             }
         }
         for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
-            EvalError::no_var_error(
+            EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 t_loc,
                 self.caused_by(),
-                &rhs,
-                None, // TODO:
+                &sub,
             )
         })? {
             if let Some(t) =
@@ -1096,13 +1095,12 @@ impl Context {
     ) -> EvalResult<Type> {
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
-            EvalError::no_var_error(
+            EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 t_loc,
                 self.caused_by(),
-                &attr_name,
-                None, // TODO:
+                &t,
             )
         })? {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {

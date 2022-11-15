@@ -312,7 +312,11 @@ impl Context {
             .skip(1)
             .map(|a| ParamTy::anonymous(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
-        let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
+        let mut return_t = branch_ts[0]
+            .typ()
+            .return_t()
+            .unwrap_or_else(|| todo!("{}", branch_ts[0]))
+            .clone();
         for arg_t in branch_ts.iter().skip(1) {
             return_t = self.union(&return_t, arg_t.typ().return_t().unwrap());
         }
@@ -430,24 +434,13 @@ impl Context {
                 }
             }
         }
-        for ctx in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
-            TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj.loc(),
-                self.caused_by(),
-                &self_t.to_string(),
-                None, // TODO:
-            )
-        })? {
-            match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                Ok(t) => {
-                    return Ok(t);
-                }
-                Err(e) if e.core.kind == ErrorKind::NameError => {}
-                Err(e) => {
-                    return Err(e);
-                }
+        match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
+            Ok(t) => {
+                return Ok(t);
+            }
+            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) => {
+                return Err(e);
             }
         }
         // TODO: dependent type widening
@@ -464,6 +457,53 @@ impl Context {
                 self.get_similar_attr(&self_t, name.inspect()),
             ))
         }
+    }
+
+    fn get_attr_from_nominal_t(
+        &self,
+        obj: &hir::Expr,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<VarInfo> {
+        let self_t = obj.t();
+        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
+            for ctx in sups {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Ok(t) => {
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        let coerced = self.deref_tyvar(obj.t(), Variance::Covariant, Location::Unknown)?;
+        if obj.ref_t() != &coerced {
+            for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    &coerced,
+                )
+            })? {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Ok(t) => {
+                        self.coerce(obj.ref_t());
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        Err(TyCheckError::dummy(input.clone(), line!() as usize))
     }
 
     /// get type from given attributive type (Record).
@@ -1239,13 +1279,12 @@ impl Context {
     ) -> SingleTyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
         for ctx in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
-            TyCheckError::no_var_error(
+            TyCheckError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 obj.loc(),
                 self.caused_by(),
-                &self_t.to_string(),
-                None, // TODO:
+                self_t,
             )
         })? {
             if let Ok(t) = ctx.get_const_local(name, namespace) {

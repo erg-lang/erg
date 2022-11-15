@@ -459,7 +459,7 @@ impl Context {
                         line!() as usize,
                         simple.loc(),
                         self.caused_by(),
-                        other,
+                        &format!("(Type) {other}"),
                         self.get_similar_name(other),
                     )))
                 }
@@ -473,7 +473,7 @@ impl Context {
                         line!() as usize,
                         simple.ident.loc(),
                         self.caused_by(),
-                        other,
+                        &format!("(Type) {other}"),
                         self.get_similar_name(other),
                     )));
                 };
