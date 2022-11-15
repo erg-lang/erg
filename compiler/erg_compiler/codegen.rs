@@ -1887,7 +1887,11 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
         if &method_name.inspect()[..] == "update!" {
-            return self.emit_call_update_310(obj, args);
+            if self.py_version.minor >= Some(11) {
+                return self.emit_call_update_311(obj, args);
+            } else {
+                return self.emit_call_update_310(obj, args);
+            }
         } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
@@ -1962,6 +1966,23 @@ impl PyCodeGenerator {
         };
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + argc + kwsc) - 1);
+    }
+
+    /// X.update! x -> x + 1
+    /// X = (x -> x + 1)(X)
+    /// X = X + 1
+    fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        let acc = enum_unwrap!(obj, Expr::Accessor);
+        let func = args.remove_left_or_key("f").unwrap();
+        self.emit_push_null();
+        self.emit_expr(func);
+        self.emit_acc(acc.clone());
+        self.emit_precall_and_call(1);
+        // (1 (subroutine) + argc) input objects -> 1 return object
+        // self.stack_dec_n((1 + 1) - 1);
+        self.stack_dec();
+        self.store_acc(acc);
     }
 
     /// X.update! x -> x + 1
