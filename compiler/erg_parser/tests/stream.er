@@ -1,2 +1,5 @@
 print!(1 + 1 |> f())
 print!(1 + 1 |> .abs())
+
+print!(f(1+1))
+print!((1+1).abs())
