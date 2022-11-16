@@ -2229,7 +2229,7 @@ impl Parser {
                 self.stack_dec();
                 return Err(());
             };
-            call.args.insert_pos(0, PosArg { expr: first_arg });
+            call.args.insert_pos(0, PosArg::new(first_arg));
             stack.push(ExprOrOp::Expr(Expr::Call(call)));
         }
         self.stack_dec();
