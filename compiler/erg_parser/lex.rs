@@ -989,6 +989,10 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.consume();
                     self.accept(BitOr, "||")
                 }
+                Some('>') => {
+                    self.consume();
+                    self.accept(Pipe, "|>")
+                }
                 _ => self.accept(VBar, "|"),
             },
             Some('^') => {
