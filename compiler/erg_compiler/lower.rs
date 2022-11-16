@@ -894,15 +894,13 @@ impl ASTLowerer {
         match self.lower_block(body.block) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
-                let opt_expect_body_t = self
-                    .ctx
-                    .outer
-                    .as_ref()
-                    .unwrap()
-                    .get_current_scope_var(sig.inspect().unwrap())
-                    .map(|vi| vi.t.clone());
+                let outer = self.ctx.outer.as_ref().unwrap();
+                let opt_expect_body_t = sig
+                    .inspect()
+                    .and_then(|name| outer.get_current_scope_var(name).map(|vi| vi.t.clone()));
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
+                    ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
                     _ => unreachable!(),
                 };
                 if let Some(expect_body_t) = opt_expect_body_t {

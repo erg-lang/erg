@@ -162,6 +162,9 @@ impl Context {
     ) -> TyCheckResult<()> {
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Discard(_) => {
+                return Ok(());
+            }
             _ => todo!(),
         };
         // already defined as const
@@ -545,7 +548,8 @@ impl Context {
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
-        let __name__ = def.sig.ident().unwrap().inspect();
+        let ubar = Str::ever("_");
+        let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(&ubar);
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
@@ -597,7 +601,9 @@ impl Context {
                     self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                 }
                 self.pop();
-                self.register_gen_const(sig.ident().unwrap(), obj)?;
+                if let Some(ident) = sig.ident() {
+                    self.register_gen_const(ident, obj)?;
+                }
             }
             _ => {}
         }

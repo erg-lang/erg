@@ -2241,6 +2241,8 @@ impl From<&Identifier> for Field {
 }
 
 impl Identifier {
+    pub const UBAR: &Self = &Self::new(None, VarName::from_static("_"));
+
     pub const fn new(dot: Option<Token>, name: VarName) -> Self {
         Self { dot, name }
     }

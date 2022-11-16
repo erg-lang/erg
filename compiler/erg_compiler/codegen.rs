@@ -29,6 +29,7 @@ use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
 use CommonOpcode::*;
 
+use erg_parser::ast::PreDeclTypeSpec;
 use erg_parser::ast::TypeSpec;
 use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
 use erg_parser::token::DOT;
@@ -222,13 +223,64 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
-    fn emit_compare_op(&mut self, op: CompareOp) {
+    fn _emit_compare_op(&mut self, op: CompareOp) {
         self.write_instr(Opcode311::COMPARE_OP);
         self.write_arg(op as usize);
         self.stack_dec();
         if self.py_version.minor >= Some(11) {
             self.write_bytes(&[0; 4]);
         }
+    }
+
+    /// shut down the interpreter
+    #[allow(dead_code)]
+    fn terminate(&mut self) {
+        self.emit_push_null();
+        self.emit_load_name_instr(Identifier::public("exit"));
+        self.emit_load_const(1);
+        self.emit_precall_and_call(1);
+        self.stack_dec();
+    }
+
+    /// swap TOS and TOS1
+    fn rot2(&mut self) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::SWAP);
+            self.write_arg(2);
+        } else {
+            self.write_instr(Opcode310::ROT_TWO);
+            self.write_arg(0);
+        }
+    }
+
+    fn dup_top(&mut self) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::COPY);
+            self.write_arg(1);
+        } else {
+            self.write_instr(Opcode310::DUP_TOP);
+            self.write_arg(0);
+        }
+        self.stack_inc();
+    }
+
+    /// COPY(1) == DUP_TOP
+    fn copy(&mut self, i: usize) {
+        debug_power_assert!(i, >, 0);
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::COPY);
+            self.write_arg(i);
+        } else {
+            todo!()
+        }
+        self.stack_inc();
+    }
+
+    /// 0 origin
+    #[allow(dead_code)]
+    fn peek_stack(&mut self, i: usize) {
+        self.copy(i + 1);
+        self.emit_print_expr();
     }
 
     #[inline]
@@ -1252,19 +1304,7 @@ impl PyCodeGenerator {
                     return;
                 }
                 if !self.in_op_loaded {
-                    let mod_name = if self.py_version.minor >= Some(10) {
-                        Identifier::public("_erg_std_prelude")
-                    } else {
-                        Identifier::public("_erg_std_prelude_old")
-                    };
-                    self.emit_global_import_items(
-                        mod_name,
-                        vec![(
-                            Identifier::public("in_operator"),
-                            Some(Identifier::private("#in_operator")),
-                        )],
-                    );
-                    self.in_op_loaded = true;
+                    self.load_in_op();
                 }
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
@@ -1614,18 +1654,10 @@ impl PyCodeGenerator {
         let expr = args.remove(0);
         self.emit_expr(expr);
         let len = args.len();
-        let mut absolute_jump_points = vec![];
+        let mut jump_forward_points = vec![];
         while let Some(expr) = args.try_remove(0) {
-            // パターンが複数ある場合引数を複製する、ただし最後はしない
             if len > 1 && !args.is_empty() {
-                if self.py_version.minor >= Some(11) {
-                    self.write_instr(Opcode311::COPY);
-                    self.write_arg(1);
-                } else {
-                    self.write_instr(Opcode310::DUP_TOP);
-                    self.write_arg(0);
-                }
-                self.stack_inc();
+                self.dup_top();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
             let mut lambda = enum_unwrap!(expr, Expr::Lambda);
@@ -1634,8 +1666,11 @@ impl PyCodeGenerator {
                 todo!("default values in match expression are not supported yet")
             }
             let param = lambda.params.non_defaults.remove(0);
-            let pop_jump_points = self.emit_match_pattern(param);
+            let pop_jump_points = self.emit_match_pattern(param, args.is_empty());
             self.emit_frameless_block(lambda.body, Vec::new());
+            // If we move on to the next arm, the stack size will increase
+            // so `self.stack_dec();` for now (+1 at the end).
+            self.stack_dec();
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = if self.py_version.minor >= Some(11) {
                     self.lasti() - pop_jump_point // - 2
@@ -1643,61 +1678,41 @@ impl PyCodeGenerator {
                     self.lasti() + 2
                 };
                 self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
-                absolute_jump_points.push(self.lasti());
+                jump_forward_points.push(self.lasti());
                 self.write_instr(JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.lasti();
-        for absolute_jump_point in absolute_jump_points.into_iter() {
-            self.calc_edit_jump(absolute_jump_point + 1, lasti - absolute_jump_point - 1);
+        for jump_point in jump_forward_points.into_iter() {
+            self.calc_edit_jump(jump_point + 1, lasti - jump_point - 1);
         }
+        self.stack_inc();
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
-    fn emit_match_pattern(&mut self, param: NonDefaultParamSignature) -> Vec<usize> {
+    fn emit_match_pattern(
+        &mut self,
+        param: NonDefaultParamSignature,
+        is_last_arm: bool,
+    ) -> Vec<usize> {
         log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
+        if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
+            // If it's the last arm, there's no need to inspect it
+            if !is_last_arm {
+                self.emit_match_guard(t_spec, &mut pop_jump_points);
+            }
+        }
         match param.pat {
             ParamPattern::VarName(name) => {
                 let ident = Identifier::bare(None, name);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
-            ParamPattern::Array(arr) => {
-                let len = arr.len();
-                self.write_instr(Opcode310::MATCH_SEQUENCE);
-                self.write_arg(0);
-                pop_jump_points.push(self.lasti());
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
-                self.write_arg(0);
-                self.stack_dec();
-                self.write_instr(Opcode310::GET_LEN);
-                self.write_arg(0);
-                self.emit_load_const(len);
-                self.emit_compare_op(CompareOp::EQ);
-                pop_jump_points.push(self.lasti());
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
-                self.write_arg(0);
-                self.stack_dec();
-                self.write_instr(Opcode310::UNPACK_SEQUENCE);
-                self.write_arg(len);
-                self.stack_inc_n(len - 1);
-                for elem in arr.elems.non_defaults {
-                    pop_jump_points.append(&mut self.emit_match_pattern(elem));
-                }
-                if !arr.elems.defaults.is_empty() {
-                    todo!("default values in match are not supported yet")
-                }
-            }
             ParamPattern::Discard(_) => {
-                if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
-                    self.emit_match_guard(t_spec, &mut pop_jump_points)
-                }
                 self.emit_pop_top();
             }
-            _other => {
-                todo!()
-            }
+            _other => unreachable!(),
         }
         pop_jump_points
     }
@@ -1705,8 +1720,8 @@ impl PyCodeGenerator {
     fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
         #[allow(clippy::single_match)]
         match t_spec {
-            TypeSpec::Enum(enm) => {
-                let elems = enm
+            TypeSpec::Enum(enum_t) => {
+                let elems = enum_t
                     .deconstruct()
                     .0
                     .into_iter()
@@ -1719,6 +1734,41 @@ impl PyCodeGenerator {
                 self.emit_load_const(elems);
                 self.write_instr(CONTAINS_OP);
                 self.write_arg(0);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                // self.stack_dec();
+            }
+            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
+                // arg null
+                // ↓ SWAP 1
+                // null arg
+                // ↓ LOAD_NAME(in_operator)
+                // null arg in_operator
+                // ↓ SWAP 1
+                // null in_operator arg
+                // ↓ LOAD_NAME(typ)
+                // null in_operator arg typ
+                self.emit_push_null();
+                self.rot2();
+                if !self.in_op_loaded {
+                    self.load_in_op();
+                }
+                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.rot2();
+                // TODO: DOT/not
+                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
+                // TODO:
+                typ.vi.py_name = match &typ.name.inspect()[..] {
+                    "Int" => Some("int".into()),
+                    "Float" => Some("float".into()),
+                    _ => None,
+                };
+                self.emit_load_name_instr(typ);
+                self.emit_precall_and_call(2);
                 self.stack_dec();
                 pop_jump_points.push(self.lasti());
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
@@ -2608,6 +2658,22 @@ impl PyCodeGenerator {
         self.load_prelude_py();
         self.prelude_loaded = true;
         self.record_type_loaded = true;
+    }
+
+    fn load_in_op(&mut self) {
+        let mod_name = if self.py_version.minor >= Some(10) {
+            Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
+        };
+        self.emit_global_import_items(
+            mod_name,
+            vec![(
+                Identifier::public("in_operator"),
+                Some(Identifier::private("#in_operator")),
+            )],
+        );
+        self.in_op_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {
