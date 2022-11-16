@@ -1061,11 +1061,7 @@ impl Parser {
                                 .map_err(|_| self.stack_dec())?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
-                                let mut call = Expr::Call(Call::new(obj, Some(ident), args));
-                                while let Some(res) = self.opt_reduce_args(false) {
-                                    let args = res.map_err(|_| self.stack_dec())?;
-                                    call = call.call_expr(args);
-                                }
+                                let call = Expr::Call(Call::new(obj, Some(ident), args));
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
