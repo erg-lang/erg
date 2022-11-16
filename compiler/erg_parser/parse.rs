@@ -948,11 +948,7 @@ impl Parser {
                     // "a": 1 (key-value pair)
                     if in_brace {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                         break;
                     }
@@ -972,11 +968,7 @@ impl Parser {
                             if prev_op.category_is(TC::BinOp)
                                 && prev_op.kind.precedence() >= op_prec
                             {
-                                let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                let prev_op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                                let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                let bin = BinOp::new(prev_op, lhs, rhs);
-                                stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                                collect_last_binop_on_stack(&mut stack);
                             } else {
                                 break;
                             }
@@ -1148,11 +1140,7 @@ impl Parser {
                     // else if stack.len() == 2 { switch_unreachable!() }
                     else {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                     }
                 }
@@ -1324,11 +1312,7 @@ impl Parser {
                     // else if stack.len() == 2 { switch_unreachable!() }
                     else {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                     }
                 }
@@ -2170,7 +2154,16 @@ impl Parser {
     /// x |> f() => f(x)
     fn try_reduce_stream_operator(&mut self, stack: &mut Vec<ExprOrOp>) -> ParseResult<()> {
         debug_call_info!(self);
-        self.skip(); // |>
+        let op = self.lpop();
+        while stack.len() >= 3 {
+            collect_last_binop_on_stack(stack);
+        }
+        if stack.len() == 2 {
+            self.errs
+                .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+            self.stack_dec();
+            return Err(());
+        }
 
         fn get_stream_op_syntax_error(loc: Location) -> ParseError {
             ParseError::syntax_error(
@@ -3236,4 +3229,12 @@ impl Parser {
             }
         }
     }
+}
+
+fn collect_last_binop_on_stack(stack: &mut Vec<ExprOrOp>) {
+    let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+    let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+    let bin = BinOp::new(op, lhs, rhs);
+    stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
 }
