@@ -5,11 +5,11 @@
 パイプライン演算子は、次のように使います。
 
 ```python
-assert f(g(x)) == (x |> g |> f)
-assert f(g(x, y)) == ((x, y) |> g |> f)
+assert f(g(x)) == (x |> g() |> f())
+assert f(g(x, y)) == (x |> g(y) |> f())
 ```
 
-つまり、`Callable(object)`という順序を`object |> Callable`に変えられます。
+つまり、`Callable(object)`という順序を`object |> Callable()`に変えられます。
 パイプライン演算子はメソッドに対しても使えます。メソッドの場合、`object.method(args)`が`object |>.method(args)`と変わります。
 単に`|>`が増えただけにも見えるが、結合強度が低めなので`()`の量を減らせる場合があります。
 
@@ -19,7 +19,7 @@ log rand # 0.2597...
 
 1+1*2 |>.times do log("a", end := "") # aaa
 
-evens = 1..100 |>.iter |>.filter i -> i % 2 == 0 |>.collect Array
+evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect Array
 # パイプライン演算子を使わずに実装する場合、
 _evens = (1..100).iter().filter(i -> i % 2 == 0).collect(Array)
 # または

@@ -3,11 +3,11 @@
 Pipeline operators are used like this:
 
 ```python
-assert f(g(x)) == (x |> g |> f)
-assert f(g(x, y)) == ((x, y) |> g |> f)
+assert f(g(x)) == (x |> g |> f())
+assert f(g(x, y)) == (x |> g(y) |> f())
 ```
 
-In other words, the order `Callable(object)` can be changed to `object |> Callable`.
+In other words, the order `Callable(object)` can be changed to `object |> Callable()`.
 The pipeline operator can also be used on methods. For methods, `object.method(args)` changes to `object |>.method(args)`.
 It looks like just more `|>`, but since the bond strength is low, you may be able to reduce the amount of `()`.
 
@@ -17,7 +17,7 @@ log rand # 0.2597...
 
 1+1*2 |>.times do log("a", end := "") # aaa
 
-evens = 1..100 |>.iter |>.filter i -> i % 2 == 0 |>.collect Array
+evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect Array
 # When implemented without the pipeline operator,
 _evens = (1..100).iter().filter(i -> i % 2 == 0).collect(Array)
 # or
