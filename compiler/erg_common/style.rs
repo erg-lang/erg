@@ -23,7 +23,7 @@ pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;103;65;150m";
 pub const CUSTOM_GREEN: &str = "\x1b[38;2;170;209;71m";
 pub const CUSTOM_YELLOW: &str = "\x1b[38;2;230;180;34m";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Color {
     Reset,
     Black,
@@ -87,13 +87,14 @@ impl Attribute {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ThemeColors {
     pub error: Color,
     pub warning: Color,
     pub exception: Color,
     pub gutter: Color,
     pub hint: Color,
+    pub accent: Color,
 }
 
 #[cfg(not(feature = "pretty"))]
@@ -103,6 +104,7 @@ pub const COLORS: ThemeColors = ThemeColors {
     exception: Color::Magenta,
     gutter: Color::Cyan,
     hint: Color::Green,
+    accent: Color::White,
 };
 
 #[cfg(feature = "pretty")]
@@ -112,9 +114,10 @@ pub const COLORS: ThemeColors = ThemeColors {
     exception: Color::CustomMagenta,
     gutter: Color::CustomCyan,
     hint: Color::CustomGreen,
+    accent: Color::CustomGray,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Characters {
     hat: char,    // error
     wave: char,   // exception
@@ -177,7 +180,7 @@ impl Characters {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Theme {
     pub colors: ThemeColors,
     pub characters: Characters,

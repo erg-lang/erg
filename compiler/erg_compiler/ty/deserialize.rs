@@ -6,7 +6,7 @@ use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::dict::Dict;
-use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::DataTypePrefix;
 use erg_common::{fn_name, switch_lang};
@@ -40,11 +40,10 @@ impl From<FromUtf8Error> for DeserializeError {
 impl From<DeserializeError> for ErrorCore {
     fn from(err: DeserializeError) -> Self {
         ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            err.desc,
             err.errno,
             ErrorKind::ImportError,
-            Location::Unknown,
-            err.desc,
-            Option::<AtomicStr>::None,
         )
     }
 }
