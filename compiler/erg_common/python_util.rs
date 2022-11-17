@@ -584,6 +584,12 @@ pub struct PythonVersion {
     pub micro: Option<u8>,
 }
 
+impl Default for PythonVersion {
+    fn default() -> Self {
+        Self::new(3, Some(11), Some(0))
+    }
+}
+
 impl PythonVersion {
     pub const fn new(major: u8, minor: Option<u8>, micro: Option<u8>) -> Self {
         Self {

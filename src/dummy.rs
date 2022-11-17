@@ -26,6 +26,12 @@ pub struct DummyVM {
     stream: Option<TcpStream>,
 }
 
+impl Default for DummyVM {
+    fn default() -> Self {
+        Self::new(ErgConfig::default())
+    }
+}
+
 impl Runnable for DummyVM {
     type Err = EvalError;
     type Errs = EvalErrors;

@@ -16,7 +16,7 @@ use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
 
 /// Summarize lowering, side-effect checking, and ownership checking
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HIRBuilder {
     lowerer: ASTLowerer,
     ownership_checker: OwnershipChecker,

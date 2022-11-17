@@ -131,7 +131,7 @@ pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
 impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PyCodeGenerator {
     cfg: ErgConfig,
     pub(crate) py_version: PythonVersion,

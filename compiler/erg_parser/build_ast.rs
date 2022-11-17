@@ -8,6 +8,7 @@ use crate::error::{ParserRunnerError, ParserRunnerErrors};
 use crate::parse::ParserRunner;
 
 /// Summarize parsing and desugaring
+#[derive(Debug, Default)]
 pub struct ASTBuilder {
     runner: ParserRunner,
 }
