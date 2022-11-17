@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use erg_common::config::Input;
 use erg_common::env::erg_pystd_path;
-use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -757,13 +757,20 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
-                            // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                            let mut sub_msges = Vec::new();
+                            for sub_msg in e.core.sub_messages {
+                                sub_msges.push(SubMessage::ambiguous_new(
+                                    // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                                    bin.loc(),
+                                    None,
+                                    sub_msg.get_hint(),
+                                ));
+                            }
                             let core = ErrorCore::new(
+                                sub_msges,
+                                e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
-                                bin.loc(),
-                                e.core.desc,
-                                e.core.hint,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })
@@ -798,12 +805,19 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
+                            let mut sub_msges = Vec::new();
+                            for sub_msg in e.core.sub_messages {
+                                sub_msges.push(SubMessage::ambiguous_new(
+                                    unary.loc(),
+                                    None,
+                                    sub_msg.get_hint(),
+                                ));
+                            }
                             let core = ErrorCore::new(
+                                sub_msges,
+                                e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
-                                unary.loc(),
-                                e.core.desc,
-                                e.core.hint,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })
@@ -1053,7 +1067,8 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                e.core.loc,
+                                // TODO: Is it possible to get 0?
+                                e.core.sub_messages.get(0).unwrap().loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1108,7 +1123,8 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                e.core.loc,
+                                // TODO: Is it possible to get 0?
+                                e.core.sub_messages.get(0).unwrap().loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1165,7 +1181,8 @@ impl Context {
                                 TyCheckError::type_mismatch_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    e.core.loc,
+                                    // TODO: Is it possible to get 0?
+                                    e.core.sub_messages.get(0).unwrap().loc,
                                     e.caused_by,
                                     &name[..],
                                     Some(nth),

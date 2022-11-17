@@ -416,7 +416,8 @@ impl Context {
                                 TyCheckError::return_type_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    e.core.loc,
+                                    // TODO: is it possible to get 0?
+                                    e.core.sub_messages.get(0).unwrap().loc,
                                     e.caused_by,
                                     readable_name(name.inspect()),
                                     spec_ret_t,

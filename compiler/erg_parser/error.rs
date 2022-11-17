@@ -3,8 +3,10 @@
 //! パーサーが出すエラーを定義
 use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
-use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
-use erg_common::style::{Attribute, Color, StyledStr, StyledString, Theme};
+use erg_common::error::{
+    ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
+};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, THEME};
 use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
@@ -28,62 +30,64 @@ pub struct LexErrors(Vec<LexError>);
 
 impl_stream_for_wrapper!(LexErrors, LexError);
 
+const HINT: Color = THEME.colors.hint;
+const ACCENT: Color = THEME.colors.accent;
+
 impl LexError {
     pub fn new(core: ErrorCore) -> Self {
         Self(Box::new(core))
     }
 
     pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
-        self.0.hint = Some(hint.into());
+        if let Some(sub_msg) = self.0.sub_messages.get_mut(0) {
+            sub_msg.set_hint(hint)
+        }
     }
 
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
         const URL: StyledStr = StyledStr::new(
             "https://github.com/erg-lang/erg",
-            Some(Color::White),
+            Some(ACCENT),
             Some(Attribute::Underline),
         );
         Self::new(ErrorCore::new(
-            errno,
-            CompilerSystemError,
-            loc,
+            vec![SubMessage::only_loc(loc)],
             switch_lang!(
                 "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n{fn_name}:{line}より発生"),
                 "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给{URL}\n原因来自: {fn_name}:{line}"),
                 "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給{URL}\n原因來自: {fn_name}:{line}"),
                 "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\ncaused from: {fn_name}:{line}"),
             ),
-            None,
+            errno,
+            CompilerSystemError,
         ))
     }
 
     pub fn feature_error(errno: usize, loc: Location, name: &str) -> Self {
         Self::new(ErrorCore::new(
-            errno,
-            FeatureError,
-            loc,
+            vec![SubMessage::only_loc(loc)],
             switch_lang!(
                 "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
                 "simplified_chinese" => format!("此功能（{name}）尚未实现"),
                 "traditional_chinese" => format!("此功能（{name}）尚未實現"),
                 "english" => format!("this feature({name}) is not implemented yet"),
             ),
-            None,
+            errno,
+            FeatureError,
         ))
     }
 
     pub fn simple_syntax_error(errno: usize, loc: Location) -> Self {
         Self::new(ErrorCore::new(
-            errno,
-            SyntaxError,
-            loc,
+            vec![SubMessage::only_loc(loc)],
             switch_lang!(
                 "japanese" => "不正な構文です",
                 "simplified_chinese" => "无效的语法",
                 "traditional_chinese" => "無效的語法",
                 "english" => "invalid syntax",
             ),
-            None,
+            errno,
+            SyntaxError,
         ))
     }
 
@@ -93,7 +97,12 @@ impl LexError {
         desc: S,
         hint: Option<AtomicStr>,
     ) -> Self {
-        Self::new(ErrorCore::new(errno, SyntaxError, loc, desc, hint))
+        Self::new(ErrorCore::new(
+            vec![SubMessage::ambiguous_new(loc, None, hint)],
+            desc,
+            errno,
+            SyntaxError,
+        ))
     }
 
     pub fn syntax_warning<S: Into<AtomicStr>>(
@@ -102,7 +111,12 @@ impl LexError {
         desc: S,
         hint: Option<AtomicStr>,
     ) -> Self {
-        Self::new(ErrorCore::new(errno, SyntaxWarning, loc, desc, hint))
+        Self::new(ErrorCore::new(
+            vec![SubMessage::ambiguous_new(loc, None, hint)],
+            desc,
+            errno,
+            SyntaxWarning,
+        ))
     }
 
     pub fn no_var_error(
@@ -112,6 +126,7 @@ impl LexError {
         similar_name: Option<String>,
     ) -> Self {
         let hint = similar_name.map(|n| {
+            let n = StyledString::new(&n, Some(HINT), Some(Attribute::Bold));
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),
@@ -122,16 +137,15 @@ impl LexError {
         });
         let name = StyledString::new(name, Some(Color::Red), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
-            errno,
-            NameError,
-            loc,
+            vec![SubMessage::ambiguous_new(loc, None, hint)],
             switch_lang!(
                 "japanese" => format!("{name}という変数は定義されていません"),
                 "simplified_chinese" => format!("{name}未定义"),
                 "traditional_chinese" => format!("{name}未定義"),
                 "english" => format!("{name} is not defined"),
             ),
-            hint,
+            errno,
+            NameError,
         ))
     }
 }
@@ -164,7 +178,6 @@ pub type DesugaringResult<T> = Result<T, DesugaringError>;
 pub struct ParserRunnerError {
     pub core: ErrorCore,
     pub input: Input,
-    pub theme: Theme,
 }
 
 impl_display_and_error!(ParserRunnerError);
@@ -176,9 +189,6 @@ impl ErrorDisplay for ParserRunnerError {
     fn input(&self) -> &Input {
         &self.input
     }
-    fn theme(&self) -> &Theme {
-        &self.theme
-    }
     fn caused_by(&self) -> &str {
         ""
     }
@@ -188,8 +198,8 @@ impl ErrorDisplay for ParserRunnerError {
 }
 
 impl ParserRunnerError {
-    pub const fn new(core: ErrorCore, input: Input, theme: Theme) -> Self {
-        Self { core, input, theme }
+    pub const fn new(core: ErrorCore, input: Input) -> Self {
+        Self { core, input }
     }
 }
 
@@ -201,10 +211,10 @@ impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
 
 impl ParserRunnerErrors {
-    pub fn convert(input: &Input, errs: ParseErrors, theme: Theme) -> Self {
+    pub fn convert(input: &Input, errs: ParseErrors) -> Self {
         Self(
             errs.into_iter()
-                .map(|err| ParserRunnerError::new(*err.0, input.clone(), theme))
+                .map(|err| ParserRunnerError::new(*err.0, input.clone()))
                 .collect(),
         )
     }
