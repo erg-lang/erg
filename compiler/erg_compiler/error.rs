@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fmt::Display;
 
 use erg_common::astr::AtomicStr;
@@ -1813,6 +1814,12 @@ impl From<CompileError> for CompileErrors {
 }
 
 impl MultiErrorDisplay<CompileError> for CompileErrors {}
+
+impl fmt::Display for CompileErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_all(f)
+    }
+}
 
 impl CompileErrors {
     pub fn flush(&mut self) -> Self {

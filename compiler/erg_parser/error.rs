@@ -1,6 +1,8 @@
 //! defines `ParseError` and others.
 //!
 //! パーサーが出すエラーを定義
+use std::fmt;
+
 use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
@@ -199,6 +201,12 @@ pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
+
+impl fmt::Display for ParserRunnerErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_all(f)
+    }
+}
 
 impl ParserRunnerErrors {
     pub fn convert(input: &Input, errs: ParseErrors, theme: Theme) -> Self {
