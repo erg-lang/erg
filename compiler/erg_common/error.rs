@@ -810,4 +810,11 @@ pub trait MultiErrorDisplay<Item: ErrorDisplay>: Stream<Item> {
         }
         write!(f, "")
     }
+
+    fn write_all<W: std::io::Write>(&self, w: &mut W) {
+        let mut writer = BufWriter::new(w);
+        for err in self.iter() {
+            err.write_to(&mut writer);
+        }
+    }
 }
