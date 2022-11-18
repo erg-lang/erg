@@ -373,14 +373,16 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         context.push_str(&" ".repeat(col_end - 1));
         context.push_str_with_color(&chars.left_bottom_line(), err_color);
         context.push_str(msg);
+        context.push_str("\n")
     }
     if let Some(hint) = hint {
         context.push_str_with_color(&offset, gutter_color);
         context.push_str(&" ".repeat(col_end - 1));
         context.push_str_with_color(&chars.left_bottom_line(), err_color);
         context.push_str(hint);
+        context.push_str("\n")
     }
-    context.to_string()
+    context.to_string() + "\n"
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -475,7 +477,6 @@ impl SubMessage {
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
-                cxt.push_str("\n");
                 cxt.to_string()
             }
             Location::Unknown => match e.input() {
@@ -559,8 +560,27 @@ impl ErrorCore {
         )
     }
 
-    pub fn fmt_main_message(&self, kind: StyledString) -> String {
-        format!("{}\n{}\n\n", kind, self.main_message)
+    pub fn fmt_header(&self, kind: StyledString, caused_by: &str, input: &str) -> String {
+        let loc = match self.loc {
+            Location::Range {
+                ln_begin, ln_end, ..
+            } if ln_begin == ln_end => format!(", line {ln_begin}"),
+            Location::Range {
+                ln_begin, ln_end, ..
+            }
+            | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
+            Location::Line(lineno) => format!(", line {lineno}"),
+            Location::Unknown => "".to_string(),
+        };
+        format!("{kind}: File {input}{loc}{caused_by}\n",)
+    }
+
+    pub fn fmt_main_message(&self, kind: StyledString, caused_by: &str, input: &str) -> String {
+        format!(
+            "{}{}\n\n",
+            self.fmt_header(kind, caused_by, input),
+            self.main_message
+        )
     }
 }
 
@@ -570,21 +590,17 @@ impl ErrorCore {
 /// {.loc (as line)}| {src}
 /// {pointer}
 /// {.kind}: {.desc}
-///
 /// {.hint}
-///
 /// ```
 ///
 /// example:
 /// ```txt
 /// Error[#2223]: File <stdin>, line 1, in <module>
+/// SyntaxError: cannot assign to 100
 ///
 /// 1 | 100 = i
 ///     ---
-///       ╰─ SyntaxError: cannot assign to 100
-///
-/// hint: hint message here
-///
+///       ╰─ hint: hint message here
 /// ```
 pub trait ErrorDisplay {
     fn core(&self) -> &ErrorCore;
@@ -624,13 +640,11 @@ pub trait ErrorDisplay {
             Some(color),
             Some(Attribute::Bold),
         );
-        let sub_messages = self.core().sub_messages();
         let mut msg = String::new();
-        msg += &core.fmt_main_message(kind);
-        for sub_msg in sub_messages {
-            msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars)
+        msg += &core.fmt_main_message(kind, self.caused_by(), self.input().enclosed_name());
+        for sub_msg in &self.core().sub_messages {
+            msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
-        msg += "\n";
         msg
     }
 
@@ -650,9 +664,12 @@ pub trait ErrorDisplay {
             Some(color),
             Some(Attribute::Bold),
         );
-        writeln!(f, "{}", core.fmt_main_message(kind))?;
-        let sub_messages = self.core().sub_messages();
-        for sub_msg in sub_messages {
+        writeln!(
+            f,
+            "{}\n",
+            core.fmt_main_message(kind, self.caused_by(), self.input().enclosed_name())
+        )?;
+        for sub_msg in &self.core().sub_messages {
             writeln!(
                 f,
                 "{}",
