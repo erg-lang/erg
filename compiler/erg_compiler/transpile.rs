@@ -11,7 +11,9 @@ use erg_parser::ast::ParamPattern;
 use crate::build_hir::HIRBuilder;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
-use crate::hir::{Accessor, Block, Call, Expr, Identifier, Params, Signature, HIR};
+use crate::hir::{
+    Accessor, Array, Block, Call, Dict, Expr, Identifier, Params, Set, Signature, Tuple, HIR,
+};
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 
@@ -135,6 +137,53 @@ impl ScriptGenerator {
                 code += &self.transpile_expr(*unary.expr);
                 code
             }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let mut code = "[".to_string();
+                    for elem in arr.elems.pos_args {
+                        code += &format!("{},", self.transpile_expr(elem.expr));
+                    }
+                    code += "]";
+                    code
+                }
+                other => todo!("transpiling {other}"),
+            },
+            Expr::Set(set) => match set {
+                Set::Normal(st) => {
+                    let mut code = "{".to_string();
+                    for elem in st.elems.pos_args {
+                        code += &format!("{},", self.transpile_expr(elem.expr));
+                    }
+                    code += "}";
+                    code
+                }
+                other => todo!("transpiling {other}"),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    let mut code = "(".to_string();
+                    for elem in tup.elems.pos_args {
+                        code += &format!("{},", self.transpile_expr(elem.expr));
+                    }
+                    code += ")";
+                    code
+                }
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dic) => {
+                    let mut code = "{".to_string();
+                    for kv in dic.kvs {
+                        code += &format!(
+                            "({}): ({}),",
+                            self.transpile_expr(kv.key),
+                            self.transpile_expr(kv.value)
+                        );
+                    }
+                    code += "}";
+                    code
+                }
+                other => todo!("transpiling {other}"),
+            },
             Expr::Accessor(acc) => match acc {
                 Accessor::Ident(ident) => Self::transpile_ident(ident),
                 Accessor::Attr(attr) => {
