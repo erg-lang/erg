@@ -124,6 +124,17 @@ impl ScriptGenerator {
         match expr {
             Expr::Lit(lit) => lit.token.content.to_string(),
             Expr::Call(call) => self.transpile_call(call),
+            Expr::BinOp(bin) => {
+                let mut code = self.transpile_expr(*bin.lhs);
+                code += &bin.op.content;
+                code += &self.transpile_expr(*bin.rhs);
+                code
+            }
+            Expr::UnaryOp(unary) => {
+                let mut code = unary.op.content.to_string();
+                code += &self.transpile_expr(*unary.expr);
+                code
+            }
             Expr::Accessor(acc) => match acc {
                 Accessor::Ident(ident) => Self::transpile_ident(ident),
                 Accessor::Attr(attr) => {
