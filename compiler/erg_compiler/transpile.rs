@@ -216,12 +216,12 @@ impl ScriptGenerator {
         let mut code = String::new();
         for non_default in params.non_defaults {
             let ParamPattern::VarName(param) = non_default.pat else { todo!() };
-            code += &format!("{},", param.into_token().content);
+            code += &format!("__{},", param.into_token().content);
         }
         for default in params.defaults {
             let ParamPattern::VarName(param) = default.sig.pat else { todo!() };
             code += &format!(
-                "{}={},",
+                "__{}={},",
                 param.into_token().content,
                 self.transpile_expr(default.default_val)
             );
