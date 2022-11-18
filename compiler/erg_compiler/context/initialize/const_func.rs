@@ -27,6 +27,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             AtomicStr::from(format!("{REQ_ERR} is not passed")),
             line!() as usize,
             ErrorKind::TypeError,
+            Location::Unknown,
         )
     })?;
     let Some(require) = require.as_type() else {
@@ -38,6 +39,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             )),
             line!() as usize,
             ErrorKind::TypeError,
+            Location::Unknown,
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
@@ -55,6 +57,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             AtomicStr::from(format!("{sup} is not passed")),
             line!() as usize,
             ErrorKind::KeyError,
+            Location::Unknown,
         )
     })?;
     let Some(sup) = sup.as_type() else {
@@ -66,6 +69,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             )),
             line!() as usize,
             ErrorKind::TypeError,
+            Location::Unknown,
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
@@ -87,6 +91,7 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
             AtomicStr::from(format!("{CLASS_ERR} is not passed")),
             line!() as usize,
             ErrorKind::KeyError,
+            Location::Unknown,
         )
     })?;
     match class {
@@ -118,6 +123,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             AtomicStr::from(format!("{REQ_ERR} is not passed")),
             line!() as usize,
             ErrorKind::KeyError,
+            Location::Unknown,
         )
     })?;
     let Some(require) = require.as_type() else {
@@ -129,6 +135,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             )),
             line!() as usize,
             ErrorKind::TypeError,
+            Location::Unknown,
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
@@ -145,6 +152,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             AtomicStr::from(format!("{SUP_ERR} is not passed")),
             line!() as usize,
             ErrorKind::KeyError,
+            Location::Unknown,
         )
     })?;
     let Some(sup) = sup.as_type() else {
@@ -156,6 +164,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             )),
             line!() as usize,
             ErrorKind::TypeError,
+            Location::Unknown,
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
@@ -186,6 +195,7 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
             )),
             line!() as usize,
             ErrorKind::IndexError,
+            Location::Unknown,
         )
         .into())
     }
@@ -219,6 +229,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
             AtomicStr::from(format!("{slf} has no key {index}",)),
             line!() as usize,
             ErrorKind::IndexError,
+            Location::Unknown,
         )
         .into())
     }
@@ -243,6 +254,7 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
             AtomicStr::from(format!("Index out of range: {}", index)),
             line!() as usize,
             ErrorKind::IndexError,
+            Location::Unknown,
         )
         .into())
     }

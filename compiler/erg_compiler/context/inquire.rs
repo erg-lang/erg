@@ -771,6 +771,7 @@ impl Context {
                                 e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
+                                e.core.loc,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })
@@ -818,6 +819,7 @@ impl Context {
                                 e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
+                                e.core.loc,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })

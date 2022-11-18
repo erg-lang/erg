@@ -30,6 +30,7 @@ pub struct LexErrors(Vec<LexError>);
 
 impl_stream_for_wrapper!(LexErrors, LexError);
 
+const ERR: Color = THEME.colors.error;
 const HINT: Color = THEME.colors.hint;
 const ACCENT: Color = THEME.colors.accent;
 
@@ -60,6 +61,7 @@ impl LexError {
             ),
             errno,
             CompilerSystemError,
+            loc,
         ))
     }
 
@@ -74,6 +76,7 @@ impl LexError {
             ),
             errno,
             FeatureError,
+            loc,
         ))
     }
 
@@ -88,6 +91,7 @@ impl LexError {
             ),
             errno,
             SyntaxError,
+            loc,
         ))
     }
 
@@ -102,6 +106,7 @@ impl LexError {
             desc,
             errno,
             SyntaxError,
+            loc,
         ))
     }
 
@@ -116,6 +121,7 @@ impl LexError {
             desc,
             errno,
             SyntaxWarning,
+            loc,
         ))
     }
 
@@ -135,7 +141,7 @@ impl LexError {
             )
             .into()
         });
-        let name = StyledString::new(name, Some(Color::Red), Some(Attribute::Underline));
+        let name = StyledString::new(name, Some(ERR), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, None, hint)],
             switch_lang!(
@@ -146,6 +152,7 @@ impl LexError {
             ),
             errno,
             NameError,
+            loc,
         ))
     }
 }

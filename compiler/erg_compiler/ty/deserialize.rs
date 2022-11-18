@@ -44,6 +44,7 @@ impl From<DeserializeError> for ErrorCore {
             err.desc,
             err.errno,
             ErrorKind::ImportError,
+            Location::Unknown,
         )
     }
 }

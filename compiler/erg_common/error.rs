@@ -501,6 +501,7 @@ pub struct ErrorCore {
     pub main_message: AtomicStr,
     pub errno: usize,
     pub kind: ErrorKind,
+    pub loc: Location,
     theme: Theme,
 }
 
@@ -510,18 +511,16 @@ impl ErrorCore {
         main_message: S,
         errno: usize,
         kind: ErrorKind,
+        loc: Location,
     ) -> Self {
         Self {
             sub_messages,
             main_message: main_message.into(),
             errno,
             kind,
+            loc,
             theme: THEME,
         }
-    }
-
-    pub fn sub_messages(&self) -> &Vec<SubMessage> {
-        &self.sub_messages
     }
 
     pub fn dummy(errno: usize) -> Self {
@@ -530,6 +529,7 @@ impl ErrorCore {
             "<dummy>",
             errno,
             DummyError,
+            Location::Line(errno as usize),
         )
     }
 
@@ -555,6 +555,7 @@ impl ErrorCore {
             &m_msg,
             errno,
             CompilerSystemError,
+            loc,
         )
     }
 
