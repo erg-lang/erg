@@ -572,12 +572,12 @@ impl ErrorCore {
             Location::Line(lineno) => format!(", line {lineno}"),
             Location::Unknown => "".to_string(),
         };
-        format!("{kind}: File {input}{loc}{caused_by}\n",)
+        format!("{kind}: File {input}{loc}{caused_by}",)
     }
 
     pub fn fmt_main_message(&self, kind: StyledString, caused_by: &str, input: &str) -> String {
         format!(
-            "{}{}\n\n",
+            "{}\n{}\n\n",
             self.fmt_header(kind, caused_by, input),
             self.main_message
         )
@@ -666,11 +666,11 @@ pub trait ErrorDisplay {
         );
         writeln!(
             f,
-            "{}\n",
+            "{}",
             core.fmt_main_message(kind, self.caused_by(), self.input().enclosed_name())
         )?;
         for sub_msg in &self.core().sub_messages {
-            writeln!(
+            write!(
                 f,
                 "{}",
                 &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars)
