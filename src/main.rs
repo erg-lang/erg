@@ -14,6 +14,7 @@ use erg_parser::ParserRunner;
 
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
+use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
 
@@ -36,6 +37,9 @@ fn run() {
         }
         "compile" => {
             Compiler::run(cfg);
+        }
+        "transpile" => {
+            Transpiler::run(cfg);
         }
         "exec" => {
             DummyVM::run(cfg);
