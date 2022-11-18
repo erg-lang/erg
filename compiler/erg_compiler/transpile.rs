@@ -12,10 +12,12 @@ use crate::build_hir::HIRBuilder;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
-    Accessor, Array, Block, Call, Dict, Expr, Identifier, Params, Set, Signature, Tuple, HIR,
+    Accessor, Array, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Params, Set, Signature,
+    Tuple, HIR,
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
+use crate::ty::Type;
 
 #[derive(Debug, Clone)]
 pub struct PyScript {
@@ -111,7 +113,7 @@ impl ScriptGenerator {
     }
 
     pub fn transpile(&mut self, hir: HIR) -> PyScript {
-        let mut code = String::new();
+        let mut code = self.load_prelude();
         for chunk in hir.module.into_iter() {
             code += &self.transpile_expr(chunk);
             code.push('\n');
@@ -122,7 +124,11 @@ impl ScriptGenerator {
         }
     }
 
-    pub fn transpile_expr(&mut self, expr: Expr) -> String {
+    fn load_prelude(&mut self) -> String {
+        "from collections import namedtuple as NamedTuple__\n".to_string()
+    }
+
+    fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
             Expr::Lit(lit) => lit.token.content.to_string(),
             Expr::Call(call) => self.transpile_call(call),
@@ -159,6 +165,20 @@ impl ScriptGenerator {
                 }
                 other => todo!("transpiling {other}"),
             },
+            Expr::Record(rec) => {
+                let mut attrs = "[".to_string();
+                let mut values = "(".to_string();
+                for mut attr in rec.attrs.into_iter() {
+                    attrs += &format!("'{}',", Self::transpile_ident(attr.sig.into_ident()));
+                    if attr.body.block.len() > 1 {
+                        todo!("transpile instant blocks")
+                    }
+                    values += &format!("{},", self.transpile_expr(attr.body.block.remove(0)));
+                }
+                attrs += "]";
+                values += ")";
+                format!("NamedTuple__('Record', {attrs}){values}")
+            }
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
                     let mut code = "(".to_string();
@@ -194,26 +214,8 @@ impl ScriptGenerator {
                     )
                 }
             },
-            Expr::Def(mut def) => match def.sig {
-                Signature::Var(var) => {
-                    let mut code = format!("{} = ", Self::transpile_ident(var.ident));
-                    if def.body.block.len() > 1 {
-                        todo!("transpile instant blocks")
-                    }
-                    let expr = def.body.block.remove(0);
-                    code += &self.transpile_expr(expr);
-                    code
-                }
-                Signature::Subr(subr) => {
-                    let mut code = format!(
-                        "def {}({}):\n",
-                        Self::transpile_ident(subr.ident),
-                        self.transpile_params(subr.params)
-                    );
-                    code += &self.transpile_block(def.body.block);
-                    code
-                }
-            },
+            Expr::Def(def) => self.transpile_def(def),
+            Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
             other => todo!("transpile {other}"),
         }
     }
@@ -256,8 +258,8 @@ impl ScriptGenerator {
         } else {
             let name = ident.name.into_token().content;
             let name = name.replace('!', "__erg_proc__");
-            let name = name.replace('$', "__erg_shared__");
-            format!("__{name}")
+            let name = name.replace('$', "erg_shared__");
+            format!("{name}__")
         }
     }
 
@@ -265,12 +267,12 @@ impl ScriptGenerator {
         let mut code = String::new();
         for non_default in params.non_defaults {
             let ParamPattern::VarName(param) = non_default.pat else { todo!() };
-            code += &format!("__{},", param.into_token().content);
+            code += &format!("{}__,", param.into_token().content);
         }
         for default in params.defaults {
             let ParamPattern::VarName(param) = default.sig.pat else { todo!() };
             code += &format!(
-                "__{}={},",
+                "{}__ = {},",
                 param.into_token().content,
                 self.transpile_expr(default.default_val)
             );
@@ -278,19 +280,70 @@ impl ScriptGenerator {
         code
     }
 
-    fn transpile_block(&mut self, block: Block) -> String {
+    fn transpile_block(&mut self, block: Block, is_statement: bool) -> String {
         self.level += 1;
         let mut code = String::new();
         let last = block.len() - 1;
         for (i, chunk) in block.into_iter().enumerate() {
             code += &"    ".repeat(self.level);
-            if i == last {
+            if i == last && !is_statement {
                 code += "return ";
             }
             code += &self.transpile_expr(chunk);
             code.push('\n');
         }
         self.level -= 1;
+        code
+    }
+
+    fn transpile_def(&mut self, mut def: Def) -> String {
+        match def.sig {
+            Signature::Var(var) => {
+                let mut code = format!("{} = ", Self::transpile_ident(var.ident));
+                if def.body.block.len() > 1 {
+                    todo!("transpile instant blocks")
+                }
+                let expr = def.body.block.remove(0);
+                code += &self.transpile_expr(expr);
+                code
+            }
+            Signature::Subr(subr) => {
+                let mut code = format!(
+                    "def {}({}):\n",
+                    Self::transpile_ident(subr.ident),
+                    self.transpile_params(subr.params)
+                );
+                code += &self.transpile_block(def.body.block, false);
+                code
+            }
+        }
+    }
+
+    fn transpile_classdef(&mut self, classdef: ClassDef) -> String {
+        let class_name = Self::transpile_ident(classdef.sig.into_ident());
+        let mut code = format!("class {class_name}():\n");
+        let mut init_method = format!(
+            "{}def __init__(self, param__):\n",
+            "    ".repeat(self.level + 1)
+        );
+        match classdef.__new__.non_default_params().unwrap()[0].typ() {
+            Type::Record(rec) => {
+                for field in rec.keys() {
+                    init_method += &format!(
+                        "{}self.{} = param__.{}\n",
+                        "    ".repeat(self.level + 2),
+                        field.symbol,
+                        field.symbol
+                    );
+                }
+            }
+            other => todo!("{other}"),
+        }
+        code += &init_method;
+        if classdef.need_to_gen_new {
+            code += &format!("def new(x): return {class_name}.__call__(x)\n");
+        }
+        code += &self.transpile_block(classdef.methods, true);
         code
     }
 }
