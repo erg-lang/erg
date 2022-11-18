@@ -216,6 +216,24 @@ impl ScriptGenerator {
             },
             Expr::Def(def) => self.transpile_def(def),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
+            Expr::AttrDef(mut adef) => {
+                let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
+                if adef.block.len() > 1 {
+                    todo!("transpile instant blocks")
+                }
+                let expr = adef.block.remove(0);
+                code += &self.transpile_expr(expr);
+                code
+            }
+            // TODO:
+            Expr::Compound(comp) => {
+                let mut code = "".to_string();
+                for expr in comp.into_iter() {
+                    code += &self.transpile_expr(expr);
+                    code += &format!("\n{}", "    ".repeat(self.level));
+                }
+                code
+            }
             other => todo!("transpile {other}"),
         }
     }
