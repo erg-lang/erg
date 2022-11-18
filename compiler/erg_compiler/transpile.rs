@@ -139,7 +139,7 @@ impl ScriptGenerator {
                 Accessor::Ident(ident) => Self::transpile_ident(ident),
                 Accessor::Attr(attr) => {
                     format!(
-                        "{}.{}",
+                        "({}).{}",
                         self.transpile_expr(*attr.obj),
                         Self::transpile_ident(attr.ident)
                     )
@@ -183,7 +183,10 @@ impl ScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, mut call: Call) -> String {
-        let mut code = self.transpile_expr(*call.obj);
+        let mut code = format!("({})", self.transpile_expr(*call.obj));
+        if let Some(attr) = call.attr_name {
+            code += &format!(".{}", Self::transpile_ident(attr));
+        }
         code.push('(');
         while let Some(arg) = call.args.try_remove_pos(0) {
             code += &self.transpile_expr(arg.expr);
