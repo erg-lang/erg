@@ -133,14 +133,18 @@ impl ScriptGenerator {
             Expr::Lit(lit) => lit.token.content.to_string(),
             Expr::Call(call) => self.transpile_call(call),
             Expr::BinOp(bin) => {
-                let mut code = self.transpile_expr(*bin.lhs);
+                let mut code = "(".to_string();
+                code += &self.transpile_expr(*bin.lhs);
                 code += &bin.op.content;
                 code += &self.transpile_expr(*bin.rhs);
+                code += ")";
                 code
             }
             Expr::UnaryOp(unary) => {
-                let mut code = unary.op.content.to_string();
+                let mut code = "(".to_string();
+                code += &unary.op.content;
                 code += &self.transpile_expr(*unary.expr);
+                code += ")";
                 code
             }
             Expr::Array(array) => match array {
