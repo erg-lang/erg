@@ -12,8 +12,8 @@ use crate::build_hir::HIRBuilder;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
-    Accessor, Array, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Params, Set, Signature,
-    Tuple, HIR,
+    Accessor, Array, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda, Params, Set,
+    Signature, Tuple, HIR,
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
@@ -219,6 +219,7 @@ impl ScriptGenerator {
                 }
             },
             Expr::Def(def) => self.transpile_def(def),
+            Expr::Lambda(lambda) => self.transpile_lambda(lambda),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
             Expr::AttrDef(mut adef) => {
                 let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
@@ -248,6 +249,52 @@ impl ScriptGenerator {
                 let mut code = format!("assert {}", self.transpile_expr(call.args.remove(0)));
                 if let Some(msg) = call.args.try_remove(0) {
                     code += &format!(", {}", self.transpile_expr(msg));
+                }
+                code
+            }
+            Some("if" | "if!") => {
+                let cond = self.transpile_expr(call.args.remove(0));
+                let Expr::Lambda(mut block) = call.args.remove(0) else { todo!() };
+                let then = self.transpile_expr(block.body.remove(0));
+                if let Some(Expr::Lambda(mut block)) = call.args.try_remove(0) {
+                    let els = self.transpile_expr(block.body.remove(0));
+                    format!("{then} if {cond} else {els}")
+                } else {
+                    format!("{then} if {cond} else None")
+                }
+            }
+            Some("for" | "for!") => {
+                let mut code = "for ".to_string();
+                let iter = call.args.remove(0);
+                let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
+                let sig = block.params.non_defaults.get(0).unwrap();
+                let ParamPattern::VarName(param) = &sig.pat else { todo!() };
+                code += &format!("{}__ ", &param.token().content);
+                code += &format!("in {}:\n", self.transpile_expr(iter));
+                code += &self.transpile_block(block.body, false);
+                code
+            }
+            Some("while" | "while!") => {
+                let mut code = "while ".to_string();
+                let cond = call.args.remove(0);
+                let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
+                code += &format!("{}:\n", self.transpile_expr(cond));
+                code += &self.transpile_block(block.body, false);
+                code
+            }
+            // TODO:
+            Some("match" | "match!") => {
+                let mut code = "match ".to_string();
+                let cond = call.args.remove(0);
+                code += &format!("{}:\n", self.transpile_expr(cond));
+                while let Some(Expr::Lambda(arm)) = call.args.try_remove(0) {
+                    self.level += 1;
+                    code += &"    ".repeat(self.level);
+                    let target = arm.params.non_defaults.get(0).unwrap();
+                    let ParamPattern::VarName(param) = &target.pat else { todo!() };
+                    code += &format!("case {}__:\n", &param.token().content);
+                    code += &self.transpile_block(arm.body, false);
+                    self.level -= 1;
                 }
                 code
             }
@@ -302,19 +349,30 @@ impl ScriptGenerator {
         code
     }
 
-    fn transpile_block(&mut self, block: Block, is_statement: bool) -> String {
+    fn transpile_block(&mut self, block: Block, return_last: bool) -> String {
         self.level += 1;
         let mut code = String::new();
         let last = block.len() - 1;
         for (i, chunk) in block.into_iter().enumerate() {
             code += &"    ".repeat(self.level);
-            if i == last && !is_statement {
+            if i == last && return_last {
                 code += "return ";
             }
             code += &self.transpile_expr(chunk);
             code.push('\n');
         }
         self.level -= 1;
+        code
+    }
+
+    fn transpile_lambda(&mut self, lambda: Lambda) -> String {
+        let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
+        if lambda.body.len() > 1 {
+            todo!("multi line lambda");
+        }
+        code += &self.transpile_block(lambda.body, false);
+        code.pop(); // \n
+        code.push(')');
         code
     }
 
@@ -335,7 +393,7 @@ impl ScriptGenerator {
                     Self::transpile_ident(subr.ident),
                     self.transpile_params(subr.params)
                 );
-                code += &self.transpile_block(def.body.block, false);
+                code += &self.transpile_block(def.body.block, true);
                 code
             }
         }
@@ -365,7 +423,7 @@ impl ScriptGenerator {
         if classdef.need_to_gen_new {
             code += &format!("def new(x): return {class_name}.__call__(x)\n");
         }
-        code += &self.transpile_block(classdef.methods, true);
+        code += &self.transpile_block(classdef.methods, false);
         code
     }
 }
