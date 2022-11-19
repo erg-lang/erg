@@ -464,6 +464,7 @@ impl SubMessage {
                     cxt.push_str(&" ".repeat(lineno.to_string().len() + 3)); // +3 means ` | `
                     cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), gutter_color)
                 }
+                cxt.push_str("\n\n");
                 cxt.to_string()
             }
             Location::Line(lineno) => {
@@ -477,6 +478,7 @@ impl SubMessage {
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
+                cxt.push_str("\n\n");
                 cxt.to_string()
             }
             Location::Unknown => match e.input() {
@@ -487,6 +489,7 @@ impl SubMessage {
                     let mut cxt = StyledStrings::default();
                     cxt.push_str_with_color(&format!(" ? {}", vbar), gutter_color);
                     cxt.push_str(&other.reread());
+                    cxt.push_str("\n\n");
                     cxt.to_string()
                 }
             },
@@ -641,10 +644,13 @@ pub trait ErrorDisplay {
             Some(Attribute::Bold),
         );
         let mut msg = String::new();
-        msg += &core.fmt_main_message(kind, self.caused_by(), self.input().enclosed_name());
-        for sub_msg in &self.core().sub_messages {
+        msg += &core.fmt_header(kind, self.caused_by(), self.input().enclosed_name());
+        msg += "\n\n";
+        for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
+        msg += &core.main_message;
+        msg += "\n\n";
         msg
     }
 
@@ -664,18 +670,19 @@ pub trait ErrorDisplay {
             Some(color),
             Some(Attribute::Bold),
         );
-        writeln!(
+        write!(
             f,
-            "{}",
-            core.fmt_main_message(kind, self.caused_by(), self.input().enclosed_name())
+            "{}\n\n",
+            core.fmt_header(kind, self.caused_by(), self.input().enclosed_name())
         )?;
-        for sub_msg in &self.core().sub_messages {
+        for sub_msg in &core.sub_messages {
             write!(
                 f,
                 "{}",
                 &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars)
             )?;
         }
+        write!(f, "{}\n\n", core.main_message)?;
         if let Some(inner) = self.ref_inner() {
             inner.format(f)
         } else {
