@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::set::Set;
@@ -112,7 +111,7 @@ pub fn readable_name(name: &str) -> &str {
 pub struct CompileError {
     pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,
-    pub caused_by: AtomicStr,
+    pub caused_by: String,
     pub theme: Theme,
 }
 
@@ -154,7 +153,7 @@ const URL: StyledStr = StyledStr::new(
 );
 
 impl CompileError {
-    pub fn new(core: ErrorCore, input: Input, caused_by: AtomicStr) -> Self {
+    pub fn new(core: ErrorCore, input: Input, caused_by: String) -> Self {
         Self {
             core: Box::new(core),
             input,
@@ -221,7 +220,7 @@ impl CompileError {
         )
     }
 
-    pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: AtomicStr) -> Self {
+    pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: String) -> Self {
         Self::new(
             ErrorCore::new(
                 0,
@@ -304,7 +303,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -331,7 +330,7 @@ impl TyCheckError {
         errno: usize,
         callee: &C,
         param_ts: impl Iterator<Item = &'a Type>,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let param_ts = fmt_iter(param_ts);
         Self::new(
@@ -361,13 +360,13 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         nth_param: Option<usize>,
         expect: &Type,
         found: &Type,
         candidates: Option<Set<Type>>,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let ord = match nth_param {
             Some(pos) => switch_lang!(
@@ -407,7 +406,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         expect: &Type,
         found: &Type,
@@ -436,7 +435,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         t: &Type,
     ) -> Self {
@@ -462,7 +461,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         expect: usize,
         found: usize,
     ) -> Self {
@@ -490,7 +489,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         expr_t: &Type,
     ) -> Self {
         Self::new(
@@ -515,7 +514,7 @@ impl TyCheckError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         expr: &str,
     ) -> Self {
         Self::new(
@@ -550,7 +549,7 @@ impl TyCheckError {
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: AtomicStr,
+        caused_by: String,
         params_len: usize,
         pos_args_len: usize,
         kw_args_len: usize,
@@ -616,7 +615,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: AtomicStr,
+        caused_by: String,
         missing_len: usize,
         missing_params: Vec<Str>,
     ) -> Self {
@@ -649,7 +648,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: AtomicStr,
+        caused_by: String,
         arg_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
@@ -677,7 +676,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         loc: Location,
         callee_name: &str,
-        caused_by: AtomicStr,
+        caused_by: String,
         param_name: &str,
     ) -> Self {
         let name = readable_name(callee_name);
@@ -706,7 +705,7 @@ passed keyword args:    {kw_args_len}"
         lhs_t: &Type,
         rhs_t: &Type,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
         let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
@@ -734,7 +733,7 @@ passed keyword args:    {kw_args_len}"
         lhs_t: &Type,
         rhs_t: &Type,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
         let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
@@ -762,7 +761,7 @@ passed keyword args:    {kw_args_len}"
         sub_t: &Type,
         sup_t: &Type,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let sub_t = StyledString::new(&format!("{}", sub_t), Some(WARNING), Some(Attribute::Bold));
         let sup_t = StyledString::new(&format!("{}", sup_t), Some(WARNING), Some(Attribute::Bold));
@@ -789,7 +788,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         lhs: &Predicate,
         rhs: &Predicate,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let lhs = StyledString::new(&format!("{}", lhs), Some(WARNING), Some(Attribute::Bold));
         let rhs = StyledString::new(&format!("{}", rhs), Some(WARNING), Some(Attribute::Bold));
@@ -816,8 +815,8 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         proj: &Type,
         loc: Location,
-        caused_by: AtomicStr,
-        hint: Option<AtomicStr>,
+        caused_by: String,
+        hint: Option<String>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -843,8 +842,8 @@ passed keyword args:    {kw_args_len}"
         class: &Type,
         trait_: &Type,
         loc: Location,
-        caused_by: AtomicStr,
-        hint: Option<AtomicStr>,
+        caused_by: String,
+        hint: Option<String>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -868,9 +867,9 @@ passed keyword args:    {kw_args_len}"
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
@@ -904,12 +903,12 @@ passed keyword args:    {kw_args_len}"
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         member_name: &str,
         trait_type: &Type,
         expect: &Type,
         found: &Type,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
         let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
@@ -936,11 +935,11 @@ passed keyword args:    {kw_args_len}"
     pub fn trait_member_not_defined_error(
         input: Input,
         errno: usize,
-        caused_by: AtomicStr,
+        caused_by: String,
         member_name: &str,
         trait_type: &Type,
         class_type: &Type,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
@@ -965,11 +964,11 @@ passed keyword args:    {kw_args_len}"
     pub fn not_in_trait_error(
         input: Input,
         errno: usize,
-        caused_by: AtomicStr,
+        caused_by: String,
         member_name: &str,
         trait_type: &Type,
         class_type: &Type,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
         Self::new(
@@ -995,7 +994,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         name: &str,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
@@ -1021,7 +1020,7 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         expr: &(impl Locational + Display),
         candidates: &[Type],
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1061,7 +1060,7 @@ pub type EvalResult<T> = TyCheckResult<T>;
 pub type SingleEvalResult<T> = SingleTyCheckResult<T>;
 
 impl EvalError {
-    pub fn not_const_expr(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+    pub fn not_const_expr(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1080,12 +1079,7 @@ impl EvalError {
         )
     }
 
-    pub fn invalid_literal(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: AtomicStr,
-    ) -> Self {
+    pub fn invalid_literal(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1109,7 +1103,7 @@ pub type EffectError = TyCheckError;
 pub type EffectErrors = TyCheckErrors;
 
 impl EffectError {
-    pub fn has_effect<S: Into<AtomicStr>>(
+    pub fn has_effect<S: Into<String>>(
         input: Input,
         errno: usize,
         expr: &Expr,
@@ -1133,7 +1127,7 @@ impl EffectError {
         )
     }
 
-    pub fn proc_assign_error<S: Into<AtomicStr>>(
+    pub fn proc_assign_error<S: Into<String>>(
         input: Input,
         errno: usize,
         sig: &Signature,
@@ -1170,7 +1164,7 @@ pub type OwnershipError = TyCheckError;
 pub type OwnershipErrors = TyCheckErrors;
 
 impl OwnershipError {
-    pub fn move_error<S: Into<AtomicStr>>(
+    pub fn move_error<S: Into<String>>(
         input: Input,
         errno: usize,
         name: &str,
@@ -1218,13 +1212,13 @@ pub type LowerResult<T> = TyCheckResult<T>;
 pub type SingleLowerResult<T> = SingleTyCheckResult<T>;
 
 impl LowerError {
-    pub fn syntax_error<S: Into<AtomicStr>>(
+    pub fn syntax_error<S: Into<String>>(
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         desc: S,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         Self::new(
             ErrorCore::new(errno, SyntaxError, loc, desc, hint),
@@ -1237,7 +1231,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -1252,7 +1246,7 @@ impl LowerError {
                     "traditional_chinese" => format!("{name}已聲明"),
                     "english" => format!("{name} is already declared"),
                 ),
-                Option::<AtomicStr>::None,
+                Option::<String>::None,
             ),
             input,
             caused_by,
@@ -1263,7 +1257,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -1278,7 +1272,7 @@ impl LowerError {
                     "traditional_chinese" => format!("{name}已定義"),
                     "english" => format!("{name} is already defined"),
                 ),
-                Option::<AtomicStr>::None,
+                Option::<String>::None,
             ),
             input,
             caused_by,
@@ -1289,7 +1283,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         spec_t: &Type,
         found_t: &Type,
@@ -1308,7 +1302,7 @@ impl LowerError {
                     "traditional_chinese" => format!("{name}被聲明為{expect}，但分配了一個{found}對象"),
                     "english" => format!("{name} was declared as {expect}, but an {found} object is assigned"),
                 ),
-                Option::<AtomicStr>::None,
+                Option::<String>::None,
             ),
             input,
             caused_by,
@@ -1319,7 +1313,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         similar_name: Option<&str>,
     ) -> Self {
@@ -1331,7 +1325,6 @@ impl LowerError {
                 "traditional_chinese" => format!("存在相同名稱變量: {n}"),
                 "english" => format!("exists a similar name variable: {n}"),
             )
-            .into()
         });
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
@@ -1356,7 +1349,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         typ: &Type,
     ) -> Self {
         let typ = StyledString::new(&typ.to_string(), Some(ERR), Some(Attribute::Bold));
@@ -1371,14 +1364,12 @@ impl LowerError {
                     "traditional_chinese" => format!("{typ}未定義"),
                     "english" => format!("Type {typ} is not defined"),
                 ),
-                Some(
-                    switch_lang!(
-                        "japanese" => format!("恐らくこれはErgコンパイラのバグです、{URL}へ報告してください"),
-                        "simplified_chinese" => format!("这可能是Erg编译器的错误，请报告给{URL}"),
-                        "traditional_chinese" => format!("這可能是Erg編譯器的錯誤，請報告給{URL}"),
-                        "english" => format!("This may be a bug of Erg compiler, please report to {URL}"),
-                    ).into(),
-                ),
+                Some(switch_lang!(
+                    "japanese" => format!("恐らくこれはErgコンパイラのバグです、{URL}へ報告してください"),
+                    "simplified_chinese" => format!("这可能是Erg编译器的错误，请报告给{URL}"),
+                    "traditional_chinese" => format!("這可能是Erg編譯器的錯誤，請報告給{URL}"),
+                    "english" => format!("This may be a bug of Erg compiler, please report to {URL}"),
+                )),
             ),
             input,
             caused_by,
@@ -1389,7 +1380,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         obj_t: &Type,
         name: &str,
         similar_name: Option<&str>,
@@ -1401,7 +1392,6 @@ impl LowerError {
                 "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
                 "english" => format!("has a similar name attribute: {n}"),
             )
-            .into()
         });
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
@@ -1427,7 +1417,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         obj_name: &str,
         obj_t: &Type,
         name: &str,
@@ -1440,7 +1430,6 @@ impl LowerError {
                 "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
                 "english" => format!("has a similar name attribute: {n}"),
             )
-            .into()
         });
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
@@ -1465,7 +1454,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
     ) -> Self {
         let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
@@ -1492,7 +1481,7 @@ impl LowerError {
         errno: usize,
         loc: Location,
         name: &str,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
         Self::new(
@@ -1513,7 +1502,7 @@ impl LowerError {
         )
     }
 
-    pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
+    pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: String) -> Self {
         let name = StyledString::new(
             readable_name(ident.inspect()),
             Some(WARNING),
@@ -1541,7 +1530,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         vis: Visibility,
     ) -> Self {
@@ -1580,7 +1569,7 @@ impl LowerError {
         )
     }
 
-    pub fn override_error<S: Into<AtomicStr>>(
+    pub fn override_error<S: Into<String>>(
         input: Input,
         errno: usize,
         name: &str,
@@ -1630,7 +1619,7 @@ impl LowerError {
         errno: usize,
         class: String,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1655,8 +1644,8 @@ impl LowerError {
         errno: usize,
         desc: String,
         loc: Location,
-        caused_by: AtomicStr,
-        hint: Option<AtomicStr>,
+        caused_by: String,
+        hint: Option<String>,
     ) -> Self {
         Self::new(
             ErrorCore::new(errno, IoError, loc, desc, hint),
@@ -1670,7 +1659,7 @@ impl LowerError {
         errno: usize,
         mod_name: &str,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         let desc = switch_lang!(
             "japanese" => format!("{mod_name}モジュールはお使いの環境をサポートしていません"),
@@ -1686,7 +1675,7 @@ impl LowerError {
         errno: usize,
         desc: String,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         similar_erg_mod: Option<Str>,
         similar_py_mod: Option<Str>,
     ) -> Self {
@@ -1708,7 +1697,7 @@ impl LowerError {
             }
             (None, None) => None,
         };
-        let hint = hint.map(AtomicStr::from);
+        let hint = hint.map(String::from);
         Self::file_error(input, errno, desc, loc, caused_by, hint)
     }
 
@@ -1716,7 +1705,7 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1736,7 +1725,7 @@ impl LowerError {
         )
     }
 
-    pub fn declare_error(input: Input, errno: usize, loc: Location, caused_by: AtomicStr) -> Self {
+    pub fn declare_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
         Self::new(
             ErrorCore::new(
                 errno,
@@ -1760,10 +1749,10 @@ impl LowerError {
         input: Input,
         errno: usize,
         loc: Location,
-        caused_by: AtomicStr,
+        caused_by: String,
         name: &str,
         cast_to: &Type,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         let name = StyledString::new(name, Some(WARNING), Some(Attribute::Bold));
         let found = StyledString::new(

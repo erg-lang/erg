@@ -6,7 +6,6 @@ use crate::context::Context;
 use crate::ty::constructors::{and, mono};
 use crate::ty::value::{EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::ValueArgs;
-use erg_common::astr::AtomicStr;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::style::{RED, RESET, YELLOW};
 
@@ -17,7 +16,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
-            AtomicStr::from(format!("{RED}Requirement{RESET} is not passed")),
+            format!("{RED}Requirement{RESET} is not passed"),
             None,
         )
     })?;
@@ -26,9 +25,9 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
-            AtomicStr::from(format!(
+            format!(
                 "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
-            )),
+            ),
             None,
         ).into());
     };
@@ -45,7 +44,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
-            AtomicStr::from(format!("{RED}Super{RESET} is not passed")),
+            format!("{RED}Super{RESET} is not passed"),
             None,
         )
     })?;
@@ -54,9 +53,9 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
-            AtomicStr::from(format!(
+            format!(
                 "non-class object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
-            )),
+            ),
             None,
         ).into());
     };
@@ -78,7 +77,7 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
-            AtomicStr::from(format!("{RED}Class{RESET} is not passed")),
+            format!("{RED}Class{RESET} is not passed"),
             None,
         )
     })?;
@@ -110,7 +109,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
-            AtomicStr::from(format!("{RED}Requirement{RESET} is not passed")),
+            format!("{RED}Requirement{RESET} is not passed"),
             None,
         )
     })?;
@@ -119,9 +118,9 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
-            AtomicStr::from(format!(
+            format!(
                 "non-type object {RED}{require}{RESET} is passed to {YELLOW}Requirement{RESET}",
-            )),
+            ),
             None,
         ).into());
     };
@@ -138,7 +137,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
-            AtomicStr::from(format!("{RED}Super{RESET} is not passed")),
+            format!("{RED}Super{RESET} is not passed"),
             None,
         )
     })?;
@@ -147,9 +146,9 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
-            AtomicStr::from(format!(
+            format!(
                 "non-trait object {RED}{sup}{RESET} is passed to {YELLOW}Super{RESET}",
-            )),
+            ),
             None,
         ).into());
     };
@@ -175,12 +174,12 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
-            AtomicStr::from(format!(
+            format!(
                 "[{}] has {} elements, but accessed {}th element",
                 erg_common::fmt_vec(&slf),
                 slf.len(),
                 index
-            )),
+            ),
             None,
         )
         .into())
@@ -214,7 +213,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
-            AtomicStr::from(format!("{slf} has no key {index}",)),
+            format!("{slf} has no key {index}"),
             None,
         )
         .into())
@@ -239,7 +238,7 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
-            AtomicStr::from(format!("Index out of range: {}", index)),
+            format!("Index out of range: {index}"),
             None,
         )
         .into())

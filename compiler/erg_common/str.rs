@@ -47,6 +47,20 @@ impl fmt::Display for Str {
     }
 }
 
+impl From<&Str> for String {
+    #[inline]
+    fn from(s: &Str) -> Self {
+        s.to_string()
+    }
+}
+
+impl From<Str> for String {
+    #[inline]
+    fn from(s: Str) -> Self {
+        s.to_string()
+    }
+}
+
 // &'static str -> &strになってしまわないように
 // あえて`impl<S: Into<Str>> From<S> for Str { ... }`はしない
 impl From<&'static str> for Str {

@@ -2,7 +2,6 @@
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -161,7 +160,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 expr.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::from(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
                     "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
@@ -226,7 +225,7 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "配列の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "数组元素必须全部是相同类型",
@@ -372,7 +371,7 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "集合の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "集合元素必须全部是相同类型",
@@ -404,7 +403,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",
@@ -498,7 +497,7 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "Dictの値は全て同じ型である必要があります",
                         "simplified_chinese" => "Dict的值必须是同一类型",
@@ -543,7 +542,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",

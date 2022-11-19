@@ -3,7 +3,6 @@
 //! パーサーが出すエラーを定義
 use std::fmt;
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay};
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, Theme};
@@ -35,7 +34,7 @@ impl LexError {
         Self(Box::new(core))
     }
 
-    pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
+    pub fn set_hint<S: Into<String>>(&mut self, hint: S) {
         self.0.hint = Some(hint.into());
     }
 
@@ -89,20 +88,20 @@ impl LexError {
         ))
     }
 
-    pub fn syntax_error<S: Into<AtomicStr>>(
+    pub fn syntax_error<S: Into<String>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         Self::new(ErrorCore::new(errno, SyntaxError, loc, desc, hint))
     }
 
-    pub fn syntax_warning<S: Into<AtomicStr>>(
+    pub fn syntax_warning<S: Into<String>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         Self::new(ErrorCore::new(errno, SyntaxWarning, loc, desc, hint))
     }
@@ -120,7 +119,6 @@ impl LexError {
                 "traditional_chinese" => format!("存在相同名稱變量: {n}"),
                 "english" => format!("exists a similar name variable: {n}"),
             )
-            .into()
         });
         let name = StyledString::new(name, Some(Color::Red), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
