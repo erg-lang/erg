@@ -6,7 +6,7 @@ use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
 use erg_common::set::Set;
-use erg_common::style::{Attribute, Color, StyledStr, StyledString, THEME};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{
@@ -259,7 +259,7 @@ impl CompileError {
 pub type TyCheckError = CompileError;
 
 const ERR: Color = THEME.colors.error;
-const WARNING: Color = THEME.colors.warning;
+const WARN: Color = THEME.colors.warning;
 const HINT: Color = THEME.colors.hint;
 
 impl TyCheckError {
@@ -376,19 +376,38 @@ impl TyCheckError {
         };
         let name = StyledString::new(
             &format!("{}{}", name, ord),
-            Some(WARNING),
+            Some(WARN),
             Some(Attribute::Bold),
         );
-        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let mut expct = StyledStrings::default();
+        switch_lang!(
+            "japanese" => expct.push_str("予期した型: "),
+            "simplified_chinese" =>expct.push_str("预期: "),
+            "traditional_chinese" => expct.push_str("預期: "),
+            "english" => expct.push_str("expected: "),
+        );
+        expct.push_str_with_color_and_attribute(&format!("{}", expect), HINT, Attribute::Bold);
+
+        let mut fnd = StyledStrings::default();
+        switch_lang!(
+            "japanese" => fnd.push_str("与えられた型: "),
+            "simplified_chinese" => fnd.push_str("但找到: "),
+            "traditional_chinese" => fnd.push_str("但找到: "),
+            "english" =>fnd.push_str("but found: "),
+        );
+        fnd.push_str_with_color_and_attribute(&format!("{}", found), ERR, Attribute::Bold);
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![expct.into(), fnd.into()],
+                    hint,
+                )],
                 switch_lang!(
-                    "japanese" => format!("{name}の型が違います\n\n予期した型: {expect}\n与えられた型: {found}{}", fmt_option_map!(pre "\n与えられた型の単一化候補: ", candidates, |x: &Set<Type>| x.folded_display())),
-                    "simplified_chinese" => format!("{name}的类型不匹配\n\n预期: {expect}\n但找到: {found}{}", fmt_option_map!(pre "\n某一类型的统一候选: ", candidates, |x: &Set<Type>| x.folded_display())),
-                    "traditional_chinese" => format!("{name}的類型不匹配\n\n預期: {expect}\n但找到: {found}{}", fmt_option_map!(pre "\n某一類型的統一候選: ", candidates, |x: &Set<Type>| x.folded_display())),
-                    "english" => format!("the type of {name} is mismatched\n\nexpected: {expect}\nbut found: {found}{}", fmt_option_map!(pre "\nunification candidates of a given type: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "japanese" => format!("{name}の型が違います{}", fmt_option_map!(pre "\n与えられた型の単一化候補: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "simplified_chinese" => format!("{name}的类型不匹配{}", fmt_option_map!(pre "\n某一类型的统一候选: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "traditional_chinese" => format!("{name}的類型不匹配{}", fmt_option_map!(pre "\n某一類型的統一候選: ", candidates, |x: &Set<Type>| x.folded_display())),
+                    "english" => format!("the type of {name} is mismatched{}", fmt_option_map!(pre "\nunification candidates of a given type: ", candidates, |x: &Set<Type>| x.folded_display())),
                 ),
                 errno,
                 TypeError,
@@ -408,16 +427,36 @@ impl TyCheckError {
         expect: &Type,
         found: &Type,
     ) -> Self {
-        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let mut expct = StyledStrings::default();
+        switch_lang!(
+            "japanese" => expct.push_str("予期した型: "),
+            "simplified_chinese" =>expct.push_str("预期: "),
+            "traditional_chinese" => expct.push_str("預期: "),
+            "english" => expct.push_str("expected: "),
+        );
+        expct.push_str_with_color_and_attribute(&format!("{}", expect), HINT, Attribute::Bold);
+
+        let mut fnd = StyledStrings::default();
+        switch_lang!(
+            "japanese" => fnd.push_str("与えられた型: "),
+            "simplified_chinese" => fnd.push_str("但找到: "),
+            "traditional_chinese" => fnd.push_str("但找到: "),
+            "english" =>fnd.push_str("but found: "),
+        );
+        fnd.push_str_with_color_and_attribute(&format!("{}", found), ERR, Attribute::Bold);
+
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(loc)],
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![expct.into(), fnd.into()],
+                    None,
+                )],
                 switch_lang!(
-                    "japanese" => format!("{name}の戻り値の型が違います\n\n予期した型: {expect}\n与えられた型: {found}"),
-                    "simplified_chinese" => format!("{name}的返回类型不匹配\n\n预期: {expect}\n但找到: {found}"),
-                    "traditional_chinese" => format!("{name}的返回類型不匹配\n\n預期: {expect}\n但找到: {found}"),
-                    "english" => format!("the return type of {name} is mismatched\n\nexpected: {expect}\nbut found: {found}"),
+                    "japanese" => format!("{name}の戻り値の型が違います"),
+                    "simplified_chinese" => format!("{name}的返回类型不匹配"),
+                    "traditional_chinese" => format!("{name}的返回類型不匹配"),
+                    "english" => format!("the return type of {name} is mismatched"),
                 ),
                 errno,
                 TypeError,
@@ -462,16 +501,32 @@ impl TyCheckError {
         expect: usize,
         found: usize,
     ) -> Self {
-        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let mut expct = StyledStrings::default();
+        switch_lang!(
+            "japanese" => expct.push_str("予期した個数: "),
+            "simplified_chinese" =>expct.push_str("预期: "),
+            "traditional_chinese" => expct.push_str("預期: "),
+            "english" => expct.push_str("expected: "),
+        );
+        expct.push_str_with_color_and_attribute(&format!("{}", expect), HINT, Attribute::Bold);
+
+        let mut fnd = StyledStrings::default();
+        switch_lang!(
+            "japanese" => fnd.push_str("与えられた個数: "),
+            "simplified_chinese" => fnd.push_str("但找到: "),
+            "traditional_chinese" => fnd.push_str("但找到: "),
+            "english" =>fnd.push_str("but found: "),
+        );
+        fnd.push_str_with_color_and_attribute(&format!("{}", found), ERR, Attribute::Bold);
+
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
-                    "japanese" => format!("ポジショナル引数の数が違います\n\n予期した個数: {expect}\n与えられた個数: {found}"),
-                    "simplified_chinese" => format!("正则参数的数量不匹配\n\n预期: {expect}\n但找到: {found}"),
-                    "traditional_chinese" => format!("正則參數的數量不匹配\n\n預期: {expect}\n但找到: {found}"),
-                    "english" => format!("the number of positional arguments is mismatched\n\nexpected:  {expect}\nbut found: {found}"),
+                    "japanese" => format!("ポジショナル引数の数が違います"),
+                    "simplified_chinese" => format!("正则参数的数量不匹配"),
+                    "traditional_chinese" => format!("正則參數的數量不匹配"),
+                    "english" => format!("the number of positional arguments is mismatched"),
                 ),
                 errno,
                 TypeError,
@@ -580,9 +635,9 @@ impl TyCheckError {
                     ),
                     "simplified_chinese" => format!("传递给{name}的参数过多
 
-: {expect}
-: {pos_args_len}
-: {kw_args_len}"
+总的预期参数: {expect}
+通过的位置参数: {pos_args_len}
+通过了关键字参数: {kw_args_len}"
                     ),
                     "traditional_chinese" => format!("傳遞給{name}的參數過多
 
@@ -617,11 +672,8 @@ passed keyword args:    {kw_args_len}"
         missing_params: Vec<Str>,
     ) -> Self {
         let name = readable_name(callee_name);
-        let vec_cxt = StyledString::new(
-            &fmt_vec(&missing_params),
-            Some(WARNING),
-            Some(Attribute::Bold),
-        );
+        let vec_cxt =
+            StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -704,16 +756,34 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
-        let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
+        let mut lhs_typ = StyledStrings::default();
+        switch_lang!(
+            "japanese" => lhs_typ.push_str("左辺: "),
+            "simplified_chinese" => lhs_typ.push_str("左边: "),
+            "traditional_chinese" => lhs_typ.push_str("左邊: "),
+            "english" => lhs_typ.push_str("lhs: "),
+        );
+        lhs_typ.push_str_with_color_and_attribute(&format!("{}", lhs_t), WARN, Attribute::Bold);
+        let mut rhs_typ = StyledStrings::default();
+        switch_lang!(
+            "japanese" => rhs_typ.push_str("右辺: "),
+            "simplified_chinese" => rhs_typ.push_str("右边: "),
+            "traditional_chinese" => rhs_typ.push_str("右邊: "),
+            "english" => rhs_typ.push_str("rhs: "),
+        );
+        rhs_typ.push_str_with_color_and_attribute(&format!("{}", rhs_t), WARN, Attribute::Bold);
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(loc)],
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![lhs_typ.into(), rhs_typ.into()],
+                    None,
+                )],
                 switch_lang!(
-                    "japanese" => format!("型の単一化に失敗しました\n\n左辺: {lhs_t}\n右辺: {rhs_t}"),
-                    "simplified_chinese" => format!("类型统一失败\n\n左边: {lhs_t}\n右边: {rhs_t}"),
-                    "traditional_chinese" => format!("類型統一失敗\n\n左邊: {lhs_t}\n右邊: {rhs_t}"),
-                    "english" => format!("unification failed\n\nlhs: {lhs_t}\nrhs: {rhs_t}"),
+                    "japanese" => format!("型の単一化に失敗しました"),
+                    "simplified_chinese" => format!("类型统一失败"),
+                    "traditional_chinese" => format!("類型統一失敗"),
+                    "english" => format!("unification failed"),
                 ),
                 errno,
                 TypeError,
@@ -732,8 +802,8 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARNING), Some(Attribute::Bold));
-        let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARNING), Some(Attribute::Bold));
+        let lhs_t = StyledString::new(&format!("{}", lhs_t), Some(WARN), Some(Attribute::Bold));
+        let rhs_t = StyledString::new(&format!("{}", rhs_t), Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -760,16 +830,36 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         caused_by: AtomicStr,
     ) -> Self {
-        let sub_t = StyledString::new(&format!("{}", sub_t), Some(WARNING), Some(Attribute::Bold));
-        let sup_t = StyledString::new(&format!("{}", sup_t), Some(WARNING), Some(Attribute::Bold));
+        let mut sub_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sub_type.push_str("部分型: "),
+            "simplified_chinese" => sub_type.push_str("超类型: "),
+            "simplified_chinese" =>sub_type.push_str("超類型: "),
+            "english" => sub_type.push_str("super type: "),
+        );
+        sub_type.push_str_with_color(&format!("{}", sub_t), WARN);
+
+        let mut sup_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sup_type.push_str("汎化型: "),
+            "simplified_chinese" => sup_type.push_str("超类型: "),
+            "simplified_chinese" => sup_type.push_str("超類型: "),
+            "english" =>sup_type.push_str("super type: "),
+        );
+        sup_type.push_str_with_color(&format!("{}", sup_t), WARN);
+
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(loc)],
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![sub_type.into(), sup_type.into()],
+                    None,
+                )],
                 switch_lang!(
-                    "japanese" => format!("この式の部分型制約を満たせません\n\nサブタイプ: {sub_t}\nスーパータイプ: {sup_t}"),
-                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束\n\n子类型: {sub_t}\n超类型: {sup_t}"),
-                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束\n\n子類型: {sub_t}\n超類型: {sup_t}"),
-                    "english" => format!("the subtype constraint in this expression cannot be satisfied:\nsubtype: {sub_t}\nsupertype: {sup_t}"),
+                    "japanese" => format!("この式の部分型制約を満たせません"),
+                    "simplified_chinese" => format!("无法满足此表达式中的子类型约束"),
+                    "traditional_chinese" => format!("無法滿足此表達式中的子類型約束"),
+                    "english" => format!("the subtype constraint in this expression cannot be satisfied:"),
                 ),
                 errno,
                 TypeError,
@@ -787,16 +877,34 @@ passed keyword args:    {kw_args_len}"
         rhs: &Predicate,
         caused_by: AtomicStr,
     ) -> Self {
-        let lhs = StyledString::new(&format!("{}", lhs), Some(WARNING), Some(Attribute::Bold));
-        let rhs = StyledString::new(&format!("{}", rhs), Some(WARNING), Some(Attribute::Bold));
+        let mut lhs_uni = StyledStrings::default();
+        switch_lang!(
+            "japanese" => lhs_uni.push_str("左辺: "),
+            "simplified_chinese" => lhs_uni.push_str("左边: "),
+            "traditional_chinese" => lhs_uni.push_str("左邊: "),
+            "english" => lhs_uni.push_str("lhs: "),
+        );
+        lhs_uni.push_str_with_color_and_attribute(&format!("{}", lhs), WARN, Attribute::Bold);
+        let mut rhs_uni = StyledStrings::default();
+        switch_lang!(
+            "japanese" => rhs_uni.push_str("右辺: "),
+            "simplified_chinese" => rhs_uni.push_str("右边: "),
+            "traditional_chinese" => rhs_uni.push_str("右邊: "),
+            "english" => rhs_uni.push_str("rhs: "),
+        );
+        rhs_uni.push_str_with_color_and_attribute(&format!("{}", rhs), WARN, Attribute::Bold);
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(Location::Unknown)],
+                vec![SubMessage::ambiguous_new(
+                    Location::Unknown,
+                    vec![lhs_uni.into(), rhs_uni.into()],
+                    None,
+                )],
                 switch_lang!(
-                    "japanese" => format!("述語式の単一化に失敗しました\n\n左辺: {lhs}\n右辺: {rhs}"),
-                    "simplified_chinese" => format!("无法统一谓词表达式\n\n左边: {lhs}\n左边: {rhs}"),
-                    "traditional_chinese" => format!("無法統一謂詞表達式\n\n左邊: {lhs}\n左邊: {rhs}"),
-                    "english" => format!("predicate unification failed\n\nlhs: {lhs}\nrhs: {rhs}"),
+                    "japanese" => format!("述語式の単一化に失敗しました"),
+                    "simplified_chinese" => format!("无法统一谓词表达式"),
+                    "traditional_chinese" => format!("無法統一謂詞表達式"),
+                    "english" => format!("predicate unification failed"),
                 ),
                 errno,
                 TypeError,
@@ -817,7 +925,7 @@ passed keyword args:    {kw_args_len}"
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{proj}の候補がありません"),
                     "simplified_chinese" => format!("{proj}没有候选项"),
@@ -844,7 +952,7 @@ passed keyword args:    {kw_args_len}"
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{class}は{trait_}を実装していません"),
                     "simplified_chinese" => format!("{class}没有实现{trait_}"),
@@ -871,7 +979,7 @@ passed keyword args:    {kw_args_len}"
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!(
                         "{found}にメソッドを定義することはできません",
@@ -907,17 +1015,36 @@ passed keyword args:    {kw_args_len}"
         found: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
-        let expect = StyledString::new(&format!("{}", expect), Some(HINT), Some(Attribute::Bold));
-        let found = StyledString::new(&format!("{}", found), Some(ERR), Some(Attribute::Bold));
+        let mut expct = StyledStrings::default();
+        expct.push_str_with_color_and_attribute(&format!("{}", trait_type), WARN, Attribute::Bold);
+        switch_lang!(
+            "japanese" => expct.push_str("で宣言された型: "),
+            "simplified_chinese" => expct.push_str("中声明的类型: "),
+            "traditional_chinese" => expct.push_str("中聲明的類型: "),
+            "english" => expct.push_str("declared in: "),
+        );
+        expct.push_str_with_color(&format!("{}", expect), HINT);
+        let mut fnd = StyledStrings::default();
+        fnd.push_str_with_color_and_attribute(member_name, WARN, Attribute::Bold);
+        switch_lang!(
+            "japanese" => expct.push_str("与えられた型: "),
+            "simplified_chinese" => expct.push_str("但找到: "),
+            "traditional_chinese" => expct.push_str("但找到: "),
+            "english" => expct.push_str("but found: "),
+        );
+        fnd.push_str_with_color(&format!("{}", found), ERR);
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![expct.into(), fnd.into()],
+                    hint,
+                )],
                 switch_lang!(
-                    "japanese" => format!("{member_name}の型が違います\n\n{trait_type}で宣言された型: {expect}\n与えられた型: {found}"),
-                    "simplified_chinese" => format!("{member_name}的类型不匹配\n\n在{trait_type}中声明的类型: {expect}\n但找到: {found}"),
-                    "traditional_chinese" => format!("{member_name}的類型不匹配\n\n在{trait_type}中聲明的類型: {expect}\n但找到: {found}"),
-                    "english" => format!("the type of {member_name} is mismatched\n\ndeclared in {trait_type}: {expect}\nbut found: {found}"),
+                    "japanese" => format!("{member_name}の型が違います"),
+                    "simplified_chinese" => format!("{member_name}的类型不匹配"),
+                    "traditional_chinese" => format!("{member_name}的類型不匹配"),
+                    "english" => format!("the type of {member_name} is mismatched"),
                 ),
                 errno,
                 TypeError,
@@ -938,10 +1065,10 @@ passed keyword args:    {kw_args_len}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let member_name = StyledString::new(member_name, Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(Location::Unknown, None, hint)],
+                vec![SubMessage::ambiguous_new(Location::Unknown, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{trait_type}の{member_name}が{class_type}で実装されていません"),
                     "simplified_chinese" => format!("{trait_type}中的{member_name}没有在{class_type}中实现"),
@@ -967,10 +1094,10 @@ passed keyword args:    {kw_args_len}"
         class_type: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let member_name = StyledString::new(member_name, Some(WARNING), Some(Attribute::Bold));
+        let member_name = StyledString::new(member_name, Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(Location::Unknown, None, hint)],
+                vec![SubMessage::ambiguous_new(Location::Unknown, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{class_type}の{member_name}は{trait_type}で宣言されていません"),
                     "simplified_chinese" => format!("{class_type}中的{member_name}没有在{trait_type}中声明"),
@@ -1027,14 +1154,26 @@ passed keyword args:    {kw_args_len}"
                         "english" => "if it is a polymorphic function, use `f|T := Int|`, or if it is a type attribute, use `T|T <: Trait|.X` etc. to specify the type",
                     ).into(),
                 );
+        let mut candi = StyledStrings::default();
+        switch_lang!(
+            "japanese" => candi.push_str("候補: "),
+            "simplified_chinese" => candi.push_str("候选: "),
+            "traditional_chinese" => candi.push_str("候選: "),
+            "english" => candi.push_str("candidates: "),
+        );
+        candi.push_str_with_color_and_attribute(&fmt_vec(candidates), WARN, Attribute::Bold);
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(expr.loc(), None, hint)],
+                vec![SubMessage::ambiguous_new(
+                    expr.loc(),
+                    vec![candi.into()],
+                    hint,
+                )],
                 switch_lang!(
-                    "japanese" => format!("{expr}の型を一意に決定できませんでした\n\n候補: {}", fmt_vec(candidates)),
-                    "simplified_chinese" => format!("无法确定{expr}的类型\n\n候选: {}", fmt_vec(candidates)),
-                    "traditional_chinese" => format!("無法確定{expr}的類型\n\n候選: {}", fmt_vec(candidates)),
-                    "english" => format!("cannot determine the type of {expr}\n\ncandidates: {}", fmt_vec(candidates)),
+                    "japanese" => format!("{expr}の型を一意に決定できませんでした"),
+                    "simplified_chinese" => format!("无法确定{expr}的类型"),
+                    "traditional_chinese" => format!("無法確定{expr}的類型"),
+                    "english" => format!("cannot determine the type of {expr}"),
                 ),
                 errno,
                 TypeError,
@@ -1147,7 +1286,7 @@ impl EffectError {
         );
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(sig.loc(), None, hint)],
+                vec![SubMessage::ambiguous_new(sig.loc(), vec![], hint)],
                 switch_lang!(
                     "japanese" => "プロシージャを通常の変数に代入することはできません",
                     "simplified_chinese" => "不能将过程赋值给普通变量",
@@ -1226,7 +1365,7 @@ impl LowerError {
     ) -> Self {
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 desc.into(),
                 errno,
                 SyntaxError,
@@ -1341,7 +1480,7 @@ impl LowerError {
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{found}という変数は定義されていません"),
                     "simplified_chinese" => format!("{found}未定义"),
@@ -1374,7 +1513,7 @@ impl LowerError {
                 );
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{typ}という型は定義されていません"),
                     "simplified_chinese" => format!("{typ}未定义"),
@@ -1411,7 +1550,7 @@ impl LowerError {
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{obj_t}型オブジェクトに{found}という属性はありません"),
                     "simplified_chinese" => format!("{obj_t}对象没有属性{found}"),
@@ -1451,7 +1590,7 @@ impl LowerError {
         let found = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{obj_name}(: {obj_t})に{found}という属性はありません"),
                     "simplified_chinese" => format!("{obj_name}(: {obj_t})没有属性{found}"),
@@ -1474,7 +1613,7 @@ impl LowerError {
         caused_by: AtomicStr,
         name: &str,
     ) -> Self {
-        let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
+        let name = StyledString::new(readable_name(name), Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1500,7 +1639,7 @@ impl LowerError {
         name: &str,
         caused_by: AtomicStr,
     ) -> Self {
-        let name = StyledString::new(readable_name(name), Some(WARNING), Some(Attribute::Bold));
+        let name = StyledString::new(readable_name(name), Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1522,7 +1661,7 @@ impl LowerError {
     pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: AtomicStr) -> Self {
         let name = StyledString::new(
             readable_name(ident.inspect()),
-            Some(WARNING),
+            Some(WARN),
             Some(Attribute::Bold),
         );
         Self::new(
@@ -1597,19 +1736,31 @@ impl LowerError {
         let name = StyledString::new(name, Some(ERR), Some(Attribute::Bold));
         let superclass = StyledString::new(
             &format!("{}", superclass),
-            Some(WARNING),
+            Some(WARN),
             Some(Attribute::Bold),
         );
-        let hint = 
-                Some(switch_lang!(
-                    "japanese" => "デフォルトでオーバーライドはできません(`Override`デコレータを使用してください)",
-                    "simplified_chinese" => "默认不可重写(请使用`Override`装饰器)",
-                    "traditional_chinese" => "默認不可重寫(請使用`Override`裝飾器)",
-                    "english" => "cannot override by default (use `Override` decorator)",
-                ).into());
+        let hint = Some(
+            switch_lang!(
+                "japanese" => "`Override`デコレータを使用してください",
+                "simplified_chinese" => "请使用`Override`装饰器",
+                "traditional_chinese" => "請使用`Override`裝飾器",
+                "english" => "use `Override` decorator",
+            )
+            .into(),
+        );
+        let sub_msg = switch_lang!(
+            "japanese" => "デフォルトでオーバーライドはできません",
+            "simplified_chinese" => "默认不可重写",
+            "simplified_chinese" => "默認不可重寫",
+            "english" => "cannot override by default",
+        );
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(name_loc, None, hint)],
+                vec![SubMessage::ambiguous_new(
+                    name_loc,
+                    vec![sub_msg.into()],
+                    hint,
+                )],
                 switch_lang!(
                     "japanese" => format!(
                         "{name}は{superclass}で既に定義されています",
@@ -1667,7 +1818,13 @@ impl LowerError {
         hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(
-            ErrorCore::new( vec![SubMessage::ambiguous_new(loc, None, hint)], desc, errno, IoError, loc),
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                desc,
+                errno,
+                IoError,
+                loc,
+            ),
             input,
             caused_by,
         )
@@ -1698,26 +1855,115 @@ impl LowerError {
         similar_erg_mod: Option<Str>,
         similar_py_mod: Option<Str>,
     ) -> Self {
-        let hint = match (similar_erg_mod, similar_py_mod) {
-            (Some(erg), Some(py)) => {
-                let erg = StyledString::new(&erg, Some(WARNING), Some(Attribute::Bold));
-                let py = StyledString::new(&py, Some(WARNING), Some(Attribute::Bold));
-                Some(format!(
-                "similar name erg module {erg} and python module {py} exists (to import python modules, use `pyimport`)",
-            ))
+        let mut erg_str = StyledStrings::default();
+        let mut py_str = StyledStrings::default();
+        let hint = switch_lang!(
+
+        "japanese" => {
+            match (similar_erg_mod, similar_py_mod) {
+                (Some(erg), Some(py)) => {
+                    erg_str.push_str("似た名前のergモジュールが存在します: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    py_str.push_str("似た名前のpythonモジュールが存在します: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("pythonのモジュールをインポートするためには`pyimport`を使用してください".to_string())
+                }
+                (Some(erg), None) => {
+                    erg_str.push_str("似た名前のergモジュールが存在します");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    None
+                }
+                (None, Some(py)) => {
+                    py_str.push_str("似た名前のpythonモジュールが存在します");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("pythonのモジュールをインポートするためには`pyimport`を使用してください".to_string())
+                }
+                (None, None) => None,
             }
-            (Some(erg), None) => {
-                let erg = StyledString::new(&erg, Some(WARNING), Some(Attribute::Bold));
-                Some(format!("similar name erg module exists: {erg}"))
+        },
+        "simplified_chinese" => {
+            match (similar_erg_mod, similar_py_mod) {
+                (Some(erg), Some(py)) => {
+                    erg_str.push_str("存在相似名称的erg模块: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    py_str.push_str("存在相似名称的python模块: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("要导入python模块,请使用`pyimport`".to_string())
+                }
+                (Some(erg), None) => {
+                    erg_str.push_str("存在相似名称的erg模块: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    None
+                }
+                (None, Some(py)) => {
+                    py_str.push_str("存在相似名称的python模块: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("要导入python模块,请使用`pyimport`".to_string())
+                }
+                (None, None) => None,
             }
-            (None, Some(py)) => {
-                let py = StyledString::new(&py, Some(WARNING), Some(Attribute::Bold));
-                Some(format!("similar name python module exists: {py} (to import python modules, use `pyimport`)"))
+        },
+        "traditional_chinese" => {
+            match (similar_erg_mod, similar_py_mod) {
+                (Some(erg), Some(py)) => {
+                    erg_str.push_str("存在類似名稱的erg模塊: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    py_str.push_str("存在類似名稱的python模塊: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("要導入python模塊, 請使用`pyimport`".to_string())
+                }
+                (Some(erg), None) => {
+                    erg_str.push_str("存在類似名稱的erg模塊: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    None
+                }
+                (None, Some(py)) => {
+                    py_str.push_str("存在類似名稱的python模塊: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("要導入python模塊, 請使用`pyimport`".to_string())
+                }
+                (None, None) => None,
             }
-            (None, None) => None,
-        };
+        },
+        "english" => {
+            match (similar_erg_mod, similar_py_mod) {
+                (Some(erg), Some(py)) => {
+                    erg_str.push_str("similar name erg module exists: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    py_str.push_str("similar name python module exists: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("to import python modules, use `pyimport`".to_string())
+                }
+                (Some(erg), None) => {
+                    erg_str.push_str("similar name erg module exists: ");
+                    erg_str.push_str_with_color_and_attribute(&erg, WARN, Attribute::Bold);
+                    None
+                }
+                (None, Some(py)) => {
+                    py_str.push_str("similar name python module: ");
+                    py_str.push_str_with_color_and_attribute(&py, WARN, Attribute::Bold);
+                    Some("to import python modules, use `pyimport`".to_string())
+                }
+                (None, None) => None,
+            }
+        },
+        );
         let hint = hint.map(AtomicStr::from);
-        Self::file_error(input, errno, desc, loc, caused_by, hint)
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![erg_str.into(), py_str.into()],
+                    hint,
+                )],
+                desc,
+                errno,
+                ImportError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
     }
 
     pub fn inner_typedef_error(
@@ -1773,15 +2019,11 @@ impl LowerError {
         cast_to: &Type,
         hint: Option<AtomicStr>,
     ) -> Self {
-        let name = StyledString::new(name, Some(WARNING), Some(Attribute::Bold));
-        let found = StyledString::new(
-            &format!("{}", cast_to),
-            Some(WARNING),
-            Some(Attribute::Bold),
-        );
+        let name = StyledString::new(name, Some(WARN), Some(Attribute::Bold));
+        let found = StyledString::new(&format!("{}", cast_to), Some(WARN), Some(Attribute::Bold));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(loc, None, hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{name}の型を{found}にキャストすることはできません"),
                     "simplified_chinese" => format!("{name}的类型无法转换为{found}"),
@@ -1836,60 +2078,26 @@ pub type CompileWarnings = CompileErrors;
 
 #[cfg(test)]
 mod test {
-
-    use erg_common::{config::Input, error::Location};
-
-    use crate::ty::Type;
-
     use super::TyCheckError;
+    use crate::{error::CompileError, ty::Type};
+    use erg_common::{config::Input, error::Location};
 
     #[test]
     fn default_arg_error_test() {
-        let loc = Location::Range {
-            ln_begin: 1,
-            col_begin: 0,
-            ln_end: 1,
-            col_end: 5,
-        };
-        let input = Input::Pipe("a = 1".to_string());
-        let caused_by = "File name here basically";
-        let desc = "Some kinds of error description here";
-        let hint = Some("Some hint massage here\n".into());
-
-        let err = TyCheckError::syntax_error(input, 0, loc, caused_by.into(), desc, hint);
+        let input = Input::Pipe("line error".into());
+        let loc = Location::Line(1);
+        let err = CompileError::stack_bug(input, loc, 0, 0, "FileName");
         print!("{}", err);
 
-        let loc = Location::Range {
-            ln_begin: 1,
-            col_begin: 24,
-            ln_end: 1,
-            col_end: 27,
-        };
-        let input = Input::Pipe("Person = Class { name = Str }".to_string());
-        let caused_by = "File name here basically";
-        let err = TyCheckError::args_missing_error(
-            input,
-            0,
-            loc,
-            "\"Callee name here\"",
-            caused_by.into(),
-            0,
-            vec!["sample".into(), "args".into(), "here".into()],
-        );
+        let input = Input::Pipe("a: Nat = -1".into());
+        let err = TyCheckError::checker_bug(input, 0, Location::Unknown, "name", 1);
         print!("{}", err);
 
-        let loc = Location::Range {
-            ln_begin: 1,
-            col_begin: 0,
-            ln_end: 3,
-            col_end: 5,
-        };
+        let loc = Location::LineRange(1, 3);
         let input = Input::Pipe(
-            "\
-if True:
+            "if True:
     sample
-    end
-"
+    end"
             .to_string(),
         );
         let caused_by = "File name here basically";
@@ -1906,22 +2114,12 @@ if True:
 
         let loc = Location::Range {
             ln_begin: 1,
-            col_begin: 0,
-            ln_end: 1,
-            col_end: 3,
-        };
-        let input = Input::Pipe("add(x, y):Nat = x - y".to_string());
-        let err = TyCheckError::checker_bug(input, 0, loc, "file_name", 0);
-        print!("{}", err);
-
-        let loc = Location::Range {
-            ln_begin: 1,
             col_begin: 11,
             ln_end: 1,
             col_end: 14,
         };
         let expect = Type::Nat;
-        let found = Type::Obj;
+        let found = Type::Int;
         let input = Input::Pipe("add(x, y): Nat = x - y".to_string());
         let caused_by = "File name here basically";
         let err = TyCheckError::return_type_error(
@@ -1935,8 +2133,28 @@ if True:
         );
         print!("{}", err);
 
-        let input = Input::Pipe("Dummy code here".to_string());
-        let err = TyCheckError::unreachable(input, "file name here", 1);
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 1,
+        };
+        let expect = Type::Nat;
+        let found = Type::Int;
+        let input = Input::Pipe("a: Nat = -1".to_string());
+        let caused_by = "File name here basically";
+        let err = TyCheckError::type_mismatch_error(
+            input,
+            0,
+            loc,
+            caused_by.into(),
+            "name",
+            Some(1),
+            &expect,
+            &found,
+            None,
+            Some("hint message here".into()),
+        );
         print!("{}", err);
     }
 }

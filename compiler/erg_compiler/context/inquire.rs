@@ -762,7 +762,7 @@ impl Context {
                                 sub_msges.push(SubMessage::ambiguous_new(
                                     // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
                                     bin.loc(),
-                                    None,
+                                    vec![],
                                     sub_msg.get_hint(),
                                 ));
                             }
@@ -810,7 +810,7 @@ impl Context {
                             for sub_msg in e.core.sub_messages {
                                 sub_msges.push(SubMessage::ambiguous_new(
                                     unary.loc(),
-                                    None,
+                                    vec![],
                                     sub_msg.get_hint(),
                                 ));
                             }

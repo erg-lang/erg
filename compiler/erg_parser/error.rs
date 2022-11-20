@@ -102,7 +102,7 @@ impl LexError {
         hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(ErrorCore::new(
-            vec![SubMessage::ambiguous_new(loc, None, hint)],
+            vec![SubMessage::ambiguous_new(loc, vec![], hint)],
             desc,
             errno,
             SyntaxError,
@@ -117,7 +117,7 @@ impl LexError {
         hint: Option<AtomicStr>,
     ) -> Self {
         Self::new(ErrorCore::new(
-            vec![SubMessage::ambiguous_new(loc, None, hint)],
+            vec![SubMessage::ambiguous_new(loc, vec![], hint)],
             desc,
             errno,
             SyntaxWarning,
@@ -143,7 +143,7 @@ impl LexError {
         });
         let name = StyledString::new(name, Some(ERR), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
-            vec![SubMessage::ambiguous_new(loc, None, hint)],
+            vec![SubMessage::ambiguous_new(loc, vec![], hint)],
             switch_lang!(
                 "japanese" => format!("{name}という変数は定義されていません"),
                 "simplified_chinese" => format!("{name}未定义"),

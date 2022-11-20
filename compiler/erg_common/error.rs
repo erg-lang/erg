@@ -327,7 +327,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     chars: &Characters,
     // kinds of error for specify the color
     mark: char,
-    sub_msg: Option<&AtomicStr>,
+    sub_msg: &[AtomicStr],
     hint: Option<&AtomicStr>,
 ) -> String {
     let mark = mark.to_string();
@@ -368,7 +368,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         }
         context.push_str("\n");
     }
-    if let Some(msg) = sub_msg {
+    for msg in sub_msg {
         context.push_str_with_color(&offset, gutter_color);
         context.push_str(&" ".repeat(col_end - 1));
         context.push_str_with_color(&chars.left_bottom_line(), err_color);
@@ -388,27 +388,19 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubMessage {
     pub loc: Location,
-    msg: Option<AtomicStr>,
+    msg: Vec<AtomicStr>,
     hint: Option<AtomicStr>,
 }
 
 impl SubMessage {
-    pub fn new<S: Into<AtomicStr>>(loc: Location, msg: S, hint: S) -> Self {
-        Self {
-            loc,
-            msg: Some(msg.into()),
-            hint: Some(hint.into()),
-        }
-    }
-
-    pub fn ambiguous_new(loc: Location, msg: Option<AtomicStr>, hint: Option<AtomicStr>) -> Self {
+    pub fn ambiguous_new(loc: Location, msg: Vec<AtomicStr>, hint: Option<AtomicStr>) -> Self {
         Self { loc, msg, hint }
     }
 
     pub fn only_loc(loc: Location) -> Self {
         Self {
             loc,
-            msg: None,
+            msg: Vec::new(),
             hint: None,
         }
     }
@@ -445,7 +437,7 @@ impl SubMessage {
                 gutter_color,
                 chars,
                 mark,
-                self.msg.as_ref(),
+                &self.msg,
                 self.hint.as_ref(),
             ),
             Location::LineRange(ln_begin, ln_end) => {
