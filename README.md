@@ -10,7 +10,7 @@
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
     <a href="https://github.com/erg-lang/erg/actions/workflows/rust.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/rust.yml/badge.svg"></a>
 <br>
-    <a href="https://erg-lang.org/erg-playground" data-size="large">
+    <a href="https://erg-lang.org/web-ide/" data-size="large">
         <img src="https://img.shields.io/static/v1?style=for-the-badge&label=&message=playground&color=green">
     </a>
 <br>
