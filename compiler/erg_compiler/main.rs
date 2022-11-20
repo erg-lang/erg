@@ -10,6 +10,7 @@ use erg_common::traits::Runnable;
 
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
+use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
 
@@ -30,6 +31,9 @@ fn run() {
         }
         "check" => {
             HIRBuilder::run(cfg);
+        }
+        "transpile" => {
+            Transpiler::run(cfg);
         }
         "compile" | "exec" => {
             Compiler::run(cfg);

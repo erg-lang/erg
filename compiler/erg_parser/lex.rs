@@ -12,6 +12,7 @@ use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
 /// Lexerは使い捨てなので、Runnerを用意
+#[derive(Debug, Default)]
 pub struct LexerRunner {
     cfg: ErgConfig,
 }

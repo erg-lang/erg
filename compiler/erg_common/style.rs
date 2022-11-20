@@ -464,6 +464,12 @@ impl std::fmt::Display for StyledStrings {
     }
 }
 
+impl From<StyledStrings> for String {
+    fn from(s: StyledStrings) -> Self {
+        s.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,7 +5,6 @@ use std::cmp;
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
-use crate::astr::AtomicStr;
 use crate::config::Input;
 use crate::style::Attribute;
 use crate::style::Characters;
@@ -25,95 +24,95 @@ use crate::{impl_display_from_debug, switch_lang};
 pub enum ErrorKind {
     /* compile errors */
     AssignError = 0,
-    AttributeError,
-    BytecodeError,
-    CompilerSystemError,
-    EnvironmentError,
-    FeatureError,
-    ImportError,
-    IndentationError,
-    NameError,
-    NotImplementedError,
-    PatternError,
-    SyntaxError,
-    TabError,
-    TypeError,
-    UnboundLocalError,
-    PurityError,
-    HasEffect,
-    MoveError,
-    NotConstExpr,
-    InheritanceError,
-    VisibilityError,
-    MethodError,
-    DummyError,
+    AttributeError = 1,
+    BytecodeError = 2,
+    CompilerSystemError = 3,
+    EnvironmentError = 4,
+    FeatureError = 5,
+    ImportError = 6,
+    IndentationError = 7,
+    NameError = 8,
+    NotImplementedError = 9,
+    PatternError = 10,
+    SyntaxError = 11,
+    TabError = 12,
+    TypeError = 13,
+    UnboundLocalError = 14,
+    PurityError = 15,
+    HasEffect = 16,
+    MoveError = 17,
+    NotConstExpr = 18,
+    InheritanceError = 19,
+    VisibilityError = 20,
+    MethodError = 21,
+    DummyError = 22,
     /* compile warnings */
     AttributeWarning = 60,
-    CastWarning,
-    DeprecationWarning,
-    FutureWarning,
-    ImportWarning,
-    PendingDeprecationWarning,
-    SyntaxWarning,
-    TypeWarning,
-    NameWarning,
-    UnusedWarning,
-    Warning,
+    CastWarning = 61,
+    DeprecationWarning = 62,
+    FutureWarning = 63,
+    ImportWarning = 64,
+    PendingDeprecationWarning = 65,
+    SyntaxWarning = 66,
+    TypeWarning = 67,
+    NameWarning = 68,
+    UnusedWarning = 69,
+    Warning = 70,
     /* runtime errors */
     ArithmeticError = 100,
-    AssertionError,
-    BlockingIOError,
-    BrokenPipeError,
-    BufferError,
-    ChildProcessError,
-    ConnectionAbortedError,
-    ConnectionError,
-    ConnectionRefusedError,
-    ConnectionResetError,
-    EOFError,
-    FileExistsError,
-    FileNotFoundError,
-    IndexError,
-    InterruptedError,
-    IoError,
-    IsADirectoryError,
-    KeyError,
-    LookupError,
-    MemoryError,
-    ModuleNotFoundError,
-    NotADirectoryError,
-    OSError,
-    OverflowError,
-    PermissionError,
-    ProcessLookupError,
-    RecursionError,
-    ReferenceError,
-    RuntimeAttributeError,
-    RuntimeError,
-    RuntimeTypeError,
-    RuntimeUnicodeError,
-    TimeoutError,
-    UnicodeError,
-    UserError,
-    ValueError,
-    VMSystemError,
-    WindowsError,
-    ZeroDivisionError,
+    AssertionError = 101,
+    BlockingIOError = 102,
+    BrokenPipeError = 103,
+    BufferError = 104,
+    ChildProcessError = 105,
+    ConnectionAbortedError = 106,
+    ConnectionError = 107,
+    ConnectionRefusedError = 108,
+    ConnectionResetError = 109,
+    EOFError = 110,
+    FileExistsError = 111,
+    FileNotFoundError = 112,
+    IndexError = 113,
+    InterruptedError = 114,
+    IoError = 115,
+    IsADirectoryError = 116,
+    KeyError = 117,
+    LookupError = 118,
+    MemoryError = 119,
+    ModuleNotFoundError = 120,
+    NotADirectoryError = 121,
+    OSError = 122,
+    OverflowError = 123,
+    PermissionError = 124,
+    ProcessLookupError = 125,
+    RecursionError = 126,
+    ReferenceError = 127,
+    RuntimeAttributeError = 128,
+    RuntimeError = 129,
+    RuntimeTypeError = 130,
+    RuntimeUnicodeError = 131,
+    TimeoutError = 132,
+    UnicodeError = 133,
+    UserError = 134,
+    ValueError = 135,
+    VMSystemError = 136,
+    WindowsError = 137,
+    ZeroDivisionError = 138,
     /* runtime warnings */
     BytesWarning = 180,
-    ResourceWarning,
-    RuntimeWarning,
-    UnicodeWarning,
-    UserWarning,
+    ResourceWarning = 181,
+    RuntimeWarning = 182,
+    UnicodeWarning = 183,
+    UserWarning = 184,
     /* exceptions */
     BaseException = 200,
-    Exception,
-    GeneratorExit,
-    KeyboardInterrupt,
-    StopAsyncIteration,
-    StopIteration,
-    SystemExit,
-    UserException,
+    Exception = 201,
+    GeneratorExit = 202,
+    KeyboardInterrupt = 203,
+    StopAsyncIteration = 204,
+    StopIteration = 205,
+    SystemExit = 206,
+    UserException = 207,
 }
 
 use ErrorKind::*;
@@ -327,8 +326,8 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     chars: &Characters,
     // kinds of error for specify the color
     mark: char,
-    sub_msg: &[AtomicStr],
-    hint: Option<&AtomicStr>,
+    sub_msg: &[String],
+    hint: Option<&String>,
 ) -> String {
     let mark = mark.to_string();
     let codes = if e.input().is_repl() {
@@ -388,12 +387,12 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubMessage {
     pub loc: Location,
-    msg: Vec<AtomicStr>,
-    hint: Option<AtomicStr>,
+    msg: Vec<String>,
+    hint: Option<String>,
 }
 
 impl SubMessage {
-    pub fn ambiguous_new(loc: Location, msg: Vec<AtomicStr>, hint: Option<AtomicStr>) -> Self {
+    pub fn ambiguous_new(loc: Location, msg: Vec<String>, hint: Option<String>) -> Self {
         Self { loc, msg, hint }
     }
 
@@ -405,11 +404,11 @@ impl SubMessage {
         }
     }
 
-    pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
+    pub fn set_hint<S: Into<String>>(&mut self, hint: S) {
         self.hint = Some(hint.into());
     }
 
-    pub fn get_hint(self) -> Option<AtomicStr> {
+    pub fn get_hint(self) -> Option<String> {
         self.hint
     }
 
@@ -500,7 +499,7 @@ impl SubMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorCore {
     pub sub_messages: Vec<SubMessage>,
-    pub main_message: AtomicStr,
+    pub main_message: String,
     pub errno: usize,
     pub kind: ErrorKind,
     pub loc: Location,
@@ -508,7 +507,7 @@ pub struct ErrorCore {
 }
 
 impl ErrorCore {
-    pub fn new<S: Into<AtomicStr>>(
+    pub fn new<S: Into<String>>(
         sub_messages: Vec<SubMessage>,
         main_message: S,
         errno: usize,

@@ -1,7 +1,8 @@
 //! defines `ParseError` and others.
 //!
 //! パーサーが出すエラーを定義
-use erg_common::astr::AtomicStr;
+use std::fmt;
+
 use erg_common::config::Input;
 use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
@@ -39,7 +40,7 @@ impl LexError {
         Self(Box::new(core))
     }
 
-    pub fn set_hint<S: Into<AtomicStr>>(&mut self, hint: S) {
+    pub fn set_hint<S: Into<String>>(&mut self, hint: S) {
         if let Some(sub_msg) = self.0.sub_messages.get_mut(0) {
             sub_msg.set_hint(hint)
         }
@@ -95,11 +96,11 @@ impl LexError {
         ))
     }
 
-    pub fn syntax_error<S: Into<AtomicStr>>(
+    pub fn syntax_error<S: Into<String>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -110,11 +111,11 @@ impl LexError {
         ))
     }
 
-    pub fn syntax_warning<S: Into<AtomicStr>>(
+    pub fn syntax_warning<S: Into<String>>(
         errno: usize,
         loc: Location,
         desc: S,
-        hint: Option<AtomicStr>,
+        hint: Option<String>,
     ) -> Self {
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -139,7 +140,6 @@ impl LexError {
                 "traditional_chinese" => format!("存在相同名稱變量: {n}"),
                 "english" => format!("exists a similar name variable: {n}"),
             )
-            .into()
         });
         let name = StyledString::new(name, Some(ERR), Some(Attribute::Underline));
         Self::new(ErrorCore::new(
@@ -216,6 +216,12 @@ pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
+
+impl fmt::Display for ParserRunnerErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_all(f)
+    }
+}
 
 impl ParserRunnerErrors {
     pub fn convert(input: &Input, errs: ParseErrors) -> Self {

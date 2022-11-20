@@ -921,6 +921,12 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_impl(
+            "format",
+            fn_met(Str, vec![], Some(kw("args", Obj)), vec![], Str),
+            Immutable,
+            Public,
+        );
         let mut str_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, str_eq);

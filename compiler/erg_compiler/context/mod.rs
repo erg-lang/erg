@@ -18,7 +18,6 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 use std::path::Path;
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
@@ -792,8 +791,8 @@ impl Context {
     }
 
     #[inline]
-    pub fn caused_by(&self) -> AtomicStr {
-        AtomicStr::arc(&self.name[..])
+    pub fn caused_by(&self) -> String {
+        String::from(&self.name[..])
     }
 
     pub(crate) fn get_outer(&self) -> Option<&Context> {

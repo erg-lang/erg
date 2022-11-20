@@ -164,7 +164,7 @@ impl Parser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParserRunner {
     cfg: ErgConfig,
 }

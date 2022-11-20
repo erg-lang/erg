@@ -7,7 +7,6 @@ use std::process;
 use crate::ty::codeobj::MakeFunctionFlags;
 use crate::ty::codeobj::{CodeObj, CodeObjFlags};
 use crate::ty::value::GenTypeObj;
-use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
@@ -131,7 +130,7 @@ pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
 impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PyCodeGenerator {
     cfg: ErgConfig,
     pub(crate) py_version: PythonVersion,
@@ -1265,7 +1264,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     unary.op.loc(),
                     &unary.op.inspect().clone(),
-                    AtomicStr::from(unary.op.content),
+                    String::from(unary.op.content),
                 )
                 .write_to_stderr();
                 NOT_IMPLEMENTED
@@ -1348,7 +1347,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     binop.loc(),
                     &binop.inspect().clone(),
-                    AtomicStr::from(binop.content),
+                    String::from(binop.content),
                 )
                 .write_to_stderr();
                 Opcode310::NOT_IMPLEMENTED
@@ -1416,7 +1415,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     binop.loc(),
                     &binop.inspect().clone(),
-                    AtomicStr::from(binop.content),
+                    String::from(binop.content),
                 )
                 .write_to_stderr();
                 Opcode311::NOT_IMPLEMENTED

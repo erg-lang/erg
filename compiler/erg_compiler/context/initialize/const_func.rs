@@ -6,7 +6,6 @@ use crate::context::Context;
 use crate::ty::constructors::{and, mono};
 use crate::ty::value::{EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::ValueArgs;
-use erg_common::astr::AtomicStr;
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
 
@@ -24,7 +23,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{REQ_ERR} is not passed")),
+            format!("{REQ_ERR} is not passed"),
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
@@ -34,9 +33,9 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         let require = StyledString::new(&format!("{}", require), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!(
+            format!(
                 "non-type object {require} is passed to {REQ_WARN}",
-            )),
+            ),
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
@@ -54,7 +53,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
         let sup = StyledStr::new("Super", Some(ERR), None);
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{sup} is not passed")),
+            format!("{sup} is not passed"),
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
@@ -64,9 +63,9 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
         let sup_ty = StyledString::new(&format!("{}", sup), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!(
+            format!(
                 "non-class object {sup_ty} is passed to {SUP_WARN}",
-            )),
+            ),
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
@@ -88,7 +87,7 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
     let class = args.remove_left_or_key("Class").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{CLASS_ERR} is not passed")),
+            format!("{CLASS_ERR} is not passed"),
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
@@ -120,7 +119,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{REQ_ERR} is not passed")),
+            format!("{REQ_ERR} is not passed"),
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
@@ -130,9 +129,9 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         let require = StyledString::new(&format!("{}", require), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!(
+            format!(
                 "non-type object {require} is passed to {REQ_WARN}",
-            )),
+            ),
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
@@ -149,7 +148,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{SUP_ERR} is not passed")),
+            format!("{SUP_ERR} is not passed"),
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
@@ -159,9 +158,9 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
         let sup = StyledString::new(&format!("{}", sup), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!(
+            format!(
                 "non-trait object {sup} is passed to {SUP_WARN}",
-            )),
+            ),
             line!() as usize,
             ErrorKind::TypeError,
             Location::Unknown,
@@ -187,12 +186,12 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!(
+            format!(
                 "[{}] has {} elements, but accessed {}th element",
                 erg_common::fmt_vec(&slf),
                 slf.len(),
                 index
-            )),
+            ),
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
@@ -226,7 +225,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("{slf} has no key {index}",)),
+            format!("{slf} has no key {index}"),
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
@@ -251,7 +250,7 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            AtomicStr::from(format!("Index out of range: {}", index)),
+            format!("Index out of range: {}", index),
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,
