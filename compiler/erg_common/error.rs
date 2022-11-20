@@ -580,20 +580,27 @@ impl ErrorCore {
 /// format:
 /// ```txt
 /// Error[#{.errno}]: File {file}, line {.loc (as line)}, in {.caused_by}
+///
 /// {.loc (as line)}| {src}
-/// {pointer}
+/// {offset}        : {pointer}
+/// {offset}        :         {sub_msgs}
+/// {offset}        :         {.hint}
+///
 /// {.kind}: {.desc}
-/// {.hint}
+///
 /// ```
 ///
 /// example:
 /// ```txt
 /// Error[#2223]: File <stdin>, line 1, in <module>
+///
+/// 1 │ 100 = i
+///   · ---
+///   ·   ╰─ sub_msg: sub messages here
+///   ·   ╰─ hint: hint message here
+///
 /// SyntaxError: cannot assign to 100
 ///
-/// 1 | 100 = i
-///     ---
-///       ╰─ hint: hint message here
 /// ```
 pub trait ErrorDisplay {
     fn core(&self) -> &ErrorCore;
