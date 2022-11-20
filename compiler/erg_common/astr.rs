@@ -3,6 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Deref};
 
+use crate::style::{StyledString, StyledStrings};
 use crate::Str;
 
 pub type ArcStr = std::sync::Arc<str>;
@@ -115,6 +116,20 @@ impl From<&Str> for AtomicStr {
             Str::Rc(s) => AtomicStr::Arc((&s[..]).into()),
             Str::Static(s) => AtomicStr::Static(s),
         }
+    }
+}
+
+impl From<StyledString> for AtomicStr {
+    #[inline]
+    fn from(s: StyledString) -> Self {
+        AtomicStr::Arc(s.to_string().into())
+    }
+}
+
+impl From<StyledStrings> for AtomicStr {
+    #[inline]
+    fn from(s: StyledStrings) -> Self {
+        AtomicStr::Arc(s.to_string().into())
     }
 }
 

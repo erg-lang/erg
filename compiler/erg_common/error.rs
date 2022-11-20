@@ -442,7 +442,7 @@ impl SubMessage {
             ),
             Location::LineRange(ln_begin, ln_end) => {
                 let input = e.input();
-                let (_, vbar) = chars.gutters();
+                let (vbreak, vbar) = chars.gutters();
                 let mut cxt = StyledStrings::default();
                 let codes = if input.is_repl() {
                     vec![input.reread()]
@@ -451,12 +451,18 @@ impl SubMessage {
                 };
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-                    cxt.push_str_with_color(&format!("{lineno} {}", vbar), err_color);
+                    cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
                     cxt.push_str(&codes[i]);
-                    cxt.push_str(&" ".repeat(lineno.to_string().len() + 3)); // +3 means ` | `
-                    cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), gutter_color)
+                    cxt.push_str("\n");
+                    cxt.push_str_with_color(
+                        &format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
+                        gutter_color,
+                    );
+                    cxt.push_str(&" ".repeat(lineno.to_string().len()));
+                    cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
+                    cxt.push_str("\n");
                 }
-                cxt.push_str("\n\n");
+                cxt.push_str("\n");
                 cxt.to_string()
             }
             Location::Line(lineno) => {
@@ -568,14 +574,6 @@ impl ErrorCore {
             Location::Unknown => "".to_string(),
         };
         format!("{kind}: File {input}{loc}{caused_by}",)
-    }
-
-    pub fn fmt_main_message(&self, kind: StyledString, caused_by: &str, input: &str) -> String {
-        format!(
-            "{}\n{}\n\n",
-            self.fmt_header(kind, caused_by, input),
-            self.main_message
-        )
     }
 }
 
