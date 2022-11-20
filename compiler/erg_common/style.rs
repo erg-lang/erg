@@ -516,9 +516,14 @@ mod tests {
             Attribute::Bold,
         );
         texts.push_str_with_color_and_attribute(
-            "White and underlined text",
-            Color::White,
+            "White and underlined text\n",
+            Color::Blue,
             Attribute::Underline,
+        );
+        texts.push_str_with_color_and_attribute(
+            "White and underlined text",
+            Color::Red,
+            Attribute::Reversed,
         );
         println!("{}", texts);
     }
