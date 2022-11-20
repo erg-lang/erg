@@ -144,16 +144,28 @@ impl Characters {
         (self.vbreak, self.vbar)
     }
 
-    // " `- "
+    // "`- "
     #[cfg(not(feature = "unicode"))]
     pub fn left_bottom_line(&self) -> String {
-        format!(" {}{} ", self.lbot, self.line)
+        format!("{}{} ", self.lbot, self.line)
     }
 
     // `╰─ `
     #[cfg(feature = "unicode")]
     pub fn left_bottom_line(&self) -> String {
         format!("{}{} ", self.lbot, self.line)
+    }
+
+    // "|- "
+    #[cfg(not(feature = "unicode"))]
+    pub fn left_cross(&self) -> String {
+        format!("{}{} ", self.vbar, self.line)
+    }
+
+    // "│─ "
+    #[cfg(feature = "unicode")]
+    pub fn left_cross(&self) -> String {
+        format!("{}{} ", self.vbar, self.line)
     }
 
     // kind[padded error number]

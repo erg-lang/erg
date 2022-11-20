@@ -367,10 +367,16 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         }
         context.push_str("\n");
     }
-    for msg in sub_msg {
+
+    let msg_num = sub_msg.len().saturating_sub(1);
+    for (i, msg) in sub_msg.iter().enumerate() {
         context.push_str_with_color(&offset, gutter_color);
         context.push_str(&" ".repeat(col_end - 1));
-        context.push_str_with_color(&chars.left_bottom_line(), err_color);
+        if i == msg_num && hint.is_none() {
+            context.push_str_with_color(&chars.left_bottom_line(), err_color);
+        } else {
+            context.push_str_with_color(&chars.left_cross(), err_color);
+        }
         context.push_str(msg);
         context.push_str("\n")
     }
@@ -595,7 +601,8 @@ impl ErrorCore {
 ///
 /// 1 │ 100 = i
 ///   · ---
-///   ·   ╰─ sub_msg: sub messages here
+///   ·   │─ sub_msg1: first sub message here
+///   ·   │─ sub_msg2: second sub message here
 ///   ·   ╰─ hint: hint message here
 ///
 /// SyntaxError: cannot assign to 100
