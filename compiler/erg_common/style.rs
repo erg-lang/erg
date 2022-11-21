@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 pub const ATTR_RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";
 pub const UNDERLINE: &str = "\x1b[4m";
@@ -315,9 +317,14 @@ pub struct StyledString {
 }
 
 impl StyledString {
-    pub fn new(s: &str, color: Option<Color>, attribute: Option<Attribute>) -> Self {
+    pub fn new<'a, S: Into<Cow<'a, str>>>(
+        s: S,
+        color: Option<Color>,
+        attribute: Option<Attribute>,
+    ) -> Self {
+        let text: Cow<'a, str> = s.into();
         Self {
-            text: String::from(s),
+            text: text.into_owned(),
             color,
             attribute,
         }
@@ -420,9 +427,10 @@ impl StyledStrings {
     /// texts.push_str_with_color("\n If you want to add break lines, you should add `\n`.", Color::Magenta);
     /// println!("{}", texts);
     /// ```
-    pub fn push_str_with_color(&mut self, s: &str, color: Color) {
+    pub fn push_str_with_color<'a, S: Into<Cow<'a, str>>>(&mut self, s: S, color: Color) {
         if self.is_same_color(color) {
-            self.texts.last_mut().unwrap().text.push_str(s);
+            let text = s.into();
+            self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
             self.texts.push(StyledString::new(s, Some(color), None));
         }
@@ -441,9 +449,15 @@ impl StyledStrings {
     /// // texts.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
     /// println!("{}", texts);
     /// ```
-    pub fn push_str_with_color_and_attribute(&mut self, s: &str, color: Color, attr: Attribute) {
+    pub fn push_str_with_color_and_attribute<'a, S: Into<Cow<'a, str>>>(
+        &mut self,
+        s: S,
+        color: Color,
+        attr: Attribute,
+    ) {
         if self.is_same_color(color) && self.is_same_attribute(attr) {
-            self.texts.last_mut().unwrap().text.push_str(s);
+            let text = s.into();
+            self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
             self.texts
                 .push(StyledString::new(s, Some(color), Some(attr)));
