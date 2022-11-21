@@ -467,7 +467,15 @@ impl SubMessage {
                     cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
                     cxt.push_str("\n");
                 }
-                cxt.push_str("\n");
+                cxt.push_str("\n\n");
+                for msg in self.msg.iter() {
+                    cxt.push_str(msg);
+                    cxt.push_str("\n");
+                }
+                if let Some(hint) = self.hint.as_ref() {
+                    cxt.push_str(hint);
+                    cxt.push_str("\n");
+                }
                 cxt.to_string()
             }
             Location::Line(lineno) => {
@@ -482,17 +490,34 @@ impl SubMessage {
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
                 cxt.push_str("\n\n");
+                for msg in self.msg.iter() {
+                    cxt.push_str(msg);
+                    cxt.push_str("\n");
+                }
+                if let Some(hint) = self.hint.as_ref() {
+                    cxt.push_str(hint);
+                    cxt.push_str("\n");
+                }
+                cxt.push_str("\n");
                 cxt.to_string()
             }
             Location::Unknown => match e.input() {
                 Input::File(_) => "\n".to_string(),
-
                 other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();
-                    cxt.push_str_with_color(&format!(" ? {}", vbar), gutter_color);
+                    cxt.push_str_with_color(&format!(" ? {} ", vbar), gutter_color);
                     cxt.push_str(&other.reread());
                     cxt.push_str("\n\n");
+                    for msg in self.msg.iter() {
+                        cxt.push_str(msg);
+                        cxt.push_str("\n");
+                    }
+                    if let Some(hint) = self.hint.as_ref() {
+                        cxt.push_str(hint);
+                        cxt.push_str("\n");
+                    }
+                    cxt.push_str("\n");
                     cxt.to_string()
                 }
             },
@@ -566,7 +591,7 @@ impl ErrorCore {
         )
     }
 
-    pub fn fmt_header(&self, kind: StyledString, caused_by: &str, input: &str) -> String {
+    pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
         let loc = match self.loc {
             Location::Range {
                 ln_begin, ln_end, ..
@@ -578,7 +603,29 @@ impl ErrorCore {
             Location::Line(lineno) => format!(", line {lineno}"),
             Location::Unknown => "".to_string(),
         };
-        format!("{kind}: File {input}{loc}{caused_by}",)
+        let kind = if self.kind.is_error() {
+            "Error"
+        } else if self.kind.is_warning() {
+            "Warning"
+        } else {
+            "Exception"
+        };
+        let kind = self.theme.characters.error_kind_format(kind, self.errno);
+        format!(
+            "{kind}: File {input}{loc}{caused_by}",
+            kind = StyledStr::new(&kind, Some(color), Some(Attribute::Bold))
+        )
+    }
+
+    fn specified_theme(&self) -> (Color, char) {
+        let (color, mark) = if self.kind.is_error() {
+            self.theme.error()
+        } else if self.kind.is_warning() {
+            self.theme.warning()
+        } else {
+            self.theme.exception()
+        };
+        (color, mark)
     }
 }
 
@@ -633,21 +680,10 @@ pub trait ErrorDisplay {
 
     fn show(&self) -> String {
         let core = self.core();
-        let ((color, mark), kind) = if core.kind.is_error() {
-            (core.theme.error(), "Error")
-        } else if core.kind.is_warning() {
-            (core.theme.warning(), "Warning")
-        } else {
-            (core.theme.exception(), "Exception")
-        };
+        let (color, mark) = core.specified_theme();
         let (gutter_color, chars) = core.theme.characters();
-        let kind = StyledString::new(
-            &chars.error_kind_format(kind, core.errno),
-            Some(color),
-            Some(Attribute::Bold),
-        );
         let mut msg = String::new();
-        msg += &core.fmt_header(kind, self.caused_by(), self.input().enclosed_name());
+        msg += &core.fmt_header(color, self.caused_by(), self.input().enclosed_name());
         msg += "\n\n";
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
@@ -660,23 +696,12 @@ pub trait ErrorDisplay {
     /// for fmt::Display
     fn format(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let core = self.core();
-        let ((color, mark), kind) = if core.kind.is_error() {
-            (core.theme.error(), "Error")
-        } else if core.kind.is_warning() {
-            (core.theme.warning(), "Warning")
-        } else {
-            (core.theme.exception(), "Exception")
-        };
+        let (color, mark) = core.specified_theme();
         let (gutter_color, chars) = core.theme.characters();
-        let kind = StyledString::new(
-            &chars.error_kind_format(kind, core.errno),
-            Some(color),
-            Some(Attribute::Bold),
-        );
         write!(
             f,
             "{}\n\n",
-            core.fmt_header(kind, self.caused_by(), self.input().enclosed_name())
+            core.fmt_header(color, self.caused_by(), self.input().enclosed_name())
         )?;
         for sub_msg in &core.sub_messages {
             write!(

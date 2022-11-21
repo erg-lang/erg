@@ -2154,11 +2154,16 @@ pub type CompileWarnings = CompileErrors;
 #[cfg(test)]
 mod test {
     use super::TyCheckError;
-    use crate::{error::CompileError, ty::Type};
+    use crate::{
+        error::CompileError,
+        ty::{Predicate, Type},
+    };
     use erg_common::{config::Input, error::Location};
 
+    // These Erg codes are not correct grammar.
+    // This test make sure sub_msg and hint are displayed correctly.
     #[test]
-    fn default_arg_error_test() {
+    fn default_error_format_confirmation() {
         let input = Input::Pipe("line error".into());
         let loc = Location::Line(1);
         let err = CompileError::stack_bug(input, loc, 0, 0, "FileName");
@@ -2231,5 +2236,159 @@ mod test {
             Some("hint message here".into()),
         );
         print!("{}", err);
+
+        let input = Input::Pipe(
+            "f some_long_name_variable_1,
+    some_long_name_variable_2,
+    some_long_name_variable_3,
+    some_long_name_variable_4 ="
+                .to_string(),
+        );
+        let errno = 0;
+        let loc = Location::LineRange(1, 4);
+        let callee_name = "callee name";
+        let caused_by = "cause by".to_owned();
+        let params_len = 3;
+        let pos_args_len = 4;
+        let kw_args_len = 4;
+        let err = TyCheckError::too_many_args_error(
+            input,
+            errno,
+            loc,
+            callee_name,
+            caused_by,
+            params_len,
+            pos_args_len,
+            kw_args_len,
+        );
+        print!("{}", err);
+
+        let input = Input::Pipe("Pearson = Class {.name = Str}".to_string());
+        let errno = 0;
+        let loc = Location::range(1, 0, 1, 7);
+        let caused_by = "caused by".to_string();
+        let err = TyCheckError::argument_error(input, errno, loc, caused_by, 1, 2);
+        print!("{}", err);
+
+        let input = Input::Pipe("Nat <: Int <: Ratio".to_string());
+        let loc = Location::range(1, 0, 1, 10);
+        let errno = 0;
+        let sub_t = &Type::Nat;
+        let sup_t = &Type::Int;
+        let caused_by = "caused_by".to_string();
+        let err = TyCheckError::subtyping_error(input, errno, sub_t, sup_t, loc, caused_by);
+        print!("{}", err);
+
+        /*
+        let input = Input::Pipe("".to_string());
+        let errno = 0;
+        let expr = Location::Range {
+            ln_begin: 1,
+            col_begin: 1,
+            ln_end: 1,
+            col_end: 1,
+        };
+        let candidates = &[Type::Int, Type::Nat, Type::Bool];
+        let caused_by = "".to_string();
+        let err = TyCheckError::ambiguous_type_error(input, errno, expr, candidates, caused_by);
+        println!("{}", err);
+         */
+
+        let input = Input::Pipe("pred unification error".to_string());
+        let errno = 0;
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 10,
+        };
+        let lhs = &Predicate::Const("Str".into());
+        let rhs = &Predicate::Const("Str".into());
+        let caused_by = "<sample>".to_string();
+        let err = TyCheckError::pred_unification_error(input, errno, lhs, rhs, caused_by);
+        print!("{}", err);
+
+        let input = Input::Pipe("Trait member type error".to_string());
+        let errno = 0;
+        let t_ty = &Type::Float;
+        let exp = &Type::Nat;
+        let fnd = &Type::Obj;
+        let caused_by = "<sample>".to_string();
+        let err = TyCheckError::trait_member_type_error(
+            input,
+            errno,
+            loc,
+            caused_by,
+            "member name",
+            t_ty,
+            exp,
+            fnd,
+            Some("sample".to_string()),
+        );
+        print!("{}", err);
+
+        let input = Input::Pipe("trait member not defined error".to_string());
+        let errno = 0;
+        let caused_by = "<caused by>".to_string();
+        let member_name = "member name";
+        let trait_type = &Type::ClassType;
+        let class_type = &Type::Ellipsis;
+        let hint = Some("hint message here".to_string());
+        let err = TyCheckError::trait_member_not_defined_error(
+            input,
+            errno,
+            caused_by,
+            member_name,
+            trait_type,
+            class_type,
+            hint,
+        );
+        print!("{}", err);
+    }
+
+    #[test]
+    fn import_error_format_test() {
+        let input = Input::Pipe("import nunpy as np".to_string());
+        let errno = 0;
+        let desc = "nunpy is not defined".to_string();
+        let loc = Location::range(1, 7, 1, 12);
+        let caused_by = "<Stdin>".to_string();
+        let similar_erg_mod = Some("numpyer".into());
+        let similar_py_mod = Some("numpy".into());
+        let imp_err = TyCheckError::import_error(
+            input.clone(),
+            errno,
+            desc.clone(),
+            loc,
+            caused_by.clone(),
+            similar_erg_mod.clone(),
+            similar_py_mod.clone(),
+        );
+        println!("{}", imp_err);
+
+        let imp_err = TyCheckError::import_error(
+            input.clone(),
+            errno,
+            desc.clone(),
+            loc,
+            caused_by.clone(),
+            None,
+            similar_py_mod,
+        );
+        println!("{}", imp_err);
+
+        let imp_err = TyCheckError::import_error(
+            input.clone(),
+            errno,
+            desc.clone(),
+            loc,
+            caused_by.clone(),
+            similar_erg_mod,
+            None,
+        );
+        println!("{}", imp_err);
+
+        let imp_err = TyCheckError::import_error(input, errno, desc, loc, caused_by, None, None);
+        println!("{}", imp_err);
     }
 }

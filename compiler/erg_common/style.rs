@@ -471,7 +471,7 @@ impl StyledStrings {
         false
     }
 
-    pub fn is_same_attribute(&self, attr: Attribute) -> bool {
+    fn is_same_attribute(&self, attr: Attribute) -> bool {
         if let Some(text) = self.texts.last() {
             if let Some(text_attr) = text.attribute {
                 return text_attr == attr;
