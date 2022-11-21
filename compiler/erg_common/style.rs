@@ -18,10 +18,10 @@ pub const WHITE: &str = "\x1b[97m";
 pub const YELLOW: &str = "\x1b[93m";
 // custom colors when use `pretty`
 pub const CUSTOM_RED: &str = "\x1b[38;2;255;76;76m";
-pub const CUSTOM_BLUE: &str = "\x1b[38;2;76;76;255";
+pub const CUSTOM_BLUE: &str = "\x1b[38;2;76;76;255m";
 pub const CUSTOM_GRAY: &str = "\x1b[38;2;231;231;235m";
-pub const CUSTOM_CYAN: &str = "\x1b[38;2;76;255;255";
-pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255";
+pub const CUSTOM_CYAN: &str = "\x1b[38;2;76;255;255m";
+pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255m";
 pub const CUSTOM_GREEN: &str = "\x1b[38;2;76;255;76m";
 pub const CUSTOM_YELLOW: &str = "\x1b[38;2;255;255;76m";
 
