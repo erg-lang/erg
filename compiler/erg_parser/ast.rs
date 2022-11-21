@@ -830,46 +830,64 @@ impl NormalRecord {
     }
 }
 
-/// e.g. {x; y; z} (syntax sugar of {x = x; y = y; z = z})
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ShortenedRecord {
-    pub l_brace: Token,
-    pub r_brace: Token,
-    pub idents: Vec<Identifier>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Record {
+    Normal(NormalRecord),
+    Mixed(MixedRecord),
 }
 
-impl NestedDisplay for ShortenedRecord {
+impl_nested_display_for_enum!(Record; Normal, Mixed);
+impl_display_for_enum!(Record; Normal, Mixed);
+impl_locational_for_enum!(Record; Normal, Mixed);
+
+impl Record {
+    pub const fn new_mixed(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+        Self::Mixed(MixedRecord {
+            l_brace,
+            r_brace,
+            attrs,
+        })
+    }
+
+    pub fn empty(l_brace: Token, r_brace: Token) -> Self {
+        Self::Normal(NormalRecord {
+            l_brace,
+            r_brace,
+            attrs: RecordAttrs::new(Vec::with_capacity(0)),
+        })
+    }
+}
+
+/// Record can be defined with shorthend/normal mixed style, i.e. {x; y=expr; z; ...}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MixedRecord {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub attrs: Vec<RecordAttrOrIdent>,
+}
+
+impl NestedDisplay for MixedRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{")?;
-        for ident in self.idents.iter() {
-            write!(f, "{}; ", ident)?;
+        for attr in self.attrs.iter() {
+            write!(f, "{}; ", attr)?;
         }
         write!(f, "}}")
     }
 }
 
-impl_display_from_nested!(ShortenedRecord);
-impl_locational!(ShortenedRecord, l_brace, r_brace);
+impl_display_from_nested!(MixedRecord);
+impl_locational!(MixedRecord, l_brace, r_brace);
 
-impl ShortenedRecord {
-    pub const fn new(l_brace: Token, r_brace: Token, idents: Vec<Identifier>) -> Self {
-        Self {
-            l_brace,
-            r_brace,
-            idents,
-        }
-    }
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum RecordAttrOrIdent {
+    Attr(Def),
+    Ident(Identifier),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Record {
-    Normal(NormalRecord),
-    Shortened(ShortenedRecord),
-}
-
-impl_nested_display_for_enum!(Record; Normal, Shortened);
-impl_display_for_enum!(Record; Normal, Shortened);
-impl_locational_for_enum!(Record; Normal, Shortened);
+impl_nested_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
+impl_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
+impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {

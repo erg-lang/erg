@@ -309,7 +309,7 @@ impl Context {
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Shortened(_rec) => unreachable!(), // should be desugared
+            Record::Mixed(_rec) => unreachable!(), // should be desugared
         }
     }
 

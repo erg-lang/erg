@@ -13,11 +13,11 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
     ClassAttr, ClassAttrs, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr, Identifier,
-    KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, Module, NonDefaultParamSignature,
-    NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
-    Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature,
-    SubrSignature, Tuple, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, Params, PosArg, Record, RecordAttrOrIdent, RecordAttrs,
+    Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeBoundSpecs, TypeSpec,
+    TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -595,12 +595,12 @@ impl Desugarer {
 
     fn rec_desugar_shortened_record(expr: Expr) -> Expr {
         match expr {
-            Expr::Record(Record::Shortened(rec)) => {
-                let rec = Self::desugar_shortened_record_inner(rec);
+            Expr::Record(Record::Mixed(record)) => {
+                let rec = Self::desugar_shortened_record_inner(record);
                 Expr::Record(Record::Normal(rec))
             }
             Expr::DataPack(pack) => {
-                if let Record::Shortened(rec) = pack.args {
+                if let Record::Mixed(rec) = pack.args {
                     let class = Self::rec_desugar_shortened_record(*pack.class);
                     let rec = Self::desugar_shortened_record_inner(rec);
                     let args = Record::Normal(rec);
@@ -613,25 +613,30 @@ impl Desugarer {
         }
     }
 
-    fn desugar_shortened_record_inner(rec: ShortenedRecord) -> NormalRecord {
-        let mut attrs = vec![];
-        for attr in rec.idents.into_iter() {
-            let var = VarSignature::new(VarPattern::Ident(attr.clone()), None);
-            let sig = Signature::Var(var);
-            let body = DefBody::new(
-                Token::from_str(TokenKind::Equal, "="),
-                Block::new(vec![Expr::local(
-                    attr.inspect(),
-                    attr.ln_begin().unwrap(),
-                    attr.col_begin().unwrap(),
-                )]),
-                DefId(get_hash(&(&sig, attr.inspect()))),
-            );
-            let def = Def::new(sig, body);
-            attrs.push(def);
-        }
+    fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
+        let attrs = record
+            .attrs
+            .into_iter()
+            .map(|attr_or_ident| match attr_or_ident {
+                RecordAttrOrIdent::Attr(def) => def,
+                RecordAttrOrIdent::Ident(ident) => {
+                    let var = VarSignature::new(VarPattern::Ident(ident.clone()), None);
+                    let sig = Signature::Var(var);
+                    let body = DefBody::new(
+                        Token::from_str(TokenKind::Equal, "="),
+                        Block::new(vec![Expr::local(
+                            ident.inspect(),
+                            ident.ln_begin().unwrap(),
+                            ident.col_begin().unwrap(),
+                        )]),
+                        DefId(get_hash(&(&sig, ident.inspect()))),
+                    );
+                    Def::new(sig, body)
+                }
+            })
+            .collect();
         let attrs = RecordAttrs::new(attrs);
-        NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
+        NormalRecord::new(record.l_brace, record.r_brace, attrs)
     }
 
     /// ```erg
