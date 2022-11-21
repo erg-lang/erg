@@ -313,6 +313,14 @@ pub struct StyledString {
 }
 
 impl StyledString {
+    ///
+    /// # Example
+    /// ```
+    /// let s = String::from("Hello, world");
+    /// StyledString::new(s, None, None);
+    /// let s = "Hello, world";
+    /// StyledString::new(s, None, None);
+    /// ```
     pub fn new<'a, S: Into<Cow<'a, str>>>(
         s: S,
         color: Option<Color>,
@@ -464,7 +472,18 @@ impl StyledStrings {
         }
     }
 
-    pub fn is_same_color(&self, color: Color) -> bool {
+    ///
+    /// Determine if all strings in Vec are empty
+    /// Returns False if any string is present.
+    ///
+    pub fn is_empty(&self) -> bool {
+        self.texts
+            .iter()
+            .inspect(|x| println!("{:#?}", x))
+            .all(|s| s.is_empty())
+    }
+
+    fn is_same_color(&self, color: Color) -> bool {
         if let Some(text) = self.texts.last() {
             return text.color == Some(color);
         }

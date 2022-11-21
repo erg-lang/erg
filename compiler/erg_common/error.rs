@@ -397,10 +397,56 @@ pub struct SubMessage {
 }
 
 impl SubMessage {
+    ///
+    /// Used when the msg or hint si empty.
+    /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
+    /// # Example
+    /// ```
+    /// let msg = SubMessage::ambiguous_new(loc, vec![], None); // this code same as only_loc()
+    ///
+    /// let hint = Some("hint message here".to_string())
+    /// let msg = SubMessage::ambiguous_new(loc, vec![], hint);
+    /// /* example
+    ///    -------
+    ///          `- hint message here
+    /// */
+    ///
+    /// let hint = Some("hint here".to_string())
+    /// let first = StyledString::new("1th message", Color::Red, None);
+    /// let second = StyledString::new("2th message", Color::White, None);
+    ///      :
+    /// let nth = StyledString::new("nth message", Color::Green, None);
+    /// let msg = SubMessage::ambiguous_new(
+    ///     loc,
+    ///     vec![
+    ///         first.to_string(),
+    ///         second.to_string(),
+    ///         ...,
+    ///         nth.to_string(),
+    ///     ],
+    ///     hint);
+    /// /* example
+    ///    -------
+    ///          :- 1th message
+    ///          :- 2th message
+    ///                :
+    ///          :- nth message
+    ///          `- hint here
+    /// */
+    ///
+    /// ```
+    ///
     pub fn ambiguous_new(loc: Location, msg: Vec<String>, hint: Option<String>) -> Self {
         Self { loc, msg, hint }
     }
 
+    ///
+    /// Used when only Location is fixed.
+    /// In this case, error position is just modified
+    /// # Example
+    /// ```
+    /// let sub_msg = SubMessage::only_loc(loc);
+    /// ```
     pub fn only_loc(loc: Location) -> Self {
         Self {
             loc,
