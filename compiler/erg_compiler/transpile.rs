@@ -352,7 +352,7 @@ impl ScriptGenerator {
     fn transpile_block(&mut self, block: Block, return_last: bool) -> String {
         self.level += 1;
         let mut code = String::new();
-        let last = block.len() - 1;
+        let last = block.len().saturating_sub(1);
         for (i, chunk) in block.into_iter().enumerate() {
             code += &"    ".repeat(self.level);
             if i == last && return_last {
