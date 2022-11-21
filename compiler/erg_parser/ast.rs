@@ -360,9 +360,9 @@ impl Subscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
-    l_vbar: Token,
+    pub l_vbar: Token,
     pub args: Args,
-    r_vbar: Token,
+    pub r_vbar: Token,
 }
 
 impl NestedDisplay for TypeAppArgs {
@@ -445,6 +445,10 @@ impl Accessor {
 
     pub fn subscr(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
         Self::Subscr(Subscript::new(obj, index, r_sqbr))
+    }
+
+    pub fn type_app(obj: Expr, type_args: TypeAppArgs) -> Self {
+        Self::TypeApp(TypeApp::new(obj, type_args))
     }
 
     pub const fn name(&self) -> Option<&Str> {
@@ -878,6 +882,16 @@ impl NestedDisplay for MixedRecord {
 
 impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
+
+impl MixedRecord {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RecordAttrOrIdent {
@@ -3495,6 +3509,10 @@ impl Expr {
 
     pub fn tuple_attr_expr(self, index: Literal) -> Self {
         Self::Accessor(self.tuple_attr(index))
+    }
+
+    pub fn type_app(self, type_args: TypeAppArgs) -> Accessor {
+        Accessor::type_app(self, type_args)
     }
 
     pub fn call(self, args: Args) -> Call {
