@@ -8,7 +8,7 @@ use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::{Field, Visibility};
+use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
 use erg_common::{option_enum_unwrap, Str};
 use Type::*;
@@ -530,8 +530,7 @@ impl Context {
                 self.get_attr_info_from_attributive(&refine.t, ident, namespace)
             }
             Type::Record(record) => {
-                // REVIEW: `rec.get(name.inspect())` returns None (Borrow<Str> is implemented for Field). Why?
-                if let Some(attr_t) = record.get(&Field::new(Public, ident.inspect().clone())) {
+                if let Some(attr_t) = record.get(ident.inspect()) {
                     let muty = Mutability::from(&ident.inspect()[..]);
                     let vi = VarInfo::new(
                         attr_t.clone(),
