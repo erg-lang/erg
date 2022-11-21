@@ -12,12 +12,12 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr, Identifier,
-    KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, Module, NonDefaultParamSignature,
-    NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
-    Params, PosArg, Record, RecordAttrs, Set as astSet, SetWithLength, ShortenedRecord, Signature,
-    SubrSignature, Tuple, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr,
+    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, Params, PosArg, Record, RecordAttrOrIdent, RecordAttrs,
+    Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs, TypeBoundSpecs,
+    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -63,8 +63,25 @@ impl Desugarer {
         module.into_iter().map(desugar).collect()
     }
 
+    fn desugar_args(mut desugar: impl FnMut(Expr) -> Expr, args: Args) -> Args {
+        let (pos_args, kw_args, paren) = args.deconstruct();
+        let pos_args = pos_args
+            .into_iter()
+            .map(|arg| PosArg::new(desugar(arg.expr)))
+            .collect();
+        let kw_args = kw_args
+            .into_iter()
+            .map(|arg| {
+                let expr = desugar(arg.expr);
+                KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+            })
+            .collect();
+        Args::new(pos_args, kw_args, paren)
+    }
+
     fn perform_desugar(mut desugar: impl FnMut(Expr) -> Expr, expr: Expr) -> Expr {
         match expr {
+            Expr::Lit(_) => expr,
             Expr::Record(record) => match record {
                 Record::Normal(rec) => {
                     let mut new_attrs = vec![];
@@ -77,7 +94,28 @@ impl Desugarer {
                         RecordAttrs::new(new_attrs),
                     )))
                 }
-                shorten => Expr::Record(shorten),
+                Record::Mixed(mixed) => {
+                    let mut new_attrs = vec![];
+                    for attr in mixed.attrs {
+                        match attr {
+                            RecordAttrOrIdent::Attr(attr) => {
+                                let attr = RecordAttrOrIdent::Attr(enum_unwrap!(
+                                    desugar(Expr::Def(attr)),
+                                    Expr::Def
+                                ));
+                                new_attrs.push(attr);
+                            }
+                            RecordAttrOrIdent::Ident(ident) => {
+                                new_attrs.push(RecordAttrOrIdent::Ident(ident));
+                            }
+                        }
+                    }
+                    Expr::Record(Record::Mixed(MixedRecord::new(
+                        mixed.l_brace,
+                        mixed.r_brace,
+                        new_attrs,
+                    )))
+                }
             },
             Expr::DataPack(pack) => {
                 let class = desugar(*pack.class);
@@ -173,19 +211,7 @@ impl Desugarer {
             }
             Expr::Call(call) => {
                 let obj = desugar(*call.obj);
-                let (pos_args, kw_args, paren) = call.args.deconstruct();
-                let pos_args = pos_args
-                    .into_iter()
-                    .map(|arg| PosArg::new(desugar(arg.expr)))
-                    .collect();
-                let kw_args = kw_args
-                    .into_iter()
-                    .map(|arg| {
-                        let expr = desugar(arg.expr);
-                        KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
-                    })
-                    .collect();
-                let args = Args::new(pos_args, kw_args, paren);
+                let args = Self::desugar_args(desugar, call.args);
                 Expr::Call(Call::new(obj, call.attr_name, args))
             }
             Expr::Def(def) => {
@@ -195,6 +221,15 @@ impl Desugarer {
                 }
                 let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
                 Expr::Def(Def::new(def.sig, body))
+            }
+            Expr::ClassDef(class_def) => {
+                let def = enum_unwrap!(desugar(Expr::Def(class_def.def)), Expr::Def);
+                let methods = class_def
+                    .methods_list
+                    .into_iter()
+                    .map(|method| enum_unwrap!(desugar(Expr::Methods(method)), Expr::Methods))
+                    .collect();
+                Expr::ClassDef(ClassDef::new(def, methods))
             }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];
@@ -229,8 +264,29 @@ impl Desugarer {
                 let new_attrs = ClassAttrs::from(new_attrs);
                 Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_attrs))
             }
-            // TODO: Accessor
-            other => other,
+            Expr::Accessor(acc) => {
+                let acc = match acc {
+                    Accessor::Ident(ident) => Accessor::Ident(ident),
+                    Accessor::Attr(attr) => desugar(*attr.obj).attr(attr.ident),
+                    Accessor::TupleAttr(tup) => {
+                        let obj = desugar(*tup.obj);
+                        obj.tuple_attr(tup.index)
+                    }
+                    Accessor::Subscr(sub) => {
+                        let obj = desugar(*sub.obj);
+                        let index = desugar(*sub.index);
+                        obj.subscr(index, sub.r_sqbr)
+                    }
+                    Accessor::TypeApp(tapp) => {
+                        let obj = desugar(*tapp.obj);
+                        let args = Self::desugar_args(desugar, tapp.type_args.args);
+                        let type_args =
+                            TypeAppArgs::new(tapp.type_args.l_vbar, args, tapp.type_args.r_vbar);
+                        obj.type_app(type_args)
+                    }
+                };
+                Expr::Accessor(acc)
+            }
         }
     }
 
@@ -595,12 +651,12 @@ impl Desugarer {
 
     fn rec_desugar_shortened_record(expr: Expr) -> Expr {
         match expr {
-            Expr::Record(Record::Shortened(rec)) => {
-                let rec = Self::desugar_shortened_record_inner(rec);
+            Expr::Record(Record::Mixed(record)) => {
+                let rec = Self::desugar_shortened_record_inner(record);
                 Expr::Record(Record::Normal(rec))
             }
             Expr::DataPack(pack) => {
-                if let Record::Shortened(rec) = pack.args {
+                if let Record::Mixed(rec) = pack.args {
                     let class = Self::rec_desugar_shortened_record(*pack.class);
                     let rec = Self::desugar_shortened_record_inner(rec);
                     let args = Record::Normal(rec);
@@ -613,25 +669,30 @@ impl Desugarer {
         }
     }
 
-    fn desugar_shortened_record_inner(rec: ShortenedRecord) -> NormalRecord {
-        let mut attrs = vec![];
-        for attr in rec.idents.into_iter() {
-            let var = VarSignature::new(VarPattern::Ident(attr.clone()), None);
-            let sig = Signature::Var(var);
-            let body = DefBody::new(
-                Token::from_str(TokenKind::Equal, "="),
-                Block::new(vec![Expr::local(
-                    attr.inspect(),
-                    attr.ln_begin().unwrap(),
-                    attr.col_begin().unwrap(),
-                )]),
-                DefId(get_hash(&(&sig, attr.inspect()))),
-            );
-            let def = Def::new(sig, body);
-            attrs.push(def);
-        }
+    fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
+        let attrs = record
+            .attrs
+            .into_iter()
+            .map(|attr_or_ident| match attr_or_ident {
+                RecordAttrOrIdent::Attr(def) => def,
+                RecordAttrOrIdent::Ident(ident) => {
+                    let var = VarSignature::new(VarPattern::Ident(ident.clone()), None);
+                    let sig = Signature::Var(var);
+                    let body = DefBody::new(
+                        Token::from_str(TokenKind::Equal, "="),
+                        Block::new(vec![Expr::local(
+                            ident.inspect(),
+                            ident.ln_begin().unwrap(),
+                            ident.col_begin().unwrap(),
+                        )]),
+                        DefId(get_hash(&(&sig, ident.inspect()))),
+                    );
+                    Def::new(sig, body)
+                }
+            })
+            .collect();
         let attrs = RecordAttrs::new(attrs);
-        NormalRecord::new(rec.l_brace, rec.r_brace, attrs)
+        NormalRecord::new(record.l_brace, record.r_brace, attrs)
     }
 
     /// ```erg

@@ -330,7 +330,7 @@ impl ASTLowerer {
         log!(info "entered {}({record})", fn_name!());
         match record {
             ast::Record::Normal(rec) => self.lower_normal_record(rec),
-            ast::Record::Shortened(_rec) => unreachable!(), // should be desugared
+            ast::Record::Mixed(_rec) => unreachable!(), // should be desugared
         }
     }
 

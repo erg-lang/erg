@@ -360,9 +360,9 @@ impl Subscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
-    l_vbar: Token,
+    pub l_vbar: Token,
     pub args: Args,
-    r_vbar: Token,
+    pub r_vbar: Token,
 }
 
 impl NestedDisplay for TypeAppArgs {
@@ -445,6 +445,10 @@ impl Accessor {
 
     pub fn subscr(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
         Self::Subscr(Subscript::new(obj, index, r_sqbr))
+    }
+
+    pub fn type_app(obj: Expr, type_args: TypeAppArgs) -> Self {
+        Self::TypeApp(TypeApp::new(obj, type_args))
     }
 
     pub const fn name(&self) -> Option<&Str> {
@@ -830,46 +834,74 @@ impl NormalRecord {
     }
 }
 
-/// e.g. {x; y; z} (syntax sugar of {x = x; y = y; z = z})
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ShortenedRecord {
-    pub l_brace: Token,
-    pub r_brace: Token,
-    pub idents: Vec<Identifier>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Record {
+    Normal(NormalRecord),
+    Mixed(MixedRecord),
 }
 
-impl NestedDisplay for ShortenedRecord {
+impl_nested_display_for_enum!(Record; Normal, Mixed);
+impl_display_for_enum!(Record; Normal, Mixed);
+impl_locational_for_enum!(Record; Normal, Mixed);
+
+impl Record {
+    pub const fn new_mixed(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+        Self::Mixed(MixedRecord {
+            l_brace,
+            r_brace,
+            attrs,
+        })
+    }
+
+    pub fn empty(l_brace: Token, r_brace: Token) -> Self {
+        Self::Normal(NormalRecord {
+            l_brace,
+            r_brace,
+            attrs: RecordAttrs::new(Vec::with_capacity(0)),
+        })
+    }
+}
+
+/// Record can be defined with shorthend/normal mixed style, i.e. {x; y=expr; z; ...}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MixedRecord {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub attrs: Vec<RecordAttrOrIdent>,
+}
+
+impl NestedDisplay for MixedRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{")?;
-        for ident in self.idents.iter() {
-            write!(f, "{}; ", ident)?;
+        for attr in self.attrs.iter() {
+            write!(f, "{}; ", attr)?;
         }
         write!(f, "}}")
     }
 }
 
-impl_display_from_nested!(ShortenedRecord);
-impl_locational!(ShortenedRecord, l_brace, r_brace);
+impl_display_from_nested!(MixedRecord);
+impl_locational!(MixedRecord, l_brace, r_brace);
 
-impl ShortenedRecord {
-    pub const fn new(l_brace: Token, r_brace: Token, idents: Vec<Identifier>) -> Self {
+impl MixedRecord {
+    pub fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
         Self {
             l_brace,
             r_brace,
-            idents,
+            attrs,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Record {
-    Normal(NormalRecord),
-    Shortened(ShortenedRecord),
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum RecordAttrOrIdent {
+    Attr(Def),
+    Ident(Identifier),
 }
 
-impl_nested_display_for_enum!(Record; Normal, Shortened);
-impl_display_for_enum!(Record; Normal, Shortened);
-impl_locational_for_enum!(Record; Normal, Shortened);
+impl_nested_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
+impl_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
+impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
@@ -3477,6 +3509,10 @@ impl Expr {
 
     pub fn tuple_attr_expr(self, index: Literal) -> Self {
         Self::Accessor(self.tuple_attr(index))
+    }
+
+    pub fn type_app(self, type_args: TypeAppArgs) -> Accessor {
+        Accessor::type_app(self, type_args)
     }
 
     pub fn call(self, args: Args) -> Call {
