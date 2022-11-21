@@ -10,7 +10,6 @@ use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
 use crate::style::StyledStr;
-use crate::style::StyledString;
 use crate::style::StyledStrings;
 use crate::style::Theme;
 use crate::style::THEME;

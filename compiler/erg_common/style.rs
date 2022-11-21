@@ -17,13 +17,13 @@ pub const RED: &str = "\x1b[91m";
 pub const WHITE: &str = "\x1b[97m";
 pub const YELLOW: &str = "\x1b[93m";
 // custom colors when use `pretty`
-pub const CUSTOM_RED: &str = "\x1b[38;2;185;64;71m";
-pub const CUSTOM_BLUE: &str = "\x1b[38;2;230;234;227m";
-pub const CUSTOM_GRAY: &str = "\x1b[38;2;244;0;25m";
-pub const CUSTOM_CYAN: &str = "\x1b[38;2;160;216;239m";
-pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;103;65;150m";
-pub const CUSTOM_GREEN: &str = "\x1b[38;2;170;209;71m";
-pub const CUSTOM_YELLOW: &str = "\x1b[38;2;230;180;34m";
+pub const CUSTOM_RED: &str = "\x1b[38;2;255;76;76m";
+pub const CUSTOM_BLUE: &str = "\x1b[38;2;76;76;255";
+pub const CUSTOM_GRAY: &str = "\x1b[38;2;231;231;235m";
+pub const CUSTOM_CYAN: &str = "\x1b[38;2;76;255;255";
+pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255";
+pub const CUSTOM_GREEN: &str = "\x1b[38;2;76;255;76m";
+pub const CUSTOM_YELLOW: &str = "\x1b[38;2;255;255;76m";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Color {
@@ -70,7 +70,7 @@ impl Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Attribute {
     Reset,
     Underline,
@@ -271,11 +271,7 @@ pub struct StyledStr<'a> {
 }
 
 impl<'a> StyledStr<'a> {
-    pub const fn new<'b: 'a>(
-        text: &'b str,
-        color: Option<Color>,
-        attribute: Option<Attribute>,
-    ) -> Self {
+    pub const fn new(text: &'a str, color: Option<Color>, attribute: Option<Attribute>) -> Self {
         Self {
             text,
             color,
@@ -342,7 +338,11 @@ impl StyledString {
     /// println!("{text}"); // Two lines of text underlined are displayed
     /// ```
     pub fn push_str(&mut self, s: &str) {
-        self.text.push_str(s);
+        self.text.push_str(s)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
     }
 }
 
@@ -548,12 +548,12 @@ mod tests {
             Attribute::Bold,
         );
         texts.push_str_with_color_and_attribute(
-            "White and underlined text\n",
+            "Blue and underlined text\n",
             Color::Blue,
             Attribute::Underline,
         );
         texts.push_str_with_color_and_attribute(
-            "White and underlined text",
+            "Red and reversed text",
             Color::Red,
             Attribute::Reversed,
         );
