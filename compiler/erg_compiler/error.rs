@@ -1782,6 +1782,8 @@ impl LowerError {
 #[derive(Debug)]
 pub struct CompileErrors(Vec<CompileError>);
 
+impl std::error::Error for CompileErrors {}
+
 impl_stream_for_wrapper!(CompileErrors, CompileError);
 
 impl From<ParserRunnerErrors> for CompileErrors {

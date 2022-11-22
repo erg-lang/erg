@@ -24,3 +24,8 @@ pub mod reorder;
 pub mod transpile;
 pub mod ty;
 pub mod varinfo;
+
+pub use build_hir::HIRBuilder;
+pub use erg_parser::build_ast::ASTBuilder;
+pub use linter::Linter;
+pub use transpile::Transpiler;

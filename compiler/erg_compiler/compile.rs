@@ -7,6 +7,7 @@ use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 
+use crate::context::ContextProvider;
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
@@ -141,6 +142,24 @@ impl Runnable for Compiler {
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let codeobj = self.compile(src, "eval")?;
         Ok(codeobj.code_info(Some(self.code_generator.py_version)))
+    }
+}
+
+use crate::context::Context;
+use crate::varinfo::VarInfo;
+use erg_parser::ast::VarName;
+
+impl ContextProvider for Compiler {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.builder.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.builder.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.builder.get_var_info(name)
     }
 }
 

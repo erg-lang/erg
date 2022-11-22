@@ -1805,7 +1805,7 @@ impl Context {
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
-        let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone()).ok()?;
+        let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone())?;
         if t.is_module() {
             let path =
                 option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;

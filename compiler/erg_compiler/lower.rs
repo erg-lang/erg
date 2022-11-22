@@ -27,7 +27,9 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TypeRelationInstance};
+use crate::context::{
+    ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
+};
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
     SingleLowerResult,
@@ -110,6 +112,21 @@ impl Runnable for ASTLowerer {
     }
 }
 
+use erg_parser::ast::VarName;
+impl ContextProvider for ASTLowerer {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.ctx.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.ctx.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.ctx.get_var_info(name)
+    }
+}
+
 impl ASTLowerer {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
@@ -188,6 +205,24 @@ impl ASTLowerer {
         }
     }
 
+    pub fn pop_mod_ctx(&mut self) -> Context {
+        self.ctx.pop_mod()
+    }
+
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
+    }
+}
+
+impl ASTLowerer {
     fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
         let loc = lit.loc();
         let lit = hir::Literal::try_from(lit.token).map_err(|_| {

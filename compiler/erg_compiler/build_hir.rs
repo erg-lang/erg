@@ -3,17 +3,18 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::Runnable;
 use erg_common::Str;
 
-use erg_parser::ast::AST;
+use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
-use crate::context::Context;
+use crate::context::{Context, ContextProvider};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
+use crate::varinfo::VarInfo;
 
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug, Default)]
@@ -62,6 +63,20 @@ impl Runnable for HIRBuilder {
     }
 }
 
+impl ContextProvider for HIRBuilder {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.lowerer.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.lowerer.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.lowerer.get_var_info(name)
+    }
+}
+
 impl HIRBuilder {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
@@ -104,6 +119,18 @@ impl HIRBuilder {
     }
 
     pub fn pop_mod_ctx(&mut self) -> Context {
-        self.lowerer.ctx.pop_mod()
+        self.lowerer.pop_mod_ctx()
+    }
+
+    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
     }
 }

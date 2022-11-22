@@ -6,9 +6,10 @@ use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::ParamPattern;
+use erg_parser::ast::{ParamPattern, VarName};
 
 use crate::build_hir::HIRBuilder;
+use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
@@ -18,6 +19,7 @@ use crate::hir::{
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 use crate::ty::Type;
+use crate::varinfo::VarInfo;
 
 #[derive(Debug, Clone)]
 pub struct PyScript {
@@ -81,6 +83,20 @@ impl Runnable for Transpiler {
     }
 }
 
+impl ContextProvider for Transpiler {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.builder.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.builder.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.builder.get_var_info(name)
+    }
+}
+
 impl Transpiler {
     pub fn transpile(&mut self, src: String, mode: &str) -> Result<PyScript, CompileErrors> {
         log!(info "the transpiling process has started.");
@@ -99,6 +115,22 @@ impl Transpiler {
         let linker = Linker::new(&self.cfg, &self.mod_cache);
         let hir = linker.link(artifact.hir);
         Ok(HIRDesugarer::desugar(hir))
+    }
+
+    pub fn pop_mod_ctx(&mut self) -> Context {
+        self.builder.pop_mod_ctx()
+    }
+
+    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
     }
 }
 

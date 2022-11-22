@@ -196,6 +196,8 @@ impl ParserRunnerError {
 #[derive(Debug)]
 pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 
+impl std::error::Error for ParserRunnerErrors {}
+
 impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
