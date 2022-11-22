@@ -147,11 +147,11 @@ impl ErrorDisplay for CompileError {
 
 // found, error
 const ERR: Color = THEME.colors.error;
-// name
+// var name, lhs, rhs
 const WARN: Color = THEME.colors.warning;
 // expect, hint
 const HINT: Color = THEME.colors.hint;
-// url and var name
+// url
 const ACCENT: Color = THEME.colors.accent;
 // url and feature = pretty
 const UNDERLINE: Attribute = Attribute::Underline;
@@ -197,7 +197,7 @@ impl CompileError {
                 loc,
             ),
             input,
-            "".into(),
+            "".to_owned(),
         )
     }
 
@@ -230,7 +230,7 @@ impl CompileError {
                 loc,
             ),
             input,
-            "".into(),
+            "".to_owned(),
         )
     }
 
@@ -268,7 +268,7 @@ impl CompileError {
                 Location::Unknown,
             ),
             Input::Dummy,
-            "".into(),
+            "".to_owned(),
         )
     }
 }
@@ -277,11 +277,11 @@ pub type TyCheckError = CompileError;
 
 impl TyCheckError {
     pub fn dummy(input: Input, errno: usize) -> Self {
-        Self::new(ErrorCore::dummy(errno), input, "".into())
+        Self::new(ErrorCore::dummy(errno), input, "".to_string())
     }
 
     pub fn unreachable(input: Input, fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".to_string())
     }
 
     pub fn checker_bug(
@@ -305,7 +305,7 @@ impl TyCheckError {
                 loc,
             ),
             input,
-            "".into(),
+            "".to_string(),
         )
     }
 
@@ -385,7 +385,7 @@ impl TyCheckError {
                 "traditional_chinese" => format!("(第{pos}個參數)"),
                 "english" => format!(" (the {} argument)", ordinal_num(pos)),
             ),
-            None => "".into(),
+            None => "".to_owned(),
         };
         let name = StyledString::new(format!("{}{}", name, ord), Some(WARN), Some(ATTR));
         let mut expct = StyledStrings::default();
@@ -601,11 +601,11 @@ impl TyCheckError {
     }
 
     pub fn dummy_infer_error(input: Input, fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".to_owned())
     }
 
     pub fn not_relation(input: Input, fn_name: &str, line: u32) -> Self {
-        Self::new(ErrorCore::unreachable(fn_name, line), input, "".into())
+        Self::new(ErrorCore::unreachable(fn_name, line), input, "".to_owned())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -855,7 +855,7 @@ passed keyword args:    {kw_args_len}"
             "simplified_chinese" =>sub_type.push_str("超類型: "),
             "english" => sub_type.push_str("subtype: "),
         );
-        sub_type.push_str_with_color_and_attribute(format!("{}", sub_t), WARN, ATTR);
+        sub_type.push_str_with_color_and_attribute(format!("{}", sub_t), HINT, ATTR);
 
         let mut sup_type = StyledStrings::default();
         switch_lang!(
@@ -864,7 +864,7 @@ passed keyword args:    {kw_args_len}"
             "simplified_chinese" => sup_type.push_str("超類型: "),
             "english" =>sup_type.push_str("supertype: "),
         );
-        sup_type.push_str_with_color_and_attribute(format!("{}", sup_t), WARN, ATTR);
+        sup_type.push_str_with_color_and_attribute(format!("{}", sup_t), ERR, ATTR);
 
         Self::new(
             ErrorCore::new(
@@ -902,7 +902,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => lhs_uni.push_str("左邊: "),
             "english" => lhs_uni.push_str("lhs: "),
         );
-        lhs_uni.push_str_with_color_and_attribute(format!("{}", lhs), WARN, ATTR);
+        lhs_uni.push_str_with_color_and_attribute(format!("{}", lhs), HINT, ATTR);
         let mut rhs_uni = StyledStrings::default();
         switch_lang!(
             "japanese" => rhs_uni.push_str("右辺: "),
@@ -910,7 +910,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => rhs_uni.push_str("右邊: "),
             "english" => rhs_uni.push_str("rhs: "),
         );
-        rhs_uni.push_str_with_color_and_attribute(format!("{}", rhs), WARN, ATTR);
+        rhs_uni.push_str_with_color_and_attribute(format!("{}", rhs), ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -1228,7 +1228,7 @@ passed keyword args:    {kw_args_len}"
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
                     expr.loc(),
-                    vec![candidate.into()],
+                    vec![candidate.to_string()],
                     hint,
                 )],
                 switch_lang!(
@@ -1302,12 +1302,7 @@ pub type EffectError = TyCheckError;
 pub type EffectErrors = TyCheckErrors;
 
 impl EffectError {
-    pub fn has_effect<S: Into<String>>(
-        input: Input,
-        errno: usize,
-        expr: &Expr,
-        caused_by: S,
-    ) -> Self {
+    pub fn has_effect(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(expr.loc())],
@@ -1322,15 +1317,15 @@ impl EffectError {
                 expr.loc(),
             ),
             input,
-            caused_by.into(),
+            caused_by,
         )
     }
 
-    pub fn proc_assign_error<S: Into<String>>(
+    pub fn proc_assign_error(
         input: Input,
         errno: usize,
         sig: &Signature,
-        caused_by: S,
+        caused_by: String,
     ) -> Self {
         let hint = Some(
             switch_lang!(
@@ -1378,7 +1373,7 @@ impl EffectError {
                 sig.loc(),
             ),
             input,
-            caused_by.into(),
+            caused_by,
         )
     }
 }
@@ -1387,13 +1382,13 @@ pub type OwnershipError = TyCheckError;
 pub type OwnershipErrors = TyCheckErrors;
 
 impl OwnershipError {
-    pub fn move_error<S: Into<String>>(
+    pub fn move_error(
         input: Input,
         errno: usize,
         name: &str,
         name_loc: Location,
         moved_loc: Location,
-        caused_by: S,
+        caused_by: String,
     ) -> Self {
         let found = StyledString::new(name, Some(ERR), Some(ATTR));
         Self::new(
@@ -1422,7 +1417,7 @@ impl OwnershipError {
                 name_loc,
             ),
             input,
-            caused_by.into(),
+            caused_by,
         )
     }
 }
@@ -1435,18 +1430,18 @@ pub type LowerResult<T> = TyCheckResult<T>;
 pub type SingleLowerResult<T> = SingleTyCheckResult<T>;
 
 impl LowerError {
-    pub fn syntax_error<S: Into<String>>(
+    pub fn syntax_error(
         input: Input,
         errno: usize,
         loc: Location,
         caused_by: String,
-        desc: S,
+        desc: String,
         hint: Option<String>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
-                desc.into(),
+                desc,
                 errno,
                 SyntaxError,
                 loc,
@@ -2007,7 +2002,7 @@ impl LowerError {
                     None
                 }
                 (None, Some(py)) => {
-                    py_str.push_str("similar name python module: ");
+                    py_str.push_str("similar name python module exits: ");
                     py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
                     Some("to import python modules, use `pyimport`".to_string())
                 }
@@ -2155,7 +2150,7 @@ pub type CompileWarnings = CompileErrors;
 mod test {
     use super::TyCheckError;
     use crate::{
-        error::CompileError,
+        error::{CompileError, LowerError},
         ty::{Predicate, Type},
     };
     use erg_common::{config::Input, error::Location};
@@ -2164,12 +2159,12 @@ mod test {
     // This test make sure sub_msg and hint are displayed correctly.
     #[test]
     fn default_error_format_confirmation() {
-        let input = Input::Pipe("line error".into());
+        let input = Input::Pipe("line error".to_owned());
         let loc = Location::Line(1);
         let err = CompileError::stack_bug(input, loc, 0, 0, "FileName");
         print!("{}", err);
 
-        let input = Input::Pipe("a: Nat = -1".into());
+        let input = Input::Pipe("a: Nat = -1".to_owned());
         let err = TyCheckError::checker_bug(input, 0, Location::Unknown, "name", 1);
         print!("{}", err);
 
@@ -2233,7 +2228,7 @@ mod test {
             &expect,
             &found,
             None,
-            Some("hint message here".into()),
+            Some("hint message here".to_owned()),
         );
         print!("{}", err);
 
@@ -2278,21 +2273,6 @@ mod test {
         let caused_by = "caused_by".to_string();
         let err = TyCheckError::subtyping_error(input, errno, sub_t, sup_t, loc, caused_by);
         print!("{}", err);
-
-        /*
-        let input = Input::Pipe("".to_string());
-        let errno = 0;
-        let expr = Location::Range {
-            ln_begin: 1,
-            col_begin: 1,
-            ln_end: 1,
-            col_end: 1,
-        };
-        let candidates = &[Type::Int, Type::Nat, Type::Bool];
-        let caused_by = "".to_string();
-        let err = TyCheckError::ambiguous_type_error(input, errno, expr, candidates, caused_by);
-        println!("{}", err);
-         */
 
         let input = Input::Pipe("pred unification error".to_string());
         let errno = 0;
@@ -2344,6 +2324,24 @@ mod test {
             hint,
         );
         print!("{}", err);
+
+        let input = Input::Pipe("singular no attribute error".to_string());
+        let caused_by = "<caused by>".to_string();
+        let obj_name = "ojb name";
+        let obj_t = Type::Bool;
+        let name = "name";
+        let similar_name = Some("object name");
+        let err = LowerError::singular_no_attr_error(
+            input,
+            errno,
+            loc,
+            caused_by,
+            obj_name,
+            &obj_t,
+            name,
+            similar_name,
+        );
+        print!("{err}");
     }
 
     #[test]
