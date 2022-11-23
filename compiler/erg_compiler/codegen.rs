@@ -7,7 +7,6 @@ use std::process;
 use crate::ty::codeobj::MakeFunctionFlags;
 use crate::ty::codeobj::{CodeObj, CodeObjFlags};
 use crate::ty::value::GenTypeObj;
-use erg_common::astr::AtomicStr;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
 use erg_common::env::erg_std_path;
@@ -29,6 +28,7 @@ use erg_parser::ast::DefId;
 use erg_parser::ast::DefKind;
 use CommonOpcode::*;
 
+use erg_parser::ast::PreDeclTypeSpec;
 use erg_parser::ast::TypeSpec;
 use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
 use erg_parser::token::DOT;
@@ -130,7 +130,7 @@ pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
 impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PyCodeGenerator {
     cfg: ErgConfig,
     pub(crate) py_version: PythonVersion,
@@ -222,13 +222,64 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
-    fn emit_compare_op(&mut self, op: CompareOp) {
+    fn _emit_compare_op(&mut self, op: CompareOp) {
         self.write_instr(Opcode311::COMPARE_OP);
         self.write_arg(op as usize);
         self.stack_dec();
         if self.py_version.minor >= Some(11) {
             self.write_bytes(&[0; 4]);
         }
+    }
+
+    /// shut down the interpreter
+    #[allow(dead_code)]
+    fn terminate(&mut self) {
+        self.emit_push_null();
+        self.emit_load_name_instr(Identifier::public("exit"));
+        self.emit_load_const(1);
+        self.emit_precall_and_call(1);
+        self.stack_dec();
+    }
+
+    /// swap TOS and TOS1
+    fn rot2(&mut self) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::SWAP);
+            self.write_arg(2);
+        } else {
+            self.write_instr(Opcode310::ROT_TWO);
+            self.write_arg(0);
+        }
+    }
+
+    fn dup_top(&mut self) {
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::COPY);
+            self.write_arg(1);
+        } else {
+            self.write_instr(Opcode310::DUP_TOP);
+            self.write_arg(0);
+        }
+        self.stack_inc();
+    }
+
+    /// COPY(1) == DUP_TOP
+    fn copy(&mut self, i: usize) {
+        debug_power_assert!(i, >, 0);
+        if self.py_version.minor >= Some(11) {
+            self.write_instr(Opcode311::COPY);
+            self.write_arg(i);
+        } else {
+            todo!()
+        }
+        self.stack_inc();
+    }
+
+    /// 0 origin
+    #[allow(dead_code)]
+    fn peek_stack(&mut self, i: usize) {
+        self.copy(i + 1);
+        self.emit_print_expr();
     }
 
     #[inline]
@@ -1213,7 +1264,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     unary.op.loc(),
                     &unary.op.inspect().clone(),
-                    AtomicStr::from(unary.op.content),
+                    String::from(unary.op.content),
                 )
                 .write_to_stderr();
                 NOT_IMPLEMENTED
@@ -1252,19 +1303,7 @@ impl PyCodeGenerator {
                     return;
                 }
                 if !self.in_op_loaded {
-                    let mod_name = if self.py_version.minor >= Some(10) {
-                        Identifier::public("_erg_std_prelude")
-                    } else {
-                        Identifier::public("_erg_std_prelude_old")
-                    };
-                    self.emit_global_import_items(
-                        mod_name,
-                        vec![(
-                            Identifier::public("in_operator"),
-                            Some(Identifier::private("#in_operator")),
-                        )],
-                    );
-                    self.in_op_loaded = true;
+                    self.load_in_op();
                 }
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
@@ -1308,7 +1347,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     binop.loc(),
                     &binop.inspect().clone(),
-                    AtomicStr::from(binop.content),
+                    String::from(binop.content),
                 )
                 .write_to_stderr();
                 Opcode310::NOT_IMPLEMENTED
@@ -1376,7 +1415,7 @@ impl PyCodeGenerator {
                     self.cfg.input.clone(),
                     binop.loc(),
                     &binop.inspect().clone(),
-                    AtomicStr::from(binop.content),
+                    String::from(binop.content),
                 )
                 .write_to_stderr();
                 Opcode311::NOT_IMPLEMENTED
@@ -1444,6 +1483,15 @@ impl PyCodeGenerator {
             .unwrap_or_else(|| self.register_name(escaped));
         self.write_instr(DELETE_NAME);
         self.write_arg(name.idx);
+        self.emit_load_const(ValueObj::None);
+    }
+
+    fn emit_not_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        let expr = args.remove_left_or_key("b").unwrap();
+        self.emit_expr(expr);
+        self.write_instr(UNARY_NOT);
+        self.write_arg(0);
     }
 
     fn emit_discard_instr(&mut self, mut args: Args) {
@@ -1452,6 +1500,7 @@ impl PyCodeGenerator {
             self.emit_expr(arg);
             self.emit_pop_top();
         }
+        self.emit_load_const(ValueObj::None);
     }
 
     fn emit_if_instr(&mut self, mut args: Args) {
@@ -1508,10 +1557,12 @@ impl PyCodeGenerator {
                 self.stack_dec();
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_for_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        let _init_stack_len = self.stack_len();
         let iterable = args.remove(0);
         self.emit_expr(iterable);
         self.write_instr(GET_ITER);
@@ -1524,12 +1575,15 @@ impl PyCodeGenerator {
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and the first iterator value)
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
+        // store the iterator value, stack_len == 1 or 2 in the end
         self.emit_frameless_block(lambda.body, params);
-        if self.stack_len() >= init_stack_len {
+        if self.stack_len() > init_stack_len - 1 {
             self.emit_pop_top();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len - 1); // the iterator is remained
         match self.py_version.minor {
             Some(11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
@@ -1549,10 +1603,12 @@ impl PyCodeGenerator {
         self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
 
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        let _init_stack_len = self.stack_len();
         let cond = args.remove(0);
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
@@ -1567,40 +1623,40 @@ impl PyCodeGenerator {
             self.emit_pop_top();
         }
         self.emit_expr(cond);
-        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
-        let arg = if self.py_version.minor >= Some(10) {
-            (idx_while + 2) / 2
+        let arg = if self.py_version.minor >= Some(11) {
+            let arg = self.lasti() - (idx_while + 2);
+            self.write_instr(Opcode311::POP_JUMP_BACKWARD_IF_TRUE);
+            arg / 2 + 1
         } else {
-            idx_while + 2
+            self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
+            if self.py_version.minor >= Some(10) {
+                (idx_while + 2) / 2
+            } else {
+                idx_while + 2
+            }
         };
         self.write_arg(arg);
         self.stack_dec();
         let idx_end = if self.py_version.minor >= Some(11) {
-            self.lasti() - idx_while
+            self.lasti() - idx_while - 1
         } else {
             self.lasti()
         };
         self.calc_edit_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
 
     fn emit_match_instr(&mut self, mut args: Args, _use_erg_specific: bool) {
         log!(info "entered {}", fn_name!());
+        let init_stack_len = self.stack_len();
         let expr = args.remove(0);
         self.emit_expr(expr);
         let len = args.len();
-        let mut absolute_jump_points = vec![];
+        let mut jump_forward_points = vec![];
         while let Some(expr) = args.try_remove(0) {
-            // パターンが複数ある場合引数を複製する、ただし最後はしない
             if len > 1 && !args.is_empty() {
-                if self.py_version.minor >= Some(11) {
-                    self.write_instr(Opcode311::COPY);
-                    self.write_arg(1);
-                } else {
-                    self.write_instr(Opcode310::DUP_TOP);
-                    self.write_arg(0);
-                }
-                self.stack_inc();
+                self.dup_top();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
             let mut lambda = enum_unwrap!(expr, Expr::Lambda);
@@ -1609,8 +1665,11 @@ impl PyCodeGenerator {
                 todo!("default values in match expression are not supported yet")
             }
             let param = lambda.params.non_defaults.remove(0);
-            let pop_jump_points = self.emit_match_pattern(param);
+            let pop_jump_points = self.emit_match_pattern(param, args.is_empty());
             self.emit_frameless_block(lambda.body, Vec::new());
+            // If we move on to the next arm, the stack size will increase
+            // so `self.stack_dec();` for now (+1 at the end).
+            self.stack_dec();
             for pop_jump_point in pop_jump_points.into_iter() {
                 let idx = if self.py_version.minor >= Some(11) {
                     self.lasti() - pop_jump_point // - 2
@@ -1618,60 +1677,41 @@ impl PyCodeGenerator {
                     self.lasti() + 2
                 };
                 self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
-                absolute_jump_points.push(self.lasti());
+                jump_forward_points.push(self.lasti());
                 self.write_instr(JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.lasti();
-        for absolute_jump_point in absolute_jump_points.into_iter() {
-            self.calc_edit_jump(absolute_jump_point + 1, lasti - absolute_jump_point - 1);
+        for jump_point in jump_forward_points.into_iter() {
+            self.calc_edit_jump(jump_point + 1, lasti - jump_point - 1);
         }
+        self.stack_inc();
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
-    fn emit_match_pattern(&mut self, param: NonDefaultParamSignature) -> Vec<usize> {
+    fn emit_match_pattern(
+        &mut self,
+        param: NonDefaultParamSignature,
+        is_last_arm: bool,
+    ) -> Vec<usize> {
         log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
+        if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
+            // If it's the last arm, there's no need to inspect it
+            if !is_last_arm {
+                self.emit_match_guard(t_spec, &mut pop_jump_points);
+            }
+        }
         match param.pat {
             ParamPattern::VarName(name) => {
                 let ident = Identifier::bare(None, name);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
-            ParamPattern::Array(arr) => {
-                let len = arr.len();
-                self.write_instr(Opcode310::MATCH_SEQUENCE);
-                self.write_arg(0);
-                pop_jump_points.push(self.lasti());
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
-                self.write_arg(0);
-                self.stack_dec();
-                self.write_instr(Opcode310::GET_LEN);
-                self.write_arg(0);
-                self.emit_load_const(len);
-                self.emit_compare_op(CompareOp::EQ);
-                pop_jump_points.push(self.lasti());
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
-                self.write_arg(0);
-                self.stack_dec();
-                self.write_instr(Opcode310::UNPACK_SEQUENCE);
-                self.write_arg(len);
-                self.stack_inc_n(len - 1);
-                for elem in arr.elems.non_defaults {
-                    pop_jump_points.append(&mut self.emit_match_pattern(elem));
-                }
-                if !arr.elems.defaults.is_empty() {
-                    todo!("default values in match are not supported yet")
-                }
-            }
             ParamPattern::Discard(_) => {
-                if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
-                    self.emit_match_guard(t_spec, &mut pop_jump_points)
-                }
                 self.emit_pop_top();
             }
-            _other => {
-                todo!()
-            }
+            _other => unreachable!(),
         }
         pop_jump_points
     }
@@ -1679,8 +1719,8 @@ impl PyCodeGenerator {
     fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
         #[allow(clippy::single_match)]
         match t_spec {
-            TypeSpec::Enum(enm) => {
-                let elems = enm
+            TypeSpec::Enum(enum_t) => {
+                let elems = enum_t
                     .deconstruct()
                     .0
                     .into_iter()
@@ -1693,6 +1733,41 @@ impl PyCodeGenerator {
                 self.emit_load_const(elems);
                 self.write_instr(CONTAINS_OP);
                 self.write_arg(0);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                // self.stack_dec();
+            }
+            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
+                // arg null
+                // ↓ SWAP 1
+                // null arg
+                // ↓ LOAD_NAME(in_operator)
+                // null arg in_operator
+                // ↓ SWAP 1
+                // null in_operator arg
+                // ↓ LOAD_NAME(typ)
+                // null in_operator arg typ
+                self.emit_push_null();
+                self.rot2();
+                if !self.in_op_loaded {
+                    self.load_in_op();
+                }
+                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.rot2();
+                // TODO: DOT/not
+                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
+                // TODO:
+                typ.vi.py_name = match &typ.name.inspect()[..] {
+                    "Int" => Some("int".into()),
+                    "Float" => Some("float".into()),
+                    _ => None,
+                };
+                self.emit_load_name_instr(typ);
+                self.emit_precall_and_call(2);
                 self.stack_dec();
                 pop_jump_points.push(self.lasti());
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
@@ -1841,6 +1916,7 @@ impl PyCodeGenerator {
 
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
+        let init_stack_len = self.stack_len();
         // Python cannot distinguish at compile time between a method call and a attribute call
         if let Some(attr_name) = call.attr_name {
             self.emit_call_method(*call.obj, attr_name, call.args);
@@ -1856,6 +1932,7 @@ impl PyCodeGenerator {
                 }
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_call_local(&mut self, local: Identifier, args: Args) {
@@ -1863,6 +1940,7 @@ impl PyCodeGenerator {
         match &local.inspect()[..] {
             "assert" => self.emit_assert_instr(args),
             "Del" => self.emit_del_instr(args),
+            "not" => self.emit_not_instr(args),
             "discard" => self.emit_discard_instr(args),
             "for" | "for!" => self.emit_for_instr(args),
             "while!" => self.emit_while_instr(args),
@@ -1887,7 +1965,11 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
         if &method_name.inspect()[..] == "update!" {
-            return self.emit_call_update_310(obj, args);
+            if self.py_version.minor >= Some(11) {
+                return self.emit_call_update_311(obj, args);
+            } else {
+                return self.emit_call_update_310(obj, args);
+            }
         } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
@@ -1967,6 +2049,24 @@ impl PyCodeGenerator {
     /// X.update! x -> x + 1
     /// X = (x -> x + 1)(X)
     /// X = X + 1
+    fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        let acc = enum_unwrap!(obj, Expr::Accessor);
+        let func = args.remove_left_or_key("f").unwrap();
+        self.emit_push_null();
+        self.emit_expr(func);
+        self.emit_acc(acc.clone());
+        self.emit_precall_and_call(1);
+        // (1 (subroutine) + argc) input objects -> 1 return object
+        // self.stack_dec_n((1 + 1) - 1);
+        self.stack_dec();
+        self.store_acc(acc);
+        self.emit_load_const(ValueObj::None);
+    }
+
+    /// X.update! x -> x + 1
+    /// X = (x -> x + 1)(X)
+    /// X = X + 1
     fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
@@ -1978,6 +2078,7 @@ impl PyCodeGenerator {
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
+        self.emit_load_const(ValueObj::None);
     }
 
     /// 1.abs() => abs(1)
@@ -2000,6 +2101,7 @@ impl PyCodeGenerator {
     // assert takes 1 or 2 arguments (0: cond, 1: message)
     fn emit_assert_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
+        let init_stack_len = self.stack_len();
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.lasti();
         self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
@@ -2031,10 +2133,13 @@ impl PyCodeGenerator {
             _ => todo!(),
         };
         self.edit_code(pop_jump_point + 1, idx);
+        self.emit_load_const(ValueObj::None);
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     // TODO: list comprehension
     fn emit_array(&mut self, array: Array) {
+        let init_stack_len = self.stack_len();
         if !self.cfg.no_std {
             self.emit_push_null();
             self.emit_load_name_instr(Identifier::public("Array"));
@@ -2073,11 +2178,13 @@ impl PyCodeGenerator {
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
+        let init_stack_len = self.stack_len();
         let attrs_len = rec.attrs.len();
         self.emit_push_null();
         // making record type
@@ -2110,6 +2217,7 @@ impl PyCodeGenerator {
         self.emit_call_instr(attrs_len, Name);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + attrs_len + 0) - 1);
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn get_root(acc: &Accessor) -> Identifier {
@@ -2549,6 +2657,22 @@ impl PyCodeGenerator {
         self.load_prelude_py();
         self.prelude_loaded = true;
         self.record_type_loaded = true;
+    }
+
+    fn load_in_op(&mut self) {
+        let mod_name = if self.py_version.minor >= Some(10) {
+            Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
+        };
+        self.emit_global_import_items(
+            mod_name,
+            vec![(
+                Identifier::public("in_operator"),
+                Some(Identifier::private("#in_operator")),
+            )],
+        );
+        self.in_op_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {

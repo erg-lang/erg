@@ -1,4 +1,3 @@
-use erg_common::astr::AtomicStr;
 use erg_common::enum_unwrap;
 
 use crate::ty::typaram::TyParam;
@@ -26,11 +25,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_type_mismatch_hint(
-        &self,
-        expected: &Type,
-        found: &Type,
-    ) -> Option<AtomicStr> {
+    pub(crate) fn get_type_mismatch_hint(&self, expected: &Type, found: &Type) -> Option<String> {
         let expected = if let Type::FreeVar(fv) = expected {
             if fv.is_linked() {
                 fv.crack().clone()
@@ -42,12 +37,12 @@ impl Context {
             expected.clone()
         };
         match (&expected.qual_name()[..], &found.qual_name()[..]) {
-            ("Eq", "Float") => Some(AtomicStr::ever("Float has no equivalence relation defined. you should use `l - r <= Float.EPSILON` instead of `l == r`.")),
+            ("Eq", "Float") => Some(String::from("Float has no equivalence relation defined. you should use `l - r <= Float.EPSILON` instead of `l == r`.")),
             _ => None,
         }
     }
 
-    pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<AtomicStr> {
+    pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
         match proj {
             Type::Proj { lhs, rhs: _ } => {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
@@ -69,9 +64,7 @@ impl Context {
                     } else {
                         (sup, sub)
                     };
-                    Some(AtomicStr::from(format!(
-                        "cannot {verb} {l} {preposition} {r}"
-                    )))
+                    Some(format!("cannot {verb} {l} {preposition} {r}"))
                 } else {
                     None
                 }

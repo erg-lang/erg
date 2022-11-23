@@ -1,7 +1,6 @@
 //! provides utilities for parser, compiler, and vm crate.
 use std::fmt;
 
-pub mod astr;
 pub mod cache;
 pub mod config;
 pub mod datetime;

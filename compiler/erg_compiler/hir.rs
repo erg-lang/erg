@@ -1081,8 +1081,13 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "({}){}:", self.obj, fmt_option!(self.attr_name),)?;
-        self.args.fmt_nest(f, level + 1)
+        writeln!(f, "({}){}", self.obj, fmt_option!(self.attr_name),)?;
+        if self.args.is_empty() {
+            write!(f, "()")
+        } else {
+            writeln!(f, ":")?;
+            self.args.fmt_nest(f, level + 1)
+        }
     }
 }
 

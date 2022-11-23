@@ -91,7 +91,7 @@ impl AccessKind {
 }
 
 /// Generates a `CodeObj` from an String or other File inputs.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Compiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,

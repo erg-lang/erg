@@ -4,7 +4,7 @@
 # mutliple patterns definition
 fib 0 = 0
 fib 1 = 1
-fib(n: Nat) -> Nat = fib(n-1) + fib(n-2)
+fib(n: Nat): Nat = fib(n-1) + fib(n-2)
 
 # keyword arguments
 t = if True:
@@ -15,4 +15,4 @@ assert t == 1
 # import
 math = import "math"
 # {*} = "math" # use all
-{pi, ...} = import "math"
+{pi;} = import "math"

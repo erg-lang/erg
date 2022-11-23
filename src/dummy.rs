@@ -26,6 +26,12 @@ pub struct DummyVM {
     stream: Option<TcpStream>,
 }
 
+impl Default for DummyVM {
+    fn default() -> Self {
+        Self::new(ErgConfig::default())
+    }
+}
+
 impl Runnable for DummyVM {
     type Err = EvalError;
     type Errs = EvalErrors;
@@ -110,7 +116,7 @@ impl Runnable for DummyVM {
             .replace(".er", ".pyc");
         self.compiler
             .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
-        let code = exec_pyc(&filename, self.cfg().py_command);
+        let code = exec_pyc(&filename, self.cfg().py_command, &self.cfg().runtime_args);
         remove_file(&filename).unwrap();
         Ok(code.unwrap_or(1))
     }

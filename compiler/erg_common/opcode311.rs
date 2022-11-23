@@ -102,6 +102,8 @@ impl_u8_enum! {Opcode311;
     PRECALL = 166,
     CALL = 171,
     KW_NAMES = 172,
+    POP_JUMP_BACKWARD_IF_FALSE = 175,
+    POP_JUMP_BACKWARD_IF_TRUE = 176,
     // Erg-specific opcodes (must have a unary `ERG_`)
     // Define in descending order from 219, 255
     ERG_POP_NTH = 196,

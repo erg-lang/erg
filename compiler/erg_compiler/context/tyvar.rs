@@ -564,6 +564,11 @@ impl Context {
 
     #[allow(clippy::only_used_in_recursion)]
     /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1
+    /// i: (Int)
+    /// ```
     pub(crate) fn coerce(&self, t: &Type) {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -1436,12 +1441,52 @@ impl Context {
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
                     } else { todo!() }
                 }
-                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
                     // contravariant
-                    |(l, r)| self.sub_unify(r.typ(), l.typ(), loc, param_name),
-                )?;
+                    self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                })?;
                 // covariant
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                Ok(())
+            }
+            (Type::Quantified(lsub), Type::Subr(rsub)) => {
+                let Type::Subr(lsub) = lsub.as_ref() else { unreachable!() };
+                for lpt in lsub.default_params.iter() {
+                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                        if lpt.typ().is_generalized() { continue; }
+                        // contravariant
+                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                    } else { todo!() }
+                }
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
+                    if l.typ().is_generalized() { Ok(()) }
+                    // contravariant
+                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
+                })?;
+                // covariant
+                if !lsub.return_t.is_generalized() {
+                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                }
+                Ok(())
+            }
+            (Type::Subr(lsub), Type::Quantified(rsub)) => {
+                let Type::Subr(rsub) = rsub.as_ref() else { unreachable!() };
+                for lpt in lsub.default_params.iter() {
+                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                        // contravariant
+                        if rpt.typ().is_generalized() { continue; }
+                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                    } else { todo!() }
+                }
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
+                    // contravariant
+                    if r.typ().is_generalized() { Ok(()) }
+                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
+                })?;
+                // covariant
+                if !rsub.return_t.is_generalized() {
+                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (

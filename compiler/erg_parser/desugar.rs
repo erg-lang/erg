@@ -466,7 +466,7 @@ impl Desugarer {
                             );
                         }
                     }
-                    VarPattern::Ident(_i) => {
+                    VarPattern::Ident(_) | VarPattern::Discard(_) => {
                         let block = body
                             .block
                             .into_iter()
@@ -476,7 +476,6 @@ impl Desugarer {
                         let def = Def::new(Signature::Var(v), body);
                         new.push(Expr::Def(def));
                     }
-                    _ => {}
                 },
                 Expr::Def(Def {
                     sig: Signature::Subr(mut subr),
@@ -582,11 +581,10 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Ident(_ident) => {
+            VarPattern::Ident(_) | VarPattern::Discard(_) => {
                 let def = Def::new(Signature::Var(sig.clone()), body);
                 new_module.push(Expr::Def(def));
             }
-            _ => {}
         }
     }
 

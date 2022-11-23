@@ -36,47 +36,12 @@ impl Mutability {
 
 use Mutability::*;
 
-/// TODO: removed in the future
-/// e.g.
-/// ```python
-/// K(T, [U, V]) = ...
-/// U.idx == Nested(Just(1), 0)
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ParamIdx {
-    Nth(usize),
-    Nested(Box<ParamIdx>, usize),
-}
-
-impl fmt::Display for ParamIdx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Nth(n) => write!(f, "{}", n),
-            Self::Nested(idx, n) => write!(f, "{}.{}", idx, n),
-        }
-    }
-}
-
-impl ParamIdx {
-    pub fn nested(outer: ParamIdx, nth: usize) -> Self {
-        Self::Nested(Box::new(outer), nth)
-    }
-
-    pub const fn is_nested(&self) -> bool {
-        matches!(self, Self::Nested(_, _))
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VarKind {
     Defined(DefId),
     Declared,
     // TODO: flatten
-    Parameter {
-        def_id: DefId,
-        idx: ParamIdx,
-        default: DefaultInfo,
-    },
+    Parameter { def_id: DefId, default: DefaultInfo },
     Auto,
     FixedAuto,
     DoesNotExist,
@@ -84,19 +49,8 @@ pub enum VarKind {
 }
 
 impl VarKind {
-    pub const fn parameter(def_id: DefId, idx: ParamIdx, default: DefaultInfo) -> Self {
-        Self::Parameter {
-            def_id,
-            idx,
-            default,
-        }
-    }
-
-    pub const fn idx(&self) -> Option<&ParamIdx> {
-        match self {
-            Self::Parameter { idx, .. } => Some(idx),
-            _ => None,
-        }
+    pub const fn parameter(def_id: DefId, default: DefaultInfo) -> Self {
+        Self::Parameter { def_id, default }
     }
 
     pub const fn has_default(&self) -> bool {
@@ -108,10 +62,6 @@ impl VarKind {
 
     pub const fn is_parameter(&self) -> bool {
         matches!(self, Self::Parameter { .. })
-    }
-
-    pub const fn is_nested_param(&self) -> bool {
-        matches!(self, Self::Parameter{ idx, .. } if idx.is_nested())
     }
 }
 

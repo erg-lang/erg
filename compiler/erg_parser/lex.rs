@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
-use erg_common::style::THEME;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
@@ -13,6 +12,7 @@ use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
 /// Lexerは使い捨てなので、Runnerを用意
+#[derive(Debug, Default)]
 pub struct LexerRunner {
     cfg: ErgConfig,
 }
@@ -42,7 +42,7 @@ impl Runnable for LexerRunner {
         let lexer = Lexer::from_str(self.input().read());
         let ts = lexer
             .lex()
-            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?;
+            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
         println!("{ts}");
         Ok(0)
     }
@@ -52,13 +52,13 @@ impl Runnable for LexerRunner {
         if cfg!(feature = "debug") {
             let ts = lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?;
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
             println!("{ts}");
             Ok(ts.to_string())
         } else {
             Ok(lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs, THEME))?
+                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
                 .to_string())
         }
     }
@@ -988,6 +988,10 @@ impl Iterator for Lexer /*<'a>*/ {
                 Some('|') => {
                     self.consume();
                     self.accept(BitOr, "||")
+                }
+                Some('>') => {
+                    self.consume();
+                    self.accept(Pipe, "|>")
                 }
                 _ => self.accept(VBar, "|"),
             },

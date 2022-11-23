@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use erg_common::config::Input;
 use erg_common::env::erg_pystd_path;
-use erg_common::error::{ErrorCore, ErrorKind, Location};
+use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -312,7 +312,11 @@ impl Context {
             .skip(1)
             .map(|a| ParamTy::anonymous(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
-        let mut return_t = branch_ts[0].typ().return_t().unwrap().clone();
+        let mut return_t = branch_ts[0]
+            .typ()
+            .return_t()
+            .unwrap_or_else(|| todo!("{}", branch_ts[0]))
+            .clone();
         for arg_t in branch_ts.iter().skip(1) {
             return_t = self.union(&return_t, arg_t.typ().return_t().unwrap());
         }
@@ -430,24 +434,13 @@ impl Context {
                 }
             }
         }
-        for ctx in self.get_nominal_super_type_ctxs(&self_t).ok_or_else(|| {
-            TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj.loc(),
-                self.caused_by(),
-                &self_t.to_string(),
-                None, // TODO:
-            )
-        })? {
-            match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                Ok(t) => {
-                    return Ok(t);
-                }
-                Err(e) if e.core.kind == ErrorKind::NameError => {}
-                Err(e) => {
-                    return Err(e);
-                }
+        match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
+            Ok(t) => {
+                return Ok(t);
+            }
+            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) => {
+                return Err(e);
             }
         }
         // TODO: dependent type widening
@@ -464,6 +457,53 @@ impl Context {
                 self.get_similar_attr(&self_t, name.inspect()),
             ))
         }
+    }
+
+    fn get_attr_from_nominal_t(
+        &self,
+        obj: &hir::Expr,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<VarInfo> {
+        let self_t = obj.t();
+        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
+            for ctx in sups {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Ok(t) => {
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        let coerced = self.deref_tyvar(obj.t(), Variance::Covariant, Location::Unknown)?;
+        if obj.ref_t() != &coerced {
+            for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    &coerced,
+                )
+            })? {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Ok(t) => {
+                        self.coerce(obj.ref_t());
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        Err(TyCheckError::dummy(input.clone(), line!() as usize))
     }
 
     /// get type from given attributive type (Record).
@@ -567,13 +607,12 @@ impl Context {
             for ctx in self
                 .get_nominal_super_type_ctxs(obj.ref_t())
                 .ok_or_else(|| {
-                    TyCheckError::no_var_error(
+                    TyCheckError::type_not_found(
                         self.cfg.input.clone(),
                         line!() as usize,
                         obj.loc(),
                         self.caused_by(),
-                        &obj.to_string(),
-                        None, // TODO:
+                        obj.ref_t(),
                     )
                 })?
             {
@@ -718,13 +757,21 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
-                            // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                            let mut sub_msges = Vec::new();
+                            for sub_msg in e.core.sub_messages {
+                                sub_msges.push(SubMessage::ambiguous_new(
+                                    // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+                                    bin.loc(),
+                                    vec![],
+                                    sub_msg.get_hint(),
+                                ));
+                            }
                             let core = ErrorCore::new(
+                                sub_msges,
+                                e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
-                                bin.loc(),
-                                e.core.desc,
-                                e.core.hint,
+                                e.core.loc,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })
@@ -759,12 +806,20 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
+                            let mut sub_msges = Vec::new();
+                            for sub_msg in e.core.sub_messages {
+                                sub_msges.push(SubMessage::ambiguous_new(
+                                    unary.loc(),
+                                    vec![],
+                                    sub_msg.get_hint(),
+                                ));
+                            }
                             let core = ErrorCore::new(
+                                sub_msges,
+                                e.core.main_message,
                                 e.core.errno,
                                 e.core.kind,
-                                unary.loc(),
-                                e.core.desc,
-                                e.core.hint,
+                                e.core.loc,
                             );
                             TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
                         })
@@ -882,6 +937,7 @@ impl Context {
                     for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
                         self.substitute_pos_arg(
                             &callee,
+                            attr_name,
                             &nd_arg.expr,
                             nth,
                             nd_param,
@@ -891,13 +947,20 @@ impl Context {
                     }
                     if let Some(var_param) = subr.var_params.as_ref() {
                         for var_arg in var_args.iter() {
-                            self.substitute_var_arg(&callee, &var_arg.expr, nth, var_param)?;
+                            self.substitute_var_arg(
+                                &callee,
+                                attr_name,
+                                &var_arg.expr,
+                                nth,
+                                var_param,
+                            )?;
                             nth += 1;
                         }
                     } else {
                         for (arg, pt) in var_args.iter().zip(subr.default_params.iter()) {
                             self.substitute_pos_arg(
                                 &callee,
+                                attr_name,
                                 &arg.expr,
                                 nth,
                                 pt,
@@ -909,6 +972,7 @@ impl Context {
                     for kw_arg in kw_args.iter() {
                         self.substitute_kw_arg(
                             &callee,
+                            attr_name,
                             kw_arg,
                             nth,
                             &subr.default_params,
@@ -982,6 +1046,7 @@ impl Context {
     fn substitute_pos_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -992,8 +1057,11 @@ impl Context {
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                // REVIEW:
-                let name = callee.show_acc().unwrap_or_default();
+                let name = if let Some(attr) = attr_name {
+                    format!("{callee}{attr}")
+                } else {
+                    callee.show_acc().unwrap_or_default()
+                };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1001,7 +1069,8 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                e.core.loc,
+                                // TODO: Is it possible to get 0?
+                                e.core.sub_messages.get(0).unwrap().loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1034,6 +1103,7 @@ impl Context {
     fn substitute_var_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -1043,8 +1113,11 @@ impl Context {
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
-                // REVIEW:
-                let name = callee.show_acc().unwrap_or_default();
+                let name = if let Some(attr) = attr_name {
+                    format!("{callee}{attr}")
+                } else {
+                    callee.show_acc().unwrap_or_default()
+                };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1052,7 +1125,8 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                e.core.loc,
+                                // TODO: Is it possible to get 0?
+                                e.core.sub_messages.get(0).unwrap().loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1070,6 +1144,7 @@ impl Context {
     fn substitute_kw_arg(
         &self,
         callee: &hir::Expr,
+        attr_name: &Option<Identifier>,
         arg: &hir::KwArg,
         nth: usize,
         default_params: &[ParamTy],
@@ -1096,8 +1171,11 @@ impl Context {
             self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
-                    // REVIEW:
-                    let name = callee.show_acc().unwrap_or_default();
+                    let name = if let Some(attr) = attr_name {
+                        format!("{callee}{attr}")
+                    } else {
+                        callee.show_acc().unwrap_or_default()
+                    };
                     let name = name + "::" + readable_name(kw_name);
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -1105,7 +1183,8 @@ impl Context {
                                 TyCheckError::type_mismatch_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    e.core.loc,
+                                    // TODO: Is it possible to get 0?
+                                    e.core.sub_messages.get(0).unwrap().loc,
                                     e.caused_by,
                                     &name[..],
                                     Some(nth),
@@ -1219,13 +1298,12 @@ impl Context {
     ) -> SingleTyCheckResult<ValueObj> {
         let self_t = obj.ref_t();
         for ctx in self.get_nominal_super_type_ctxs(self_t).ok_or_else(|| {
-            TyCheckError::no_var_error(
+            TyCheckError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 obj.loc(),
                 self.caused_by(),
-                &self_t.to_string(),
-                None, // TODO:
+                self_t,
             )
         })? {
             if let Ok(t) = ctx.get_const_local(name, namespace) {

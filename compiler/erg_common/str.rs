@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Deref};
@@ -43,6 +43,29 @@ impl fmt::Display for Str {
         match self {
             Str::Rc(s) => write!(f, "{s}"),
             Str::Static(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl From<&Str> for String {
+    #[inline]
+    fn from(s: &Str) -> Self {
+        s.to_string()
+    }
+}
+
+impl From<Str> for String {
+    #[inline]
+    fn from(s: Str) -> Self {
+        s.to_string()
+    }
+}
+
+impl<'a> From<Str> for Cow<'a, str> {
+    fn from(s: Str) -> Self {
+        match s {
+            Str::Static(s) => Cow::Owned(s.to_owned()),
+            _ => unreachable!(),
         }
     }
 }

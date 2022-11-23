@@ -2,7 +2,6 @@
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -161,7 +160,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 expr.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::from(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
                     "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
@@ -175,7 +174,7 @@ impl ASTLowerer {
                         "traditional_chinese" => "如果您不想使用該值，請使用discard函數",
                         "english" => "if you don't use the value, use discard function",
                     )
-                    .into(),
+                    .to_owned(),
                 ),
             ))
         } else {
@@ -226,13 +225,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "配列の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "数组元素必须全部是相同类型",
                         "traditional_chinese" => "數組元素必須全部是相同類型",
                         "english" => "all elements of an array must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -240,7 +240,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "請明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -372,13 +372,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "集合の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "集合元素必须全部是相同类型",
                         "traditional_chinese" => "集合元素必須全部是相同類型",
                         "english" => "all elements of a set must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -386,7 +387,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -404,7 +405,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",
@@ -498,13 +499,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "Dictの値は全て同じ型である必要があります",
                         "simplified_chinese" => "Dict的值必须是同一类型",
                         "traditional_chinese" => "Dict的值必須是同一類型",
                         "english" => "Values of Dict must be the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -512,7 +514,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -543,7 +545,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",
@@ -658,7 +660,7 @@ impl ASTLowerer {
                     line!() as usize,
                     call.args.loc(),
                     self.ctx.caused_by(),
-                    "invalid assert casting type",
+                    "invalid assert casting type".to_owned(),
                     None,
                 )));
             }
@@ -717,7 +719,7 @@ impl ASTLowerer {
                         line!() as usize,
                         other.loc(),
                         self.ctx.caused_by(),
-                        "",
+                        "".to_owned(),
                         None,
                     )))
                 }
@@ -894,15 +896,13 @@ impl ASTLowerer {
         match self.lower_block(body.block) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
-                let opt_expect_body_t = self
-                    .ctx
-                    .outer
-                    .as_ref()
-                    .unwrap()
-                    .get_current_scope_var(sig.inspect().unwrap())
-                    .map(|vi| vi.t.clone());
+                let outer = self.ctx.outer.as_ref().unwrap();
+                let opt_expect_body_t = sig
+                    .inspect()
+                    .and_then(|name| outer.get_current_scope_var(name).map(|vi| vi.t.clone()));
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
+                    ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
                     _ => unreachable!(),
                 };
                 if let Some(expect_body_t) = opt_expect_body_t {

@@ -261,8 +261,8 @@ Each type can be accessed as `XorY.X`, `XorY.Y` and the constructor can be obtai
 
 ```python
 x1 = XorY.new X.new()
-x2 = (X.new |> XorY.new)()
-x3 = (Y.new |> XorY.new)()
+x2 = (X.new |> XorY.new())()
+x3 = (Y.new |> XorY.new())()
 assert x1 == x2
 assert x1 != x3
 ```

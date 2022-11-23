@@ -1017,8 +1017,12 @@ impl NestedDisplay for Call {
         if let Some(attr_name) = self.attr_name.as_ref() {
             write!(f, "{}", attr_name)?;
         }
-        writeln!(f, ":")?;
-        self.args.fmt_nest(f, level + 1)
+        if self.args.is_empty() {
+            write!(f, "()")
+        } else {
+            writeln!(f, ":")?;
+            self.args.fmt_nest(f, level + 1)
+        }
     }
 }
 
@@ -2241,6 +2245,8 @@ impl From<&Identifier> for Field {
 }
 
 impl Identifier {
+    pub const UBAR: &Self = &Self::new(None, VarName::from_static("_"));
+
     pub const fn new(dot: Option<Token>, name: VarName) -> Self {
         Self { dot, name }
     }

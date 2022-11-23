@@ -350,7 +350,7 @@ fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
-pub trait Runnable: Sized {
+pub trait Runnable: Sized + Default {
     type Err: ErrorDisplay;
     type Errs: MultiErrorDisplay<Self::Err>;
     const NAME: &'static str;

@@ -267,8 +267,8 @@ XorY = Enum X, Y
 
 ```python
 x1 = XorY.new X.new()
-x2 = (X.new |> XorY.new)()
-x3 = (Y.new |> XorY.new)()
+x2 = (X.new |> XorY.new())()
+x3 = (Y.new |> XorY.new())()
 assert x1 == x2
 assert x1 != x3
 ```
