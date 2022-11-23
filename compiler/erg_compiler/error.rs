@@ -145,13 +145,13 @@ impl ErrorDisplay for CompileError {
     }
 }
 
-// found, error
+// found, error, rhs
 const ERR: Color = THEME.colors.error;
-// var name, lhs, rhs
+// var name, lhs
 const WARN: Color = THEME.colors.warning;
 // expect, hint
 const HINT: Color = THEME.colors.hint;
-// url
+// url, accentuation
 const ACCENT: Color = THEME.colors.accent;
 // url and feature = pretty
 const UNDERLINE: Attribute = Attribute::Underline;
@@ -676,7 +676,7 @@ passed keyword args:    {kw_args_len}"
         missing_len: usize,
         missing_params: Vec<Str>,
     ) -> Self {
-        let name = StyledStr::new(readable_name(callee_name), Some(ACCENT), Some(ATTR));
+        let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let vec_cxt = StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(
@@ -704,7 +704,7 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         arg_name: &str,
     ) -> Self {
-        let name = StyledStr::new(readable_name(callee_name), Some(ACCENT), Some(ATTR));
+        let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let found = StyledString::new(arg_name, Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
@@ -732,7 +732,7 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         param_name: &str,
     ) -> Self {
-        let name = StyledStr::new(readable_name(callee_name), Some(ACCENT), Some(ATTR));
+        let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let found = StyledString::new(param_name, Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
@@ -1065,7 +1065,7 @@ passed keyword args:    {kw_args_len}"
             "english" => fnd.push_str("but found: "),
         );
         fnd.push_str_with_color(format!("{}", found), ERR);
-        let member_name = StyledStr::new(member_name, Some(ACCENT), Some(ATTR));
+        let member_name = StyledStr::new(member_name, Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -1338,27 +1338,27 @@ impl EffectError {
                 "japanese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("変数の末尾に");
-                s.push_str_with_color_and_attribute("!", ACCENT, ATTR);
+                s.push_str_with_color_and_attribute("!", WARN, ATTR);
                 s.push_str("をつけてください");
                 s
                 },
                 "simplified_chinese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("请在变量名后加上");
-                s.push_str_with_color_and_attribute("!", ACCENT, ATTR);
+                s.push_str_with_color_and_attribute("!", WARN, ATTR);
                 s
                 },
                 "traditional_chinese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("請在變量名後加上");
-                s.push_str_with_color_and_attribute("!", ACCENT, ATTR);
+                s.push_str_with_color_and_attribute("!", WARN, ATTR);
                 s
                 },
                 "english" => {
 
                 let mut s = StyledStrings::default();
                 s.push_str("add ");
-                s.push_str_with_color_and_attribute("!", ACCENT, ATTR);
+                s.push_str_with_color_and_attribute("!", WARN, ATTR);
                 s.push_str(" to the end of the variable name");
                 s
                 },
@@ -1518,7 +1518,7 @@ impl LowerError {
         spec_t: &Type,
         found_t: &Type,
     ) -> Self {
-        let name = StyledString::new(readable_name(name), Some(ACCENT), None);
+        let name = StyledString::new(readable_name(name), Some(WARN), None);
         let expect = StyledString::new(format!("{}", spec_t), Some(HINT), Some(ATTR));
         let found = StyledString::new(format!("{}", found_t), Some(ERR), Some(ATTR));
         Self::new(
@@ -1778,7 +1778,7 @@ impl LowerError {
                 "english" => "public",
             )
         };
-        let found = StyledString::new(readable_name(name), Some(ACCENT), Some(ATTR));
+        let found = StyledString::new(readable_name(name), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],

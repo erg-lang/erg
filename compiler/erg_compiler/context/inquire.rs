@@ -1068,8 +1068,7 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                // TODO: Is it possible to get 0?
-                                e.core.sub_messages.get(0).unwrap().loc,
+                                e.core.loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1124,8 +1123,7 @@ impl Context {
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
-                                // TODO: Is it possible to get 0?
-                                e.core.sub_messages.get(0).unwrap().loc,
+                                e.core.loc,
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
@@ -1182,8 +1180,7 @@ impl Context {
                                 TyCheckError::type_mismatch_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    // TODO: Is it possible to get 0?
-                                    e.core.sub_messages.get(0).unwrap().loc,
+                                    e.core.loc,
                                     e.caused_by,
                                     &name[..],
                                     Some(nth),
