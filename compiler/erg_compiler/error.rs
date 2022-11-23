@@ -212,18 +212,22 @@ impl CompileError {
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
-                    "japanese" => format!("スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})\n\
-                            これはコンパイラのバグです、開発者に報告して下さい ({URL})\n\
-                            {fn_name}より発生"),
-                "simplified_chinese" => format!("堆栈中的元素数无效（元素数: {stack_len}，块id: {block_id}）\n\
-                            这是 Erg 编译器的一个错误，请报告它 ({URL})\n\
-                            起因于: {fn_name}"),
-                "traditional_chinese" => format!("堆棧中的元素數無效（元素數: {stack_len}，塊id: {block_id}）\n\
-                            這是 Erg 編譯器的一個錯誤，請報告它 ({URL})\n\
-                            起因於: {fn_name}"),
-                    "english" => format!("the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n\
-                            this is a bug of the Erg compiler, please report it to {URL}\n\
-                            caused from: {fn_name}"),
+                    "japanese" => format!("\
+スタックの要素数が異常です (要素数: {stack_len}, ブロックID: {block_id})
+これはコンパイラのバグです、開発者に報告して下さい ({URL})
+{fn_name}より発生"),
+                "simplified_chinese" => format!("\
+堆栈中的元素数无效（元素数: {stack_len}，块id: {block_id}）
+这是 Erg 编译器的一个错误，请报告它 ({URL})
+起因于: {fn_name}"),
+                "traditional_chinese" => format!("\
+堆棧中的元素數無效（元素數: {stack_len}，塊id: {block_id}）\n
+這是 Erg 編譯器的一個錯誤，請報告它 ({URL})
+起因於: {fn_name}"),
+                    "english" => format!("\
+the number of elements in the stack is invalid (num of elems: {stack_len}, block id: {block_id})\n
+this is a bug of the Erg compiler, please report it to {URL}
+caused from: {fn_name}"),
                 ),
                 0,
                 CompilerSystemError,
@@ -1180,41 +1184,43 @@ passed keyword args:    {kw_args_len}"
              "japanese" => {
                  let mut s = StyledStrings::default();
                  s.push_str("多相関数の場合は");
-                 s.push_str_with_color("f|T := Int", ACCENT);
-                 s.push_str(", 型属性の場合は");
-                 s.push_str_with_color("f|T := Trait|.X", ACCENT);
-                 s.push_str(", などのようにして型を指定してください");
+                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                 s.push_str(", \n型属性の場合は");
+                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
                  s
              },
              "simplified_chinese" => {
                  let mut s = StyledStrings::default();
                  s.push_str("如果是多态函数，请使用");
-                 s.push_str_with_color("f|T := Int", ACCENT);
-                 s.push_str("，如果是类型属性，请使用");
-                 s.push_str_with_color("f|T := Trait|.X", ACCENT);
-                 s.push_str("等方式指定类型");
+                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                 s.push_str("，\n如果是类型属性，请使用");
+                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
                  s
             },
             "traditional_chinese" => {
                  let mut s = StyledStrings::default();
                  s.push_str("如果是多型函數，請使用");
-                 s.push_str_with_color("f|T := Int", ACCENT);
-                 s.push_str("，如果是類型屬性，請使用");
-                 s.push_str_with_color("f|T := Trait|.X", ACCENT);
-                 s.push_str("等方式指定類型");
+                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                 s.push_str("，\n如果是類型屬性，請使用");
+                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
                  s
             },
             "english" => {
                  let mut s = StyledStrings::default();
-                 s.push_str("if it is a polymorphic function, use ");
-                 s.push_str_with_color("f|T := Int", ACCENT);
-                 s.push_str(", or if it is a type attribute, use ");
-                 s.push_str_with_color("f|T := Trait|.X", ACCENT);
-                 s.push_str(" etc. to specify the type");
+                 s.push_str("if it is a polymorphic function, like ");
+                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                 s.push_str("\nif it is a type attribute, like ");
+                 s.push_str_with_color_and_attribute("f|T := Trait|.X ", ACCENT, ATTR);
                  s
             },
                     )
             .to_string(),
+        );
+        let sub_msg = switch_lang!(
+            "japanese" => "型を指定してください",
+            "simplified_chinese" => "方式指定类型",
+            "traditional_chinese" => "specify the type",
+            "english" => "specify the type",
         );
         let mut candidate = StyledStrings::default();
         switch_lang!(
@@ -1228,7 +1234,7 @@ passed keyword args:    {kw_args_len}"
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
                     expr.loc(),
-                    vec![candidate.to_string()],
+                    vec![sub_msg.to_string(), candidate.to_string()],
                     hint,
                 )],
                 switch_lang!(
@@ -1757,7 +1763,6 @@ impl LowerError {
         name: &str,
         vis: Visibility,
     ) -> Self {
-        let name = readable_name(name);
         let visibility = if vis.is_private() {
             switch_lang!(
                 "japanese" => "非公開",
@@ -1773,7 +1778,7 @@ impl LowerError {
                 "english" => "public",
             )
         };
-        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        let found = StyledString::new(readable_name(name), Some(ACCENT), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1804,12 +1809,35 @@ impl LowerError {
         let superclass = StyledString::new(format!("{}", superclass), Some(WARN), Some(ATTR));
         let hint = Some(
             switch_lang!(
-                "japanese" => "`Override`デコレータを使用してください",
-                "simplified_chinese" => "请使用`Override`装饰器",
-                "traditional_chinese" => "請使用`Override`裝飾器",
-                "english" => "use `Override` decorator",
+                "japanese" => {
+                    let mut ovr = StyledStrings::default();
+                    ovr.push_str_with_color_and_attribute("@Override", HINT, ATTR);
+                    ovr.push_str("デコレータを使用してください");
+                    ovr
+            },
+                "simplified_chinese" => {
+                    let mut ovr = StyledStrings::default();
+                    ovr.push_str("请使用");
+                    ovr.push_str_with_color_and_attribute("@Override", HINT, ATTR);
+                    ovr.push_str("装饰器");
+                    ovr
+                },
+                "traditional_chinese" => {
+                    let mut ovr = StyledStrings::default();
+                    ovr.push_str("請使用");
+                    ovr.push_str_with_color_and_attribute("@Override", HINT, ATTR);
+                    ovr.push_str("裝飾器");
+                    ovr
+                },
+                "english" => {
+                    let mut ovr = StyledStrings::default();
+                    ovr.push_str("use ");
+                    ovr.push_str_with_color_and_attribute("@Override", HINT, ATTR);
+                    ovr.push_str(" decorator");
+                    ovr
+                },
             )
-            .into(),
+            .to_string(),
         );
         let sub_msg = switch_lang!(
             "japanese" => "デフォルトでオーバーライドはできません",
@@ -1925,20 +1953,28 @@ impl LowerError {
             match (similar_erg_mod, similar_py_mod) {
                 (Some(erg), Some(py)) => {
                     erg_str.push_str("似た名前のergモジュールが存在します: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     py_str.push_str("似た名前のpythonモジュールが存在します: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("pythonのモジュールをインポートするためには`pyimport`を使用してください".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("pythonのモジュールをインポートするためには");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    hint.push_str("を使用してください");
+                    Some(hint.to_string())
                 }
                 (Some(erg), None) => {
                     erg_str.push_str("似た名前のergモジュールが存在します");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, ACCENT, ATTR);
                     None
                 }
                 (None, Some(py)) => {
                     py_str.push_str("似た名前のpythonモジュールが存在します");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("pythonのモジュールをインポートするためには`pyimport`を使用してください".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("pythonのモジュールをインポートするためには");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    hint.push_str("を使用してください");
+                    Some(hint.to_string())
                 }
                 (None, None) => None,
             }
@@ -1947,20 +1983,26 @@ impl LowerError {
             match (similar_erg_mod, similar_py_mod) {
                 (Some(erg), Some(py)) => {
                     erg_str.push_str("存在相似名称的erg模块: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     py_str.push_str("存在相似名称的python模块: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("要导入python模块,请使用`pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要导入python模块,请使用");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (Some(erg), None) => {
                     erg_str.push_str("存在相似名称的erg模块: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     None
                 }
                 (None, Some(py)) => {
                     py_str.push_str("存在相似名称的python模块: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("要导入python模块,请使用`pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要导入python模块,请使用");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (None, None) => None,
             }
@@ -1969,20 +2011,26 @@ impl LowerError {
             match (similar_erg_mod, similar_py_mod) {
                 (Some(erg), Some(py)) => {
                     erg_str.push_str("存在類似名稱的erg模塊: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     py_str.push_str("存在類似名稱的python模塊: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("要導入python模塊, 請使用`pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要導入python模塊, 請使用");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (Some(erg), None) => {
                     erg_str.push_str("存在類似名稱的erg模塊: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     None
                 }
                 (None, Some(py)) => {
                     py_str.push_str("存在類似名稱的python模塊: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("要導入python模塊, 請使用`pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要導入python模塊, 請使用");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (None, None) => None,
             }
@@ -1991,20 +2039,26 @@ impl LowerError {
             match (similar_erg_mod, similar_py_mod) {
                 (Some(erg), Some(py)) => {
                     erg_str.push_str("similar name erg module exists: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     py_str.push_str("similar name python module exists: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("to import python modules, use `pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("to import python modules, use ");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (Some(erg), None) => {
                     erg_str.push_str("similar name erg module exists: ");
-                    erg_str.push_str_with_color_and_attribute(erg, WARN, ATTR);
+                    erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
                     None
                 }
                 (None, Some(py)) => {
                     py_str.push_str("similar name python module exits: ");
-                    py_str.push_str_with_color_and_attribute(py, WARN, ATTR);
-                    Some("to import python modules, use `pyimport`".to_string())
+                    py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("to import python modules, use ");
+                    hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    Some(hint.to_string())
                 }
                 (None, None) => None,
             }
@@ -2084,7 +2138,7 @@ impl LowerError {
         hint: Option<String>,
     ) -> Self {
         let name = StyledString::new(name, Some(WARN), Some(ATTR));
-        let found = StyledString::new(format!("{}", cast_to), Some(WARN), Some(ATTR));
+        let found = StyledString::new(format!("{}", cast_to), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -2150,99 +2204,97 @@ pub type CompileWarnings = CompileErrors;
 mod test {
     use super::TyCheckError;
     use crate::{
-        error::{CompileError, LowerError},
+        error::{CompileError, EvalError, LowerError},
+        hir::Identifier,
         ty::{Predicate, Type},
+        varinfo::VarInfo,
     };
     use erg_common::{config::Input, error::Location};
+    use erg_parser::ast::VarName;
 
     // These Erg codes are not correct grammar.
     // This test make sure sub_msg and hint are displayed correctly.
     #[test]
     fn default_error_format_confirmation() {
-        let input = Input::Pipe("line error".to_owned());
+        let mut errors = Vec::new();
+
+        let input = Input::Pipe("stack bug error".to_owned());
         let loc = Location::Line(1);
         let err = CompileError::stack_bug(input, loc, 0, 0, "FileName");
-        print!("{}", err);
+        errors.push(err);
 
-        let input = Input::Pipe("a: Nat = -1".to_owned());
-        let err = TyCheckError::checker_bug(input, 0, Location::Unknown, "name", 1);
-        print!("{}", err);
+        let input = Input::Pipe("checker bug error".to_owned());
+        let errno = 0;
+        let err = TyCheckError::checker_bug(input, errno, Location::Unknown, "name", 1);
+        errors.push(err);
 
         let loc = Location::LineRange(1, 3);
-        let input = Input::Pipe(
-            "if True:
-    sample
-    end"
-            .to_string(),
-        );
-        let caused_by = "File name here basically";
+        let input = Input::Pipe("args\nmissing\nerror".to_string());
+        let caused_by = "<caused_by>";
         let err = TyCheckError::args_missing_error(
             input,
-            0,
+            errno,
             loc,
             "\"Callee name here\"",
             caused_by.into(),
             0,
             vec!["sample".into(), "args".into(), "here".into()],
         );
-        print!("{}", err);
-
-        let loc = Location::Range {
-            ln_begin: 1,
-            col_begin: 11,
-            ln_end: 1,
-            col_end: 14,
-        };
-        let expect = Type::Nat;
-        let found = Type::Int;
-        let input = Input::Pipe("add(x, y): Nat = x - y".to_string());
-        let caused_by = "File name here basically";
-        let err = TyCheckError::return_type_error(
-            input,
-            0,
-            loc,
-            caused_by.into(),
-            "name",
-            &expect,
-            &found,
-        );
-        print!("{}", err);
+        errors.push(err);
 
         let loc = Location::Range {
             ln_begin: 1,
             col_begin: 0,
             ln_end: 1,
-            col_end: 1,
+            col_end: 17,
         };
         let expect = Type::Nat;
         let found = Type::Int;
-        let input = Input::Pipe("a: Nat = -1".to_string());
-        let caused_by = "File name here basically";
+        let input = Input::Pipe("return type error".to_string());
+        let name = "name";
+        let err = TyCheckError::return_type_error(
+            input,
+            errno,
+            loc,
+            caused_by.to_string(),
+            name,
+            &expect,
+            &found,
+        );
+        errors.push(err);
+
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 4,
+        };
+        let expect = Type::Nat;
+        let found = Type::Int;
+        let input = Input::Pipe("type mismatch error".to_string());
         let err = TyCheckError::type_mismatch_error(
             input,
-            0,
+            errno,
             loc,
             caused_by.into(),
-            "name",
+            name,
             Some(1),
             &expect,
             &found,
             None,
             Some("hint message here".to_owned()),
         );
-        print!("{}", err);
+        errors.push(err);
 
         let input = Input::Pipe(
-            "f some_long_name_variable_1,
+            "too_many_args_error(some_long_name_variable_1,
     some_long_name_variable_2,
     some_long_name_variable_3,
-    some_long_name_variable_4 ="
+    some_long_name_variable_4) ="
                 .to_string(),
         );
-        let errno = 0;
         let loc = Location::LineRange(1, 4);
         let callee_name = "callee name";
-        let caused_by = "cause by".to_owned();
         let params_len = 3;
         let pos_args_len = 4;
         let kw_args_len = 4;
@@ -2251,65 +2303,58 @@ mod test {
             errno,
             loc,
             callee_name,
-            caused_by,
+            caused_by.to_string(),
             params_len,
             pos_args_len,
             kw_args_len,
         );
-        print!("{}", err);
+        errors.push(err);
 
-        let input = Input::Pipe("Pearson = Class {.name = Str}".to_string());
-        let errno = 0;
-        let loc = Location::range(1, 0, 1, 7);
-        let caused_by = "caused by".to_string();
-        let err = TyCheckError::argument_error(input, errno, loc, caused_by, 1, 2);
-        print!("{}", err);
+        let input = Input::Pipe("argument error".to_string());
+        let loc = Location::range(1, 0, 1, 8);
+        let err = TyCheckError::argument_error(input, errno, loc, caused_by.to_string(), 1, 2);
+        errors.push(err);
 
         let input = Input::Pipe("Nat <: Int <: Ratio".to_string());
         let loc = Location::range(1, 0, 1, 10);
-        let errno = 0;
         let sub_t = &Type::Nat;
         let sup_t = &Type::Int;
-        let caused_by = "caused_by".to_string();
-        let err = TyCheckError::subtyping_error(input, errno, sub_t, sup_t, loc, caused_by);
-        print!("{}", err);
+        let err =
+            TyCheckError::subtyping_error(input, errno, sub_t, sup_t, loc, caused_by.to_string());
+        errors.push(err);
 
         let input = Input::Pipe("pred unification error".to_string());
+        let lhs = &Predicate::Const("Str".into());
+        let rhs = &Predicate::Const("Nat".into());
+        let err =
+            TyCheckError::pred_unification_error(input, errno, lhs, rhs, caused_by.to_string());
+        errors.push(err);
+
+        let input = Input::Pipe("Trait member type error".to_string());
         let errno = 0;
         let loc = Location::Range {
             ln_begin: 1,
             col_begin: 0,
             ln_end: 1,
-            col_end: 10,
+            col_end: 5,
         };
-        let lhs = &Predicate::Const("Str".into());
-        let rhs = &Predicate::Const("Str".into());
-        let caused_by = "<sample>".to_string();
-        let err = TyCheckError::pred_unification_error(input, errno, lhs, rhs, caused_by);
-        print!("{}", err);
-
-        let input = Input::Pipe("Trait member type error".to_string());
-        let errno = 0;
         let t_ty = &Type::Float;
         let exp = &Type::Nat;
         let fnd = &Type::Obj;
-        let caused_by = "<sample>".to_string();
         let err = TyCheckError::trait_member_type_error(
             input,
             errno,
             loc,
-            caused_by,
+            caused_by.to_string(),
             "member name",
             t_ty,
             exp,
             fnd,
-            Some("sample".to_string()),
+            Some("hint message here".to_string()),
         );
-        print!("{}", err);
+        errors.push(err);
 
         let input = Input::Pipe("trait member not defined error".to_string());
-        let errno = 0;
-        let caused_by = "<caused by>".to_string();
         let member_name = "member name";
         let trait_type = &Type::ClassType;
         let class_type = &Type::Ellipsis;
@@ -2317,76 +2362,142 @@ mod test {
         let err = TyCheckError::trait_member_not_defined_error(
             input,
             errno,
-            caused_by,
+            caused_by.to_string(),
             member_name,
             trait_type,
             class_type,
             hint,
         );
-        print!("{}", err);
+        errors.push(err);
 
         let input = Input::Pipe("singular no attribute error".to_string());
-        let caused_by = "<caused by>".to_string();
+        let loc = Location::Range {
+            ln_begin: 1,
+            col_begin: 0,
+            ln_end: 1,
+            col_end: 8,
+        };
         let obj_name = "ojb name";
         let obj_t = Type::Bool;
         let name = "name";
-        let similar_name = Some("object name");
+        let similar_name = Some("similar name");
         let err = LowerError::singular_no_attr_error(
             input,
             errno,
             loc,
-            caused_by,
+            caused_by.to_string(),
             obj_name,
             &obj_t,
             name,
             similar_name,
         );
-        print!("{err}");
-    }
+        errors.push(err);
 
-    #[test]
-    fn import_error_format_test() {
+        let input = Input::Pipe("ambiguous type error".to_string());
+        let expr = Identifier::new(
+            Some(erg_parser::token::Token {
+                kind: erg_parser::token::TokenKind::EOF,
+                content: "expr_content".into(),
+                lineno: 1,
+                col_begin: 1,
+            }),
+            VarName::from_str("variable_name".into()),
+            None,
+            VarInfo::new(
+                Type::Nat,
+                crate::varinfo::Mutability::Const,
+                erg_common::vis::Visibility::Private,
+                crate::varinfo::VarKind::Builtin,
+                None,
+                None,
+                None,
+            ),
+        );
+        let candidates = &[Type::Nat, Type::Inf, Type::Bool];
+        let err =
+            EvalError::ambiguous_type_error(input, errno, &expr, candidates, caused_by.to_string());
+        errors.push(err);
+
+        let input = Input::Pipe("invalid type cast error".to_string());
+        let loc = Location::range(1, 8, 1, 17);
+        let cast_to = Type::Error;
+        let hint = Some("hint message here".to_string());
+        let err = EvalError::invalid_type_cast_error(
+            input,
+            errno,
+            loc,
+            caused_by.to_string(),
+            name,
+            &cast_to,
+            hint,
+        );
+        errors.push(err);
+
+        let input = Input::Pipe("override error".to_string());
+        let name_loc = Location::range(1, 0, 1, 8);
+        let superclass = &Type::Failure;
+        let err = TyCheckError::override_error(
+            input,
+            errno,
+            name,
+            name_loc,
+            superclass,
+            caused_by.to_string(),
+        );
+        errors.push(err);
+
+        let input = Input::Pipe("visibility error".to_string());
+        let loc = Location::Line(1);
+        let vis = erg_common::vis::Visibility::Private;
+        let err =
+            TyCheckError::visibility_error(input, errno, loc, caused_by.to_string(), name, vis);
+        errors.push(err);
+
         let input = Input::Pipe("import nunpy as np".to_string());
         let errno = 0;
         let desc = "nunpy is not defined".to_string();
         let loc = Location::range(1, 7, 1, 12);
-        let caused_by = "<Stdin>".to_string();
         let similar_erg_mod = Some("numpyer".into());
         let similar_py_mod = Some("numpy".into());
-        let imp_err = TyCheckError::import_error(
+        let err = TyCheckError::import_error(
             input.clone(),
             errno,
             desc.clone(),
             loc,
-            caused_by.clone(),
+            caused_by.to_string(),
             similar_erg_mod.clone(),
             similar_py_mod.clone(),
         );
-        println!("{}", imp_err);
+        errors.push(err);
 
-        let imp_err = TyCheckError::import_error(
+        let err = TyCheckError::import_error(
             input.clone(),
             errno,
             desc.clone(),
             loc,
-            caused_by.clone(),
+            caused_by.to_string(),
             None,
             similar_py_mod,
         );
-        println!("{}", imp_err);
+        errors.push(err);
 
-        let imp_err = TyCheckError::import_error(
+        let err = TyCheckError::import_error(
             input.clone(),
             errno,
             desc.clone(),
             loc,
-            caused_by.clone(),
+            caused_by.to_string(),
             similar_erg_mod,
             None,
         );
-        println!("{}", imp_err);
+        errors.push(err);
 
-        let imp_err = TyCheckError::import_error(input, errno, desc, loc, caused_by, None, None);
-        println!("{}", imp_err);
+        let err =
+            TyCheckError::import_error(input, errno, desc, loc, caused_by.to_string(), None, None);
+        errors.push(err);
+
+        for err in errors.into_iter() {
+            print!("{err}");
+        }
     }
 }
