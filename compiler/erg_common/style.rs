@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 pub const ATTR_RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";
 pub const UNDERLINE: &str = "\x1b[4m";
@@ -15,15 +17,15 @@ pub const RED: &str = "\x1b[91m";
 pub const WHITE: &str = "\x1b[97m";
 pub const YELLOW: &str = "\x1b[93m";
 // custom colors when use `pretty`
-pub const CUSTOM_RED: &str = "\x1b[38;2;185;64;71m";
-pub const CUSTOM_BLUE: &str = "\x1b[38;2;230;234;227m";
-pub const CUSTOM_GRAY: &str = "\x1b[38;2;244;0;25m";
-pub const CUSTOM_CYAN: &str = "\x1b[38;2;160;216;239m";
-pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;103;65;150m";
-pub const CUSTOM_GREEN: &str = "\x1b[38;2;170;209;71m";
-pub const CUSTOM_YELLOW: &str = "\x1b[38;2;230;180;34m";
+pub const CUSTOM_RED: &str = "\x1b[38;2;255;76;76m";
+pub const CUSTOM_BLUE: &str = "\x1b[38;2;76;76;255m";
+pub const CUSTOM_GRAY: &str = "\x1b[38;2;231;231;235m";
+pub const CUSTOM_CYAN: &str = "\x1b[38;2;76;255;255m";
+pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255m";
+pub const CUSTOM_GREEN: &str = "\x1b[38;2;76;255;76m";
+pub const CUSTOM_YELLOW: &str = "\x1b[38;2;255;255;76m";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Color {
     Reset,
     Black,
@@ -68,7 +70,7 @@ impl Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Attribute {
     Reset,
     Underline,
@@ -87,13 +89,14 @@ impl Attribute {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ThemeColors {
     pub error: Color,
     pub warning: Color,
     pub exception: Color,
     pub gutter: Color,
     pub hint: Color,
+    pub accent: Color,
 }
 
 #[cfg(not(feature = "pretty"))]
@@ -103,6 +106,7 @@ pub const COLORS: ThemeColors = ThemeColors {
     exception: Color::Magenta,
     gutter: Color::Cyan,
     hint: Color::Green,
+    accent: Color::White,
 };
 
 #[cfg(feature = "pretty")]
@@ -112,9 +116,10 @@ pub const COLORS: ThemeColors = ThemeColors {
     exception: Color::CustomMagenta,
     gutter: Color::CustomCyan,
     hint: Color::CustomGreen,
+    accent: Color::CustomGray,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Characters {
     hat: char,    // error
     wave: char,   // exception
@@ -141,16 +146,28 @@ impl Characters {
         (self.vbreak, self.vbar)
     }
 
-    // " `- "
+    // "`- "
     #[cfg(not(feature = "unicode"))]
     pub fn left_bottom_line(&self) -> String {
-        format!(" {}{} ", self.lbot, self.line)
+        format!("{}{} ", self.lbot, self.line)
     }
 
     // `╰─ `
     #[cfg(feature = "unicode")]
     pub fn left_bottom_line(&self) -> String {
         format!("{}{} ", self.lbot, self.line)
+    }
+
+    // "|- "
+    #[cfg(not(feature = "unicode"))]
+    pub fn left_cross(&self) -> String {
+        format!("{}{} ", self.vbar, self.line)
+    }
+
+    // "│─ "
+    #[cfg(feature = "unicode")]
+    pub fn left_cross(&self) -> String {
+        format!("{}{} ", self.vbar, self.line)
     }
 
     // kind[padded error number]
@@ -177,7 +194,7 @@ impl Characters {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Theme {
     pub colors: ThemeColors,
     pub characters: Characters,
@@ -254,11 +271,7 @@ pub struct StyledStr<'a> {
 }
 
 impl<'a> StyledStr<'a> {
-    pub const fn new<'b: 'a>(
-        text: &'b str,
-        color: Option<Color>,
-        attribute: Option<Attribute>,
-    ) -> Self {
+    pub const fn new(text: &'a str, color: Option<Color>, attribute: Option<Attribute>) -> Self {
         Self {
             text,
             color,
@@ -300,9 +313,22 @@ pub struct StyledString {
 }
 
 impl StyledString {
-    pub fn new(s: &str, color: Option<Color>, attribute: Option<Attribute>) -> Self {
+    ///
+    /// # Example
+    /// ```
+    /// let s = String::from("Hello, world");
+    /// StyledString::new(s, None, None);
+    /// let s = "Hello, world";
+    /// StyledString::new(s, None, None);
+    /// ```
+    pub fn new<'a, S: Into<Cow<'a, str>>>(
+        s: S,
+        color: Option<Color>,
+        attribute: Option<Attribute>,
+    ) -> Self {
+        let text: Cow<'a, str> = s.into();
         Self {
-            text: String::from(s),
+            text: text.into_owned(),
             color,
             attribute,
         }
@@ -320,7 +346,11 @@ impl StyledString {
     /// println!("{text}"); // Two lines of text underlined are displayed
     /// ```
     pub fn push_str(&mut self, s: &str) {
-        self.text.push_str(s);
+        self.text.push_str(s)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
     }
 }
 
@@ -405,9 +435,10 @@ impl StyledStrings {
     /// texts.push_str_with_color("\n If you want to add break lines, you should add `\n`.", Color::Magenta);
     /// println!("{}", texts);
     /// ```
-    pub fn push_str_with_color(&mut self, s: &str, color: Color) {
+    pub fn push_str_with_color<'a, S: Into<Cow<'a, str>>>(&mut self, s: S, color: Color) {
         if self.is_same_color(color) {
-            self.texts.last_mut().unwrap().text.push_str(s);
+            let text = s.into();
+            self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
             self.texts.push(StyledString::new(s, Some(color), None));
         }
@@ -426,23 +457,37 @@ impl StyledStrings {
     /// // texts.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
     /// println!("{}", texts);
     /// ```
-    pub fn push_str_with_color_and_attribute(&mut self, s: &str, color: Color, attr: Attribute) {
+    pub fn push_str_with_color_and_attribute<'a, S: Into<Cow<'a, str>>>(
+        &mut self,
+        s: S,
+        color: Color,
+        attr: Attribute,
+    ) {
         if self.is_same_color(color) && self.is_same_attribute(attr) {
-            self.texts.last_mut().unwrap().text.push_str(s);
+            let text = s.into();
+            self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
             self.texts
                 .push(StyledString::new(s, Some(color), Some(attr)));
         }
     }
 
-    pub fn is_same_color(&self, color: Color) -> bool {
+    ///
+    /// Determine if all strings in Vec are empty
+    /// Returns False if any string is present.
+    ///
+    pub fn is_empty(&self) -> bool {
+        self.texts.iter().all(|s| s.is_empty())
+    }
+
+    fn is_same_color(&self, color: Color) -> bool {
         if let Some(text) = self.texts.last() {
             return text.color == Some(color);
         }
         false
     }
 
-    pub fn is_same_attribute(&self, attr: Attribute) -> bool {
+    fn is_same_attribute(&self, attr: Attribute) -> bool {
         if let Some(text) = self.texts.last() {
             if let Some(text_attr) = text.attribute {
                 return text_attr == attr;
@@ -458,6 +503,12 @@ impl std::fmt::Display for StyledStrings {
             write!(f, "{}", text)?;
         }
         Ok(())
+    }
+}
+
+impl From<StyledStrings> for String {
+    fn from(s: StyledStrings) -> Self {
+        s.to_string()
     }
 }
 
@@ -513,9 +564,14 @@ mod tests {
             Attribute::Bold,
         );
         texts.push_str_with_color_and_attribute(
-            "White and underlined text",
-            Color::White,
+            "Blue and underlined text\n",
+            Color::Blue,
             Attribute::Underline,
+        );
+        texts.push_str_with_color_and_attribute(
+            "Red and reversed text",
+            Color::Red,
+            Attribute::Reversed,
         );
         println!("{}", texts);
     }

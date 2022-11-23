@@ -10,9 +10,9 @@ use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
 use crate::style::StyledStr;
-use crate::style::StyledString;
 use crate::style::StyledStrings;
 use crate::style::Theme;
+use crate::style::THEME;
 use crate::traits::{Locational, Stream};
 use crate::{impl_display_from_debug, switch_lang};
 
@@ -229,37 +229,6 @@ impl From<&str> for ErrorKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Location {
     ///
-    /// Error used when the error is caused by a discrepancy with a code on another line
-    ///
-    /// # Example
-    ///
-    /// Ownership error
-    ///
-    /// ```erg
-    /// a: Nat = 1
-    /// a.consume_ownership() // move occurs
-    ///
-    /// function(a) // borrowed after moved
-    /// ```
-    ///
-    /// `a` moves ownership in a method(or function) that are defined and consume it.
-    ///
-    /// ```erg
-    /// Location::RangePair {
-    ///     ln_first: (2, 2),
-    ///     col_first: (0, 1),
-    ///     ln_second: (4, 4),
-    ///     col_second: (9, 10),
-    /// }
-    /// ```
-    ///
-    RangePair {
-        ln_first: (usize, usize),
-        col_first: (usize, usize),
-        ln_second: (usize, usize),
-        col_second: (usize, usize),
-    },
-    ///
     /// Location used for basic errors
     /// ```erg
     /// // erg
@@ -310,125 +279,36 @@ impl Location {
         }
     }
 
-    pub fn pair(lhs: Self, rhs: Self) -> Self {
-        Self::RangePair {
-            ln_first: (lhs.ln_begin().unwrap(), lhs.ln_end().unwrap()),
-            col_first: (lhs.col_begin().unwrap(), lhs.col_end().unwrap()),
-            ln_second: (rhs.ln_begin().unwrap(), rhs.ln_end().unwrap()),
-            col_second: (rhs.col_begin().unwrap(), rhs.col_end().unwrap()),
-        }
-    }
-
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                ln_first: (ln_begin, _),
-                ..
+            Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
+                Some(*ln_begin)
             }
-            | Self::Range { ln_begin, .. }
-            | Self::LineRange(ln_begin, _)
-            | Self::Line(ln_begin) => Some(*ln_begin),
             Self::Unknown => None,
         }
     }
 
     pub const fn ln_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                ln_second: (_, ln_end),
-                ..
+            Self::Range { ln_end, .. } | Self::LineRange(ln_end, _) | Self::Line(ln_end) => {
+                Some(*ln_end)
             }
-            | Self::Range { ln_end, .. }
-            | Self::LineRange(ln_end, _)
-            | Self::Line(ln_end) => Some(*ln_end),
             Self::Unknown => None,
         }
     }
 
     pub const fn col_begin(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                col_first: (col_begin, _),
-                ..
-            }
-            | Self::Range { col_begin, .. } => Some(*col_begin),
+            Self::Range { col_begin, .. } => Some(*col_begin),
             _ => None,
         }
     }
 
     pub const fn col_end(&self) -> Option<usize> {
         match self {
-            Self::RangePair {
-                col_second: (_, col_end),
-                ..
-            }
-            | Self::Range { col_end, .. } => Some(*col_end),
+            Self::Range { col_end, .. } => Some(*col_end),
             _ => None,
         }
-    }
-}
-
-/// In Erg, common parts used by error.
-/// Must be wrap when to use.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ErrorCore {
-    pub errno: usize,
-    pub kind: ErrorKind,
-    pub loc: Location,
-    pub desc: String,
-    pub hint: Option<String>,
-}
-
-impl ErrorCore {
-    pub fn new<S: Into<String>>(
-        errno: usize,
-        kind: ErrorKind,
-        loc: Location,
-        desc: S,
-        hint: Option<String>,
-    ) -> Self {
-        Self {
-            errno,
-            kind,
-            loc,
-            desc: desc.into(),
-            hint,
-        }
-    }
-
-    pub fn dummy(errno: usize) -> Self {
-        Self::new(
-            errno,
-            DummyError,
-            Location::Line(errno as usize),
-            "<dummy>",
-            None,
-        )
-    }
-
-    pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::bug(line as usize, Location::Line(line as usize), fn_name, line)
-    }
-
-    pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        const URL: StyledStr = StyledStr::new(
-            "https://github.com/erg-lang/erg",
-            Some(Color::White),
-            Some(Attribute::Underline),
-        );
-
-        Self::new(
-            errno,
-            CompilerSystemError,
-            loc,
-            switch_lang!(
-                "japanese" => format!("これはErgのバグです、開発者に報告して下さい({URL})\n{fn_name}:{line}より発生"),
-                "simplified_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-                "traditional_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-                "english" => format!("this is a bug of Erg, please report it to {URL}\ncaused from: {fn_name}:{line}"),
-            ),
-            None,
-        )
     }
 }
 
@@ -445,6 +325,8 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     chars: &Characters,
     // kinds of error for specify the color
     mark: char,
+    sub_msg: &[String],
+    hint: Option<&String>,
 ) -> String {
     let mark = mark.to_string();
     let codes = if e.input().is_repl() {
@@ -484,20 +366,326 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         }
         context.push_str("\n");
     }
-    context.push_str_with_color(&offset, gutter_color);
-    context.push_str(&" ".repeat(col_end - 1));
-    context.push_str_with_color(&chars.left_bottom_line(), err_color);
-    context.to_string()
+
+    let msg_num = sub_msg.len().saturating_sub(1);
+    for (i, msg) in sub_msg.iter().enumerate() {
+        context.push_str_with_color(&offset, gutter_color);
+        context.push_str(&" ".repeat(col_end - 1));
+        if i == msg_num && hint.is_none() {
+            context.push_str_with_color(&chars.left_bottom_line(), err_color);
+        } else {
+            context.push_str_with_color(&chars.left_cross(), err_color);
+        }
+        context.push_str(msg);
+        context.push_str("\n")
+    }
+    if let Some(hint) = hint {
+        context.push_str_with_color(&offset, gutter_color);
+        context.push_str(&" ".repeat(col_end - 1));
+        context.push_str_with_color(&chars.left_bottom_line(), err_color);
+        context.push_str(hint);
+        context.push_str("\n")
+    }
+    context.to_string() + "\n"
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SubMessage {
+    pub loc: Location,
+    msg: Vec<String>,
+    hint: Option<String>,
+}
+
+impl SubMessage {
+    ///
+    /// Used when the msg or hint si empty.
+    /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
+    /// # Example
+    /// ```
+    /// let msg = SubMessage::ambiguous_new(loc, vec![], None); // this code same as only_loc()
+    ///
+    /// let hint = Some("hint message here".to_string())
+    /// let msg = SubMessage::ambiguous_new(loc, vec![], hint);
+    /// /* example
+    ///    -------
+    ///          `- hint message here
+    /// */
+    ///
+    /// let hint = Some("hint here".to_string())
+    /// let first = StyledString::new("1th message", Color::Red, None);
+    /// let second = StyledString::new("2th message", Color::White, None);
+    ///      :
+    /// let nth = StyledString::new("nth message", Color::Green, None);
+    /// let msg = SubMessage::ambiguous_new(
+    ///     loc,
+    ///     vec![
+    ///         first.to_string(),
+    ///         second.to_string(),
+    ///         ...,
+    ///         nth.to_string(),
+    ///     ],
+    ///     hint);
+    /// /* example
+    ///    -------
+    ///          :- 1th message
+    ///          :- 2th message
+    ///                :
+    ///          :- nth message
+    ///          `- hint here
+    /// */
+    ///
+    /// ```
+    ///
+    pub fn ambiguous_new(loc: Location, msg: Vec<String>, hint: Option<String>) -> Self {
+        Self { loc, msg, hint }
+    }
+
+    ///
+    /// Used when only Location is fixed.
+    /// In this case, error position is just modified
+    /// # Example
+    /// ```
+    /// let sub_msg = SubMessage::only_loc(loc);
+    /// ```
+    pub fn only_loc(loc: Location) -> Self {
+        Self {
+            loc,
+            msg: Vec::new(),
+            hint: None,
+        }
+    }
+
+    pub fn set_hint<S: Into<String>>(&mut self, hint: S) {
+        self.hint = Some(hint.into());
+    }
+
+    pub fn get_hint(self) -> Option<String> {
+        self.hint
+    }
+
+    // Line breaks are not included except for line breaks that signify the end of a sentence.
+    // In other words, do not include blank lines for formatting purposes.
+    fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
+        &self,
+        e: &E,
+        err_color: Color,
+        gutter_color: Color,
+        mark: char,
+        chars: &Characters,
+    ) -> String {
+        match self.loc {
+            Location::Range {
+                ln_begin,
+                col_begin,
+                ln_end,
+                col_end,
+            } => format_context(
+                e,
+                ln_begin,
+                ln_end,
+                col_begin,
+                col_end,
+                err_color,
+                gutter_color,
+                chars,
+                mark,
+                &self.msg,
+                self.hint.as_ref(),
+            ),
+            Location::LineRange(ln_begin, ln_end) => {
+                let input = e.input();
+                let (vbreak, vbar) = chars.gutters();
+                let mut cxt = StyledStrings::default();
+                let codes = if input.is_repl() {
+                    vec![input.reread()]
+                } else {
+                    input.reread_lines(ln_begin, ln_end)
+                };
+                let mark = mark.to_string();
+                for (i, lineno) in (ln_begin..=ln_end).enumerate() {
+                    cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
+                    cxt.push_str(&codes[i]);
+                    cxt.push_str("\n");
+                    cxt.push_str_with_color(
+                        &format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
+                        gutter_color,
+                    );
+                    cxt.push_str(&" ".repeat(lineno.to_string().len()));
+                    cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
+                    cxt.push_str("\n");
+                }
+                cxt.push_str("\n");
+                for msg in self.msg.iter() {
+                    cxt.push_str(msg);
+                    cxt.push_str("\n");
+                }
+                if let Some(hint) = self.hint.as_ref() {
+                    cxt.push_str(hint);
+                    cxt.push_str("\n");
+                }
+                cxt.to_string()
+            }
+            Location::Line(lineno) => {
+                let input = e.input();
+                let (_, vbar) = chars.gutters();
+                let code = if input.is_repl() {
+                    input.reread()
+                } else {
+                    input.reread_lines(lineno, lineno).remove(0)
+                };
+                let mut cxt = StyledStrings::default();
+                cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
+                cxt.push_str(&code);
+                cxt.push_str("\n");
+                for msg in self.msg.iter() {
+                    cxt.push_str(msg);
+                    cxt.push_str("\n");
+                }
+                if let Some(hint) = self.hint.as_ref() {
+                    cxt.push_str(hint);
+                    cxt.push_str("\n");
+                }
+                cxt.push_str("\n");
+                cxt.to_string()
+            }
+            Location::Unknown => match e.input() {
+                Input::File(_) => "\n".to_string(),
+                other => {
+                    let (_, vbar) = chars.gutters();
+                    let mut cxt = StyledStrings::default();
+                    cxt.push_str_with_color(&format!(" ? {} ", vbar), gutter_color);
+                    cxt.push_str(&other.reread());
+                    cxt.push_str("\n");
+                    for msg in self.msg.iter() {
+                        cxt.push_str(msg);
+                        cxt.push_str("\n");
+                    }
+                    if let Some(hint) = self.hint.as_ref() {
+                        cxt.push_str(hint);
+                        cxt.push_str("\n");
+                    }
+                    cxt.push_str("\n");
+                    cxt.to_string()
+                }
+            },
+        }
+    }
+}
+
+/// In Erg, common parts used by error.
+/// Must be wrap when to use.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ErrorCore {
+    pub sub_messages: Vec<SubMessage>,
+    pub main_message: String,
+    pub errno: usize,
+    pub kind: ErrorKind,
+    pub loc: Location,
+    theme: Theme,
+}
+
+impl ErrorCore {
+    pub fn new<S: Into<String>>(
+        sub_messages: Vec<SubMessage>,
+        main_message: S,
+        errno: usize,
+        kind: ErrorKind,
+        loc: Location,
+    ) -> Self {
+        Self {
+            sub_messages,
+            main_message: main_message.into(),
+            errno,
+            kind,
+            loc,
+            theme: THEME,
+        }
+    }
+
+    pub fn dummy(errno: usize) -> Self {
+        Self::new(
+            vec![SubMessage::only_loc(Location::Line(errno as usize))],
+            "<dummy>",
+            errno,
+            DummyError,
+            Location::Line(errno as usize),
+        )
+    }
+
+    pub fn unreachable(fn_name: &str, line: u32) -> Self {
+        Self::bug(line as usize, Location::Line(line as usize), fn_name, line)
+    }
+
+    pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
+        const URL: StyledStr = StyledStr::new(
+            "https://github.com/erg-lang/erg",
+            Some(Color::White),
+            Some(Attribute::Underline),
+        );
+
+        let m_msg = switch_lang!(
+            "japanese" => format!("これはErgのバグです、開発者に報告して下さい({URL})\n{fn_name}:{line}より発生"),
+            "simplified_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
+            "traditional_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
+            "english" => format!("this is a bug of Erg, please report it to {URL}\ncaused from: {fn_name}:{line}"),
+        );
+        Self::new(
+            vec![SubMessage::only_loc(loc)],
+            &m_msg,
+            errno,
+            CompilerSystemError,
+            loc,
+        )
+    }
+
+    pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
+        let loc = match self.loc {
+            Location::Range {
+                ln_begin, ln_end, ..
+            } if ln_begin == ln_end => format!(", line {ln_begin}"),
+            Location::Range {
+                ln_begin, ln_end, ..
+            }
+            | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
+            Location::Line(lineno) => format!(", line {lineno}"),
+            Location::Unknown => "".to_string(),
+        };
+        let kind = if self.kind.is_error() {
+            "Error"
+        } else if self.kind.is_warning() {
+            "Warning"
+        } else {
+            "Exception"
+        };
+        let kind = self.theme.characters.error_kind_format(kind, self.errno);
+        format!(
+            "{kind}: File {input}{loc}, {caused_by}",
+            kind = StyledStr::new(&kind, Some(color), Some(Attribute::Bold))
+        )
+    }
+
+    fn specified_theme(&self) -> (Color, char) {
+        let (color, mark) = if self.kind.is_error() {
+            self.theme.error()
+        } else if self.kind.is_warning() {
+            self.theme.warning()
+        } else {
+            self.theme.exception()
+        };
+        (color, mark)
+    }
 }
 
 /// format:
 /// ```txt
 /// Error[#{.errno}]: File {file}, line {.loc (as line)}, in {.caused_by}
-/// {.loc (as line)}| {src}
-/// {pointer}
-/// {.kind}: {.desc}
 ///
-/// {.hint}
+/// {.loc (as line)}| {src}
+/// {offset}        : {pointer}
+/// {offset}        :         {sub_msgs}
+/// {offset}        :         {.hint}
+///
+/// {.kind}: {.desc}
 ///
 /// ```
 ///
@@ -505,21 +693,20 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 /// ```txt
 /// Error[#2223]: File <stdin>, line 1, in <module>
 ///
-/// 1 | 100 = i
-///     ---
-///       ╰─ SyntaxError: cannot assign to 100
+/// 1 │ 100 = i
+///   · ---
+///   ·   │─ sub_msg1: first sub message here
+///   ·   │─ sub_msg2: second sub message here
+///   ·   ╰─ hint: hint message here
 ///
-/// hint: hint message here
+/// SyntaxError: cannot assign to 100
 ///
 /// ```
 pub trait ErrorDisplay {
     fn core(&self) -> &ErrorCore;
     fn input(&self) -> &Input;
-    /// Colors and indication char for each type(error, warning, exception)
-    fn theme(&self) -> &Theme;
     /// The block name the error caused.
     /// This will be None if the error occurred before semantic analysis.
-    /// As for the internal error, do not put the fn name here.
     fn caused_by(&self) -> &str;
     /// the previous error that caused this error.
     fn ref_inner(&self) -> Option<&Self>;
@@ -539,246 +726,42 @@ pub trait ErrorDisplay {
     }
 
     fn show(&self) -> String {
-        let theme = self.theme();
-        let ((color, mark), kind) = if self.core().kind.is_error() {
-            (theme.error(), "Error")
-        } else if self.core().kind.is_warning() {
-            (theme.warning(), "Warning")
-        } else {
-            (theme.exception(), "Exception")
-        };
-
-        let (gutter_color, chars) = theme.characters();
-        let kind = StyledString::new(
-            &chars.error_kind_format(kind, self.core().errno),
-            Some(color),
-            Some(Attribute::Bold),
-        );
-
-        //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
-        if let Some(hint) = self.core().hint.as_ref() {
-            let (hint_color, _) = theme.hint();
-            let mut hints = StyledStrings::default();
-            hints.push_str_with_color_and_attribute("hint: ", hint_color, Attribute::Bold);
-            hints.push_str(hint);
-            format!(
-                "\
-{}
-{}{}: {}
-
-{}
-
-",
-                self.format_header(kind),
-                self.format_code_and_pointer(color, gutter_color, mark, chars),
-                self.core().kind,
-                self.core().desc,
-                hints,
-            )
-        } else {
-            format!(
-                "\
-{}
-{}{}: {}
-
-",
-                self.format_header(kind),
-                self.format_code_and_pointer(color, gutter_color, mark, chars),
-                self.core().kind,
-                self.core().desc,
-            )
+        let core = self.core();
+        let (color, mark) = core.specified_theme();
+        let (gutter_color, chars) = core.theme.characters();
+        let mut msg = String::new();
+        msg += &core.fmt_header(color, self.caused_by(), self.input().enclosed_name());
+        msg += "\n\n";
+        for sub_msg in &core.sub_messages {
+            msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
+        msg += &core.main_message;
+        msg += "\n\n";
+        msg
     }
 
     /// for fmt::Display
     fn format(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let theme = self.theme();
-        let ((color, mark), kind) = if self.core().kind.is_error() {
-            (theme.error(), "Error")
-        } else if self.core().kind.is_warning() {
-            (theme.warning(), "Warning")
-        } else {
-            (theme.exception(), "Exception")
-        };
-        let (gutter_color, chars) = theme.characters();
-        let kind = StyledString::new(
-            &chars.error_kind_format(kind, self.core().errno),
-            Some(color),
-            Some(Attribute::Bold),
-        );
-
-        //  When hint is None, hint desc is "" and empty line is displayed, but hint is Some(...), hint desc is "..." and filled by text
-        if let Some(hint) = self.core().hint.as_ref() {
-            let (hint_color, _) = theme.hint();
-            let mut hints = StyledStrings::default();
-            hints.push_str_with_color_and_attribute("hint: ", hint_color, Attribute::Bold);
-            hints.push_str(hint);
-            writeln!(
+        let core = self.core();
+        let (color, mark) = core.specified_theme();
+        let (gutter_color, chars) = core.theme.characters();
+        write!(
+            f,
+            "{}\n\n",
+            core.fmt_header(color, self.caused_by(), self.input().enclosed_name())
+        )?;
+        for sub_msg in &core.sub_messages {
+            write!(
                 f,
-                "\
-{}
-{}{}: {}
-
-{}
-
-",
-                self.format_header(kind),
-                self.format_code_and_pointer(color, gutter_color, mark, chars),
-                self.core().kind,
-                self.core().desc,
-                hints,
-            )?;
-        } else {
-            writeln!(
-                f,
-                "\
-{}
-{}{}: {}
-
-",
-                self.format_header(kind),
-                self.format_code_and_pointer(color, gutter_color, mark, chars),
-                self.core().kind,
-                self.core().desc,
+                "{}",
+                &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars)
             )?;
         }
+        write!(f, "{}\n\n", core.main_message)?;
         if let Some(inner) = self.ref_inner() {
             inner.format(f)
         } else {
             Ok(())
-        }
-    }
-
-    fn format_header(&self, kind: StyledString) -> String {
-        let loc = match self.core().loc {
-            Location::Range {
-                ln_begin, ln_end, ..
-            } if ln_begin == ln_end => format!(", line {ln_begin}"),
-            Location::Range {
-                ln_begin, ln_end, ..
-            }
-            | Location::LineRange(ln_begin, ln_end) => format!(", line {ln_begin}..{ln_end}"),
-            Location::RangePair {
-                ln_first: (l1, l2),
-                ln_second: (l3, l4),
-                ..
-            } => format!(", line {l1}..{l2}, {l3}..{l4}"),
-            Location::Line(lineno) => format!(", line {lineno}"),
-            Location::Unknown => "".to_string(),
-        };
-        let caused_by = if self.caused_by() != "" {
-            format!(", in {}", self.caused_by())
-        } else {
-            "".to_string()
-        };
-        format!(
-            "{kind}: File {input}{loc}{caused_by}\n",
-            input = self.input().enclosed_name(),
-        )
-    }
-
-    fn format_code_and_pointer(
-        &self,
-        err_color: Color,
-        gutter_color: Color,
-        mark: char,
-        chars: &Characters,
-    ) -> String {
-        match self.core().loc {
-            // TODO: Current implementation does not allow for multiple descriptions of errors to be given at each location
-            // In the future, this will be implemented in a different structure that can handle multiple lines and files
-            Location::RangePair {
-                ln_first,
-                col_first,
-                ln_second,
-                col_second,
-            } => {
-                format_context(
-                    self,
-                    ln_first.0,
-                    ln_first.1,
-                    col_first.0,
-                    col_first.1,
-                    err_color,
-                    gutter_color,
-                    chars,
-                    mark,
-                ) +
-                "\n" // TODO: dealing with error chains
-                    + &format_context(
-                        self,
-                        ln_second.0,
-                        ln_second.1,
-                        col_second.0,
-                        col_second.1,
-                    err_color,
-                    gutter_color,
-                        chars,
-                        mark,
-                    )
-            }
-            Location::Range {
-                ln_begin,
-                col_begin,
-                ln_end,
-                col_end,
-            } => format_context(
-                self,
-                ln_begin,
-                ln_end,
-                col_begin,
-                col_end,
-                err_color,
-                gutter_color,
-                chars,
-                mark,
-            ),
-            Location::LineRange(ln_begin, ln_end) => {
-                let (_, vbar) = chars.gutters();
-                let mut cxt = StyledStrings::default();
-                let codes = if self.input().is_repl() {
-                    vec![self.input().reread()]
-                } else {
-                    self.input().reread_lines(ln_begin, ln_end)
-                };
-                let mark = mark.to_string();
-                for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-                    cxt.push_str_with_color(&format!("{lineno} {}", vbar), err_color);
-                    cxt.push_str(&codes[i]);
-                    cxt.push_str("\n");
-                    cxt.push_str(&" ".repeat(lineno.to_string().len() + 3)); // +3 means ` | `
-                    cxt.push_str_with_color(
-                        &mark.repeat(cmp::max(1, codes[i].len())),
-                        gutter_color,
-                    );
-                    cxt.push_str("\n");
-                }
-                cxt.to_string()
-            }
-            Location::Line(lineno) => {
-                let (_, vbar) = chars.gutters();
-                let code = if self.input().is_repl() {
-                    self.input().reread()
-                } else {
-                    self.input().reread_lines(lineno, lineno).remove(0)
-                };
-                let mut cxt = StyledStrings::default();
-                cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
-                cxt.push_str(&code);
-                cxt.push_str("\n");
-                cxt.to_string()
-            }
-            Location::Unknown => match self.input() {
-                Input::File(_) => "\n".to_string(),
-
-                other => {
-                    let (_, vbar) = chars.gutters();
-                    let mut cxt = StyledStrings::default();
-                    cxt.push_str_with_color(&format!(" ? {}", vbar), gutter_color);
-                    cxt.push_str(&other.reread());
-                    cxt.to_string()
-                }
-            },
         }
     }
 }

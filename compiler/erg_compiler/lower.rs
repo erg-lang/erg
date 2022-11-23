@@ -191,7 +191,7 @@ impl ASTLowerer {
                         "traditional_chinese" => "如果您不想使用該值，請使用discard函數",
                         "english" => "if you don't use the value, use discard function",
                     )
-                    .into(),
+                    .to_owned(),
                 ),
             ))
         } else {
@@ -266,7 +266,8 @@ impl ASTLowerer {
                         "simplified_chinese" => "数组元素必须全部是相同类型",
                         "traditional_chinese" => "數組元素必須全部是相同類型",
                         "english" => "all elements of an array must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -274,7 +275,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "請明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -412,7 +413,8 @@ impl ASTLowerer {
                         "simplified_chinese" => "集合元素必须全部是相同类型",
                         "traditional_chinese" => "集合元素必須全部是相同類型",
                         "english" => "all elements of a set must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -420,7 +422,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -538,7 +540,8 @@ impl ASTLowerer {
                         "simplified_chinese" => "Dict的值必须是同一类型",
                         "traditional_chinese" => "Dict的值必須是同一類型",
                         "english" => "Values of Dict must be the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -546,7 +549,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -692,7 +695,7 @@ impl ASTLowerer {
                     line!() as usize,
                     call.args.loc(),
                     self.ctx.caused_by(),
-                    "invalid assert casting type",
+                    "invalid assert casting type".to_owned(),
                     None,
                 )));
             }
@@ -751,7 +754,7 @@ impl ASTLowerer {
                         line!() as usize,
                         other.loc(),
                         self.ctx.caused_by(),
-                        "",
+                        "".to_owned(),
                         None,
                     )))
                 }
