@@ -463,6 +463,8 @@ impl SubMessage {
         self.hint
     }
 
+    // Line breaks are not included except for line breaks that signify the end of a sentence.
+    // In other words, do not include blank lines for formatting purposes.
     fn format_code_and_pointer<E: ErrorDisplay + ?Sized>(
         &self,
         e: &E,
@@ -512,7 +514,7 @@ impl SubMessage {
                     cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
                     cxt.push_str("\n");
                 }
-                cxt.push_str("\n\n");
+                cxt.push_str("\n");
                 for msg in self.msg.iter() {
                     cxt.push_str(msg);
                     cxt.push_str("\n");
@@ -534,7 +536,7 @@ impl SubMessage {
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
                 cxt.push_str(&code);
-                cxt.push_str("\n\n");
+                cxt.push_str("\n");
                 for msg in self.msg.iter() {
                     cxt.push_str(msg);
                     cxt.push_str("\n");
@@ -553,7 +555,7 @@ impl SubMessage {
                     let mut cxt = StyledStrings::default();
                     cxt.push_str_with_color(&format!(" ? {} ", vbar), gutter_color);
                     cxt.push_str(&other.reread());
-                    cxt.push_str("\n\n");
+                    cxt.push_str("\n");
                     for msg in self.msg.iter() {
                         cxt.push_str(msg);
                         cxt.push_str("\n");
