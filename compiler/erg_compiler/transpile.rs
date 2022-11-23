@@ -65,8 +65,14 @@ impl Runnable for Transpiler {
     #[inline]
     fn finish(&mut self) {}
 
+    fn initialize(&mut self) {
+        self.builder.initialize();
+        // mod_cache will be cleared by the builder
+        // self.mod_cache.initialize();
+    }
+
     fn clear(&mut self) {
-        // self.builder.clear();
+        self.builder.clear();
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {

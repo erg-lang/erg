@@ -36,6 +36,9 @@ impl Runnable for LexerRunner {
     fn finish(&mut self) {}
 
     #[inline]
+    fn initialize(&mut self) {}
+
+    #[inline]
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {

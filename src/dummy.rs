@@ -100,6 +100,10 @@ impl Runnable for DummyVM {
         }
     }
 
+    fn initialize(&mut self) {
+        self.compiler.initialize();
+    }
+
     fn clear(&mut self) {
         self.compiler.clear();
     }

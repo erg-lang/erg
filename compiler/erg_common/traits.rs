@@ -357,6 +357,9 @@ pub trait Runnable: Sized + Default {
     fn new(cfg: ErgConfig) -> Self;
     fn cfg(&self) -> &ErgConfig;
     fn finish(&mut self); // called when the :exit command is received.
+    /// Erase all but immutable information.
+    fn initialize(&mut self);
+    /// Erase information that will no longer be meaningful in the next iteration
     fn clear(&mut self);
     fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
     fn exec(&mut self) -> Result<i32, Self::Errs>;

@@ -201,4 +201,16 @@ impl SharedModuleCache {
     pub fn get_similar_name(&self, name: &str) -> Option<Str> {
         self.0.borrow().get_similar_name(name)
     }
+
+    pub fn initialize(&mut self) {
+        let builtin_path = PathBuf::from("<builtins>");
+        let builtin = self.remove(&builtin_path).unwrap();
+        for path in self.0.borrow().cache.keys() {
+            self.remove(path);
+        }
+        /*for path in self.0.borrow().cache.keys().cloned() {
+            self.remove(&path);
+        }*/
+        self.register(builtin_path, None, Rc::try_unwrap(builtin.ctx).unwrap());
+    }
 }

@@ -129,7 +129,14 @@ impl Runnable for Compiler {
     #[inline]
     fn finish(&mut self) {}
 
+    fn initialize(&mut self) {
+        self.builder.initialize();
+        self.code_generator.clear();
+        // .mod_cache will be initialized in .builder
+    }
+
     fn clear(&mut self) {
+        self.builder.clear();
         self.code_generator.clear();
     }
 

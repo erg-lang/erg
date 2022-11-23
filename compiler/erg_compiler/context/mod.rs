@@ -900,6 +900,29 @@ impl Context {
         }
     }
 
+    /// This method is intended to be called __only__ in the top-level module.
+    /// `.cfg` is not initialized and is used around.
+    pub fn initialize(&mut self) {
+        let mut mod_cache = mem::take(&mut self.mod_cache);
+        if let Some(mod_cache) = &mut mod_cache {
+            mod_cache.initialize();
+        }
+        let mut py_mod_cache = mem::take(&mut self.py_mod_cache);
+        if let Some(py_mod_cache) = &mut py_mod_cache {
+            py_mod_cache.initialize();
+        }
+        *self = Self::new(
+            self.name.clone(),
+            self.cfg.clone(),
+            self.kind.clone(),
+            vec![],
+            None,
+            mod_cache,
+            py_mod_cache,
+            self.level,
+        );
+    }
+
     pub(crate) fn grow(
         &mut self,
         name: &str,

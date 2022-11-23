@@ -84,6 +84,12 @@ impl Runnable for ASTLowerer {
     #[inline]
     fn finish(&mut self) {}
 
+    fn initialize(&mut self) {
+        self.ctx.initialize();
+        self.errs.clear();
+        self.warns.clear();
+    }
+
     fn clear(&mut self) {
         self.errs.clear();
         self.warns.clear();

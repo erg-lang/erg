@@ -45,7 +45,15 @@ impl Runnable for HIRBuilder {
     #[inline]
     fn finish(&mut self) {}
 
-    fn clear(&mut self) {}
+    fn initialize(&mut self) {
+        self.lowerer.initialize();
+        self.ownership_checker = OwnershipChecker::new(self.cfg().copy());
+    }
+
+    fn clear(&mut self) {
+        self.lowerer.clear();
+        self.ownership_checker = OwnershipChecker::new(self.cfg().copy());
+    }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
