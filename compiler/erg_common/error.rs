@@ -659,7 +659,7 @@ impl ErrorCore {
         };
         let kind = self.theme.characters.error_kind_format(kind, self.errno);
         format!(
-            "{kind}: File {input}{loc}{caused_by}",
+            "{kind}: File {input}{loc}, {caused_by}",
             kind = StyledStr::new(&kind, Some(color), Some(Attribute::Bold))
         )
     }
