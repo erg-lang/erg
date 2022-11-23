@@ -241,8 +241,7 @@ impl Context {
         match subr {
             ConstSubr::User(_user) => todo!(),
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
-                // TODO: Is it possible to get 0?
-                e.0.sub_messages.get_mut(0).unwrap().loc = loc;
+                e.0.loc = loc;
                 EvalErrors::from(EvalError::new(
                     *e.0,
                     self.cfg.input.clone(),
