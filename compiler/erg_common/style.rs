@@ -477,10 +477,7 @@ impl StyledStrings {
     /// Returns False if any string is present.
     ///
     pub fn is_empty(&self) -> bool {
-        self.texts
-            .iter()
-            .inspect(|x| println!("{:#?}", x))
-            .all(|s| s.is_empty())
+        self.texts.iter().all(|s| s.is_empty())
     }
 
     fn is_same_color(&self, color: Color) -> bool {
