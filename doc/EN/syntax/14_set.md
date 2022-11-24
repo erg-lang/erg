@@ -24,7 +24,7 @@ In addition, only objects that implement the `Eq` trait can be elements of the S
 
 Therefore, it is not possible to use the Set elements such as a Float.
 
-```python
+```python,compile_fail
 d = {0.0, 1.0} # NG
 # [
 1│ d = {0.0, 1.0}

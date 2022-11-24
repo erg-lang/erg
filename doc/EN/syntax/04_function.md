@@ -52,6 +52,12 @@ Also, you cannot use `:` immediately after a function. Only `do` and `do!` can d
 f:
     x
     y
+
+# Ok
+f(
+    x,
+    y
+)
 ```
 
 ## Keyword Arguments

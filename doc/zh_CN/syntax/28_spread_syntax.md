@@ -15,13 +15,11 @@ assert y == (2, 3)
 
 ## 提取赋值
 
-如果在 `...` 之后没有写入任何内容，则忽略并分配剩余的元素。这种类型的赋值具体称为提取赋值
 提取分配是一种方便的语法，用于本地化模块或记录中的特定属性
 
 ```python
-{sin; cos; tan; ..} = import "math"
+{sin; cos; tan} = import "math"
 ```
-
 
 之后，您可以在本地使用`sin，cos，tan`
 
@@ -29,7 +27,7 @@ assert y == (2, 3)
 
 ```python
 record = {x = 1; y = 2}
-{x; y; ...} = record
+{x; y} = record
 ```
 
 如果要全部展开，请使用`{*}=record`。它在OCaml中是`open`。

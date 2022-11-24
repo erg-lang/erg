@@ -82,7 +82,7 @@ peek_str s
 借用した値は元のオブジェクトに対する __参照__ と呼ばれます。
 参照をまた別のサブルーチンに渡す「又貸し」はできますが、借りているだけなので消費することはできません。
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # log関数は引数を借用するだけなので、又貸しできる
     log s
@@ -91,7 +91,7 @@ steal_str ref(s: Str!) =
     # hint: use `clone` method
 ```
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # これもエラー(=は右辺を消費する)
     x = s # OwnershipError: cannot consume a borrowed value

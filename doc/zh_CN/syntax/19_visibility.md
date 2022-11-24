@@ -11,7 +11,7 @@ Erg 变量具有 __visibility__ 的概念
 x = "this is an invisible variable"
 ```
 
-```python
+```python,compile_fail
 # bar.er
 foo = import "foo"
 foo.x # AttributeError: 模块 'foo' 没有属性 'x' ('x' 是私有的)
@@ -126,7 +126,7 @@ foo.public() # 属性错误: "Foo"没有属性"public"("public"在模块"bar"中
 此外，方法不能在要重新导出的类型中定义
 这是为了避免混淆方法是否找到，具体取决于导入方法的模块
 
-```python
+```python,compile_fail
 # bar.er
 {.Foo; ...} = import "foo"
 

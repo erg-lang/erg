@@ -91,7 +91,7 @@ assert i == 2
 
 これはセミコロン(`;`)では実現できません。
 
-```python
+```python,compile_fail
 i = (x = 1; x + 1) # SyntaxError:  cannot use `;` in parentheses
 ```
 

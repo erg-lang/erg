@@ -71,7 +71,6 @@ Unit is a superclass of all tuples.
 The use of this object is for procedures with no arguments and no return value, etc. Erg subroutines must have arguments and a return value. However, in some cases, such as a procedure, there may be no meaningful arguments or return value, only side effects. In such cases, we use units as "meaningless, formal values.
 
 ```python
-# ↓ Actually, this parenthesis is a unit
 p!() =.
     # `print!` does not return a meaningful value
     print! "Hello, world!"

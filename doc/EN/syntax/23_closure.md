@@ -25,7 +25,7 @@ assert sum == 46
 Note, however, that functions cannot capture mutable objects.
 If a mutable object can be referenced in a function, you can write code like the following.
 
-```python
+```python,compile_fail
 # !!! This code actually gives an error !!!
 i = !0
 f x = i + x

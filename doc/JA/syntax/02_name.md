@@ -33,7 +33,7 @@ l2 = l1.clone()
 
 また、変数への再代入もできません。その代わりに使える機能、すなわち可変な状態を保持する機能については後述します。
 
-```python
+```python,compile_fail
 i = 1
 i = i + 1 # AssignError: cannot assign twice
 ```

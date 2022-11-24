@@ -16,7 +16,7 @@ assert mut_a == [2, 2, 3]
 
 As a rule, arrays cannot contain objects of different types.
 
-```python.
+```python,compile_fail
 [1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
 ```
 

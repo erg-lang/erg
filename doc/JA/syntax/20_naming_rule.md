@@ -24,7 +24,7 @@ match c:
 
 属性を外部に公開したい場合は、初めに`.`をつけて定義します。`.`を初めにつけなかった場合は非公開になります。混乱を避けるため同一のスコープ内で共存はできません。
 
-```python
+```python,compile_fail
 o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
 ```
 

@@ -18,7 +18,7 @@ assert mut_a == [2, 2, 3]
 
 配列には、原則として違う型のオブジェクトを入れることはできません。
 
-```python
+```python,compile_fail
 [1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
 ```
 

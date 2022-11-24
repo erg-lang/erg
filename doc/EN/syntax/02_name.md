@@ -31,7 +31,7 @@ l2 = l1.clone()
 
 It is also not possible to reassign to a variable. The syntax that can be used instead, to hold mutable states, are described later.
 
-```python
+```python,compile_fail
 i = 1
 i = i + 1 # AssignError: cannot assign twice
 ```

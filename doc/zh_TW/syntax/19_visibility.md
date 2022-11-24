@@ -11,7 +11,7 @@ Erg 變量具有 __visibility__ 的概念
 x = "this is an invisible variable"
 ```
 
-```python
+```python,compile_fail
 # bar.er
 foo = import "foo"
 foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
@@ -126,7 +126,7 @@ foo.public() # 屬性錯誤: "Foo"沒有屬性"public"("public"在模塊"bar"中
 此外，方法不能在要重新導出的類型中定義
 這是為了避免混淆方法是否找到，具體取決于導入方法的模塊
 
-```python
+```python,compile_fail
 # bar.er
 {.Foo; ...} = import "foo"
 

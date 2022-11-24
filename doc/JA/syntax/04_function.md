@@ -54,6 +54,12 @@ result = if Bool.sample!():
 f:
     x
     y
+
+# Ok
+f(
+    x,
+    y
+)
 ```
 
 ## キーワード引数

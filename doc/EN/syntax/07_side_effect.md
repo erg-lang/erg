@@ -2,7 +2,7 @@
 
 We have been neglecting to explain the meaning of the `!`, but now its meaning will finally be revealed. This `!` indicates that this object is a "procedure" with a "side-effect". A procedure is a function with a side-effect.
 
-```python
+```python,compile_fail
 f x = print! x # EffectError: functions cannot be assigned objects with side effects
 # hint: change the name to 'f!'
 ```
@@ -21,7 +21,7 @@ Procedures defined in this way also cannot be used within a function, so side-ef
 Functions and procedures each can be methods. Functional methods can only take immutable references to `self`, while procedural methods can take mutable references to `self`.
 The `self` is a special parameter, which in the context of a method refers to the calling object itself. The reference `self` cannot be assigned to any other variable.
 
-```python
+```python,compile_fail
 C!.
     method ref self =
         x = self # OwnershipError: cannot move out 'self'
@@ -30,7 +30,7 @@ C!.
 
 Procedural methods can also take [ownership](./18_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
 
-```python
+```python,compile_fail
 n = 1
 s = n.into(Str) # '1'
 n # ValueError: n was moved by .into (line 2)

@@ -11,7 +11,7 @@ Ergの変数には __可視性__ という概念が存在します。
 x = "this is an invisible variable"
 ```
 
-```python
+```python,compile_fail
 # bar.er
 foo = import "foo"
 foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
@@ -126,7 +126,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 また、Re-exportする型にメソッドを定義することはできません。
 インポート元のモジュールによってメソッドが見つかったり見つからなかったりといった混乱を防ぐためです。
 
-```python
+```python,compile_fail
 # bar.er
 {.Foo; ...} = import "foo"
 

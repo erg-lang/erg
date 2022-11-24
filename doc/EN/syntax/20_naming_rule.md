@@ -22,7 +22,7 @@ match c:
 
 If you want to expose an attribute to the outside world, define it with `.` at the beginning. If you don't put `.` at the beginning, it will be private. To avoid confusion, they cannot coexist within the same scope.
 
-```python
+```python,compile_fail
 o = {x = 1; .x = 2} # SyntaxError: private and public variables with the same name cannot coexist
 ```
 

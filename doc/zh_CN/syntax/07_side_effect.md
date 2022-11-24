@@ -4,7 +4,7 @@
 
 我们一直忽略了解释"！"的含义，但现在它的含义终于要揭晓了。这个 `!` 表示这个对象是一个带有"副作用"的"过程"。过程是具有副作用的函数
 
-```python
+```python,compile_fail
 f x = print! x # EffectError: 不能为函数分配有副作用的对象
 # 提示: 将名称更改为 'f!'
 ```
@@ -23,7 +23,7 @@ p! x = print! x
 函数和过程中的每一个都可以是方法。函数式方法只能对`self`进行不可变引用，而程序性方法可以对`self`进行可变引用
 `self` 是一个特殊的参数，在方法的上下文中是指调用对象本身。引用 `self` 不能分配给任何其他变量
 
-```python
+```python,compile_fail
 C!.
     method ref self =
         x = self # 所有权错误: 无法移出`self`
@@ -32,7 +32,7 @@ C!.
 
 程序方法也可以采取 `self` 的 [ownership](./18_ownership.md)。从方法定义中删除 `ref` 或 `ref!`
 
-```python
+```python,compile_fail
 n = 1
 s = n.into(Str) # '1'
 n # 值错误: n 被 .into 移动(第 2 行)

@@ -26,7 +26,7 @@ but found: Set({0, }, 1)
 
 因此，不可能使用Floats等作为集合元素
 
-```python
+```python,compile_fail
 d = {0.0, 1.0} # NG
 # [
 1│ d = {0.0, 1.0}

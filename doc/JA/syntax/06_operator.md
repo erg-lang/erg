@@ -19,7 +19,7 @@ assert g(1, 2) == 2
 
 ただし、特殊形式と呼ばれる一部の演算子は束縛できないことに注意してください。
 
-```python
+```python,compile_fail
 def = `=` # SyntaxError: cannot bind `=` operator, this is a special form
 # NG: def x, 1
 function = `->` # SyntaxError: cannot bind `->` operator, this is a special form
