@@ -822,7 +822,7 @@ impl Context {
             "times!",
             pr_met(
                 Nat,
-                vec![kw("proc", nd_proc(vec![], None, NoneType))],
+                vec![kw("proc!", nd_proc(vec![], None, NoneType))],
                 None,
                 vec![],
                 NoneType,
@@ -1284,7 +1284,7 @@ impl Context {
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         obj_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Obj));
-        let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
+        let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));
         let t = pr_met(
             ref_mut(mono("Obj!"), None),
             vec![f_t],
@@ -1299,7 +1299,7 @@ impl Context {
         float_mut.register_superclass(Float, &float);
         let mut float_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         float_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Float));
-        let f_t = kw("f", func(vec![kw("old", Float)], None, vec![], Float));
+        let f_t = kw("func", func(vec![kw("old", Float)], None, vec![], Float));
         let t = pr_met(
             ref_mut(mono("Float!"), None),
             vec![f_t],
@@ -1314,7 +1314,7 @@ impl Context {
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Ratio));
-        let f_t = kw("f", func(vec![kw("old", Ratio)], None, vec![], Ratio));
+        let f_t = kw("func", func(vec![kw("old", Ratio)], None, vec![], Ratio));
         let t = pr_met(
             ref_mut(mono("Ratio!"), None),
             vec![f_t],
@@ -1330,7 +1330,7 @@ impl Context {
         int_mut.register_superclass(mono("Float!"), &float_mut);
         let mut int_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         int_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Int));
-        let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
+        let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));
         let t = pr_met(
             ref_mut(mono("Int!"), None),
             vec![f_t],
@@ -1346,7 +1346,7 @@ impl Context {
         /* Nat! */
         let mut nat_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         nat_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Nat));
-        let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
+        let f_t = kw("func", func(vec![kw("old", Nat)], None, vec![], Nat));
         let t = pr_met(
             ref_mut(mono("Nat!"), None),
             vec![f_t],
@@ -1362,7 +1362,7 @@ impl Context {
         bool_mut.register_superclass(mono("Nat!"), &nat_mut);
         let mut bool_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         bool_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Bool));
-        let f_t = kw("f", func(vec![kw("old", Bool)], None, vec![], Bool));
+        let f_t = kw("func", func(vec![kw("old", Bool)], None, vec![], Bool));
         let t = pr_met(
             ref_mut(mono("Bool!"), None),
             vec![f_t],
@@ -1377,7 +1377,7 @@ impl Context {
         str_mut.register_superclass(Str, &nonetype);
         let mut str_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         str_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Str));
-        let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
+        let f_t = kw("func", func(vec![kw("old", Str)], None, vec![], Str));
         let t = pr_met(
             ref_mut(mono("Str!"), None),
             vec![f_t],
@@ -1441,7 +1441,7 @@ impl Context {
         array_mut_.register_builtin_py_impl("push!", t, Immutable, Public, Some("append"));
         let t = pr_met(
             array_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
+            vec![kw("func", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
@@ -1449,7 +1449,7 @@ impl Context {
         .quantify();
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
-            "f",
+            "func",
             func(vec![kw("old", arr_t.clone())], None, vec![], arr_t.clone()),
         );
         let t = pr_met(
@@ -1488,7 +1488,7 @@ impl Context {
         set_mut_.register_builtin_py_impl("add!", t, Immutable, Public, Some("add"));
         let t = pr_met(
             set_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
+            vec![kw("func", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
@@ -1496,7 +1496,7 @@ impl Context {
         .quantify();
         set_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
-            "f",
+            "func",
             func(vec![kw("old", set_t.clone())], None, vec![], set_t.clone()),
         );
         let t = pr_met(
@@ -1934,7 +1934,7 @@ impl Context {
         let t_for = nd_proc(
             vec![
                 kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
-                kw("p", nd_proc(vec![anon(T.clone())], None, NoneType)),
+                kw("proc!", nd_proc(vec![anon(T.clone())], None, NoneType)),
             ],
             None,
             NoneType,
@@ -1945,7 +1945,7 @@ impl Context {
         let t_while = nd_proc(
             vec![
                 kw("cond", Bool), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
-                kw("p", nd_proc(vec![], None, NoneType)),
+                kw("proc!", nd_proc(vec![], None, NoneType)),
             ],
             None,
             NoneType,
@@ -1970,7 +1970,7 @@ impl Context {
         let t_with = nd_proc(
             vec![
                 kw("obj", T.clone()),
-                kw("p!", nd_proc(vec![anon(T)], None, U.clone())),
+                kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
             ],
             None,
             U,
