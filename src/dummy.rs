@@ -172,6 +172,16 @@ impl Runnable for DummyVM {
     }
 }
 
+impl DummyVM {
+    pub fn exec(&mut self) -> Result<i32, EvalErrors> {
+        Runnable::exec(self)
+    }
+
+    pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
+        Runnable::eval(self, src)
+    }
+}
+
 fn find_available_port() -> u16 {
     const DEFAULT_PORT: u16 = 8736;
     TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, DEFAULT_PORT))

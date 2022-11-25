@@ -52,12 +52,8 @@ erg_common = { version = "0.5.12", path = "./compiler/erg_common" }
 erg_parser = { version = "0.5.12", path = "./compiler/erg_parser" }
 erg_compiler = { version = "0.5.12", path = "./compiler/erg_compiler" }
 
-# [workspace]
-# member = ["cm", "dyne"]
+[lib]
+path = "src/lib.rs"
 
 # [profile.release]
 # panic = 'abort'
-
-# [[bin]]
-# name = "cm"
-# path = "src/compiler/main.rs"

@@ -1,6 +1,25 @@
 # Embedding the Erg compiler in your application
 
-Erg has a structure called `Compiler` that represents the compiler, which you can use to embed the Erg compiler in your application.
+It is easy to embed Erg in your application.
+
+```toml
+[dependencies]
+erg = "0.5.12" # choose latest version
+```
+
+```rust
+use erg::DummyVM;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut vm = DummyVM::default();
+    let _res: String = vm.eval("print! \"Hello, world!\"")?;
+    Ok(())
+}
+```
+
+Python is required for execution.
+
+There is also a stand-alone compiler version that is not connected to the runtime.
 
 ```toml
 [dependencies].

@@ -7,7 +7,7 @@ use erg_common::traits::{Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
 
-use erg::dummy::DummyVM;
+use erg::DummyVM;
 
 #[test]
 fn exec_addition() -> Result<(), ()> {

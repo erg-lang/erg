@@ -1,6 +1,25 @@
 # Ergコンパイラのアプリケーションへの組み込み
 
-Ergには`Compiler`というコンパイラを表現する構造体があり、これを使用することで、Ergのコンパイラを自分のアプリケーションに組み込むことができます。
+貴方のアプリケーションへErgを組み込むことは簡単です。
+
+```toml
+[dependencies]
+erg = "0.5.12" # choose latest version
+```
+
+```rust
+use erg::DummyVM;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut vm = DummyVM::default();
+    let _res: String = vm.eval("print! \"Hello, world!\"")?;
+    Ok(())
+}
+```
+
+実行にはPythonが必要です。
+
+ランタイムと接続されないコンパイラ単体のバージョンもあります。
 
 ```toml
 [dependencies]

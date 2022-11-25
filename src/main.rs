@@ -18,7 +18,7 @@ use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
 
-use erg::dummy::DummyVM;
+use erg::DummyVM;
 
 fn run() {
     let cfg = ErgConfig::parse();
