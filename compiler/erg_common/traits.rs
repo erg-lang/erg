@@ -381,19 +381,28 @@ pub trait Runnable: Sized + Default {
     }
 
     #[inline]
-    fn quit(&self, code: i32) {
+    fn quit(&mut self, code: i32) -> ! {
+        self.finish();
         process::exit(code);
     }
 
+    fn quit_successfully(&mut self, mut output: BufWriter<std::io::StdoutLock>) -> ! {
+        self.finish();
+        if !self.cfg().quiet_repl {
+            log!(info_f output, "The REPL has finished successfully.\n");
+        }
+        process::exit(0);
+    }
+
     fn run(cfg: ErgConfig) {
-        let quiet_startup = cfg.quiet_startup;
+        let quiet_repl = cfg.quiet_repl;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
             Input::REPL => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
-                if !quiet_startup {
+                if !quiet_repl {
                     log!(info_f output, "The REPL has started.\n");
                     output
                         .write_all(instance.start_message().as_bytes())
@@ -407,9 +416,7 @@ pub trait Runnable: Sized + Default {
                     let line = chomp(&instance.input().read());
                     match &line[..] {
                         ":quit" | ":exit" => {
-                            instance.finish();
-                            log!(info_f output, "The REPL has finished successfully.\n");
-                            process::exit(0);
+                            instance.quit_successfully(output);
                         }
                         ":clear" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
@@ -454,9 +461,7 @@ pub trait Runnable: Sized + Default {
                                 .map(|e| e.core().kind == ErrorKind::SystemExit)
                                 .unwrap_or(false)
                             {
-                                instance.finish();
-                                log!(info_f output, "The REPL has finished successfully.\n");
-                                process::exit(0);
+                                instance.quit_successfully(output);
                             }
                             errs.fmt_all_stderr();
                         }
@@ -470,7 +475,7 @@ pub trait Runnable: Sized + Default {
         };
         if let Err(e) = res {
             e.fmt_all_stderr();
-            std::process::exit(1);
+            instance.quit(1);
         }
     }
 }

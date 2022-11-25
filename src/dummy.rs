@@ -50,7 +50,7 @@ impl Runnable for DummyVM {
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
-            if !cfg.quiet_startup {
+            if !cfg.quiet_repl {
                 println!("Starting the REPL server...");
             }
             let port = find_available_port();
@@ -58,7 +58,7 @@ impl Runnable for DummyVM {
                 .replace("__PORT__", port.to_string().as_str());
             spawn_py(cfg.py_command, &code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-            if !cfg.quiet_startup {
+            if !cfg.quiet_repl {
                 println!("Connecting to the REPL server...");
             }
             loop {
@@ -70,7 +70,7 @@ impl Runnable for DummyVM {
                         break Some(stream);
                     }
                     Err(_) => {
-                        if !cfg.quiet_startup {
+                        if !cfg.quiet_repl {
                             println!("Retrying to connect to the REPL server...");
                         }
                         sleep(Duration::from_millis(500));
@@ -94,7 +94,7 @@ impl Runnable for DummyVM {
             match stream.read(&mut buf) {
                 Result::Ok(n) => {
                     let s = std::str::from_utf8(&buf[..n]).unwrap();
-                    if s.contains("closed") {
+                    if s.contains("closed") && !self.cfg().quiet_repl {
                         println!("The REPL server is closed.");
                     }
                 }
