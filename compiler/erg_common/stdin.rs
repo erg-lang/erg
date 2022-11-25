@@ -49,4 +49,8 @@ impl GlobalStdin {
         self.0
             .with(|s| s.borrow_mut().reread_lines(ln_begin, ln_end))
     }
+
+    pub fn repl_lineno(&'static self) -> usize {
+        self.0.with(|s| s.borrow().lineno)
+    }
 }

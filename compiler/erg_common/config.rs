@@ -106,7 +106,20 @@ impl Input {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
+            Self::REPL => {
+                let ln = GLOBAL_STDIN.repl_lineno();
+                // when ln_end = 1, error location is one line
+                let lines = if ln_begin == ln_end && ln_end == 1 {
+                    vec![GLOBAL_STDIN.reread()]
+                } else {
+                    // Rows are greater than or equal to 1, but vectors start at 0, so plus one.
+                    GLOBAL_STDIN.reread_lines(ln - ln_end + 1, ln - ln_begin + 1)
+                };
+                lines
+                    .into_iter()
+                    .map(|ln| ln.trim_end().to_owned())
+                    .collect::<Vec<String>>()
+            }
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
     }
