@@ -22,7 +22,7 @@ In the class above, the `.new` method is defined so that field names, etc. can b
 
 Note that the following definition without line breaks will result in a syntax error.
 
-```python
+```python,compile_fail
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 

@@ -43,7 +43,7 @@ g v: [T; _] = ...
 
 ただし、型指定の箇所で`_`を指定するとそれは`Object`を意味することに注意して下さい。
 
-```python
+```python,compile_fail
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 

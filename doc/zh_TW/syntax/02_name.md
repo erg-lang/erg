@@ -139,7 +139,7 @@ assert x ! = x
 
 還有其他對象首先沒有定義等價關系
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # 類型錯誤: 無法比較函數對象

@@ -139,7 +139,7 @@ assert x ! = x
 
 还有其他对象首先没有定义等价关系
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # 类型错误: 无法比较函数对象

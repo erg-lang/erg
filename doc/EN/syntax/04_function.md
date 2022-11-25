@@ -177,7 +177,7 @@ f x: Int or Str = ...
 
 Also, like `match`, it must also be exhaustive.
 
-```python
+```python,compile_fail
 fib 0 = 0
 fib 1 = 1
 # PatternError: pattern of fib's parameter is not exhaustive

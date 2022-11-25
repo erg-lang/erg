@@ -41,7 +41,7 @@ g v: [T; _] = ...
 
 Note, however, `_` at a type specification implies `Object`.
 
-```python
+```python,compile_fail
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 

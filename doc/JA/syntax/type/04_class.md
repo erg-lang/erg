@@ -24,7 +24,7 @@ print! classof(john) # Person
 
 以下のように改行せず定義すると文法エラーになるので注意してください。
 
-```python
+```python,compile_fail
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 

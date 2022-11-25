@@ -15,11 +15,9 @@ assert {1, 2} == {2, 1}
 ```python
 a: {Int; 3} = {0, 1, 2} # OK
 b: {Int; 3} = {0, 0, 0} # NG，重復的內容被刪除，長度也會改變
-# [
-TypeError: the type of b is mismatched
-expected:  Set(Int, 3)
-but found: Set({0, }, 1)
-]# 
+# TypeError: the type of b is mismatched
+# expected:  Set(Int, 3)
+# but found: Set({0, }, 1)
 ```
 
 此外，只有實現`Eq`跟蹤的對象才能成為集合的元素
@@ -28,13 +26,12 @@ but found: Set({0, }, 1)
 
 ```python,compile_fail
 d = {0.0, 1.0} # NG
-# [
-1│ d = {0.0, 1.0}
-        ^^^^^^^^
-TypeError: the type of _ is mismatched:
-expected:  Eq(Float)
-but found: {0.0, 1.0, }
-]# 
+#
+# 1│ d = {0.0, 1.0}
+#         ^^^^^^^^
+# TypeError: the type of _ is mismatched:
+# expected:  Eq(Float)
+# but found: {0.0, 1.0, }
 ```
 
 Set可以執行集合操作

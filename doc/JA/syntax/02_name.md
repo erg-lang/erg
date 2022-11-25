@@ -121,7 +121,7 @@ f(2) # NameError: f is not defined (deleted in line 6)
 
 ただし、`Del`によって削除できるのはモジュール内で定義された代数のみです。`True`などの組み込み定数は削除できません。
 
-```python
+```python,compile_fail
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
@@ -138,7 +138,7 @@ assert x != x
 
 その他、そもそも同値関係が定義されていないオブジェクトも存在する。
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # TypeError: cannot compare function objects

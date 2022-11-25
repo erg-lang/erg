@@ -119,7 +119,7 @@ f(2) # NameError: f is not defined (deleted in line 6)
 
 Note that `Del` can only delete variables defined in the user-defined module. Built-in constants such as `True` cannot be deleted.
 
-```python
+```python,compile_fail
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
@@ -136,7 +136,7 @@ assert x ! = x
 
 There are other objects for which no equivalence relation is defined in the first place.
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # TypeError: cannot compare function objects
