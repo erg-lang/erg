@@ -32,6 +32,12 @@ impl Default for DummyVM {
     }
 }
 
+impl Drop for DummyVM {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
 impl Runnable for DummyVM {
     type Err = EvalError;
     type Errs = EvalErrors;
