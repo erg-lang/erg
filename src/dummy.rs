@@ -173,10 +173,12 @@ impl Runnable for DummyVM {
 }
 
 impl DummyVM {
+    /// Execute the script specified in the configuration.
     pub fn exec(&mut self) -> Result<i32, EvalErrors> {
         Runnable::exec(self)
     }
 
+    /// Evaluates code passed as a string.
     pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         Runnable::eval(self, src)
     }
