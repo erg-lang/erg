@@ -57,7 +57,7 @@ impl Context {
                 &spec_t,
                 body_t,
                 self.get_candidates(body_t),
-                self.get_type_mismatch_hint(&spec_t, body_t),
+                Self::get_type_mismatch_hint(&spec_t, body_t),
             )));
         }
         Ok(())
@@ -256,7 +256,7 @@ impl Context {
                     &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    self.get_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    Self::get_type_mismatch_hint(&mono("LambdaFunc"), t),
                 )));
             }
         }
@@ -1075,7 +1075,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                self.get_type_mismatch_hint(param_t, arg_t),
+                                Self::get_type_mismatch_hint(param_t, arg_t),
                             )
                         })
                         .collect(),
@@ -1130,7 +1130,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                self.get_type_mismatch_hint(param_t, arg_t),
+                                Self::get_type_mismatch_hint(param_t, arg_t),
                             )
                         })
                         .collect(),
@@ -1187,7 +1187,7 @@ impl Context {
                                     pt.typ(),
                                     arg_t,
                                     self.get_candidates(arg_t),
-                                    self.get_type_mismatch_hint(pt.typ(), arg_t),
+                                    Self::get_type_mismatch_hint(pt.typ(), arg_t),
                                 )
                             })
                             .collect(),

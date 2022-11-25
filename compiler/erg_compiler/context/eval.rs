@@ -874,7 +874,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                self.get_no_candidate_hint(&proj),
+                Self::get_no_candidate_hint(&proj),
             )))
         }
     }
@@ -1169,7 +1169,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                self.get_no_candidate_hint(&proj),
+                Self::get_no_candidate_hint(&proj),
             )))
         }
     }

@@ -16,9 +16,9 @@ use erg_common::{
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
-use crate::ty::{Predicate, Type};
-
+use crate::context::Context;
 use crate::hir::{Expr, Identifier, Signature};
+use crate::ty::{Predicate, Type};
 
 pub fn ordinal_num(n: usize) -> String {
     match n.to_string().chars().last().unwrap() {
@@ -972,6 +972,7 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         hint: Option<String>,
     ) -> Self {
+        let hint = hint.or_else(|| Context::get_type_mismatch_hint(trait_, class));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],

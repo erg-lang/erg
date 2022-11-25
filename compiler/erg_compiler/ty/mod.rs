@@ -1779,6 +1779,15 @@ impl Type {
         }
     }
 
+    pub fn union_types(&self) -> Option<(Type, Type)> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
+            Type::Refinement(refine) => refine.t.union_types(),
+            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
+            _ => None,
+        }
+    }
+
     /// assert!((A or B).contains_union(B))
     pub fn contains_union(&self, typ: &Type) -> bool {
         match self {

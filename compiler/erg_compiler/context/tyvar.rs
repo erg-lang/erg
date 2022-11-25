@@ -1285,7 +1285,7 @@ impl Context {
                 maybe_sup,
                 maybe_sub,
                 self.get_candidates(maybe_sub),
-                self.get_type_mismatch_hint(maybe_sup, maybe_sub),
+                Self::get_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
         }
         match (maybe_sub, maybe_sup) {

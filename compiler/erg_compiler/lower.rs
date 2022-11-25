@@ -168,7 +168,7 @@ impl ASTLowerer {
                     expect,
                     found,
                     self.ctx.get_candidates(found),
-                    self.ctx.get_type_mismatch_hint(expect, found),
+                    Context::get_type_mismatch_hint(expect, found),
                 )
             })
     }
