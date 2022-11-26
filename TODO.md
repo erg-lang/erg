@@ -17,7 +17,7 @@
     * [x] % (modulo)
     * [x] comparison
     * [x] ! (mutation)
-    * [x] ..< (right-open range)
+    * [x] .. (range)
   * [ ] Pattern-matching
     * [x] Variable Pattern
     * [x] Literal Pattern
@@ -65,7 +65,7 @@
     * [ ] Dict
     * [ ] Set
     * [ ] Tuple
-  * [ ] Pipeline operator
+  * [x] Pipeline operator
   * [ ] ? operator
   * [x] Multi-line string
   * [ ] String interpolation
@@ -119,7 +119,7 @@
     * [x] Japanese
     * [x] Simplified Chinese
     * [x] Traditional Chinese
-* [ ] Create a playground (uses [pyodide](https://github.com/pyodide/pyodide))
+* [x] Create a playground
 * [ ] Develop the development environment
   * [x] Implement LSP (Language Server Protocol)
   * [x] Implement a syntax highlighter (REPL/debugger built-in)
