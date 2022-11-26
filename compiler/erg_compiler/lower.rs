@@ -735,6 +735,10 @@ impl ASTLowerer {
                 return Err(errs);
             }
         };
+        // Calling get_call_t with incorrect arguments does not provide meaningful information
+        if !errs.is_empty() {
+            return Err(errs);
+        }
         let vi = match self.ctx.get_call_t(
             &obj,
             &call.attr_name,
