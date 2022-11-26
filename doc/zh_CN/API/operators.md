@@ -4,19 +4,19 @@
 
 ## 中缀运算符
 
-### `_+_`|R; O; A <: Add(R, O)|(x: A, y: R) -> O
+### `_+_`|R, O, A <: Add(R, O)|(x: A, y: R) -> O
 
 执行加法
 
-### `_-_`|R; O; S <: Sub(R, O)|(x: S, y: R) -> O
+### `_-_`|R, O, S <: Sub(R, O)|(x: S, y: R) -> O
 
 执行减法
 
-### `*`|R; O; M <: Mul R, O|(x: M, y: R) -> O
+### `*`|R, O, M <: Mul R, O|(x: M, y: R) -> O
 
 执行乘法
 
-### `/`|R; O; D <: Div(R, O)|(x: D, y: R) -> O
+### `/`|R, O, D <: Div(R, O)|(x: D, y: R) -> O
 
 进行除法
 

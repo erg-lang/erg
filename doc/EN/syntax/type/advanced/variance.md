@@ -1,4 +1,4 @@
-# variation
+# Variance
 
 Erg can subtype polymorphic types, but there are some caveats.
 
@@ -39,10 +39,12 @@ And the smaller the output type, the smaller the whole.
 
 As a result, the above policy is equivalent to saying "minimize the type of the function".
 
-## Immutability
+## Non-variance
 
 Erg has another modification. It is non-variance.
-This is a modification that built-in types such as `SharedCell! T!` have. This means that for two types `T!, U!` where `T! != U!`, casts between `SharedCell! T!` and `SharedCell! means that
+This is a modification that built-in types such as `SharedCell! T!` have.
+This means that for two types `T! = U!`, even if there is an inclusion relation, it means that you cannot cast between `SharedCell! T!` and `SharedCell! U!`.
+
 This is because `SharedCell! T!` is a shared reference. See [shared references](shared.md) for details.
 
 ## Mutated generic type
@@ -61,7 +63,7 @@ Mutation specifications can also overlap.
 
 ```python
 # U<A<T
-{... | A<: T; A :> U}
+|A<: T, A :> U| ...
 ```
 
 Here is an example of code that uses a variable specification.

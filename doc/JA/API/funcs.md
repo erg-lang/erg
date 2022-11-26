@@ -6,9 +6,9 @@
 
 ## 基本関数
 
-### if|T; U|(cond: Bool, then: T, else: U := NoneType) -> T or U
+### if|T, U|(cond: Bool, then: T, else: U := NoneType) -> T or U
 
-### map|T; U|(i: Iterable T, f: T -> U) -> Map U
+### map|T, U|(i: Iterable T, f: T -> U) -> Map U
 
 Pythonとは引数の順番が逆なので注意。
 
@@ -67,7 +67,7 @@ for! rep, i =>
 # 1 1 1 1 1 ...
 ```
 
-### dup|T; N|(x: T, N: Nat) -> [T; N]
+### dup|T, N|(x: T, N: Nat) -> [T; N]
 
 ```python
 [a, b, c] = dup new(), 3
@@ -115,7 +115,7 @@ match jan:
 引数の型を返す。実行時のクラスを得たい場合は`classof`を使う。
 型指定に使うとWarningが出る。
 
-```python
+```python,compile_warn
 x: Typeof i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

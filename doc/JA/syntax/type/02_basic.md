@@ -153,7 +153,7 @@ Vector = Array Int
 これは、違う目的の型は別々の型として新しく定義するべき、ということです。
 また、すでにエイリアスのある型に重ねてエイリアスを付けることを防ぐ目的もあります。
 
-```python
+```python,compile_warn
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 

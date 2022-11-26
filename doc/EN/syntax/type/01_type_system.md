@@ -220,7 +220,7 @@ add l: Add, r: Add =
 Also, the types `A` and `B` below are not considered the same type. However, the type `O` is considered to match.
 
 ```python
-... |R1; R2; O; A <: Add(R1, O); B <: Add(R2, O)|
+... |R1, R2, O, A <: Add(R1, O); B <: Add(R2, O)|
 ```
 
 <p align='center'>

@@ -151,7 +151,7 @@ However, only one alias of the same type is allowed per module, and multiple ali
 This means that types with different purposes should be defined as separate types.
 The purpose is also to prevent adding aliases on top of types that already have aliases.
 
-```python
+```python,compile_warn
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 

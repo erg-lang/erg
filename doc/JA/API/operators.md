@@ -4,19 +4,19 @@
 
 ## 中置演算子
 
-### `_+_`|R; O; A <: Add(R, O)|(x: A, y: R) -> O
+### `_+_`|R, O, A <: Add(R, O)|(x: A, y: R) -> O
 
 加算を実行する。
 
-### `_-_`|R; O; S <: Sub(R, O)|(x: S, y: R) -> O
+### `_-_`|R, O, S <: Sub(R, O)|(x: S, y: R) -> O
 
 減算を実行する。
 
-### `*`|R; O; M <: Mul R, O|(x: M, y: R) -> O
+### `*`|R, O, M <: Mul R, O|(x: M, y: R) -> O
 
 乗算を実行する。
 
-### `/`|R; O; D <: Div(R, O)|(x: D, y: R) -> O
+### `/`|R, O, D <: Div(R, O)|(x: D, y: R) -> O
 
 除算を実行する。
 
