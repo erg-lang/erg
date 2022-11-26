@@ -4,11 +4,11 @@ use std::thread::LocalKey;
 
 /// e.g.
 /// ```erg
-/// print! 1
-///
-/// while! False, do!:
-///     print! ""
-///
+/// >>> print! 1
+/// >>>
+/// >>> while! False, do!:
+/// >>>    print! ""
+/// >>>
 /// ```
 /// ↓
 ///
