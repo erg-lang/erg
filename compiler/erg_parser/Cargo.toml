@@ -18,7 +18,7 @@ unicode = ["erg_common/unicode"]
 pretty = ["erg_common/pretty"]
 
 [dependencies]
-erg_common = { version = "0.5.12", path = "../erg_common" }
+erg_common = { version = "0.5.13", path = "../erg_common" }
 
 [lib]
 path = "lib.rs"
