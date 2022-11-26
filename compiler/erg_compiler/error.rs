@@ -682,10 +682,10 @@ passed keyword args:    {kw_args_len}"
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
-                    "japanese" => format!("{name}に渡された引数が{missing_len}個足りません({vec_cxt})" ),
-                    "simplified_chinese" => format!("{name}的{missing_len}个位置参数不被传递({vec_cxt})"),
-                    "traditional_chinese" => format!("{name}的{missing_len}個位置參數不被傳遞({vec_cxt})"),
-                    "english" => format!("missing {missing_len} positional argument(s) for {name}: {vec_cxt}"),
+                    "japanese" => format!("{name}に渡された引数が{missing_len}個足りません\n不足している引数: {vec_cxt}" ),
+                    "simplified_chinese" => format!("{name}的{missing_len}个位置参数不被传递\n缺少的参数: {vec_cxt}" ),
+                    "traditional_chinese" => format!("{name}的{missing_len}個位置參數不被傳遞\n缺少的參數: {vec_cxt}" ),
+                    "english" => format!("missing {missing_len} positional argument(s) for {name}\nmissing: {vec_cxt}"),
                 ),
                 errno,
                 TypeError,
