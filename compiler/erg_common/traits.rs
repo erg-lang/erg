@@ -141,6 +141,20 @@ macro_rules! impl_displayable_stream_for_wrapper {
             }
         }
 
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+
+        impl FromIterator<$Inner> for $Strc {
+            fn from_iter<I: IntoIterator<Item = $Inner>>(iter: I) -> Self {
+                $Strc(iter.into_iter().collect())
+            }
+        }
+
         impl std::fmt::Display for $Strc {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
                 write!(
