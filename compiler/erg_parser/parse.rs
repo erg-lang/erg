@@ -323,6 +323,11 @@ impl Parser {
                     self.restore(nl);
                     break;
                 }
+                // last line dedent without newline
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
                 }
