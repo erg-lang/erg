@@ -6,7 +6,6 @@ use std::io::{stdout, BufWriter, Write};
 use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
-use std::vec::IntoIter;
 
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
@@ -107,11 +106,6 @@ pub trait Stream<T>: Sized {
     #[inline]
     fn iter_mut(&mut self) -> IterMut<'_, T> {
         self.ref_mut_payload().iter_mut()
-    }
-
-    #[inline]
-    fn into_iter(self) -> IntoIter<T> {
-        self.payload().into_iter()
     }
 
     #[inline]
@@ -224,6 +218,20 @@ macro_rules! impl_stream_for_wrapper {
             }
         }
 
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+
+        impl FromIterator<$Inner> for $Strc {
+            fn from_iter<I: IntoIterator<Item = $Inner>>(iter: I) -> Self {
+                $Strc(iter.into_iter().collect())
+            }
+        }
+
         impl $crate::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> {
@@ -269,6 +277,14 @@ macro_rules! impl_stream {
         impl From<$Strc> for Vec<$Inner> {
             fn from(item: $Strc) -> Vec<$Inner> {
                 item.payload()
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
             }
         }
     };

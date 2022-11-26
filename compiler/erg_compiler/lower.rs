@@ -461,7 +461,7 @@ impl ASTLowerer {
         let elems = hir::Args::from(new_set);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &mono("Eq"), elems.loc(), None) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
     }
@@ -565,7 +565,7 @@ impl ASTLowerer {
             let loc = Location::concat(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
             if let Err(errs) = self.ctx.sub_unify(key_t, &mono("Eq"), loc, None) {
-                self.errs.extend(errs.into_iter());
+                self.errs.extend(errs);
             }
         }
         let kv_ts = if union.is_empty() {
@@ -689,6 +689,7 @@ impl ASTLowerer {
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
+        let mut errs = LowerErrors::empty();
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
@@ -716,20 +717,38 @@ impl ASTLowerer {
             paren,
         );
         for arg in pos_args.into_iter() {
-            hir_args.push_pos(hir::PosArg::new(self.lower_expr(arg.expr)?));
+            match self.lower_expr(arg.expr) {
+                Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
+                Err(es) => errs.extend(es),
+            }
         }
         for arg in kw_args.into_iter() {
-            hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr)?));
+            match self.lower_expr(arg.expr) {
+                Ok(expr) => hir_args.push_kw(hir::KwArg::new(arg.keyword, expr)),
+                Err(es) => errs.extend(es),
+            }
         }
-        let mut obj = self.lower_expr(*call.obj)?;
-        let vi = self.ctx.get_call_t(
+        let mut obj = match self.lower_expr(*call.obj) {
+            Ok(obj) => obj,
+            Err(es) => {
+                errs.extend(es);
+                return Err(errs);
+            }
+        };
+        let vi = match self.ctx.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
             &self.ctx.name,
-        )?;
+        ) {
+            Ok(vi) => vi,
+            Err(es) => {
+                errs.extend(es);
+                return Err(errs);
+            }
+        };
         let attr_name = if let Some(attr_name) = call.attr_name {
             Some(hir::Identifier::new(
                 attr_name.dot,
@@ -747,7 +766,7 @@ impl ASTLowerer {
                 let mod_name =
                     enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
                 if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 };
             }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
@@ -771,7 +790,11 @@ impl ASTLowerer {
                 }
             }
         }
-        Ok(call)
+        if errs.is_empty() {
+            Ok(call)
+        } else {
+            Err(errs)
+        }
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -839,10 +862,10 @@ impl ASTLowerer {
         self.ctx.grow(&name, kind, Private, Some(tv_cache));
         let params = self.lower_params(lambda.sig.params)?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         if let Err(errs) = self.ctx.preregister(&lambda.body) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         let body = self.lower_block(lambda.body).map_err(|e| {
             self.pop_append_errs();
@@ -932,7 +955,7 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
         if let Err(errs) = self.ctx.preregister(&body.block) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         match self.lower_block(body.block) {
             Ok(block) => {
@@ -1003,10 +1026,10 @@ impl ASTLowerer {
             Type::Subr(t) => {
                 let params = self.lower_params(sig.params)?;
                 if let Err(errs) = self.ctx.assign_params(&params, Some(t.clone())) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 match self.lower_block(body.block) {
                     Ok(block) => {
@@ -1049,10 +1072,10 @@ impl ASTLowerer {
             Type::Failure => {
                 let params = self.lower_params(sig.params)?;
                 if let Err(errs) = self.ctx.assign_params(&params, None) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 self.ctx.outer.as_mut().unwrap().fake_subr_assign(
                     &sig.ident,
@@ -1163,7 +1186,7 @@ impl ASTLowerer {
                             hir_methods.push(hir::Expr::Def(def));
                         }
                         Err(errs) => {
-                            self.errs.extend(errs.into_iter());
+                            self.errs.extend(errs);
                         }
                     },
                     ast::ClassAttr::Decl(decl) => {
@@ -1834,7 +1857,7 @@ impl ASTLowerer {
                     module.push(chunk);
                 }
                 Err(errs) => {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
             }
         }
@@ -1869,7 +1892,7 @@ impl ASTLowerer {
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
         if let Err(errs) = self.ctx.preregister(ast.module.block()) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {
             match self.lower_expr(chunk) {
@@ -1877,7 +1900,7 @@ impl ASTLowerer {
                     module.push(chunk);
                 }
                 Err(errs) => {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
             }
         }
@@ -1892,7 +1915,7 @@ impl ASTLowerer {
                 hir
             }
             Err((hir, errs)) => {
-                self.errs.extend(errs.into_iter());
+                self.errs.extend(errs);
                 log!(err "the resolving process has failed. errs:  {}", self.errs.len());
                 return Err(IncompleteArtifact::new(
                     Some(hir),

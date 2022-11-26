@@ -887,6 +887,7 @@ impl Context {
                 self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args)
             }
             Type::Subr(subr) => {
+                let mut errs = TyCheckErrors::empty();
                 let is_method = subr.self_t().is_some();
                 let callee = if let Some(ident) = attr_name {
                     if is_method {
@@ -928,55 +929,67 @@ impl Context {
                     let non_default_params = if is_method {
                         let mut non_default_params = subr.non_default_params.iter();
                         let self_pt = non_default_params.next().unwrap();
-                        self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())?;
+                        if let Err(mut es) =
+                            self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())
+                        {
+                            errs.append(&mut es);
+                        }
                         non_default_params
                     } else {
                         subr.non_default_params.iter()
                     };
                     for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
-                        self.substitute_pos_arg(
+                        if let Err(mut es) = self.substitute_pos_arg(
                             &callee,
                             attr_name,
                             &nd_arg.expr,
                             nth,
                             nd_param,
                             &mut passed_params,
-                        )?;
+                        ) {
+                            errs.append(&mut es);
+                        }
                         nth += 1;
                     }
                     if let Some(var_param) = subr.var_params.as_ref() {
                         for var_arg in var_args.iter() {
-                            self.substitute_var_arg(
+                            if let Err(mut es) = self.substitute_var_arg(
                                 &callee,
                                 attr_name,
                                 &var_arg.expr,
                                 nth,
                                 var_param,
-                            )?;
+                            ) {
+                                errs.append(&mut es);
+                            }
                             nth += 1;
                         }
                     } else {
                         for (arg, pt) in var_args.iter().zip(subr.default_params.iter()) {
-                            self.substitute_pos_arg(
+                            if let Err(mut es) = self.substitute_pos_arg(
                                 &callee,
                                 attr_name,
                                 &arg.expr,
                                 nth,
                                 pt,
                                 &mut passed_params,
-                            )?;
+                            ) {
+                                errs.append(&mut es);
+                            }
                             nth += 1;
                         }
                     }
                     for kw_arg in kw_args.iter() {
-                        self.substitute_kw_arg(
+                        if let Err(mut es) = self.substitute_kw_arg(
                             &callee,
                             attr_name,
                             kw_arg,
                             nth,
                             &subr.default_params,
                             &mut passed_params,
-                        )?;
+                        ) {
+                            errs.append(&mut es);
+                        }
                         nth += 1;
                     }
                     for not_passed in subr
@@ -985,7 +998,11 @@ impl Context {
                         .filter(|pt| !passed_params.contains(pt.name().unwrap()))
                     {
                         if let ParamTy::KwWithDefault { ty, default, .. } = &not_passed {
-                            self.sub_unify(default, ty, obj.loc(), not_passed.name())?;
+                            if let Err(mut es) =
+                                self.sub_unify(default, ty, obj.loc(), not_passed.name())
+                            {
+                                errs.append(&mut es);
+                            }
                         }
                     }
                 } else {
@@ -1008,7 +1025,11 @@ impl Context {
                         missing_params,
                     )));
                 }
-                Ok(())
+                if errs.is_empty() {
+                    Ok(())
+                } else {
+                    Err(errs)
+                }
             }
             other => {
                 if let Some(attr_name) = attr_name {
