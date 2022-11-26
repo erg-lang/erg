@@ -7,6 +7,7 @@ use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{ParamPattern, VarName};
+use erg_parser::token::TokenKind;
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{Context, ContextProvider};
@@ -143,44 +144,96 @@ impl Transpiler {
 #[derive(Debug, Default)]
 pub struct ScriptGenerator {
     level: usize,
+    namedtuple_loaded: bool,
+    range_ops_loaded: bool,
+    prelude: String,
 }
 
 impl ScriptGenerator {
     pub const fn new() -> Self {
-        Self { level: 0 }
+        Self {
+            level: 0,
+            namedtuple_loaded: false,
+            range_ops_loaded: false,
+            prelude: String::new(),
+        }
     }
 
     pub fn transpile(&mut self, hir: HIR) -> PyScript {
-        let mut code = self.load_prelude();
+        let mut code = String::new();
         for chunk in hir.module.into_iter() {
             code += &self.transpile_expr(chunk);
             code.push('\n');
         }
+        code = std::mem::take(&mut self.prelude) + &code;
         PyScript {
             filename: hir.name,
             code,
         }
     }
 
-    fn load_prelude(&mut self) -> String {
-        "from collections import namedtuple as NamedTuple__\n".to_string()
+    // TODO: more smart way
+    fn replace_import(src: &str) -> String {
+        src.replace("from _erg_nat import Nat", "")
+            .replace("from _erg_result import Error", "")
+            .replace("from _erg_bool import Bool", "")
+            .replace("from _erg_str import Str", "")
+            .replace("from _erg_array import Array", "")
+    }
+
+    fn load_namedtuple(&mut self) {
+        self.prelude += "from collections import namedtuple as NamedTuple__\n";
+    }
+
+    // TODO: name escaping
+    fn load_range_ops(&mut self) {
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
     }
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
             Expr::Lit(lit) => lit.token.content.to_string(),
             Expr::Call(call) => self.transpile_call(call),
-            Expr::BinOp(bin) => {
-                let mut code = "(".to_string();
-                code += &self.transpile_expr(*bin.lhs);
-                code += &bin.op.content;
-                code += &self.transpile_expr(*bin.rhs);
-                code += ")";
-                code
-            }
+            Expr::BinOp(bin) => match bin.op.kind {
+                TokenKind::Closed
+                | TokenKind::LeftOpen
+                | TokenKind::RightOpen
+                | TokenKind::Open => {
+                    if !self.range_ops_loaded {
+                        self.load_range_ops();
+                        self.range_ops_loaded = true;
+                    }
+                    let mut code = match bin.op.kind {
+                        TokenKind::Closed => "ClosedRange(",
+                        TokenKind::LeftOpen => "LeftOpenRange(",
+                        TokenKind::RightOpen => "RightOpenRange(",
+                        TokenKind::Open => "OpenRange(",
+                        _ => unreachable!(),
+                    }
+                    .to_string();
+                    code += &self.transpile_expr(*bin.lhs);
+                    code.push(',');
+                    code += &self.transpile_expr(*bin.rhs);
+                    code.push(')');
+                    code
+                }
+                _ => {
+                    let mut code = "(".to_string();
+                    code += &self.transpile_expr(*bin.lhs);
+                    code += &bin.op.content;
+                    code += &self.transpile_expr(*bin.rhs);
+                    code += ")";
+                    code
+                }
+            },
             Expr::UnaryOp(unary) => {
                 let mut code = "(".to_string();
-                code += &unary.op.content;
+                if unary.op.kind != TokenKind::Mutate {
+                    code += &unary.op.content;
+                }
                 code += &self.transpile_expr(*unary.expr);
                 code += ")";
                 code
@@ -208,6 +261,10 @@ impl ScriptGenerator {
                 other => todo!("transpiling {other}"),
             },
             Expr::Record(rec) => {
+                if !self.namedtuple_loaded {
+                    self.load_namedtuple();
+                    self.namedtuple_loaded = true;
+                }
                 let mut attrs = "[".to_string();
                 let mut values = "(".to_string();
                 for mut attr in rec.attrs.into_iter() {
