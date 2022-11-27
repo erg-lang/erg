@@ -72,18 +72,7 @@ f x, y, z, w, v, u: Int = ...
 The functions defined above have many arguments and are arranged in a confusing order. You should not create such a function, but you may encounter such code when using code written by others. Therefore, we use keyword arguments. If you use keyword arguments, the values are passed from the name to the correct argument, even if they are in the wrong order.
 
 ```python
-f u: 6, v: 5, w: 4, x: 1, y: 2, z: 3
-```
-
-Note that keyword arguments and a new line immediately after the `:` are considered a colon-call style.
-
-```python
-# means `f(x: y)`
-f x: y
-
-# means `f(x, y)`
-f x:
-    y
+f u := 6, v := 5, w:= 4, x := 1, y := 2, z := 3
 ```
 
 ## Default parameters
