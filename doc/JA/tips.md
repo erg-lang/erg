@@ -11,7 +11,7 @@
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; rest; ...} = record
+{height; ...rest} = record
 mut_record = {.height = !height; ...rest}
 ```
 
@@ -73,7 +73,7 @@ method 1:
 
 ```python
 arr = [...]
-for! arr.iter().enumerate(start: 1), i =>
+for! arr.iter().enumerate(start := 1), i =>
     ...
 ```
 
@@ -120,16 +120,18 @@ C.
     ...
 ```
 
-## 引数名を型システム上で識別させたい
+## トレイトのメソッドを実装する際に、使わなかった変数の警告が出る
 
-引数をレコードで受け取ると良いでしょう。
+`discard`を使うとよいでしょう。
 
 ```python
-Point = {x = Int; y = Int}
+T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 
-norm: Point -> Int
-norm({x: Int; y: Int}): Int = x**2 + y**2
-assert norm({x = 1; y = 2}) == norm({y = 2; x = 1})
+C = Class T
+C|<: T|.
+    f self, x, s =
+        discard s
+        ...
 ```
 
 ## 警告を出さないようにしたい

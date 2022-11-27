@@ -49,7 +49,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
 
 ## トレイトの包摂
 
-展開演算子`...`によって、あるトレイトを上位型として含むトレイトを定義できます。これをトレイトの __包摂(Subsumption)__ と呼びます。
+関数`Subsume`によって、あるトレイトを上位型として含むトレイトを定義できます。これをトレイトの __包摂(Subsumption)__ と呼びます。
 下の例でいうと、`BinAddSub`は`BinAdd`と`BinSub`を包摂しています。
 これはクラスにおける継承(Inheritance)に対応しますが、継承と違い複数の基底型を`and`で合成して指定できます。`not`によって一部を除外したトレイトでもOKです。
 
@@ -147,15 +147,15 @@ SafeDiv R, O = Subsume Div, {
 ```python
 Add R = Trait {
     .Output = Type
-    .`_+_` = Self.(R) -> .Output
+    .`_+_` = (Self, R) -> .Output
 }
 Sub R = Trait {
     .Output = Type
-    .`_-_` = Self.(R) -> .Output
+    .`_-_` = (Self, R) -> .Output
 }
 Mul R = Trait {
     .Output = Type
-    .`*` = Self.(R) -> .Output
+    .`*` = (Self, R) -> .Output
 }
 ```
 

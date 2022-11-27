@@ -9,7 +9,7 @@ However, external libraries may not support multiple languages.
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; rest; ...} = record
+{height; ...rest} = record
 mut_record = {.height = !height; ...rest}
 ```
 
@@ -71,7 +71,7 @@ method 1:
 
 ```python
 arr = [...]
-for! arr.iter().enumerate(start: 1), i =>
+for! arr.iter().enumerate(start := 1), i =>
     ...
 ```
 
@@ -118,16 +118,18 @@ C.
     ...
 ```
 
-## Want the argument names to be identified on the type system
+## When implementing a trait's methods, warnings are given for variables that were not used
 
-You can receive arguments by record.
+You can use `discard`.
 
 ```python
-Point = {x = Int; y = Int}
+T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 
-norm: Point -> Int
-norm({x: Int; y: Int}): Int = x**2 + y**2
-assert norm({x = 1; y = 2}) == norm({y = 2; x = 1})
+C = Class T
+C|<: T|.
+    f self, x, s =
+        discard s
+        ...
 ```
 
 ## Want to stop warnings

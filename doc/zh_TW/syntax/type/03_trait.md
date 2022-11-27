@@ -49,7 +49,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 
 ## Trait包含
 
-擴展運算符 `...` 允許您將包含某個Trait的Trait定義為超類型。這稱為Trait的 __subsumption__
+`Subsume` 允許您將包含某個Trait的Trait定義為超類型。這稱為Trait的 __subsumption__
 在下面的示例中，`BinAddSub` 包含 `BinAdd` 和 `BinSub`
 這對應于類中的繼承，但與繼承不同的是，可以使用"和"組合多個基類型。也允許被 `not` 部分排除的Trait
 
