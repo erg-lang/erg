@@ -10,3 +10,9 @@ class Nat(int):
     def times(self, f):
         for _ in range(self):
             f()
+
+    def saturating_sub(self, other: Nat):
+        if self > other:
+            return self - other
+        else:
+            return 0
