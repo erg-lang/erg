@@ -3450,6 +3450,10 @@ impl Expr {
         matches!(self, Expr::Accessor(acc) if acc.is_const())
     }
 
+    pub const fn is_definition(&self) -> bool {
+        matches!(self, Expr::Def(_) | Expr::ClassDef(_) | Expr::Methods(_))
+    }
+
     pub fn need_to_be_closed(&self) -> bool {
         matches!(
             self,

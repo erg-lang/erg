@@ -298,8 +298,15 @@ impl Parser {
                 .try_reduce_chunk(true, false)
                 .map_err(|_| self.stack_dec())?;
             block.push(chunk);
-            self.level -= 1;
-            return Ok(block);
+            if block.last().unwrap().is_definition() {
+                let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
+                self.level -= 1;
+                self.errs.push(err);
+                return Err(());
+            } else {
+                self.level -= 1;
+                return Ok(block);
+            }
         }
         if !self.cur_is(Newline) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
@@ -356,6 +363,21 @@ impl Parser {
                     "simplified_chinese" => "无法解析块",
                     "traditional_chinese" => "無法解析塊",
                     "english" => "failed to parse a block",
+                ),
+                None,
+            );
+            self.level -= 1;
+            self.errs.push(err);
+            Err(())
+        } else if block.last().unwrap().is_definition() {
+            let err = ParseError::syntax_error(
+                line!() as usize,
+                block.last().unwrap().loc(),
+                switch_lang!(
+                    "japanese" => "ブロックの終端で変数を定義することは出来ません",
+                    "simplified_chinese" => "无法在块的末尾定义变量",
+                    "traditional_chinese" => "無法在塊的末尾定義變量",
+                    "english" => "cannot define a variable at the end of a block",
                 ),
                 None,
             );
