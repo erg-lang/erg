@@ -1268,6 +1268,10 @@ impl Context {
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
             return Ok(());
         }
+        // API definition was failed and inspection is useless after this
+        if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
+            return Ok(());
+        }
         self.occur(maybe_sub, maybe_sup, loc)?;
         let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
         if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() && maybe_sub_is_sub {

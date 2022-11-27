@@ -115,21 +115,10 @@ impl Context {
             .collect::<Set<_>>();
         let default_ts =
             vec![free_var(self.level, Constraint::new_type_of(Type::Type)); sig.params.len()];
-        let t = self
-            .instantiate_sub_sig_t(sig, default_ts, PreRegister)
-            .map_err(|e| {
-                let vi = VarInfo::new(
-                    Type::Failure,
-                    muty,
-                    vis,
-                    kind.clone(),
-                    Some(comptime_decos.clone()),
-                    self.impl_of(),
-                    None,
-                );
-                self.decls.insert(sig.ident.name.clone(), vi);
-                e
-            })?;
+        let (errs, t) = match self.instantiate_sub_sig_t(sig, default_ts, PreRegister) {
+            Ok(t) => (TyCheckErrors::empty(), t),
+            Err((errs, t)) => (errs, t),
+        };
         let vi = VarInfo::new(
             t,
             muty,
@@ -149,7 +138,11 @@ impl Context {
             )))
         } else {
             self.decls.insert(sig.ident.name.clone(), vi);
-            Ok(())
+            if errs.is_empty() {
+                Ok(())
+            } else {
+                Err(errs)
+            }
         }
     }
 
@@ -345,6 +338,7 @@ impl Context {
         params: &hir::Params,
         opt_decl_subr_t: Option<SubrType>,
     ) -> TyCheckResult<()> {
+        let mut errs = TyCheckErrors::empty();
         if let Some(decl_subr_t) = opt_decl_subr_t {
             assert_eq!(
                 params.non_defaults.len(),
@@ -356,24 +350,36 @@ impl Context {
                 .iter()
                 .zip(decl_subr_t.non_default_params.iter())
             {
-                self.assign_param(sig, false, Some(pt))?;
+                if let Err(es) = self.assign_param(sig, false, Some(pt)) {
+                    errs.extend(es);
+                }
             }
             for (sig, pt) in params
                 .defaults
                 .iter()
                 .zip(decl_subr_t.default_params.iter())
             {
-                self.assign_param(&sig.sig, true, Some(pt))?;
+                if let Err(es) = self.assign_param(&sig.sig, true, Some(pt)) {
+                    errs.extend(es);
+                }
             }
         } else {
             for sig in params.non_defaults.iter() {
-                self.assign_param(sig, false, None)?;
+                if let Err(es) = self.assign_param(sig, false, None) {
+                    errs.extend(es);
+                }
             }
             for sig in params.defaults.iter() {
-                self.assign_param(&sig.sig, true, None)?;
+                if let Err(es) = self.assign_param(&sig.sig, true, None) {
+                    errs.extend(es);
+                }
             }
         }
-        Ok(())
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
     }
 
     /// ## Errors

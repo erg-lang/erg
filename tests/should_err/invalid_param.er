@@ -1,0 +1,7 @@
+# Typo: Inu
+add x: Int, y: Inu, z: Int = x + y + z
+
+# 3rd arg is wrong
+print! add(1, 2, "")
+# missing argument
+print! add(1, 2)

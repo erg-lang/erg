@@ -1,7 +1,7 @@
 from _erg_result import Error
 
 class Nat(int):
-    def try_new(i: int): # -> Result[Nat]
+    def try_new(i): # -> Result[Nat]
         if i >= 0:
             return Nat(i)
         else:
@@ -11,7 +11,7 @@ class Nat(int):
         for _ in range(self):
             f()
 
-    def saturating_sub(self, other: Nat):
+    def saturating_sub(self, other):
         if self > other:
             return self - other
         else:

@@ -57,8 +57,8 @@ impl Context {
                 found.union_types()
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
-                        let ts = expected.inner_ts();
-                        Some(format!("cannot {verb} {found} {preposition} {}", ts[0]))
+                        let expected_inner = Self::readable_type(&expected.inner_ts()[0]);
+                        Some(format!("cannot {verb} {found} {preposition} {expected_inner}"))
                     })
             }
         }

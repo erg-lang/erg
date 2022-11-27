@@ -205,31 +205,47 @@ impl Context {
         sig: &ast::SubrSignature,
         default_ts: Vec<Type>,
         mode: RegistrationMode,
-    ) -> TyCheckResult<Type> {
+    ) -> Result<Type, (TyCheckErrors, Type)> {
+        let mut errs = TyCheckErrors::empty();
         // -> Result<Type, (Type, TyCheckErrors)> {
         let opt_decl_sig_t = self
             .rec_get_decl_info(&sig.ident, AccessKind::Name, &self.cfg.input, &self.name)
             .ok()
             .map(|vi| enum_unwrap!(vi.t, Type::Subr));
-        let mut tmp_tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
+        let mut tmp_tv_cache = self
+            .instantiate_ty_bounds(&sig.bounds, PreRegister)
+            .map_err(|errs| (errs, Type::Failure))?;
         let mut non_defaults = vec![];
-        for (n, p) in sig.params.non_defaults.iter().enumerate() {
+        for (n, param) in sig.params.non_defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.non_default_params.get(n));
-            non_defaults.push(self.instantiate_param_ty(
-                p,
-                None,
-                opt_decl_t,
-                &mut tmp_tv_cache,
-                mode,
-            )?);
+            match self.instantiate_param_ty(param, None, opt_decl_t, &mut tmp_tv_cache, mode) {
+                Ok(t) => non_defaults.push(t),
+                Err(es) => {
+                    errs.extend(es);
+                    non_defaults.push(ParamTy::pos(param.inspect().cloned(), Type::Failure));
+                }
+            }
         }
         let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
-            Some(self.instantiate_param_ty(var_args, None, opt_decl_t, &mut tmp_tv_cache, mode)?)
+            let pt = match self.instantiate_param_ty(
+                var_args,
+                None,
+                opt_decl_t,
+                &mut tmp_tv_cache,
+                mode,
+            ) {
+                Ok(pt) => pt,
+                Err(es) => {
+                    errs.extend(es);
+                    ParamTy::pos(var_args.inspect().cloned(), Type::Failure)
+                }
+            };
+            Some(pt)
         } else {
             None
         };
@@ -238,19 +254,32 @@ impl Context {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.default_params.get(n));
-            defaults.push(self.instantiate_param_ty(
+            match self.instantiate_param_ty(
                 &p.sig,
                 Some(default_t),
                 opt_decl_t,
                 &mut tmp_tv_cache,
                 mode,
-            )?);
+            ) {
+                Ok(t) => defaults.push(t),
+                Err(es) => {
+                    errs.extend(es);
+                    defaults.push(ParamTy::pos(p.sig.inspect().cloned(), Type::Failure));
+                }
+            }
         }
         let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .map(|subr| ParamTy::anonymous(subr.return_t.as_ref().clone()));
-            self.instantiate_typespec(s, opt_decl_t.as_ref(), &mut tmp_tv_cache, mode, false)?
+            match self.instantiate_typespec(s, opt_decl_t.as_ref(), &mut tmp_tv_cache, mode, false)
+            {
+                Ok(ty) => ty,
+                Err(es) => {
+                    errs.extend(es);
+                    Type::Failure
+                }
+            }
         } else {
             // preregisterならouter scopeで型宣言(see inference.md)
             let level = if mode == PreRegister {
@@ -260,11 +289,16 @@ impl Context {
             };
             free_var(level, Constraint::new_type_of(Type))
         };
-        Ok(if sig.ident.is_procedural() {
+        let typ = if sig.ident.is_procedural() {
             proc(non_defaults, var_args, defaults, spec_return_t)
         } else {
             func(non_defaults, var_args, defaults, spec_return_t)
-        })
+        };
+        if errs.is_empty() {
+            Ok(typ)
+        } else {
+            Err((errs, typ))
+        }
     }
 
     /// spec_t == Noneかつリテラル推論が不可能なら型変数を発行する
@@ -454,12 +488,12 @@ impl Context {
                     tmp_tv_cache.push_or_init_tyvar(&Str::rc(other), &tyvar);
                     Ok(tyvar)
                 } else {
-                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         simple.loc(),
                         self.caused_by(),
-                        &format!("(Type) {other}"),
+                        other,
                         self.get_similar_name(other),
                     )))
                 }
@@ -468,12 +502,12 @@ impl Context {
                 let ctx = if let Some((_, ctx)) = self.rec_get_type(other) {
                     ctx
                 } else {
-                    return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         simple.ident.loc(),
                         self.caused_by(),
-                        &format!("(Type) {other}"),
+                        other,
                         self.get_similar_name(other),
                     )));
                 };
