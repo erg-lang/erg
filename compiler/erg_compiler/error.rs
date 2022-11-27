@@ -1577,6 +1577,43 @@ impl LowerError {
         )
     }
 
+    pub fn no_type_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            switch_lang!(
+                "japanese" => format!("似た名前の型があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称类型: {n}"),
+                "traditional_chinese" => format!("存在相同名稱類型: {n}"),
+                "english" => format!("exists a similar name type: {n}"),
+            )
+        });
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{found}という型は定義されていません"),
+                    "simplified_chinese" => format!("{found}未定义"),
+                    "traditional_chinese" => format!("{found}未定義"),
+                    "english" => format!("Type {found} is not defined"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn type_not_found(
         input: Input,
         errno: usize,

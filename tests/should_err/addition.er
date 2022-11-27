@@ -1,0 +1,4 @@
+add x, y =
+    x + y
+
+print! add("a", 1) # this will be an error

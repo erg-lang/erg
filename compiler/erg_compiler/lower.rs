@@ -835,18 +835,27 @@ impl ASTLowerer {
 
     fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
+        let mut errs = LowerErrors::empty();
         let mut hir_defaults = vec![];
         for default in params.defaults.into_iter() {
-            let default_val = self.lower_expr(default.default_val)?;
-            hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+            match self.lower_expr(default.default_val) {
+                Ok(default_val) => {
+                    hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+                }
+                Err(es) => errs.extend(es),
+            }
         }
-        let hir_params = hir::Params::new(
-            params.non_defaults,
-            params.var_args,
-            hir_defaults,
-            params.parens,
-        );
-        Ok(hir_params)
+        if !errs.is_empty() {
+            Err(errs)
+        } else {
+            let hir_params = hir::Params::new(
+                params.non_defaults,
+                params.var_args,
+                hir_defaults,
+                params.parens,
+            );
+            Ok(hir_params)
+        }
     }
 
     /// TODO: varargs
