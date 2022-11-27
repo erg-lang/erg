@@ -82,8 +82,8 @@ f u: 6, v: 5, w: 4, x: 1, y: 2, z: 3
 キーワード引数と`:`の後にすぐ改行してしまうとコロン適用スタイルとみなされるので注意してください。
 
 ```python
-# means `f(x: y)`
-f x: y
+# means `f(x: Y)`
+f x: Y
 
 # means `f(x, y)`
 f x:
@@ -94,7 +94,7 @@ f x:
 
 ある引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
 
-デフォルト引数は`:=`(or-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
+デフォルト引数は`:=`(default-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
 
 ```python
 math_log x: Ratio, base := math.E = ...
