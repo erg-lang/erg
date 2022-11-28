@@ -3,11 +3,11 @@ use std::mem;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
+use erg_common::{impl_display_from_debug, log};
 use erg_parser::ast::{ParamPattern, VarName};
 use Visibility::*;
 
@@ -28,6 +28,8 @@ struct LocalVars {
     alive_vars: Set<Str>,
     dropped_vars: Dict<Str, Location>,
 }
+
+impl_display_from_debug!(LocalVars);
 
 /// Check code ownership.
 /// for example:
