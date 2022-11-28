@@ -4,17 +4,19 @@
 use std::path::Path;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 
+use crate::artifact::CompleteArtifact;
 use crate::context::ContextProvider;
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
-use crate::error::{CompileError, CompileErrors};
-use crate::hir::{Expr, HIR};
+use crate::error::{CompileError, CompileErrors, CompileWarnings};
+use crate::hir::Expr;
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 
@@ -142,13 +144,15 @@ impl Runnable for Compiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        self.compile_and_dump_as_pyc(path, self.input().read(), "exec")?;
+        let warns = self.compile_and_dump_as_pyc(path, self.input().read(), "exec")?;
+        warns.fmt_all_stderr();
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let codeobj = self.compile(src, "eval")?;
-        Ok(codeobj.code_info(Some(self.code_generator.py_version)))
+        let arti = self.compile(src, "eval")?;
+        arti.warns.fmt_all_stderr();
+        Ok(arti.object.code_info(Some(self.code_generator.py_version)))
     }
 }
 
@@ -176,11 +180,12 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<(), CompileErrors> {
-        let code = self.compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
+    ) -> Result<CompileWarnings, CompileErrors> {
+        let arti = self.compile(src, mode)?;
+        arti.object
+            .dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
-        Ok(())
+        Ok(arti.warns)
     }
 
     pub fn eval_compile_and_dump_as_pyc<P: AsRef<Path>>(
@@ -188,43 +193,53 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<Option<Expr>, CompileErrors> {
-        let (code, last) = self.eval_compile(src, mode)?;
+    ) -> Result<CompleteArtifact<Option<Expr>>, CompileErrors> {
+        let arti = self.eval_compile(src, mode)?;
+        let (code, last) = arti.object;
         code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
-        Ok(last)
+        Ok(CompleteArtifact::new(last, arti.warns))
     }
 
-    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<CodeObj>, CompileErrors> {
         log!(info "the compiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let codeobj = self.code_generator.emit(hir);
+        let arti = self.build_link_desugar(src, mode)?;
+        let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
-        Ok(codeobj)
+        Ok(CompleteArtifact::new(codeobj, arti.warns))
     }
 
     pub fn eval_compile(
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<(CodeObj, Option<Expr>), CompileErrors> {
+    ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, CompileErrors> {
         log!(info "the compiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let last = hir.module.last().cloned();
-        let codeobj = self.code_generator.emit(hir);
+        let arti = self.build_link_desugar(src, mode)?;
+        let last = arti.object.module.last().cloned();
+        let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
-        Ok((codeobj, last))
+        Ok(CompleteArtifact::new((codeobj, last), arti.warns))
     }
 
-    fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
+    fn build_link_desugar(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact, CompileErrors> {
         let artifact = self
             .builder
             .build(src, mode)
             .map_err(|artifact| artifact.errors)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(artifact.hir);
-        Ok(HIRDesugarer::desugar(hir))
+        let hir = linker.link(artifact.object);
+        let desugared = HIRDesugarer::desugar(hir);
+        Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 }

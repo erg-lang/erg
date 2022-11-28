@@ -101,10 +101,8 @@ impl Runnable for ASTLowerer {
         let artifact = self
             .lower(ast, "exec")
             .map_err(|artifact| artifact.errors)?;
-        if self.cfg.verbose >= 2 {
-            artifact.warns.fmt_all_stderr();
-        }
-        println!("{}", artifact.hir);
+        artifact.warns.fmt_all_stderr();
+        println!("{}", artifact.object);
         Ok(0)
     }
 
@@ -114,7 +112,8 @@ impl Runnable for ASTLowerer {
         let artifact = self
             .lower(ast, "eval")
             .map_err(|artifact| artifact.errors)?;
-        Ok(format!("{}", artifact.hir))
+        artifact.warns.fmt_all_stderr();
+        Ok(format!("{}", artifact.object))
     }
 }
 
@@ -177,16 +176,48 @@ impl ASTLowerer {
     /// OK: exec `i: Int = 1`
     /// NG: exec `1 + 2`
     /// OK: exec `None`
-    fn use_check(&self, expr: &hir::Expr, mode: &str) -> SingleLowerResult<()> {
+    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
-            Err(LowerWarning::unused_expr_warning(
+            Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
                 self.cfg.input.clone(),
                 line!() as usize,
                 expr,
                 String::from(&self.ctx.name[..]),
-            ))
+            )))
         } else {
-            Ok(())
+            match expr {
+                hir::Expr::Def(def) => {
+                    let mut errs = LowerWarnings::empty();
+                    let last = def.body.block.len() - 1;
+                    for (i, chunk) in def.body.block.iter().enumerate() {
+                        if i == last {
+                            break;
+                        }
+                        if let Err(err) = self.use_check(chunk, mode) {
+                            errs.extend(err);
+                        }
+                    }
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
+                }
+                hir::Expr::ClassDef(cl_def) => {
+                    let mut errs = LowerWarnings::empty();
+                    for chunk in cl_def.methods.iter() {
+                        if let Err(err) = self.use_check(chunk, mode) {
+                            errs.extend(err);
+                        }
+                    }
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
+                }
+                _ => Ok(()),
+            }
         }
     }
 
@@ -1924,8 +1955,8 @@ impl ASTLowerer {
         };
         // TODO: recursive check
         for chunk in hir.module.iter() {
-            if let Err(warn) = self.use_check(chunk, mode) {
-                self.warns.push(warn);
+            if let Err(warns) = self.use_check(chunk, mode) {
+                self.warns.extend(warns);
             }
         }
         if self.errs.is_empty() {

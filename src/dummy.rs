@@ -5,6 +5,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::{exec_pyc, spawn_py};
 use erg_common::traits::Runnable;
 
@@ -124,18 +125,22 @@ impl Runnable for DummyVM {
             .last()
             .unwrap()
             .replace(".er", ".pyc");
-        self.compiler
-            .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
+        let warns =
+            self.compiler
+                .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
+        warns.fmt_all_stderr();
         let code = exec_pyc(&filename, self.cfg().py_command, &self.cfg().runtime_args);
         remove_file(&filename).unwrap();
         Ok(code.unwrap_or(1))
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        let last = self
+        let arti = self
             .compiler
             .eval_compile_and_dump_as_pyc("o.pyc", src, "eval")?;
-        let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
+        let (last, warns) = (arti.object, arti.warns);
+        let mut res = warns.to_string();
+        res += &match self.stream.as_mut().unwrap().write("load".as_bytes()) {
             Result::Ok(_) => {
                 let mut buf = [0; 1024];
                 match self.stream.as_mut().unwrap().read(&mut buf) {

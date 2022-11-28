@@ -59,7 +59,7 @@ impl Runnable for HIRBuilder {
         let ast = builder.build(self.input().read())?;
         let artifact = self.check(ast, "exec").map_err(|arti| arti.errors)?;
         artifact.warns.fmt_all_stderr();
-        println!("{}", artifact.hir);
+        println!("{}", artifact.object);
         Ok(0)
     }
 
@@ -68,7 +68,7 @@ impl Runnable for HIRBuilder {
         let ast = builder.build(src)?;
         let artifact = self.check(ast, "eval").map_err(|arti| arti.errors)?;
         artifact.warns.fmt_all_stderr();
-        Ok(artifact.hir.to_string())
+        Ok(artifact.object.to_string())
     }
 }
 
@@ -101,13 +101,12 @@ impl HIRBuilder {
 
     pub fn check(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         let artifact = self.lowerer.lower(ast, mode)?;
-        if self.cfg().verbose >= 2 {
-            artifact.warns.fmt_all_stderr();
-        }
         let effect_checker = SideEffectChecker::new(self.cfg().clone());
-        let hir = effect_checker.check(artifact.hir).map_err(|(hir, errs)| {
-            IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
-        })?;
+        let hir = effect_checker
+            .check(artifact.object)
+            .map_err(|(hir, errs)| {
+                IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
+            })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
             IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;

@@ -6,20 +6,20 @@ use crate::error::CompileErrors;
 use crate::hir::HIR;
 
 #[derive(Debug)]
-pub struct CompleteArtifact {
-    pub hir: HIR,
+pub struct CompleteArtifact<Inner = HIR> {
+    pub object: Inner,
     pub warns: CompileErrors,
 }
 
-impl CompleteArtifact {
-    pub const fn new(hir: HIR, warns: CompileErrors) -> Self {
-        Self { hir, warns }
+impl<Inner> CompleteArtifact<Inner> {
+    pub const fn new(object: Inner, warns: CompileErrors) -> Self {
+        Self { object, warns }
     }
 }
 
 #[derive(Debug)]
-pub struct IncompleteArtifact {
-    pub hir: Option<HIR>,
+pub struct IncompleteArtifact<Inner = HIR> {
+    pub object: Option<Inner>,
     pub errors: CompileErrors,
     pub warns: CompileErrors,
 }
@@ -35,8 +35,12 @@ impl fmt::Display for IncompleteArtifact {
 
 impl std::error::Error for IncompleteArtifact {}
 
-impl IncompleteArtifact {
-    pub const fn new(hir: Option<HIR>, errors: CompileErrors, warns: CompileErrors) -> Self {
-        Self { hir, errors, warns }
+impl<Inner> IncompleteArtifact<Inner> {
+    pub const fn new(object: Option<Inner>, errors: CompileErrors, warns: CompileErrors) -> Self {
+        Self {
+            object,
+            errors,
+            warns,
+        }
     }
 }

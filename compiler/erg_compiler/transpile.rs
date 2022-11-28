@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
@@ -9,6 +10,7 @@ use erg_common::Str;
 use erg_parser::ast::{ParamPattern, VarName};
 use erg_parser::token::TokenKind;
 
+use crate::artifact::CompleteArtifact;
 use crate::build_hir::HIRBuilder;
 use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
@@ -78,15 +80,17 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".py");
-        let script = self.transpile(self.input().read(), "exec")?;
+        let artifact = self.transpile(self.input().read(), "exec")?;
+        artifact.warns.fmt_all_stderr();
         let mut f = File::create(&path).unwrap();
-        f.write_all(script.code.as_bytes()).unwrap();
+        f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let script = self.transpile(src, "eval")?;
-        Ok(script.code)
+        let artifact = self.transpile(src, "eval")?;
+        artifact.warns.fmt_all_stderr();
+        Ok(artifact.object.code)
     }
 }
 
@@ -105,23 +109,32 @@ impl ContextProvider for Transpiler {
 }
 
 impl Transpiler {
-    pub fn transpile(&mut self, src: String, mode: &str) -> Result<PyScript, CompileErrors> {
+    pub fn transpile(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<PyScript>, CompileErrors> {
         log!(info "the transpiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let script = self.script_generator.transpile(hir);
+        let artifact = self.build_link_desugar(src, mode)?;
+        let script = self.script_generator.transpile(artifact.object);
         log!(info "code:\n{}", script.code);
         log!(info "the transpiling process has completed");
-        Ok(script)
+        Ok(CompleteArtifact::new(script, artifact.warns))
     }
 
-    fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
+    fn build_link_desugar(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact, CompileErrors> {
         let artifact = self
             .builder
             .build(src, mode)
             .map_err(|artifact| artifact.errors)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(artifact.hir);
-        Ok(HIRDesugarer::desugar(hir))
+        let hir = linker.link(artifact.object);
+        let desugared = HIRDesugarer::desugar(hir);
+        Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
     pub fn pop_mod_ctx(&mut self) -> Context {
