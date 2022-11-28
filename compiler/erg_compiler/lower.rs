@@ -31,7 +31,7 @@ use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
 };
 use crate::error::{
-    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
+    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
     SingleLowerResult,
 };
 use crate::hir;
@@ -179,26 +179,11 @@ impl ASTLowerer {
     /// OK: exec `None`
     fn use_check(&self, expr: &hir::Expr, mode: &str) -> SingleLowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
-            Err(LowerError::syntax_error(
+            Err(LowerWarning::unused_expr_warning(
                 self.cfg.input.clone(),
                 line!() as usize,
-                expr.loc(),
+                expr,
                 String::from(&self.ctx.name[..]),
-                switch_lang!(
-                    "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
-                    "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
-                    "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
-                    "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
-                ),
-                Some(
-                    switch_lang!(
-                        "japanese" => "値を使わない場合は、discard関数を使用してください",
-                        "simplified_chinese" => "如果您不想使用该值，请使用discard函数",
-                        "traditional_chinese" => "如果您不想使用該值，請使用discard函數",
-                        "english" => "if you don't use the value, use discard function",
-                    )
-                    .to_owned(),
-                ),
             ))
         } else {
             Ok(())
@@ -1939,8 +1924,8 @@ impl ASTLowerer {
         };
         // TODO: recursive check
         for chunk in hir.module.iter() {
-            if let Err(err) = self.use_check(chunk, mode) {
-                self.errs.push(err);
+            if let Err(warn) = self.use_check(chunk, mode) {
+                self.warns.push(warn);
             }
         }
         if self.errs.is_empty() {
