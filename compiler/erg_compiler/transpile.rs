@@ -157,6 +157,7 @@ impl Transpiler {
 #[derive(Debug, Default)]
 pub struct ScriptGenerator {
     level: usize,
+    fresh_var_n: usize,
     namedtuple_loaded: bool,
     range_ops_loaded: bool,
     prelude: String,
@@ -166,6 +167,7 @@ impl ScriptGenerator {
     pub const fn new() -> Self {
         Self {
             level: 0,
+            fresh_var_n: 0,
             namedtuple_loaded: false,
             range_ops_loaded: false,
             prelude: String::new(),
@@ -283,9 +285,16 @@ impl ScriptGenerator {
                 for mut attr in rec.attrs.into_iter() {
                     attrs += &format!("'{}',", Self::transpile_ident(attr.sig.into_ident()));
                     if attr.body.block.len() > 1 {
-                        todo!("transpile instant blocks")
+                        let name = format!("instant_block_{}__", self.fresh_var_n);
+                        self.fresh_var_n += 1;
+                        let mut code = format!("def {name}():\n");
+                        code += &self.transpile_block(attr.body.block, true);
+                        self.prelude += &code;
+                        values += &format!("{name}(),");
+                    } else {
+                        let expr = attr.body.block.remove(0);
+                        values += &format!("{},", self.transpile_expr(expr));
                     }
-                    values += &format!("{},", self.transpile_expr(attr.body.block.remove(0)));
                 }
                 attrs += "]";
                 values += ")";
@@ -332,11 +341,17 @@ impl ScriptGenerator {
             Expr::AttrDef(mut adef) => {
                 let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
                 if adef.block.len() > 1 {
-                    todo!("transpile instant blocks")
+                    let name = format!("instant_block_{}__", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                    let mut code = format!("def {name}():\n");
+                    code += &self.transpile_block(adef.block, true);
+                    self.prelude += &code;
+                    format!("{name}()")
+                } else {
+                    let expr = adef.block.remove(0);
+                    code += &self.transpile_expr(expr);
+                    code
                 }
-                let expr = adef.block.remove(0);
-                code += &self.transpile_expr(expr);
-                code
             }
             // TODO:
             Expr::Compound(comp) => {
@@ -474,14 +489,20 @@ impl ScriptGenerator {
     }
 
     fn transpile_lambda(&mut self, lambda: Lambda) -> String {
-        let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
         if lambda.body.len() > 1 {
-            todo!("multi line lambda");
+            let name = format!("lambda_{}__", self.fresh_var_n);
+            self.fresh_var_n += 1;
+            let mut code = format!("def {name}({}):\n", self.transpile_params(lambda.params));
+            code += &self.transpile_block(lambda.body, true);
+            self.prelude += &code;
+            name
+        } else {
+            let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
+            code += &self.transpile_block(lambda.body, false);
+            code.pop(); // \n
+            code.push(')');
+            code
         }
-        code += &self.transpile_block(lambda.body, false);
-        code.pop(); // \n
-        code.push(')');
-        code
     }
 
     fn transpile_def(&mut self, mut def: Def) -> String {
@@ -489,11 +510,17 @@ impl ScriptGenerator {
             Signature::Var(var) => {
                 let mut code = format!("{} = ", Self::transpile_ident(var.ident));
                 if def.body.block.len() > 1 {
-                    todo!("transpile instant blocks")
+                    let name = format!("instant_block_{}__", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                    let mut code = format!("def {name}():\n");
+                    code += &self.transpile_block(def.body.block, true);
+                    self.prelude += &code;
+                    format!("{name}()")
+                } else {
+                    let expr = def.body.block.remove(0);
+                    code += &self.transpile_expr(expr);
+                    code
                 }
-                let expr = def.body.block.remove(0);
-                code += &self.transpile_expr(expr);
-                code
             }
             Signature::Subr(subr) => {
                 let mut code = format!(
