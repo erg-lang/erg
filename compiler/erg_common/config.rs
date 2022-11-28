@@ -171,9 +171,8 @@ pub struct ErgConfig {
     /// module name to be executed
     pub module: &'static str,
     /// verbosity level for system messages.
-    /// * 0: display errors
-    /// * 1: display errors, warns
-    /// * 2 (default): display errors, warnings and hints
+    /// * 0: display errors, warns
+    /// * 1 (default): display errors, warnings and hints
     pub verbose: u8,
     /// needed for `jupyter-erg`
     pub ps1: &'static str,
@@ -196,7 +195,7 @@ impl Default for ErgConfig {
             show_type: false,
             input: Input::REPL,
             module: "<module>",
-            verbose: 2,
+            verbose: 1,
             ps1: ">>> ",
             ps2: "... ",
             runtime_args: vec![],

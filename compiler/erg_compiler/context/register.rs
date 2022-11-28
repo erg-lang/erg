@@ -37,6 +37,8 @@ use Visibility::*;
 
 use super::instantiate::TyVarCache;
 
+const UBAR: &Str = &Str::ever("_");
+
 impl Context {
     /// If it is a constant that is defined, there must be no variable of the same name defined across all scopes
     pub(crate) fn registered_info(
@@ -62,35 +64,37 @@ impl Context {
         }
     }
 
-    fn _declare_var(
+    fn pre_define_var(
         &mut self,
         sig: &ast::VarSignature,
         opt_t: Option<Type>,
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
-        let muty = Mutability::from(&sig.inspect().unwrap()[..]);
-        match &sig.pat {
-            ast::VarPattern::Ident(ident) => {
-                let vis = ident.vis();
-                let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-                let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
-                if let Some(_decl) = self.decls.remove(&ident.name) {
-                    Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        sig.loc(),
-                        self.caused_by(),
-                        ident.name.inspect(),
-                    )))
-                } else {
-                    self.decls.insert(
-                        ident.name.clone(),
-                        VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), None),
-                    );
-                    Ok(())
-                }
+        let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Discard(_) => {
+                return Ok(());
             }
             _ => todo!(),
+        };
+        let vis = ident.vis();
+        let kind = id.map_or(VarKind::Declared, VarKind::Defined);
+        let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
+        if let Some(_decl) = self.decls.remove(&ident.name) {
+            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                sig.loc(),
+                self.caused_by(),
+                ident.name.inspect(),
+            )))
+        } else {
+            self.future_defined_locals.insert(
+                ident.name.clone(),
+                VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), None),
+            );
+            Ok(())
         }
     }
 
@@ -179,6 +183,7 @@ impl Context {
         self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
         let muty = Mutability::from(&ident.inspect()[..]);
         self.decls.remove(ident.inspect());
+        self.future_defined_locals.remove(ident.inspect());
         let vis = ident.vis();
         let vi = VarInfo::new(
             body_t.clone(),
@@ -555,8 +560,7 @@ impl Context {
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
-        let ubar = Str::ever("_");
-        let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(&ubar);
+        let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
@@ -587,32 +591,39 @@ impl Context {
                     self.declare_sub(sig, id)?;
                 }
             }
-            ast::Signature::Var(sig) if sig.is_const() => {
-                let kind = ContextKind::from(def.def_kind());
-                self.grow(__name__, kind, sig.vis(), None);
-                let (obj, const_t) = match self.eval_const_block(&def.body.block) {
-                    Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                    Err(e) => {
-                        return Err(e);
+            ast::Signature::Var(sig) => {
+                if sig.is_const() {
+                    let kind = ContextKind::from(def.def_kind());
+                    self.grow(__name__, kind, sig.vis(), None);
+                    let (obj, const_t) = match self.eval_const_block(&def.body.block) {
+                        Ok(obj) => (obj.clone(), v_enum(set! {obj})),
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    };
+                    if let Some(spec) = sig.t_spec.as_ref() {
+                        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+                        let spec_t = self.instantiate_typespec(
+                            spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            PreRegister,
+                            false,
+                        )?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
                     }
-                };
-                if let Some(spec) = sig.t_spec.as_ref() {
-                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_typespec(
-                        spec,
-                        None,
-                        &mut dummy_tv_cache,
-                        PreRegister,
-                        false,
-                    )?;
-                    self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
-                }
-                self.pop();
-                if let Some(ident) = sig.ident() {
-                    self.register_gen_const(ident, obj)?;
+                    self.pop();
+                    if let Some(ident) = sig.ident() {
+                        self.register_gen_const(ident, obj)?;
+                    }
+                } else {
+                    let opt_t = self
+                        .eval_const_block(&def.body.block)
+                        .map(|o| v_enum(set! {o}))
+                        .ok();
+                    self.pre_define_var(sig, opt_t, id)?;
                 }
             }
-            _ => {}
         }
         Ok(())
     }
@@ -1080,10 +1091,10 @@ impl Context {
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
             Ok(artifact) => {
-                mod_cache.register(path.clone(), Some(artifact.hir), builder.pop_mod_ctx());
+                mod_cache.register(path.clone(), Some(artifact.object), builder.pop_mod_ctx());
             }
             Err(artifact) => {
-                if let Some(hir) = artifact.hir {
+                if let Some(hir) = artifact.object {
                     mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
                 return Err(artifact.errors);
@@ -1178,10 +1189,10 @@ impl Context {
         match builder.build(src, "declare") {
             Ok(artifact) => {
                 let ctx = builder.pop_mod_ctx();
-                py_mod_cache.register(path.clone(), Some(artifact.hir), ctx);
+                py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
             }
             Err(artifact) => {
-                if let Some(hir) = artifact.hir {
+                if let Some(hir) = artifact.object {
                     py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
                 }
                 return Err(artifact.errors);
@@ -1205,7 +1216,8 @@ impl Context {
                 self.caused_by(),
             )))
         } else if self.locals.get(ident.inspect()).is_some() {
-            self.locals.remove(ident.inspect());
+            let vi = self.locals.remove(ident.inspect()).unwrap();
+            self.deleted_locals.insert(ident.name.clone(), vi);
             Ok(())
         } else {
             Err(TyCheckErrors::from(TyCheckError::no_var_error(

@@ -1342,6 +1342,13 @@ type RawParams = (
     Option<(Token, Token)>,
 );
 
+type RefRawParams<'a> = (
+    &'a Vec<NonDefaultParamSignature>,
+    &'a Option<Box<NonDefaultParamSignature>>,
+    &'a Vec<DefaultParamSignature>,
+    &'a Option<(Token, Token)>,
+);
+
 impl Params {
     pub const fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
@@ -1355,6 +1362,15 @@ impl Params {
             defaults,
             parens,
         }
+    }
+
+    pub const fn ref_deconstruct(&self) -> RefRawParams {
+        (
+            &self.non_defaults,
+            &self.var_args,
+            &self.defaults,
+            &self.parens,
+        )
     }
 
     pub fn deconstruct(self) -> RawParams {

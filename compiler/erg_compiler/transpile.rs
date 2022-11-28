@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
@@ -9,6 +10,7 @@ use erg_common::Str;
 use erg_parser::ast::{ParamPattern, VarName};
 use erg_parser::token::TokenKind;
 
+use crate::artifact::{CompleteArtifact, ErrorArtifact};
 use crate::build_hir::HIRBuilder;
 use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
@@ -78,15 +80,25 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".py");
-        let script = self.transpile(self.input().read(), "exec")?;
+        let artifact = self
+            .transpile(self.input().read(), "exec")
+            .map_err(|eart| {
+                eart.warns.fmt_all_stderr();
+                eart.errors
+            })?;
+        artifact.warns.fmt_all_stderr();
         let mut f = File::create(&path).unwrap();
-        f.write_all(script.code.as_bytes()).unwrap();
+        f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let script = self.transpile(src, "eval")?;
-        Ok(script.code)
+        let artifact = self.transpile(src, "eval").map_err(|eart| {
+            eart.warns.fmt_all_stderr();
+            eart.errors
+        })?;
+        artifact.warns.fmt_all_stderr();
+        Ok(artifact.object.code)
     }
 }
 
@@ -105,23 +117,29 @@ impl ContextProvider for Transpiler {
 }
 
 impl Transpiler {
-    pub fn transpile(&mut self, src: String, mode: &str) -> Result<PyScript, CompileErrors> {
+    pub fn transpile(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<PyScript>, ErrorArtifact> {
         log!(info "the transpiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let script = self.script_generator.transpile(hir);
+        let artifact = self.build_link_desugar(src, mode)?;
+        let script = self.script_generator.transpile(artifact.object);
         log!(info "code:\n{}", script.code);
         log!(info "the transpiling process has completed");
-        Ok(script)
+        Ok(CompleteArtifact::new(script, artifact.warns))
     }
 
-    fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
-        let artifact = self
-            .builder
-            .build(src, mode)
-            .map_err(|artifact| artifact.errors)?;
+    fn build_link_desugar(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
+        let artifact = self.builder.build(src, mode)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(artifact.hir);
-        Ok(HIRDesugarer::desugar(hir))
+        let hir = linker.link(artifact.object);
+        let desugared = HIRDesugarer::desugar(hir);
+        Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
     pub fn pop_mod_ctx(&mut self) -> Context {
@@ -144,6 +162,7 @@ impl Transpiler {
 #[derive(Debug, Default)]
 pub struct ScriptGenerator {
     level: usize,
+    fresh_var_n: usize,
     namedtuple_loaded: bool,
     range_ops_loaded: bool,
     prelude: String,
@@ -153,6 +172,7 @@ impl ScriptGenerator {
     pub const fn new() -> Self {
         Self {
             level: 0,
+            fresh_var_n: 0,
             namedtuple_loaded: false,
             range_ops_loaded: false,
             prelude: String::new(),
@@ -270,9 +290,16 @@ impl ScriptGenerator {
                 for mut attr in rec.attrs.into_iter() {
                     attrs += &format!("'{}',", Self::transpile_ident(attr.sig.into_ident()));
                     if attr.body.block.len() > 1 {
-                        todo!("transpile instant blocks")
+                        let name = format!("instant_block_{}__", self.fresh_var_n);
+                        self.fresh_var_n += 1;
+                        let mut code = format!("def {name}():\n");
+                        code += &self.transpile_block(attr.body.block, true);
+                        self.prelude += &code;
+                        values += &format!("{name}(),");
+                    } else {
+                        let expr = attr.body.block.remove(0);
+                        values += &format!("{},", self.transpile_expr(expr));
                     }
-                    values += &format!("{},", self.transpile_expr(attr.body.block.remove(0)));
                 }
                 attrs += "]";
                 values += ")";
@@ -319,11 +346,17 @@ impl ScriptGenerator {
             Expr::AttrDef(mut adef) => {
                 let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
                 if adef.block.len() > 1 {
-                    todo!("transpile instant blocks")
+                    let name = format!("instant_block_{}__", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                    let mut code = format!("def {name}():\n");
+                    code += &self.transpile_block(adef.block, true);
+                    self.prelude += &code;
+                    format!("{name}()")
+                } else {
+                    let expr = adef.block.remove(0);
+                    code += &self.transpile_expr(expr);
+                    code
                 }
-                let expr = adef.block.remove(0);
-                code += &self.transpile_expr(expr);
-                code
             }
             // TODO:
             Expr::Compound(comp) => {
@@ -461,14 +494,20 @@ impl ScriptGenerator {
     }
 
     fn transpile_lambda(&mut self, lambda: Lambda) -> String {
-        let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
         if lambda.body.len() > 1 {
-            todo!("multi line lambda");
+            let name = format!("lambda_{}__", self.fresh_var_n);
+            self.fresh_var_n += 1;
+            let mut code = format!("def {name}({}):\n", self.transpile_params(lambda.params));
+            code += &self.transpile_block(lambda.body, true);
+            self.prelude += &code;
+            name
+        } else {
+            let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
+            code += &self.transpile_block(lambda.body, false);
+            code.pop(); // \n
+            code.push(')');
+            code
         }
-        code += &self.transpile_block(lambda.body, false);
-        code.pop(); // \n
-        code.push(')');
-        code
     }
 
     fn transpile_def(&mut self, mut def: Def) -> String {
@@ -476,11 +515,17 @@ impl ScriptGenerator {
             Signature::Var(var) => {
                 let mut code = format!("{} = ", Self::transpile_ident(var.ident));
                 if def.body.block.len() > 1 {
-                    todo!("transpile instant blocks")
+                    let name = format!("instant_block_{}__", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                    let mut code = format!("def {name}():\n");
+                    code += &self.transpile_block(def.body.block, true);
+                    self.prelude += &code;
+                    format!("{name}()")
+                } else {
+                    let expr = def.body.block.remove(0);
+                    code += &self.transpile_expr(expr);
+                    code
                 }
-                let expr = def.body.block.remove(0);
-                code += &self.transpile_expr(expr);
-                code
             }
             Signature::Subr(subr) => {
                 let mut code = format!(

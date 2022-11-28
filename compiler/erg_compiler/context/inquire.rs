@@ -351,19 +351,44 @@ impl Context {
                     }
                 }
             }
+        } else if let Some((name, _vi)) = self
+            .future_defined_locals
+            .get_key_value(&ident.inspect()[..])
+        {
+            return Err(TyCheckError::access_before_def_error(
+                input.clone(),
+                line!() as usize,
+                ident.loc(),
+                namespace.into(),
+                ident.inspect(),
+                name.ln_begin().unwrap(),
+                self.get_similar_name(ident.inspect()),
+            ));
+        } else if let Some((name, _vi)) = self.deleted_locals.get_key_value(&ident.inspect()[..]) {
+            return Err(TyCheckError::access_deleted_var_error(
+                input.clone(),
+                line!() as usize,
+                ident.loc(),
+                namespace.into(),
+                ident.inspect(),
+                name.ln_begin().unwrap(),
+                self.get_similar_name(ident.inspect()),
+            ));
         }
         if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            if let Ok(vi) = parent.rec_get_var_info(ident, acc_kind, input, namespace) {
-                Ok(vi)
-            } else {
-                Err(TyCheckError::no_var_error(
-                    input.clone(),
-                    line!() as usize,
-                    ident.loc(),
-                    namespace.into(),
-                    ident.inspect(),
-                    self.get_similar_name(ident.inspect()),
-                ))
+            match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
+                Ok(vi) => Ok(vi),
+                Err(err) if err.core.kind == ErrorKind::DummyError => {
+                    Err(TyCheckError::no_var_error(
+                        input.clone(),
+                        line!() as usize,
+                        ident.loc(),
+                        namespace.into(),
+                        ident.inspect(),
+                        self.get_similar_name(ident.inspect()),
+                    ))
+                }
+                Err(err) => Err(err),
             }
         } else {
             Err(TyCheckError::dummy(

@@ -18,7 +18,7 @@ use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use crate::context::Context;
 use crate::hir::{Expr, Identifier, Signature};
-use crate::ty::{Predicate, Type};
+use crate::ty::{HasType, Predicate, Type};
 
 pub fn ordinal_num(n: usize) -> String {
     match n.to_string().chars().last().unwrap() {
@@ -109,7 +109,7 @@ pub fn readable_name(name: &str) -> &str {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompileError {
     pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,
@@ -1458,6 +1458,33 @@ impl LowerError {
         )
     }
 
+    pub fn unused_expr_warning(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
+        let desc = switch_lang!(
+            "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
+            "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
+            "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
+            "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
+        );
+        let discard = StyledString::new("discard", Some(HINT), Some(ATTR));
+        let hint = switch_lang!(
+            "japanese" => format!("値を使わない場合は、{discard}関数を使用してください"),
+            "simplified_chinese" => format!("如果您不想使用该值，请使用{discard}函数"),
+            "traditional_chinese" => format!("如果您不想使用該值，請使用{discard}函數"),
+            "english" => format!("if you don't use the value, use {discard} function"),
+        );
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(expr.loc(), vec![], Some(hint))],
+                desc,
+                errno,
+                UnusedWarning,
+                expr.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn duplicate_decl_error(
         input: Input,
         errno: usize,
@@ -1567,6 +1594,82 @@ impl LowerError {
                     "simplified_chinese" => format!("{found}未定义"),
                     "traditional_chinese" => format!("{found}未定義"),
                     "english" => format!("{found} is not defined"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn access_before_def_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        defined_line: usize,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            switch_lang!(
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
+                "english" => format!("exists a similar name variable: {n}"),
+            )
+        });
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("定義({defined_line}行目)より前で{found}を参照することは出来ません"),
+                    "simplified_chinese" => format!("在{found}定义({defined_line}行)之前引用是不允许的"),
+                    "traditional_chinese" => format!("在{found}定義({defined_line}行)之前引用是不允許的"),
+                    "english" => format!("cannot access {found} before its definition (line {defined_line})"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn access_deleted_var_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        del_line: usize,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            switch_lang!(
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
+                "english" => format!("exists a similar name variable: {n}"),
+            )
+        });
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("削除された変数{found}を参照することは出来ません({del_line}行目で削除)"),
+                    "simplified_chinese" => format!("不能引用已删除的变量{found}({del_line}行)"),
+                    "traditional_chinese" => format!("不能引用已刪除的變量{found}({del_line}行)"),
+                    "english" => format!("cannot access deleted variable {found} (deleted at line {del_line})"),
                 ),
                 errno,
                 NameError,
@@ -2196,7 +2299,7 @@ impl LowerError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompileErrors(Vec<CompileError>);
 
 impl std::error::Error for CompileErrors {}

@@ -10,7 +10,6 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextProvider};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
-use crate::hir::HIR;
 use crate::lower::ASTLowerer;
 use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
@@ -52,22 +51,24 @@ impl Runnable for HIRBuilder {
 
     fn clear(&mut self) {
         self.lowerer.clear();
-        self.ownership_checker = OwnershipChecker::new(self.cfg().copy());
+        // don't initialize the ownership checker
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(self.input().read())?;
-        let hir = self.check(ast, "exec").map_err(|arti| arti.errors)?;
-        println!("{hir}");
+        let artifact = self.check(ast, "exec").map_err(|arti| arti.errors)?;
+        artifact.warns.fmt_all_stderr();
+        println!("{}", artifact.object);
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(src)?;
-        let hir = self.check(ast, "eval").map_err(|arti| arti.errors)?;
-        Ok(hir.to_string())
+        let artifact = self.check(ast, "eval").map_err(|arti| arti.errors)?;
+        artifact.warns.fmt_all_stderr();
+        Ok(artifact.object.to_string())
     }
 }
 
@@ -98,19 +99,18 @@ impl HIRBuilder {
         }
     }
 
-    pub fn check(&mut self, ast: AST, mode: &str) -> Result<HIR, IncompleteArtifact> {
+    pub fn check(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         let artifact = self.lowerer.lower(ast, mode)?;
-        if self.cfg().verbose >= 2 {
-            artifact.warns.fmt_all_stderr();
-        }
         let effect_checker = SideEffectChecker::new(self.cfg().clone());
-        let hir = effect_checker.check(artifact.hir).map_err(|(hir, errs)| {
-            IncompleteArtifact::new(Some(hir), errs, CompileErrors::empty())
-        })?;
+        let hir = effect_checker
+            .check(artifact.object)
+            .map_err(|(hir, errs)| {
+                IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
+            })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            IncompleteArtifact::new(Some(hir), errs, CompileErrors::empty())
+            IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;
-        Ok(hir)
+        Ok(CompleteArtifact::new(hir, artifact.warns))
     }
 
     pub fn build(
@@ -122,8 +122,7 @@ impl HIRBuilder {
         let ast = ast_builder.build(src).map_err(|errs| {
             IncompleteArtifact::new(None, CompileErrors::from(errs), CompileErrors::empty())
         })?;
-        let hir = self.check(ast, mode)?;
-        Ok(CompleteArtifact::new(hir, CompileErrors::empty()))
+        self.check(ast, mode)
     }
 
     pub fn pop_mod_ctx(&mut self) -> Context {
