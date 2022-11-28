@@ -44,3 +44,35 @@ impl<Inner> IncompleteArtifact<Inner> {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct ErrorArtifact {
+    pub errors: CompileErrors,
+    pub warns: CompileErrors,
+}
+
+impl fmt::Display for ErrorArtifact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.warns.is_empty() {
+            writeln!(f, "{}", self.warns)?;
+        }
+        write!(f, "{}", self.errors)
+    }
+}
+
+impl std::error::Error for ErrorArtifact {}
+
+impl From<IncompleteArtifact> for ErrorArtifact {
+    fn from(artifact: IncompleteArtifact) -> Self {
+        Self {
+            errors: artifact.errors,
+            warns: artifact.warns,
+        }
+    }
+}
+
+impl ErrorArtifact {
+    pub const fn new(errors: CompileErrors, warns: CompileErrors) -> Self {
+        Self { errors, warns }
+    }
+}

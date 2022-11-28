@@ -8,7 +8,7 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 
-use crate::artifact::CompleteArtifact;
+use crate::artifact::{CompleteArtifact, ErrorArtifact};
 use crate::context::ContextProvider;
 use crate::ty::codeobj::CodeObj;
 
@@ -144,13 +144,21 @@ impl Runnable for Compiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        let warns = self.compile_and_dump_as_pyc(path, self.input().read(), "exec")?;
+        let warns = self
+            .compile_and_dump_as_pyc(path, self.input().read(), "exec")
+            .map_err(|eart| {
+                eart.warns.fmt_all_stderr();
+                eart.errors
+            })?;
         warns.fmt_all_stderr();
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let arti = self.compile(src, "eval")?;
+        let arti = self.compile(src, "eval").map_err(|eart| {
+            eart.warns.fmt_all_stderr();
+            eart.errors
+        })?;
         arti.warns.fmt_all_stderr();
         Ok(arti.object.code_info(Some(self.code_generator.py_version)))
     }
@@ -180,7 +188,7 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<CompileWarnings, CompileErrors> {
+    ) -> Result<CompileWarnings, ErrorArtifact> {
         let arti = self.compile(src, mode)?;
         arti.object
             .dump_as_pyc(pyc_path, self.cfg.py_magic_num)
@@ -193,7 +201,7 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<Option<Expr>>, CompileErrors> {
+    ) -> Result<CompleteArtifact<Option<Expr>>, ErrorArtifact> {
         let arti = self.eval_compile(src, mode)?;
         let (code, last) = arti.object;
         code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
@@ -205,7 +213,7 @@ impl Compiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<CodeObj>, CompileErrors> {
+    ) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
         log!(info "the compiling process has started.");
         let arti = self.build_link_desugar(src, mode)?;
         let codeobj = self.code_generator.emit(arti.object);
@@ -218,7 +226,7 @@ impl Compiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, CompileErrors> {
+    ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, ErrorArtifact> {
         log!(info "the compiling process has started.");
         let arti = self.build_link_desugar(src, mode)?;
         let last = arti.object.module.last().cloned();
@@ -232,11 +240,8 @@ impl Compiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact, CompileErrors> {
-        let artifact = self
-            .builder
-            .build(src, mode)
-            .map_err(|artifact| artifact.errors)?;
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
+        let artifact = self.builder.build(src, mode)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);

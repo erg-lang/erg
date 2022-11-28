@@ -10,7 +10,7 @@ use erg_common::Str;
 use erg_parser::ast::{ParamPattern, VarName};
 use erg_parser::token::TokenKind;
 
-use crate::artifact::CompleteArtifact;
+use crate::artifact::{CompleteArtifact, ErrorArtifact};
 use crate::build_hir::HIRBuilder;
 use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
@@ -80,7 +80,12 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".py");
-        let artifact = self.transpile(self.input().read(), "exec")?;
+        let artifact = self
+            .transpile(self.input().read(), "exec")
+            .map_err(|eart| {
+                eart.warns.fmt_all_stderr();
+                eart.errors
+            })?;
         artifact.warns.fmt_all_stderr();
         let mut f = File::create(&path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
@@ -88,7 +93,10 @@ impl Runnable for Transpiler {
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let artifact = self.transpile(src, "eval")?;
+        let artifact = self.transpile(src, "eval").map_err(|eart| {
+            eart.warns.fmt_all_stderr();
+            eart.errors
+        })?;
         artifact.warns.fmt_all_stderr();
         Ok(artifact.object.code)
     }
@@ -113,7 +121,7 @@ impl Transpiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<PyScript>, CompileErrors> {
+    ) -> Result<CompleteArtifact<PyScript>, ErrorArtifact> {
         log!(info "the transpiling process has started.");
         let artifact = self.build_link_desugar(src, mode)?;
         let script = self.script_generator.transpile(artifact.object);
@@ -126,11 +134,8 @@ impl Transpiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact, CompileErrors> {
-        let artifact = self
-            .builder
-            .build(src, mode)
-            .map_err(|artifact| artifact.errors)?;
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
+        let artifact = self.builder.build(src, mode)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
