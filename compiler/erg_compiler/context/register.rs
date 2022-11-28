@@ -183,6 +183,7 @@ impl Context {
         self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
         let muty = Mutability::from(&ident.inspect()[..]);
         self.decls.remove(ident.inspect());
+        self.future_defined_locals.remove(ident.inspect());
         let vis = ident.vis();
         let vi = VarInfo::new(
             body_t.clone(),
@@ -1215,7 +1216,8 @@ impl Context {
                 self.caused_by(),
             )))
         } else if self.locals.get(ident.inspect()).is_some() {
-            self.locals.remove(ident.inspect());
+            let vi = self.locals.remove(ident.inspect()).unwrap();
+            self.deleted_locals.insert(ident.name.clone(), vi);
             Ok(())
         } else {
             Err(TyCheckErrors::from(TyCheckError::no_var_error(

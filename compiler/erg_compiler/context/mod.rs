@@ -348,6 +348,7 @@ pub struct Context {
     pub(crate) decls: Dict<VarName, VarInfo>,
     /// for error reporting
     pub(crate) future_defined_locals: Dict<VarName, VarInfo>,
+    pub(crate) deleted_locals: Dict<VarName, VarInfo>,
     // stores defined names
     // 型の一致はHashMapでは判定できないため、keyはVarNameとして1つずつ見ていく
     /// ```python
@@ -540,6 +541,7 @@ impl Context {
             params: params_,
             decls: Dict::default(),
             future_defined_locals: Dict::default(),
+            deleted_locals: Dict::default(),
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
             mono_types: Dict::default(),
