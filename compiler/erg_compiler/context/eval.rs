@@ -13,6 +13,8 @@ use erg_common::{dict, fn_name, option_enum_unwrap, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
+use erg_parser::ast::Dict as AstDict;
+use erg_parser::ast::Set as AstSet;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
@@ -227,10 +229,21 @@ impl Context {
                     let args = self.eval_args(&call.args)?;
                     self.call(subr, args, call.loc())
                 }
-                Accessor::Attr(_attr) => todo!(),
-                Accessor::TupleAttr(_attr) => todo!(),
-                Accessor::Subscr(_subscr) => todo!(),
-                Accessor::TypeApp(_type_app) => todo!(),
+                // TODO: eval attr
+                Accessor::Attr(_attr) => Err(EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    call.loc(),
+                    self.caused_by(),
+                ))),
+                // TODO: eval type app
+                Accessor::TypeApp(_type_app) => Err(EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    call.loc(),
+                    self.caused_by(),
+                ))),
+                _ => unreachable!(),
             }
         } else {
             todo!()
@@ -306,10 +319,56 @@ impl Context {
         Ok(ValueObj::Array(RcArray::from(elems)))
     }
 
+    fn eval_const_set(&self, set: &AstSet) -> EvalResult<ValueObj> {
+        let mut elems = vec![];
+        match set {
+            AstSet::Normal(arr) => {
+                for elem in arr.elems.pos_args().iter() {
+                    let elem = self.eval_const_expr(&elem.expr)?;
+                    elems.push(elem);
+                }
+            }
+            _ => {
+                todo!()
+            }
+        }
+        Ok(ValueObj::Set(Set::from(elems)))
+    }
+
+    fn eval_const_dict(&self, dict: &AstDict) -> EvalResult<ValueObj> {
+        let mut elems = dict! {};
+        match dict {
+            AstDict::Normal(dic) => {
+                for elem in dic.kvs.iter() {
+                    let key = self.eval_const_expr(&elem.key)?;
+                    let value = self.eval_const_expr(&elem.value)?;
+                    elems.insert(key, value);
+                }
+            }
+            _ => {
+                todo!()
+            }
+        }
+        Ok(ValueObj::Dict(elems))
+    }
+
+    fn eval_const_tuple(&self, tuple: &Tuple) -> EvalResult<ValueObj> {
+        let mut elems = vec![];
+        match tuple {
+            Tuple::Normal(arr) => {
+                for elem in arr.elems.pos_args().iter() {
+                    let elem = self.eval_const_expr(&elem.expr)?;
+                    elems.push(elem);
+                }
+            }
+        }
+        Ok(ValueObj::Tuple(RcArray::from(elems)))
+    }
+
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Shortened(_rec) => unreachable!(), // should be desugared
+            Record::Mixed(_rec) => unreachable!(), // should be desugared
         }
     }
 
@@ -456,9 +515,17 @@ impl Context {
             Expr::Call(call) => self.eval_const_call(call),
             Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::Set(set) => self.eval_const_set(set),
+            Expr::Dict(dict) => self.eval_const_dict(dict),
+            Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
-            other => todo!("{other}"),
+            other => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                other.loc(),
+                self.caused_by(),
+            ))),
         }
     }
 
@@ -809,13 +876,12 @@ impl Context {
             }
         }
         for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
-            EvalError::no_var_error(
+            EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 t_loc,
                 self.caused_by(),
-                &rhs,
-                None, // TODO:
+                &sub,
             )
         })? {
             if let Some(t) =
@@ -875,7 +941,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                self.get_no_candidate_hint(&proj),
+                Self::get_no_candidate_hint(&proj),
             )))
         }
     }
@@ -1096,13 +1162,12 @@ impl Context {
     ) -> EvalResult<Type> {
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
-            EvalError::no_var_error(
+            EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 t_loc,
                 self.caused_by(),
-                &attr_name,
-                None, // TODO:
+                &t,
             )
         })? {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
@@ -1171,7 +1236,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                self.get_no_candidate_hint(&proj),
+                Self::get_no_candidate_hint(&proj),
             )))
         }
     }

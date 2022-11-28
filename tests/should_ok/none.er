@@ -1,0 +1,6 @@
+i = !None # this shold be warned because `None` is a singleton (cannot be changed)
+i.update! _ -> 2 # this should be errored
+
+n = !2
+n.update! i -> i * 2
+assert n == 4

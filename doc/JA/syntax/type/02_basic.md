@@ -43,7 +43,7 @@ g v: [T; _] = ...
 
 ただし、型指定の箇所で`_`を指定するとそれは`Object`を意味することに注意して下さい。
 
-```python
+```python,compile_fail
 f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ```
 
@@ -153,7 +153,7 @@ Vector = Array Int
 これは、違う目的の型は別々の型として新しく定義するべき、ということです。
 また、すでにエイリアスのある型に重ねてエイリアスを付けることを防ぐ目的もあります。
 
-```python
+```python,compile_warn
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 

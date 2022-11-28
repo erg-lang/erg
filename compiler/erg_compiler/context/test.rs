@@ -48,6 +48,7 @@ impl Context {
     }
 
     pub fn test_instantiation_and_generalization(&self) -> Result<(), ()> {
+        use crate::ty::free::HasLevel;
         let t = mono_q("T", Constraint::new_subtype_of(mono("Eq")));
         let unbound = func1(t.clone(), t);
         let quantified = unbound.clone().quantify();
@@ -58,6 +59,7 @@ impl Context {
             .instantiate_t_inner(unbound, &mut tv_cache, Location::Unknown)
             .map_err(|_| ())?;
         println!("inst: {inst}");
+        inst.lift();
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
         assert_eq!(quantified, quantified_again);

@@ -4,9 +4,9 @@
 
 ## 基本功能
 
-### if|T; U|(cond: Bool, then: T, else: U) -> T or U
+### if|T, U|(cond: Bool, then: T, else: U) -> T or U
 
-### map|T; U|(i: Iterable T, f: T -> U) -> Map U
+### map|T, U|(i: Iterable T, f: T -> U) -> Map U
 
 請注意，參數的順序與 Python 相反
 
@@ -65,7 +65,7 @@ for! rep, i =>
 # 1 1 1 1 1 ...
 ```
 
-### dup|T; N|(x: T, N: Nat) -> [T; N]
+### dup|T, N|(x: T, N: Nat) -> [T; N]
 
 ```python
 [a, b, c] = dup new(), 3
@@ -113,7 +113,7 @@ match jan:
 返回參數類型。如果要獲取運行時類，請使用`classof`
 如果您將其用于類型規范，則會出現警告
 
-```python
+```python,compile_warn
 x: Typeof i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

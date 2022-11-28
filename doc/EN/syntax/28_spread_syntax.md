@@ -13,11 +13,10 @@ assert y == (2, 3)
 
 ## Extract assignment
 
-If nothing is written after `...`, the remaining elements are ignored and assigned. This type of expansion assignment is specifically called extractive assignment.
 Extraction assignment is a convenient syntax for localizing specific attributes within a module or record.
 
 ```python
-{sin; cos; tan; ..} = import "math"
+{sin; cos; tan} = import "math"
 ```
 
 After that, you can use `sin, cos, tan` locally.
@@ -26,7 +25,7 @@ You can do the same with records.
 
 ```python
 record = {x = 1; y = 2}
-{x; y; ...} = record
+{x; y} = record
 ```
 
 If you want to expand all, use `{*} = record`. It is `open` in OCaml.

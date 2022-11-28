@@ -353,7 +353,7 @@ macro_rules! debug_enum_assert {
 macro_rules! debug_info {
     ($output:ident) => {{
         #[allow(unused_imports)]
-        use $crate::color::{CYAN, RESET};
+        use $crate::style::{CYAN, RESET};
         write!(
             $output,
             "[{}DEBUG{}] {}:{:04}: ",
@@ -366,7 +366,7 @@ macro_rules! debug_info {
     }};
     () => {{
         #[allow(unused_imports)]
-        use $crate::color::{CYAN, RESET};
+        use $crate::style::{CYAN, RESET};
         print!("[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!());
     }};
 }
@@ -400,7 +400,8 @@ macro_rules! log {
 
     (f $output: ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::RESET;
+            #[allow(unused_imports)]
+            use $crate::color::{RESET, GREEN, RED};
             $crate::debug_info!($output);
             write!($output, $($arg)*).unwrap();
             write!($output, "{}", RESET).unwrap(); // color color anyway
@@ -410,7 +411,8 @@ macro_rules! log {
 
     (c $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            #[allow(unused_imports)]
+            use $crate::style::{RESET, GREEN, RED};
             $crate::debug_info!();
             print!("{}", $color);
             println!($($arg)*);
@@ -420,9 +422,10 @@ macro_rules! log {
 
     (f+c $output:ident, $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            #[allow(unused_imports)]
+            use $crate::style::{RESET, GREEN};
             $crate::debug_info!($output);
-            write!($output, "{}", $color).unwrap();
+            write!($output, "{}{}{}", $color, $($arg)*, RESET).unwrap();
             write!($output, $($arg)*).unwrap();
             write!($output, "{}", RESET).unwrap(); // reset color anyway
             $output.flush().unwrap();
@@ -431,7 +434,7 @@ macro_rules! log {
 
     ($($arg: tt)*) => {{
         if cfg!(feature = "debug") {
-            use $crate::color::*;
+            use $crate::style::*;
             $crate::debug_info!();
             println!($($arg)*);
             print!("{}", RESET); // reset color anyway

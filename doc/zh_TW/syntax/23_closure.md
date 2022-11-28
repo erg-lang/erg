@@ -27,7 +27,7 @@ assert sum == 46
 但是請注意，函數不能捕獲可變對象
 如果可以在函數中引用可變對象，則可以編寫如下代碼
 
-```python
+```python,compile_fail
 # !!! 這段代碼實際上給出了一個錯誤！！！
 i = !0
 f x = i + x
@@ -60,7 +60,7 @@ for! 1..10, i =>
 assert sum == 45
 ```
 
-上面的等效程序可以用 Python 編寫如下: 
+上面的等效程序可以用 Python 編寫如下:
 
 ```python
 # Python

@@ -17,7 +17,7 @@ assert g(1, 2) == 2
 
 Some fundamental operators, called special forms, cannot be bound.
 
-```python
+```python,compile_fail
 def = `=` # SyntaxError: cannot bind `=` operator, this is a special form
 # NG: def x, 1
 function = `->` # SyntaxError: cannot bind `->` operator, this is a special form

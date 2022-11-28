@@ -1,0 +1,6 @@
+id x = x
+
+1 + 1 |> id() == id(1 + 1) |> assert()
+1 + 2 * 3 |> id() |> id() == id(id(1 + 2 * 3)) |> assert()
+1 + 1 |> .abs() == (1 + 1).abs() |> assert()
+1 + 2 * 3 |> .abs() |> .abs() == (1 + 2 * 3).abs().abs() |> assert()

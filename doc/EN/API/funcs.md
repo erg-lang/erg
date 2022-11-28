@@ -2,9 +2,9 @@
 
 ## basic functions
 
-### if|T; U|(cond: Bool, then: T, else: U) -> T or U
+### if|T, U|(cond: Bool, then: T, else: U) -> T or U
 
-### map|T; U|(i: Iterable T, f: T -> U) -> Map U
+### map|T, U|(i: Iterable T, f: T -> U) -> Map U
 
 Note that the order of arguments is reversed from Python.
 
@@ -63,7 +63,7 @@ for! rep, i =>
 # 1 1 1 1 1 ...
 ```
 
-### dup|T; N|(x: T, N: Nat) -> [T; N]
+### dup|T, N|(x: T, N: Nat) -> [T; N]
 
 ```python
 [a, b, c] = dup new(), 3
@@ -111,7 +111,7 @@ Create a new trait. Currently, only record types can be specified.
 Returns the argument type. Use `classof` if you want to get the runtime class.
 If you use it for type specification, Warning will appear.
 
-```python
+```python,compile_warn
 x: Type of i = ...
 # TypeWarning: Typeof(i) == Int, please replace it
 ```

@@ -34,7 +34,7 @@ l2 = l1.clone()
 
 也不能重新分配给变量。稍后将描述可用于保存可变状态的语法
 
-```python
+```python,compile_fail
 i = 1
 i = i + 1 # 分配错误: 不能分配两次
 ```
@@ -139,7 +139,7 @@ assert x ! = x
 
 还有其他对象首先没有定义等价关系
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # 类型错误: 无法比较函数对象

@@ -73,7 +73,6 @@ Unit是所有图元的超级类
 该对象的用途是用于没有参数和没有返回值的过程等。Erg 子例程必须有参数和返回值。但是，在某些情况下，例如过程，可能没有有意义的参数或返回值，只有副作用。在这种情况下，我们将单位用作"无意义的正式值"
 
 ```python
-# ↓ Actually, this parenthesis is a unit
 p!() =.
     # `print!` does not return a meaningful value
     print! "Hello, world!"

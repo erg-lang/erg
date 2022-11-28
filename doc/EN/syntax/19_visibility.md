@@ -9,7 +9,7 @@ For example, a private variable defined in the `foo` module cannot be referenced
 x = "this is an invisible variable"
 ```
 
-```python
+```python,compile_fail
 # bar.er
 foo = import "foo"
 foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
@@ -124,7 +124,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 Also, methods cannot be defined in the type to be re-exported.
 This is to avoid confusion about methods being found or not found depending on the module they are imported from.
 
-```python
+```python,compile_fail
 # bar.er
 {.Foo; ...} = import "foo"
 

@@ -4,16 +4,19 @@
 use std::path::Path;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 
+use crate::artifact::{CompleteArtifact, ErrorArtifact};
+use crate::context::ContextProvider;
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
-use crate::error::{CompileError, CompileErrors};
-use crate::hir::{Expr, HIR};
+use crate::error::{CompileError, CompileErrors, CompileWarnings};
+use crate::hir::Expr;
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 
@@ -91,7 +94,7 @@ impl AccessKind {
 }
 
 /// Generates a `CodeObj` from an String or other File inputs.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Compiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
@@ -128,19 +131,54 @@ impl Runnable for Compiler {
     #[inline]
     fn finish(&mut self) {}
 
+    fn initialize(&mut self) {
+        self.builder.initialize();
+        self.code_generator.clear();
+        // .mod_cache will be initialized in .builder
+    }
+
     fn clear(&mut self) {
+        self.builder.clear();
         self.code_generator.clear();
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.input().filename().replace(".er", ".pyc");
-        self.compile_and_dump_as_pyc(path, self.input().read(), "exec")?;
+        let warns = self
+            .compile_and_dump_as_pyc(path, self.input().read(), "exec")
+            .map_err(|eart| {
+                eart.warns.fmt_all_stderr();
+                eart.errors
+            })?;
+        warns.fmt_all_stderr();
         Ok(0)
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let codeobj = self.compile(src, "eval")?;
-        Ok(codeobj.code_info(Some(self.code_generator.py_version)))
+        let arti = self.compile(src, "eval").map_err(|eart| {
+            eart.warns.fmt_all_stderr();
+            eart.errors
+        })?;
+        arti.warns.fmt_all_stderr();
+        Ok(arti.object.code_info(Some(self.code_generator.py_version)))
+    }
+}
+
+use crate::context::Context;
+use crate::varinfo::VarInfo;
+use erg_parser::ast::VarName;
+
+impl ContextProvider for Compiler {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.builder.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.builder.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.builder.get_var_info(name)
     }
 }
 
@@ -150,11 +188,12 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<(), CompileErrors> {
-        let code = self.compile(src, mode)?;
-        code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
+    ) -> Result<CompileWarnings, ErrorArtifact> {
+        let arti = self.compile(src, mode)?;
+        arti.object
+            .dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
-        Ok(())
+        Ok(arti.warns)
     }
 
     pub fn eval_compile_and_dump_as_pyc<P: AsRef<Path>>(
@@ -162,43 +201,50 @@ impl Compiler {
         pyc_path: P,
         src: String,
         mode: &str,
-    ) -> Result<Option<Expr>, CompileErrors> {
-        let (code, last) = self.eval_compile(src, mode)?;
+    ) -> Result<CompleteArtifact<Option<Expr>>, ErrorArtifact> {
+        let arti = self.eval_compile(src, mode)?;
+        let (code, last) = arti.object;
         code.dump_as_pyc(pyc_path, self.cfg.py_magic_num)
             .expect("failed to dump a .pyc file (maybe permission denied)");
-        Ok(last)
+        Ok(CompleteArtifact::new(last, arti.warns))
     }
 
-    pub fn compile(&mut self, src: String, mode: &str) -> Result<CodeObj, CompileErrors> {
+    pub fn compile(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let codeobj = self.code_generator.emit(hir);
+        let arti = self.build_link_desugar(src, mode)?;
+        let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
-        Ok(codeobj)
+        Ok(CompleteArtifact::new(codeobj, arti.warns))
     }
 
     pub fn eval_compile(
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<(CodeObj, Option<Expr>), CompileErrors> {
+    ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let hir = self.build_link_desugar(src, mode)?;
-        let last = hir.module.last().cloned();
-        let codeobj = self.code_generator.emit(hir);
+        let arti = self.build_link_desugar(src, mode)?;
+        let last = arti.object.module.last().cloned();
+        let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
-        Ok((codeobj, last))
+        Ok(CompleteArtifact::new((codeobj, last), arti.warns))
     }
 
-    fn build_link_desugar(&mut self, src: String, mode: &str) -> Result<HIR, CompileErrors> {
-        let artifact = self
-            .builder
-            .build(src, mode)
-            .map_err(|artifact| artifact.errors)?;
+    fn build_link_desugar(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
+        let artifact = self.builder.build(src, mode)?;
         let linker = Linker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(artifact.hir);
-        Ok(HIRDesugarer::desugar(hir))
+        let hir = linker.link(artifact.object);
+        let desugared = HIRDesugarer::desugar(hir);
+        Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 }

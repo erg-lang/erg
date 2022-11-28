@@ -3,11 +3,12 @@ use std::mem;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
+use erg_common::{impl_display_from_debug, log};
+use erg_parser::ast::{ParamPattern, VarName};
 use Visibility::*;
 
 use crate::ty::{HasType, Ownership};
@@ -27,6 +28,8 @@ struct LocalVars {
     alive_vars: Set<Str>,
     dropped_vars: Dict<Str, Location>,
 }
+
+impl_display_from_debug!(LocalVars);
 
 /// Check code ownership.
 /// for example:
@@ -105,6 +108,21 @@ impl OwnershipChecker {
                 self.path_stack.push((name, def.sig.vis()));
                 self.dict
                     .insert(Str::from(self.full_path()), LocalVars::default());
+                if let Signature::Subr(subr) = &def.sig {
+                    let (nd_params, var_params, d_params, _) = subr.params.ref_deconstruct();
+                    for param in nd_params {
+                        let ParamPattern::VarName(name) = &param.pat else { unreachable!() };
+                        self.define_param(name);
+                    }
+                    if let Some(var) = var_params {
+                        let ParamPattern::VarName(name) = &var.pat else { unreachable!() };
+                        self.define_param(name);
+                    }
+                    for param in d_params {
+                        let ParamPattern::VarName(name) = &param.sig.pat else { unreachable!() };
+                        self.define_param(name);
+                    }
+                }
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
             }
@@ -269,6 +287,13 @@ impl OwnershipChecker {
                     .insert(sig.ident.inspect().clone());
             }
         }
+    }
+
+    fn define_param(&mut self, name: &VarName) {
+        log!(info "define: {}", name);
+        self.current_scope()
+            .alive_vars
+            .insert(name.inspect().clone());
     }
 
     fn drop(&mut self, ident: &Identifier) {

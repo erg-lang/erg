@@ -1,6 +1,6 @@
 [package]
 name = "erg"
-version = "0.5.11"
+version = "0.5.13"
 description = "The Erg programming language"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.11"
+version = "0.5.13"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -27,11 +27,7 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = [
-    "erg_common/debug",
-    "erg_parser/debug",
-    "erg_compiler/debug",
-]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
@@ -47,19 +43,17 @@ traditional_chinese = [
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
 ]
+unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode"]
+pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/unicode"]
 pre-commit = []
 
 [dependencies]
-erg_common = { version = "0.5.11", path = "./compiler/erg_common" }
-erg_parser = { version = "0.5.11", path = "./compiler/erg_parser" }
-erg_compiler = { version = "0.5.11", path = "./compiler/erg_compiler" }
+erg_common = { version = "0.5.13", path = "./compiler/erg_common" }
+erg_parser = { version = "0.5.13", path = "./compiler/erg_parser" }
+erg_compiler = { version = "0.5.13", path = "./compiler/erg_compiler" }
 
-# [workspace]
-# member = ["cm", "dyne"]
+[lib]
+path = "src/lib.rs"
 
 # [profile.release]
 # panic = 'abort'
-
-# [[bin]]
-# name = "cm"
-# path = "src/compiler/main.rs"

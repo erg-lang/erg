@@ -357,6 +357,174 @@ pub const BUILTIN_PYTHON_MODS: [&str; 170] = [
     "zlib",
     "zoneinfo",
 ];
+#[cfg(not(any(windows, unix)))]
+pub const BUILTIN_PYTHON_MODS: [&str; 165] = [
+    "abc",
+    "argparse",
+    "array",
+    "ast",
+    "asyncio",
+    "atexit",
+    "base64",
+    "bdb",
+    "binascii",
+    "binhex",
+    "bisect",
+    "builtins",
+    "bz2",
+    "calendar",
+    "cmath",
+    "code",
+    "codecs",
+    "codeop",
+    "collections",
+    "colorsys",
+    "compileall",
+    "concurrent",
+    "configparser",
+    "contextlib",
+    "contextvars",
+    "copy",
+    "copyreg",
+    "cProfile",
+    "csv",
+    "ctypes",
+    "dataclasses",
+    "datetime",
+    "dbm",
+    "decimal",
+    "difflib",
+    "dis",
+    "distutils",
+    "doctest",
+    "email",
+    "encodings",
+    "ensurepip",
+    "enum",
+    "errno",
+    "faulthandler",
+    "filecmp",
+    "fileinput",
+    "fnmatch",
+    "fractions",
+    "ftplib",
+    "functools",
+    "gc",
+    "getopt",
+    "getpass",
+    "gettext",
+    "glob",
+    "graphlib",
+    "gzip",
+    "hashlib",
+    "heapq",
+    "hmac",
+    "html",
+    "http",
+    "imaplib",
+    "importlib",
+    "inspect",
+    "io",
+    "ipaddress",
+    "itertools",
+    "json",
+    "keyword",
+    "lib2to3",
+    "linecache",
+    "locale",
+    "logging",
+    "lzma",
+    "mailbox",
+    "marshal",
+    "math",
+    "mimetypes",
+    "mmap",
+    "modulefinder",
+    "multiprocessing",
+    "netrc",
+    "numbers",
+    "operator",
+    "os",
+    "pathlib",
+    "pdb",
+    "pickle",
+    "pickletools",
+    "pkgutil",
+    "platform",
+    "plistlib",
+    "poplib",
+    "pprint",
+    "profile",
+    "pstats",
+    "py_compile",
+    "pyclbr",
+    "pydoc",
+    "queue",
+    "quopri",
+    "random",
+    "re",
+    "reprlib",
+    "rlcompleter",
+    "runpy",
+    "sched",
+    "secrets",
+    "select",
+    "selectors",
+    "shelve",
+    "shlex",
+    "shutil",
+    "signal",
+    "site",
+    "smtplib",
+    "socket",
+    "socketserver",
+    "sqlite3",
+    "ssl",
+    "stat",
+    "statistics",
+    "string",
+    "stringprep",
+    "struct",
+    "subprocess",
+    "symtable",
+    "sys",
+    "sysconfig",
+    "tabnanny",
+    "tarfile",
+    "tempfile",
+    "test",
+    "textwrap",
+    "threading",
+    "time",
+    "timeit",
+    "tkinter",
+    "token",
+    "tokenize",
+    "trace",
+    "traceback",
+    "tracemalloc",
+    "turtle",
+    "turtledemo",
+    "types",
+    "typing",
+    "unicodedata",
+    "unittest",
+    "urllib",
+    "uuid",
+    "venv",
+    "warnings",
+    "wave",
+    "weakref",
+    "webbrowser",
+    "wsgiref",
+    "xml",
+    "xmlrpc",
+    "zipapp",
+    "zipfile",
+    "zipimport",
+    "zlib",
+    "zoneinfo",
+];
 
 pub fn which_python() -> String {
     let (cmd, python) = if cfg!(windows) {
@@ -414,6 +582,12 @@ pub struct PythonVersion {
     pub major: u8,
     pub minor: Option<u8>,
     pub micro: Option<u8>,
+}
+
+impl Default for PythonVersion {
+    fn default() -> Self {
+        Self::new(3, Some(11), Some(0))
+    }
 }
 
 impl PythonVersion {
@@ -493,7 +667,11 @@ pub fn env_python_version() -> PythonVersion {
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i32> {
+pub fn exec_pyc<S: Into<String>>(
+    file: S,
+    py_command: Option<&str>,
+    argv: &[&'static str],
+) -> Option<i32> {
     let command = py_command
         .map(ToString::to_string)
         .unwrap_or_else(which_python);
@@ -502,10 +680,11 @@ pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i3
             .arg("/C")
             .arg(command)
             .arg(&file.into())
+            .args(argv)
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{command} {}", file.into());
+        let exec_command = format!("{command} {} {}", file.into(), argv.join(" "));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -516,7 +695,7 @@ pub fn exec_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> Option<i3
 }
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
+pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     let command = py_command
         .map(ToString::to_string)
         .unwrap_or_else(which_python);
@@ -539,7 +718,7 @@ pub fn eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn exec_py(code: &str) -> Option<i32> {
+pub fn _exec_py(code: &str) -> Option<i32> {
     let mut child = if cfg!(windows) {
         Command::new(which_python())
             .arg("-c")

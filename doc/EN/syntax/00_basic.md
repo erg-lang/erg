@@ -110,7 +110,7 @@ assert i == 2
 
 This cannot be accomplished with a semicolon (`;`).
 
-```python
+```python,compile_fail
 i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
 ```
 

@@ -54,6 +54,12 @@ result = if Bool.sample!():
 f:
     x
     y
+
+# Ok
+f(
+    x,
+    y
+)
 ```
 
 ## キーワード引数
@@ -70,25 +76,14 @@ f x, y, z, w, v, u: Int = ...
 そこで、キーワード引数を使います。キーワード引数は並びよりも名前が優先されるため、順番を間違えていても名前から正しい引数に値が渡されます。
 
 ```python
-f u: 6, v: 5, w: 4, x: 1, y: 2, z: 3
-```
-
-キーワード引数と`:`の後にすぐ改行してしまうとコロン適用スタイルとみなされるので注意してください。
-
-```python
-# means `f(x: y)`
-f x: y
-
-# means `f(x, y)`
-f x:
-    y
+f u := 6, v := 5, w := 4, x := 1, y := 2, z := 3
 ```
 
 ## デフォルト引数
 
 ある引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
 
-デフォルト引数は`:=`(or-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
+デフォルト引数は`:=`(default-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
 
 ```python
 math_log x: Ratio, base := math.E = ...
@@ -175,7 +170,7 @@ f x: Int or Str = ...
 
 また、`match`と同じく網羅性がなくてはなりません。
 
-```python
+```python,compile_fail
 fib 0 = 0
 fib 1 = 1
 # PatternError: pattern of fib's parameter is not exhaustive

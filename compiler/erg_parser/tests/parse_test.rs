@@ -37,6 +37,11 @@ fn parse_stack() -> Result<(), ParserRunnerErrors> {
 }
 
 #[test]
+fn parse_stream() -> Result<(), ParserRunnerErrors> {
+    expect_success("tests/stream.er")
+}
+
+#[test]
 fn parse_test1_basic_syntax() -> Result<(), ParserRunnerErrors> {
     expect_success("tests/test1_basic_syntax.er")
 }

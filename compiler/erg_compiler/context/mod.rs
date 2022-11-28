@@ -18,10 +18,8 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 use std::path::Path;
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -40,10 +38,17 @@ use erg_parser::ast;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::{ConstTemplate, TyVarCache};
-use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors};
+use crate::error::{TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
-use crate::varinfo::{Mutability, ParamIdx, VarInfo, VarKind};
+use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Visibility::*;
+
+/// For implementing LSP or other IDE features
+pub trait ContextProvider {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)>;
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context>;
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)>;
+}
 
 const BUILTINS: &Str = &Str::ever("<builtins>");
 
@@ -341,6 +346,9 @@ pub struct Context {
     pub(crate) trait_impls: Dict<Str, Set<TypeRelationInstance>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
+    /// for error reporting
+    pub(crate) future_defined_locals: Dict<VarName, VarInfo>,
+    pub(crate) deleted_locals: Dict<VarName, VarInfo>,
     // stores defined names
     // 型の一致はHashMapでは判定できないため、keyはVarNameとして1つずつ見ていく
     /// ```python
@@ -400,6 +408,69 @@ impl fmt::Display for Context {
     }
 }
 
+impl ContextProvider for Context {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        let mut vars: Vec<_> = self
+            .locals
+            .iter()
+            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
+            .collect();
+        for sup in self.super_classes.iter() {
+            if let Some(sup_ctx) = self.get_nominal_type_ctx(sup) {
+                vars.extend(sup_ctx.type_dir());
+            }
+        }
+        if let Some(outer) = self.get_outer() {
+            vars.extend(outer.dir());
+        } else if let Some(builtins) = self.get_builtins() {
+            vars.extend(builtins.locals.iter());
+        }
+        vars
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.get_mod(receiver_name)
+            .or_else(|| {
+                let (_, vi) = self.get_var_info(receiver_name)?;
+                self.get_nominal_type_ctx(&vi.t)
+            })
+            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        if let Some(info) = self.get_local_kv(name) {
+            Some(info)
+        } else {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.get_var_info(name);
+            }
+            /*Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                Location::Unknown,
+                self.caused_by(),
+                name,
+                self.get_similar_name(name),
+            ))*/
+            None
+        }
+    }
+}
+
+impl Context {
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
+    }
+}
+
 impl Context {
     #[allow(clippy::too_many_arguments)]
     #[inline]
@@ -439,17 +510,15 @@ impl Context {
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
-        for (idx, param) in params.into_iter().enumerate() {
+        for param in params.into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
-                let idx = ParamIdx::Nth(idx);
-                let kind = VarKind::parameter(id, idx, param.default_info);
+                let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::from(name);
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
-                let idx = ParamIdx::Nth(idx);
-                let kind = VarKind::parameter(id, idx, param.default_info);
+                let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::Immutable;
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
                 params_.push((None, vi));
@@ -471,6 +540,8 @@ impl Context {
             trait_impls: Dict::default(),
             params: params_,
             decls: Dict::default(),
+            future_defined_locals: Dict::default(),
+            deleted_locals: Dict::default(),
             locals: Dict::with_capacity(capacity),
             consts: Dict::default(),
             mono_types: Dict::default(),
@@ -794,8 +865,8 @@ impl Context {
     }
 
     #[inline]
-    pub fn caused_by(&self) -> AtomicStr {
-        AtomicStr::arc(&self.name[..])
+    pub fn caused_by(&self) -> String {
+        String::from(&self.name[..])
     }
 
     pub(crate) fn get_outer(&self) -> Option<&Context> {
@@ -832,6 +903,29 @@ impl Context {
         } else {
             None
         }
+    }
+
+    /// This method is intended to be called __only__ in the top-level module.
+    /// `.cfg` is not initialized and is used around.
+    pub fn initialize(&mut self) {
+        let mut mod_cache = mem::take(&mut self.mod_cache);
+        if let Some(mod_cache) = &mut mod_cache {
+            mod_cache.initialize();
+        }
+        let mut py_mod_cache = mem::take(&mut self.py_mod_cache);
+        if let Some(py_mod_cache) = &mut py_mod_cache {
+            py_mod_cache.initialize();
+        }
+        *self = Self::new(
+            self.name.clone(),
+            self.cfg.clone(),
+            self.kind.clone(),
+            vec![],
+            None,
+            mod_cache,
+            py_mod_cache,
+            self.level,
+        );
     }
 
     pub(crate) fn grow(
@@ -901,60 +995,11 @@ impl Context {
             Ok(())
         }
     }
-}
-
-/// for language server
-impl Context {
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self
-            .locals
-            .iter()
-            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
-            .collect();
-        for sup in self.super_classes.iter() {
-            if let Some(sup_ctx) = self.get_nominal_type_ctx(sup) {
-                vars.extend(sup_ctx.type_dir());
-            }
-        }
-        if let Some(outer) = self.get_outer() {
-            vars.extend(outer.dir());
-        } else if let Some(builtins) = self.get_builtins() {
-            vars.extend(builtins.locals.iter());
-        }
-        vars
-    }
 
     fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
         self.locals
             .iter()
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect()
-    }
-
-    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
-        self.get_mod(receiver_name)
-            .or_else(|| {
-                let (_, vi) = self.get_var_info(receiver_name).ok()?;
-                self.get_nominal_type_ctx(&vi.t)
-            })
-            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
-    }
-
-    pub fn get_var_info(&self, name: &str) -> SingleTyCheckResult<(&VarName, &VarInfo)> {
-        if let Some(info) = self.get_local_kv(name) {
-            Ok(info)
-        } else {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return parent.get_var_info(name);
-            }
-            Err(TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                Location::Unknown,
-                self.caused_by(),
-                name,
-                self.get_similar_name(name),
-            ))
-        }
     }
 }

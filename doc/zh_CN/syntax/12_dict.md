@@ -29,7 +29,7 @@ assert l[[]] == "empty"
 从 dict 文字生成 dict 时，会检查重复键
 任何重复都会导致编译错误
 
-```python
+```python,compile_fail
 {"Alice": 145, "Alice": 1} # Key错误: 重复键`Alice`
 ```
 

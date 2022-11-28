@@ -165,19 +165,19 @@ pub struct ErgConfig {
     pub py_command: Option<&'static str>,
     pub target_version: Option<PythonVersion>,
     pub py_server_timeout: u64,
-    pub quiet_startup: bool,
+    pub quiet_repl: bool,
     pub show_type: bool,
     pub input: Input,
     /// module name to be executed
     pub module: &'static str,
     /// verbosity level for system messages.
-    /// * 0: display errors
-    /// * 1: display errors and warns
-    /// * 2 (default): display errors, warnings and hints
+    /// * 0: display errors, warns
+    /// * 1 (default): display errors, warnings and hints
     pub verbose: u8,
     /// needed for `jupyter-erg`
     pub ps1: &'static str,
     pub ps2: &'static str,
+    pub runtime_args: Vec<&'static str>,
 }
 
 impl Default for ErgConfig {
@@ -191,13 +191,14 @@ impl Default for ErgConfig {
             py_command: None,
             target_version: None,
             py_server_timeout: 10,
-            quiet_startup: false,
+            quiet_repl: false,
             show_type: false,
             input: Input::REPL,
             module: "<module>",
-            verbose: 2,
+            verbose: 1,
             ps1: ">>> ",
             ps2: "... ",
+            runtime_args: vec![],
         }
     }
 }
@@ -232,6 +233,12 @@ impl ErgConfig {
         // ループ内でnextするのでforにしないこと
         while let Some(arg) = args.next() {
             match &arg[..] {
+                "--" => {
+                    for arg in args {
+                        cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                    }
+                    break;
+                }
                 "-c" | "--code" => {
                     cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
@@ -323,8 +330,8 @@ impl ErgConfig {
                         .parse::<u64>()
                         .expect("the value of `--py-server-timeout` is not a number");
                 }
-                "--quiet-startup" => {
-                    cfg.quiet_startup = true;
+                "--quiet-startup" | "--quiet-repl" => {
+                    cfg.quiet_repl = true;
                 }
                 "-t" | "--show-type" => {
                     cfg.show_type = true;
@@ -356,6 +363,11 @@ impl ErgConfig {
                         PathBuf::from_str(&arg[..])
                             .unwrap_or_else(|_| panic!("invalid file path: {}", arg)),
                     );
+                    if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
+                        for arg in args {
+                            cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                        }
+                    }
                     break;
                 }
             }

@@ -330,7 +330,8 @@ impl Context {
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         match (lhs, rhs) {
-            (Subr(ls), Subr(rs)) if ls.kind == rs.kind => {
+            // Proc :> Func if params are compatible
+            (Subr(ls), Subr(rs)) if ls.kind == rs.kind || ls.kind.is_proc() => {
                 let kw_check = || {
                     for lpt in ls.default_params.iter() {
                         if let Some(rpt) = rs

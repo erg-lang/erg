@@ -2,6 +2,18 @@ use std::cell::RefCell;
 use std::io::{stdin, BufRead, BufReader};
 use std::thread::LocalKey;
 
+/// e.g.
+/// ```erg
+/// >>> print! 1
+/// >>>
+/// >>> while! False, do!:
+/// >>>    print! ""
+/// >>>
+/// ```
+/// ↓
+///
+/// `{ lineno: 5, buf: ["print! 1\n", "\n", "while! False, do!:\n", "print! \"\"\n", "\n"] }`
+#[derive(Debug)]
 pub struct StdinReader {
     pub lineno: usize,
     buf: Vec<String>,

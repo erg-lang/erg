@@ -33,7 +33,7 @@ l2 = l1.clone()
 
 また、変数への再代入もできません。その代わりに使える機能、すなわち可変な状態を保持する機能については後述します。
 
-```python
+```python,compile_fail
 i = 1
 i = i + 1 # AssignError: cannot assign twice
 ```
@@ -121,7 +121,7 @@ f(2) # NameError: f is not defined (deleted in line 6)
 
 ただし、`Del`によって削除できるのはモジュール内で定義された代数のみです。`True`などの組み込み定数は削除できません。
 
-```python
+```python,compile_fail
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
@@ -138,7 +138,7 @@ assert x != x
 
 その他、そもそも同値関係が定義されていないオブジェクトも存在する。
 
-```python
+```python,compile_fail
 f = x -> x**2 + 2x + 1
 g = x -> (x + 1)**2
 f == g # TypeError: cannot compare function objects

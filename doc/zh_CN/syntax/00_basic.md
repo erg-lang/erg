@@ -106,7 +106,7 @@ assert i == 2
 
 这不能用分号 (`;`) 完成
 
-```python
+```python,compile_fail
 i = (x = 1; x + 1) # 语法错误: 不能在括号中使用 `;`
 ```
 

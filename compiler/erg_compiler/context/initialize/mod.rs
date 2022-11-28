@@ -822,7 +822,7 @@ impl Context {
             "times!",
             pr_met(
                 Nat,
-                vec![kw("proc", nd_proc(vec![], None, NoneType))],
+                vec![kw("proc!", nd_proc(vec![], None, NoneType))],
                 None,
                 vec![],
                 NoneType,
@@ -921,6 +921,12 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_impl(
+            "format",
+            fn_met(Str, vec![], Some(kw("args", Obj)), vec![], Str),
+            Immutable,
+            Public,
+        );
         let mut str_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, str_eq);
@@ -1001,6 +1007,47 @@ impl Context {
         trait_type.register_trait(TraitType, trait_eq);
         let mut code = Self::builtin_mono_class("Code", 10);
         code.register_superclass(Obj, &obj);
+        code.register_builtin_impl("co_argcount", Nat, Immutable, Public);
+        code.register_builtin_impl(
+            "co_varnames",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_consts",
+            array_t(Obj, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_names",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_freevars",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl(
+            "co_cellvars",
+            array_t(Str, TyParam::erased(Nat)),
+            Immutable,
+            Public,
+        );
+        code.register_builtin_impl("co_filename", Str, Immutable, Public);
+        code.register_builtin_impl("co_name", Str, Immutable, Public);
+        code.register_builtin_impl("co_firstlineno", Nat, Immutable, Public);
+        code.register_builtin_impl("co_stacksize", Nat, Immutable, Public);
+        code.register_builtin_impl("co_flags", Nat, Immutable, Public);
+        code.register_builtin_impl("co_code", mono("Bytes"), Immutable, Public);
+        code.register_builtin_impl("co_lnotab", mono("Bytes"), Immutable, Public);
+        code.register_builtin_impl("co_nlocals", Nat, Immutable, Public);
+        code.register_builtin_impl("co_kwonlyargcount", Nat, Immutable, Public);
+        code.register_builtin_impl("co_posonlyargcount", Nat, Immutable, Public);
         let mut code_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         code_eq.register_builtin_impl("__eq__", fn1_met(Code, Code, Bool), Const, Public);
         code.register_trait(Code, code_eq);
@@ -1233,12 +1280,26 @@ impl Context {
         array_iterator.register_superclass(Obj, &obj);
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
-        /* Float_mut */
+        let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
+        obj_mut.register_superclass(Obj, &obj);
+        let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
+        obj_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Obj));
+        let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));
+        let t = pr_met(
+            ref_mut(mono("Obj!"), None),
+            vec![f_t],
+            None,
+            vec![],
+            NoneType,
+        );
+        obj_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
+        obj_mut.register_trait(mono("Obj!"), obj_mut_mutable);
+        /* Float! */
         let mut float_mut = Self::builtin_mono_class("Float!", 2);
         float_mut.register_superclass(Float, &float);
         let mut float_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         float_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Float));
-        let f_t = kw("f", func(vec![kw("old", Float)], None, vec![], Float));
+        let f_t = kw("func", func(vec![kw("old", Float)], None, vec![], Float));
         let t = pr_met(
             ref_mut(mono("Float!"), None),
             vec![f_t],
@@ -1248,12 +1309,12 @@ impl Context {
         );
         float_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         float_mut.register_trait(mono("Float!"), float_mut_mutable);
-        /* Ratio_mut */
+        /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class("Ratio!", 2);
         ratio_mut.register_superclass(Ratio, &ratio);
         let mut ratio_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         ratio_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Ratio));
-        let f_t = kw("f", func(vec![kw("old", Ratio)], None, vec![], Ratio));
+        let f_t = kw("func", func(vec![kw("old", Ratio)], None, vec![], Ratio));
         let t = pr_met(
             ref_mut(mono("Ratio!"), None),
             vec![f_t],
@@ -1263,13 +1324,13 @@ impl Context {
         );
         ratio_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         ratio_mut.register_trait(mono("Ratio!"), ratio_mut_mutable);
-        /* Int_mut */
+        /* Int! */
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono("Float!"), &float_mut);
         let mut int_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         int_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Int));
-        let f_t = kw("f", func(vec![kw("old", Int)], None, vec![], Int));
+        let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));
         let t = pr_met(
             ref_mut(mono("Int!"), None),
             vec![f_t],
@@ -1282,10 +1343,10 @@ impl Context {
         let mut nat_mut = Self::builtin_mono_class("Nat!", 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono("Int!"), &int_mut);
-        /* Nat_mut */
+        /* Nat! */
         let mut nat_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         nat_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Nat));
-        let f_t = kw("f", func(vec![kw("old", Nat)], None, vec![], Nat));
+        let f_t = kw("func", func(vec![kw("old", Nat)], None, vec![], Nat));
         let t = pr_met(
             ref_mut(mono("Nat!"), None),
             vec![f_t],
@@ -1295,13 +1356,13 @@ impl Context {
         );
         nat_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         nat_mut.register_trait(mono("Nat!"), nat_mut_mutable);
-        /* Bool_mut */
+        /* Bool! */
         let mut bool_mut = Self::builtin_mono_class("Bool!", 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(mono("Nat!"), &nat_mut);
         let mut bool_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         bool_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Bool));
-        let f_t = kw("f", func(vec![kw("old", Bool)], None, vec![], Bool));
+        let f_t = kw("func", func(vec![kw("old", Bool)], None, vec![], Bool));
         let t = pr_met(
             ref_mut(mono("Bool!"), None),
             vec![f_t],
@@ -1311,12 +1372,12 @@ impl Context {
         );
         bool_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         bool_mut.register_trait(mono("Bool!"), bool_mut_mutable);
-        /* Str_mut */
+        /* Str! */
         let mut str_mut = Self::builtin_mono_class("Str!", 2);
         str_mut.register_superclass(Str, &nonetype);
         let mut str_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         str_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Str));
-        let f_t = kw("f", func(vec![kw("old", Str)], None, vec![], Str));
+        let f_t = kw("func", func(vec![kw("old", Str)], None, vec![], Str));
         let t = pr_met(
             ref_mut(mono("Str!"), None),
             vec![f_t],
@@ -1326,7 +1387,7 @@ impl Context {
         );
         str_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         str_mut.register_trait(mono("Str!"), str_mut_mutable);
-        /* File_mut */
+        /* File! */
         let mut file_mut = Self::builtin_mono_class("File!", 2);
         let mut file_mut_readable = Self::builtin_methods(Some(mono("Readable!")), 1);
         file_mut_readable.register_builtin_py_impl(
@@ -1380,7 +1441,7 @@ impl Context {
         array_mut_.register_builtin_py_impl("push!", t, Immutable, Public, Some("append"));
         let t = pr_met(
             array_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
+            vec![kw("func", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
@@ -1388,7 +1449,7 @@ impl Context {
         .quantify();
         array_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
-            "f",
+            "func",
             func(vec![kw("old", arr_t.clone())], None, vec![], arr_t.clone()),
         );
         let t = pr_met(
@@ -1427,7 +1488,7 @@ impl Context {
         set_mut_.register_builtin_py_impl("add!", t, Immutable, Public, Some("add"));
         let t = pr_met(
             set_mut_t.clone(),
-            vec![kw("f", nd_func(vec![anon(T.clone())], None, T.clone()))],
+            vec![kw("func", nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
@@ -1435,7 +1496,7 @@ impl Context {
         .quantify();
         set_mut_.register_builtin_impl("strict_map!", t, Immutable, Public);
         let f_t = kw(
-            "f",
+            "func",
             func(vec![kw("old", set_t.clone())], None, vec![], set_t.clone()),
         );
         let t = pr_met(
@@ -1554,6 +1615,7 @@ impl Context {
             Const,
             Some("RangeIterator"),
         );
+        self.register_builtin_type(mono("Obj!"), obj_mut, Private, Const, Some("object"));
         self.register_builtin_type(mono("Int!"), int_mut, Private, Const, Some("int"));
         self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const, Some("Nat"));
         self.register_builtin_type(mono("Float!"), float_mut, Private, Const, Some("float"));
@@ -1684,6 +1746,9 @@ impl Context {
             ],
             NoneType,
         );
+        // e.g. not(b: Bool!): Bool!
+        let B = mono_q("B", subtypeof(Bool));
+        let t_not = nd_func(vec![kw("b", B.clone())], None, B).quantify();
         let t_oct = nd_func(vec![kw("x", Int)], None, Str);
         let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
         let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
@@ -1697,6 +1762,11 @@ impl Context {
             py_module(Path),
         )
         .quantify();
+        let t_pycompile = nd_func(
+            vec![kw("src", Str), kw("filename", Str), kw("mode", Str)],
+            None,
+            Code,
+        );
         let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
@@ -1731,6 +1801,7 @@ impl Context {
         );
         self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
         self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
+        self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
         self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
@@ -1750,6 +1821,13 @@ impl Context {
             Immutable,
             Private,
             Some("__import__"),
+        );
+        self.register_builtin_py_impl(
+            "pycompile",
+            t_pycompile,
+            Immutable,
+            Private,
+            Some("compile"),
         );
         self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
@@ -1856,7 +1934,7 @@ impl Context {
         let t_for = nd_proc(
             vec![
                 kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
-                kw("p", nd_proc(vec![anon(T.clone())], None, NoneType)),
+                kw("proc!", nd_proc(vec![anon(T.clone())], None, NoneType)),
             ],
             None,
             NoneType,
@@ -1866,8 +1944,8 @@ impl Context {
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
             vec![
-                kw("cond", mono("Bool!")),
-                kw("p", nd_proc(vec![], None, NoneType)),
+                kw("cond", Bool), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
+                kw("proc!", nd_proc(vec![], None, NoneType)),
             ],
             None,
             NoneType,
@@ -1892,7 +1970,7 @@ impl Context {
         let t_with = nd_proc(
             vec![
                 kw("obj", T.clone()),
-                kw("p!", nd_proc(vec![anon(T)], None, U.clone())),
+                kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
             ],
             None,
             U,

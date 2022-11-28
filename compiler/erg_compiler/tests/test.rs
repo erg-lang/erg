@@ -42,8 +42,8 @@ fn test_resolve_trait_inner1() -> Result<(), ()> {
 }
 */
 
-#[test]
-fn test_dir() -> Result<(), ()> {
+// #[test]
+fn _test_dir() -> Result<(), ()> {
     let context = Context::new_module(
         "<module>",
         ErgConfig::default(),

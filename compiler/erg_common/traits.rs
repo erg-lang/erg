@@ -6,7 +6,6 @@ use std::io::{stdout, BufWriter, Write};
 use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
-use std::vec::IntoIter;
 
 use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
@@ -110,11 +109,6 @@ pub trait Stream<T>: Sized {
     }
 
     #[inline]
-    fn into_iter(self) -> IntoIter<T> {
-        self.payload().into_iter()
-    }
-
-    #[inline]
     fn take_all(&mut self) -> Vec<T> {
         self.ref_mut_payload().drain(..).collect()
     }
@@ -144,6 +138,20 @@ macro_rules! impl_displayable_stream_for_wrapper {
             #[inline]
             fn from(errs: Vec<$Inner>) -> Self {
                 Self(errs)
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+
+        impl FromIterator<$Inner> for $Strc {
+            fn from_iter<I: IntoIterator<Item = $Inner>>(iter: I) -> Self {
+                $Strc(iter.into_iter().collect())
             }
         }
 
@@ -224,6 +232,20 @@ macro_rules! impl_stream_for_wrapper {
             }
         }
 
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+
+        impl FromIterator<$Inner> for $Strc {
+            fn from_iter<I: IntoIterator<Item = $Inner>>(iter: I) -> Self {
+                $Strc(iter.into_iter().collect())
+            }
+        }
+
         impl $crate::traits::Stream<$Inner> for $Strc {
             #[inline]
             fn payload(self) -> Vec<$Inner> {
@@ -269,6 +291,14 @@ macro_rules! impl_stream {
         impl From<$Strc> for Vec<$Inner> {
             fn from(item: $Strc) -> Vec<$Inner> {
                 item.payload()
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
             }
         }
     };
@@ -350,13 +380,16 @@ fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
-pub trait Runnable: Sized {
+pub trait Runnable: Sized + Default {
     type Err: ErrorDisplay;
     type Errs: MultiErrorDisplay<Self::Err>;
     const NAME: &'static str;
     fn new(cfg: ErgConfig) -> Self;
     fn cfg(&self) -> &ErgConfig;
     fn finish(&mut self); // called when the :exit command is received.
+    /// Erase all but immutable information.
+    fn initialize(&mut self);
+    /// Erase information that will no longer be meaningful in the next iteration
     fn clear(&mut self);
     fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
     fn exec(&mut self) -> Result<i32, Self::Errs>;
@@ -378,19 +411,28 @@ pub trait Runnable: Sized {
     }
 
     #[inline]
-    fn quit(&self, code: i32) {
+    fn quit(&mut self, code: i32) -> ! {
+        self.finish();
         process::exit(code);
     }
 
+    fn quit_successfully(&mut self, mut output: BufWriter<std::io::StdoutLock>) -> ! {
+        self.finish();
+        if !self.cfg().quiet_repl {
+            log!(info_f output, "The REPL has finished successfully.\n");
+        }
+        process::exit(0);
+    }
+
     fn run(cfg: ErgConfig) {
-        let quiet_startup = cfg.quiet_startup;
+        let quiet_repl = cfg.quiet_repl;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
             Input::REPL => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
-                if !quiet_startup {
+                if !quiet_repl {
                     log!(info_f output, "The REPL has started.\n");
                     output
                         .write_all(instance.start_message().as_bytes())
@@ -404,9 +446,7 @@ pub trait Runnable: Sized {
                     let line = chomp(&instance.input().read());
                     match &line[..] {
                         ":quit" | ":exit" => {
-                            instance.finish();
-                            log!(info_f output, "The REPL has finished successfully.\n");
-                            process::exit(0);
+                            instance.quit_successfully(output);
                         }
                         ":clear" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
@@ -451,9 +491,7 @@ pub trait Runnable: Sized {
                                 .map(|e| e.core().kind == ErrorKind::SystemExit)
                                 .unwrap_or(false)
                             {
-                                instance.finish();
-                                log!(info_f output, "The REPL has finished successfully.\n");
-                                process::exit(0);
+                                instance.quit_successfully(output);
                             }
                             errs.fmt_all_stderr();
                         }
@@ -467,7 +505,7 @@ pub trait Runnable: Sized {
         };
         if let Err(e) = res {
             e.fmt_all_stderr();
-            std::process::exit(1);
+            instance.quit(1);
         }
     }
 }
@@ -477,12 +515,7 @@ pub trait Locational {
 
     fn ln_begin(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair {
-                ln_first: (ln_begin, _),
-                ..
-            }
-            | Location::Range { ln_begin, .. }
-            | Location::LineRange(ln_begin, _) => Some(ln_begin),
+            Location::Range { ln_begin, .. } | Location::LineRange(ln_begin, _) => Some(ln_begin),
             Location::Line(lineno) => Some(lineno),
             Location::Unknown => None,
         }
@@ -490,12 +523,7 @@ pub trait Locational {
 
     fn ln_end(&self) -> Option<usize> {
         match self.loc() {
-            Location::RangePair {
-                ln_second: (_, ln_end),
-                ..
-            }
-            | Location::Range { ln_end, .. }
-            | Location::LineRange(_, ln_end) => Some(ln_end),
+            Location::Range { ln_end, .. } | Location::LineRange(_, ln_end) => Some(ln_end),
             Location::Line(lineno) => Some(lineno),
             Location::Unknown => None,
         }

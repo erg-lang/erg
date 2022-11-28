@@ -1,4 +1,4 @@
-concat|T: Type, M, N: Nat|(l: [T; M], r: [T; N]): [T; M + N] = l + r
+concat|T: Type, M: Nat, N: Nat|(l: [T; M], r: [T; N]): [T; M + N] = l + r
 
 l: [Nat; 6] = concat [1, 2, 3], [4, 5, 6]
 assert l == [1, 2, 3, 4, 5, 6]

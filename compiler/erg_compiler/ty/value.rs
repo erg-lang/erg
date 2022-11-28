@@ -20,7 +20,7 @@ use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
 
 use super::codeobj::CodeObj;
-use super::constructors::{array_t, mono, poly, refinement, set_t, tuple_t};
+use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
 use super::free::fresh_varname;
 use super::typaram::TyParam;
 use super::{ConstSubr, HasType, Predicate, Type};
@@ -743,7 +743,12 @@ impl ValueObj {
                 arr.iter().next().unwrap().class(),
                 TyParam::value(arr.len()),
             ),
-            Self::Dict(_dict) => todo!(),
+            Self::Dict(dict) => {
+                let tp = dict
+                    .iter()
+                    .map(|(k, v)| (TyParam::value(k.clone()), TyParam::value(v.clone())));
+                dict_t(TyParam::Dict(tp.collect()))
+            }
             Self::Tuple(tup) => tuple_t(tup.iter().map(|v| v.class()).collect()),
             Self::Set(st) => set_t(st.iter().next().unwrap().class(), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
@@ -771,7 +776,13 @@ impl ValueObj {
                 Self::Array(arr) => poly(
                     "Array!",
                     vec![
-                        TyParam::t(arr.iter().next().unwrap().class()),
+                        // REVIEW: Never?
+                        TyParam::t(
+                            arr.iter()
+                                .next()
+                                .map(|elem| elem.class())
+                                .unwrap_or(Type::Never),
+                        ),
                         TyParam::value(arr.len()).mutate(),
                     ],
                 ),

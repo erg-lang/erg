@@ -2,19 +2,19 @@
 
 ## infix operator
 
-### `_+_`|R; O; A <: Add(R, O)|(x: A, y: R) -> O
+### `_+_`|R, O, A <: Add(R, O)|(x: A, y: R) -> O
 
 Perform addition.
 
-### `_-_`|R; O; S <: Sub(R, O)|(x: S, y: R) -> O
+### `_-_`|R, O, S <: Sub(R, O)|(x: S, y: R) -> O
 
 Perform subtraction.
 
-### `*`|R; O; M <: Mul R, O|(x: M, y: R) -> O
+### `*`|R, O, M <: Mul R, O|(x: M, y: R) -> O
 
 Perform multiplication.
 
-### `/`|R; O; D <: Div(R, O)|(x: D, y: R) -> O
+### `/`|R, O, D <: Div(R, O)|(x: D, y: R) -> O
 
 Perform division.
 

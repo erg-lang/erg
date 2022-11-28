@@ -12,6 +12,7 @@ use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
 /// Lexerは使い捨てなので、Runnerを用意
+#[derive(Debug, Default)]
 pub struct LexerRunner {
     cfg: ErgConfig,
 }
@@ -33,6 +34,9 @@ impl Runnable for LexerRunner {
 
     #[inline]
     fn finish(&mut self) {}
+
+    #[inline]
+    fn initialize(&mut self) {}
 
     #[inline]
     fn clear(&mut self) {}
@@ -987,6 +991,10 @@ impl Iterator for Lexer /*<'a>*/ {
                 Some('|') => {
                     self.consume();
                     self.accept(BitOr, "||")
+                }
+                Some('>') => {
+                    self.consume();
+                    self.accept(Pipe, "|>")
                 }
                 _ => self.accept(VBar, "|"),
             },

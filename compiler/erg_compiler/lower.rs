@@ -2,7 +2,6 @@
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 
-use erg_common::astr::AtomicStr;
 use erg_common::config::ErgConfig;
 use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -28,9 +27,11 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
-use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode, TypeRelationInstance};
+use crate::context::{
+    ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
+};
 use crate::error::{
-    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarnings,
+    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
     SingleLowerResult,
 };
 use crate::hir;
@@ -83,6 +84,12 @@ impl Runnable for ASTLowerer {
     #[inline]
     fn finish(&mut self) {}
 
+    fn initialize(&mut self) {
+        self.ctx.initialize();
+        self.errs.clear();
+        self.warns.clear();
+    }
+
     fn clear(&mut self) {
         self.errs.clear();
         self.warns.clear();
@@ -94,10 +101,8 @@ impl Runnable for ASTLowerer {
         let artifact = self
             .lower(ast, "exec")
             .map_err(|artifact| artifact.errors)?;
-        if self.cfg.verbose >= 2 {
-            artifact.warns.fmt_all_stderr();
-        }
-        println!("{}", artifact.hir);
+        artifact.warns.fmt_all_stderr();
+        println!("{}", artifact.object);
         Ok(0)
     }
 
@@ -107,7 +112,23 @@ impl Runnable for ASTLowerer {
         let artifact = self
             .lower(ast, "eval")
             .map_err(|artifact| artifact.errors)?;
-        Ok(format!("{}", artifact.hir))
+        artifact.warns.fmt_all_stderr();
+        Ok(format!("{}", artifact.object))
+    }
+}
+
+use erg_parser::ast::VarName;
+impl ContextProvider for ASTLowerer {
+    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        self.ctx.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.ctx.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.ctx.get_var_info(name)
     }
 }
 
@@ -146,7 +167,7 @@ impl ASTLowerer {
                     expect,
                     found,
                     self.ctx.get_candidates(found),
-                    self.ctx.get_type_mismatch_hint(expect, found),
+                    Context::get_type_mismatch_hint(expect, found),
                 )
             })
     }
@@ -155,31 +176,48 @@ impl ASTLowerer {
     /// OK: exec `i: Int = 1`
     /// NG: exec `1 + 2`
     /// OK: exec `None`
-    fn use_check(&self, expr: &hir::Expr, mode: &str) -> SingleLowerResult<()> {
+    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
         if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
-            Err(LowerError::syntax_error(
+            Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
                 self.cfg.input.clone(),
                 line!() as usize,
-                expr.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
-                switch_lang!(
-                    "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
-                    "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
-                    "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
-                    "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
-                ),
-                Some(
-                    switch_lang!(
-                        "japanese" => "値を使わない場合は、discard関数を使用してください",
-                        "simplified_chinese" => "如果您不想使用该值，请使用discard函数",
-                        "traditional_chinese" => "如果您不想使用該值，請使用discard函數",
-                        "english" => "if you don't use the value, use discard function",
-                    )
-                    .into(),
-                ),
-            ))
+                expr,
+                String::from(&self.ctx.name[..]),
+            )))
         } else {
-            Ok(())
+            match expr {
+                hir::Expr::Def(def) => {
+                    let mut errs = LowerWarnings::empty();
+                    let last = def.body.block.len() - 1;
+                    for (i, chunk) in def.body.block.iter().enumerate() {
+                        if i == last {
+                            break;
+                        }
+                        if let Err(err) = self.use_check(chunk, mode) {
+                            errs.extend(err);
+                        }
+                    }
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
+                }
+                hir::Expr::ClassDef(cl_def) => {
+                    let mut errs = LowerWarnings::empty();
+                    for chunk in cl_def.methods.iter() {
+                        if let Err(err) = self.use_check(chunk, mode) {
+                            errs.extend(err);
+                        }
+                    }
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
+                }
+                _ => Ok(()),
+            }
         }
     }
 
@@ -189,6 +227,24 @@ impl ASTLowerer {
         }
     }
 
+    pub fn pop_mod_ctx(&mut self) -> Context {
+        self.ctx.pop_mod()
+    }
+
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
+    }
+}
+
+impl ASTLowerer {
     fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
         let loc = lit.loc();
         let lit = hir::Literal::try_from(lit.token).map_err(|_| {
@@ -226,13 +282,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "配列の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "数组元素必须全部是相同类型",
                         "traditional_chinese" => "數組元素必須全部是相同類型",
                         "english" => "all elements of an array must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -240,7 +297,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "請明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -331,7 +388,7 @@ impl ASTLowerer {
         log!(info "entered {}({record})", fn_name!());
         match record {
             ast::Record::Normal(rec) => self.lower_normal_record(rec),
-            ast::Record::Shortened(_rec) => unreachable!(), // should be desugared
+            ast::Record::Mixed(_rec) => unreachable!(), // should be desugared
         }
     }
 
@@ -372,13 +429,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "集合の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "集合元素必须全部是相同类型",
                         "traditional_chinese" => "集合元素必須全部是相同類型",
                         "english" => "all elements of a set must be of the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -386,7 +444,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -404,7 +462,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",
@@ -419,7 +477,7 @@ impl ASTLowerer {
         let elems = hir::Args::from(new_set);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &mono("Eq"), elems.loc(), None) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
     }
@@ -498,13 +556,14 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    AtomicStr::arc(&self.ctx.name[..]),
+                    String::from(&self.ctx.name[..]),
                     switch_lang!(
                         "japanese" => "Dictの値は全て同じ型である必要があります",
                         "simplified_chinese" => "Dict的值必须是同一类型",
                         "traditional_chinese" => "Dict的值必須是同一類型",
                         "english" => "Values of Dict must be the same type",
-                    ),
+                    )
+                    .to_owned(),
                     Some(
                         switch_lang!(
                             "japanese" => "Int or Strなど明示的に型を指定してください",
@@ -512,7 +571,7 @@ impl ASTLowerer {
                             "traditional_chinese" => "明確指定類型，例如: Int or Str",
                             "english" => "please specify the type explicitly, e.g. Int or Str",
                         )
-                        .into(),
+                        .to_owned(),
                     ),
                 )));
             }
@@ -522,7 +581,7 @@ impl ASTLowerer {
             let loc = Location::concat(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
             if let Err(errs) = self.ctx.sub_unify(key_t, &mono("Eq"), loc, None) {
-                self.errs.extend(errs.into_iter());
+                self.errs.extend(errs);
             }
         }
         let kv_ts = if union.is_empty() {
@@ -543,7 +602,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 normal_set.loc(),
-                AtomicStr::arc(&self.ctx.name[..]),
+                String::arc(&self.ctx.name[..]),
                 switch_lang!(
                     "japanese" => "要素が重複しています",
                     "simplified_chinese" => "元素重复",
@@ -646,6 +705,7 @@ impl ASTLowerer {
 
     fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
+        let mut errs = LowerErrors::empty();
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
@@ -658,7 +718,7 @@ impl ASTLowerer {
                     line!() as usize,
                     call.args.loc(),
                     self.ctx.caused_by(),
-                    "invalid assert casting type",
+                    "invalid assert casting type".to_owned(),
                     None,
                 )));
             }
@@ -673,20 +733,42 @@ impl ASTLowerer {
             paren,
         );
         for arg in pos_args.into_iter() {
-            hir_args.push_pos(hir::PosArg::new(self.lower_expr(arg.expr)?));
+            match self.lower_expr(arg.expr) {
+                Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
+                Err(es) => errs.extend(es),
+            }
         }
         for arg in kw_args.into_iter() {
-            hir_args.push_kw(hir::KwArg::new(arg.keyword, self.lower_expr(arg.expr)?));
+            match self.lower_expr(arg.expr) {
+                Ok(expr) => hir_args.push_kw(hir::KwArg::new(arg.keyword, expr)),
+                Err(es) => errs.extend(es),
+            }
         }
-        let mut obj = self.lower_expr(*call.obj)?;
-        let vi = self.ctx.get_call_t(
+        let mut obj = match self.lower_expr(*call.obj) {
+            Ok(obj) => obj,
+            Err(es) => {
+                errs.extend(es);
+                return Err(errs);
+            }
+        };
+        // Calling get_call_t with incorrect arguments does not provide meaningful information
+        if !errs.is_empty() {
+            return Err(errs);
+        }
+        let vi = match self.ctx.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
             &self.ctx.name,
-        )?;
+        ) {
+            Ok(vi) => vi,
+            Err(es) => {
+                errs.extend(es);
+                return Err(errs);
+            }
+        };
         let attr_name = if let Some(attr_name) = call.attr_name {
             Some(hir::Identifier::new(
                 attr_name.dot,
@@ -704,7 +786,7 @@ impl ASTLowerer {
                 let mod_name =
                     enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
                 if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 };
             }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
@@ -717,7 +799,7 @@ impl ASTLowerer {
                         line!() as usize,
                         other.loc(),
                         self.ctx.caused_by(),
-                        "",
+                        "".to_owned(),
                         None,
                     )))
                 }
@@ -728,7 +810,11 @@ impl ASTLowerer {
                 }
             }
         }
-        Ok(call)
+        if errs.is_empty() {
+            Ok(call)
+        } else {
+            Err(errs)
+        }
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -765,18 +851,27 @@ impl ASTLowerer {
 
     fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
+        let mut errs = LowerErrors::empty();
         let mut hir_defaults = vec![];
         for default in params.defaults.into_iter() {
-            let default_val = self.lower_expr(default.default_val)?;
-            hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+            match self.lower_expr(default.default_val) {
+                Ok(default_val) => {
+                    hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+                }
+                Err(es) => errs.extend(es),
+            }
         }
-        let hir_params = hir::Params::new(
-            params.non_defaults,
-            params.var_args,
-            hir_defaults,
-            params.parens,
-        );
-        Ok(hir_params)
+        if !errs.is_empty() {
+            Err(errs)
+        } else {
+            let hir_params = hir::Params::new(
+                params.non_defaults,
+                params.var_args,
+                hir_defaults,
+                params.parens,
+            );
+            Ok(hir_params)
+        }
     }
 
     /// TODO: varargs
@@ -796,10 +891,10 @@ impl ASTLowerer {
         self.ctx.grow(&name, kind, Private, Some(tv_cache));
         let params = self.lower_params(lambda.sig.params)?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         if let Err(errs) = self.ctx.preregister(&lambda.body) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         let body = self.lower_block(lambda.body).map_err(|e| {
             self.pop_append_errs();
@@ -889,20 +984,18 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
         if let Err(errs) = self.ctx.preregister(&body.block) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         match self.lower_block(body.block) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
-                let opt_expect_body_t = self
-                    .ctx
-                    .outer
-                    .as_ref()
-                    .unwrap()
-                    .get_current_scope_var(sig.inspect().unwrap())
-                    .map(|vi| vi.t.clone());
+                let outer = self.ctx.outer.as_ref().unwrap();
+                let opt_expect_body_t = sig
+                    .inspect()
+                    .and_then(|name| outer.get_current_scope_var(name).map(|vi| vi.t.clone()));
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
+                    ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
                     _ => unreachable!(),
                 };
                 if let Some(expect_body_t) = opt_expect_body_t {
@@ -962,10 +1055,10 @@ impl ASTLowerer {
             Type::Subr(t) => {
                 let params = self.lower_params(sig.params)?;
                 if let Err(errs) = self.ctx.assign_params(&params, Some(t.clone())) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 match self.lower_block(body.block) {
                     Ok(block) => {
@@ -1008,10 +1101,10 @@ impl ASTLowerer {
             Type::Failure => {
                 let params = self.lower_params(sig.params)?;
                 if let Err(errs) = self.ctx.assign_params(&params, None) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
                 self.ctx.outer.as_mut().unwrap().fake_subr_assign(
                     &sig.ident,
@@ -1122,7 +1215,7 @@ impl ASTLowerer {
                             hir_methods.push(hir::Expr::Def(def));
                         }
                         Err(errs) => {
-                            self.errs.extend(errs.into_iter());
+                            self.errs.extend(errs);
                         }
                     },
                     ast::ClassAttr::Decl(decl) => {
@@ -1793,7 +1886,7 @@ impl ASTLowerer {
                     module.push(chunk);
                 }
                 Err(errs) => {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
             }
         }
@@ -1828,7 +1921,7 @@ impl ASTLowerer {
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
         if let Err(errs) = self.ctx.preregister(ast.module.block()) {
-            self.errs.extend(errs.into_iter());
+            self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {
             match self.lower_expr(chunk) {
@@ -1836,7 +1929,7 @@ impl ASTLowerer {
                     module.push(chunk);
                 }
                 Err(errs) => {
-                    self.errs.extend(errs.into_iter());
+                    self.errs.extend(errs);
                 }
             }
         }
@@ -1851,7 +1944,7 @@ impl ASTLowerer {
                 hir
             }
             Err((hir, errs)) => {
-                self.errs.extend(errs.into_iter());
+                self.errs.extend(errs);
                 log!(err "the resolving process has failed. errs:  {}", self.errs.len());
                 return Err(IncompleteArtifact::new(
                     Some(hir),
@@ -1862,8 +1955,8 @@ impl ASTLowerer {
         };
         // TODO: recursive check
         for chunk in hir.module.iter() {
-            if let Err(err) = self.use_check(chunk, mode) {
-                self.errs.push(err);
+            if let Err(warns) = self.use_check(chunk, mode) {
+                self.warns.extend(warns);
             }
         }
         if self.errs.is_empty() {

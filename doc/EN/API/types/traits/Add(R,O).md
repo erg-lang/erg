@@ -26,9 +26,9 @@ assert call(`_+_`, 1, 2) == 3
 Addition is typed like this.
 
 ```python
-f: |O: Type; A <: Add(Int, O)| A -> O
+f: |O: Type, A <: Add(Int, O)| A -> O
 f x = x + 1
 
-g: |A, O: Type; Int <: Add(A, O)| A -> O
+g: |A, O: Type, Int <: Add(A, O)| A -> O
 g x = 1 + x
 ```

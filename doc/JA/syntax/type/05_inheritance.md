@@ -137,13 +137,13 @@ Int = Class ..., Impl := Add() and ...
 
 Ergでは通常のクラス同士でIntersection(交差), Diff(除外), Complement(否定)が行えません。
 
-```python
+```python,compile_fail
 Int and Str # TypeError: cannot unite classes
 ```
 
 このルールにより、複数のクラスを継承すること、すなわち多重継承が行えません。
 
-```python
+```python,compile_fail
 IntAndStr = Inherit Int and Str # SyntaxError: multiple inheritance of classes is not allowed
 ```
 

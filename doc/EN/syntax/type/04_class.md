@@ -22,7 +22,7 @@ In the class above, the `.new` method is defined so that field names, etc. can b
 
 Note that the following definition without line breaks will result in a syntax error.
 
-```python
+```python,compile_fail
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
@@ -261,8 +261,8 @@ Each type can be accessed as `XorY.X`, `XorY.Y` and the constructor can be obtai
 
 ```python
 x1 = XorY.new X.new()
-x2 = (X.new |> XorY.new)()
-x3 = (Y.new |> XorY.new)()
+x2 = (X.new |> XorY.new())()
+x3 = (Y.new |> XorY.new())()
 assert x1 == x2
 assert x1 != x3
 ```

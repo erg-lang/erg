@@ -5,6 +5,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::ErgConfig;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::{exec_pyc, spawn_py};
 use erg_common::traits::Runnable;
 
@@ -26,6 +27,18 @@ pub struct DummyVM {
     stream: Option<TcpStream>,
 }
 
+impl Default for DummyVM {
+    fn default() -> Self {
+        Self::new(ErgConfig::default())
+    }
+}
+
+impl Drop for DummyVM {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
 impl Runnable for DummyVM {
     type Err = EvalError;
     type Errs = EvalErrors;
@@ -38,7 +51,7 @@ impl Runnable for DummyVM {
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
-            if !cfg.quiet_startup {
+            if !cfg.quiet_repl {
                 println!("Starting the REPL server...");
             }
             let port = find_available_port();
@@ -46,7 +59,7 @@ impl Runnable for DummyVM {
                 .replace("__PORT__", port.to_string().as_str());
             spawn_py(cfg.py_command, &code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-            if !cfg.quiet_startup {
+            if !cfg.quiet_repl {
                 println!("Connecting to the REPL server...");
             }
             loop {
@@ -58,7 +71,7 @@ impl Runnable for DummyVM {
                         break Some(stream);
                     }
                     Err(_) => {
-                        if !cfg.quiet_startup {
+                        if !cfg.quiet_repl {
                             println!("Retrying to connect to the REPL server...");
                         }
                         sleep(Duration::from_millis(500));
@@ -82,7 +95,7 @@ impl Runnable for DummyVM {
             match stream.read(&mut buf) {
                 Result::Ok(n) => {
                     let s = std::str::from_utf8(&buf[..n]).unwrap();
-                    if s.contains("closed") {
+                    if s.contains("closed") && !self.cfg().quiet_repl {
                         println!("The REPL server is closed.");
                     }
                 }
@@ -92,6 +105,10 @@ impl Runnable for DummyVM {
             }
             remove_file("o.pyc").unwrap_or(());
         }
+    }
+
+    fn initialize(&mut self) {
+        self.compiler.initialize();
     }
 
     fn clear(&mut self) {
@@ -108,19 +125,30 @@ impl Runnable for DummyVM {
             .last()
             .unwrap()
             .replace(".er", ".pyc");
-        self.compiler
-            .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")?;
-        let code = exec_pyc(&filename, self.cfg().py_command);
+        let warns = self
+            .compiler
+            .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")
+            .map_err(|eart| {
+                eart.warns.fmt_all_stderr();
+                eart.errors
+            })?;
+        warns.fmt_all_stderr();
+        let code = exec_pyc(&filename, self.cfg().py_command, &self.cfg().runtime_args);
         remove_file(&filename).unwrap();
         Ok(code.unwrap_or(1))
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        let last = self
+        let arti = self
             .compiler
-            .eval_compile_and_dump_as_pyc("o.pyc", src, "eval")?;
-        let mut res = match self.stream.as_mut().unwrap().write("load".as_bytes()) {
+            .eval_compile_and_dump_as_pyc("o.pyc", src, "eval")
+            .map_err(|eart| eart.errors)?;
+        let (last, warns) = (arti.object, arti.warns);
+        let mut res = warns.to_string();
+        // Tell the REPL server to execute the code
+        res += &match self.stream.as_mut().unwrap().write("load".as_bytes()) {
             Result::Ok(_) => {
+                // read the result from the REPL server
                 let mut buf = [0; 1024];
                 match self.stream.as_mut().unwrap().read(&mut buf) {
                     Result::Ok(n) => {
@@ -159,6 +187,18 @@ impl Runnable for DummyVM {
             }
         }
         Ok(res)
+    }
+}
+
+impl DummyVM {
+    /// Execute the script specified in the configuration.
+    pub fn exec(&mut self) -> Result<i32, EvalErrors> {
+        Runnable::exec(self)
+    }
+
+    /// Evaluates code passed as a string.
+    pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
+        Runnable::eval(self, src)
     }
 }
 

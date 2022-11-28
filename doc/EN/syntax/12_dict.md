@@ -27,7 +27,7 @@ You could say that a Dict is a Set with values.
 When generating a dict from a dict literal, it is checked for duplicate keys.
 Any duplicates will result in a compile error.
 
-```python
+```python,compile_fail
 {"Alice": 145, "Alice": 1} # KeyError: Duplicate key "Alice"
 ```
 

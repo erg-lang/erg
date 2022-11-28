@@ -134,13 +134,13 @@ They are two different traits (`Add` is a [covariate](./advanced/variance.md), s
 
 Erg does not allow intersection, diff, and complement between normal classes.
 
-```python
+```python,compile_fail
 Int and Str # TypeError: cannot unite classes
 ```
 
 This rule prevents inheritance from multiple classes, i.e., multiple inheritance.
 
-```python
+```python,compile_fail
 IntAndStr = Inherit Int and Str # SyntaxError: multiple inheritance of classes is not allowed
 ```
 

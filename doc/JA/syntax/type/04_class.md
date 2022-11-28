@@ -24,7 +24,7 @@ print! classof(john) # Person
 
 以下のように改行せず定義すると文法エラーになるので注意してください。
 
-```python
+```python,compile_fail
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
@@ -267,8 +267,8 @@ XorY = Enum X, Y
 
 ```python
 x1 = XorY.new X.new()
-x2 = (X.new |> XorY.new)()
-x3 = (Y.new |> XorY.new)()
+x2 = (X.new |> XorY.new())()
+x3 = (Y.new |> XorY.new())()
 assert x1 == x2
 assert x1 != x3
 ```

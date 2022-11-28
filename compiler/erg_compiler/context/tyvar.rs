@@ -564,6 +564,11 @@ impl Context {
 
     #[allow(clippy::only_used_in_recursion)]
     /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1
+    /// i: (Int)
+    /// ```
     pub(crate) fn coerce(&self, t: &Type) {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -1263,6 +1268,10 @@ impl Context {
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
             return Ok(());
         }
+        // API definition was failed and inspection is useless after this
+        if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
+            return Ok(());
+        }
         self.occur(maybe_sub, maybe_sup, loc)?;
         let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
         if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() && maybe_sub_is_sub {
@@ -1280,7 +1289,7 @@ impl Context {
                 maybe_sup,
                 maybe_sub,
                 self.get_candidates(maybe_sub),
-                self.get_type_mismatch_hint(maybe_sup, maybe_sub),
+                Self::get_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
         }
         match (maybe_sub, maybe_sup) {
@@ -1436,12 +1445,52 @@ impl Context {
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
                     } else { todo!() }
                 }
-                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
                     // contravariant
-                    |(l, r)| self.sub_unify(r.typ(), l.typ(), loc, param_name),
-                )?;
+                    self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                })?;
                 // covariant
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                Ok(())
+            }
+            (Type::Quantified(lsub), Type::Subr(rsub)) => {
+                let Type::Subr(lsub) = lsub.as_ref() else { unreachable!() };
+                for lpt in lsub.default_params.iter() {
+                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                        if lpt.typ().is_generalized() { continue; }
+                        // contravariant
+                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                    } else { todo!() }
+                }
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
+                    if l.typ().is_generalized() { Ok(()) }
+                    // contravariant
+                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
+                })?;
+                // covariant
+                if !lsub.return_t.is_generalized() {
+                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                }
+                Ok(())
+            }
+            (Type::Subr(lsub), Type::Quantified(rsub)) => {
+                let Type::Subr(rsub) = rsub.as_ref() else { unreachable!() };
+                for lpt in lsub.default_params.iter() {
+                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                        // contravariant
+                        if rpt.typ().is_generalized() { continue; }
+                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                    } else { todo!() }
+                }
+                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
+                    // contravariant
+                    if r.typ().is_generalized() { Ok(()) }
+                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
+                })?;
+                // covariant
+                if !rsub.return_t.is_generalized() {
+                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (

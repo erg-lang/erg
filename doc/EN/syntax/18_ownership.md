@@ -80,7 +80,7 @@ peek_str s
 A borrowed value is called a __reference__ to the original object.
 You can "sublease" the reference to another subroutine, but you cannot consume it because you are only borrowing it.
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # Since the log function only borrows the arguments, it can be sub-leased
     log s
@@ -89,7 +89,7 @@ steal_str ref(s: Str!) =
     # hint: use `clone` method
 ```
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # This is no good either (= consumes the right side)
     x = s # OwnershipError: cannot consume a borrowed value

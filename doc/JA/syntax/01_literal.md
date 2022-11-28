@@ -116,7 +116,7 @@ Pythonからの伝統により、`Bool`型は`Int`型ないし`Nat`型のサブ�
 すなわち、`True`は`1`、`False`は`0`と解釈できます。
 
 ```python
-assert True * 2 == 1
+assert True * 2 == 2
 ```
 
 ### Noneオブジェクト

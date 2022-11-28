@@ -7,16 +7,16 @@ use erg_common::traits::{Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
 
-use erg::dummy::DummyVM;
+use erg::DummyVM;
 
 #[test]
-fn exec_addition() -> Result<(), ()> {
-    expect_failure("tests/addition.er", 1)
+fn exec_addition_ok() -> Result<(), ()> {
+    expect_success("tests/should_ok/addition.er")
 }
 
 #[test]
 fn exec_advanced_type_spec() -> Result<(), ()> {
-    expect_success("tests/advanced_type_spec.er")
+    expect_success("tests/should_ok/advanced_type_spec.er")
 }
 
 #[test]
@@ -27,6 +27,11 @@ fn exec_assert_cast() -> Result<(), ()> {
 #[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
+}
+
+#[test]
+fn exec_control() -> Result<(), ()> {
+    expect_success("tests/should_ok/control.er")
 }
 
 #[test]
@@ -61,31 +66,17 @@ fn exec_import() -> Result<(), ()> {
 
 #[test]
 fn exec_infer_class() -> Result<(), ()> {
-    expect_success("tests/infer_class.er")
+    expect_success("tests/should_ok/infer_class.er")
 }
 
 #[test]
 fn exec_infer_trait() -> Result<(), ()> {
-    expect_success("tests/infer_trait.er")
-}
-
-#[test]
-fn exec_move_check() -> Result<(), ()> {
-    expect_failure("examples/move_check.er", 1)
+    expect_success("tests/should_ok/infer_trait.er")
 }
 
 #[test]
 fn exec_pattern() -> Result<(), ()> {
-    expect_success("tests/pattern.er")
-}
-
-#[test]
-fn exec_pyimport() -> Result<(), ()> {
-    if cfg!(unix) {
-        expect_end_with("examples/pyimport.er", 111)
-    } else {
-        expect_failure("examples/pyimport.er", 1)
-    }
+    expect_success("tests/should_ok/pattern.er")
 }
 
 #[test]
@@ -99,29 +90,8 @@ fn exec_raw_ident() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_rec() -> Result<(), ()> {
-    // this script is valid but the current code generating process has a bug.
-    expect_end_with("tests/rec.er", 1)
-}
-
-#[test]
 fn exec_record() -> Result<(), ()> {
     expect_success("examples/record.er")
-}
-
-#[test]
-fn exec_set() -> Result<(), ()> {
-    expect_failure("examples/set.er", 1)
-}
-
-#[test]
-fn exec_side_effect() -> Result<(), ()> {
-    expect_failure("examples/side_effect.er", 4)
-}
-
-#[test]
-fn exec_subtyping() -> Result<(), ()> {
-    expect_failure("tests/subtyping.er", 1)
 }
 
 #[test]
@@ -147,6 +117,51 @@ fn exec_use_py() -> Result<(), ()> {
 #[test]
 fn exec_with() -> Result<(), ()> {
     expect_success("examples/with.er")
+}
+
+#[test]
+fn exec_addition_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/addition.er", 1)
+}
+
+#[test]
+fn exec_invalid_param() -> Result<(), ()> {
+    expect_failure("tests/should_err/invalid_param.er", 3)
+}
+
+#[test]
+fn exec_move_check() -> Result<(), ()> {
+    expect_failure("examples/move_check.er", 1)
+}
+
+#[test]
+fn exec_pyimport() -> Result<(), ()> {
+    if cfg!(unix) {
+        expect_end_with("examples/pyimport.er", 111)
+    } else {
+        expect_failure("examples/pyimport.er", 1)
+    }
+}
+
+#[test]
+fn exec_rec() -> Result<(), ()> {
+    // this script is valid but the current code generating process has a bug.
+    expect_end_with("tests/should_err/rec.er", 1)
+}
+
+#[test]
+fn exec_set() -> Result<(), ()> {
+    expect_failure("examples/set.er", 1)
+}
+
+#[test]
+fn exec_side_effect() -> Result<(), ()> {
+    expect_failure("examples/side_effect.er", 4)
+}
+
+#[test]
+fn exec_subtyping() -> Result<(), ()> {
+    expect_failure("tests/should_err/subtyping.er", 1)
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ()> {
@@ -199,9 +214,10 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
 
 fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    cfg.py_command = Some("python");
+    // cfg.py_command = Some("python3");
     // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(8)));
     // cfg.py_magic_num = Some(3439);
+    cfg.py_command = Some("python");
     cfg.target_version = Some(PythonVersion::new(3, Some(11), Some(0)));
     cfg.py_magic_num = Some(3495);
     let mut vm = DummyVM::new(cfg);

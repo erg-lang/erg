@@ -164,7 +164,7 @@ impl Parser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParserRunner {
     cfg: ErgConfig,
 }
@@ -186,6 +186,9 @@ impl Runnable for ParserRunner {
 
     #[inline]
     fn finish(&mut self) {}
+
+    #[inline]
+    fn initialize(&mut self) {}
 
     #[inline]
     fn clear(&mut self) {}
@@ -295,8 +298,15 @@ impl Parser {
                 .try_reduce_chunk(true, false)
                 .map_err(|_| self.stack_dec())?;
             block.push(chunk);
-            self.level -= 1;
-            return Ok(block);
+            if block.last().unwrap().is_definition() {
+                let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
+                self.level -= 1;
+                self.errs.push(err);
+                return Err(());
+            } else {
+                self.level -= 1;
+                return Ok(block);
+            }
         }
         if !self.cur_is(Newline) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
@@ -318,6 +328,11 @@ impl Parser {
                     let nl = self.lpop();
                     self.skip();
                     self.restore(nl);
+                    break;
+                }
+                // last line dedent without newline
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
                     break;
                 }
                 Some(t) if t.category_is(TC::Separator) => {
@@ -348,6 +363,21 @@ impl Parser {
                     "simplified_chinese" => "无法解析块",
                     "traditional_chinese" => "無法解析塊",
                     "english" => "failed to parse a block",
+                ),
+                None,
+            );
+            self.level -= 1;
+            self.errs.push(err);
+            Err(())
+        } else if block.last().unwrap().is_definition() {
+            let err = ParseError::syntax_error(
+                line!() as usize,
+                block.last().unwrap().loc(),
+                switch_lang!(
+                    "japanese" => "ブロックの終端で変数を定義することは出来ません",
+                    "simplified_chinese" => "无法在块的末尾定义变量",
+                    "traditional_chinese" => "無法在塊的末尾定義變量",
+                    "english" => "cannot define a variable at the end of a block",
                 ),
                 None,
             );
@@ -520,7 +550,7 @@ impl Parser {
     }
 
     fn opt_reduce_args(&mut self, in_type_args: bool) -> Option<ParseResult<Args>> {
-        // debug_call_info!(self);
+        debug_call_info!(self);
         match self.peek() {
             Some(t)
                 if t.category_is(TC::Literal)
@@ -947,11 +977,7 @@ impl Parser {
                     // "a": 1 (key-value pair)
                     if in_brace {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                         break;
                     }
@@ -971,11 +997,7 @@ impl Parser {
                             if prev_op.category_is(TC::BinOp)
                                 && prev_op.kind.precedence() >= op_prec
                             {
-                                let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                let prev_op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                                let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                                let bin = BinOp::new(prev_op, lhs, rhs);
-                                stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                                collect_last_binop_on_stack(&mut stack);
                             } else {
                                 break;
                             }
@@ -1068,11 +1090,7 @@ impl Parser {
                                 .map_err(|_| self.stack_dec())?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
-                                let mut call = Expr::Call(Call::new(obj, Some(ident), args));
-                                while let Some(res) = self.opt_reduce_args(false) {
-                                    let args = res.map_err(|_| self.stack_dec())?;
-                                    call = call.call_expr(args);
-                                }
+                                let call = Expr::Call(Call::new(obj, Some(ident), args));
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
@@ -1132,6 +1150,9 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
+                Some(t) if t.is(Pipe) => self
+                    .try_reduce_stream_operator(&mut stack)
+                    .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1144,11 +1165,7 @@ impl Parser {
                     // else if stack.len() == 2 { switch_unreachable!() }
                     else {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                     }
                 }
@@ -1304,6 +1321,9 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
+                Some(t) if t.is(Pipe) => self
+                    .try_reduce_stream_operator(&mut stack)
+                    .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1317,11 +1337,7 @@ impl Parser {
                     // else if stack.len() == 2 { switch_unreachable!() }
                     else {
                         while stack.len() >= 3 {
-                            let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
-                            let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            let bin = BinOp::new(op, lhs, rhs);
-                            stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
+                            collect_last_binop_on_stack(&mut stack);
                         }
                     }
                 }
@@ -1779,9 +1795,7 @@ impl Parser {
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
-                        let attr = RecordAttrs::from(vec![]);
-                        let rec = NormalRecord::new(l_brace, r_brace, attr);
-                        return Ok(BraceContainer::Record(Record::Normal(rec)));
+                        return Ok(BraceContainer::Record(Record::empty(l_brace, r_brace)));
                     }
                 }
                 self.level -= 1;
@@ -1810,11 +1824,12 @@ impl Parser {
             .map_err(|_| self.stack_dec())?;
         match first {
             Expr::Def(def) => {
+                let attr = RecordAttrOrIdent::Attr(def);
                 let record = self
-                    .try_reduce_normal_record(l_brace, def)
+                    .try_reduce_record(l_brace, attr)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(BraceContainer::Record(Record::Normal(record)))
+                Ok(BraceContainer::Record(record))
             }
             // TODO: {X; Y} will conflict with Set
             Expr::Accessor(acc)
@@ -1822,11 +1837,21 @@ impl Parser {
                     && !self.nth_is(1, TokenKind::NatLit)
                     && !self.nth_is(1, UBar) =>
             {
+                let ident = match acc {
+                    Accessor::Ident(ident) => ident,
+                    other => {
+                        self.level -= 1;
+                        let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                };
+                let attr = RecordAttrOrIdent::Ident(ident);
                 let record = self
-                    .try_reduce_shortened_record(l_brace, acc)
+                    .try_reduce_record(l_brace, attr)
                     .map_err(|_| self.stack_dec())?;
                 self.level -= 1;
-                Ok(BraceContainer::Record(Record::Shortened(record)))
+                Ok(BraceContainer::Record(record))
             }
             // Dict
             other if self.cur_is(Colon) => {
@@ -1846,13 +1871,17 @@ impl Parser {
         }
     }
 
-    fn try_reduce_normal_record(
+    // Note that this accepts:
+    //  - {x=expr;y=expr;...}
+    //  - {x;y}
+    //  - {x;y=expr} (shorthand/normal mixed)
+    fn try_reduce_record(
         &mut self,
         l_brace: Token,
-        first: Def,
-    ) -> ParseResult<NormalRecord> {
+        first_attr: RecordAttrOrIdent,
+    ) -> ParseResult<Record> {
         debug_call_info!(self);
-        let mut attrs = vec![first];
+        let mut attrs = vec![first_attr];
         loop {
             match self.peek() {
                 Some(t) if t.category_is(TC::Separator) => {
@@ -1862,103 +1891,55 @@ impl Parser {
                     self.skip();
                     if self.cur_is(RBrace) {
                         let r_brace = self.lpop();
-                        self.level -= 1;
-                        let attrs = RecordAttrs::from(attrs);
-                        return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                        self.stack_dec();
+                        return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                     } else {
                         // TODO: not closed
                         // self.restore(other);
-                        self.level -= 1;
+                        self.stack_dec();
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
                         return Err(());
                     }
                 }
-                Some(term) if term.is(RBrace) => {
+                Some(t) if t.is(RBrace) => {
                     let r_brace = self.lpop();
-                    self.level -= 1;
-                    let attrs = RecordAttrs::from(attrs);
-                    return Ok(NormalRecord::new(l_brace, r_brace, attrs));
+                    self.stack_dec();
+                    return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                 }
                 Some(_) => {
-                    let def = self
+                    let next = self
                         .try_reduce_chunk(false, false)
                         .map_err(|_| self.stack_dec())?;
-                    let Some(def) = option_enum_unwrap!(def, Expr::Def) else {
-                        // self.restore(other);
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    };
-                    attrs.push(def);
-                }
-                _ => {
-                    //  self.restore(other);
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    return Err(());
-                }
-            }
-        }
-    }
-
-    fn try_reduce_shortened_record(
-        &mut self,
-        l_brace: Token,
-        first: Accessor,
-    ) -> ParseResult<ShortenedRecord> {
-        debug_call_info!(self);
-        let first = match first {
-            Accessor::Ident(ident) => ident,
-            other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
-                self.errs.push(err);
-                return Err(());
-            }
-        };
-        let mut idents = vec![first];
-        loop {
-            match self.peek() {
-                Some(t) if t.category_is(TC::Separator) => {
-                    self.skip();
-                }
-                Some(t) if t.is(Dedent) => {
-                    self.skip();
-                    if self.cur_is(RBrace) {
-                        let r_brace = self.lpop();
-                        self.level -= 1;
-                        return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
-                    } else {
-                        // self.restore(other);
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    }
-                }
-                Some(term) if term.is(RBrace) => {
-                    let r_brace = self.lpop();
-                    self.level -= 1;
-                    return Ok(ShortenedRecord::new(l_brace, r_brace, idents));
-                }
-                Some(_) => {
-                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
-                    let acc = match acc {
-                        Accessor::Ident(ident) => ident,
-                        other => {
-                            self.level -= 1;
-                            let err =
-                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                    match next {
+                        Expr::Def(def) => {
+                            attrs.push(RecordAttrOrIdent::Attr(def));
+                        }
+                        Expr::Accessor(acc) => {
+                            let ident = match acc {
+                                Accessor::Ident(ident) => ident,
+                                other => {
+                                    self.stack_dec();
+                                    let err = ParseError::simple_syntax_error(
+                                        line!() as usize,
+                                        other.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    return Err(());
+                                }
+                            };
+                            attrs.push(RecordAttrOrIdent::Ident(ident));
+                        }
+                        _ => {
+                            self.stack_dec();
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
                             return Err(());
                         }
-                    };
-                    idents.push(acc);
+                    }
                 }
                 _ => {
+                    //  self.restore(other);
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
@@ -2160,6 +2141,91 @@ impl Parser {
         }
     }
 
+    /// x |> f() => f(x)
+    fn try_reduce_stream_operator(&mut self, stack: &mut Vec<ExprOrOp>) -> ParseResult<()> {
+        debug_call_info!(self);
+        let op = self.lpop();
+        while stack.len() >= 3 {
+            collect_last_binop_on_stack(stack);
+        }
+        if stack.len() == 2 {
+            self.errs
+                .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+            self.stack_dec();
+            return Err(());
+        }
+
+        fn get_stream_op_syntax_error(loc: Location) -> ParseError {
+            ParseError::syntax_error(
+                0,
+                loc,
+                switch_lang!(
+                    "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
+                    "english" => "Only a call of function, method or subroutine is available after stream operator.",
+                ),
+                None,
+            )
+        }
+
+        if matches!(self.peek(), Some(t) if t.is(Dot)) {
+            // obj |> .method(...)
+            let vis = self.lpop();
+            match self.lpop() {
+                symbol if symbol.is(Symbol) => {
+                    let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
+                        self.level -= 1;
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        self.errs.push(err);
+                        return Err(());
+                    };
+                    if let Some(args) = self
+                        .opt_reduce_args(false)
+                        .transpose()
+                        .map_err(|_| self.stack_dec())?
+                    {
+                        let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                        let mut call = Expr::Call(Call::new(obj, Some(ident), args));
+                        while let Some(res) = self.opt_reduce_args(false) {
+                            let args = res.map_err(|_| self.stack_dec())?;
+                            call = call.call_expr(args);
+                        }
+                        stack.push(ExprOrOp::Expr(call));
+                    } else {
+                        self.errs.push(get_stream_op_syntax_error(obj.loc()));
+                        self.stack_dec();
+                        return Err(());
+                    }
+                }
+                other => {
+                    self.restore(other);
+                    self.level -= 1;
+                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    self.errs.push(err);
+                    return Err(());
+                }
+            }
+        } else {
+            let expect_call = self
+                .try_reduce_call_or_acc(false)
+                .map_err(|_| self.stack_dec())?;
+            let Expr::Call(mut call) = expect_call else {
+                self.errs.push(get_stream_op_syntax_error(expect_call.loc()));
+                self.stack_dec();
+                return Err(());
+            };
+            let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
+                self.errs
+                    .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
+                self.stack_dec();
+                return Err(());
+            };
+            call.args.insert_pos(0, PosArg::new(first_arg));
+            stack.push(ExprOrOp::Expr(Expr::Call(call)));
+        }
+        self.stack_dec();
+        Ok(())
+    }
+
     /// Call: F(x) -> SubrSignature: F(x)
     fn convert_rhs_to_sig(&mut self, rhs: Expr) -> ParseResult<Signature> {
         debug_call_info!(self);
@@ -2291,36 +2357,45 @@ impl Parser {
         }
     }
 
+    fn convert_def_to_var_record_attr(&mut self, mut attr: Def) -> ParseResult<VarRecordAttr> {
+        let lhs = option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
+        let lhs = option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+        assert_eq!(attr.body.block.len(), 1);
+        let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
+            .unwrap_or_else(|| todo!());
+        let rhs = self.convert_accessor_to_var_sig(rhs)?;
+        Ok(VarRecordAttr::new(lhs, rhs))
+    }
+
     fn convert_record_to_record_pat(&mut self, record: Record) -> ParseResult<VarRecordPattern> {
         debug_call_info!(self);
         match record {
             Record::Normal(rec) => {
-                let mut pats = vec![];
-                for mut attr in rec.attrs.into_iter() {
-                    let lhs =
-                        option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
-                    let lhs =
-                        option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
-                    assert_eq!(attr.body.block.len(), 1);
-                    let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
-                        .unwrap_or_else(|| todo!());
-                    let rhs = self
-                        .convert_accessor_to_var_sig(rhs)
-                        .map_err(|_| self.stack_dec())?;
-                    pats.push(VarRecordAttr::new(lhs, rhs));
-                }
+                let pats = rec
+                    .attrs
+                    .into_iter()
+                    .map(|attr| self.convert_def_to_var_record_attr(attr))
+                    .collect::<ParseResult<Vec<_>>>()
+                    .map_err(|_| self.stack_dec())?;
                 let attrs = VarRecordAttrs::new(pats);
-                self.level -= 1;
+                self.stack_dec();
                 Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
-            Record::Shortened(rec) => {
-                let mut pats = vec![];
-                for ident in rec.idents.into_iter() {
-                    let rhs = VarSignature::new(VarPattern::Ident(ident.clone()), None);
-                    pats.push(VarRecordAttr::new(ident.clone(), rhs));
-                }
+            Record::Mixed(rec) => {
+                let pats = rec
+                    .attrs
+                    .into_iter()
+                    .map(|attr_or_ident| match attr_or_ident {
+                        RecordAttrOrIdent::Attr(attr) => self.convert_def_to_var_record_attr(attr),
+                        RecordAttrOrIdent::Ident(ident) => {
+                            let rhs = VarSignature::new(VarPattern::Ident(ident.clone()), None);
+                            Ok(VarRecordAttr::new(ident, rhs))
+                        }
+                    })
+                    .collect::<ParseResult<Vec<_>>>()
+                    .map_err(|_| self.stack_dec())?;
                 let attrs = VarRecordAttrs::new(pats);
-                self.level -= 1;
+                self.stack_dec();
                 Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
         }
@@ -2649,6 +2724,16 @@ impl Parser {
         }
     }
 
+    fn convert_def_to_param_record_attr(&mut self, mut attr: Def) -> ParseResult<ParamRecordAttr> {
+        let lhs = option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
+        let lhs = option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+        assert_eq!(attr.body.block.len(), 1);
+        let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
+            .unwrap_or_else(|| todo!());
+        let rhs = self.convert_accessor_to_param_sig(rhs)?;
+        Ok(ParamRecordAttr::new(lhs, rhs))
+    }
+
     fn convert_record_to_param_record_pat(
         &mut self,
         record: Record,
@@ -2656,35 +2741,36 @@ impl Parser {
         debug_call_info!(self);
         match record {
             Record::Normal(rec) => {
-                let mut pats = vec![];
-                for mut attr in rec.attrs.into_iter() {
-                    let lhs =
-                        option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
-                    let lhs =
-                        option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
-                    assert_eq!(attr.body.block.len(), 1);
-                    let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
-                        .unwrap_or_else(|| todo!());
-                    let rhs = self
-                        .convert_accessor_to_param_sig(rhs)
-                        .map_err(|_| self.stack_dec())?;
-                    pats.push(ParamRecordAttr::new(lhs, rhs));
-                }
+                let pats = rec
+                    .attrs
+                    .into_iter()
+                    .map(|attr| self.convert_def_to_param_record_attr(attr))
+                    .collect::<ParseResult<Vec<_>>>()
+                    .map_err(|_| self.stack_dec())?;
                 let attrs = ParamRecordAttrs::new(pats);
-                self.level -= 1;
+                self.stack_dec();
                 Ok(ParamRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
-            Record::Shortened(rec) => {
-                let mut pats = vec![];
-                for ident in rec.idents.into_iter() {
-                    let rhs = NonDefaultParamSignature::new(
-                        ParamPattern::VarName(ident.name.clone()),
-                        None,
-                    );
-                    pats.push(ParamRecordAttr::new(ident.clone(), rhs));
-                }
+            Record::Mixed(rec) => {
+                let pats = rec
+                    .attrs
+                    .into_iter()
+                    .map(|attr_or_ident| match attr_or_ident {
+                        RecordAttrOrIdent::Attr(attr) => {
+                            self.convert_def_to_param_record_attr(attr)
+                        }
+                        RecordAttrOrIdent::Ident(ident) => {
+                            let rhs = NonDefaultParamSignature::new(
+                                ParamPattern::VarName(ident.name.clone()),
+                                None,
+                            );
+                            Ok(ParamRecordAttr::new(ident, rhs))
+                        }
+                    })
+                    .collect::<ParseResult<Vec<_>>>()
+                    .map_err(|_| self.stack_dec())?;
                 let attrs = ParamRecordAttrs::new(pats);
-                self.level -= 1;
+                self.stack_dec();
                 Ok(ParamRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
         }
@@ -3059,17 +3145,31 @@ impl Parser {
         record: Record,
     ) -> Result<Vec<(Identifier, TypeSpec)>, ParseError> {
         match record {
-            Record::Normal(rec) => {
-                let mut rec_spec = vec![];
-                for mut def in rec.attrs.into_iter() {
+            Record::Normal(rec) => rec
+                .attrs
+                .into_iter()
+                .map(|mut def| {
                     let ident = def.sig.ident().unwrap().clone();
                     // TODO: check block.len() == 1
                     let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
-                    rec_spec.push((ident, value));
-                }
-                Ok(rec_spec)
-            }
-            _ => todo!(),
+                    Ok((ident, value))
+                })
+                .collect::<Result<Vec<_>, ParseError>>(),
+            Record::Mixed(rec) => rec
+                .attrs
+                .into_iter()
+                .map(|attr_or_ident| match attr_or_ident {
+                    RecordAttrOrIdent::Attr(mut def) => {
+                        let ident = def.sig.ident().unwrap().clone();
+                        // TODO: check block.len() == 1
+                        let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
+                        Ok((ident, value))
+                    }
+                    RecordAttrOrIdent::Ident(_ident) => {
+                        todo!("TypeSpec for shortened record is not implemented.")
+                    }
+                })
+                .collect::<Result<Vec<_>, ParseError>>(),
         }
     }
 
@@ -3153,4 +3253,12 @@ impl Parser {
             }
         }
     }
+}
+
+fn collect_last_binop_on_stack(stack: &mut Vec<ExprOrOp>) {
+    let rhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+    let op = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Op:(_)));
+    let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+    let bin = BinOp::new(op, lhs, rhs);
+    stack.push(ExprOrOp::Expr(Expr::BinOp(bin)));
 }

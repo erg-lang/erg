@@ -8,6 +8,7 @@ use crate::error::{ParserRunnerError, ParserRunnerErrors};
 use crate::parse::ParserRunner;
 
 /// Summarize parsing and desugaring
+#[derive(Debug, Default)]
 pub struct ASTBuilder {
     runner: ParserRunner,
 }
@@ -31,6 +32,9 @@ impl Runnable for ASTBuilder {
 
     #[inline]
     fn finish(&mut self) {}
+
+    #[inline]
+    fn initialize(&mut self) {}
 
     #[inline]
     fn clear(&mut self) {}

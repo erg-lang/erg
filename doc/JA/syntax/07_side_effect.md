@@ -4,7 +4,7 @@
 
 これまで`print!`の`!`の意味を説明せずにいましたが、いよいよその意味が明かされます。この!は、ズバリこのオブジェクトが「副作用」のある「プロシージャ」であることを示しています。プロシージャは関数に「副作用」という効果を与えたものです。
 
-```python
+```python,compile_fail
 f x = print! x # EffectError: functions cannot be assigned objects with side effects
 # hint: change the name to 'f!'
 ```
@@ -32,7 +32,7 @@ C.
 
 メソッドは`self`の所有権を奪うこともできます。そのメソッドの定義では`ref`または`ref!`を外します。
 
-```python
+```python,compile_fail
 n = 1
 s = n.into(Str) # 所有権がnから移動し、s = '1'になる
 n # ValueError: n was moved by .into (line 2)

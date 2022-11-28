@@ -29,7 +29,7 @@ assert l[[]] == "empty"
 從 dict 文字生成 dict 時，會檢查重復鍵
 任何重復都會導致編譯錯誤
 
-```python
+```python,compile_fail
 {"Alice": 145, "Alice": 1} # Key錯誤: 重復鍵`Alice`
 ```
 

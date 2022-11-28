@@ -45,7 +45,7 @@ impl<S: AsRawFd> IsTty for S {
 
 /// returns true if this is a tty
 #[cfg(any(target_arch = "wasm32", target_env = "sgx"))]
-impl<S: AsRawFd> IsTty for S {
+impl IsTty for std::io::Stdin {
     fn is_tty(&self) -> bool {
         false
     }

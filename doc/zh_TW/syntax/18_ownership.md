@@ -82,7 +82,7 @@ peek_str s
 借來的值稱為原始對象的 __reference__
 您可以"轉租"對另一個子例程的引用，但您不能使用它，因為您只是借用它
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # 由于日志函數只借用參數，所以可以轉租
     log s
@@ -91,7 +91,7 @@ steal_str ref(s: Str!) =
     # 提示: 使用 `clone` 方法
 ```
 
-```python
+```python,compile_fail
 steal_str ref(s: Str!) =
     # 這也不好(=消耗右邊)
      x = s # OwnershipError: 不能消費借來的值

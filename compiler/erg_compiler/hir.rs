@@ -1081,8 +1081,13 @@ pub struct Call {
 
 impl NestedDisplay for Call {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "({}){}:", self.obj, fmt_option!(self.attr_name),)?;
-        self.args.fmt_nest(f, level + 1)
+        writeln!(f, "({}){}", self.obj, fmt_option!(self.attr_name),)?;
+        if self.args.is_empty() {
+            write!(f, "()")
+        } else {
+            writeln!(f, ":")?;
+            self.args.fmt_nest(f, level + 1)
+        }
     }
 }
 
@@ -1337,6 +1342,13 @@ type RawParams = (
     Option<(Token, Token)>,
 );
 
+type RefRawParams<'a> = (
+    &'a Vec<NonDefaultParamSignature>,
+    &'a Option<Box<NonDefaultParamSignature>>,
+    &'a Vec<DefaultParamSignature>,
+    &'a Option<(Token, Token)>,
+);
+
 impl Params {
     pub const fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
@@ -1350,6 +1362,15 @@ impl Params {
             defaults,
             parens,
         }
+    }
+
+    pub const fn ref_deconstruct(&self) -> RefRawParams {
+        (
+            &self.non_defaults,
+            &self.var_args,
+            &self.defaults,
+            &self.parens,
+        )
     }
 
     pub fn deconstruct(self) -> RawParams {

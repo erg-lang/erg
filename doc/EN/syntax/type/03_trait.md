@@ -47,7 +47,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 
 ## Trait inclusion
 
-The expansion operator `...` allows you to define a trait that contains a certain trait as a supertype. This is called the __subsumption__ of a trait.
+`Subsume` allows you to define a trait that contains a certain trait as a supertype. This is called the __subsumption__ of a trait.
 In the example below, `BinAddSub` subsumes `BinAdd` and `BinSub`.
 This corresponds to Inheritance in a class, but unlike Inheritance, multiple base types can be combined using `and`. Traits that are partially excluded by `not` are also allowed.
 
