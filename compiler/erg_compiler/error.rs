@@ -1577,6 +1577,44 @@ impl LowerError {
         )
     }
 
+    pub fn access_before_def_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        defined_line: usize,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            switch_lang!(
+                "japanese" => format!("似た名前の変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
+                "english" => format!("exists a similar name variable: {n}"),
+            )
+        });
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("定義({defined_line}行目)より前で{found}を参照することは出来ません"),
+                    "simplified_chinese" => format!("在{found}定义({defined_line}行)之前引用是不允许的"),
+                    "traditional_chinese" => format!("在{found}定義({defined_line}行)之前引用是不允許的"),
+                    "english" => format!("cannot reference {found} before its definition (line {defined_line})"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn no_type_error(
         input: Input,
         errno: usize,
