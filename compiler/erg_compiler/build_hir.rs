@@ -51,7 +51,7 @@ impl Runnable for HIRBuilder {
 
     fn clear(&mut self) {
         self.lowerer.clear();
-        self.ownership_checker = OwnershipChecker::new(self.cfg().copy());
+        // don't initialize the ownership checker
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
