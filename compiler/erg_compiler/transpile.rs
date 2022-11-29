@@ -431,6 +431,7 @@ impl ScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, mut call: Call) -> String {
+        let is_py_api = call.obj.is_py_api();
         let mut code = format!("({})", self.transpile_expr(*call.obj));
         if let Some(attr) = call.attr_name {
             code += &format!(".{}", Self::transpile_ident(attr));
@@ -441,7 +442,12 @@ impl ScriptGenerator {
             code.push(',');
         }
         while let Some(arg) = call.args.try_remove_kw(0) {
-            code += &format!("{}={},", arg.keyword, self.transpile_expr(arg.expr));
+            let escape = if is_py_api { "" } else { "__" };
+            code += &format!(
+                "{}{escape}={},",
+                arg.keyword.content,
+                self.transpile_expr(arg.expr)
+            );
         }
         code.push(')');
         code

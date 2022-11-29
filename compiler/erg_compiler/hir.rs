@@ -422,6 +422,10 @@ impl Identifier {
         Self::new(dot, name, None, VarInfo::const_default())
     }
 
+    pub fn is_py_api(&self) -> bool {
+        self.vi.py_name.is_some()
+    }
+
     pub fn is_const(&self) -> bool {
         self.name.is_const()
     }
@@ -536,6 +540,13 @@ impl Accessor {
                     + "." // TODO: visibility
                     + readable_name(attr.ident.inspect())
             }
+        }
+    }
+
+    pub fn is_py_api(&self) -> bool {
+        match self {
+            Self::Ident(ident) => ident.is_py_api(),
+            Self::Attr(attr) => attr.ident.is_py_api(),
         }
     }
 
@@ -1916,6 +1927,13 @@ impl Expr {
         match self {
             Expr::Accessor(acc) => acc.local_name(),
             _ => None,
+        }
+    }
+
+    pub fn is_py_api(&self) -> bool {
+        match self {
+            Expr::Accessor(acc) => acc.is_py_api(),
+            _ => false,
         }
     }
 
