@@ -185,39 +185,72 @@ impl ASTLowerer {
                 String::from(&self.ctx.name[..]),
             )))
         } else {
-            match expr {
-                hir::Expr::Def(def) => {
-                    let mut errs = LowerWarnings::empty();
-                    let last = def.body.block.len() - 1;
-                    for (i, chunk) in def.body.block.iter().enumerate() {
-                        if i == last {
-                            break;
+            self.block_use_check(expr, mode)
+        }
+    }
+
+    fn block_use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
+        let mut warns = LowerWarnings::empty();
+        match expr {
+            hir::Expr::Def(def) => {
+                let last = def.body.block.len() - 1;
+                for (i, chunk) in def.body.block.iter().enumerate() {
+                    if i == last {
+                        if let Err(ws) = self.block_use_check(chunk, mode) {
+                            warns.extend(ws);
                         }
-                        if let Err(err) = self.use_check(chunk, mode) {
-                            errs.extend(err);
-                        }
+                        break;
                     }
-                    if errs.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(errs)
+                    if let Err(ws) = self.use_check(chunk, mode) {
+                        warns.extend(ws);
                     }
                 }
-                hir::Expr::ClassDef(cl_def) => {
-                    let mut errs = LowerWarnings::empty();
-                    for chunk in cl_def.methods.iter() {
-                        if let Err(err) = self.use_check(chunk, mode) {
-                            errs.extend(err);
-                        }
-                    }
-                    if errs.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(errs)
-                    }
-                }
-                _ => Ok(()),
             }
+            hir::Expr::Lambda(lambda) => {
+                let last = lambda.body.len() - 1;
+                for (i, chunk) in lambda.body.iter().enumerate() {
+                    if i == last {
+                        if let Err(ws) = self.block_use_check(chunk, mode) {
+                            warns.extend(ws);
+                        }
+                        break;
+                    }
+                    if let Err(ws) = self.use_check(chunk, mode) {
+                        warns.extend(ws);
+                    }
+                }
+            }
+            hir::Expr::ClassDef(cl_def) => {
+                for chunk in cl_def.methods.iter() {
+                    if let Err(ws) = self.use_check(chunk, mode) {
+                        warns.extend(ws);
+                    }
+                }
+            }
+            hir::Expr::Call(call) => {
+                for arg in call.args.pos_args.iter() {
+                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
+                        warns.extend(ws);
+                    }
+                }
+                if let Some(var_args) = &call.args.var_args {
+                    if let Err(ws) = self.block_use_check(&var_args.expr, mode) {
+                        warns.extend(ws);
+                    }
+                }
+                for arg in call.args.kw_args.iter() {
+                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
+                        warns.extend(ws);
+                    }
+                }
+            }
+            // TODO: unary, binary, array, ...
+            _ => {}
+        }
+        if warns.is_empty() {
+            Ok(())
+        } else {
+            Err(warns)
         }
     }
 

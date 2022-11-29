@@ -882,22 +882,26 @@ impl Ownership {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgsOwnership {
-    pub non_defaults: Vec<Ownership>,
-    pub var_params: Option<Ownership>,
+    pub non_defaults: Vec<(Option<Str>, Ownership)>,
+    pub var_params: Option<(Str, Ownership)>,
     pub defaults: Vec<(Str, Ownership)>,
 }
 
 impl fmt::Display for ArgsOwnership {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(")?;
-        for (i, o) in self.non_defaults.iter().enumerate() {
+        for (i, (name, o)) in self.non_defaults.iter().enumerate() {
             if i != 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{o:?}")?;
+            if let Some(name) = name {
+                write!(f, "{name}: {o:?}")?;
+            } else {
+                write!(f, "{o:?}")?;
+            }
         }
-        if let Some(o) = self.var_params.as_ref() {
-            write!(f, ", ...{o:?}")?;
+        if let Some((name, o)) = self.var_params.as_ref() {
+            write!(f, ", ...{name}: {o:?}")?;
         }
         for (name, o) in self.defaults.iter() {
             write!(f, ", {name} := {o:?}")?;
@@ -909,8 +913,8 @@ impl fmt::Display for ArgsOwnership {
 
 impl ArgsOwnership {
     pub const fn new(
-        non_defaults: Vec<Ownership>,
-        var_params: Option<Ownership>,
+        non_defaults: Vec<(Option<Str>, Ownership)>,
+        var_params: Option<(Str, Ownership)>,
         defaults: Vec<(Str, Ownership)>,
     ) -> Self {
         Self {
@@ -1678,9 +1682,12 @@ impl Type {
                         Self::RefMut { .. } => Ownership::RefMut,
                         _ => Ownership::Owned,
                     };
-                    nd_args.push(ownership);
+                    nd_args.push((nd_param.name().cloned(), ownership));
                 }
-                let var_args = subr.var_params.as_ref().map(|t| t.typ().ownership());
+                let var_args = subr
+                    .var_params
+                    .as_ref()
+                    .map(|t| (t.name().unwrap().clone(), t.typ().ownership()));
                 let mut d_args = vec![];
                 for d_param in subr.default_params.iter() {
                     let ownership = match d_param.typ() {

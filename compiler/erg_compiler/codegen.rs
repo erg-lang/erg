@@ -1926,9 +1926,10 @@ impl PyCodeGenerator {
                     self.emit_call_local(ident, call.args)
                 }
                 other => {
+                    let is_py_api = other.is_py_api();
                     self.emit_push_null();
                     self.emit_expr(other);
-                    self.emit_args_311(call.args, Name);
+                    self.emit_args_311(call.args, Name, is_py_api);
                 }
             }
         }
@@ -1952,11 +1953,12 @@ impl PyCodeGenerator {
                 Some(8) => self.emit_with_instr_308(args),
                 _ => todo!(),
             },
-            // "pyimport" | "py" |
+            // "pyimport" | "py" are here
             _ => {
+                let is_py_api = local.is_py_api();
                 self.emit_push_null();
                 self.emit_load_name_instr(local);
-                self.emit_args_311(args, Name);
+                self.emit_args_311(args, Name, is_py_api);
             }
         }
     }
@@ -1973,9 +1975,10 @@ impl PyCodeGenerator {
         } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
+        let is_py_api = obj.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
-        self.emit_args_311(args, Method);
+        self.emit_args_311(args, Method, is_py_api);
     }
 
     fn emit_var_args_311(&mut self, pos_len: usize, var_args: &PosArg) {
@@ -2004,7 +2007,7 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_args_311(&mut self, mut args: Args, kind: AccessKind) {
+    fn emit_args_311(&mut self, mut args: Args, kind: AccessKind, is_py_api: bool) {
         let argc = args.len();
         let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
@@ -2019,7 +2022,12 @@ impl PyCodeGenerator {
             }
         }
         while let Some(arg) = args.try_remove_kw(0) {
-            kws.push(ValueObj::Str(arg.keyword.content.clone()));
+            let kw = if is_py_api {
+                arg.keyword.content
+            } else {
+                Str::from(format!("::{}", arg.keyword.content))
+            };
+            kws.push(ValueObj::Str(kw));
             self.emit_expr(arg.expr);
         }
         let kwsc = if !kws.is_empty() {
@@ -2095,7 +2103,7 @@ impl PyCodeGenerator {
         self.emit_push_null();
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
-        self.emit_args_311(args, Name);
+        self.emit_args_311(args, Name, true);
     }
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)
