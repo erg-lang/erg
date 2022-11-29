@@ -1046,21 +1046,19 @@ impl Context {
                         }
                         nth += 1;
                     }
-                    let missing_len = params_len - passed_params.len();
-                    if missing_len > 0 {
-                        let missing_params = subr
-                            .non_default_params
-                            .iter()
-                            .map(|pt| pt.name().cloned().unwrap_or(Str::ever("_")))
-                            .filter(|pt| !passed_params.contains(pt))
-                            .collect();
+                    let missing_params = subr
+                        .non_default_params
+                        .iter()
+                        .map(|pt| pt.name().cloned().unwrap_or(Str::ever("_")))
+                        .filter(|pt| !passed_params.contains(pt))
+                        .collect::<Vec<_>>();
+                    if !missing_params.is_empty() {
                         return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             callee.loc(),
                             &callee.to_string(),
                             self.caused_by(),
-                            missing_len,
                             missing_params,
                         )));
                     }

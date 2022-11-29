@@ -673,11 +673,11 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         callee_name: &str,
         caused_by: String,
-        missing_len: usize,
         missing_params: Vec<Str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let vec_cxt = StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(ATTR));
+        let missing_len = missing_params.len();
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -2380,7 +2380,6 @@ mod test {
             loc,
             "\"Callee name here\"",
             caused_by.into(),
-            0,
             vec!["sample".into(), "args".into(), "here".into()],
         );
         errors.push(err);
