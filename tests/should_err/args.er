@@ -26,4 +26,5 @@ print! sub !1 # OK
 print! sub !1, 1 # OK
 print! sub x:=!1, y:=2 # OK
 print! sub x:=!1 # OK
+print! sub y:=1 # ERR, missing argument x
 print! sub !1, 1, y:=2 # ERR, too many args
