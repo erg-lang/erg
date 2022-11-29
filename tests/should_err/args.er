@@ -8,6 +8,9 @@ print! add !1, 1 # OK
 print! add x:=!1, y:=2 # OK
 print! add y:=1, x:=!2 # OK
 print! add !1, y:=1 # OK
+print! add() # ERR, missing argument x, y
+print! add !1 # ERR, missing argument y
+print! add y:=1 # ERR, missing argument x
 print! add x:=!1, y:="" # ERR, the type of y is wrong
 print! add x:=!1, y:=2, z:=1 # ERR, z is unexpected
 print! add x:=!1, y:=2, x:=!2 # ERR, x is passed twice

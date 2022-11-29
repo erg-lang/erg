@@ -1051,9 +1051,6 @@ impl Context {
                         let missing_params = subr
                             .non_default_params
                             .iter()
-                            .rev()
-                            .take(missing_len)
-                            .rev()
                             .map(|pt| pt.name().cloned().unwrap_or(Str::ever("_")))
                             .filter(|pt| !passed_params.contains(pt))
                             .collect();
@@ -1292,8 +1289,6 @@ impl Context {
                 self.caused_by(),
                 arg.keyword.inspect(),
             )));
-        } else {
-            passed_params.insert(kw_name.clone());
         }
         if let Some(pt) = subr_ty
             .non_default_params
