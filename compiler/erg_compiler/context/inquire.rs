@@ -1100,7 +1100,7 @@ impl Context {
         kw_args: &[hir::KwArg],
     ) -> TyCheckErrors {
         let mut unknown_args = vec![];
-        let mut passed_args = vec![];
+        let mut passed_args: Vec<&hir::KwArg> = vec![];
         let mut duplicated_args = vec![];
         for kw_arg in kw_args.iter() {
             if subr_ty
@@ -1117,12 +1117,12 @@ impl Context {
                     .iter()
                     .all(|pt| pt.name() != Some(kw_arg.keyword.inspect()))
             {
-                unknown_args.push(kw_arg.keyword.inspect().clone());
+                unknown_args.push(kw_arg);
             }
-            if passed_args.contains(kw_arg.keyword.inspect()) {
-                duplicated_args.push(kw_arg.keyword.inspect().clone());
+            if passed_args.iter().any(|a| a.keyword == kw_arg.keyword) {
+                duplicated_args.push(kw_arg);
             } else {
-                passed_args.push(kw_arg.keyword.inspect().clone());
+                passed_args.push(kw_arg);
             }
         }
         if unknown_args.is_empty() && duplicated_args.is_empty() {
@@ -1138,24 +1138,24 @@ impl Context {
                 kw_args.len(),
             ))
         } else {
-            let unknown_arg_errors = unknown_args.into_iter().map(|name| {
+            let unknown_arg_errors = unknown_args.into_iter().map(|arg| {
                 TyCheckError::unexpected_kw_arg_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    callee.loc(),
+                    arg.loc(),
                     &callee.to_string(),
                     self.caused_by(),
-                    &name,
+                    arg.keyword.inspect(),
                 )
             });
-            let duplicated_arg_errors = duplicated_args.into_iter().map(|name| {
+            let duplicated_arg_errors = duplicated_args.into_iter().map(|arg| {
                 TyCheckError::multiple_args_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    callee.loc(),
+                    arg.loc(),
                     &callee.to_string(),
                     self.caused_by(),
-                    &name,
+                    arg.keyword.inspect(),
                 )
             });
             unknown_arg_errors.chain(duplicated_arg_errors).collect()
