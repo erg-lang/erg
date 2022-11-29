@@ -159,11 +159,21 @@ impl Lexer /*<'a>*/ {
     }
 
     fn is_valid_start_symbol_ch(c: char) -> bool {
-        c.is_xid_start() || c == '_'
+        // fast-path
+        // https://github.com/rust-lang/rust/blob/6b5f9b2e973e438fc1726a2d164d046acd80b170/src/librustc_lexer/src/lib.rs#L153
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || c.is_xid_start()
     }
 
     fn is_valid_continue_symbol_ch(c: char) -> bool {
-        c.is_xid_continue() && !('０'..='９').contains(&c) || c == '_'
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || (c.is_xid_continue() && !('０'..='９').contains(&c))
     }
 
     /// Detect `c` is a bidirectional overriding character.
