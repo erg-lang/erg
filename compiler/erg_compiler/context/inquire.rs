@@ -931,16 +931,7 @@ impl Context {
                 if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
                     && subr.var_params.is_none()
                 {
-                    return Err(TyCheckErrors::from(TyCheckError::too_many_args_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        callee.loc(),
-                        &callee.to_string(),
-                        self.caused_by(),
-                        params_len,
-                        pos_args.len(),
-                        kw_args.len(),
-                    )));
+                    return Err(self.gen_too_many_args_error(&callee, subr, pos_args, kw_args));
                 }
                 let mut passed_params = set! {};
                 let non_default_params = if is_method {
@@ -1098,6 +1089,76 @@ impl Context {
                     )))
                 }
             }
+        }
+    }
+
+    fn gen_too_many_args_error(
+        &self,
+        callee: &hir::Expr,
+        subr_ty: &SubrType,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+    ) -> TyCheckErrors {
+        let mut unknown_args = vec![];
+        let mut passed_args = vec![];
+        let mut duplicated_args = vec![];
+        for kw_arg in kw_args.iter() {
+            if subr_ty
+                .non_default_params
+                .iter()
+                .all(|pt| pt.name() != Some(kw_arg.keyword.inspect()))
+                && subr_ty
+                    .var_params
+                    .as_ref()
+                    .map(|pt| pt.name() != Some(kw_arg.keyword.inspect()))
+                    .unwrap_or(true)
+                && subr_ty
+                    .default_params
+                    .iter()
+                    .all(|pt| pt.name() != Some(kw_arg.keyword.inspect()))
+            {
+                unknown_args.push(kw_arg.keyword.inspect().clone());
+            }
+            if passed_args.contains(kw_arg.keyword.inspect()) {
+                duplicated_args.push(kw_arg.keyword.inspect().clone());
+            } else {
+                passed_args.push(kw_arg.keyword.inspect().clone());
+            }
+        }
+        if unknown_args.is_empty() && duplicated_args.is_empty() {
+            let params_len = subr_ty.non_default_params.len() + subr_ty.default_params.len();
+            TyCheckErrors::from(TyCheckError::too_many_args_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                callee.loc(),
+                &callee.to_string(),
+                self.caused_by(),
+                params_len,
+                pos_args.len(),
+                kw_args.len(),
+            ))
+        } else {
+            let unknown_arg_errors = unknown_args.into_iter().map(|name| {
+                TyCheckError::unexpected_kw_arg_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    callee.loc(),
+                    &callee.to_string(),
+                    self.caused_by(),
+                    &name,
+                )
+            });
+            let duplicated_arg_errors = duplicated_args.into_iter().map(|name| {
+                TyCheckError::multiple_args_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    callee.loc(),
+                    &callee.to_string(),
+                    self.caused_by(),
+                    &name,
+                )
+            });
+            unknown_arg_errors.chain(duplicated_arg_errors).collect()
         }
     }
 
