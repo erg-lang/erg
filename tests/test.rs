@@ -125,6 +125,11 @@ fn exec_addition_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_args() -> Result<(), ()> {
+    expect_failure("tests/should_err/args.er", 16)
+}
+
+#[test]
 fn exec_invalid_param() -> Result<(), ()> {
     expect_failure("tests/should_err/invalid_param.er", 3)
 }

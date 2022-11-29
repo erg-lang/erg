@@ -1019,6 +1019,20 @@ impl Context {
                     }
                 } else {
                     // pos_args.len() < non_default_params_len
+                    let mut params = non_default_params.chain(subr.default_params.iter());
+                    for pos_arg in pos_args.iter() {
+                        if let Err(mut es) = self.substitute_pos_arg(
+                            &callee,
+                            attr_name,
+                            &pos_arg.expr,
+                            nth,
+                            params.next().unwrap(),
+                            &mut passed_params,
+                        ) {
+                            errs.append(&mut es);
+                        }
+                        nth += 1;
+                    }
                     for kw_arg in kw_args.iter() {
                         if let Err(mut es) = self.substitute_kw_arg(
                             &callee,
@@ -1032,24 +1046,19 @@ impl Context {
                         }
                         nth += 1;
                     }
-                    let missing_len = non_default_params_len - pos_args.len() - passed_params.len();
-                    if missing_len > 0 {
-                        let missing_params = subr
-                            .non_default_params
-                            .iter()
-                            .rev()
-                            .take(missing_len)
-                            .rev()
-                            .map(|pt| pt.name().cloned().unwrap_or(Str::ever("")))
-                            .filter(|pt| !passed_params.contains(pt))
-                            .collect();
+                    let missing_params = subr
+                        .non_default_params
+                        .iter()
+                        .map(|pt| pt.name().cloned().unwrap_or(Str::ever("_")))
+                        .filter(|pt| !passed_params.contains(pt))
+                        .collect::<Vec<_>>();
+                    if !missing_params.is_empty() {
                         return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             callee.loc(),
                             &callee.to_string(),
                             self.caused_by(),
-                            missing_len,
                             missing_params,
                         )));
                     }
@@ -1173,6 +1182,20 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = &param.typ();
+        if let Some(name) = param.name() {
+            if passed_params.contains(name) {
+                return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    callee.loc(),
+                    &callee.to_string(),
+                    self.caused_by(),
+                    name,
+                )));
+            } else {
+                passed_params.insert(name.clone());
+            }
+        }
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
@@ -1201,20 +1224,6 @@ impl Context {
                         .collect(),
                 )
             })?;
-        if let Some(name) = param.name() {
-            if passed_params.contains(name) {
-                return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    callee.loc(),
-                    &callee.to_string(),
-                    self.caused_by(),
-                    name,
-                )));
-            } else {
-                passed_params.insert(name.clone());
-            }
-        }
         Ok(())
     }
 
@@ -1278,8 +1287,6 @@ impl Context {
                 self.caused_by(),
                 arg.keyword.inspect(),
             )));
-        } else {
-            passed_params.insert(kw_name.clone());
         }
         if let Some(pt) = subr_ty
             .non_default_params
@@ -1287,6 +1294,7 @@ impl Context {
             .chain(subr_ty.default_params.iter())
             .find(|pt| pt.name().unwrap() == kw_name)
         {
+            passed_params.insert(kw_name.clone());
             self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
