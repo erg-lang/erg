@@ -943,26 +943,22 @@ impl Context {
                     )));
                 }
                 let mut passed_params = set! {};
-                let non_default_params_len = if attr_name.is_some() && is_method {
-                    subr.non_default_params.len() - 1
+                let non_default_params = if is_method {
+                    let mut non_default_params = subr.non_default_params.iter();
+                    let self_pt = non_default_params.next().unwrap();
+                    if let Err(mut es) =
+                        self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())
+                    {
+                        errs.append(&mut es);
+                    }
+                    non_default_params
                 } else {
-                    subr.non_default_params.len()
+                    subr.non_default_params.iter()
                 };
+                let non_default_params_len = non_default_params.len();
                 let mut nth = 1;
                 if pos_args.len() >= non_default_params_len {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
-                    let non_default_params = if is_method {
-                        let mut non_default_params = subr.non_default_params.iter();
-                        let self_pt = non_default_params.next().unwrap();
-                        if let Err(mut es) =
-                            self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())
-                        {
-                            errs.append(&mut es);
-                        }
-                        non_default_params
-                    } else {
-                        subr.non_default_params.iter()
-                    };
                     for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
                         if let Err(mut es) = self.substitute_pos_arg(
                             &callee,
@@ -1010,7 +1006,7 @@ impl Context {
                             attr_name,
                             kw_arg,
                             nth,
-                            &subr.default_params,
+                            subr,
                             &mut passed_params,
                         ) {
                             errs.append(&mut es);
@@ -1031,24 +1027,41 @@ impl Context {
                         }
                     }
                 } else {
-                    let missing_len = subr.non_default_params.len() - pos_args.len();
-                    let missing_params = subr
-                        .non_default_params
-                        .iter()
-                        .rev()
-                        .take(missing_len)
-                        .rev()
-                        .map(|pt| pt.name().cloned().unwrap_or(Str::ever("")))
-                        .collect();
-                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        callee.loc(),
-                        &callee.to_string(),
-                        self.caused_by(),
-                        missing_len,
-                        missing_params,
-                    )));
+                    // pos_args.len() < non_default_params_len
+                    for kw_arg in kw_args.iter() {
+                        if let Err(mut es) = self.substitute_kw_arg(
+                            &callee,
+                            attr_name,
+                            kw_arg,
+                            nth,
+                            subr,
+                            &mut passed_params,
+                        ) {
+                            errs.append(&mut es);
+                        }
+                        nth += 1;
+                    }
+                    let missing_len = non_default_params_len - pos_args.len() - passed_params.len();
+                    if missing_len > 0 {
+                        let missing_params = subr
+                            .non_default_params
+                            .iter()
+                            .rev()
+                            .take(missing_len)
+                            .rev()
+                            .map(|pt| pt.name().cloned().unwrap_or(Str::ever("")))
+                            .filter(|pt| !passed_params.contains(pt))
+                            .collect();
+                        return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            callee.loc(),
+                            &callee.to_string(),
+                            self.caused_by(),
+                            missing_len,
+                            missing_params,
+                        )));
+                    }
                 }
                 if errs.is_empty() {
                     Ok(())
@@ -1190,7 +1203,7 @@ impl Context {
         attr_name: &Option<Identifier>,
         arg: &hir::KwArg,
         nth: usize,
-        default_params: &[ParamTy],
+        subr_ty: &SubrType,
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.expr.ref_t();
@@ -1207,8 +1220,10 @@ impl Context {
         } else {
             passed_params.insert(kw_name.clone());
         }
-        if let Some(pt) = default_params
+        if let Some(pt) = subr_ty
+            .non_default_params
             .iter()
+            .chain(subr_ty.default_params.iter())
             .find(|pt| pt.name().unwrap() == kw_name)
         {
             self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
@@ -1263,7 +1278,6 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
             if local.vis().is_private() {
-                #[allow(clippy::single_match)]
                 match &local.inspect()[..] {
                     "match" => {
                         return self.get_match_call_t(SubrKind::Func, pos_args, kw_args);
@@ -1271,20 +1285,6 @@ impl Context {
                     "match!" => {
                         return self.get_match_call_t(SubrKind::Proc, pos_args, kw_args);
                     }
-                    /*"import" | "pyimport" | "py" => {
-                        return self.get_import_call_t(pos_args, kw_args);
-                    }*/
-                    // handle assert casting
-                    /*"assert" => {
-                        if let Some(arg) = pos_args.first() {
-                            match &arg.expr {
-                                hir::Expr::BinOp(bin) if bin.op.is(TokenKind::InOp) && bin.rhs.ref_t() == &Type => {
-                                    let t = self.eval_const_expr(bin.lhs.as_ref(), None)?.as_type().unwrap();
-                                }
-                                _ => {}
-                            }
-                        }
-                    },*/
                     _ => {}
                 }
             }
