@@ -17,7 +17,7 @@ pub mod link;
 pub mod linter;
 pub mod lower;
 pub mod mod_cache;
-// pub mod name_resolve;
+pub mod name_resolve;
 pub mod optimize;
 pub mod ownercheck;
 pub mod reorder;
