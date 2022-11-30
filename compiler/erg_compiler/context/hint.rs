@@ -65,28 +65,28 @@ impl Context {
                 switch_lang!(
                     "japanese" => {
                         hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
-                        hint.push_str("を");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
-                        hint.push_str("に変更する必要があります");
+                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
+                        hint.push_str("の代わりに");
+                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str("を使用する必要があります");
                     },
                     "simplified_chinese" => {
-                        hint.push_str("此参数接受func（无副作用）但由于副作用而不接受proc。你应该使用");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
-                        hint.push_str("到");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str("此参数接受func（无副作用）但由于副作用而不接受proc。你应该使用 ");
+                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str("而不是 ");
+                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
                     },
                     "traditional_chinese" => {
-                        hint.push_str("此参数接受func（无副作用）但由于副作用而不接受proc。你应该使用");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
-                        hint.push_str("到");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str("此参数接受 func（无副作用）但由于副作用而不接受proc。你應該使用 ");
+                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str("而不是 ");
+                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
                     },
                     "english" => {
                         hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
-                        hint.push_str(" to ");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str(" instead of ");
+                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
                     },
                 );
                 return Some(hint.to_string());
