@@ -452,13 +452,14 @@ impl Context {
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Tuple" =>
             {
-                let tps = Vec::try_from(params[0].clone()).unwrap();
-                for tp in tps {
-                    let Ok(t) = self.convert_tp_into_ty(tp) else {
-                        return false;
-                    };
-                    if !self.supertype_of(&Type, &t) {
-                        return false;
+                if let Ok(tps) = Vec::try_from(params[0].clone()) {
+                    for tp in tps {
+                        let Ok(t) = self.convert_tp_into_ty(tp) else {
+                            return false;
+                        };
+                        if !self.supertype_of(&Type, &t) {
+                            return false;
+                        }
                     }
                 }
                 false

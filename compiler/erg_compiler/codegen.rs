@@ -303,6 +303,9 @@ impl PyCodeGenerator {
         } else {
             jump_to
         };
+        if !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap()) {
+            self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
+        }
         self.edit_code(idx, arg);
     }
 
@@ -1509,6 +1512,7 @@ impl PyCodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.lasti();
+        // Opcode310::POP_JUMP_IF_FALSE == Opcode311::POP_JUMP_FORWARD_IF_FALSE
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
@@ -1523,10 +1527,15 @@ impl PyCodeGenerator {
             }
         }
         if args.get(0).is_some() {
+            let idx_jump_forward = self.lasti();
             self.write_instr(JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
-            let idx_else_begin = self.lasti();
+            let idx_else_begin = if self.py_version.minor >= Some(11) {
+                self.lasti() - idx_pop_jump_if_false - 2
+            } else {
+                self.lasti()
+            };
             self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
@@ -1537,7 +1546,6 @@ impl PyCodeGenerator {
                     self.emit_expr(other);
                 }
             }
-            let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.lasti();
             self.calc_edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
             // FIXME: this is a hack to make sure the stack is balanced
@@ -1545,6 +1553,8 @@ impl PyCodeGenerator {
                 self.stack_dec();
             }
         } else {
+            self.write_instr(JUMP_FORWARD);
+            self.write_arg(1);
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
                 self.lasti() - idx_pop_jump_if_false - 1

@@ -16,6 +16,8 @@ use std::path::PathBuf;
 
 use constructors::dict_t;
 use erg_common::dict::Dict;
+#[allow(unused_imports)]
+use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
 use erg_common::vis::Field;
@@ -24,7 +26,7 @@ use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 use erg_parser::ast::{Block, Params};
 use erg_parser::token::TokenKind;
 
-use self::constructors::{int_interval, mono};
+use self::constructors::{int_interval, mono, subr_t};
 use self::free::{
     fresh_varname, CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
@@ -141,23 +143,15 @@ pub struct UserConstSubr {
     params: Params,
     block: Block,
     sig_t: Type,
-    as_type: Option<Type>,
 }
 
 impl UserConstSubr {
-    pub const fn new(
-        name: Str,
-        params: Params,
-        block: Block,
-        sig_t: Type,
-        as_type: Option<Type>,
-    ) -> Self {
+    pub const fn new(name: Str, params: Params, block: Block, sig_t: Type) -> Self {
         Self {
             name,
             params,
             block,
             sig_t,
-            as_type,
         }
     }
 }
@@ -265,10 +259,30 @@ impl ConstSubr {
         }
     }
 
-    pub fn as_type(&self) -> Option<&Type> {
+    /// ConstSubr{sig_t: Int -> {Int}, ..}.as_type() == Int -> Int
+    pub fn as_type(&self) -> Option<Type> {
         match self {
-            ConstSubr::User(user) => user.as_type.as_ref(),
-            ConstSubr::Builtin(builtin) => builtin.as_type.as_ref(),
+            ConstSubr::User(user) => {
+                let Type::Subr(subr) = &user.sig_t else { return None };
+                if let Type::Refinement(refine) = subr.return_t.as_ref() {
+                    if refine.preds.len() == 1 {
+                        let pred = refine.preds.iter().next().unwrap().clone();
+                        if let Predicate::Equal { rhs, .. } = pred {
+                            let return_t = Type::try_from(rhs).ok()?;
+                            let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
+                            return Some(subr_t(
+                                subr.kind,
+                                subr.non_default_params.clone(),
+                                var_params.cloned(),
+                                subr.default_params.clone(),
+                                return_t,
+                            ));
+                        }
+                    }
+                }
+                None
+            }
+            ConstSubr::Builtin(builtin) => builtin.as_type.clone(),
         }
     }
 }

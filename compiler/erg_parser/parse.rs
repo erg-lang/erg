@@ -706,11 +706,6 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" {
-                    let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
-                }
                 if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
@@ -1410,6 +1405,11 @@ impl Parser {
     fn try_reduce_bin_lhs(&mut self, in_type_args: bool, in_brace: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         match self.peek() {
+            Some(t) if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" => {
+                let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Expr::Lambda(lambda))
+            }
             Some(t) if t.category_is(TC::Literal) => {
                 // TODO: 10.times ...などメソッド呼び出しもある
                 let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;

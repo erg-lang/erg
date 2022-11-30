@@ -1139,7 +1139,7 @@ impl ValueObj {
                 }
                 Some(TypeObj::Builtin(Type::Record(attr_ts)))
             }
-            Self::Subr(subr) => Some(TypeObj::Builtin(subr.as_type().unwrap().clone())),
+            Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
             Self::Array(_) | Self::Tuple(_) | Self::Dict(_) => todo!(),
             _other => None,
         }

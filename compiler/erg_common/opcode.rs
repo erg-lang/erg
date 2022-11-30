@@ -149,6 +149,10 @@ impl CommonOpcode {
     pub const fn take_arg(&self) -> bool {
         90 <= (*self as u8) && (*self as u8) < 220
     }
+
+    pub fn is_jump_op(op: u8) -> bool {
+        [93, 110, 111, 112, 113, 114, 115, 140, 143, 175, 176].contains(&op)
+    }
 }
 
 impl_u8_enum! {CompareOp;

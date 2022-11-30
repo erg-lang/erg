@@ -55,6 +55,11 @@ fn exec_helloworld() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_if() -> Result<(), ()> {
+    expect_success("tests/should_ok/if.er")
+}
+
+#[test]
 fn exec_impl() -> Result<(), ()> {
     expect_success("examples/impl.er")
 }
@@ -87,6 +92,11 @@ fn exec_quantified() -> Result<(), ()> {
 #[test]
 fn exec_raw_ident() -> Result<(), ()> {
     expect_success("examples/raw_ident.er")
+}
+
+#[test]
+fn exec_rec() -> Result<(), ()> {
+    expect_success("tests/should_ok/rec.er")
 }
 
 #[test]
@@ -146,12 +156,6 @@ fn exec_pyimport() -> Result<(), ()> {
     } else {
         expect_failure("examples/pyimport.er", 1)
     }
-}
-
-#[test]
-fn exec_rec() -> Result<(), ()> {
-    // this script is valid but the current code generating process has a bug.
-    expect_end_with("tests/should_err/rec.er", 1)
 }
 
 #[test]

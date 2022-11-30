@@ -446,33 +446,20 @@ impl Context {
             self.py_mod_cache.clone(),
             self.clone(),
         );
-        let return_t = lambda_ctx.eval_const_block(&lambda.body)?;
-        // FIXME: lambda: i: Int -> Int
-        // => sig_t: (i: Type) -> Type
-        // => as_type: (i: Int) -> Int
+        let return_t = v_enum(set! {lambda_ctx.eval_const_block(&lambda.body)?});
         let sig_t = subr_t(
             SubrKind::from(lambda.op.kind),
             non_default_params.clone(),
-            var_params.clone(),
+            var_params,
             default_params.clone(),
-            v_enum(set![return_t.clone()]),
+            return_t,
         );
         let sig_t = self.generalize_t(sig_t);
-        let as_type = subr_t(
-            SubrKind::from(lambda.op.kind),
-            non_default_params,
-            var_params,
-            default_params,
-            // TODO: unwrap
-            return_t.as_type().unwrap().into_typ(),
-        );
-        let as_type = self.generalize_t(as_type);
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
             lambda.sig.params.clone(),
             lambda.body.clone(),
             sig_t,
-            Some(as_type),
         ));
         Ok(ValueObj::Subr(subr))
     }
