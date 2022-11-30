@@ -1,6 +1,8 @@
 //! defines and implements `Lexer` (Tokenizer).
 use std::cmp::Ordering;
 
+use unicode_xid::UnicodeXID;
+
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
@@ -156,28 +158,22 @@ impl Lexer /*<'a>*/ {
         Some(Err(LexError::feature_error(0, token.loc(), feat_name)))
     }
 
-    const fn is_valid_symbol_ch(c: char) -> bool {
-        match c {
-            '0'..='9' => true,
-            // control characters
-            '\0' | '\u{0009}'..='\u{001F}' => false,
-            // white spaces
-            ' ' | '\u{00A0}' => false,
-            '\u{007F}' | '\u{0085}' | '\u{05C1}' | '\u{05C2}' => false,
-            '\u{0701}'..='\u{070d}' => false,
-            '\u{07B2}'..='\u{07BF}' => false,
-            '\u{1680}' | '\u{180E}' => false,
-            '\u{2000}'..='\u{200F}' => false,
-            '\u{2028}'..='\u{202F}' => false,
-            '\u{205F}'..='\u{206F}' => false,
-            '\u{3000}' | '\u{3164}' | '\u{FEFF}' => false,
-            // operator characters + special markers
-            '<' | '>' | '$' | '%' | '.' | ',' | ':' | ';' | '+' | '-' | '*' | '/' | '=' | '#'
-            | '&' | '|' | '^' | '~' | '@' | '!' | '?' | '\\' => false,
-            // enclosures
-            '[' | ']' | '(' | ')' | '{' | '}' | '\"' | '\'' | '`' => false,
-            _ => true,
-        }
+    fn is_valid_start_symbol_ch(c: char) -> bool {
+        // fast-path
+        // https://github.com/rust-lang/rust/blob/6b5f9b2e973e438fc1726a2d164d046acd80b170/src/librustc_lexer/src/lib.rs#L153
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || c.is_xid_start()
+    }
+
+    fn is_valid_continue_symbol_ch(c: char) -> bool {
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || (c.is_xid_continue() && !('０'..='９').contains(&c))
     }
 
     /// Detect `c` is a bidirectional overriding character.
@@ -504,7 +500,7 @@ impl Lexer /*<'a>*/ {
                 n if n.is_ascii_digit() || n == '_' => {
                     num.push(self.consume().unwrap());
                 }
-                c if Self::is_valid_symbol_ch(c) => {
+                c if Self::is_valid_continue_symbol_ch(c) => {
                     // exponent (e.g. 10e+3)
                     if c == 'e'
                         && (self.peek_next_ch() == Some('+') || self.peek_next_ch() == Some('-'))
@@ -544,7 +540,7 @@ impl Lexer /*<'a>*/ {
             }
             // method call of IntLit
             // or range operator (e.g. 1..)
-            Some(c) if Self::is_valid_symbol_ch(c) || c == '.' => {
+            Some(c) if Self::is_valid_continue_symbol_ch(c) || c == '.' => {
                 let kind = if num.starts_with('-') && !Self::is_zero(&num) {
                     IntLit
                 } else {
@@ -583,7 +579,7 @@ impl Lexer /*<'a>*/ {
     fn lex_symbol(&mut self, first_ch: char) -> LexResult<Token> {
         let mut cont = first_ch.to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if Self::is_valid_symbol_ch(c) {
+            if Self::is_valid_continue_symbol_ch(c) {
                 cont.push(self.consume().unwrap());
             } else {
                 break;
@@ -1245,7 +1241,7 @@ impl Iterator for Lexer /*<'a>*/ {
             // IntLit or RatioLit
             Some(n) if n.is_ascii_digit() => Some(self.lex_num(n)),
             // Symbol (includes '_')
-            Some(c) if Self::is_valid_symbol_ch(c) => Some(self.lex_symbol(c)),
+            Some(c) if Self::is_valid_start_symbol_ch(c) => Some(self.lex_symbol(c)),
             // Invalid character (e.g. space-like character)
             Some(invalid) => {
                 let token = self.emit_token(Illegal, &invalid.to_string());

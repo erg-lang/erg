@@ -19,6 +19,7 @@ pretty = ["erg_common/pretty"]
 
 [dependencies]
 erg_common = { version = "0.5.13", path = "../erg_common" }
+unicode-xid = "0.2.4"
 
 [lib]
 path = "lib.rs"
