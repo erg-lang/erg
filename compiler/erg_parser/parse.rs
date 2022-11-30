@@ -264,12 +264,6 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                /*Some(t) if t.is(Indent) => {
-                    switch_unreachable!()
-                }
-                Some(t) if t.is(Dedent) => {
-                    switch_unreachable!()
-                }*/
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
