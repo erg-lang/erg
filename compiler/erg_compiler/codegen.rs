@@ -43,9 +43,9 @@ use crate::hir::{
     Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
-use crate::ty::free::fresh_varname;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
+use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 
 fn fake_method_to_func(class: &str, name: &str) -> Option<&'static str> {
@@ -139,6 +139,7 @@ pub struct PyCodeGenerator {
     in_op_loaded: bool,
     record_type_loaded: bool,
     module_type_loaded: bool,
+    control_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -154,6 +155,7 @@ impl PyCodeGenerator {
             in_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
+            control_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -619,6 +621,9 @@ impl PyCodeGenerator {
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
+        if let "if__" | "for__" | "while__" | "with__" | "discard__" = &escaped[..] {
+            self.load_control();
+        }
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -1619,7 +1624,13 @@ impl PyCodeGenerator {
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
         let _init_stack_len = self.stack_len();
-        let cond = args.remove(0);
+        // e.g. is_foo!: () => Bool, do!(is_bar)
+        let cond_block = args.remove(0);
+        let cond = match cond_block {
+            Expr::Lambda(mut lambda) => lambda.body.remove(0),
+            Expr::Accessor(acc) => Expr::Accessor(acc).call_expr(Args::empty()),
+            _ => todo!(),
+        };
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
@@ -2391,9 +2402,6 @@ impl PyCodeGenerator {
                     }
                 }
                 self.cancel_if_pop_top();
-                /*if is_module_loading_chunks {
-                    self.stack_dec_n(0);
-                }*/
             }
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
@@ -2691,6 +2699,12 @@ impl PyCodeGenerator {
             )],
         );
         self.in_op_loaded = true;
+    }
+
+    fn load_control(&mut self) {
+        let mod_name = Identifier::public("_erg_control");
+        self.emit_import_all_instr(mod_name);
+        self.control_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {

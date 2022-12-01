@@ -1,29 +1,31 @@
+i = if
+i! = if!
+f! = for!
+w! = while!
+
 cond = True
-s = if cond:
+s = i cond:
     do "then block"
     do "else block"
 assert s == "then block"
 
-if! cond:
+i! cond:
     do!:
         print! "then block!"
     do!:
         print! "else block!"
 
-a = 1
-_ = match a:
-    (i: Int) -> i
-    (s: Int) -> 1
-    _ -> panic "unknown object"
-
-for! 0..<10, i =>
+f! 0..<10, i =>
     print! "i = {i}"
 
 counter = !10
 print! counter
-while! do!(not(counter == 0)), do!:
+w! do!(not(counter == 0)), do!:
     print! "counter = {counter}"
     counter.update!(i -> i - 1)
 
-x = 1
-Del x
+counter2 = !2
+not_zero!() = not counter2 == 0
+while! not_zero!, do!:
+    print! "aaa"
+    counter2.update!(i -> i - 1)

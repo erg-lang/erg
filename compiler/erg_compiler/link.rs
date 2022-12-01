@@ -10,10 +10,10 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
-use crate::ty::free::fresh_varname;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
+use erg_common::fresh::fresh_varname;
 
 use crate::hir::*;
 use crate::mod_cache::SharedModuleCache;

@@ -910,7 +910,7 @@ impl Parser {
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
-                .try_reduce_expr(true, false, false, false)
+                .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let block = Block::new(vec![expr]);
             self.level -= 1;

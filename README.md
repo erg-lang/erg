@@ -77,9 +77,9 @@
     even for and while expressions are just one of the subroutines, so this is possible.
 
     ```python
-    loop! block = while! True, block
+    loop! block = while! do(True), block
 
-    # equals to `while! True, do! print! "hello"`
+    # equals to `while! do(True), do! print! "hello"`
     loop! do!:
         print! "hello"
     ```

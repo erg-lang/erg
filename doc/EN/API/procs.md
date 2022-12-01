@@ -22,13 +22,13 @@ Emoji-capable terminals are prefixed according to type.
 * type == Warn: ⚠️
 * type == Hint: 💡
 
-## for! i: Iterable T, block: T => NoneType
+## for! i: Iterable T, block!: T => NoneType
 
 Traverse the iterator with the action of block.
 
-## while! cond: Bool!, block: () => NoneType
+## while! cond!: () => Bool, block!: () => NoneType
 
-Execute block while cond is True.
+Execute block! while cond!() is True.
 
 ## Lineno!() -> Nat
 

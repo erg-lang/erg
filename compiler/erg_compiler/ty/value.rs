@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
+use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set;
@@ -21,7 +22,6 @@ use erg_common::{RcArray, Str};
 
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
-use super::free::fresh_varname;
 use super::typaram::TyParam;
 use super::{ConstSubr, HasType, Predicate, Type};
 

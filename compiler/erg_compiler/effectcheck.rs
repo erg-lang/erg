@@ -374,6 +374,16 @@ impl SideEffectChecker {
             Expr::TypeAsc(type_asc) => {
                 self.check_expr(&type_asc.expr);
             }
+            Expr::Accessor(acc) => {
+                if !self.in_context_effects_allowed() && acc.ref_t().is_mut_type() {
+                    self.errs.push(EffectError::touch_mut_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
+                }
+            }
             _ => {}
         }
     }
