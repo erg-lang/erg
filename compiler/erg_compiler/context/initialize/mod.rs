@@ -16,12 +16,12 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
-use crate::ty::free::fresh_varname;
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
+use erg_common::fresh::fresh_varname;
 use ParamSpec as PS;
 use Type::*;
 
@@ -1781,9 +1781,9 @@ impl Context {
         self.register_builtin_py_impl("classof", t_classof, Immutable, Private, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, Private, Some("compile"));
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
-        self.register_builtin_impl("discard", t_discard, Immutable, Private);
+        self.register_builtin_py_impl("discard", t_discard, Immutable, Private, Some("discard__"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, Private, Some("exit"));
-        self.register_builtin_impl("if", t_if, Immutable, Private);
+        self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
         self.register_builtin_py_impl("import", t_import, Immutable, Private, Some("__import__"));
         self.register_builtin_py_impl(
             "isinstance",
@@ -1944,7 +1944,7 @@ impl Context {
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
             vec![
-                kw("cond", Bool), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
+                kw("cond!", nd_proc(vec![], None, Bool)), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
                 kw("proc!", nd_proc(vec![], None, NoneType)),
             ],
             None,
@@ -1980,13 +1980,13 @@ impl Context {
         self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
         self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
         self.register_builtin_py_impl("input!", t_input, Immutable, Private, Some("input"));
-        self.register_builtin_impl("if!", t_if, Immutable, Private);
-        self.register_builtin_impl("for!", t_for, Immutable, Private);
+        self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
+        self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
         self.register_builtin_py_impl("globals!", t_globals, Immutable, Private, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, Private, Some("locals"));
-        self.register_builtin_impl("while!", t_while, Immutable, Private);
+        self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
         self.register_builtin_py_impl("open!", t_open, Immutable, Private, Some("open"));
-        self.register_builtin_impl("with!", t_with, Immutable, Private);
+        self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
     }
 
     fn init_builtin_operators(&mut self) {

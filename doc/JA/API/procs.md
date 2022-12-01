@@ -28,9 +28,9 @@ xを改行ありでデバッグ表示(ファイル名、行数、変数の場合
 
 blockの動作でイテレータを走査する。
 
-## while! cond: Bool!, block: () => NoneType
+## while! cond!: () => Bool, block!: () => NoneType
 
-condがTrueの間、blockを実行する。
+cond!()がTrueの間、block!を実行する。
 
 ## Lineno!() -> Nat
 

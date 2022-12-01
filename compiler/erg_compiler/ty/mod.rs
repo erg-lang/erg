@@ -16,6 +16,7 @@ use std::path::PathBuf;
 
 use constructors::dict_t;
 use erg_common::dict::Dict;
+use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
@@ -28,7 +29,7 @@ use erg_parser::token::TokenKind;
 
 use self::constructors::{int_interval, mono, subr_t};
 use self::free::{
-    fresh_varname, CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
+    CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use self::typaram::{IntervalOp, TyParam};
 use self::value::value_set::*;
@@ -1559,6 +1560,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_procedure(),
             Self::Callable { .. } => true,
+            Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) =>
                 refine.t.is_procedure() || refine.preds.iter().any(|pred|
@@ -1609,15 +1611,6 @@ impl Type {
         }
     }
 
-    pub fn is_type(&self) -> bool {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
-            Self::Type | Self::ClassType | Self::TraitType => true,
-            Self::Refinement(refine) => refine.t.is_type(),
-            _ => false,
-        }
-    }
-
     pub fn is_record(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
@@ -1649,6 +1642,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),
             Self::Quantified(_) => true,
+            Self::Refinement(refine) => refine.t.is_quantified(),
             _ => false,
         }
     }

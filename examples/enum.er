@@ -1,44 +1,31 @@
-LitExpr = Class {.i = Int}
-LitExpr.
-    new i = Self::__new__ {.i;}
-LitExpr|<: Show|.
-    show self = "{self.i}"
-AddExpr = Class {.lhs = Expr, .rhs = Expr}
-AddExpr.
-    new lhs, rhs = Self::__new__ {.lhs; .rhs}
-AddExpr|<: Show|.
-    show self = "{self.lhs} + {self.rhs}"
-SubExpr = Class {.lhs = Expr, .rhs = Expr}
-SubExpr.
-    new lhs, rhs = Self::__new__ {.lhs; .rhs}
-SubExpr|<: Show|.
-    show self = "{self.lhs} - {self.rhs}"
-PosExpr = Class {.expr = Expr}
-PosExpr.
-    new expr = Self::__new__ {.expr;}
-PosExpr|<: Show|.
-    show self = "+{self.expr}"
-NegExpr = Class {.expr = Expr}
-NegExpr.
-    new expr = Self::__new__ {.expr;}
-NegExpr|<: Show|.
-    show self = "-{self.expr}"
+MyBool = Inherit {0, 1}
+MyBool.
+    Fls = MyBool::__new__ 0
+    Tru = MyBool::__new__ 1
 
-Expr = Enum LitExpr:
-    AddExpr
-    SubExpr
-    NegExpr
+Expr = Enum {
+    .Lit = Int
+    .Add = {lhs = Expr; rhs = Expr}
+    .Sub = {lhs = Expr; rhs = Expr}
+    .Pos = {expr = Expr}
+    .Neg = {expr = Expr}
+    # .Failure = ...
+}
+Expr|Expr <: Show|.
+    show self = match self:
+        Self.Lit(i) -> i.show()
+        Self.Add{lhs; rhs} -> fmt"{lhs}+{rhs}"
+        Self.Sub{lhs; rhs} -> fmt"{lhs}-{rhs}"
+        Self.Pos{expr;} -> fmt"+{expr}"
+        Self.Neg{expr;} -> fmt"-{expr}"
 Expr.
-    lit = LitExpr.new |> Self.new
-    add = AddExpr.new |> Self.new
-    eval self =
-        match self:
-            (l: Expr.LitExpr) -> l.i
-            (a: Expr.AddExpr) -> a.lhs + a.rhs
-            (s: Expr.SubExpr) -> s.lhs - s.rhs
-            (p: Expr.PosExpr) -> p.expr
-            (n: Expr.NegExpr) -> -n.expr
+    eval self = match self:
+        Self.Lit(i) -> i
+        Self.Add{lhs; rhs} -> lhs + rhs
+        Self.Sub{lhs; rhs} -> lhs - rhs
+        Self.Pos{expr;} -> +expr.eval()
+        Self.Neg{expr;} -> -expr.eval()
 
-expr = Expr.add Expr.lit(1), Expr.lit(2)
+expr = Expr.Add {lhs = Expr.Lit(1); rhs = Expr.Lit(2)}
 print! expr # 1 + 2
 assert expr.eval() == 3

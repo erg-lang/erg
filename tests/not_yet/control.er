@@ -10,20 +10,20 @@ if! cond:
     do!:
         print! "else block!"
 
-a = 1
-_ = match a:
+a = [1, 2, 3]
+sum = match a:
+    [x, y, z] -> x + y + z
+    (x, y, z) -> x + y + z
+    {x; y; z} -> x + y + z
     (i: Int) -> i
-    (s: Int) -> 1
     _ -> panic "unknown object"
 
-for! 0..<10, i =>
+for! 0..<1000, i =>
     print! "i = {i}"
+    if i >= 100:
+        do return break()
 
-counter = !10
-print! counter
-while! not(counter == 0), do!:
+counter = !100
+while! do!(not counter.is_zero()), do!:
     print! "counter = {counter}"
-    counter.update!(i -> i - 1)
-
-x = 1
-Del x
+    counter.dec!()

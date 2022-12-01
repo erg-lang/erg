@@ -31,7 +31,12 @@ fn exec_class() -> Result<(), ()> {
 
 #[test]
 fn exec_control() -> Result<(), ()> {
-    expect_success("tests/should_ok/control.er")
+    expect_success("examples/control.er")
+}
+
+#[test]
+fn exec_control_expr() -> Result<(), ()> {
+    expect_success("tests/should_ok/control_expr.er")
 }
 
 #[test]

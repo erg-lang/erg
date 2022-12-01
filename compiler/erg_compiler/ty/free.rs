@@ -18,23 +18,6 @@ pub const GENERIC_LEVEL: usize = usize::MAX;
 
 thread_local! {
     static UNBOUND_ID: Shared<usize> = Shared::new(0);
-    static REFINEMENT_VAR_ID: Shared<usize> = Shared::new(0);
-}
-
-pub fn fresh_varname() -> String {
-    REFINEMENT_VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%v{i}")
-    })
-}
-
-pub fn fresh_param_name() -> String {
-    REFINEMENT_VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%p{i}")
-    })
 }
 
 pub trait HasLevel {

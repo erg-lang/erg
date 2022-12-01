@@ -4,12 +4,12 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::error::MultiErrorDisplay;
 
 use crate::ty::constructors::{and, or, poly};
-use crate::ty::free::fresh_varname;
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
+use erg_common::fresh::fresh_varname;
 use Predicate as Pred;
 
 use erg_common::dict::Dict;

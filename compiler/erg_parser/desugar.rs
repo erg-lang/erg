@@ -5,6 +5,7 @@
 //! 型チェックなどによる検証は行わない
 #![allow(dead_code)]
 
+use erg_common::fresh::fresh_varname;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
@@ -31,21 +32,14 @@ enum BufIndex<'i> {
 #[derive(Debug)]
 pub struct Desugarer {
     desugared: Set<Str>,
-    var_id: usize,
+    // var_id: usize, // must be global
 }
 
 impl Desugarer {
     pub fn new() -> Desugarer {
         Self {
             desugared: Set::default(),
-            var_id: 0,
         }
-    }
-
-    fn fresh_var_name(&mut self) -> String {
-        let var_name = format!("%v{}", self.var_id);
-        self.var_id += 1;
-        var_name
     }
 
     pub fn desugar(&mut self, module: Module) -> Module {
@@ -403,7 +397,7 @@ impl Desugarer {
         line: usize,
         t_spec: Option<TypeSpec>,
     ) -> (String, Signature) {
-        let buf_name = self.fresh_var_name();
+        let buf_name = fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
             t_spec,
@@ -412,7 +406,7 @@ impl Desugarer {
     }
 
     fn gen_buf_nd_param(&mut self, line: usize) -> (String, ParamPattern) {
-        let buf_name = self.fresh_var_name();
+        let buf_name = fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)
     }
