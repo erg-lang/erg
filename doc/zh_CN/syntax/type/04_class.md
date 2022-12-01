@@ -69,9 +69,9 @@ Person::
     species = "human"
 Person.
     describe() =
-        log "species: {species}"
+        log "species: \{Person::species}"
     greet self =
-        log "Hello, My name is {self::name}."
+        log "Hello, My name is \{self::name}."
 
 Person.describe() # 类型: Person
 Person.greet() # 类型错误: 未绑定的方法 Person.greet 需要一个参数
@@ -185,7 +185,7 @@ DogImpl.
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
 PersonImpl.
-    greet self = log "Hello, my name is {self.name}."
+    greet self = log "Hello, my name is \{self.name}."
 
 john = {.name = "John Smith"; .age = 20}
 john.bark() # "Yelp!"
@@ -199,7 +199,7 @@ Dog = Class {.name = Str; .age = Nat}
 Dog.bark = log "Yelp!"
 ...
 Person = Class {.name = Str; .age = Nat}
-Person.greet self = log "Hello, my name is {self.name}."
+Person.greet self = log "Hello, my name is \{self.name}."
 
 john = Person.new {.name = "John Smith"; .age = 20}
 john.bark() # 类型错误: `Person` 对象没有方法 `.bark`

@@ -120,8 +120,8 @@ Mapper T: Type = Trait {
 # ArrayIterator <: Mapper
 # ArrayIterator.MapIter == ArrayMapper
 # [1, 2, 3].iter(): ArrayIterator Int
-# [1, 2, 3].iter().map(x -> "{x}"): ArrayMapper Str
-assert [1, 2, 3].iter().map(x -> "{x}").collect(Array) == ["1", "2", "3"].
+# [1, 2, 3].iter().map(x -> "\{x}"): ArrayMapper Str
+assert [1, 2, 3].iter().map(x -> "\{x}").collect(Array) == ["1", "2", "3"].
 ```
 
 ## OverrideTrait

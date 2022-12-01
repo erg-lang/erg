@@ -64,7 +64,7 @@ Named = {.name = Str}
 john: Named
 
 greet! n: Named =
-    print! "Hello, I am {n.name}"
+    print! "Hello, I am \{n.name}"
 john # "Hello, I am John" print!
 
 Named.name # Str
@@ -85,7 +85,7 @@ match point:
     {x = 0; y = 0; z = 0} -> "origin"
     {x = _; y = 0; z = 0} -> "on the x axis"
     {x = 0; ...} -> "x = 0"
-    {x = x; y = y; z = z} -> "({x}, {y}, {z})"
+    {x = x; y = y; z = z} -> "(\{x}, \{y}, \{z})"
 ```
 
 `x = ...` can also be abbreviated to `x` when there is a variable with the same name as the attribute, for example, `x = x` or `x = .x` to `x`, and `.x = .x` or `.x = x` to `.x`.
@@ -173,7 +173,7 @@ This is inefficient, and as the number of attributes increases, error messages a
 john = {
     name = "John Smith"
     age = !20
-    .greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
@@ -186,7 +186,7 @@ This is described in [class](./type/04_class.md).
 ```python
 Person = Inherit {name = Str; age = Nat}
 Person.
-    greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}

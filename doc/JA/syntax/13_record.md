@@ -66,7 +66,7 @@ Named = {.name = Str}
 john: Named
 
 greet! n: Named =
-    print! "Hello, I am {n.name}"
+    print! "Hello, I am \{n.name}"
 greet! john # "Hello, I am John"
 
 print! Named.name # Str
@@ -175,7 +175,7 @@ y =
 john = {
     name = "John Smith"
     age = !20
-    .greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
@@ -188,7 +188,7 @@ john + 1
 ```python
 Person = Inherit {name = Str; age = Nat}
 Person.
-    greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}

@@ -11,18 +11,18 @@ Expr = Enum {
     .Neg = {expr = Expr}
     # .Failure = ...
 }
-Expr|Expr <: Show|.
+Expr|<: Show|.
     show self = match self:
         Self.Lit(i) -> i.show()
-        Self.Add{lhs; rhs} -> fmt"{lhs}+{rhs}"
-        Self.Sub{lhs; rhs} -> fmt"{lhs}-{rhs}"
-        Self.Pos{expr;} -> fmt"+{expr}"
-        Self.Neg{expr;} -> fmt"-{expr}"
+        Self.Add{lhs; rhs} -> "\{lhs}+\{rhs}"
+        Self.Sub{lhs; rhs} -> "\{lhs}-\{rhs}"
+        Self.Pos{expr;} -> "+\{expr}"
+        Self.Neg{expr;} -> "-\{expr}"
 Expr.
     eval self = match self:
         Self.Lit(i) -> i
-        Self.Add{lhs; rhs} -> lhs + rhs
-        Self.Sub{lhs; rhs} -> lhs - rhs
+        Self.Add{lhs; rhs} -> lhs.eval() + rhs.eval()
+        Self.Sub{lhs; rhs} -> lhs.eval() - rhs.eval()
         Self.Pos{expr;} -> +expr.eval()
         Self.Neg{expr;} -> -expr.eval()
 

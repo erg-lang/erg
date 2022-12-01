@@ -10,7 +10,7 @@ Ergではデフォルトですべての型が不変型、すなわち内部状�
 ```python
 Person! = Class({name = Str; age = Nat!})
 Person!.
-    greet! ref! self = print! "Hello, my name is {self::name}. I am {self::age}."
+    greet! ref! self = print! "Hello, my name is \{self::name}. I am \{self::age}."
     inc_age! ref! self = self::name.update! old -> old + 1
 ```
 
