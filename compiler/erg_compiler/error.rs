@@ -1383,6 +1383,25 @@ impl EffectError {
             caused_by,
         )
     }
+
+    pub fn touch_mut_error(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(expr.loc())],
+                switch_lang!(
+                    "japanese" => "関数中で可変オブジェクトにアクセスすることは出来ません",
+                    "simplified_chinese" => "函数中不能访问可变对象",
+                    "traditional_chinese" => "函數中不能訪問可變對象",
+                    "english" => "cannot access a mutable object in a function",
+                ),
+                errno,
+                HasEffect,
+                expr.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
 }
 
 pub type OwnershipError = TyCheckError;
