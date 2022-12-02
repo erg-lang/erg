@@ -579,7 +579,11 @@ impl ScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, mut call: Call) -> String {
-        let is_py_api = call.obj.is_py_api();
+        let is_py_api = if let Some(attr) = &call.attr_name {
+            attr.is_py_api()
+        } else {
+            call.obj.is_py_api()
+        };
         let mut code = format!("({})", self.transpile_expr(*call.obj));
         if let Some(attr) = call.attr_name {
             code += &format!(".{}", Self::transpile_ident(attr));
