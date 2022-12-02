@@ -7,11 +7,12 @@ use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ParamPattern, VarName};
+use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
 use erg_parser::token::TokenKind;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
 use crate::build_hir::HIRBuilder;
+use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
@@ -21,8 +22,28 @@ use crate::hir::{
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
+use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::varinfo::VarInfo;
+
+#[derive(Debug)]
+pub enum LastLineOperation {
+    Discard,
+    Return,
+    StoreTmp(Str),
+}
+
+use LastLineOperation::*;
+
+impl LastLineOperation {
+    pub const fn is_return(&self) -> bool {
+        matches!(self, LastLineOperation::Return)
+    }
+
+    pub const fn is_store_tmp(&self) -> bool {
+        matches!(self, LastLineOperation::StoreTmp(_))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct PyScript {
@@ -164,7 +185,9 @@ pub struct ScriptGenerator {
     level: usize,
     fresh_var_n: usize,
     namedtuple_loaded: bool,
+    in_op_loaded: bool,
     range_ops_loaded: bool,
+    builtin_types_loaded: bool,
     prelude: String,
 }
 
@@ -174,7 +197,9 @@ impl ScriptGenerator {
             level: 0,
             fresh_var_n: 0,
             namedtuple_loaded: false,
+            in_op_loaded: false,
             range_ops_loaded: false,
+            builtin_types_loaded: false,
             prelude: String::new(),
         }
     }
@@ -196,9 +221,11 @@ impl ScriptGenerator {
     fn replace_import(src: &str) -> String {
         src.replace("from _erg_nat import Nat", "")
             .replace("from _erg_result import Error", "")
+            .replace("from _erg_result import is_ok", "")
             .replace("from _erg_bool import Bool", "")
             .replace("from _erg_str import Str", "")
             .replace("from _erg_array import Array", "")
+            .replace("from _erg_range import Range", "")
     }
 
     fn load_namedtuple(&mut self) {
@@ -211,6 +238,29 @@ impl ScriptGenerator {
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+    }
+
+    fn load_in_op(&mut self) {
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_in_operator.py"));
+    }
+
+    fn load_builtin_types(&mut self) {
+        if self.range_ops_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+        } else if self.in_op_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+        } else {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+        }
     }
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
@@ -240,10 +290,24 @@ impl ScriptGenerator {
                     code.push(')');
                     code
                 }
+                TokenKind::InOp => {
+                    if !self.in_op_loaded {
+                        self.load_in_op();
+                        self.in_op_loaded = true;
+                    }
+                    let mut code = "in_operator(".to_string();
+                    code += &self.transpile_expr(*bin.lhs);
+                    code.push(',');
+                    code += &self.transpile_expr(*bin.rhs);
+                    code.push(')');
+                    code
+                }
                 _ => {
                     let mut code = "(".to_string();
                     code += &self.transpile_expr(*bin.lhs);
+                    code.push(' ');
                     code += &bin.op.content;
+                    code.push(' ');
                     code += &self.transpile_expr(*bin.rhs);
                     code += ")";
                     code
@@ -293,7 +357,7 @@ impl ScriptGenerator {
                         let name = format!("instant_block_{}__", self.fresh_var_n);
                         self.fresh_var_n += 1;
                         let mut code = format!("def {name}():\n");
-                        code += &self.transpile_block(attr.body.block, true);
+                        code += &self.transpile_block(attr.body.block, Return);
                         self.prelude += &code;
                         values += &format!("{name}(),");
                     } else {
@@ -331,7 +395,16 @@ impl ScriptGenerator {
                 other => todo!("transpiling {other}"),
             },
             Expr::Accessor(acc) => match acc {
-                Accessor::Ident(ident) => Self::transpile_ident(ident),
+                Accessor::Ident(ident) => {
+                    match &ident.inspect()[..] {
+                        "Str" | "Bool" | "Nat" | "Array" if !self.builtin_types_loaded => {
+                            self.load_builtin_types();
+                            self.builtin_types_loaded = true;
+                        }
+                        _ => {}
+                    }
+                    Self::transpile_ident(ident)
+                }
                 Accessor::Attr(attr) => {
                     format!(
                         "({}).{}",
@@ -349,7 +422,7 @@ impl ScriptGenerator {
                     let name = format!("instant_block_{}__", self.fresh_var_n);
                     self.fresh_var_n += 1;
                     let mut code = format!("def {name}():\n");
-                    code += &self.transpile_block(adef.block, true);
+                    code += &self.transpile_block(adef.block, Return);
                     self.prelude += &code;
                     format!("{name}()")
                 } else {
@@ -367,7 +440,16 @@ impl ScriptGenerator {
                 }
                 code
             }
-            other => todo!("transpile {other}"),
+            Expr::Import(acc) => {
+                let full_name = Str::from(acc.show());
+                let root = PyCodeGenerator::get_root(&acc);
+                self.prelude += &format!(
+                    "{} = __import__(\"{full_name}\")\n",
+                    Self::transpile_ident(root)
+                );
+                String::new()
+            }
+            other => todo!("transpile {other:?}"),
         }
     }
 
@@ -382,14 +464,49 @@ impl ScriptGenerator {
             }
             Some("if" | "if!") => {
                 let cond = self.transpile_expr(call.args.remove(0));
-                let Expr::Lambda(mut block) = call.args.remove(0) else { todo!() };
-                let then = self.transpile_expr(block.body.remove(0));
-                if let Some(Expr::Lambda(mut block)) = call.args.try_remove(0) {
-                    let els = self.transpile_expr(block.body.remove(0));
-                    format!("{then} if {cond} else {els}")
-                } else {
-                    format!("{then} if {cond} else None")
+                let Expr::Lambda(mut then_block) = call.args.remove(0) else { todo!() };
+                let else_block = call.args.try_remove(0).map(|ex| {
+                    if let Expr::Lambda(blk) = ex {
+                        blk
+                    } else {
+                        todo!()
+                    }
+                });
+                if then_block.body.len() == 1
+                    && else_block
+                        .as_ref()
+                        .map(|blk| blk.body.len() == 1)
+                        .unwrap_or(true)
+                {
+                    let then = self.transpile_expr(then_block.body.remove(0));
+                    if let Some(mut else_block) = else_block {
+                        let els = self.transpile_expr(else_block.body.remove(0));
+                        return format!("{then} if {cond} else {els}");
+                    } else {
+                        return format!("{then} if {cond} else None");
+                    }
                 }
+                let tmp = Str::from(format!("if_tmp_{}__", self.fresh_var_n));
+                self.fresh_var_n += 1;
+                let tmp_func = Str::from(format!("if_tmp_func_{}__", self.fresh_var_n));
+                self.fresh_var_n += 1;
+                let mut code = format!("def {tmp_func}():\n");
+                code += &"    ".repeat(self.level);
+                code += "if ";
+                code += &format!("{cond}:\n");
+                log!(err "{then_block}");
+                code += &self.transpile_block(then_block.body, StoreTmp(tmp.clone()));
+                if let Some(else_block) = else_block {
+                    code += &"    ".repeat(self.level);
+                    code += "else:\n";
+                    code += &self.transpile_block(else_block.body, StoreTmp(tmp.clone()));
+                }
+                code += &"    ".repeat(self.level);
+                code += &format!("return {tmp}\n");
+                self.prelude += &code;
+                // NOTE: In Python, the variable environment of a function is determined at call time
+                // This is a very bad design, but can be used for this code
+                format!("{tmp_func}()")
             }
             Some("for" | "for!") => {
                 let mut code = "for ".to_string();
@@ -399,7 +516,7 @@ impl ScriptGenerator {
                 let ParamPattern::VarName(param) = &sig.pat else { todo!() };
                 code += &format!("{}__ ", &param.token().content);
                 code += &format!("in {}:\n", self.transpile_expr(iter));
-                code += &self.transpile_block(block.body, false);
+                code += &self.transpile_block(block.body, Discard);
                 code
             }
             Some("while" | "while!") => {
@@ -407,24 +524,55 @@ impl ScriptGenerator {
                 let cond = call.args.remove(0);
                 let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
                 code += &format!("{}:\n", self.transpile_expr(cond));
-                code += &self.transpile_block(block.body, false);
+                code += &self.transpile_block(block.body, Discard);
                 code
             }
-            // TODO:
             Some("match" | "match!") => {
-                let mut code = "match ".to_string();
+                let tmp = Str::from(format!("match_tmp_{}__", self.fresh_var_n));
+                self.fresh_var_n += 1;
+                let tmp_func = Str::from(format!("match_tmp_func_{}__", self.fresh_var_n));
+                self.fresh_var_n += 1;
+                let mut code = format!("def {tmp_func}():\n");
+                self.level += 1;
+                code += &"    ".repeat(self.level);
+                code += "match ";
                 let cond = call.args.remove(0);
                 code += &format!("{}:\n", self.transpile_expr(cond));
                 while let Some(Expr::Lambda(arm)) = call.args.try_remove(0) {
                     self.level += 1;
                     code += &"    ".repeat(self.level);
                     let target = arm.params.non_defaults.get(0).unwrap();
-                    let ParamPattern::VarName(param) = &target.pat else { todo!() };
-                    code += &format!("case {}__:\n", &param.token().content);
-                    code += &self.transpile_block(arm.body, false);
-                    self.level -= 1;
+                    match &target.pat {
+                        ParamPattern::VarName(param) => {
+                            code += &format!("case {}__:\n", &param.token().content);
+                            code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
+                            self.level -= 1;
+                        }
+                        ParamPattern::Discard(_) => {
+                            match target.t_spec.as_ref().map(|t| &t.t_spec) {
+                                Some(TypeSpec::Enum(enum_t)) => {
+                                    let values = ValueObj::vec_from_const_args(enum_t.clone());
+                                    if values.len() == 1 {
+                                        code += &format!("case {}:\n", values[0]);
+                                    } else {
+                                        todo!()
+                                    }
+                                }
+                                Some(_) => todo!(),
+                                None => {
+                                    code += "case _:\n";
+                                }
+                            }
+                            code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
+                            self.level -= 1;
+                        }
+                        _ => todo!(),
+                    }
                 }
-                code
+                code += &"    ".repeat(self.level);
+                code += &format!("return {tmp}\n");
+                self.prelude += &code;
+                format!("{tmp_func}()")
             }
             _ => self.transpile_simple_call(call),
         }
@@ -483,14 +631,22 @@ impl ScriptGenerator {
         code
     }
 
-    fn transpile_block(&mut self, block: Block, return_last: bool) -> String {
+    fn transpile_block(&mut self, block: Block, last_op: LastLineOperation) -> String {
         self.level += 1;
         let mut code = String::new();
         let last = block.len().saturating_sub(1);
         for (i, chunk) in block.into_iter().enumerate() {
             code += &"    ".repeat(self.level);
-            if i == last && return_last {
-                code += "return ";
+            if i == last {
+                match last_op {
+                    Return => {
+                        code += "return ";
+                    }
+                    Discard => {}
+                    StoreTmp(ref tmp) => {
+                        code += &format!("{tmp} = ");
+                    }
+                }
             }
             code += &self.transpile_expr(chunk);
             code.push('\n');
@@ -504,12 +660,12 @@ impl ScriptGenerator {
             let name = format!("lambda_{}__", self.fresh_var_n);
             self.fresh_var_n += 1;
             let mut code = format!("def {name}({}):\n", self.transpile_params(lambda.params));
-            code += &self.transpile_block(lambda.body, true);
+            code += &self.transpile_block(lambda.body, Return);
             self.prelude += &code;
             name
         } else {
             let mut code = format!("(lambda {}:", self.transpile_params(lambda.params));
-            code += &self.transpile_block(lambda.body, false);
+            code += &self.transpile_block(lambda.body, Discard);
             code.pop(); // \n
             code.push(')');
             code
@@ -524,7 +680,7 @@ impl ScriptGenerator {
                     let name = format!("instant_block_{}__", self.fresh_var_n);
                     self.fresh_var_n += 1;
                     let mut code = format!("def {name}():\n");
-                    code += &self.transpile_block(def.body.block, true);
+                    code += &self.transpile_block(def.body.block, Return);
                     self.prelude += &code;
                     format!("{name}()")
                 } else {
@@ -539,7 +695,7 @@ impl ScriptGenerator {
                     Self::transpile_ident(subr.ident),
                     self.transpile_params(subr.params)
                 );
-                code += &self.transpile_block(def.body.block, true);
+                code += &self.transpile_block(def.body.block, Return);
                 code
             }
         }
@@ -569,7 +725,7 @@ impl ScriptGenerator {
         if classdef.need_to_gen_new {
             code += &format!("def new(x): return {class_name}.__call__(x)\n");
         }
-        code += &self.transpile_block(classdef.methods, false);
+        code += &self.transpile_block(classdef.methods, Discard);
         code
     }
 }

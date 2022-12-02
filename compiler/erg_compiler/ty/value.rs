@@ -19,6 +19,9 @@ use erg_common::shared::Shared;
 use erg_common::vis::Field;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
+use erg_parser::ast::{ConstArgs, ConstExpr};
+
+use crate::context::eval::type_from_token_kind;
 
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
@@ -729,6 +732,18 @@ impl ValueObj {
                 )
             }
         }
+    }
+
+    pub fn vec_from_const_args(args: ConstArgs) -> Vec<Self> {
+        args.deconstruct()
+            .0
+            .into_iter()
+            .map(|elem| {
+                let ConstExpr::Lit(lit) = elem.expr else { todo!() };
+                let t = type_from_token_kind(lit.token.kind);
+                ValueObj::from_str(t, lit.token.content).unwrap()
+            })
+            .collect::<Vec<_>>()
     }
 
     pub fn class(&self) -> Type {
