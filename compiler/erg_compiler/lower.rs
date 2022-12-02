@@ -220,8 +220,15 @@ impl ASTLowerer {
                     }
                 }
             }
-            hir::Expr::ClassDef(cl_def) => {
-                for chunk in cl_def.methods.iter() {
+            hir::Expr::ClassDef(class_def) => {
+                for chunk in class_def.methods.iter() {
+                    if let Err(ws) = self.use_check(chunk, mode) {
+                        warns.extend(ws);
+                    }
+                }
+            }
+            hir::Expr::PatchDef(patch_def) => {
+                for chunk in patch_def.methods.iter() {
                     if let Err(ws) = self.use_check(chunk, mode) {
                         warns.extend(ws);
                     }
@@ -1287,7 +1294,7 @@ impl ASTLowerer {
         } else {
             todo!()
         };
-        let require_or_sup = self.get_require_or_sup(hir_def.body.block.remove(0));
+        let require_or_sup = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
             type_obj.clone(),
             hir_def.sig,
@@ -1296,6 +1303,71 @@ impl ASTLowerer {
             __new__,
             hir_methods,
         ))
+    }
+
+    fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {
+        log!(info "entered {}({class_def})", fn_name!());
+        let base_t = {
+            let base_t_expr =
+                enum_unwrap!(class_def.def.body.block.get(0).unwrap(), ast::Expr::Call)
+                    .args
+                    .get_left_or_key("Base")
+                    .unwrap();
+            let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
+            let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
+            self.ctx.instantiate_typespec(
+                &spec,
+                None,
+                &mut dummy_tv_cache,
+                RegistrationMode::Normal,
+                false,
+            )?
+        };
+        let mut hir_def = self.lower_def(class_def.def)?;
+        let base = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let mut hir_methods = hir::Block::empty();
+        for mut methods in class_def.methods_list.into_iter() {
+            let kind = ContextKind::PatchMethodDefs(base_t.clone());
+            self.ctx
+                .grow(hir_def.sig.ident().inspect(), kind, hir_def.sig.vis(), None);
+            for attr in methods.attrs.iter_mut() {
+                match attr {
+                    ast::ClassAttr::Def(def) => {
+                        if methods.vis.is(TokenKind::Dot) {
+                            def.sig.ident_mut().unwrap().dot = Some(Token::new(
+                                TokenKind::Dot,
+                                ".",
+                                def.sig.ln_begin().unwrap(),
+                                def.sig.col_begin().unwrap(),
+                            ));
+                        }
+                        self.ctx.preregister_def(def)?;
+                    }
+                    ast::ClassAttr::Decl(_decl) => {}
+                }
+            }
+            for attr in methods.attrs.into_iter() {
+                match attr {
+                    ast::ClassAttr::Def(def) => match self.lower_def(def) {
+                        Ok(def) => {
+                            hir_methods.push(hir::Expr::Def(def));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
+                    ast::ClassAttr::Decl(decl) => {
+                        let decl = self.lower_type_asc(decl)?;
+                        hir_methods.push(hir::Expr::TypeAsc(decl));
+                    }
+                }
+            }
+            if let Err(mut errs) = self.ctx.check_decls() {
+                self.errs.append(&mut errs);
+            }
+            self.push_patch();
+        }
+        Ok(hir::PatchDef::new(hir_def.sig, base, hir_methods))
     }
 
     fn register_trait_impl(
@@ -1561,16 +1633,56 @@ impl ASTLowerer {
             .push((ClassDefType::Simple(class), methods));
     }
 
+    fn push_patch(&mut self) {
+        let methods = self.ctx.pop();
+        let ContextKind::PatchMethodDefs(base) = &methods.kind else { unreachable!() };
+        let patch_name = *methods.name.split_with(&["::", "."]).last().unwrap();
+        let patch_root = self
+            .ctx
+            .patches
+            .get_mut(patch_name)
+            .unwrap_or_else(|| todo!("{} not found", methods.name));
+        for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
+            for (_, already_defined_methods) in patch_root.methods_list.iter_mut() {
+                // TODO: 特殊化なら同じ名前でもOK
+                // TODO: 定義のメソッドもエラー表示
+                if let Some((_already_defined_name, already_defined_vi)) =
+                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                {
+                    if already_defined_vi.kind != VarKind::Auto
+                        && already_defined_vi.impl_of == vi.impl_of
+                    {
+                        self.errs.push(LowerError::duplicate_definition_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            newly_defined_name.loc(),
+                            methods.caused_by(),
+                            newly_defined_name.inspect(),
+                        ));
+                    } else {
+                        already_defined_methods
+                            .locals
+                            .remove(&newly_defined_name.inspect()[..]);
+                    }
+                }
+            }
+        }
+        patch_root
+            .methods_list
+            .push((ClassDefType::Simple(base.clone()), methods));
+    }
+
     #[allow(clippy::only_used_in_recursion)]
-    fn get_require_or_sup(&self, expr: hir::Expr) -> hir::Expr {
+    fn get_require_or_sup_or_base(&self, expr: hir::Expr) -> hir::Expr {
         match expr {
             acc @ hir::Expr::Accessor(_) => acc,
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
                 Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
                 Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
                 Some("Inheritable") => {
-                    self.get_require_or_sup(call.args.remove_left_or_key("Class").unwrap())
+                    self.get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
                 }
+                Some("Patch") => call.args.remove_left_or_key("Base").unwrap(),
                 _ => todo!(),
             },
             other => todo!("{other}"),
@@ -1637,6 +1749,7 @@ impl ASTLowerer {
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
+            ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             other => todo!("{other}"),
         }

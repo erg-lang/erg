@@ -442,8 +442,12 @@ impl Identifier {
     }
 
     /// show dot + name (no qual_name & type)
-    pub fn show(&self) -> String {
-        format!("{}{}", fmt_option!(self.dot), self.name)
+    pub fn to_string_without_type(&self) -> String {
+        if self.dot.is_some() {
+            format!(".{}", self.name)
+        } else {
+            format!("::{}", self.name)
+        }
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -1410,7 +1414,7 @@ impl NestedDisplay for SubrSignature {
         write!(
             f,
             "{}{} (: {})",
-            self.ident.show(),
+            self.ident.to_string_without_type(),
             self.params,
             self.ident.t()
         )
@@ -1782,6 +1786,54 @@ impl ClassDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PatchDef {
+    pub sig: Signature,
+    pub base: Box<Expr>,
+    pub methods: Block,
+}
+
+impl NestedDisplay for PatchDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "{} = Patch ", self.sig)?;
+        self.base.fmt_nest(f, level)?;
+        writeln!(f, ":")?;
+        self.methods.fmt_nest(f, level + 1)
+    }
+}
+
+impl_display_from_nested!(PatchDef);
+impl_locational!(PatchDef, sig);
+
+impl HasType for PatchDef {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::NONE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        None
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        None
+    }
+}
+
+impl PatchDef {
+    pub fn new(sig: Signature, base: Expr, methods: Block) -> Self {
+        Self {
+            sig,
+            base: Box::new(base),
+            methods,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttrDef {
     pub attr: Accessor,
     pub block: Block,
@@ -1881,6 +1933,7 @@ pub enum Expr {
     Lambda(Lambda),
     Def(Def),
     ClassDef(ClassDef),
+    PatchDef(PatchDef),
     AttrDef(AttrDef),
     TypeAsc(TypeAscription),
     Code(Block),     // code object
@@ -1888,10 +1941,10 @@ pub enum Expr {
     Import(Accessor),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
 
 impl Default for Expr {
     fn default() -> Self {

@@ -40,7 +40,7 @@ use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
-    Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Lambda, Literal, Params, PatchDef, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
 use crate::ty::value::ValueObj;
@@ -48,11 +48,16 @@ use crate::ty::{HasType, Type, TypeCode, TypePair};
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 
-fn fake_method_to_func(class: &str, name: &str) -> Option<&'static str> {
-    match (class, name) {
-        (_, "abs") => Some("abs"),
-        (_, "iter") => Some("iter"),
-        (_, "map") => Some("map"),
+/// patch method -> function
+/// patch attr -> variable
+fn debind(name: Option<&str>) -> Option<Str> {
+    match name {
+        Some(name) if name.starts_with("Function::") => {
+            Some(Str::from(name.replace("Function::", "")))
+        }
+        Some(patch_method) if patch_method.contains("::") || patch_method.contains('.') => {
+            Some(Str::rc(patch_method))
+        }
         _ => None,
     }
 }
@@ -873,8 +878,14 @@ impl PyCodeGenerator {
                 if is_record {
                     a.ident.dot = Some(DOT);
                 }
-                self.emit_expr(*a.obj);
-                self.emit_load_attr_instr(a.ident);
+                if let Some(varname) = debind(a.ident.vi.py_name.as_ref().map(|s| &s[..])) {
+                    a.ident.dot = None;
+                    a.ident.name = VarName::from_str(varname);
+                    self.emit_load_name_instr(a.ident);
+                } else {
+                    self.emit_expr(*a.obj);
+                    self.emit_load_attr_instr(a.ident);
+                }
             }
         }
     }
@@ -1133,6 +1144,27 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
         self.stack_dec();
+    }
+
+    fn emit_patch_def(&mut self, patch_def: PatchDef) {
+        log!(info "entered {} ({})", fn_name!(), patch_def.sig);
+        for def in patch_def.methods {
+            // Invert.
+            //     invert self = ...
+            // ↓
+            // def Invert::invert(self): ...
+            let Expr::Def(mut def) = def else { todo!() };
+            let namespace = self.cur_block_codeobj().name.trim_start_matches("::");
+            let name = format!(
+                "{}{}{}",
+                namespace,
+                patch_def.sig.ident().to_string_without_type(),
+                def.sig.ident().to_string_without_type()
+            );
+            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
+            def.sig.ident_mut().dot = None;
+            self.emit_def(def);
+        }
     }
 
     // NOTE: use `TypeVar`, `Generic` in `typing` module
@@ -1986,14 +2018,13 @@ impl PyCodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
         if &method_name.inspect()[..] == "update!" {
             if self.py_version.minor >= Some(11) {
                 return self.emit_call_update_311(obj, args);
             } else {
                 return self.emit_call_update_310(obj, args);
             }
-        } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
+        } else if let Some(func_name) = debind(method_name.vi.py_name.as_ref().map(|s| &s[..])) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_py_api = obj.is_py_api();
@@ -2114,13 +2145,13 @@ impl PyCodeGenerator {
     fn emit_call_fake_method(
         &mut self,
         obj: Expr,
-        func_name: &'static str,
+        func_name: Str,
         mut method_name: Identifier,
         mut args: Args,
     ) {
         log!(info "entered {}", fn_name!());
         method_name.dot = None;
-        method_name.vi.py_name = Some(Str::ever(func_name));
+        method_name.vi.py_name = Some(func_name);
         self.emit_push_null();
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
@@ -2314,6 +2345,7 @@ impl PyCodeGenerator {
             Expr::Accessor(acc) => self.emit_acc(acc),
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
+            Expr::PatchDef(patch) => self.emit_patch_def(patch),
             Expr::AttrDef(attr) => self.emit_attr_def(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),

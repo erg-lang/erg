@@ -246,7 +246,12 @@ impl Context {
                 _ => unreachable!(),
             }
         } else {
-            todo!()
+            Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                call.loc(),
+                self.caused_by(),
+            )))
         }
     }
 
@@ -311,12 +316,15 @@ impl Context {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
+                Ok(ValueObj::Array(RcArray::from(elems)))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                arr.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Array(RcArray::from(elems)))
     }
 
     fn eval_const_set(&self, set: &AstSet) -> EvalResult<ValueObj> {
@@ -327,12 +335,15 @@ impl Context {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
+                Ok(ValueObj::Set(Set::from(elems)))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                set.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Set(Set::from(elems)))
     }
 
     fn eval_const_dict(&self, dict: &AstDict) -> EvalResult<ValueObj> {
@@ -344,12 +355,15 @@ impl Context {
                     let value = self.eval_const_expr(&elem.value)?;
                     elems.insert(key, value);
                 }
+                Ok(ValueObj::Dict(elems))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                dict.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Dict(elems))
     }
 
     fn eval_const_tuple(&self, tuple: &Tuple) -> EvalResult<ValueObj> {

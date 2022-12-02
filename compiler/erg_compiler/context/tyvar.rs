@@ -358,6 +358,7 @@ impl Context {
                             Variance::Covariant => Ok(sub_t),
                             Variance::Contravariant => Ok(super_t),
                             Variance::Invariant => {
+                                // need to check if sub_t == super_t
                                 if self.supertype_of(&sub_t, &super_t) {
                                     Ok(sub_t)
                                 } else {
@@ -768,6 +769,12 @@ impl Context {
             }
             hir::Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {
+                    self.resolve_expr_t(def)?;
+                }
+                Ok(())
+            }
+            hir::Expr::PatchDef(patch_def) => {
+                for def in patch_def.methods.iter_mut() {
                     self.resolve_expr_t(def)?;
                 }
                 Ok(())

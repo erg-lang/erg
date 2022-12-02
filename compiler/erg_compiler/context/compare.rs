@@ -245,8 +245,20 @@ impl Context {
         self.nominal_supertype_of(rhs, lhs)
     }
 
-    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
-        for patch in self._all_patches().into_iter() {
+    pub(crate) fn find_patches_of<'a>(
+        &'a self,
+        typ: &'a Type,
+    ) -> impl Iterator<Item = &'a Context> {
+        self.all_patches().into_iter().filter(|ctx| {
+            if let ContextKind::Patch(base) = &ctx.kind {
+                return self.supertype_of(base, typ);
+            }
+            false
+        })
+    }
+
+    fn _find_compatible_glue_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
+        for patch in self.all_patches().into_iter() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if self.subtype_of(sub, &tr_inst.sub_type)
                     && self.subtype_of(&tr_inst.sup_trait, sup)

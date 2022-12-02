@@ -491,7 +491,7 @@ impl Context {
         iterable.register_superclass(poly("Output", vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q("Self", subtypeof(poly("Iterable", vec![ty_tp(T.clone())])));
         let t = fn0_met(Slf.clone(), proj(Slf, "Iter")).quantify();
-        iterable.register_builtin_decl("iter", t, Public);
+        iterable.register_builtin_py_decl("iter", t, Public, Some("__iter__"));
         iterable.register_builtin_decl("Iter", Type, Public);
         let R = mono_q("R", instanceof(Type));
         let params = vec![PS::t("R", WithDefault)];
@@ -772,7 +772,7 @@ impl Context {
         int.register_marker_trait(mono("Num"));
         // class("Rational"),
         // class("Integral"),
-        int.register_builtin_impl("abs", fn0_met(Int, Nat), Immutable, Public);
+        int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
         let mut int_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         int_ord.register_builtin_impl(
             "__partial_cmp__",
@@ -927,6 +927,20 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_impl(
+            "lower",
+            fn_met(Str, vec![], None, vec![], Str),
+            Immutable,
+            Public,
+        );
+        str_.register_builtin_impl(
+            "upper",
+            fn_met(Str, vec![], None, vec![], Str),
+            Immutable,
+            Public,
+        );
+        let str_getitem_t = fn1_kw_met(Str, kw("idx", Nat), Str);
+        str_.register_builtin_impl("__getitem__", str_getitem_t, Immutable, Public);
         let mut str_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, str_eq);
@@ -949,11 +963,12 @@ impl Context {
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
         str_.register_trait(Str, str_show);
         let mut str_iterable = Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(Str)])), 2);
-        str_iterable.register_builtin_impl(
+        str_iterable.register_builtin_py_impl(
             "iter",
             fn0_met(Str, mono("StrIterator")),
             Immutable,
             Public,
+            Some("__iter__"),
         );
         str_.register_trait(Str, str_iterable);
         /* NoneType */
@@ -1149,12 +1164,12 @@ impl Context {
         array_.register_trait(arr_t.clone(), array_show);
         let mut array_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
-        array_iterable.register_builtin_impl(
-            "iter",
-            fn0_met(Str, mono("ArrayIterator")),
-            Immutable,
-            Public,
-        );
+        let t = fn0_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            poly("ArrayIterator", vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        array_iterable.register_builtin_py_impl("iter", t, Immutable, Public, Some("__iter__"));
         array_.register_trait(arr_t.clone(), array_iterable);
         /* Set */
         let mut set_ =
@@ -1278,8 +1293,10 @@ impl Context {
         str_iterator.register_superclass(Obj, &obj);
         let mut array_iterator = Self::builtin_poly_class("ArrayIterator", vec![PS::t_nd("T")], 1);
         array_iterator.register_superclass(Obj, &obj);
+        array_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
+        range_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1526,11 +1543,12 @@ impl Context {
         range.register_trait(range_t.clone(), range_eq);
         let mut range_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
-        range_iterable.register_builtin_impl(
+        range_iterable.register_builtin_py_impl(
             "iter",
             fn0_met(Str, mono("RangeIterator")),
             Immutable,
             Public,
+            Some("__iter__"),
         );
         range.register_trait(range_t.clone(), range_iterable);
         let range_getitem_t = fn1_kw_met(range_t.clone(), anon(T.clone()), T.clone()).quantify();
@@ -1897,6 +1915,14 @@ impl Context {
         // TODO: register Del function object
         let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
         self.register_builtin_impl("Del", t_del, Immutable, Private);
+        let patch_t = func(
+            vec![kw("Requirement", Type)],
+            None,
+            vec![kw("Impl", Type)],
+            TraitType,
+        );
+        let patch = ConstSubr::Builtin(BuiltinConstSubr::new("Patch", patch_func, patch_t, None));
+        self.register_builtin_const("Patch", Private, ValueObj::Subr(patch));
     }
 
     fn init_builtin_procs(&mut self) {

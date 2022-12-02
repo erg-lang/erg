@@ -131,6 +131,23 @@ impl UnionTypeObj {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PatchObj {
+    pub t: Type,
+    pub base: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+}
+
+impl PatchObj {
+    pub fn new(t: Type, base: TypeObj, impls: Option<TypeObj>) -> Self {
+        Self {
+            t,
+            base: Box::new(base),
+            impls: impls.map(Box::new),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum GenTypeObj {
     Class(ClassTypeObj),
     Subclass(InheritedTypeObj),
@@ -138,6 +155,7 @@ pub enum GenTypeObj {
     Subtrait(SubsumedTypeObj),
     StructuralTrait(TraitTypeObj),
     Union(UnionTypeObj),
+    Patch(PatchObj),
 }
 
 impl fmt::Display for GenTypeObj {
@@ -164,6 +182,10 @@ impl GenTypeObj {
         GenTypeObj::Trait(TraitTypeObj::new(t, require, impls))
     }
 
+    pub fn patch(t: Type, base: TypeObj, impls: Option<TypeObj>) -> Self {
+        GenTypeObj::Patch(PatchObj::new(t, base, impls))
+    }
+
     pub fn subsumed(
         t: Type,
         sup: TypeObj,
@@ -184,6 +206,7 @@ impl GenTypeObj {
             Self::Trait(trait_) => Some(trait_.require.as_ref()),
             Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),
             Self::StructuralTrait(trait_) => Some(trait_.require.as_ref()),
+            Self::Patch(patch) => Some(patch.base.as_ref()),
             _ => None,
         }
     }
@@ -193,6 +216,7 @@ impl GenTypeObj {
             Self::Class(class) => class.impls.as_ref().map(|x| x.as_ref()),
             Self::Subclass(subclass) => subclass.impls.as_ref().map(|x| x.as_ref()),
             Self::Subtrait(subtrait) => subtrait.impls.as_ref().map(|x| x.as_ref()),
+            Self::Patch(patch) => patch.impls.as_ref().map(|x| x.as_ref()),
             _ => None,
         }
     }
@@ -202,6 +226,7 @@ impl GenTypeObj {
             Self::Class(class) => Some(&mut class.impls),
             Self::Subclass(subclass) => Some(&mut subclass.impls),
             Self::Subtrait(subtrait) => Some(&mut subtrait.impls),
+            Self::Patch(patch) => Some(&mut patch.impls),
             _ => None,
         }
     }
@@ -218,6 +243,7 @@ impl GenTypeObj {
         match self {
             Self::Class(_) | Self::Subclass(_) => Type::ClassType,
             Self::Trait(_) | Self::Subtrait(_) | Self::StructuralTrait(_) => Type::TraitType,
+            Self::Patch(_) => Type::Patch,
             _ => Type::Type,
         }
     }
@@ -230,6 +256,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &subtrait.t,
             Self::StructuralTrait(trait_) => &trait_.t,
             Self::Union(union_) => &union_.t,
+            Self::Patch(patch) => &patch.t,
         }
     }
 
@@ -241,6 +268,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &mut subtrait.t,
             Self::StructuralTrait(trait_) => &mut trait_.t,
             Self::Union(union_) => &mut union_.t,
+            Self::Patch(patch) => &mut patch.t,
         }
     }
 
@@ -252,6 +280,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => subtrait.t,
             Self::StructuralTrait(trait_) => trait_.t,
             Self::Union(union_) => union_.t,
+            Self::Patch(patch) => patch.t,
         }
     }
 }

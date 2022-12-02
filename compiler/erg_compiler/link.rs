@@ -139,6 +139,11 @@ impl<'a> Linker<'a> {
                     self.resolve_pymod_path(def);
                 }
             }
+            Expr::PatchDef(patch_def) => {
+                for def in patch_def.methods.iter_mut() {
+                    self.resolve_pymod_path(def);
+                }
+            }
             Expr::AttrDef(attr_def) => {
                 // REVIEW:
                 for chunk in attr_def.block.iter_mut() {
@@ -252,6 +257,11 @@ impl<'a> Linker<'a> {
             }
             Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {
+                    self.replace_import(def);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                for def in patch_def.methods.iter_mut() {
                     self.replace_import(def);
                 }
             }
