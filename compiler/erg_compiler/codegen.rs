@@ -23,9 +23,7 @@ use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
     switch_unreachable,
 };
-use erg_parser::ast::ConstExpr;
-use erg_parser::ast::DefId;
-use erg_parser::ast::DefKind;
+use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
 
 use erg_parser::ast::PreDeclTypeSpec;
@@ -36,7 +34,6 @@ use erg_parser::token::EQUAL;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
-use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
@@ -1773,16 +1770,7 @@ impl PyCodeGenerator {
         #[allow(clippy::single_match)]
         match t_spec {
             TypeSpec::Enum(enum_t) => {
-                let elems = enum_t
-                    .deconstruct()
-                    .0
-                    .into_iter()
-                    .map(|elem| {
-                        let ConstExpr::Lit(lit) = elem.expr else { todo!() };
-                        let t = type_from_token_kind(lit.token.kind);
-                        ValueObj::from_str(t, lit.token.content).unwrap()
-                    })
-                    .collect::<Vec<_>>();
+                let elems = ValueObj::vec_from_const_args(enum_t);
                 self.emit_load_const(elems);
                 self.write_instr(CONTAINS_OP);
                 self.write_arg(0);
@@ -2280,7 +2268,7 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
-    fn get_root(acc: &Accessor) -> Identifier {
+    pub(crate) fn get_root(acc: &Accessor) -> Identifier {
         match acc {
             Accessor::Ident(ident) => ident.clone(),
             Accessor::Attr(attr) => {
