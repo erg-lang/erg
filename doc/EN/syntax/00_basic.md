@@ -81,7 +81,7 @@ The code after `#` is ignored as a comment. Use this to explain the intent of th
 # `#` and after are ignored until a new line is inserted
 #[
 Multi-line comment
-Treated as a comment all the way up to the corresponding `]#`
+Everything from `#[` to `]#` is a comment.
 ]#
 ```
 
