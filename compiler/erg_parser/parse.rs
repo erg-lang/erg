@@ -935,10 +935,19 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self.convert_rhs_to_sig(lhs).map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        // precedence: `=` < `,`
+                        let expr = self
+                            .try_reduce_expr(true, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     let body = DefBody::new(op, block, self.counter);
                     self.level -= 1;
                     return Ok(Expr::Def(Def::new(sig, body)));
@@ -954,6 +963,7 @@ impl Parser {
                     let block = if is_multiline_block {
                         self.try_reduce_block().map_err(|_| self.stack_dec())?
                     } else {
+                        // precedence: `->` > `,`
                         let expr = self
                             .try_reduce_expr(false, false, false, false)
                             .map_err(|_| self.stack_dec())?;
