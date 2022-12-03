@@ -66,8 +66,7 @@ impl Desugarer {
         let kw_args = kw_args
             .into_iter()
             .map(|arg| {
-                let expr = desugar(arg.expr);
-                KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+                KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
         Args::new(pos_args, kw_args, paren)
