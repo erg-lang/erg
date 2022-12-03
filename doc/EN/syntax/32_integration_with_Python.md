@@ -15,7 +15,7 @@ private = "this is a private variable"
 erg --compile foo.er
 ```
 
-```python
+```python,checker_ignore
 import foo
 
 print(foo.public)

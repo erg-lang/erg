@@ -21,9 +21,12 @@ n: Nat = 1
 
 Note that, unlike other languages, multiple assignments are not allowed.
 
-```python
+```python,compile_fail
 # NG
 l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
+```
+
+```python
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
@@ -51,7 +54,7 @@ assert x == 0
 
 The following may seem possible at first glance, but it is still not possible. This is a design decision, not a technical constraint.
 
-```python
+```python,compile_fail
 x = 0
 if x.is_zero(), do:
     x = x + 1 # NameError: cannot define variables refer to variables with the same name
@@ -64,7 +67,7 @@ assert x == 0
 Constants are also a type of algebra. If you start an identifier with a capital letter, it is treated as a constant. They are called constants because once defined, they do not change.
 The `N` part is called the constant name (or identifier). Otherwise, it is the same as a variable.
 
-```python
+```python,compile_fail
 N = 0
 if True, do:
     N = 1 # AssignError: constants cannot be shadowed
@@ -95,8 +98,11 @@ The above code prints `π` when `x` is `3.141592653589793`. If `x` is changed to
 Some objects cannot be bound as constants. Mutable objects, for example. Mutable objects are objects whose states can be changed, as described in detail later.
 This is because of the rule that only constant expressions can be assigned to constants. Constant expressions are also discussed later.
 
-```python
+```python,compile_fail
 X = 1 # OK
+```
+
+```python
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
@@ -104,7 +110,7 @@ X = !1 # TypeError: cannot define Int! object as a constant
 
 You can delete an variable by using the `Del` function. All other variables that depend on the variable (that is, that refer directly to the value of the variable) are also removed.
 
-```python
+```python,checker_ignore
 x = 1
 y = 2
 Z = 3
@@ -130,8 +136,8 @@ Note that `x == a` is not necessarily true when `x = a`. An example is `Float.Na
 
 ```python
 x = Float.NaN
-assert x ! = NaN
-assert x ! = x
+assert x != NaN
+assert x != x
 ```
 
 There are other objects for which no equivalence relation is defined in the first place.

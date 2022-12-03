@@ -12,7 +12,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 foo = {.i = 1}
 ```
 
-```python: bar.er
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -96,7 +96,7 @@ print! foo.f 1
 However, variables created by procedure calls cannot be defined in circular reference modules.
 This is because Erg rearranges the order of definitions according to dependencies.
 
-```python
+```python,compile_fail
 # foo.er
 bar = import "bar"
 
