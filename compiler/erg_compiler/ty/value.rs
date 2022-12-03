@@ -23,6 +23,8 @@ use erg_parser::ast::{ConstArgs, ConstExpr};
 
 use crate::context::eval::type_from_token_kind;
 
+use self::value_set::inner_class;
+
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
 use super::typaram::TyParam;
@@ -753,9 +755,12 @@ impl ValueObj {
             Self::Float(_) => Type::Float,
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
-            // TODO: Zero
             Self::Array(arr) => array_t(
-                arr.iter().next().unwrap().class(),
+                // REVIEW: Never?
+                arr.iter()
+                    .next()
+                    .map(|elem| elem.class())
+                    .unwrap_or(Type::Never),
                 TyParam::value(arr.len()),
             ),
             Self::Dict(dict) => {
@@ -765,7 +770,7 @@ impl ValueObj {
                 dict_t(TyParam::Dict(tp.collect()))
             }
             Self::Tuple(tup) => tuple_t(tup.iter().map(|v| v.class()).collect()),
-            Self::Set(st) => set_t(st.iter().next().unwrap().class(), TyParam::value(st.len())),
+            Self::Set(st) => set_t(inner_class(st), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
@@ -1177,7 +1182,10 @@ pub mod value_set {
     }
 
     pub fn inner_class(set: &Set<ValueObj>) -> Type {
-        set.iter().next().unwrap().class()
+        set.iter()
+            .next()
+            .map(|elem| elem.class())
+            .unwrap_or(Type::Never)
     }
 
     pub fn max(set: &Set<ValueObj>) -> Option<ValueObj> {
