@@ -1,0 +1,5 @@
+f x: [Str; _] = None
+
+arr = ["aaa"]
+for! arr, elem =>
+    f ["", elem]
