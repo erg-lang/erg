@@ -1984,7 +1984,7 @@ impl PyCodeGenerator {
         } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
-        let is_py_api = obj.is_py_api();
+        let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
         self.emit_args_311(args, Method, is_py_api);
