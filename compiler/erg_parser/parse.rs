@@ -945,12 +945,20 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        let expr = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
                         sig,
                         op,
@@ -1206,12 +1214,20 @@ impl Parser {
             match self.peek() {
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        let expr = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
                         sig,
                         op,
