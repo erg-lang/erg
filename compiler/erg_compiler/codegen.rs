@@ -47,8 +47,8 @@ use AccessKind::*;
 
 /// patch method -> function
 /// patch attr -> variable
-fn debind(name: Option<&str>) -> Option<Str> {
-    match name {
+fn debind(ident: &Identifier) -> Option<Str> {
+    match ident.vi.py_name.as_ref().map(|s| &s[..]) {
         Some(name) if name.starts_with("Function::") => {
             Some(Str::from(name.replace("Function::", "")))
         }
@@ -875,7 +875,7 @@ impl PyCodeGenerator {
                 if is_record {
                     a.ident.dot = Some(DOT);
                 }
-                if let Some(varname) = debind(a.ident.vi.py_name.as_ref().map(|s| &s[..])) {
+                if let Some(varname) = debind(&a.ident) {
                     a.ident.dot = None;
                     a.ident.name = VarName::from_str(varname);
                     self.emit_load_name_instr(a.ident);
@@ -2012,7 +2012,7 @@ impl PyCodeGenerator {
             } else {
                 return self.emit_call_update_310(obj, args);
             }
-        } else if let Some(func_name) = debind(method_name.vi.py_name.as_ref().map(|s| &s[..])) {
+        } else if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_py_api = obj.is_py_api();
