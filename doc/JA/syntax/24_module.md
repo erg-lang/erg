@@ -22,9 +22,11 @@ assert foo.i == 1
 ```
 
 モジュール型はレコード型でもあるので、分解代入が可能です。
+モジュールの場合は最後の`...`を省略できます。
 
 ```python
-{sin; cos; ...} = import "math"
+# same as {sin; cos; ...} = import "math"
+{sin; cos} = import "math"
 ```
 
 ## モジュールの可視性

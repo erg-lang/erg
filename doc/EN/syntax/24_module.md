@@ -20,9 +20,11 @@ assert foo.i == 1
 ```
 
 Since module types are also record types, deconstruction assignment is possible.
+For modules, you can omit the trailing `...`.
 
 ```python
-{sin; cos; ...} = import "math"
+# same as {sin; cos; ...} = import "math"
+{sin; cos} = import "math"
 ```
 
 ## Module Visibility
